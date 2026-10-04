@@ -53,6 +53,9 @@ ALLOWED = {
         ("standard", "essays: her own model last in the same deliberate chain"),
     ("job_fit", "judge", "work_json_with_provider"):
         ("standard", "job hunt chain with a stricter local prompt; local-only verdicts wait for his OK"),
+    ("job_angle", "find", "work_json_with_provider"):
+        ("standard", "job hunt chain (his 2026-09-13 ruling); every pair is a verbatim quote checked in code, "
+                     "whoever answered, and no answer is a plain application"),
     ("pursuit", "_gateway_think.think", "codex_json"):
         ("standard", "the pursuit is the job hunt: gateway first, then the same Codex rung while Claude rests, "
                      "then her own model only with memory for it"),

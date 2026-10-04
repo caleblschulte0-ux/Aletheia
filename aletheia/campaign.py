@@ -73,7 +73,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urljoin
 
-from aletheia import (applications, apply_run, browse, doctext, formfill, job_fit,
+from aletheia import (applications, apply_run, browse, doctext, formfill, job_angle, job_fit,
                       job_value, journal, jobs, policy, proc, profile, speech, stateio,
                       workspace)
 
@@ -701,6 +701,9 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
         "job": record.get("job_title") or record.get("url"),
         "found_this_job_on": record.get("found_on") or "",
         "facts": facts,
+        # What makes him the candidate for this job, where a model found it
+        # (`job_angle`): a "why this role" box in a few words leads with it.
+        "the_case_for_him": job_angle.words(record.get("angle")) or "(none found)",
         # Bounded, never cut blindly: his school and "Other - School Not
         # Listed" survive a 3,302-entry university list.
         "questions": [{"selector": s, "label": q.get("label"),
@@ -1085,13 +1088,15 @@ def _careers_page_openings(hits: dict, roles: list[str], want: int, *,
 def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         finder=None, reader=None, opener=None, stager=None, writer=None,
         json_think=None, searcher=None, draft_essays_too: bool = True,
-        fit_think=None, describer=None,
+        fit_think=None, describer=None, angle_think=None,
         careers_reader=None, careers_http=None) -> dict:
     """Make `count` applications ready with `resume`. Stages them all; sends nothing.
 
     `fit_think` judges whether each job is realistic (False: rules only);
-    `describer(page)` returns a posting's text. Both default to the real
-    thing only on a real board search, never under a test's own finder.
+    `describer(page)` returns a posting's text; `angle_think` finds what
+    makes him the candidate for each job (`job_angle`; False: none, and the
+    application is plain). All default to the real thing only on a real
+    board search, never under a test's own finder.
     """
     policy.ensure_not_halted()
     role = " ".join(str(role or "").split())
@@ -1204,6 +1209,8 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     real_search = finder is None and searcher is None
     judge_with = (fit_think if fit_think is not None
                   else (None if real_search and json_think is None else False))
+    angle_with = (angle_think if angle_think is not None
+                  else (None if real_search and json_think is None else False))
     describe = describer or (jobs.posting_text if real_search else None)
     known_now = profile.known()
     early = bool(_seniority_to_leave_out(known_now))
@@ -1242,6 +1249,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     except Exception:
         refusing = {}
     unreachable = _unreachable_read()
+    angled = 0
     for page in pages:
         # READY is what he asked for. A form still waiting on him is kept
         # and reported, and does not count toward the number.
@@ -1304,7 +1312,15 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         if think is False and judge_with is not False:
             later.append({"url": page["url"], "title": title})
             continue
-        fit = job_fit.verdict(page, text, known_now, think=think, describe=describe,
+        # The posting is read ONCE: the fit judge and the angle both read it.
+        posting_text = ""
+        if describe is not None:
+            try:
+                posting_text = str(describe(page) or "")
+            except Exception:
+                posting_text = ""
+        fit = job_fit.verdict(page, text, known_now, think=think,
+                              describe=(lambda _job, held=posting_text: held) if describe is not None else None,
                               early=early)
         if think is not False:
             judged += 1
@@ -1318,6 +1334,24 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
             passed_over.append({"url": page["url"], "title": title,
                                 "why": closed.get("closed_because") or "closed as not realistic"})
             continue
+        # THE ANGLE. Realistic is a floor, not a reason: before a form is opened
+        # a model reads the posting beside his resume and says what makes HIM
+        # the candidate for THIS job - verbatim pairs of what they ask and what
+        # he has - and how good a shot it is. It travels onto the record, into
+        # every essay and letter, and into the opportunity's evidence. Bounded
+        # like the fit judge; with nobody to think it is None and the
+        # application is plain, never withheld.
+        angle = None
+        if angle_with is not False and angled < count * 2:
+            angle = job_angle.find(job_fit.bare_title(title, page.get("company", "")),
+                                   page.get("company", ""),
+                                   posting_text or str(page.get("description") or ""), text,
+                                   think=angle_with, known=known_now)
+            angled += 1
+            weak = job_angle.weak_shot(angle)
+            if weak:
+                passed_over.append({"url": page["url"], "title": title, "why": f"a weak shot: {weak}"})
+                continue
         # WHICH ENGINE. The general browser loop only when he switched it on
         # (`apply_run engine on`) AND the site has no specialised adapter;
         # otherwise exactly the path below, unchanged.
@@ -1377,6 +1411,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                 failed.append({"url": form_url, "why": f"{type(exc).__name__}: {exc}"[:160]})
                 continue
         record = _keep_the_job(record, page, fit=fit, employment=fit.get("employment", ""),
+                               angle=angle,
                                value=page.get("value"), queue=page.get("queue"),
                                why_she_liked_it=page.get("why_she_liked_it"),
                                why_not=page.get("why_not"))
@@ -1482,8 +1517,17 @@ ESSAY_BRIEF = (
     "Reply with exactly CANNOT WRITE and nothing else ONLY when the question asks "
     "him to state a specific figure, date or name that is nowhere below (the "
     "dollar value of a deal he closed, a quota he hit, a named reference) — a "
-    "made-up figure on a job application is worse than a blank one.\n\n"
-    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\n"
+    "made-up figure on a job application is worse than a blank one.\n"
+    # 2026-10-03: "the quality of the application ... what maximizes the
+    # chance of me getting this job." Every essay used to be written from the
+    # resume alone, with no idea what THIS employer was looking for. The angle
+    # (`job_angle`) is the verbatim pairs of what they ask and what he has.
+    "THE CASE FOR HIM FOR THIS JOB is given below: each line pairs what the "
+    "posting asks for with what his resume shows, both verbatim. Where the "
+    "question lets you, lead with those matches, in his words - they are the "
+    "strongest honest things he can say to this employer. Never claim beyond "
+    "them.\n\n"
+    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\nTHE CASE FOR HIM: {angle}\n\n"
     "THE QUESTION: {question}")
 
 #: What the essay writer may say about him beyond the resume: his own answers,
@@ -1501,6 +1545,32 @@ def _essay_facts() -> str:
     return said or "(none)"
 
 MAX_DRAFTS_PER_JOB = 4
+
+#: A "cover letter" box is not an essay question: two to four sentences in
+#: it reads as not bothering. Live until 2026-10-02 every textarea got the
+#: essay brief, cover-letter boxes included.
+_COVER_LETTER = re.compile(r"cover\s*letter|letter of (?:interest|motivation)|why (?:should we hire|you'?re a (?:good )?fit)",
+                           re.I)
+COVER_LETTER_BRIEF = (
+    "Write a short cover letter for this job application, in the applicant's own voice, "
+    "using ONLY what his resume below actually says and HIS FACTS below. 150 to 220 words, "
+    "three short paragraphs: why this role and this company (say plainly what the company "
+    "does and connect it to real work on his resume), the two or three most relevant things "
+    "he actually did (name real employers, products and results from the resume), and a plain "
+    "close. No greeting line with a name you do not have - 'Hello,' is fine. No filler, no "
+    "'I am passionate about', no claims of a language, certification, tool or figure the resume "
+    "does not show. NEVER write that he has no experience in something; say what he does bring "
+    "instead. Reply with the letter only, no subject line, no notes.\n"
+    "THE CASE FOR HIM FOR THIS JOB is given below: each line pairs what the "
+    "posting asks for with what his resume shows, both verbatim. The letter is "
+    "BUILT on those pairs - say what they want and show, from the resume, that "
+    "he has done it - and addresses anything listed as not shown honestly, in "
+    "one clause, instead of pretending. Never claim beyond them.\n\n"
+    "HIS FACTS: {facts}\n\nTHE JOB: {job}\n\nTHE CASE FOR HIM: {angle}\n\n"
+    "THE BOX: {question}")
+
+#: What the writer is told when no angle was found: the resume alone.
+NO_ANGLE = "(none found; write from the resume alone)"
 
 
 def _any_model_writes(system_prompt: str, text: str, *,
@@ -1570,6 +1640,7 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
         return {}
     think = think or _any_model_writes
     facts = _essay_facts()
+    angle = job_angle.words(record.get("angle")) or NO_ANGLE
     drafted = {}
     for question in record.get("questions") or []:
         if len(drafted) >= MAX_DRAFTS_PER_JOB:
@@ -1582,8 +1653,9 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
             # wrote Palantir an essay for `h-captcha-response`, keyed to be typed
             # straight into it on the next stage.
             continue
-        prompt = ESSAY_BRIEF.format(job=record.get("job_title") or record["url"],
-                                    question=question["label"], facts=facts)
+        brief = COVER_LETTER_BRIEF if _COVER_LETTER.search(str(question.get("label") or "")) else ESSAY_BRIEF
+        prompt = brief.format(job=record.get("job_title") or record["url"],
+                              question=question["label"], facts=facts, angle=angle)
         try:
             said = think(prompt, resume_text[:8000], timeout_s=120.0)
             if isinstance(said, tuple):
@@ -1593,7 +1665,7 @@ def draft_essays(record: dict, resume_text: str, *, think=None) -> dict:
         body = str(said or "").strip()
         if not body or body.upper().startswith("CANNOT WRITE"):
             continue
-        drafted[question["selector"]] = body[:2000]
+        drafted[question["selector"]] = body[:2600]
     return drafted
 
 
@@ -1812,6 +1884,21 @@ def retry_waiting(*, resume: str = "", stager=None, json_think=None, writer=None
                 pass
             closed.append({"url": url, "why": unfit})
             continue
+        # A record staged before the angle existed is read for one now, so its
+        # essays are written for the job when the refill drafts them again.
+        if judge_with is not False and describe is not None and text and not record.get("angle"):
+            job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
+            try:
+                posting_text = str(describe(job) or "")
+            except Exception:
+                posting_text = ""
+            angle = job_angle.find(job_fit.bare_title(record.get("job_title", ""), record.get("company", "")),
+                                   record.get("company", ""), posting_text, text, known=known)
+            if angle:
+                try:
+                    record = apply_run.remember(record["id"], angle=angle)
+                except Exception:
+                    record = {**record, "angle": angle}
         used = record.get("resume") or resume_path
         found_on = record.get("found_on") or ""
         where = _where_found(stage, found_on)

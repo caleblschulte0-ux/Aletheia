@@ -291,8 +291,8 @@ class TheDoorsToTheWorldCase(PursuitCase):
         rec = self.opportunity()
         drafted = []
 
-        def fake_draft(to, subject, body, requested_via="voice"):
-            drafted.append((to, subject, body, requested_via))
+        def fake_draft(to, subject, body, requested_via="voice", **kw):
+            drafted.append((to, subject, body, requested_via, kw))
             return {"id": "mail-abc", "state": "PENDING"}
         proposal = {**NOTHING, "stop": {"done": False, "why": ""},
                     "effort": {"minutes": 5, "why": "worth a note"},
@@ -307,6 +307,9 @@ class TheDoorsToTheWorldCase(PursuitCase):
             out = pursuit.pass_once(rec["id"], think=scripted(proposal, NOTHING), now=NOW)
         self.assertEqual(drafted[0][0], "dana@example.com")
         self.assertEqual(drafted[0][3], "pursuit")
+        # It ASKS for his tap even while outward mail is on hold: the hold is
+        # on what she sends on her own, and a note he reads and taps is his.
+        self.assertTrue(drafted[0][4].get("asks_anyway"))
         self.assertFalse(sent.called)
         move = pursuit.load(rec["id"])["moves"][0]
         self.assertEqual(move["state"], "waiting for his yes")

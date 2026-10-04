@@ -284,54 +284,77 @@ _JUST_AN_ACKNOWLEDGEMENT = (
     "thanks for applying", "thank you for applying", "thank you for your application",
     "thanks for your interest", "thank you for your interest", "application received",
     "we have received your application", "received by", "security code",
-    "verify your email", "do not reply", "no longer under consideration",
-    "not moving forward", "unfortunately",
+    "verify your email", "do not reply",
+)
+
+#: A decline. Until 2026-10-02 these sat in the acknowledgement list, so a
+#: rejection was "recognised and let go" - and never written onto the
+#: application. Now it is recorded (`rejected`), the opportunity closes,
+#: and the funnel can say how many said no. He is still not alarmed.
+_DECLINES = (
+    "no longer under consideration", "not moving forward", "not be moving forward",
+    "unfortunately", "regret to inform", "decided to move forward with",
+    "other candidates", "not selected", "decided not to", "pursue other",
 )
 
 #: An employer asking for time, unmistakably. These BEAT an acknowledgement
-#: phrase, because "We received your application and would like to schedule
-#: an interview" contains both — and filing that as an acknowledgement would
-#: bury the one email he is waiting for. Missing a real interview request is
-#: far worse than one notice that turns out to be nothing.
+#: phrase: "We received your application and would like to schedule an
+#: interview" is both, and it is the email he is waiting for.
 _ASKS_FOR_TIME = (
     "interview", "schedule a", "scheduling a", "book a time", "find a time",
     "availability", "are you available", "are you free", "set up a call",
     "set up some time", "phone screen", "calendar invite", "pick a time",
-    "times that work", "when works",
+    "times that work", "when works", "a quick call", "a brief call", "hop on a call",
+    "grab some time", "chat this week", "connect this week", "your calendar",
 )
 
 #: Softer wording that only counts when nothing says acknowledgement.
 #: "Thanks for applying — we'll be in touch about next steps" is an
-#: acknowledgement wearing a scheduling word.
+#: acknowledgement; "Next steps for your application" alone is a reply.
 _MIGHT_WANT_TIME = (
     "next steps", "chat with", "speak with you", "meet with", "connect with you",
 )
 
+#: Words that make an email about a JOB even when nothing on the sent
+#: ledger is named in it: a recruiter, an agency, an employer he applied to
+#: by another door. Only such mail is read past its subject.
+_ABOUT_A_JOB = (
+    "interview", "your application", "position", "the role", "a role", "opportunity",
+    "recruit", "hiring", "candidate", "phone screen", "job", "opening", "resume",
+)
+
+#: A sender nobody can write back to. The notice still reaches him; a reply
+#: is not drafted into a mailbox that throws it away.
+_NOBODY_ANSWERS = re.compile(
+    r"^(?:no-?reply|do-?not-?reply|donotreply|notifications?|newsletter|digest|alerts?|"
+    r"mailer-daemon|postmaster|jobs?-?alerts?|jobalerts|messages-noreply)(?:[.+_-]|@)", re.I)
+
 
 def _job_reply(event: dict) -> dict | None:
-    """An employer wrote back about an application he actually sent.
+    """An employer wrote back about an application he actually sent - or
+    somebody wrote about a job at all.
 
     2026-09-13, his ask: *"we need to make sure that Aletheia is checking my
     email. And if it hears back, scheduling times for interviews, pending my
     approval, of course. and then putting that on my calendar and letting me
-    know what it is."*
+    know what it is."* And 2026-10-02: *"she's not watching my inbox,
+    scheduling me meetings ... Fix it."*
 
-    `mail.poll_events` already emits `mail.received` for every unread
-    message, and `_scheduling_reply` below already routes replies — but only
-    into a negotiation SHE started, matched by thread id. An employer
-    replying about a job belongs to no negotiation, so it fell through to
-    nothing.
+    Until 2026-10-02 the match was the SUBJECT against the sent ledger, by
+    employer name or role title, and nothing else: "Interview request",
+    "Next steps", "Re: your application" from the employer's own domain
+    matched nothing and did nothing, and a recruiter writing about a job he
+    had not applied to was not an employer's reply at all. So the match is
+    three things now, in order of cost: the subject; the sender's domain
+    against the employer's; and, for mail that is plainly about a job, the
+    body - read once by its Message-ID, read or unread. Mail about a job
+    that names nothing on the ledger still reaches him as "somebody wants
+    to talk" when it asks for time, and the interview path answers it.
 
-    The match is against the sent ledger, by employer name or role title in
-    the subject: 22 of the 25 messages in his inbox matched that way, and
-    the three that did not were his own notes to himself.
-
-    Two things this deliberately does NOT do. It does not act — no reply, no
-    booking, nothing leaves the machine; it raises a notice and stops, and
-    the scheduling that follows keeps its own approval. And it does not
-    treat the subject as anything but data: an employer's subject line is
-    untrusted text that may be shaped like an instruction, and nothing here
-    obeys it.
+    Nothing here obeys the mail: an employer's words are data that may be
+    shaped like an instruction, and the only things that come out of them
+    are a category, a company name and, through the deterministic parser,
+    the times they proposed.
     """
     if event.get("kind") != "mail.received":
         return None
@@ -345,43 +368,56 @@ def _job_reply(event: dict) -> dict | None:
             # replies are written onto the record now, that became an
             # outcome. What he sends himself is never an employer's reply.
             return None
-        ledger = apply_run.already_sent()
-        if not ledger:
-            return None
-        hit = None
-        for url, entry in ledger.items():
-            company = str(entry.get("company") or "").strip()
-            title = str(entry.get("job_title") or "").strip()
-            # The title carries the employer on the end; the role alone is
-            # what a subject like "Application for Inbound Sales Development
-            # Representative received by Team Flexport!" actually names.
-            role = re.split(r"\s+[—–-]\s+", title)[0].strip()
-            if _names_company(low, company):
-                hit = (url, entry); break
-            if len(role) > 10 and role.casefold() in low:
-                hit = (url, entry); break
+        sender = str((event.get("attributes") or {}).get("sender") or "").strip().casefold()
+        # A ledger that cannot be read is an error, not an empty ledger: with
+        # nothing to match against, every employer would read as a stranger.
+        ledger = apply_run.already_sent() or {}
+        hit = _match_ledger(low, sender, ledger)
+        asks = _any_of(low, _ASKS_FOR_TIME)
+        acknowledges = _any_of(low, _JUST_AN_ACKNOWLEDGEMENT)
+        declines = _any_of(low, _DECLINES)
+        might = _any_of(low, _MIGHT_WANT_TIME)
+        text = ""
+        fresh = ""
+        # THE SUBJECT ALONE OFTEN SAYS NOTHING. "Re: your application" from
+        # the employer, "Hello Caleb" from a recruiter: the body is read
+        # once when the mail could be about a job and the subject did not
+        # settle it.
+        if (hit is None and _any_of(low, _ABOUT_A_JOB)) or (hit is not None and not (asks or acknowledges or declines)):
+            text = _body_of(event, subject)
+            if text:
+                from aletheia import calendly, reply_understanding as ru
+                fresh = ru.fresh_text(text).casefold()[:4000]
+                if hit is None:
+                    hit = _match_ledger(fresh, sender, ledger, body=True)
+                asks = asks or _any_of(fresh, _ASKS_FOR_TIME) or bool(calendly.find_scheduling_links(text))
+                declines = declines or bool(ru._REJECT_TEXT.search(fresh))
+                might = might or _any_of(fresh, _MIGHT_WANT_TIME)
         if hit is None:
+            if asks and (_any_of(low, _ABOUT_A_JOB) or _any_of(fresh, _ABOUT_A_JOB)):
+                return _somebody_wants_to_talk(event, subject, sender, text)
             return None
         url, entry = hit
         # An unmistakable ask for time wins outright, even over an
         # acknowledgement phrase: "We received your application and would
         # like to schedule an interview" is both, and it is the email he is
         # waiting for.
-        asks = any(word in low for word in _ASKS_FOR_TIME)
-        acknowledges = any(word in low for word in _JUST_AN_ACKNOWLEDGEMENT)
         if not asks:
+            if declines:
+                _heard_back(entry.get("id"), subject, "rejected")
+                return {"application": entry.get("id"), "outcome": "rejected"}
             # An acknowledgement is RECOGNISED and let go, not merely
-            # unmatched — every one of the twenty-two real messages in his
+            # unmatched - every one of the twenty-two real messages in his
             # inbox on 2026-09-13 matched the ledger, and a detector that
             # stopped at matching would have raised twenty-two alarms on its
             # first morning.
             if acknowledges:
                 return {"application": entry.get("id"), "outcome": "acknowledgement"}
-            if not any(word in low for word in _MIGHT_WANT_TIME):
+            if not might:
                 _heard_back(entry.get("id"), subject, "noted")
                 return {"application": entry.get("id"), "outcome": "noted"}
         _heard_back(entry.get("id"), subject, "wants_time")
-        _consider_interview(event, entry, subject)
+        _consider_interview(event, entry, subject, text)
         notifications.publish(
             f"{entry.get('company') or 'An employer'} wants to talk",
             f"{subject} — about {entry.get('job_title') or 'your application'}, "
@@ -398,6 +434,10 @@ def _job_reply(event: dict) -> dict | None:
         return {"outcome": "error", "error_type": type(exc).__name__}
 
 
+def _any_of(hay: str, words: tuple) -> bool:
+    return bool(hay) and any(word in hay for word in words)
+
+
 #: An employer's name shorter than this matches inside too many words to
 #: be evidence on its own ("Ro" is in "handoff_ready"); the role title
 #: carries those.
@@ -410,6 +450,126 @@ def _names_company(low_subject: str, company: str) -> bool:
     if len(name) < MIN_COMPANY_CHARS:
         return False
     return re.search(r"(?<![a-z0-9])" + re.escape(name) + r"(?![a-z0-9])", low_subject) is not None
+
+
+def _match_ledger(hay: str, sender: str, ledger: dict, *, body: bool = False):
+    """(url, entry) for the application this mail is about, or None.
+
+    By the words first (the employer's name as a whole word, or the role's
+    title), then by the SENDER'S DOMAIN against the employer's own domain -
+    an interview request from careers@gong.io whose subject says only
+    "Interview request" is Gong's. An applicant-tracking system's domain is
+    never an employer's (`employers.domain_of` knows the ATSs), so a
+    Greenhouse notification cannot match every Greenhouse employer.
+    """
+    sender_domain = ""
+    if sender and "@" in sender:
+        try:
+            from aletheia import employers
+            sender_domain = employers.domain_of(sender.rsplit("@", 1)[1])
+        except Exception:
+            sender_domain = ""
+    for url, entry in (ledger or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        company = str(entry.get("company") or "").strip()
+        title = str(entry.get("job_title") or "").strip()
+        # The title carries the employer on the end; the role alone is
+        # what a subject like "Application for Inbound Sales Development
+        # Representative received by Team Flexport!" actually names.
+        role = re.split(r"\s+[—–-]\s+", title)[0].strip()
+        if _names_company(hay, company):
+            return url, entry
+        if len(role) > 10 and role.casefold() in hay:
+            return url, entry
+    if body or not sender_domain:
+        return None
+    for url, entry in (ledger or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        if sender_domain in _employer_domains(entry, url):
+            return url, entry
+    return None
+
+
+def _employer_domains(entry: dict, url: str) -> set:
+    """The domains that are this employer's own, from what she holds: the
+    posting's host when it is the employer's site, and the employer row."""
+    out = set()
+    try:
+        from aletheia import employers
+        for candidate in (url, entry.get("posting"), entry.get("found_on")):
+            d = employers.domain_of(str(candidate or ""))
+            if d:
+                out.add(d)
+        row = employers.about(str(entry.get("company") or ""))
+        for d in (row or {}).get("domains") or []:
+            d = employers.domain_of(str(d))
+            if d:
+                out.add(d)
+    except Exception:
+        pass
+    return out
+
+
+#: Patched in tests. The real thing opens his mailbox read-only.
+def _fetch_body(message_id: str) -> str:
+    from aletheia import mail
+    return str(mail.SmtpImapTransport().fetch_body(message_id).get("text") or "")
+
+
+def _body_of(event: dict, subject: str) -> str:
+    """The text of this email, read or unread, by its Message-ID; by its
+    subject among the unread as the older fallback. "" when it cannot be
+    read - never a reason the beat stops."""
+    try:
+        from aletheia import mail
+        if not mail.available()[0]:
+            return ""
+        mid = str((event.get("attributes") or {}).get("message_id") or "").strip()
+        if mid:
+            try:
+                text = _fetch_body(mid)
+                if text:
+                    return text[:mail.MAX_READ_CHARS]
+            except Exception:
+                pass
+        try:
+            return str(mail.read_body(subject).get("text") or "")[:mail.MAX_READ_CHARS]
+        except Exception:
+            return ""
+    except Exception:
+        return ""
+
+
+def _somebody_wants_to_talk(event: dict, subject: str, sender: str, text: str) -> dict:
+    """Mail about a job that names nothing on the ledger and asks for time:
+    a recruiter, an agency, an employer reached by another door. He hears
+    it, and when his interview switch is on the same path answers it -
+    unless the sender is a mailbox nobody answers."""
+    summary = str(event.get("summary") or "")
+    label = summary.rsplit(" — from ", 1)[1].strip() if " — from " in summary else ""
+    company = ""
+    try:
+        from aletheia import employers
+        domain = employers.domain_of(sender.rsplit("@", 1)[1]) if "@" in sender else ""
+        if domain:
+            company = domain.split(".")[0].replace("-", " ").title()
+    except Exception:
+        company = ""
+    company = company or label or "Somebody"
+    entry = {"id": "", "company": company, "job_title": "", "sender": sender}
+    answerable = bool(sender) and not _NOBODY_ANSWERS.match(sender)
+    if answerable:
+        _consider_interview(event, entry, subject, text)
+    notifications.publish(
+        f"{company} wants to talk",
+        f"{subject} — about a job, not one of your applications on file"
+        + ("" if answerable else "; it came from a mailbox nobody can answer"),
+        priority="IMPORTANT", source="apply", about=notifications.CHANGED,
+        dedupe_key=f"job-reply:{event.get('id')}",
+        related={"application": "", "event": event.get("id"), "sender": sender})
+    return {"application": None, "outcome": "wants_time", "company": company}
 
 
 def _his_own_mail(event: dict) -> bool:
@@ -426,18 +586,14 @@ def _his_own_mail(event: dict) -> bool:
     return bool(mine) and sender == mine
 
 
-def _consider_interview(event: dict, entry: dict, subject: str) -> None:
-    """When his interview switch is on: pick the time, draft the reply, hold
-    it (`interviews`). Off, nothing; and never breaks the beat."""
+def _consider_interview(event: dict, entry: dict, subject: str, text: str = "") -> None:
+    """When his interview switch is on: pick the time, draft the reply, file
+    its approval (`interviews`). Off, nothing; and never breaks the beat."""
     try:
         from aletheia import interviews
         if not interviews.status()["on"]:
             return
-        text = ""
-        try:
-            text = str(mail.read_body(subject).get("text") or "")
-        except Exception:
-            text = ""
+        text = text or _body_of(event, subject)
         interviews.consider(event, entry, subject=subject, text=text)
     except Exception:
         pass
@@ -769,6 +925,41 @@ def _retry_action(record: dict) -> dict | None:
     if int(record.get("retries") or 0) >= apply_run.MAX_RETRIES or not record.get("steps"):
         return None
     return {"label": "Try it again", "kind": "apply_retry", "args": {"which": str(record.get("id"))}}
+
+
+_RULINGS_CHECKED: dict = {"at": 0.0}
+RULINGS_EVERY_S = 600.0
+RULINGS_ACTOR = "aletheia-rulings"
+
+
+def _apply_rulings(*, now_s: float | None = None) -> list[dict]:
+    """Make his rulings real. Today one: interviews ON by ruling needs the
+    interviews standing grant, which until 2026-10-02 only his keyboard
+    could create. The grant is created with his words from the registry,
+    once, and journaled as a ruling's doing - never a worker's claim."""
+    clock = time.monotonic() if now_s is None else now_s
+    if clock - _RULINGS_CHECKED["at"] < RULINGS_EVERY_S:
+        return []
+    _RULINGS_CHECKED["at"] = clock
+    out: list[dict] = []
+    from aletheia import interviews, rulings, standing
+    state = interviews.status()
+    ruled = state.get("ruled_by")
+    if ruled and state.get("on") and standing.interviews_active() is None:
+        ruling = rulings.for_switch("interviews") or {}
+        grant = standing.interviews_enable(via=f"ruling:{ruled}", quote=rulings.quote(ruling))
+        from aletheia import journal
+        journal.append("decision", "rulings",
+                       f"interview scheduling is ON by his ruling {ruled} (config/rulings.json), so the "
+                       f"interviews grant {grant.get('id', '')} was created from his words", actor=RULINGS_ACTOR)
+        out.append({"ruling": ruled, "grant": grant.get("id", "")})
+    return out
+
+
+def _publish_hunt_funnel() -> list[dict]:
+    from aletheia import hunt_funnel
+    written = hunt_funnel.publish()
+    return [written] if written else []
 
 
 def _say_the_grant_is_missing() -> None:
@@ -1126,7 +1317,14 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # ran out of time before it every time, so the smaller model was never
     # fetched and the rung under the fast one never existed.
     local_ai_heal = guarded("local_ai", _heal_local_ai)
+    # His standing rulings (config/rulings.json) take effect without his
+    # keyboard: the interviews grant is created from his own words when the
+    # ruling says ON and no grant is live. Cheap: one grant listing.
+    guarded("rulings", _apply_rulings)
     mail_events = guarded("mail", poll_mail_events)
+    # The hunt's counts, published for the morning brief (which is composed
+    # in the cloud and cannot see the records on this PC). Counts only.
+    guarded("hunt_funnel", _publish_hunt_funnel)
     pulse_events = guarded("pulse", mirror_pulse_events)
     action_records = guarded("receipts", verification.reconcile_durable_receipts)
     reply_transitions = evaluate_replies(now=now)

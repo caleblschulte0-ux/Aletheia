@@ -53,14 +53,30 @@ def _path():
 
 
 def status() -> dict:
+    """ON or OFF, and his window. His own hand at the keyboard (the private
+    switch file) wins; where he has never touched it, his RULING in
+    `config/rulings.json` is the default - 2026-10-02, nine days after he
+    asked for auto-scheduling, the switch was still off because nobody had
+    been at the keyboard."""
     try:
         raw = json.loads(_path().read_text(encoding="utf-8"))
     except (OSError, ValueError):
         raw = {}
     if not isinstance(raw, dict):
         raw = {}
-    win = raw.get("window") if isinstance(raw.get("window"), dict) else {}
+    ruled = None
+    if "on" not in raw:
+        try:
+            from aletheia import rulings
+            ruled = rulings.for_switch("interviews")
+        except Exception:
+            ruled = None
+    win = raw.get("window") if isinstance(raw.get("window"), dict) else ((ruled or {}).get("window") or {})
     window = {**DEFAULT_WINDOW, **{k: str(v) for k, v in win.items() if k in DEFAULT_WINDOW}}
+    if ruled is not None:
+        from aletheia import rulings
+        return {"on": bool(ruled.get("on")), "window": window, "quote": rulings.quote(ruled),
+                "ruled_by": ruled["id"], "command": "python -m aletheia.interviews on"}
     return {"on": bool(raw.get("on")), "window": window, "quote": str(raw.get("quote") or ""),
             "command": "python -m aletheia.interviews on"}
 
@@ -268,12 +284,13 @@ def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: 
             hold = None
         live = (calendar_writer or calendly.put_on_his_calendar)(title=f"Interview: {company}",
                                                                  start=chosen["start"], end=chosen["end"])
-        try:
-            from aletheia import apply_run
-            (marker or apply_run.mark)(entry["id"], "interview",
-                                       note=f"booked {said_when(chosen['start'], window)} on their scheduling page")
-        except Exception:
-            pass
+        if entry.get("id"):
+            try:
+                from aletheia import apply_run
+                (marker or apply_run.mark)(entry["id"], "interview",
+                                           note=f"booked {said_when(chosen['start'], window)} on their scheduling page")
+            except Exception:
+                pass
         sentence = (f"{company} sent a scheduling link. I booked {said_when(chosen['start'], window)} on it"
                     + (" and it is on your calendar" if hold else "")
                     + (f"; {live['say']}" if live.get("say") and live.get("state") != "written" else
@@ -344,7 +361,13 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
         draft = None
         if sender:
             from aletheia import mail
-            drafter = drafter or (lambda to, subj, text_: mail.draft(to, subj, text_, requested_via="interviews", held=True))
+            # ASKS FOR HIS TAP, not held in silence: his words, 2026-09-13,
+            # "scheduling times for interviews, pending my approval, of
+            # course". The approval shows him the exact reply on his phone;
+            # nothing goes without the tap, hold or no hold (`mail.draft`).
+            drafter = drafter or (lambda to, subj, text_: mail.draft(to, subj, text_, requested_via="interviews",
+                                                                     asks_anyway=True,
+                                                                     about=str(entry.get("id") or "")))
             draft = drafter(sender, f"Re: {subject}"[:150], body)
         hold = None
         if chosen:
@@ -355,19 +378,20 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
                 hold = holder(eid, f"Interview: {company}", chosen["start"], chosen["end"])
             except FileExistsError:
                 hold = {"id": eid}
-        try:
-            from aletheia import apply_run
-            (marker or apply_run.mark)(entry["id"], "interview",
-                                       note=(f"asked for time; {said_when(chosen['start'], window)} chosen"
-                                             if chosen else "asked for time; times offered"))
-        except Exception:
-            pass
+        if entry.get("id"):
+            try:
+                from aletheia import apply_run
+                (marker or apply_run.mark)(entry["id"], "interview",
+                                           note=(f"asked for time; {said_when(chosen['start'], window)} chosen"
+                                                 if chosen else "asked for time; times offered"))
+            except Exception:
+                pass
         when = (f"I picked {said_when(chosen['start'], window)}"
                 + (" (the closest of theirs to your window)" if chosen.get("fit") != "in the window" else "")
                 if chosen else f"none of their times fit, so I offered {len(offers)} in your window")
         sentence = (f"{company} wants to talk. {when}"
                     + (" and pencilled it in" if hold else "")
-                    + (f". The reply is drafted and held - say send it when you want it to go." if draft
+                    + (". The reply is written and waiting for your tap to send it." if draft
                        else ". I could not find their address, so the reply is yours to write."))
         from aletheia import notifications
         (notify or notifications.publish)(
@@ -397,8 +421,8 @@ def spoken() -> str:
                 "'python -m aletheia.interviews on' at your keyboard.")
     return (f"When an employer sends a scheduling link I book it {window_words(state['window'])} on a weekday "
             "you're free and put it on your calendar. When they only ask for a time by email I pick one in "
-            "that window, pencil it in and draft the reply - and outward mail is on hold, so nothing goes out "
-            "until you lift it.")
+            "that window, pencil it in and write the reply, and it goes when you tap send on your phone."
+            + (" That is your standing ruling, not a switch somebody flipped." if state.get("ruled_by") else ""))
 
 
 def main(argv: list[str] | None = None) -> int:

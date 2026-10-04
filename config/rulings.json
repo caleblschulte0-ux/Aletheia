@@ -1,0 +1,56 @@
+{
+  "_about": "His standing rulings, in his own words, as data. A ruling here is a reviewed registry edit (CLAUDE.md: grants widen only by a reviewed registry edit) and is the default where he has never touched the switch himself at his keyboard; a switch he set at the keyboard is newer and wins. Nothing here can name a high-risk or operator_always capability: spending, sending, publishing and deleting still ask him.",
+  "rulings": [
+    {
+      "id": "interviews-on",
+      "switch": "interviews",
+      "on": true,
+      "window": {
+        "start": "13:00",
+        "end": "14:30",
+        "timezone": "America/Chicago"
+      },
+      "since": "2026-10-02",
+      "quotes": [
+        {
+          "on": "2026-09-13",
+          "said": "we need to make sure that Aletheia is checking my email. And if it hears back, scheduling times for interviews, pending my approval, of course. and then putting that on my calendar and letting me know what it is."
+        },
+        {
+          "on": "2026-09-23",
+          "said": "I want it to be to the point where she'll just auto schedule an interview for me at sometime between 1 p.m. and 2:30 p.m. Central Time."
+        },
+        {
+          "on": "2026-09-24",
+          "said": "If someone sends us a Calendly link, she can put 1 to 2.30 p.m. Central on there. And as long as she puts it on the calendar, the Open Range Interactive Calendar, I'm fine with that. She shouldn't send anything to outside correspondence yet."
+        },
+        {
+          "on": "2026-10-02",
+          "said": "she's not watching my inbox, scheduling me meetings, like... She sucks. Fix it."
+        }
+      ],
+      "means": "An employer's scheduling link is booked in his window and put on his calendar without a tap (the interviews standing grant, created from this ruling). An employer's ask for time by email gets a slot chosen in his window, pencilled in, and a reply he sends with one tap on his phone - no email leaves without his tap."
+    },
+    {
+      "id": "discovery-chooses",
+      "switch": "discovery",
+      "on": true,
+      "since": "2026-10-03",
+      "quotes": [
+        {
+          "on": "2026-09-13",
+          "said": "there are companies all over the country that only have [jobs] on their website ... I've never heard of that I probably would like to work at."
+        },
+        {
+          "on": "2026-09-13",
+          "said": "we're gonna have it shoot high and shoot low. But it should be realistic."
+        },
+        {
+          "on": "2026-10-03",
+          "said": "It's like, the the jobs they're applying for, the fucking the follow ups, the quality of the application, the everything. Like this needs to not just be Python code that applies for jobs. This needs to be an AI. Who's every thought of every job application is how, what, what maximizes the chance of me getting this job."
+        }
+      ],
+      "means": "Discovery may change who she applies to: openings from her own crawl of employers' sites join the queue, and the queue is tried in value order (pay against his floor and the place, geography, the employer, recency, ease) instead of the order a board returned it. Off only if he turns it off at his keyboard (python -m aletheia.job_discovery --choose off)."
+    }
+  ]
+}

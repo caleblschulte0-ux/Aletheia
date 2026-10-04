@@ -449,6 +449,26 @@ That is the standard.
 
 (kept in order, newest first)
 
+- **2026-10-03 — the thinking starts before the form, and a note has somebody.**
+  His words: *"This needs to not just be Python code that applies for jobs.
+  This needs to be an AI whose every thought of every job application is
+  how, what maximizes the chance of me getting this job."* Four gaps, each
+  a place the brief said "reason" and the code had a rule or nothing:
+  the only model call before a form was `job_fit`'s yes-or-no, and the
+  essays were written from the resume alone - now `job_angle` reads the
+  posting beside his resume first and the pairs it finds (verbatim both
+  sides, checked in code) lead every essay and letter, answer "why this
+  one?", and open the opportunity as evidence; a weak shot with no honest
+  pair is passed over. `job_value`'s ranking had been off since it was
+  built - a ruling in his words turns discovery's choosing on. The
+  `note_to_person` move could never run because nothing could find a
+  person - `find_person` reads the posting, the employer's own pages and
+  a search's snippets for names WITH titles and addresses on their own
+  domain only, never guessed. A conversation rewrites the objective to
+  doing well in it; silence at 8 and 21 days is written as evidence so the
+  reasoner decides about a follow-up. Not yet: the pursuit opening before
+  the form, a tailored resume file, any door onto a professional network.
+
 - **2026-09-21 — the opportunity is the durable object** (`aletheia/pursuit.py`,
   `aletheia/pursuit_applications.py`). What existed ended at "submitted": an
   employer's reply was classified and notified and then forgotten, nothing
