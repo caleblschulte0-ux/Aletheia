@@ -221,7 +221,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
-        r"|^what do i need to (?:do|get done)(?: today)?$")),
+        r"|^what do i need to (?:do|get done)(?: today)?$"
+        # "what's first" and "anything urgent" each paid a model (2026-10-05)
+        r"|^what(?:'s| is|s)? (?:up )?first(?: today| this morning)?\s*\??$"
+        r"|^(?:is there )?anything (?:urgent|pressing|on fire)(?: today| right now)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:urgent|pressing)(?: today| right now)?\s*\??$")),
+    ("overdue", re.compile(
+        r"^what(?:'s| is|s)? overdue\s*\??$|^(?:is )?anything overdue\s*\??$|^what (?:have i|did i) miss(?:ed)? (?:the deadline|a deadline) (?:on|for)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:late|past due|behind)\s*\??$|^(?:am i|are we) behind on anything\s*\??$")),
     # "How many interviews do I have" / "did I get any rejections" (2026-09-23):
     # outcomes are on the application records.
     ("outcomes", re.compile(
@@ -1696,6 +1703,27 @@ def _status() -> str:
     if tasks and not tasks.lower().startswith("nothing"):
         parts.append(tasks.rstrip("."))
     return ". ".join(p for p in parts if p) + "."
+
+
+def _overdue() -> str:
+    """His tasks past their deadline, from the store and the clock."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    try:
+        rows = [r for r in tasks.due(within_hours=0) if r["overdue"] and tasks.is_his(r["task"])]
+    except Exception:
+        return "I can't read your task list right now."
+    if not rows:
+        return "Nothing's overdue."
+    today = localtime.today()
+    said = []
+    for row in rows[:5]:
+        what = _shortened(str(row["task"].get("description") or "").strip().rstrip("."))
+        days = (today - row["when"].astimezone(localtime.operator_tz()).date()).days
+        when = "today" if days <= 0 else "yesterday" if days == 1 else f"{days} days ago"
+        said.append(f"{what}, due {when}")
+    lead = "Overdue" if len(rows) == 1 else f"{speech.count_phrase(len(rows), 'thing')} overdue"
+    return f"{lead}: " + "; ".join(said) + (f"; and {len(rows) - 5} more" if len(rows) > 5 else "") + "."
 
 
 def _focus() -> str:
@@ -4700,6 +4728,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),
+           "overdue": lambda rest: _overdue(),
            "outcomes": _outcomes,
            "until": _until,
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),

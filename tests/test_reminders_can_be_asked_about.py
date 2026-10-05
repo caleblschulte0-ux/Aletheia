@@ -180,7 +180,8 @@ class ContactsAndWatchesCanBeAskedAbout(unittest.TestCase):
         from aletheia import contacts
         with mock.patch.object(contacts, "all_contacts", return_value=rows):
             said = intercom.execute_command(got["command"], {})
-        self.assertIn("555-1234", said)
+        # The number reaches him, read out in groups (speech.phone_words, 2026-10-05).
+        self.assertIn("555 1234", said)
 
     def test_an_empty_store_does_not_deny_the_store(self):
         from aletheia import contacts

@@ -1405,6 +1405,30 @@ def _remembered_matching(about: str, domain: str | None = None):
     return found
 
 
+def _fires_at(spec: dict, words: str) -> bool:
+    """Does this reminder fire at the clock time these words name? A bare
+    hour ("the 7 one") takes either half of the day."""
+    m = re.fullmatch(r"(?:at )?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", str(words or "").strip())
+    if not m:
+        return False
+    hour, minute, half = int(m.group(1)), int(m.group(2) or 0), m.group(3)
+    if half == "pm" and hour != 12:
+        hour += 12
+    if half == "am" and hour == 12:
+        hour = 0
+    hours = {hour} if half or hour > 12 else {hour, (hour + 12) % 24}
+    try:
+        if spec.get("kind") == "once":
+            at = dt.datetime.fromisoformat(str(spec.get("at")).replace("Z", "+00:00"))
+            at = at.astimezone(localtime.operator_tz())
+            return at.hour in hours and at.minute == minute
+        clock = str(spec.get("time") or "")
+        h, mm = clock.split(":")
+        return int(h) in hours and int(mm) == minute
+    except Exception:
+        return False
+
+
 def _one_reminder(which: str):
     """(schedule, why-not) — exactly one reminder he could mean.
 
@@ -1432,6 +1456,9 @@ def _one_reminder(which: str):
                           + speech.count_phrase(len(rows), "reminder") + ".")
 
     hits = [r for r in rows if needle and needle in text_of(r)]
+    if not hits:
+        # "The 6:30 one": by the time it fires (2026-10-05).
+        hits = [r for r in rows if _fires_at(r, needle)]
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)
                  if len(w) > 2 and w not in TASK_STOP and w != "reminder"]

@@ -1689,6 +1689,11 @@ def _interpret(transcript: str) -> dict:
     if not m:
         # "Cancel the timer": a timer is a reminder whose text says timer.
         m = re.fullmatch(r"(?:cancel|stop|kill|turn off|delete) (?:the |my |that )?(timer|alarm)s?\s*", low)
+    if not m:
+        # "Turn off the 6:30 alarm" went to the planner (2026-10-05): the
+        # alarm by its time, or by its words.
+        m = re.fullmatch(r"(?:cancel|stop|kill|turn off|switch off|delete|remove) (?:the |my |that )?"
+                         r"(?!(?:timer|alarm)s?\s*$)(.+?) (?:timer|alarm|wake-up|wake up)s?(?: (?:tomorrow|today|tonight))?\s*", low)
     if m:
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
