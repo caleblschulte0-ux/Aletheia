@@ -210,6 +210,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"situation report)(?: please)?$"
         r"|^(?:how are things|how(?:'s| is) everything|how(?:'s| is) it going|what(?:'s| is) (?:going on|the situation|the status))"
         r"(?: today| right now| with you)?$"
+        # "how are you feeling", "are you ok" (2026-10-05: a model, seven seconds)
+        r"|^how (?:are|r) (?:you|u)(?: feeling| doing| holding up| today| tonight)?$|^how do (?:you|u) feel$"
+        r"|^(?:are|r) (?:you|u) (?:ok|okay|alright|all right|good|well|fine)(?: today| tonight)?$|^(?:you|u) (?:ok|okay|alright|good)$"
         r"|^(?:catch me up|fill me in|bring me up to speed|where are we)(?: please)?$"
         # "Are we good", "summarize today", "how was your day": the rundown
         # (bottom rung 2026-09-24: a repo lookup for "we", and nobody).
@@ -904,6 +907,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how much (?:do i|am i|do we) (?:spend|spending|pay|paying) (?:(?P<spend_per>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year) )?(?:on|for) (?:my |all my )?subscriptions(?: (?P<spend_per2>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year))?(?: in total| all together| altogether)?\s*\??$"
         r"|^what(?:'s| is|s)? my (?:monthly |total )?subscription (?:total|spend|bill|cost)(?: a month| per month)?\s*\??$"
         r"|^what do (?:my|the|all my) subscriptions (?:cost|add up to|come to|total)(?: me)?(?: (?P<spend_per3>a month|per month|each month|a year|per year|yearly|annually))?\s*\??$")),
+    ("timers", re.compile(
+        r"^how many timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
+        r"|^(?:what|which) timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
+        r"|^(?:list|show me|read me) (?:my |the )?timers\s*\??$|^(?:any|are there any) timers(?: running| set| going)?\s*\??$")),
+    ("bored", re.compile(
+        r"^i(?:'m| am) (?:so |really )?bored\s*\.?$|^entertain me\s*\.?$|^i(?:'ve| have) (?:got )?nothing to do\s*\.?$|^what should i do\s*\??$"
+        r"|^give me something to do\s*\.?$")),
     ("timer_left", re.compile(
         r"^how (?:long|much time)(?: is|'s)? left on (?:the|my|that) timer\s*\??$"
         r"|^how long (?:until|till|before) (?:the|my) timer(?: goes off| is up| ends)?\s*\??$"
@@ -4266,6 +4276,61 @@ def _who_is(name: str) -> str | None:
     return f"I don't have anyone called {shown} on file. Tell me who they are and I'll remember it."
 
 
+def _timers() -> str:
+    """"How many timers do I have" (2026-10-05: a model, six seconds)."""
+    import datetime as dt
+    from aletheia import intercom, liveness, scheduler, speech
+    try:
+        rows = [r for r in intercom._reminder_schedules()
+                if r.get("kind") == "once" and "timer" in str((r.get("command") or {}).get("text") or "").casefold()]
+    except Exception:
+        return "I can't read my timers right now."
+    now = dt.datetime.now(dt.timezone.utc)
+    coming = []
+    for spec in rows:
+        try:
+            at = scheduler.next_occurrence(spec, now)
+        except Exception:
+            continue
+        if at is not None:
+            coming.append((at, spec))
+    if not coming:
+        return "No timers running."
+    coming.sort(key=lambda pair: pair[0])
+    said = []
+    for at, spec in coming[:4]:
+        text = str(spec["command"].get("text") or "").rstrip(".")
+        what = text[len("your "):] if text.startswith("your ") else text
+        what = what[:-len(" is up")] if what.endswith(" is up") else what
+        said.append(f"{what} with {liveness.spoken_duration((at - now).total_seconds())} left")
+    return f"{speech.count_phrase(len(coming), 'timer')}: {speech.and_list(said)}."
+
+
+def _bored() -> str:
+    """"I'm bored" (2026-10-05: a model offered trivia and twenty questions,
+    neither of which exists). What is actually open, from her stores."""
+    from aletheia import speech
+    bits = []
+    try:
+        from aletheia import tasks
+        open_tasks = [t for t in tasks.all_tasks() if str(t.get("status") or "").upper() in ("QUEUED", "READY", "WAITING_DEPENDENCY") and tasks.is_his(t)]
+        if open_tasks:
+            bits.append(f"{speech.count_phrase(len(open_tasks), 'task')} on your list - the first is {open_tasks[0].get('description')}")
+    except Exception:
+        pass
+    try:
+        from aletheia import policy
+        pending = [a for a in policy.all_approvals() if a.get("state") == "PENDING"]
+        if pending:
+            bits.append(f"{speech.count_phrase(len(pending), 'thing')} waiting on your yes")
+    except Exception:
+        pass
+    lead = "I don't have games. "
+    if bits:
+        return lead + "What's actually open: " + speech.and_list(bits) + ". Or ask me anything about your day."
+    return lead + "Nothing's open on your list and nothing's waiting on you. Ask me anything, or say 'add a task' and I'll keep it."
+
+
 def _timer_left() -> str:
     """What is left on a timer he set, from the reminder it became."""
     import datetime as dt
@@ -6180,6 +6245,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "where_am_i": lambda rest: _where_am_i(),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
+           "timers": lambda rest: _timers(),
+           "bored": lambda rest: _bored(),
            "sending": lambda rest: _sending(rest),
            "draft_to": lambda rest: _draft_to(rest),
            "applied_on": _applied_on,

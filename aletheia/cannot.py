@@ -58,7 +58,12 @@ WISHES: tuple[tuple[re.Pattern, str, str], ...] = (
     (re.compile(r"^(?:turn|switch) (?:on|off) (?:the |my )?(?:\w+ ){0,2}(?:lights?|lamp"
                 r"|heating|heat|ac|air con\w*|thermostat|fan|tv)\b"
                 r"|^(?:dim|brighten) the lights?\b"
-                r"|^set the (?:thermostat|temperature)\b", re.I),
+                r"|^set the (?:thermostat|temperature)\b"
+                # "is the heating on" (2026-10-05: a model read a setup command
+                # with a placeholder out loud); a question about a device is
+                # the same capability as an order to it
+                r"|^(?:is|are) (?:the |my )?(?:\w+ ){0,2}(?:lights?|lamp|heating|heat|ac|air con\w*|thermostat|fan|tv) (?:on|off|still on|running)\b"
+                r"|^(?:what(?:'s| is) the (?:thermostat|heating|temperature) (?:set to|set at|on|at)|what temperature is (?:the house|it) (?:set to|at))\b", re.I),
      "room.scene", "control the lights and devices"),
     (re.compile(r"^(?:what'?s|hows?|how is) the weather\b"
                 r"|^(?:is it|will it be) (?:going to )?(?:rain|snow|sunny|cold|hot)\b"

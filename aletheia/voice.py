@@ -1914,7 +1914,7 @@ def _interpret(transcript: str) -> dict:
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
     if not m:
         # "Cancel the timer": a timer is a reminder whose text says timer.
-        m = re.fullmatch(r"(?:cancel|stop|kill|turn off|delete) (?:the |my |that )?(timer|alarm)s?\s*", low)
+        m = re.fullmatch(r"(?:cancel|stop|kill|turn off|delete|pause|end) (?:the |my |that )?(timer|alarm)s?\s*", low)
     if not m:
         # "Turn off the 6:30 alarm" went to the planner (2026-10-05): the
         # alarm by its time, or by its words.
@@ -1978,7 +1978,35 @@ def _interpret(transcript: str) -> dict:
         if m.group(2) == "tomorrow" or when <= now:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
-    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
+    # "ADD 5 MINUTES TO THE TIMER" (2026-10-05: the planner, an approval):
+    # the timer is a reminder; it moves by the minutes he said.
+    m = (re.fullmatch(r"(?:add|put) (?P<n>\w+) (?:more )?(?P<u>minutes?|mins?|seconds?|secs?|hours?) (?:to|on|onto) (?:the |my |that )?timer", low)
+         or re.fullmatch(r"(?:give me|i need) (?P<n>\w+) more (?P<u>minutes?|mins?|seconds?|hours?)(?: on (?:the|my) timer)?", low)
+         or re.fullmatch(r"(?:extend|lengthen|stretch) (?:the |my )?timer (?:by )?(?P<n>\w+) (?P<u>minutes?|mins?|seconds?|hours?)", low)
+         or re.fullmatch(r"(?:take|knock) (?P<minus>\w+) (?P<u>minutes?|mins?|seconds?) off (?:the |my )?timer", low))
+    if m:
+        amount = _spoken_amount(m.group("n") if "n" in m.groupdict() and m.group("n") else m.group("minus"))
+        unit = m.group("u")
+        try:
+            from aletheia import intercom as _ic
+            found, _why = _ic._one_reminder("timer")
+        except Exception:
+            found = None
+        if amount and found is not None and found.get("kind") == "once" and found.get("at"):
+            import datetime as dt
+            seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)
+            if m.groupdict().get("minus"):
+                seconds = -seconds
+            try:
+                at = dt.datetime.fromisoformat(str(found["at"]).replace("Z", "+00:00"))
+            except ValueError:
+                at = None
+            if at is not None:
+                said_text = str((found.get("command") or {}).get("text") or "your timer is up")
+                return {"command": {"kind": "remind_at", "at": (at + dt.timedelta(seconds=seconds)).isoformat(),
+                                    "text": said_text, "replaces": said_text}, "say": None}
+
+    m = re.fullmatch(r"(?:set|start) (?:a |me a |another |a second |a new |one more |a third )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|remind me in (\w+) (minutes?|mins?|hours?)"
                      # "set a 20 minute timer": the amount before the word. It went to
@@ -2093,7 +2121,7 @@ def _interpret(transcript: str) -> dict:
     # check the oven" has worked for weeks. So a timer said AS a timer
     # compiles to the same durable schedule, with the words a person
     # wants to hear at the end.
-    m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
+    m = re.fullmatch(r"(?:set|start) (?:a |an |another |a second |a new |one more |a third )?timer (?:for |of )?"
                      r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
                      r"(?:\s+(?:to|for|so i can)\s+(.+))?", low)
     if m:
@@ -3621,10 +3649,16 @@ def _interpret(transcript: str) -> dict:
     # shape as "never mind" above: a turn that ends politely and asks for
     # nothing. Whole sentence only, so "thanks for the reminder, remind me
     # again at six" is still a reminder.
-    if re.fullmatch(r"(?:thanks|thank you|thanks a lot|thanks so much|"
-                    r"thank you very much|ty|cheers|appreciate it|"
-                    r"thanks thea|thank you thea)", low):
+    if re.fullmatch(r"(?:thanks|thank you|thanks a lot|thanks so much|thank you so much|thanks a bunch|thanks a million|"
+                    r"thank you very much|ty|cheers|appreciate it|much appreciated|i appreciate (?:it|that|you)|"
+                    r"thanks thea|thank you thea|thanks again|thank you again)(?: thea)?", low):
         return {"command": None, "say": "Any time."}
+    # "YOU'RE THE BEST" (2026-10-05: seven seconds on a model, which then
+    # re-read the approval queue at him). A kind word asks for nothing.
+    if re.fullmatch(r"(?:you(?:'re| are) (?:the best|great|amazing|awesome|brilliant|a star|the man|wonderful|fantastic|good)|"
+                    r"(?:nice|good|great|excellent|lovely) (?:work|job|one|going)|well done|perfect|love it|nailed it|"
+                    r"that(?:'s| was) (?:great|perfect|helpful|brilliant|awesome))(?: thea)?(?: thanks| thank you)?", low):
+        return {"command": None, "say": "Thanks - glad it helped."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
