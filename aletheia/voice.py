@@ -2211,7 +2211,20 @@ def _interpret(transcript: str) -> dict:
             except Exception:  # noqa: BLE001
                 pass
     if m and not re.search(r"\bapplication\b", low):
-        return {"command": {"kind": "thread_status", **({"which": which} if which else {})}, "say": None}
+        return {"command": {"kind": "thread_status", **({"which": _as_he_said(transcript, which)} if which else {})}, "say": None}
+    # The conversation with one person, by its other names (2026-10-05: six
+    # model turns, each hedging about a store she holds).
+    m = re.fullmatch(r"(?:what did i (?:send|write to|say to|tell) (?P<a>[a-z][a-z .'-]{1,40}?)"
+                     r"|when did i last (?:talk to|speak to|write to|email|message|text|hear from) (?P<b>[a-z][a-z .'-]{1,40}?)"
+                     r"|what(?:'s| is|s)? (?:happening|going on|the latest|the status|the story) with (?P<c>[a-z][a-z .'-]{1,40}?)"
+                     r"|what did (?P<d>[a-z][a-z .'-]{1,40}?) (?:say|reply|write|answer)(?: back)?"
+                     r"|(?:what|which) conversations? (?:are|is) (?:open|going|live|waiting)|who (?:am i|are we) waiting on(?: to reply)?)\s*\??", low)
+    if m:
+        who = (m.group("a") or m.group("b") or m.group("c") or m.group("d") or "").strip()
+        if who in ("you", "u", "her", "him", "them", "it", "that"):
+            who = ""
+        if not who or not re.fullmatch(r"(?:the )?(?:barkly|trader|hunt|job hunt|weather|fleet|core|market)", who):
+            return {"command": {"kind": "thread_status", **({"which": _as_he_said(transcript, who)} if who else {})}, "say": None}
 
     # "When am I free next week for a tour": a stretch of days and a purpose,
     # around his calendar. The single-day form below stays free_time.
@@ -2284,6 +2297,12 @@ def _interpret(transcript: str) -> dict:
                          r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
          or re.fullmatch(r"(?:save|add|remember) (?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone)[,:]? "
                          r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low))
+    if not m:
+        # "Dana's email is dana@example.com" went to the planner (2026-10-05)
+        e = re.fullmatch(r"(?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:e-?mail|e-?mail address) is (?P<e>\S+@\S+)", low)
+        if e and e.group("n").strip() not in ("my", "me", "i", "email", "work", "home"):
+            return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, e.group("n").strip()),
+                                "email": e.group("e").strip()}, "say": None}
     # "my phone number is ..." is HIS number (profile_set), not a contact
     # called "phone" (found red 2026-10-05).
     if m and m.group("n").strip() not in ("my", "me", "i", "phone", "cell", "mobile", "work", "home",
@@ -3616,6 +3635,8 @@ def _interpret(transcript: str) -> dict:
             (r"(?:my (?:home |street )?address is|i live at) (?P<v>.+)", "address"),
             (r"(?:i live in|my (?:city|town|home town|hometown) is|i(?:'m| am) based in) (?P<v>.+)", "city"),
             (r"my (?:e-?mail(?: address)?) is (?P<v>\S+@\S+)", "email"),
+            # "my postcode is 57033" went to the planner for an approval (2026-10-05)
+            (r"(?:my (?:postcode|post code|zip|zip code|postal code) is|(?:set|change|update) my (?:postcode|post code|zip|zip code|postal code) to) (?P<v>[0-9a-z][0-9a-z -]{2,10})", "postal_code"),
             (r"my (?:phone|cell|mobile|phone number|cell number|number) is (?P<v>[+\d][\d\s().-]{6,})", "phone"),
             (r"(?:i work at|i work for|my employer is|my company is) (?P<v>.+)", "current_employer"),
             (r"my (?:job )?title is (?P<v>.+)", "current_title"),
