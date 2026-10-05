@@ -961,8 +961,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^is your own model (?:running|up|on|working|ready)$"
         r"|^how long (?:until|till|before) (?:you|u) can think (?:properly|normally|again|with the big models)(?: again)?$")),
     # Sums he would otherwise wait a minute for.
+    # "What standing permissions do you have" paid a model (2026-10-05), and
+    # "give yourself standing permission" is answered with where it is granted.
+    ("standing", re.compile(
+        r"^what (?:standing )?(?:permissions?|grants?|authority|authorit(?:y|ies)) (?:do (?:you|u) have|have (?:you|u) got|are (?:on|active|live))(?: right now)?\s*\??$"
+        r"|^what can (?:you|u) do without (?:asking(?: me)?|my (?:ok|okay|approval|permission|say-so))\s*\??$"
+        r"|^(?:do (?:you|u) have|have (?:you|u) got) (?:any )?standing (?:permission|authority|grants?)(?: for (?P<standing_for>.+?))?\s*\??$"
+        r"|^(?:what(?:'s| is)|is there) (?:a )?standing (?:permission|authority|grant)(?: for (?P<standing_for2>.+?))?\s*\??$"
+        r"|^(?:give|grant) yourself (?:standing )?(?:permission|authority|a grant)(?: (?:for|to|over) (?P<standing_for3>.+?))?\s*\??$"
+        r"|^(?:how do i|can i) (?:give|grant) (?:you|u) (?:standing )?(?:permission|authority)(?: (?:for|to|over) (?P<standing_for4>.+?))?\s*\??$")),
     ("math", re.compile(
         r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
+        # "15 percent off 80", "a third of 90", "double 45", "how many ounces in a pound" (2026-10-05)
+        r"|^what(?:'s| is|s)? (?P<pct_off>[\d.]+) ?(?:%|percent) off (?:of )?(?:\$)?(?P<off>[\d.,]+)(?P<off_money> dollars| bucks)?$"
+        r"|^what(?:'s| is|s)? (?:a |one )?(?P<frac>half|third|quarter|fifth|tenth|two thirds|three quarters) of (?:\$)?(?P<frac_of>[\d.,]+)(?P<frac_money> dollars| bucks)?$"
+        r"|^(?:what(?:'s| is|s)? )?(?P<mult>double|triple|half|twice) (?:of )?(?:\$)?(?P<mult_of>[\d.,]+)(?P<mult_money> dollars| bucks)?$"
+        r"|^how many (?P<unit_small>ounces|oz|inches|feet|yards|centimeters|centimetres|millimeters|millimetres|grams|milliliters|millilitres|cups|tablespoons|teaspoons|quarts|pints|fluid ounces|seconds|minutes|hours|days|weeks|months) (?:are |is )?(?:in|to|per|make) (?:a|an|one|1) (?P<unit_big>pound|foot|yard|mile|meter|metre|kilometer|kilometre|inch|kilogram|kilo|liter|litre|cup|quart|gallon|pint|tablespoon|minute|hour|day|week|year|month)$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
@@ -1222,7 +1236,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4",
-                                           "wrong_when", "wrong_when2", "decided", "decided2", "decided3")
+                                           "wrong_when", "wrong_when2", "decided", "decided2", "decided3",
+                                           "standing_for", "standing_for2", "standing_for3", "standing_for4")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1891,6 +1906,40 @@ def _wrong_yesterday() -> str:
         if len(lines) == 3:
             break
     return f"{speech.count_phrase(len(rows), 'alert')} in the journal yesterday, the latest: " + "; ".join(lines) + "."
+
+
+def _standing(about: str = "") -> str:
+    """What she may do without asking, from the standing grants live - and
+    where a grant is given: at his keyboard, never by voice or from a page."""
+    from aletheia import setup, standing
+    try:
+        state = standing.status()
+        jobs = standing.jobs_status()
+        interviews = standing.interviews_status()
+    except Exception:
+        return "I can't read the standing grants right now."
+    py = setup.python_word()
+    reads = len(state["without_asking"]["always"])
+    parts = [f"I answer {reads} kinds of question without asking"]
+    if state.get("granted"):
+        parts.append(f"and I handle reminders, tasks, notes and holds without asking too, {state.get('uses_left')} uses left")
+    else:
+        parts.append("and I ask about small local things - reminders, tasks, notes, holds - until you grant standing authority")
+    parts.append("the job hunt " + ("sends applications on its own" if jobs.get("on") or jobs.get("granted") else "waits for your yes on each application"))
+    parts.append("interview booking is " + ("on" if interviews.get("on") or interviews.get("granted") else "off"))
+    said = "; ".join(parts) + "."
+    asked = " ".join(str(about or "").split()).casefold()
+    def cmd(fallback: str, given: object) -> str:
+        words = str(given or fallback)
+        return words.replace("python ", f"{py} ", 1) if words.startswith("python ") else words
+
+    where = (f" A grant is given at your keyboard, never by voice or from a page: on the PC, "
+             f"`{py} -m aletheia.standing on` for the small local things, "
+             f"`{cmd('python -m aletheia.standing jobs on', jobs.get('command'))}` for applications, "
+             f"`{cmd('python -m aletheia.interviews on', interviews.get('command'))}` for booking.")
+    if asked:
+        return f"I can't grant myself anything, including {asked}.{where}"
+    return said + where
 
 
 def _decided(which: str = "") -> str:
@@ -2809,6 +2858,34 @@ def _math(text: str) -> str | None:
         if "pct" in g:
             # "20 percent of 45 dollars" went to a model for the word "dollars".
             return f"{'$' if g.get('pct_money') else ''}{said(num(g['pct']) * num(g['of']) / 100)}."
+        if "pct_off" in g:
+            total, off = num(g["off"]), num(g["pct_off"]) * num(g["off"]) / 100
+            money = "$" if g.get("off_money") else ""
+            return f"{money}{said(total - off)} - that's {money}{said(off)} off."
+        if "frac" in g:
+            part = {"half": 0.5, "third": 1 / 3, "quarter": 0.25, "fifth": 0.2, "tenth": 0.1,
+                    "two thirds": 2 / 3, "three quarters": 0.75}[g["frac"]]
+            return f"{'$' if g.get('frac_money') else ''}{said(round(num(g['frac_of']) * part, 4))}."
+        if "mult" in g:
+            factor = {"double": 2, "twice": 2, "triple": 3, "half": 0.5}[g["mult"]]
+            return f"{'$' if g.get('mult_money') else ''}{said(num(g['mult_of']) * factor)}."
+        if "unit_small" in g:
+            facts = {("ounces", "pound"): 16, ("oz", "pound"): 16, ("inches", "foot"): 12, ("inches", "yard"): 36,
+                     ("feet", "yard"): 3, ("feet", "mile"): 5280, ("yards", "mile"): 1760,
+                     ("centimeters", "meter"): 100, ("centimetres", "metre"): 100, ("centimeters", "inch"): 2.54,
+                     ("centimetres", "inch"): 2.54, ("millimeters", "meter"): 1000, ("millimetres", "metre"): 1000,
+                     ("millimeters", "inch"): 25.4, ("millimetres", "inch"): 25.4, ("meters", "kilometer"): 1000,
+                     ("grams", "kilogram"): 1000, ("grams", "kilo"): 1000, ("grams", "pound"): 453.6,
+                     ("milliliters", "liter"): 1000, ("millilitres", "litre"): 1000, ("cups", "quart"): 4,
+                     ("cups", "gallon"): 16, ("cups", "pint"): 2, ("quarts", "gallon"): 4, ("pints", "quart"): 2,
+                     ("pints", "gallon"): 8, ("fluid ounces", "cup"): 8, ("fluid ounces", "pint"): 16,
+                     ("tablespoons", "cup"): 16, ("teaspoons", "tablespoon"): 3, ("seconds", "minute"): 60,
+                     ("minutes", "hour"): 60, ("hours", "day"): 24, ("days", "week"): 7, ("weeks", "year"): 52,
+                     ("months", "year"): 12, ("days", "year"): 365}
+            key = (g["unit_small"], g["unit_big"])
+            if key not in facts:
+                return None
+            return f"{said(facts[key])} {g['unit_small']} in a {g['unit_big']}."
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
@@ -5008,6 +5085,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
            "wrong": lambda rest: _wrong(rest),
+           "standing": lambda rest: _standing(rest),
            "decided": lambda rest: _decided(rest),
            "today": lambda rest: _today(rest),
            "due_week": lambda rest: _due_week(rest),

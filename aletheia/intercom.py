@@ -2368,6 +2368,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # In English (2026-10-05: "message_send is gated as world-touching"
         # reached the room): the sandbox is the one place this fires, and it
         # is still read out there.
+        if kind in ("halt", "resume", "restart"):
+            # Her own switches: "it would reach past this machine" is not
+            # true of them (2026-10-05); a rehearsal keeps its hands off.
+            raise act.Refused(
+                f"this is a rehearsal, so I didn't {kind}: a rehearsal keeps its hands off my own switches.")
         raise act.Refused(
             f"this is a rehearsal, so I didn't {REHEARSAL_WORDS.get(kind, kind.replace('_', ' '))}: "
             "it would reach past this machine. Everything local happened for real.")
@@ -2505,6 +2510,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                     tasks.set_status(old["id"], "CANCELLED", "replaced: you meant something else")
                     replaced = old_words
                     break
+        if not old_words:
+            # "Add a task to call the bank" twice made two (2026-10-05). The
+            # same words on an open task of his is the same task.
+            same = [x for x in tasks.all_tasks()
+                    if str(x.get("description") or "").strip().casefold() == str(cmd["description"]).strip().casefold()
+                    and x.get("status") not in tasks.contracts.TASK_TERMINAL and tasks.is_his(x)]
+            if same:
+                return f"task {same[0]['id']} already queued — that's already on your list: {same[0].get('description')}"
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
                             deadline=cmd.get("deadline"))
