@@ -2370,6 +2370,9 @@ def _interpret(transcript: str) -> dict:
                     # The phrasings a person actually uses. "Give me the
                     # brief" and "brief me" both went to the planner.
                     r"(?:give me|read me|run) (?:the |my )?brief(?:ing)?|"
+                    # "read me the morning brief", "what's in today's brief" (2026-10-05: two models)
+                    r"(?:give me|read me|read|run) (?:the |my )?(?:morning |today'?s |daily )?brief(?:ing)?|"
+                    r"what(?:'s| is) in (?:the |my |today'?s )(?:morning )?brief(?:ing)?|today'?s brief(?:ing)?|"
                     r"brief me|catch me up|what did i miss", low):
         return {"command": {"kind": "brief"}, "say": None}
 
@@ -3029,6 +3032,9 @@ def _interpret(transcript: str) -> dict:
     # never have to type `spawn --agent=research --provider=claude`.
     if re.fullmatch(r"(?:what (?:are|r) (?:your|the|my) (?:workers?|agents?) "
                     r"(?:doing|up to|working on)(?: right now)?"
+                    # "what agents are running" (2026-10-05: a model, "I can't see a live list")
+                    r"|(?:what|which|how many) (?:workers?|agents?) (?:are|r) (?:running|live|active|going|up)(?: right now)?"
+                    r"|(?:are there |is there )?any (?:workers?|agents?) (?:running|live|active|going)(?: right now)?"
                     r"|who(?:'s| is) working(?: on what)?"
                     r"|(?:list|show me) (?:your|the|my) (?:workers?|agents?)"
                     r"|(?:your|the|my) (?:workers?|agents?))", low):
@@ -3432,6 +3438,15 @@ def _interpret(transcript: str) -> dict:
                         "say": f"I couldn't read '{m.group('time').strip()}' as a time or a day. Say it like 'move that to 4 pm' or 'to Monday at 10'."}
             return {"command": None,
                     "say": "I haven't set a reminder just now that I could move. Say the whole reminder and I'll set it."}
+
+    # "STOP WORKING" is three different orders (2026-10-05: the planner
+    # proposed pausing "all my background work", a thing that does not exist
+    # as a switch). Ask for the one word rather than guess.
+    if re.fullmatch(r"(?:stop working|stop (?:all )?(?:your )?work|knock it off|down tools|take a break|stop what you'?re doing)(?: please| now)?", low):
+        return {"command": None,
+                "say": ("Which stop? Say 'halt' for the kill switch, 'stop applying' for the job hunt, "
+                        "or 'stop the timer' for a timer. A work session ends on its own when its time "
+                        "or its actions run out.")}
 
     # "NO, I MEANT THE ELECTRICIAN" after a task he just added (2026-10-05:
     # the planner, six seconds, a two-step plan and an approval).

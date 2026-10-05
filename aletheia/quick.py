@@ -822,6 +822,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?:using|eating|hogging|taking)(?: up)? (?:the |my |all the |all my )?(?:most )?(?:memory|ram)\s*\??$"
         r"|^what(?:'s| is|s)? (?:using|eating|hogging|taking)(?: up)? (?:the )?most (?:memory|ram)\s*\??$"
         r"|^which (?:program|programs|app|apps|process|processes) (?:is|are) (?:using|eating|hogging|taking)(?: up)? (?:the |all the )?(?:most )?(?:memory|ram)\s*\??$")),
+    # "How long have you been working" is the work session, if any (2026-10-05)
+    ("working", re.compile(
+        r"^how long have (?:you|u) been working(?: on (?:that|it|this))?\s*\??$"
+        r"|^(?:are|r) (?:you|u) in a work session(?: right now)?\s*\??$|^(?:is|'s) there a work session (?:on|running|going)\s*\??$"
+        r"|^how(?:'s| is) the work session (?:going|doing)\s*\??$")),
+    # "What did you look up today" is the journal's research lines (2026-10-05: eight seconds)
+    ("looked_up", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:look up|looked up|research|researched|search for|searched for|google|googled)(?: for me)?(?: today| so far today| tonight)?\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:look|looked) anything up(?: today)?\s*\??$|^what (?:searches|lookups) (?:did|have) (?:you|u) (?:do|done|run)(?: today)?\s*\??$")),
     ("uptime", re.compile(
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
@@ -3623,11 +3632,67 @@ def _running() -> str | None:
     (0.6 s against ~20 ms for the rest) and the headline never uses it.
     The full picture, logon tasks included, is `python -m aletheia.running`.
     """
+    import sys
     from aletheia import running
     try:
-        return running.headline(running.snapshot(include_tasks=False))
+        said = running.headline(running.snapshot(include_tasks=False))
     except Exception:
         return None             # she does not know; the planner may look
+    core = sys.modules.get("aletheia.core")
+    if core is not None and getattr(core, "SERVERS", None) and str(said).startswith("Nothing of mine is running"):
+        # The process list has no Core of hers - and she is the Core
+        # answering ("summarize my day", 2026-10-05). Herself first.
+        return "The Core is running - I'm it."
+    return said
+
+
+def _working() -> str:
+    """The work session, if one is live, else that there is none and how
+    long she has been up."""
+    from aletheia import speech, work_session
+    try:
+        state = work_session.status()
+    except Exception:
+        state = {}
+    if state.get("active"):
+        left = int(state.get("actions_left") or 0)
+        when = speech.humanize_time(str(state.get("expires") or "")) if state.get("expires") else ""
+        return (f"I'm in a work session with {speech.count_phrase(left, 'action')} left"
+                + (f", until {when}" if when else "") + ".")
+    up = _uptime()
+    return "I'm not in a work session." + (f" {up}" if up else "")
+
+
+def _looked_up() -> str:
+    """What she searched or read on the web today, from the journal."""
+    from aletheia import localtime, recollection, speech
+    today = localtime.today().isoformat()
+    try:
+        entries, readable = recollection._read_journal(recollection.TODAY_HOURS)
+    except Exception:
+        entries, readable = [], False
+    if not readable:
+        return "I can't read my journal just now."
+    lines: list[str] = []
+    for e in entries:
+        subject = str(e.get("subject") or "")
+        if recollection._local_date(str(e.get("ts") or "")) != today:
+            continue
+        text = str(e.get("text") or "")
+        if subject == "research":
+            m = re.search(r"for '([^']+)'", text)
+            line = f"searched for {m.group(1)}" if m else speech.plainly(text)[:80]
+        elif subject == "browser:read":
+            m = re.match(r"read (\S+)(?: — (.+))?", text)
+            line = f"read {m.group(2) or m.group(1)}" if m else speech.plainly(text)[:80]
+        else:
+            continue
+        line = line.rstrip(".")
+        if line not in lines:
+            lines.append(line)
+    if not lines:
+        return "Nothing looked up today."
+    return f"Today I {speech.and_list(lines[-4:])}."
 
 
 def _hunting_for() -> str:
@@ -5234,6 +5299,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wrong": lambda rest: _wrong(rest),
            "standing": lambda rest: _standing(rest),
            "my_zone": lambda rest: _my_zone(),
+           "working": lambda rest: _working(),
+           "looked_up": lambda rest: _looked_up(),
            "time_convert": _time_convert,
            "spell": lambda rest: _spell(rest),
            "chance": _chance,
