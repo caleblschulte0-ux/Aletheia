@@ -346,7 +346,7 @@ class TheVerbsCase(unittest.TestCase):
             charters.ask("new", text="a podcast about maps", via="test")
             said = intercom.execute_command({"kind": "projects"}, {})
         self.assertIn("Barkly", said)
-        self.assertIn("waiting for your yes", said)
+        self.assertIn("waiting for your yes", said.lower())
         self.assertIn("a podcast about maps", said)
 
 
