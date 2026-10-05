@@ -29,6 +29,7 @@ everything else. It is a shortcut, not a replacement.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 
 MAX_QUESTION = 200
@@ -520,6 +521,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many days (?:are )?left (?:in|of) (?:the|this) (?P<left_in>month|year|week|quarter)\s*\??$"
         r"|^how (?:much|many days) (?:of )?(?:the|this) (?P<left_in2>month|year|week|quarter) (?:is|are) left\s*\??$"
         r"|^when does (?:the|this) (?P<left_in3>month|year|week|quarter) end\s*\??$")),
+    ("talking_for", re.compile(
+        r"^how long (?:have|'ve) we been (?:talking|chatting|at this|going)(?: for)?(?: today)?\s*\??$"
+        r"|^how long (?:have|'ve) (?:i|we) been (?:here|on)(?: today)?\s*\??$")),
+    ("asked_today", re.compile(
+        r"^how many (?:things|questions) (?:have i|did i|'ve i) (?:asked|said|told)(?: you)?(?: today| so far| tonight)?\s*\??$"
+        r"|^how many times (?:have i|did i) (?:talked|spoken) to you(?: today| so far| tonight)?\s*\??$"
+        r"|^how much (?:have i|did i) (?:asked|said|talked)(?: today| so far| tonight)?\s*\??$")),
+    ("never_sleeps", re.compile(
+        r"^(?:do|does) (?:you|u) (?:ever )?(?:sleep|rest|get tired|need (?:a |to )?(?:rest|sleep|break))\s*\??$"
+        r"|^(?:are|r) (?:you|u) (?:ever )?tired\s*\??$|^when do (?:you|u) sleep\s*\??$|^(?:do|does) (?:you|u) (?:ever )?(?:take|get) breaks?\s*\??$")),
     ("just_asked", re.compile(
         r"^what did i (?:just )?(?:ask|say|tell)(?: you)?(?: just now| a (?:second|minute|moment) ago)?\s*\??$"
         r"|^what was the last thing i (?:said|asked|told you)\s*\??$|^what did i (?:just )?say to you\s*\??$"
@@ -1726,6 +1737,50 @@ def _days_left(text: str) -> str | None:
     if left == 0:
         return f"Today is the last day of the {span}."
     return f"{left} day{'s' if left != 1 else ''} after today; the {span} ends {when}."
+
+
+def _todays_turns() -> list[dict]:
+    """The thread's turns dated today in his zone, oldest first."""
+    from aletheia import converse, localtime
+    try:
+        turns = converse.recent(limit=converse.KEEP_TURNS)
+    except Exception:
+        return []
+    today = localtime.today()
+    out = []
+    for turn in turns:
+        try:
+            when = dt.datetime.fromisoformat(str(turn.get("at") or "").replace("Z", "+00:00"))
+            if when.astimezone(localtime.operator_tz()).date() == today:
+                out.append(turn)
+        except (ValueError, TypeError):
+            continue
+    return out
+
+
+def _talking_for() -> str:
+    """"How long have we been talking" (2026-10-05: a model, five seconds)."""
+    from aletheia import converse, localtime, speech
+    turns = _todays_turns()
+    if not turns:
+        return "We just started - nothing earlier today in the conversation."
+    first = dt.datetime.fromisoformat(str(turns[0]["at"]).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+    minutes = max(1, int((dt.datetime.now(localtime.operator_tz()) - first).total_seconds() // 60))
+    span = f"{minutes} minute{'s' if minutes != 1 else ''}" if minutes < 90 else f"about {round(minutes / 60)} hours"
+    capped = " at least, as far back as I keep" if len(turns) >= converse.KEEP_TURNS else ""
+    return f"About {span}{capped}, since {speech.clock_words(first.strftime('%H:%M'))}."
+
+
+def _asked_today() -> str:
+    """"How many things have I asked you today" (2026-10-05: a model, six seconds)."""
+    from aletheia import converse
+    turns = _todays_turns()
+    if not turns:
+        return "Nothing yet today."
+    n = len(turns)
+    if n >= converse.KEEP_TURNS:
+        return f"At least {n} - that's as far back as I keep the conversation."
+    return f"{n} thing{'s' if n != 1 else ''} today, counting this one."
 
 
 def _just_asked(text: str) -> str:
@@ -5748,6 +5803,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "quarter": lambda rest: _quarter(),
            "days_left": _days_left,
            "just_asked": _just_asked,
+           "talking_for": lambda rest: _talking_for(),
+           "asked_today": lambda rest: _asked_today(),
+           "never_sleeps": lambda rest: "No. I'm here whenever you talk to me, and between your questions I'm idle - nothing's running that needs rest.",
            "when_asked": lambda rest: _when_asked(),
            "her_page": lambda rest: _her_page(),
            "the_wall": lambda rest: _the_wall(),

@@ -724,6 +724,8 @@ def _not_a_file(said: str) -> bool:
         return True
     if low in _NOT_A_FILE:
         return True
+    if re.search(r"\b(?:alarms?|reminders?|timers?|appointments?|meetings?)\b", low):
+        return True
     # "Find ME a plumber near me": a person or a service, never a file.
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
         return True
@@ -924,6 +926,45 @@ def _new_task(raw: str) -> dict:
     if deadline:
         command["deadline"] = deadline
     return {"command": command, "say": None}
+
+
+#: a part of a day, as a window: start hour and length in minutes
+_DAY_PARTS = {"morning": (9, 180), "afternoon": (12, 300), "evening": (17, 240), "night": (20, 180), None: (9, 480)}
+
+
+def _day_window(day: str, part: str | None) -> tuple[str, int] | None:
+    """("<iso start>", minutes) for "friday afternoon", or None."""
+    import datetime as dt
+    from aletheia import localtime
+    day_iso = _spoken_day(day)
+    if not day_iso:
+        return None
+    hour, minutes = _DAY_PARTS.get(part, _DAY_PARTS[None])
+    start = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, 0), tzinfo=localtime.operator_tz())
+    return start.isoformat(), minutes
+
+
+def _holds_inside(window: tuple[str, int]) -> list[dict]:
+    """Her own live calendar events that start inside the window."""
+    import datetime as dt
+    from aletheia import calendar as _cal
+    try:
+        start = dt.datetime.fromisoformat(window[0])
+        end = start + dt.timedelta(minutes=window[1])
+        rows = _cal.all_events()
+    except Exception:
+        return []
+    out = []
+    for event in rows:
+        if event.get("status") == "CANCELLED":
+            continue
+        try:
+            at = _cal.parse_time(event["start"])
+        except Exception:
+            continue
+        if start <= at < end:
+            out.append(event)
+    return out
 
 
 def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time_words: str | None) -> dict | None:
@@ -2378,8 +2419,10 @@ def _interpret(transcript: str) -> dict:
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
-    m = re.fullmatch(r"(?:when am i free|am i free|are we free|"
-                     r"what'?s my availability|any free time|do i have time)"
+    # "Am I busy Friday" is the same question from the other side (2026-10-05:
+    # a model); the answer says the free hours and what is pencilled in.
+    m = re.fullmatch(r"(?:when am i free|am i free|are we free|am i busy|are we busy|how busy am i|is my calendar (?:free|clear|busy)|"
+                     r"what'?s my availability|any free time|do i have time|do i have anything (?:on|planned|booked))"
                      r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
         asked = _ambiguous_next_weekday(m.group(1) or "")
@@ -2898,7 +2941,7 @@ def _interpret(transcript: str) -> dict:
     # subscription_cancel). A tracked subscription by that name is the
     # service; an appointment by that name is the calendar; neither is the
     # old guess.
-    m = re.fullmatch(r"(?:cancel|scrap|drop|take off|remove|delete) (?:my |the )?(?P<what>.+?)"
+    m = re.fullmatch(r"(?:cancel|scrap|drop|take off|remove|delete|take) (?:my |the )?(?P<what>.+?)"
                      r"(?: appointment| meeting| event| hold| booking)?(?: (?:from|off) (?:my |the )?calendar)?", low)
     if m and 2 <= len(m.group("what")) <= 60:
         what = m.group("what").strip()
@@ -3615,6 +3658,52 @@ def _interpret(transcript: str) -> dict:
         if why:
             return {"command": None, "say": str(why)}
 
+    # "PUSH THE VET ONE BACK AN HOUR" (2026-10-05: the planner, five seconds
+    # and an approval): the reminder he named, nudged by a duration.
+    m = re.fullmatch(r"(?:push|move|bump|shift|put|bring) (?:the |my )?(?P<what>.+?)(?: one| reminder)? "
+                     r"(?P<dir>back|later|forward|earlier|up|ahead)(?: by)? (?P<by>.+?)(?: please)?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        minutes = _spoken_minutes(m.group("by"))
+        try:
+            from aletheia import intercom as _ic
+            found, _why = _ic._one_reminder(_as_he_said(text, m.group("what")))
+        except Exception:
+            found = None
+        if minutes and found is not None and found.get("kind") == "once" and found.get("at"):
+            import datetime as dt
+            from aletheia import localtime
+            try:
+                at = dt.datetime.fromisoformat(str(found["at"]).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            except ValueError:
+                at = None
+            if at is not None:
+                sign = 1 if m.group("dir") in ("back", "later", "ahead") else -1
+                said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+                return {"command": {"kind": "remind_at", "at": (at + dt.timedelta(minutes=sign * minutes)).isoformat(),
+                                    "text": said_text, "replaces": said_text}, "say": None}
+
+    # "WHEN'S THE BREAD REMINDER" (2026-10-05: a model). The store says.
+    m = (re.fullmatch(r"when(?:'s| is| does| will) (?:the |my )?(?P<what>.+?)(?: reminder| one)(?: go off| fire| ring| due)?", low)
+         or re.fullmatch(r"when (?:am i|will i be|do i get) reminded (?:about|to|of) (?P<what>.+)", low)
+         or re.fullmatch(r"what time (?:is|'s|does) (?:the |my )?(?P<what>.+?)(?: reminder| one)(?: go off| fire| ring)?", low))
+    if m and m.group("what") not in ("next", "first", "last", "that", "it"):
+        try:
+            from aletheia import intercom as _ic
+            if _ic._one_reminder(_as_he_said(text, m.group("what")))[0] is not None:
+                return {"command": None, "say": _ic.reminder_when(_as_he_said(text, m.group("what")))}
+        except Exception:
+            pass
+
+    # ALARMS ARE THE REMINDERS THAT WAKE HIM (2026-10-05: "do I have an alarm
+    # set" searched Documents for a file called "alarm set").
+    if re.fullmatch(r"(?:do i have|have i got|is there|have i set|did i set) (?:an |any |my |the )?alarms?(?: set| on| going)?(?: for (?:tomorrow|the morning|tonight))?"
+                    r"|(?:is|what time is|what time's|when's|when is) (?:my |the )?alarm(?: set(?: for)?| going off| on)?"
+                    r"|what alarms? (?:do i have|have i got|are set|is set)|my alarms?", low):
+        from aletheia import intercom as _ic
+        return {"command": None, "say": _ic.alarm_answer()}
+    if re.fullmatch(r"(?:cancel|turn off|switch off|kill|delete|remove|stop|clear|scrap) (?:my |the |that )?(?:alarm|wake[- ]?up(?: alarm| call)?)(?: for (?:tomorrow|the morning))?", low):
+        return {"command": {"kind": "reminder_off", "which": "alarm"}, "say": None}
+
     # "MOVE THE DENTIST TO 4": the reminder he named, at the new time.
     m = re.fullmatch(r"(?:move|push|change|shift) (?:the |my )?(?P<what>.+?)(?: reminder)? to (?:at )?(?P<time>[\w: ]+?)"
                      r"(?: instead| please)?", low)
@@ -3719,6 +3808,38 @@ def _interpret(transcript: str) -> dict:
     if m:
         on = (m.group("on") == "on") if m.group("on") else bool(m.group("start"))
         return {"command": {"kind": "announce_set", "on": on}, "say": None}
+
+    # "BLOCK OUT FRIDAY AFTERNOON" / "CLEAR FRIDAY AFTERNOON" (2026-10-05:
+    # the planner and an approval for a hold in her own model; the clearing
+    # went to a model that asked a question back). A part of a day is a
+    # window; the hold is titled plainly, and clearing it releases every
+    # hold of hers inside the window - one here, the rest as his own words.
+    _cal_days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    m = (re.fullmatch(r"(?:block (?:out |off )?|hold |reserve )(?:my |the )?(?P<day>" + _cal_days + r")"
+                      r"(?: (?P<part>morning|afternoon|evening|night))?(?: free| off| clear| out| open)?(?: for me)?", low)
+         or re.fullmatch(r"keep (?:my |the )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                         r" (?:free|clear|open)(?: for me)?", low))
+    if m:
+        window = _day_window(m.group("day"), m.group("part"))
+        if window:
+            start, minutes = window
+            title = f"Blocked out ({m.group('part')})" if m.group("part") else "Blocked out"
+            return {"command": {"kind": "calendar_hold", "title": title, "start": start, "minutes": minutes}, "say": None}
+    m = re.fullmatch(r"(?:clear|free up|unblock|open up|empty) (?:my |the )?(?:calendar (?:on |for )?)?(?P<day>" + _cal_days + r")"
+                     r"(?: (?P<part>morning|afternoon|evening|night))?(?: on my calendar| on the calendar)?", low)
+    if m:
+        window = _day_window(m.group("day"), m.group("part"))
+        if window:
+            held = _holds_inside(window)
+            day_word = m.group("day") if m.group("day") in ("today", "tomorrow") else m.group("day").capitalize()
+            when = f"{day_word}{' ' + m.group('part') if m.group('part') else ''}"
+            if not held:
+                return {"command": None, "say": f"Nothing on your calendar {when}."}
+            first, rest = held[0], held[1:]
+            out = {"command": {"kind": "calendar_release", "title": str(first.get("title") or "")}, "say": None}
+            if rest:
+                out["and_then"] = [{"ask": f"take {e.get('title')} off my calendar"} for e in rest[:6]]
+            return out
 
     # A HOLD ON HIS CALENDAR, in her own model: "put dinner with Sam on my
     # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is

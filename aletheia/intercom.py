@@ -1429,6 +1429,35 @@ def _fires_at(spec: dict, words: str) -> bool:
         return False
 
 
+def _is_an_alarm(spec: dict) -> bool:
+    """A reminder whose words are a wake-up."""
+    text = str((spec.get("command") or {}).get("text") or "").casefold()
+    return bool(re.fullmatch(r"(?:wake up|wake-up|get up|alarm|wake up alarm|morning alarm|time to get up)", text.strip(" .!")))
+
+
+def alarm_answer() -> str:
+    """"Do I have an alarm set" (2026-10-05: it searched Documents for a
+    file called "alarm set"). The wake-up reminders, from the store."""
+    from aletheia import speech
+    rows = [r for r in _reminder_schedules() if _is_an_alarm(r)]
+    if not rows:
+        return "No alarm set. Say 'wake me up at 6:30' and I'll set one."
+    whens = [_reminder_words(r).split(" — ", 1)[-1] for r in rows[:4]]
+    if len(rows) == 1:
+        return f"Yes - your alarm is set for {whens[0]}."
+    return f"{speech.count_phrase(len(rows), 'alarm')}: {speech.and_list(whens)}."
+
+
+def reminder_when(words: str) -> str:
+    """"When's the bread reminder" (2026-10-05: a model, four seconds, to
+    read one row of the store)."""
+    found, why = _one_reminder(words)
+    if found is None:
+        return why
+    text, _sep, when = _reminder_words(found).partition(" — ")
+    return f"Your reminder to {text} is {when}." if when else f"Your reminder to {text} is set."
+
+
 def _one_reminder(which: str):
     """(schedule, why-not) — exactly one reminder he could mean.
 
@@ -1456,6 +1485,10 @@ def _one_reminder(which: str):
                           + speech.count_phrase(len(rows), "reminder") + ".")
 
     hits = [r for r in rows if needle and needle in text_of(r)]
+    if not hits and re.fullmatch(r"(?:my |the )?(?:alarm|wake[- ]?up(?: alarm| call)?|morning alarm)", needle):
+        # "cancel the alarm" (2026-10-05: "None of your reminders is about
+        # alarm"): an alarm is the reminder that wakes him.
+        hits = [r for r in rows if _is_an_alarm(r)]
     if not hits:
         # "The 6:30 one": by the time it fires (2026-10-05).
         hits = [r for r in rows if _fires_at(r, needle)]
