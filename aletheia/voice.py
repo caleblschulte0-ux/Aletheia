@@ -666,6 +666,25 @@ def _calendar_move(transcript: str, what: str, when: str) -> dict | None:
                         "start": start.isoformat()}, "say": None}
 
 
+def _workspace_files_named(words: str) -> list[str]:
+    """Relative paths in her workspace whose name says these words. Never raises."""
+    wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in ("the", "my", "a")]
+    if not wanted:
+        return []
+    try:
+        from aletheia import workspace
+        rows = workspace.listing()
+    except Exception:
+        return []
+    out = []
+    for row in rows:
+        path = str(row.get("path") or "")
+        stem = re.sub(r"[-_./]+", " ", path.rsplit(".", 1)[0]).casefold()
+        if all(w in stem.split() or w in stem for w in wanted):
+            out.append(path)
+    return out
+
+
 def _not_a_file(said: str) -> bool:
     """True when "find my X" is not about a file at all."""
     low = " ".join(str(said or "").casefold().split())
@@ -1964,6 +1983,25 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "file_read",
                             "path": _as_he_said(transcript, m.group(1)),
                             "anywhere": True}, "say": None}
+    # "Read me the groceries file" / "delete the groceries file": the file
+    # by the name he calls it, in her workspace (2026-10-05: the first was
+    # answered with a search result naming the file, the second went to
+    # the planner for an approval to do a routine, kept-first delete).
+    m = re.fullmatch(r"(?:read(?: me| out)?|open|show me|what(?:'s| is) in) (?:the |my )?(?P<name>[a-z0-9][a-z0-9 _.'-]{0,40}?) "
+                     r"(?:file|note|notes|doc|document|text file)(?: (?:in|from) (?:my |the |your )?workspace)?\s*\??"
+                     r"|(?P<verb>delete|remove|trash|get rid of|bin) (?:the |my )?(?P<name2>[a-z0-9][a-z0-9 _.'-]{0,40}?) "
+                     r"(?:file|note|doc|document|text file)(?: (?:in|from) (?:my |the |your )?workspace)?\s*\??", low)
+    if m:
+        name = (m.group("name") or m.group("name2") or "").strip()
+        found = _workspace_files_named(name)
+        if len(found) == 1:
+            if m.group("verb"):
+                return {"command": {"kind": "file_delete", "path": found[0], "why": "you asked"}, "say": None}
+            return {"command": {"kind": "file_read", "path": found[0]}, "say": None}
+        if len(found) > 1:
+            return {"command": None, "say": "Which one - " + " or ".join(found[:4]) + "?"}
+        if m.group("verb") or not _not_a_file(name):
+            return {"command": None, "say": f"I don't have a file called {name} in my workspace."}
 
     m = re.fullmatch(
         r"(?:what(?:'s| is|s)?|show me what(?:'s| is)?) (?:in|inside) "

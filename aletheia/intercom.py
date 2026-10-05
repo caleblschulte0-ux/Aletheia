@@ -1705,7 +1705,7 @@ def _undo_answer(cmd: dict) -> str:
 
 #: What he asks for by voice that can be taken straight back, by kind.
 UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly",
-                  "calendar_hold", "file_write", "note")
+                  "calendar_hold", "file_write", "file_delete", "note")
 
 
 def _undo_his_last_ask() -> str | None:
@@ -1716,7 +1716,7 @@ def _undo_his_last_ask() -> str | None:
     of those (the caller then looks at her own unattended ledger)."""
     try:
         from aletheia import converse, voice
-        turns = converse.recent(limit=4)
+        turns = converse.recent(limit=8)
     except Exception:
         return None
     for turn in reversed(turns or []):
@@ -1730,6 +1730,16 @@ def _undo_his_last_ask() -> str | None:
         kind = str(command.get("kind") or "")
         if kind == "undo":
             continue                        # his previous undo; look one further back
+        deleted = re.match(r"^Deleted (?P<path>\S+)\.(?:\s|$)", str(turn.get("she_answered") or ""))
+        if deleted:
+            # Re-reading "delete the groceries file" AFTER the file is gone
+            # finds no file; her own receipt names the path (2026-10-05).
+            return _reverse_his_ask("file_delete", {"path": deleted.group("path")})
+        if not kind or kind in READ_ONLY_KINDS or kind == "intent":
+            # A question, or a plan (which runs only after his "yes", a
+            # turn of its own), changed nothing by itself: "undo" after
+            # "what's the last thing you wrote" meant the file (2026-10-05).
+            continue
         if kind not in UNDOES_HIS_ASK:
             return None
         return _reverse_his_ask(kind, command)
@@ -1780,6 +1790,14 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
             return f"Undone: put back the version of {path} from before."
         workspace.remove(path, why="undone: you took it back")
         return f"Undone: removed {path}; a copy is kept if you want it back."
+    if kind == "file_delete":
+        from aletheia import workspace
+        path = str(command.get("path") or "")
+        kept = workspace.versions(path)
+        if not kept:
+            return f"I have no kept copy of {path} to put back."
+        workspace.restore(kept[-1])
+        return f"Undone: put {path} back."
     if kind == "note":
         return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
     return "Nothing to undo."
@@ -2755,9 +2773,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "file_delete":
         from aletheia import workspace
         out = workspace.remove(cmd["path"], why=cmd.get("why", ""))
-        return (f"deleted {cmd['path']}"
-                + (f" — the previous version is kept as {out['kept']}"
-                   if out.get("kept") else ""))
+        # "the previous version is kept as .versions/groceries-2026...txt"
+        # was read out (2026-10-05); the path is in the journal line.
+        return (f"Deleted {cmd['path']}."
+                + (" I kept a copy, so 'undo' brings it back." if out.get("kept") else ""))
     if kind == "file_move":
         from aletheia import workspace
         out = workspace.move(cmd["path"], cmd["to"], why=cmd.get("why", ""))

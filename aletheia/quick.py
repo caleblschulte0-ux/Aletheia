@@ -1035,7 +1035,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
-        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
+        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|do i have|have i got|are there|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
@@ -1066,6 +1066,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("ran_today", re.compile(
         r"^(?:did|has) (?:the )?(?P<ran>[a-z0-9][a-z0-9 .'-]{1,40}?)(?: pipeline| workflow| repo| project)? "
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
+    # "How many notes do I have" and "search my notes for car" each paid a
+    # model (2026-10-05), and the second one DENIED the note.
+    ("notes_count", re.compile(
+        r"^how many notes (?:do i have|have i got|do (?:you|u) have|are there|have (?:you|u) got)(?: for me)?\s*\??$")),
+    ("notes_search", re.compile(
+        r"^(?:search|look through|look in|check|go through|grep) (?:my |your |the )?notes for (?:the |my )?(?P<notes_search>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^(?:find|is there|do i have|have i got) (?:a |any |anything )?(?:note|notes)? ?(?:about|on|mentioning|with) (?:the |my )?(?P<notes_search2>[a-z0-9][a-z0-9 '-]{1,40}?) in (?:my |your |the )?notes\s*\??$"
+        r"|^(?:find|search for) (?:the |my )?(?P<notes_search3>[a-z0-9][a-z0-9 '-]{1,40}?) in (?:my |your |the )?notes\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^(?:my )?notes$"
@@ -1159,7 +1167,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "due_when", "due_when2", "due_when3",
                                            "project_of", "project_of2", "project_of3", "project_turn",
                                            "access", "access2", "access3",
-                                           "recall6",
+                                           "recall6", "notes_search", "notes_search2", "notes_search3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4")
@@ -3270,6 +3278,15 @@ _STOP_WORDS = {"the", "a", "an", "my", "his", "her", "our", "that", "this", "is"
                "to", "for", "and", "about", "up", "on", "in", "at", "it", "me", "you"}
 
 
+def _notes_count() -> str:
+    from aletheia import speech
+    rows = _notes()
+    if not rows:
+        return 'No notes yet. Say "note that" or "remember that" and I\'ll keep it.'
+    newest = " ".join(str(rows[0].get("text") or "").split()).rstrip(".")
+    return f"{speech.count_phrase(len(rows), 'note')}. The newest: {newest}."
+
+
 def _notes(limit: int = 200) -> list[dict]:
     """His notes, newest first: the journal lines `note` writes."""
     from aletheia import journal
@@ -4745,6 +4762,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "cannot": lambda rest: _cannot(),
            "agenda": lambda rest: _agenda(rest or "today"),
            "weekend": lambda rest: _weekend(),
+           "notes_count": lambda rest: _notes_count(),
+           "notes_search": lambda rest: _recall(rest),
            "what_day": lambda rest: _what_day(rest),
            "week_number": lambda rest: _week_number(),
            "leap_year": lambda rest: _leap_year(rest),
