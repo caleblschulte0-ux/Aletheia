@@ -32,15 +32,22 @@ class RememberXIsYGoesOnAShelf(unittest.TestCase):
                                           "about": "your landlord"})
 
     def test_a_subject_with_no_shelf_is_still_a_note_with_his_capitals(self):
-        out = voice.interpret("remember that the wifi password is Hunter2")
+        out = voice.interpret("remember that the gate code is Four Four Seven One")
         self.assertEqual(out["command"]["kind"], "note")
-        self.assertEqual(out["command"]["text"], "the wifi password is Hunter2")
+        self.assertEqual(out["command"]["text"], "the gate code is Four Four Seven One")
+        # A password is the one note she refuses out loud (2026-10-05): the
+        # journal scrubs it on the way in, so "Noted." would have kept
+        # "[redacted]" and read that back.
+        out = voice.interpret("remember that the wifi password is Hunter2")
+        self.assertIsNone(out["command"])
+        self.assertIn("I don't keep passwords", out["say"])
 
     def test_remember_to_is_not_a_fact(self):
         out = voice.interpret("remember to call the dentist")
         self.assertNotEqual(out["command"]["kind"], "remember")
 
     def test_the_round_trip_she_failed(self):
+        self.addCleanup(memory.forget, "people", "landlord")
         cmd = voice.interpret("remember that my landlord is Dana Whitfield")["command"]
         said = intercom.execute_command(cmd, {}, quote="remember that my landlord is Dana Whitfield")
         # His phrase, read back ("sister s birthday" was the key, 2026-10-05).
@@ -49,6 +56,7 @@ class RememberXIsYGoesOnAShelf(unittest.TestCase):
         self.assertEqual(quick._person("landlord"), "Your landlord is Dana Whitfield.")
 
     def test_a_two_word_subject_is_found_by_the_question(self):
+        self.addCleanup(memory.forget, "people", "best_friend")
         cmd = voice.interpret("remember my best friend is Marcus")["command"]
         self.assertEqual(cmd["key"], "best_friend")
         intercom.execute_command(cmd, {}, quote="t")

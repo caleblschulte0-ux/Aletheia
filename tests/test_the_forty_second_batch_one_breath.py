@@ -84,11 +84,14 @@ class Corrections(unittest.TestCase):
         self.assertNotEqual(voice.interpret("thea never mind the reminder thing")["command"].get("kind"), "task_done")
 
     def test_never_mind_right_after_a_task_undoes_it(self):
+        from aletheia import policy
         converse.remember_exchange("add a task to call the dentist", "Added a task: call the dentist.")
-        with mock.patch.object(voice, "_last_ask_is_undoable", return_value=True):
-            self.assertEqual(voice.interpret("thea never mind")["command"], {"kind": "undo"})
-        with mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
-            self.assertIsNone(voice.interpret("thea never mind")["command"])
+        # with nothing pending (another test's approval must not be what "never mind" denies)
+        with mock.patch.object(policy, "all_approvals", return_value=[]):
+            with mock.patch.object(voice, "_last_ask_is_undoable", return_value=True):
+                self.assertEqual(voice.interpret("thea never mind")["command"], {"kind": "undo"})
+            with mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
+                self.assertIsNone(voice.interpret("thea never mind")["command"])
 
     def test_what_did_i_just_ask_you_is_read_from_the_thread(self):
         self.assertEqual(quick.match("what did I just ask you")[0], "just_asked")

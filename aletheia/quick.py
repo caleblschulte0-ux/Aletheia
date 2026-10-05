@@ -1259,6 +1259,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
+        # "what did I draft", "did I draft anything" (2026-10-05: a model)
+        r"|^what (?:did|have) i (?:draft|drafted|ask (?:you|u) to draft|get (?:you|u) to draft)(?: today| so far)?\s*\??$"
+        r"|^did i draft anything\s*\??$|^(?:anything|what(?:'s| is)) drafted\s*\??$|^is there a draft(?: waiting)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|do i have|have i got|are there|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
@@ -4097,7 +4100,11 @@ def _uptime() -> str | None:
     seconds = liveness.uptime_seconds()
     if seconds is None:
         core = sys.modules.get("aletheia.core")
-        started = getattr(core, "PROCESS_STARTED_AT", None) if core else None
+        # Only when a Core is SERVING in this process: the module being
+        # imported is not the Core being up (the full suite imports it, and
+        # "how long have you been up" answered "Up 15 minutes" from a test
+        # process with no Core in it, 2026-10-05).
+        started = getattr(core, "PROCESS_STARTED_AT", None) if core and getattr(core, "SERVERS", None) else None
         if not started:
             return None             # she does not know; do not invent one (test_liveness)
         seconds = max(0.0, dt.datetime.now(dt.timezone.utc).timestamp() - float(started))

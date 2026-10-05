@@ -41,7 +41,10 @@ class HisThumbs(unittest.TestCase):
         self.assertEqual(voice.interpret("add a tsk to call the bank")["command"]["kind"], "task_new")
         self.assertEqual(quick.match("whats on my calender tmrw"), ("agenda", "tomorrow"))
         self.assertIsNotNone(voice.interpret("whats my adress")["say"])
-        self.assertEqual(voice.interpret("nvm")["say"], "Okay - nothing was waiting.")
+        from aletheia import policy
+        with mock.patch.object(policy, "all_approvals", return_value=[]), \
+                mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
+            self.assertEqual(voice.interpret("nvm")["say"], "Okay - nothing was waiting.")
         self.assertFalse(voice.worth_answering("k"))
 
 

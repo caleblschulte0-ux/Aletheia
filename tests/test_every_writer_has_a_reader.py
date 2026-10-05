@@ -137,6 +137,9 @@ READER_FOR = {
     # ...and so do taking one off and moving one (2026-10-05).
     "calendar_release": "calendar_find_free",
     "calendar_move": "calendar_find_free",
+    # A scrapped draft is gone from "what have you drafted" (the quick lane's
+    # `drafts` reads mail.held_drafts_words) and from the thread's status.
+    "draft_discard": "thread_status",
     # His "handled" on a red project is read back by the brief and by "is
     # anything broken": the fault is said as handled, not as red.
     "fault_ack": "brief",

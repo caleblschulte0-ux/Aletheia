@@ -724,7 +724,7 @@ def _not_a_file(said: str) -> bool:
         return True
     if low in _NOT_A_FILE:
         return True
-    if re.search(r"\b(?:alarms?|reminders?|timers?|appointments?|meetings?)\b", low):
+    if re.search(r"\b(?:alarms?|reminders?|timers?|appointments?|meetings?|drafts?)\b", low):
         return True
     # "Find ME a plumber near me": a person or a service, never a file.
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
@@ -3317,6 +3317,15 @@ def _interpret(transcript: str) -> dict:
     # verbs and must not fall into it. The body is required: "text Brant"
     # with nothing to say is a question, not a message, and it falls
     # through to the planner to ask what he wants said.
+    # "SCRAP THE DRAFT" (2026-10-05: twelve seconds on a model, which then
+    # said there was nothing to scrap). Her own held draft, by the person
+    # or the subject, or the newest.
+    m = re.fullmatch(r"(?:scrap|delete|drop|cancel|bin|discard|throw away|forget|kill|trash|ditch|dump) "
+                     r"(?:the |that |my |this )?(?:last |latest |newest |other )?(?:email |text )?drafts?"
+                     r"(?: (?:to|for|about) (?P<who>[a-z][a-z0-9 .'-]{1,40}))?", low)
+    if m:
+        return {"command": {"kind": "draft_discard", "which": _as_he_said(text, (m.group("who") or "").strip())}, "say": None}
+
     m = re.match(r"(?:send (?:a )?(?:text|message)(?: to)?|text|message)\s+"
                  r"(.+?)\s+(?:that|saying|and say|telling (?:him|her|them)|:)"
                  r"\s+(.+)", low)
@@ -3343,6 +3352,52 @@ def _interpret(transcript: str) -> dict:
     if m and not re.search(r"\b(?:remind|reminder)\b", low):
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
+
+    # "DRAFT A TEXT TO DANA" with nothing to say (2026-10-05: a model wrote a
+    # message in its reply and drafted nothing, then "what did I draft"
+    # described that reply as a draft). The body is the message; without it
+    # the honest move is the question, asked here with no model.
+    m = (re.fullmatch(r"(?:draft|write|compose|send)(?: me| up| out)? (?:a |an |the )?(?:quick |short |new )?"
+                      r"(?P<what>text|message|sms|email|e-mail|mail|note)(?: message)? (?:to|for) (?P<to>[a-z][a-z .'-]{1,30})", low)
+         or re.fullmatch(r"(?P<what>text|message|email|e-mail) (?P<to>[a-z][a-z .'-]{1,30})", low))
+    if m and len(m.group("to").split()) <= 3 and not re.search(r"\b(?:about|that|saying|file|list|back)\b", m.group("to")):
+        who = _as_he_said(text, m.group("to").strip())
+        noun = "text" if m.group("what") in ("text", "message", "sms") else "email"
+        verb = "text" if noun == "text" else "email"
+        return {"command": None,
+                "say": f"What should the {noun} to {who} say? Say '{verb} {who} saying ...' and I'll draft it for your approval."}
+
+    # "REPLY TO DANA" with nothing to say (2026-10-05: a model, six seconds).
+    m = re.fullmatch(r"(?:reply|respond|write back|answer|get back) (?:to )?(?P<to>[a-z][a-z .'-]{1,30})(?:'s (?:email|message|text))?", low)
+    if m and len(m.group("to").split()) <= 3 and not re.search(r"\b(?:about|that|saying|yes|no|them|all|it|this)\b", m.group("to")):
+        who = _as_he_said(text, m.group("to").strip())
+        try:
+            from aletheia import mail as _mail
+            ready, why = _mail.available()
+        except Exception:
+            ready, why = False, "mail isn't set up yet."
+        if not ready:
+            return {"command": None, "say": f"I can't read what {who} sent: {speech.without_machine_codes(why)} Say 'email {who} saying ...' and I'll draft the reply anyway."}
+        return {"command": None, "say": f"What should the reply to {who} say? Say 'reply to {who} saying ...' and I'll draft it for your approval."}
+
+    # "MARK IT AS READ" / "UNSUBSCRIBE ME FROM THAT NEWSLETTER" (2026-10-05: a
+    # model each, asking which). Neither is built; both are said so, and
+    # counted in the demand ledger with his words.
+    m = (re.fullmatch(r"mark (?:it|that|this|them|the (?:email|e-mail|message)|(?P<w1>.{2,40}?)) (?:as )?(?:read|unread|seen)", low)
+         or re.fullmatch(r"(?:unsubscribe|unsub)(?: me)?(?: from)?(?: (?:that|this|the|those))? ?(?P<w2>.{0,60})", low))
+    if m:
+        unsub = low.startswith("unsub")
+        try:
+            from aletheia import demand as _demand
+            _demand.record("email.read", text, status="NOT_BUILT", source="voice")
+        except Exception:
+            pass
+        return {"command": None,
+                "say": ("I can't unsubscribe you from things yet - that isn't built. I've counted the ask. "
+                        "The unsubscribe link at the bottom of the email is the quickest way for now."
+                        if unsub else
+                        "I can't mark mail as read yet - that isn't built. I've counted the ask; "
+                        "your mail app will do it in one tap.")}
 
     # "Email the landlord about the listing": a CONVERSATION she carries - the
     # draft, the reply, the follow-up - rather than one message and forget.

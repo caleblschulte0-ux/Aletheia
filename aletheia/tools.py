@@ -705,7 +705,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     # actually asked. A capability nobody hears about is one he will
     # never use.
     "making Word, Excel and PowerPoint files": ("doc_make",),
-    "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
+    "email": ("email_check", "email_read", "email_draft", "draft_discard", "thread_draft", "thread_send",
               "thread_status", "thread_followup"),
     "texting people": ("message_send",),
     "posting to Instagram": ("instagram_post", "instagram_posts"),

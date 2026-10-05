@@ -667,7 +667,8 @@ def held_drafts() -> list[dict]:
             d = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists():
+        if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists() \
+                and not path.with_suffix(".refused.json").exists():
             # `created` is to the second; two drafts in one second (a pursuit
             # pass writes several) are ordered by the nanosecond stamp the
             # writer put in the record. A draft written before that existed
@@ -682,6 +683,59 @@ def held_drafts() -> list[dict]:
                                       int(d.get("created_ns") or 0),
                                       int(d.get("_written") or 0),
                                       str(d.get("id") or "")), reverse=True)
+
+
+def discard_draft(which: str = "", *, why: str = "") -> dict:
+    """"Scrap the draft" (2026-10-05: twelve seconds on a model that then
+    said there was nothing to scrap). The draft he names - by the person or
+    the subject, or the newest when he names none - gets a refused marker,
+    its pending approval is denied, and nothing was sent. Raises LookupError
+    with a sentence when none or more than one matches."""
+    from aletheia import journal, policy, speech
+    rows = []
+    if MAIL_DIR.is_dir():
+        for path in sorted(MAIL_DIR.glob("mail-*.json")):
+            if path.name.endswith((".sent.json", ".refused.json")):
+                continue
+            if path.with_suffix(".sent.json").exists() or path.with_suffix(".refused.json").exists():
+                continue
+            try:
+                d = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if isinstance(d, dict) and d.get("id"):
+                d["_path"] = path
+                rows.append(d)
+    rows.sort(key=lambda d: str(d.get("created") or ""), reverse=True)
+    if not rows:
+        raise LookupError("No drafts waiting - there's nothing to scrap.")
+    words = [w for w in re.findall(r"[a-z0-9']+", str(which or "").casefold())
+             if w not in ("the", "my", "that", "this", "draft", "drafts", "last", "latest", "newest", "one", "to", "for", "email", "text")]
+    if words:
+        hits = [d for d in rows if all(w in (str(d.get("to_name") or "") + " " + str(d.get("to") or "") + " "
+                                              + str(d.get("subject") or "")).casefold() for w in words)]
+        if not hits:
+            raise LookupError(f"No draft matching {' '.join(words)!r}. " + held_drafts_words())
+        if len(hits) > 1:
+            raise LookupError("Which one - " + speech.or_list(
+                [f"{d.get('subject')!r} to {d.get('to_name') or d.get('to')}" for d in hits[:4]]) + "?")
+        chosen = hits[0]
+    else:
+        chosen = rows[0]
+    path = chosen.pop("_path")
+    path.with_suffix(".refused.json").write_text(
+        json.dumps({"outcome": "discarded", "why": str(why or "scrapped by voice")[:200]}, indent=2) + "\n",
+        encoding="utf-8")
+    try:
+        approval = policy.load(chosen["id"])
+        if approval.get("state") == "PENDING":
+            policy.decide(chosen["id"], "DENIED", via="voice", because="he scrapped the draft")
+    except Exception:
+        pass
+    journal.append("action", f"mail:{chosen['id']}",
+                   f"scrapped the draft to {chosen.get('to_name') or chosen.get('to')} - {str(chosen.get('subject') or '')!r}; nothing sent",
+                   actor=ACTOR)
+    return chosen
 
 
 def drafts_ledger() -> list[dict]:

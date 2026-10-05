@@ -222,6 +222,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
     "email_draft":   ({"to", "body"}, {"subject"}),
+    "draft_discard": (set(), {"which"}),
     # The most-asked-for thing she could not do — thirteen times in the
     # demand ledger, in his own words. Same shape as email_draft: it
     # writes a draft and an approval and sends nothing.
@@ -693,6 +694,10 @@ KIND_NOTES: dict[str, str] = {
     "calendar_release": (
         'Take something off HIS calendar model by its title: "cancel the dentist". Only her own '
         'calendar here; nobody is told. Refuses when nothing or more than one thing matches.'),
+    "draft_discard": (
+        'Scrap a draft she is holding, by the person or the subject ("scrap the draft to Dana"), or '
+        'the newest when which is empty. Its pending approval is denied; nothing is sent. Refuses '
+        'when nothing or more than one draft matches.'),
     "calendar_move": (
         'Move something on HIS calendar model to a new start, by its title: "move the dentist to 4". '
         'start is ISO-8601 in his timezone; the length is kept unless end or minutes say otherwise. '
@@ -715,7 +720,7 @@ KIND_NOTES: dict[str, str] = {
 # command can ever be executed by both sides in a race. A local kind with
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
-LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft", "draft_discard",
                # the job hunt's pause marker lives in the PC's private state
                "apply_pause",
                # her unattended ledger, and the stores an undo reverses, are on the PC
@@ -919,6 +924,9 @@ ROUTINE_KINDS = frozenset({
     # it down and nothing past that.
     "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
     "calendar_release", "calendar_move",
+    # Scrapping a held draft reaches nobody: the file gets a marker and its
+    # approval is denied, which is what "no" at the keyboard does.
+    "draft_discard",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -3022,6 +3030,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                        requested_via=f"intercom: {quote[:80]}")
         return (f"draft to {d['to_name']} ready — {d['subject']!r}. "
                 f"Approval {d['id']} is pending; approving it sends the email.")
+    if kind == "draft_discard":
+        from aletheia import mail
+        try:
+            d = mail.discard_draft(str(cmd.get("which") or ""), why=quote[:120])
+        except LookupError as exc:
+            raise act.Refused(str(exc)) from None
+        return f"Scrapped the draft to {d.get('to_name') or d.get('to')}: {str(d.get('subject') or '')!r}. Nothing was sent."
     if kind == "thread_draft":
         from aletheia import conversations
         if not (str(cmd.get("about") or "").strip() or str(cmd.get("body") or "").strip()):
