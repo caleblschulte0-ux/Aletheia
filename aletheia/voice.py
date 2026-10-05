@@ -2167,7 +2167,9 @@ def _interpret(transcript: str) -> dict:
     if m:
         # The re-said sentence carries "to", so it cannot match this rule
         # again (the first draft looped on "remind me tonight at 8pm bins").
-        day = f" {m.group('day')}" if m.group("day") else ""
+        # "tonight" and "today" are "at <time>" to the reminder rules; only
+        # "tomorrow" is a day they know by name.
+        day = " tomorrow" if m.group("day") == "tomorrow" else ""
         again = interpret(f"thea remind me{day} at {m.group('t')} to {m.group('x').strip()}")
         if again.get("command") is not None and again["command"].get("kind") == "remind_at":
             again["command"]["text"] = _as_he_said(transcript, m.group("x").strip())
