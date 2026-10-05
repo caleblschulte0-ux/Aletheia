@@ -1998,6 +1998,12 @@ def _interpret(transcript: str) -> dict:
         if asked:
             return {"command": None, "say": asked}
         day, part = _spoken_when(m.group(1) or "")
+        if not day and re.fullmatch(r"(?:at|around|about) [\w: ]+", (m.group(1) or "").strip()):
+            # "Am I free at 2" - a time with no day is today (sixteenth batch,
+            # 2026-10-05: it went to the planner, which had no calendar).
+            import datetime as dt
+            from aletheia import localtime
+            day = dt.datetime.now(localtime.operator_tz()).date().isoformat()
         if day:
             command = {"kind": "free_time", "day": day}
             if part:

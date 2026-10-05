@@ -211,7 +211,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # (bottom rung 2026-09-24: a repo lookup for "we", and nobody).
         r"|^(?:are we good|is everything (?:ok|okay|alright|fine|good)|all good|everything good)(?: today)?\s*\??$"
         r"|^(?:summari[sz]e|recap|sum up) (?:today|my day|the day|things)(?: for me)?\s*\??$"
-        r"|^how (?:was|did) (?:your|the|my) day(?: go)?\s*\??$")),
+        r"|^how (?:was|did) (?:your|the|my) day(?: go)?\s*\??$"
+        # "Any news" alone answered about employers only; "what should I know"
+        # paid a model (sixteenth batch, 2026-10-05). Both are the rundown.
+        r"|^(?:any news|anything new|what(?:'s| is) new with you|anything i should know|what should i know|"
+        r"what do i need to know|what have i missed)(?: today)?\s*\??$")),
     ("focus", re.compile(
         r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
@@ -489,6 +493,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"top of the morning|rise and shine)(?:,? thea)?(?: !)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
+        r"|^what (?:did|have) (?:you|u) (?:do|done|get done|been up to) while i was (?:out|gone|away|asleep|at work)$"
         r"|^what have (?:you|u) been doing$"
         r"|^what did (?:you|u) get done(?: today)?$"
         # A part of the day (2026-09-24, offline: "I can't think just now")
@@ -4264,6 +4269,44 @@ def _follow_up(question: str) -> str | None:
     return answer(rebuilt)
 
 
+#: Where one sentence becomes two questions: "and" followed by a question word.
+_CLAUSE_JOIN = re.compile(r"\s+and\s+(?=(?:am|is|are|do|does|did|what|what's|when|when's|where|how|who|which|can|"
+                          r"will|should|have|has|any)\b)", re.I)
+
+
+def _compound(question: str) -> str | None:
+    """"What's on my calendar tomorrow and am I free at 2": two questions the fast
+    lane knows, joined by "and", went to a model that had neither answer in
+    front of it (sixteenth batch, 2026-10-05). Each clause is answered on its own
+    and the answers are said together - and ONLY when every clause has a fast
+    answer, so this never answers half a question."""
+    clauses = [c.strip(" ,") for c in _CLAUSE_JOIN.split(" ".join(str(question or "").split()))]
+    if len(clauses) < 2 or len(clauses) > 3:
+        return None
+    parts = []
+    for clause in clauses:
+        said = None
+        found = match(clause)
+        if found:
+            name, rest = found
+            said = ANSWERS[name](rest)
+        else:
+            # The clause may be one the VOICE layer answers without a model
+            # ("am I free at 2" is a free_time read). Only a read-only kind
+            # is run from here: the same door the sentence alone would take.
+            try:
+                from aletheia import intercom, voice
+                command = (voice.interpret(f"thea {clause}") or {}).get("command") or {}
+                if command.get("kind") in intercom.READ_ONLY_KINDS:
+                    said = intercom.execute_command(dict(command), {}, quote=f"spoken: {clause[:120]}")
+            except Exception:
+                said = None
+        if said is None or not str(said).strip():
+            return None
+        parts.append(str(said).strip())
+    return " ".join(parts)
+
+
 def answer(question: str) -> str | None:
     """An answer from her own stores, or None to go and think.
 
@@ -4273,7 +4316,7 @@ def answer(question: str) -> str | None:
     try:
         found = match(question)
         if not found:
-            return _follow_up(question)
+            return _follow_up(question) or _compound(question)
         name, rest = found
         said = ANSWERS[name](rest)
         # `str(None)` is the four-character string "None", which is truthy
