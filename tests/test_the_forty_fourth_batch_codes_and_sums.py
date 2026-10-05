@@ -22,6 +22,9 @@ class CodesSaidPlainly(unittest.TestCase):
         self.assertNotIn("hunter2", d["say"])
         self.assertEqual(voice.interpret("thea the gate code is 4471")["command"],
                          {"kind": "note", "text": "the gate code is 4471"})
+        self.assertEqual(voice.interpret("thea remember that the gate code is 4471")["command"],
+                         {"kind": "note", "text": "the gate code is 4471"})
+        self.assertIn("I don't keep passwords", voice.interpret("thea remember the wifi password is hunter2")["say"])
         self.assertEqual(voice.interpret("thea my locker combination is 12-34-56")["command"]["kind"], "note")
         # a complaint is not a code
         self.assertNotEqual(voice.interpret("thea my wifi password is wrong")["command"].get("kind"), "note")

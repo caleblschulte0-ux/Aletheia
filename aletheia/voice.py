@@ -4040,7 +4040,9 @@ def _interpret(transcript: str) -> dict:
     # a code of his, said plainly, is the note "remember the gate code is
     # 4471" already makes, and "what's the wifi password" reads it back.
     m = re.fullmatch(r"(?:my |the |our )?(?P<k>[a-z][a-z' -]{1,30}?) (?:password|passcode|code|pin|combination|combo) is (?P<v>\S{2,60})", low)
-    if m and not re.search(r"\b(?:wrong|right|broken|expired|old|new|changed|the same|different|not)\b", m.group("v")):
+    if m and not re.search(r"\b(?:wrong|right|broken|expired|old|new|changed|the same|different|not)\b", m.group("v")) \
+            and not re.match(r"(?:remember|note|keep in mind|save|record|write down|jot)\b", low):
+        # ("remember the gate code is 4471" is the remember rule's, below)
         # A PASSWORD IS NEVER KEPT, and she says so at the time: every
         # journal line is scrubbed on the way in (the journal is committed
         # to a public repository), so "Noted." would have kept "my wifi
@@ -4083,7 +4085,13 @@ def _interpret(transcript: str) -> dict:
         # of the shape "X is Y" whose subject names a shelf is a `remember`
         # now (memory.parse_fact, the same parser the work session's
         # argument filling uses); everything else is still a note.
-        from aletheia import memory
+        from aletheia import memory, sensitivity
+        if sensitivity.scrub(low)[1]:
+            # the same refusal as the bare "my wifi password is X" above
+            return {"command": None,
+                    "say": ("I don't keep passwords, even yours - anything I write down can end up in a log, "
+                            "so it would only ever come back as 'redacted'. Keep it in your password manager; "
+                            "a gate code or a door PIN I'll note if you ask.")}
         fact = memory.parse_fact(text)
         if fact and fact["domain"]:
             about = _as_he_said(text, fact["subject"])
