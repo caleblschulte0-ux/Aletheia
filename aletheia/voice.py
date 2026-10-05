@@ -1724,6 +1724,16 @@ def _interpret(transcript: str) -> dict:
                     # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
                     r"|(when|what time) (is|'s) (my|the) next reminder|what(?:'s| is) my next reminder", low):
         return {"command": {"kind": "reminders"}, "say": None}
+    # ALL OF THEM (2026-10-05: "cancel all reminders" asked which one, "clear
+    # all tasks" went to the planner for an approval, "deny all" to a model).
+    if re.fullmatch(r"(?:cancel|stop|turn off|switch off|clear|delete|remove|kill) (?:all |every |all of |all my |my )?(?:reminders?|alarms?|timers?)(?: and (?:alarms|timers))?", low) \
+            and re.search(r"\b(?:all|every)\b", low):
+        return {"command": {"kind": "reminder_off", "which": "all"}, "say": None}
+    if re.fullmatch(r"(?:clear|cancel|delete|remove|wipe|drop|scrap) (?:all |every |all of |all my |my )?(?:tasks?|the (?:whole )?task list|my task list|the list of tasks)", low) \
+            and re.search(r"\b(?:all|every|whole|list)\b", low):
+        return {"command": {"kind": "task_done", "which": "everything", "as": "cancelled"}, "say": None}
+    if re.fullmatch(r"(?:deny|reject|refuse|turn down|say no to|cancel) (?:all|everything|them all|all of them|all of it|every approval|all the approvals|all pending)(?: of them)?", low):
+        return {"command": {"kind": "deny", "id": "all", "because": "denied by voice, all at once"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
     if not m:

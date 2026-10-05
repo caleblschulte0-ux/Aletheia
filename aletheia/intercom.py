@@ -97,7 +97,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "tasks":         (set(), {"which"}),
     # "mark the passport one done" — by what he CALLS it, because he does
     # not know its id and should never have to.
-    "task_done":     ({"which"}, set()),
+    "task_done":     ({"which"}, {"as"}),
     "halt":          (set(), {"reason"}),
     # 2026-09-23: "Restart her", one tap, on the page that says her
     # heartbeat is old. Exits the way a code update does and the
@@ -2513,9 +2513,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             rows = _open_tasks()
             if not rows:
                 return "Nothing open on your task list."
+            # "clear all tasks" is the whole list CANCELLED, not done (2026-10-05)
+            cancel = str(cmd.get("as") or "done").strip().casefold() in ("cancelled", "canceled", "cleared", "dropped")
             for row in rows:
-                tasks_mod.set_status(row["id"], "COMPLETED", note=f"marked done: {quote[:120]}")
-            return "marked done — " + speech.and_list([str(r.get("description") or r["id"]) for r in rows[:6]])
+                tasks_mod.set_status(row["id"], "CANCELLED" if cancel else "COMPLETED",
+                                     note=f"{'cleared' if cancel else 'marked done'}: {quote[:120]}")
+            return ("cleared — " if cancel else "marked done — ") + speech.and_list([str(r.get("description") or r["id"]) for r in rows[:6]])
         found, why = _one_task(cmd["which"])
         if found is None:
             return why
@@ -2591,6 +2594,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         decided = policy.decide(cmd["id"], "APPROVED", via=ACTOR)
         return f"approved — {_approval_words(decided, cmd['id'])}"
     if kind == "deny":
+        if str(cmd.get("id") or "").strip().casefold() == "all":
+            # "deny all": every pending approval, each its own no (2026-10-05:
+            # the planner, forbidden the verb, answered "1 step only you can do").
+            pending = [a for a in policy.all_approvals() if a.get("state") == "PENDING"]
+            if not pending:
+                return "Nothing is waiting for approval."
+            said = []
+            for a in pending:
+                decided = policy.decide(a["id"], "DENIED", via=ACTOR, because=cmd.get("because", ""))
+                said.append(_approval_words(decided, a["id"]).rstrip("."))
+            return "denied — " + "; ".join(said)
         decided = policy.decide(cmd["id"], "DENIED", via=ACTOR,
                                 because=cmd.get("because", ""))
         return f"denied — {_approval_words(decided, cmd['id'])}"
@@ -3331,6 +3345,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _reminders_answer(cmd.get("which", ""))
     if kind == "reminder_off":
         from aletheia import scheduler
+        if str(cmd.get("which") or "").strip().casefold() in ("all", "everything", "all of them", "every reminder"):
+            # "cancel all reminders" asked which one (2026-10-05)
+            rows = _reminder_schedules()
+            if not rows:
+                return "You have no reminders set."
+            for row in rows:
+                scheduler.set_enabled(row["id"], False)
+            return "reminders off — " + speech.and_list([str((r.get("command") or {}).get("text") or r["id"])[:50] for r in rows[:6]])
         found, why = _one_reminder(cmd["which"])
         if found is None:
             raise act.Refused(why)
