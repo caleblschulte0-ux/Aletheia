@@ -3972,6 +3972,15 @@ def _interpret(transcript: str) -> dict:
             field = "github"
         return {"command": {"kind": "profile_set", "field": field, "value": value}, "say": None}
 
+    # "MY BIRTHDAY IS JUNE 3 1998" (2026-10-05: the planner, an approval to
+    # remember it, and three answers after that each said "I haven't saved
+    # it yet"). A fact about him, on her identity shelf.
+    m = re.fullmatch(r"(?:my (?:birthday|birth date|date of birth|bday)(?:'s| is)|i was born on|i was born) "
+                     r"(?:on |the )?(?P<v>[a-z0-9][a-z0-9 ,/-]{2,30})", low)
+    if m and re.search(r"\d", m.group("v")) and not re.search(r"\b(?:tomorrow|today|next|soon|coming)\b", m.group("v")):
+        return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",
+                            "value": _as_he_said(text, m.group("v").strip()), "about": "your birthday"}, "say": None}
+
     # "MY WIFI PASSWORD IS HUNTER2" (2026-10-05: the planner, an approval):
     # a code of his, said plainly, is the note "remember the gate code is
     # 4471" already makes, and "what's the wifi password" reads it back.

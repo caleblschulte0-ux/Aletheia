@@ -539,6 +539,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("when_asked", re.compile(
         r"^(?:what time|when) did i (?:ask|say|tell you) (?:you )?that\s*\??$|^when was that\s*\??$|^what time was that\s*\??$"
         r"|^(?:what time|when) did i (?:last )?(?:ask|say) (?:something|anything)\s*\??$")),
+    ("until_birthday", re.compile(
+        r"^how (?:many days|long|many weeks) (?:until|till|to|before) my (?:next )?birthday(?: is it)?\s*\??$"
+        r"|^when(?:'s| is) my next birthday\s*\??$|^is my birthday (?:soon|coming up)\s*\??$")),
     ("until", re.compile(
         r"^how (?:many (?:days|weeks)|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
@@ -1083,11 +1086,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("relocate", re.compile(
         r"^(?:am i|would i|will i|do i want to|am i (?:willing|happy|prepared|open) to|would i be (?:willing|happy|prepared|open) to) (?:relocate|move)(?: for (?:a|the) job| for work)?\s*\??$"
         r"|^(?:what(?:'s| is|s)? my|what did i say about) (?:relocation|relocating|moving)(?: stance| answer| preference)?\s*\??$")),
+    ("birthday", re.compile(
+        r"^(?:when(?:'s| is)|what(?:'s| is)|what day is|what date is) my (?:birthday|birth date|date of birth|bday)\s*\??$"
+        r"|^(?:do you know|do you remember) (?:when )?my birthday(?: is)?\s*\??$")),
+    ("age", re.compile(
+        r"^how old am i\s*\??$|^what(?:'s| is) my age\s*\??$|^what age am i\s*\??$|^do you know how old i am\s*\??$"
+        r"|^how old (?:will i be|am i turning|do i turn)(?: this year| next birthday| on my birthday)?\s*\??$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name"
         r"|minimum salary|salary(?: floor| requirement| expectation| expectations)?|desired (?:pay|salary)"
-        r"|asking (?:pay|salary|price)|pay(?: expectation| expectations)?|notice period|start date)$"
+        r"|asking (?:pay|salary|price)|pay(?: expectation| expectations)?|notice period|start date"
+        r"|zip(?: code)?|post ?code|postal code|employer|company|workplace|job title|title|role|job|state|country"
+        r"|linkedin|github|website|pronouns|school|degree|years of experience)$"
+        # "where do I work", "do you know my name" (2026-10-05: a model; "I have nothing about name on file")
+        r"|^(?:where do i work|who do i work for|what company do i work (?:for|at)|who(?:'s| is) my (?P<mine2>employer))\s*\??$"
+        r"|^what do i do(?: for (?:a living|work))?\s*\??$|^what(?:'s| is) my (?P<mine4>job)\s*\??$"
+        r"|^(?:do you know|do you remember) (?:my (?P<mine3>name|email|phone number|address|city|employer|job title|zip)|who i am|what my name is)\s*\??$"
         r"|^who am i$")),
     # WHAT SHE HUNTS FOR (2026-09-23 night sweep): "what roles are you looking
     # for", "what are you applying to" and "what's my minimum salary" each
@@ -1339,9 +1354,9 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked"):
+        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
             return name, text           # the answer re-reads the whole sentence
-        rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "recall7", "recall8", "recall9",
+        rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
@@ -1743,6 +1758,65 @@ def _days_left(text: str) -> str | None:
     if left == 0:
         return f"Today is the last day of the {span}."
     return f"{left} day{'s' if left != 1 else ''} after today; the {span} ends {when}."
+
+
+def _his_birthday():
+    """(month, day, year-or-None) from identity.birthday, or None."""
+    from aletheia import memory
+    try:
+        said = str(memory.recall("identity", "birthday") or "")
+    except Exception:
+        said = ""
+    low = " ".join(said.casefold().replace(",", " ").split())
+    if not low:
+        return None
+    year = None
+    m = re.search(r"\b(19\d{2}|20\d{2})\b", low)
+    if m:
+        year = int(m.group(1))
+        low = (low[:m.start()] + low[m.end():]).strip()
+    m = (re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+)", low)
+         or re.fullmatch(r"([a-z]+) (?:the )?(\d{1,2})(?:st|nd|rd|th)?", low))
+    if m:
+        a, b = m.group(1), m.group(2)
+        day, month = (a, b) if a.isdigit() else (b, a)
+        if month in _MONTHS:
+            return _MONTHS.index(month) + 1, int(day), year
+    m = re.fullmatch(r"(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?", low)
+    if m:
+        year = year or (int(m.group(3)) if m.group(3) and len(m.group(3)) == 4 else year)
+        return int(m.group(1)), int(m.group(2)), year
+    return None
+
+
+def _birthday(which: str) -> str:
+    """"When's my birthday", "how old am I", "how many days until my
+    birthday" (2026-10-05: a model each, and a plan with an approval to
+    remember the date). From identity.birthday, or the honest sentence."""
+    from aletheia import localtime, speech
+    found = _his_birthday()
+    if not found:
+        return "I don't have your birthday on file. Say 'my birthday is June 3 1998' and I'll remember it."
+    month, day, year = found
+    today = localtime.today()
+    try:
+        this_year = dt.date(today.year, month, day)
+    except ValueError:
+        this_year = dt.date(today.year, month, 28)
+    nxt = this_year if this_year >= today else this_year.replace(year=today.year + 1)
+    when = f"{_MONTHS[month - 1].capitalize()} {day}"
+    if which == "when":
+        return f"Your birthday is {when}." + (f" You were born in {year}." if year else "")
+    if which == "age":
+        if not year:
+            return f"I have your birthday as {when} but not the year, so I can't work out your age. Tell me the year and I'll remember it."
+        age = today.year - year - (1 if (today.month, today.day) < (month, day) else 0)
+        return f"You're {age}." + (" Happy birthday!" if this_year == today else "")
+    days = (nxt - today).days
+    turning = f", when you turn {nxt.year - year}" if year else ""
+    if days == 0:
+        return f"It's today - happy birthday!{(' You are ' + str(today.year - year) + '.') if year else ''}"
+    return f"{speech.count_phrase(days, 'day')} - {when}{', next year' if nxt.year != today.year else ''}{turning}."
 
 
 def _todays_turns() -> list[dict]:
@@ -3939,7 +4013,16 @@ _MINE = {"email": ("email",), "email address": ("email",),
          "salary expectations": ("desired_pay",), "desired pay": ("desired_pay",),
          "desired salary": ("desired_pay",), "asking pay": ("desired_pay",), "asking salary": ("desired_pay",),
          "asking price": ("desired_pay",), "pay": ("desired_pay",), "pay expectation": ("desired_pay",),
-         "pay expectations": ("desired_pay",), "notice period": ("notice_period",), "start date": ("notice_period",)}
+         "pay expectations": ("desired_pay",), "notice period": ("notice_period",), "start date": ("notice_period",),
+         # "what's my zip", "where do I work", "what's my job title" (2026-10-05: a model each)
+         "zip": ("postal_code",), "zip code": ("postal_code",), "postcode": ("postal_code",),
+         "post code": ("postal_code",), "postal code": ("postal_code",),
+         "employer": ("current_employer",), "company": ("current_employer",), "workplace": ("current_employer",),
+         "job title": ("current_title",), "title": ("current_title",), "role": ("current_title",),
+         "job": ("current_title", "current_employer"),
+         "state": ("state",), "country": ("country",), "linkedin": ("linkedin",), "github": ("github",),
+         "website": ("website",), "pronouns": ("pronouns",), "school": ("school",), "degree": ("degree",),
+         "years of experience": ("years_experience",)}
 
 # "Who am I" has no captured word to look up, so it names its own.
 _WHO_AM_I = "name"
@@ -4218,6 +4301,23 @@ def _work_wants() -> str:
     return ". ".join(said) + "."
 
 
+def _mine_from(text: str) -> str | None:
+    """The `mine` key with the sentence itself: a bare "where do I work"
+    captures no field, so the words choose it."""
+    low = _tidy(text)
+    found = next((p.match(low) for n, p in PATTERNS if n == "mine"), None)
+    g = {k: v for k, v in (found.groupdict() if found else {}).items() if v}
+    what = g.get("mine") or g.get("mine2") or g.get("mine3") or g.get("mine4") or ""
+    if not what:
+        if re.search(r"\bwork\b|\bemployer\b|\bcompany\b", low):
+            what = "employer"
+        elif re.search(r"\bwhat do i do\b", low):
+            what = "job"
+        else:
+            what = "name"
+    return _mine(what)
+
+
 def _mine(what: str) -> str | None:
     """One fact about him, from his profile. Never guessed: an invented
     phone number is the exact failure `profile` exists to prevent.
@@ -4229,6 +4329,17 @@ def _mine(what: str) -> str | None:
     """
     from aletheia import profile
     asked = " ".join(str(what or "").split()).casefold() or _WHO_AM_I
+    if asked == "job":
+        # "what's my job" / "what do I do": the title, at the employer
+        title, employer = profile.answer("current_title"), profile.answer("current_employer")
+        if title and employer:
+            article = "an" if str(title)[:1].casefold() in "aeiou" else "a"
+            return f"You're {article} {title} at {employer}."
+        if employer:
+            return f"You work at {employer}. I don't have your job title - tell me and I'll remember it."
+        if title:
+            return f"Your job title is {title}. I don't have your employer - tell me and I'll remember it."
+        return "I don't have your job on file. Say 'I work at ...' and 'my title is ...' and I'll remember both."
     fields = _MINE.get(asked)
     if not fields:
         return None
@@ -4245,6 +4356,10 @@ def _mine(what: str) -> str | None:
                     last = profile.answer("last_name")
                     if last and str(last) not in said:
                         said = f"{said} {last}"
+                if field == "current_employer":
+                    return f"You work at {said}."
+                if field == "current_title":
+                    return f"Your job title is {said}."
                 if field == "desired_pay":
                     # "Your minimum salary is $100,000 minimum" (2026-10-05):
                     # the fact already says which end of the range it is, and
@@ -5898,7 +6013,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "free": _free,
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
-           "mine": _mine,
+           "mine": _mine_from,
+           "birthday": lambda rest: _birthday("when"),
+           "age": lambda rest: _birthday("age"),
+           "until_birthday": lambda rest: _birthday("until"),
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
            "weather": lambda rest: _weather(rest),
