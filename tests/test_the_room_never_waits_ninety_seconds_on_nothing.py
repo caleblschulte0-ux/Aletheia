@@ -305,7 +305,9 @@ class TheThirdBatteryFallThroughs(unittest.TestCase):
 
     def test_two_near_misses_no_longer_answer_a_different_question(self):
         # a calendar question went to the FILE finder; an application went to the fleet
-        self.assertEqual(quick.match("do i have anything tomorrow")[0], "free")
+        # ...and since 2026-10-05 it is the agenda (what IS on the day), which
+        # the free-slots answer only implies.
+        self.assertEqual(quick.match("do i have anything tomorrow")[0], "agenda")
         found = quick.match("what's the status of the human interest one")
         self.assertEqual(found[0], "status_of")
         with mock.patch("aletheia.quick._opportunity", return_value="Account Manager — Human Interest: sent.") as opp:

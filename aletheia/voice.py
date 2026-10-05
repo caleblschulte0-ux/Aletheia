@@ -2005,7 +2005,10 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "file_read", "path": found[0]}, "say": None}
         if len(found) > 1:
             return {"command": None, "say": "Which one - " + " or ".join(found[:4]) + "?"}
-        if m.group("verb") or not _not_a_file(name):
+        if m.group("verb"):
+            # Deleting reaches only her workspace; reading falls through to
+            # the finder, which also looks in Documents ("read me the
+            # positioning notes" is a search when nothing of hers says so).
             return {"command": None, "say": f"I don't have a file called {name} in my workspace."}
 
     m = re.fullmatch(
