@@ -88,6 +88,8 @@ _STATUS = re.compile(
     # how many
     # "How many applications this week" - no verb at all (sandbox, 2026-10-05).
     r"|^how many (?:jobs|applications|apps)(?: (?:went out|sent|applied))?(?P<count3_window> (?:this week|this month|today|yesterday|last week|so far today))$"
+    # "how many have you applied to today" - no noun at all (2026-10-05)
+    r"|^how many (?:have|did) (?:you|u) (?:applied|apply) (?:to|for)(?P<count3_window2> (?:this week|this month|today|yesterday|last week|so far today))$"
     r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
     r"(?: (?:have|did|has) (?:you|u|she|we|i))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
     r"sent(?: out)?|send(?: out)?|went out|go out|got sent|were sent|was sent|submitted|submit|put in|done|"
@@ -957,6 +959,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$"
         # THE OTHER WORD ORDER: "how many miles is 10 km", "how many pounds in 5 kg"
         r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
+    # "What salary are you asking for" and "am I willing to relocate" each
+    # went elsewhere (2026-10-05: a model; the steering list).
+    ("asking_pay", re.compile(
+        r"^what (?:salary|pay|number|figure) (?:are|r) (?:you|u|we) (?:asking|asking for|quoting|putting down|going in with)(?: for me)?\s*\??$"
+        r"|^what (?:are|r) (?:you|u|we) asking for(?: salary| pay)?(?: wise)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my|the) (?:salary|pay) (?:ask|number|figure)\s*\??$")),
+    ("relocate", re.compile(
+        r"^(?:am i|would i|will i|do i want to|am i (?:willing|happy|prepared|open) to|would i be (?:willing|happy|prepared|open) to) (?:relocate|move)(?: for (?:a|the) job| for work)?\s*\??$"
+        r"|^(?:what(?:'s| is|s)? my|what did i say about) (?:relocation|relocating|moving)(?: stance| answer| preference)?\s*\??$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name"
@@ -1725,6 +1736,18 @@ def _status() -> str:
     if tasks and not tasks.lower().startswith("nothing"):
         parts.append(tasks.rstrip("."))
     return ". ".join(p for p in parts if p) + "."
+
+
+def _relocate() -> str:
+    """Whether he would relocate, from the one field that says so."""
+    from aletheia import profile
+    try:
+        value = str(profile.answer("willing_to_relocate") or "").strip()
+    except Exception:
+        return "I can't read your profile right now."
+    if not value:
+        return "You haven't told me whether you'd relocate. Say \"I'll relocate for the right job\" or \"I won't relocate\" and I'll steer by it."
+    return f"Relocation: {value.rstrip('.')}."
 
 
 def _overdue() -> str:
@@ -4221,12 +4244,14 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
-    if groups.get("count_window") or groups.get("count2_window") or groups.get("count3_window"):
+    window = (groups.get("count_window") or groups.get("count2_window")
+              or groups.get("count3_window") or groups.get("count3_window2"))
+    if window:
         # "How many jobs did I apply to this week" waited two minutes on her
         # own model (2026-09-22); the records carry their dates. "How many
-        # did you send this week" is the same count (2026-09-23).
-        return "count_window", (groups.get("count_window") or groups.get("count2_window")
-                                or groups["count3_window"]).strip()
+        # did you send this week" is the same count (2026-09-23), and "how
+        # many have you applied to today" (2026-10-05).
+        return "count_window", window.strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))
@@ -4874,6 +4899,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
            "focus": lambda rest: _focus(),
+           "asking_pay": lambda rest: _mine("salary"),
+           "relocate": lambda rest: _relocate(),
            "overdue": lambda rest: _overdue(),
            "outcomes": _outcomes,
            "until": _until,

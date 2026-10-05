@@ -3309,9 +3309,9 @@ def _interpret(transcript: str) -> dict:
     # "SET MY INTERVIEW WINDOW TO 2 TO 4": his hours, in his own words only.
     # A bare hour reads as an interview hour: 1 to 7 is the afternoon, 8 to
     # 11 the morning, 12 noon.
-    m = (re.fullmatch(r"(?:set|make|change|move) (?:my )?interview (?:window|hours|times) (?:to |as |from )?"
+    m = (re.fullmatch(r"(?:set|make|change|move) (?:my )?interview (?:window|hours|times) (?:to |as |from )?(?:weekdays? |on weekdays |weekday )?"
                       r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
-                      r"(?: (?P<tz>central|eastern|mountain|pacific))?", low)
+                      r"(?: (?:on )?weekdays)?(?: (?P<tz>central|eastern|mountain|pacific))?", low)
          or re.fullmatch(r"(?:i can (?:do |take |have )?interviews?|interviews? (?:are|is) (?:ok|fine|good)|"
                          r"i(?:'m| am) (?:free|available) for interviews?) (?:from |between )?"
                          r"(?P<a>[\w:]+(?: ?[ap]m)?) (?:to|until|till|-|and) (?P<b>[\w:]+(?: ?[ap]m)?)"
@@ -3521,11 +3521,27 @@ def _interpret(transcript: str) -> dict:
     if m and (m.group(1) or m.group(2)) and not re.fullmatch(r"(?:jobs|anything|work|things|for (?:today|now)|today|now)", (m.group(1) or m.group(2)).strip()):
         return {"command": {"kind": "preference_set", "field": "work_not_wanted",
                             "value": (m.group(1) or m.group(2)).strip()}, "say": None}
-    m = re.match(r"(?:raise|set|change|make|put|bump|lower|drop) my (?:minimum|min|floor|lowest|base)? ?(?:salary|pay|comp|compensation)(?: floor| minimum)? to (.+)"
-                 r"|my (?:minimum|min|lowest) (?:salary|pay) is (?:now )?(.+)", low)
+    m = re.match(r"(?:raise|set|change|make|put|bump|lower|drop) my (?:minimum|min|floor|lowest|base)? ?(?:salary|pay|comp|compensation)(?: floor| minimum)? to (?P<to>.+)"
+                 r"|my (?:minimum|min|lowest) (?:salary|pay) is (?:now )?(?P<is>.+)"
+                 # "raise my minimum to 110k" - no word for pay, a number says it (2026-10-05)
+                 r"|(?:raise|set|change|make|put|bump|lower|drop) my (?:minimum|min|floor|salary floor|pay floor) to (?P<bare>\$?\d[\d,.]*\s*k?(?: (?:a year|per year|annually))?)", low)
     if m:
         return {"command": {"kind": "preference_set", "field": "desired_pay",
-                            "value": (m.group(1) or m.group(2)).strip()}, "say": None}
+                            "value": (m.group("to") or m.group("is") or m.group("bare")).strip()}, "say": None}
+    # "I'll relocate for the right job" / "I won't relocate" / "only remote
+    # jobs" each went to the planner for an approval (2026-10-05).
+    m = re.fullmatch(r"(?P<yes>i(?:'ll| will|'d| would|'m| am)(?: happy to| willing to| open to| prepared to)? (?:relocate|move)(?: for (?:the right|a|the) (?:job|role|offer))?"
+                     r"|relocation is (?:fine|ok|okay|on the table))"
+                     r"|(?P<no>i (?:won't|will not|can't|cannot|don't want to|do not want to) (?:relocate|move)(?: for (?:a|the) job)?"
+                     r"|no relocation|not (?:relocating|moving))", low)
+    if m:
+        value = _as_he_said(text, low) if m.group("yes") else _as_he_said(text, low)
+        return {"command": {"kind": "preference_set", "field": "willing_to_relocate",
+                            "value": ("yes - " if m.group("yes") else "no - ") + value}, "say": None}
+    m = re.fullmatch(r"(?:only |just )?(?P<what>remote(?: jobs| work| roles| only)?|remote only|hybrid(?: jobs| roles)?|on-?site(?: jobs| roles)?|full[- ]time(?: jobs| roles| only)?|part[- ]time(?: jobs| roles)?)(?: please)?", low)
+    if m and re.match(r"(?:only|just)\b", low) or (m and low.endswith("only")):
+        return {"command": {"kind": "preference_set", "field": "work_wanted",
+                            "value": "only " + re.sub(r"^(?:only|just) |\s*only$", "", low)}, "say": None}
     m = re.match(r"(?:i can start|i could start|i(?:'m| am) (?:free|available) to start|i(?:'m| am) available from|my notice period is|my start date is|i(?:'m| am) available) (.+)", low)
     if m:
         return {"command": {"kind": "preference_set", "field": "notice_period", "value": m.group(1).strip()}, "say": None}
