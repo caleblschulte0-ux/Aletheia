@@ -31,8 +31,9 @@ class WhatSheHuntsFor(unittest.TestCase):
 
     def test_his_pay_floor_is_the_profile_fact(self):
         with mock.patch("aletheia.profile.answer", side_effect=lambda f: "$100,000 minimum" if f == "desired_pay" else ""):
-            self.assertEqual(quick.answer("what's my minimum salary"), "$100,000 minimum")
-            self.assertEqual(quick.answer("what is my desired pay"), "$100,000 minimum")
+            # The fact, inside a sentence - and "minimum" said once.
+            self.assertEqual(quick.answer("what's my minimum salary"), "You're asking $100,000 minimum.")
+            self.assertEqual(quick.answer("what is my desired pay"), "You're asking $100,000 minimum.")
         with mock.patch("aletheia.profile.answer", return_value=""):
             said = quick.answer("what's my salary requirement")
             self.assertIsNotNone(said)

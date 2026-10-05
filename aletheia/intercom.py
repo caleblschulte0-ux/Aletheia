@@ -321,7 +321,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
-    "free_time":       ({"day"}, {"tz", "minutes", "part"}),
+    "free_time":       ({"day"}, {"tz", "minutes", "part", "at"}),
     # Either an email or a phone, and at least one of them - a contact she
     # cannot reach is not a contact. `email` stopped being required when
     # texting needed a number: `contacts.create` had supported phones all
@@ -1761,6 +1761,9 @@ def free_time_answer(cmd: dict) -> str:
     minutes = int(cmd.get("minutes", 30))
     day = _dt.date.fromisoformat(cmd["day"])
     part = str(cmd.get("part") or "").strip().lower()
+    at = str(cmd.get("at") or "").strip()
+    if at:
+        return _free_at(cal, day, at, minutes, tz) + _nothing_on_it_at_all(cal, day)
     if part in ("evening", "tonight", "night"):
         # "Am I free Friday evening" answered "nothing free - I only look at
         # your working hours" (2026-09-24): a question about the evening,
@@ -1788,6 +1791,40 @@ def free_time_answer(cmd: dict) -> str:
     # Only when it is COMPLETELY empty. A quiet week is a fact about his
     # week; nothing at all, ever, is a fact about the connection.
     return said + _nothing_on_it_at_all(cal, day)
+
+
+def _free_at(cal, day, at: str, minutes: int, tz: str) -> str:
+    """"Am I free at 2" is a yes or a no, and the no says what is there.
+
+    It was answered with the whole day's free stretches (2026-10-05): true,
+    and not the question. A tentative hold counts - it is a hold.
+    """
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    from aletheia import speech
+    zone = ZoneInfo(tz)
+    hour, minute = map(int, at.split(":"))
+    start = _dt.datetime.combine(day, _dt.time(hour, minute), tzinfo=zone)
+    end = start + _dt.timedelta(minutes=minutes)
+    when = speech.humanize_time(start.isoformat())
+    try:
+        busy = cal.conflicts(start.isoformat(), end.isoformat())
+    except Exception:
+        # A calendar she could not read is not a free one. "Yes" here
+        # would be the lie he cannot detect.
+        return f"I couldn't read your calendar to check {when}."
+    if not busy:
+        return f"Yes, you're free {when}."
+    when = when[:1].upper() + when[1:]
+
+    def clock(stamp: str) -> str:
+        moment = _dt.datetime.fromisoformat(stamp).astimezone(zone)
+        text = moment.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+        return text.replace(" AM", " am").replace(" PM", " pm")
+
+    what = speech.and_list([f"{e.get('title') or 'something'} from {clock(e['start'])} to {clock(e['end'])}"
+                            for e in busy[:3]])
+    return f"No. {when} you have {what}."
 
 
 #: How far either side of the day in question counts as "his calendar has

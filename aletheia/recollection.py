@@ -194,7 +194,10 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval", "session",
                      # "apply: was refused by the site at..." and "jobs: I found 14009
                      # openings today" on his page (2026-09-24): labels on sentences.
-                     "apply", "jobs")
+                     "apply", "jobs",
+                     # "calendar:: pencilled in Dentist" (2026-10-05): the hold's
+                     # id stripped out and the colons left behind.
+                     "calendar")
 
 #: A line that labels itself. "Did it:" is how the planner marks a finished
 #: plan on a SCREEN, where the label is doing work. Read back in answer to
@@ -282,7 +285,7 @@ def _row(entry: dict) -> dict:
                 else f"{subject}: {said}")
     what = _SELF_LABEL.sub("", what).strip() or what
     what = _whole_words(what, TEXT_CHARS)
-    if head in ("apply", "jobs") and what[:1].islower():
+    if head in ("apply", "jobs", "calendar") and what[:1].islower():
         # Their lines start mid-sentence ("was refused by the site at ...");
         # every other subject keeps its own first word - "refused — no
         # address" and "repo:aletheia: ..." are read exactly as written.
@@ -392,12 +395,26 @@ def _something_she_did(entry: dict) -> bool:
 
 
 def _once_each(rows: list[dict]) -> list[dict]:
+    # And an approved plan is one act, not two: his "Approved: <summary>"
+    # (policy.decide) and the planner's "Did it: <summary>" at the end of the
+    # same plan said one calendar hold three times with the calendar's own
+    # line between them (2026-10-05). The decision stays - it is the one that
+    # says he said yes - and what the steps really did is journaled by their
+    # own stores under their own subjects.
+    approved = {row["what"][len(APPROVED):].rstrip(".")
+                for row in rows if row["what"].startswith(APPROVED)}
     out: list[dict] = []
     for row in rows:
         if out and out[-1]["what"] == row["what"] and out[-1]["at"] == row["at"]:
             continue
+        if (row.get("kind") == "plan" and str(row.get("who", "")).startswith("aletheia-planner")
+                and row["what"].rstrip(".") in approved):
+            continue
         out.append(row)
     return out
+
+
+APPROVED = "Approved: "
 
 
 DID_KINDS = ("action", "decision", "recovery")

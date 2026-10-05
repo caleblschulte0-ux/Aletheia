@@ -174,11 +174,17 @@ class NotYetCase(unittest.TestCase):
     def test_something_that_does_not_exist_says_so_instead(self):
         """A hub he has not connected and a capability nobody has written
         are different answers. They used to be the same sentence."""
-        said = intents._cannot_yet([{"capability": "message.send"}],
-                                   {"gap_tasks": ["t1"]})
+        with mock.patch.object(intents, "_is_verify_status", return_value=False):
+            said = intents._cannot_yet([{"capability": "message.send"}],
+                                       {"gap_tasks": ["t1"]})
         self.assertIn("text message", said)
         self.assertIn("build list", said)
         self.assertNotIn("needs setting up", said)
+        # And one the registry holds as EXPERIMENTAL is "I can try", never "I can't".
+        with mock.patch.object(intents, "_is_verify_status", return_value=True):
+            said = intents._cannot_yet([{"capability": "message.send"}],
+                                       {"gap_tasks": ["t1"]})
+        self.assertTrue(said.startswith("I can try to send a text message"), said)
 
     def test_the_registry_supplies_the_english(self):
         self.assertIn("text message", intents._in_english("message.send"))

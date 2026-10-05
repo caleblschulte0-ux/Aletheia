@@ -2936,6 +2936,10 @@ def _mine(what: str) -> str | None:
                     last = profile.answer("last_name")
                     if last and str(last) not in said:
                         said = f"{said} {last}"
+                if field == "desired_pay":
+                    # "Your minimum salary is $100,000 minimum" (2026-10-05):
+                    # the fact already says which end of the range it is.
+                    return f"You're asking {said}." if "minimum" in said.lower() else f"Your {asked} is {said}."
                 return f"Your {asked} is {said}."
     except Exception:
         return None

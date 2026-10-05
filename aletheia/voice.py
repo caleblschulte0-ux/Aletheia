@@ -1997,13 +1997,29 @@ def _interpret(transcript: str) -> dict:
         asked = _ambiguous_next_weekday(m.group(1) or "")
         if asked:
             return {"command": None, "say": asked}
-        day, part = _spoken_when(m.group(1) or "")
-        if not day and re.fullmatch(r"(?:at|around|about) [\w: ]+", (m.group(1) or "").strip()):
-            # "Am I free at 2" - a time with no day is today (sixteenth batch,
-            # 2026-10-05: it went to the planner, which had no calendar).
-            import datetime as dt
-            from aletheia import localtime
-            day = dt.datetime.now(localtime.operator_tz()).date().isoformat()
+        rest = (m.group(1) or "").strip()
+        clock = re.fullmatch(r"(?:(?P<d1>.+?)\s+)?(?:at|around|about)\s+(?P<t>.+?)"
+                             r"(?:\s+(?P<d2>today|tomorrow|tonight|this \w+|on \w+|\w+day))?", rest)
+        if clock and _spoken_time(clock.group("t")):
+            # "Am I free at 2" went to the planner, which had no calendar; once
+            # it reached the calendar the time was dropped and the whole day
+            # answered (2026-10-05). The hour travels, a bare one reads as a
+            # person means it, and no day means today.
+            hhmm = _spoken_time(clock.group("t"))
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(clock.group("t")) and 1 <= hour <= EARLIEST_BARE_HOUR:
+                hour += 12
+            when = re.sub(r"^on\s+", "", (clock.group("d1") or clock.group("d2") or "today"))
+            asked = _ambiguous_next_weekday(when)
+            if asked:
+                return {"command": None, "say": asked}
+            day, part = _spoken_when(when)
+            if day:
+                command = {"kind": "free_time", "day": day, "at": f"{hour:02d}:{minute:02d}"}
+                if part:
+                    command["part"] = part
+                return {"command": command, "say": None}
+        day, part = _spoken_when(rest)
         if day:
             command = {"kind": "free_time", "day": day}
             if part:

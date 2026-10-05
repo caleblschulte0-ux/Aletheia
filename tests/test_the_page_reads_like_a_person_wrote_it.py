@@ -48,7 +48,10 @@ class AGapLeadsCase(unittest.TestCase):
                             {"n": 2, "status": "GAP", "capability": "message.send",
                              "command": {}, "detail": "not built"}],
                   "gap_tasks": ["verify-message-send"]}
+        # The rule is about a capability nobody has BUILT; the registry's own
+        # status for message.send moves (EXPERIMENTAL today), so pin it.
         with mock.patch.object(intents, "_due_to_mention", lambda *a: False), \
+             mock.patch.object(intents, "_is_verify_status", return_value=False), \
              mock.patch.object(intents, "_cannot_yet",
                                return_value="I can't send a text message yet."), \
              mock.patch.object(intents, "_own_model_line", return_value=""):

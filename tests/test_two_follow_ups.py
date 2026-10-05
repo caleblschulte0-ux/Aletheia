@@ -11,7 +11,7 @@ from aletheia import quick, voice
 
 class SayThatAgainCase(unittest.TestCase):
     def test_her_last_sentence_is_said_again(self):
-        with mock.patch("aletheia.converse.recent", return_value=[{"he_asked": "x", "she_said": "Added a task."}]):
+        with mock.patch("aletheia.converse.recent", return_value=[{"he_asked": "x", "she_answered": "Added a task."}]):
             for sentence in ("say that again", "what did you just say", "repeat that", "pardon"):
                 with self.subTest(sentence=sentence):
                     self.assertEqual(quick.answer(sentence), "I said: Added a task.")
