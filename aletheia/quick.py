@@ -1088,6 +1088,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("where_am_i", re.compile(r"^where (?:am i|are we)(?: right now| now)?$|^what city (?:am i in|are we in)$")),
     # His clock and hers, and the clock elsewhere converted (2026-10-05: five
     # model turns for what zoneinfo knows).
+    # HER OWN SURFACES. "How do I talk to you from my phone", "what's the
+    # address of your page", "how do I see the wall", "what page do I open"
+    # each paid a model that did not know (2026-10-05); the Core knows its
+    # own address and the phone link is computed every beat for the QR.
+    ("her_page", re.compile(
+        r"^how (?:do|can|could) i (?:talk to|reach|open|get to|see|use) (?:you|u|your page|the page|the thea page|thea)(?: from (?:my )?phone| on my phone)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the )?(?:address|url|link) (?:of|for|to) (?:you|u|your page|the page|the thea page|thea|the wall|the command center)\s*\??$"
+        r"|^what(?:'s| is|s)? your (?:address|url|link|page)\s*\??$|^what page do i open\s*\??$"
+        r"|^(?:where(?:'s| is)|how do i (?:see|open|find|get to)) (?:the )?(?:wall|command center|thea page|page|qr|qr code)\s*\??$"
+        r"|^(?:show me|where(?:'s| is)) (?:the|your) qr(?: code)?\s*\??$")),
+    ("the_wall", re.compile(
+        r"^what(?:'s| is|s)? on the wall\s*\??$|^what does the wall (?:show|say)\s*\??$|^read me the wall\s*\??$")),
     ("my_zone", re.compile(
         r"^what(?:'s| is|s)? (?:my|the) time ?zone(?: here)?\s*\??$|^what time ?zone am i (?:in|on)\s*\??$"
         r"|^what time ?zone (?:are|r) (?:you|u) (?:in|on|using|working in)\s*\??$|^what(?:'s| is) your time ?zone\s*\??$")),
@@ -1534,6 +1546,34 @@ def _time_in(place: str) -> str | None:
     else:
         said += " - the same as yours"
     return said + "."
+
+
+def _her_page() -> str:
+    """Where her page is: on this PC, and from his phone through the tailnet."""
+    from aletheia import core
+    port = int(getattr(core, "DEFAULT_PORT", 8777))
+    page = str(getattr(core, "THE_PAGE", "/interface/thea.html"))
+    said = (f"On this PC, open http://127.0.0.1:{port}{page} - that's the Thea page, the one that answers "
+            "everything; the wall is the fleet behind it and every panel on it links back into the page.")
+    try:
+        link = core.phone_link()
+    except Exception:
+        link = {}
+    if link.get("url"):
+        said += (f" From your phone on the tailnet, open {link['url']}; the QR code at the bottom of the Thea "
+                 "page on the PC carries that address, and the code you paste in comes from your own keyboard.")
+        if link.get("why"):
+            said += f" {link['why']}"
+    else:
+        why = str(link.get("why") or "your phone has no address for her yet")
+        said += f" From your phone: not yet. {why}"
+    return said
+
+
+def _the_wall() -> str:
+    """The wall is a pure view of the pulse: what it shows is the fleet."""
+    fleet = _fleet() or "No fleet reading yet."
+    return "The wall shows the fleet, read from the pulse: " + fleet + " Every panel on it links into the Thea page."
 
 
 def _my_zone() -> str:
@@ -5488,6 +5528,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wrong": lambda rest: _wrong(rest),
            "standing": lambda rest: _standing(rest),
            "my_zone": lambda rest: _my_zone(),
+           "her_page": lambda rest: _her_page(),
+           "the_wall": lambda rest: _the_wall(),
            "working": lambda rest: _working(),
            "demand": lambda rest: _demand(),
            "looked_up": lambda rest: _looked_up(),

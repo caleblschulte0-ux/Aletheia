@@ -566,6 +566,10 @@ _NOT_A_FILE = frozenset({
     "contact", "contacts", "number", "phone number", "address",
     "subscription", "subscriptions", "balance", "account", "accounts",
     "notification", "notifications", "shopping list", "list", "time",
+    # her own surfaces are not files in Documents (2026-10-05: "where's the
+    # command center" read Documents for a file called that)
+    "command center", "the command center", "wall", "the wall", "thea page", "the thea page",
+    "dashboard", "qr", "qr code", "the qr", "page", "the page",
 })
 
 
@@ -3411,9 +3415,14 @@ def _interpret(transcript: str) -> dict:
                    "media": (exact.group(0) if exact else said).strip().strip('"'),
                    "caption": _as_he_said(text, m.group("cap").strip()) if m.group("cap") else ""}
         return {"command": command, "say": None}
-    if re.fullmatch(r"what (?:have (?:you|u)|did (?:you|u)) post(?:ed)? (?:to|on) instagram(?: today| lately| so far)?"
+    if re.fullmatch(r"what (?:have (?:you|u)|did (?:you|u)) post(?:ed)?(?: (?:to|on) instagram)?(?: today| lately| so far| recently)?"
                     r"|(?:did|has) (?:the |my )?(?:instagram )?post go (?:out|up)(?: on instagram)?"
-                    r"|what(?:'s| is) (?:been )?posted (?:to|on) instagram", low):
+                    r"|what(?:'s| is) (?:been )?posted (?:to|on) instagram"
+                    # "when's the next post", "what's scheduled to post" (2026-10-05: models)
+                    r"|when(?:'s| is) (?:the |my )?next (?:instagram )?post(?: going out| due)?"
+                    r"|what(?:'s| is) (?:scheduled|queued|lined up) (?:to post|to go out|for instagram)"
+                    r"|(?:what|which) posts? (?:are|is) (?:queued|scheduled|waiting|lined up)(?: for instagram)?"
+                    r"|(?:is )?anything (?:going out|queued|scheduled)(?: (?:to|on|for) instagram)?", low):
         return {"command": {"kind": "instagram_posts"}, "say": None}
 
     # "OPEN YOUTUBE" / "open the Thea page": a page on his screen is his tap
