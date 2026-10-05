@@ -75,7 +75,7 @@ class SavingAContactCase(unittest.TestCase):
         """The gap that blocked texting: email used to be required."""
         said = self._add(name="Brant", phone="555-123-4567")
         self.assertIn("Brant", said)
-        self.assertIn("5551234567", said)
+        self.assertIn("555 123 4567", said)      # read out in groups (2026-10-05)
 
     def test_an_email_alone_is_still_enough(self):
         said = self._add(name="Dana", email="dana@example.com")
@@ -84,7 +84,7 @@ class SavingAContactCase(unittest.TestCase):
     def test_both_are_kept(self):
         said = self._add(name="Sam", email="sam@example.com", phone="5551230000")
         self.assertIn("sam@example.com", said)
-        self.assertIn("5551230000", said)
+        self.assertIn("555 123 0000", said)
 
     def test_a_contact_she_cannot_reach_is_refused(self):
         said = self._add(name="Nobody")

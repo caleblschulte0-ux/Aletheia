@@ -46,7 +46,7 @@ class TheHunt(unittest.TestCase):
         self.assertEqual(profile.steer_by("roles_added", "Sales Engineer"),
                          "Besides what your resume is for, I'll hunt for Sales Engineer.")
         self.assertEqual(profile.steer_by("roles_added", "sales engineer"),
-                         "Besides what your resume is for, I'll hunt for Sales Engineer.", "a repeat is not said twice")
+                         "I already hunt for Sales Engineer.", "a repeat is not said twice")
         profile.steer_by("roles_added", "Solutions Consultant")
         self.assertEqual(profile.roles_added(), ["Sales Engineer", "Solutions Consultant"])
         self.assertIn("roles you added: Sales Engineer; Solutions Consultant", profile.preferences_words())

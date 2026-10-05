@@ -67,8 +67,9 @@ class EveryTurnIsRemembered(unittest.TestCase):
         with mock.patch.object(converse, "remember_exchange") as kept:
             core._remember_out_loud("thea add a task to call the plumber",
                                     "Added a task: call the plumber.")
+        # ...and WHERE the answer came from travels with it (2026-10-05).
         kept.assert_called_once_with("add a task to call the plumber",
-                                     "Added a task: call the plumber.")
+                                     "Added a task: call the plumber.", how="stores")
 
 
 class TheSlowTurnsCountToo(unittest.TestCase):
@@ -109,7 +110,7 @@ class TheSlowTurnsCountToo(unittest.TestCase):
         from aletheia import core
         source = inspect.getsource(core)
         self.assertIn("def think_it_through", source)
-        self.assertIn("_remember_out_loud(transcript, detail)", source)
+        self.assertIn('_remember_out_loud(transcript, detail, how="model")', source)
 
 
 class PunctuationLeftBehind(unittest.TestCase):
