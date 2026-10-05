@@ -738,7 +738,7 @@ class TheWiderLaneCase(unittest.TestCase):
     def test_his_details_come_from_his_profile(self):
         with mock.patch("aletheia.profile.answer",
                         lambda field: {"email": "caleb@example.com"}.get(field)):
-            self.assertEqual(quick.answer("what's my email"), "caleb@example.com")
+            self.assertEqual(quick.answer("what's my email"), "Your email is caleb@example.com.")
 
     def test_a_detail_she_does_not_have_is_never_invented(self):
         """An invented phone number is the exact failure `profile` exists

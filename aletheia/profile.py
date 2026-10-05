@@ -363,6 +363,18 @@ def questions_on_file() -> list[dict]:
 #: 2026-09-23: "only apply to remote jobs", "don't apply to part-time jobs",
 #: "raise my minimum salary to 110k" each went to a planner nobody could
 #: run, for a store one line of his settles.
+#: What he can put on file by SAYING it - "my address is 412 Birch Lane, Hartford SD",
+#: "my name is Caleb Schulte", "I work at Open Range". Until 2026-10-05 the only spoken
+#: path was the planner, which proposed a plan and asked his approval to remember his
+#: own address, while "where do I live" said "Tell me and I'll remember it". Two composites
+#: the handler splits: "name" into first/last (and legal_name), "address" into street,
+#: city, state and postal code. The self-identification fields (gender, race, veteran,
+#: disability) are not here: a form may ask them and he answers each form himself.
+SPOKEN_FIELDS = ("name", "address", "legal_name", "first_name", "last_name", "preferred_name",
+                 "email", "phone", "street", "city", "state", "postal_code", "country",
+                 "linkedin", "github", "website", "current_title", "current_employer",
+                 "school", "degree", "pronouns")
+
 PREFERENCE_FIELDS = ("work_wanted", "work_not_wanted", "desired_pay", "notice_period", "willing_to_relocate",
                      "roles_added")
 _PREFERENCE_WORDS = {"work_wanted": "the work you want", "work_not_wanted": "the work you won't do",
@@ -438,8 +450,12 @@ def set_answer(field: str, value, *, source: str = "operator") -> dict:
                       "at": stateio.utcnow()}
     save(answers)
     # The VALUE is his and never travels to a log. Only that it is now known.
-    journal.append("note", "profile", f"{field} is on file (from {source})",
-                   actor=ACTOR)
+    # Plain words, and no quote: "current_employer is on file (from operator
+    # via intercom: spoken to the wall...)" was read back under "what did you
+    # do today" beside the receipt that already said it (2026-10-05). The
+    # source stays on the record; the journal line is the store's own
+    # bookkeeping and `recollection` treats the subject as plumbing.
+    journal.append("note", "profile", f"{field.replace('_', ' ')} is on file", actor=ACTOR)
     return answers[field]
 
 

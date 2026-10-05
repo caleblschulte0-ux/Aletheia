@@ -44,6 +44,8 @@ READER_FOR = {
     "task_done": "tasks",
     "shopping_add": "shopping_list",
     "subscription_add": "subscriptions",
+    # "What do you know about me" / "what's my address" read the profile he just filled.
+    "profile_set": "about_me",
     "shopping_off": "shopping_list",
     "remind_at": "reminders",
     "remind_daily": "reminders",

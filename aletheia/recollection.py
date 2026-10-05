@@ -341,7 +341,7 @@ HER_DOING = ("action", "decision", "recovery", "note", "task", "plan")
 # the same journal readably and the two drifted — it hid `formfill` and the
 # spoken answer did not. One list, two shapes, because a head is always
 # plumbing while `workspace` is only plumbing when it READ something.
-PLUMBING_HEADS = ("formfill", "quick", "desktop")
+PLUMBING_HEADS = ("formfill", "quick", "desktop", "profile")
 PLUMBING_SUBJECTS = ("workspace:read", "calendar:refresh")
 
 NOT_DOING_SUBJECTS = ("converse",) + PLUMBING_HEADS

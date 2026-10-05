@@ -263,7 +263,11 @@ def _run_command(payload: dict, fleet: dict) -> dict:
     # NOT `tier()`: that answers how much authority a kind needs, and four
     # read-only kinds need none while still producing something he would
     # want back - a note, a screenshot, a document.
-    did_something = not intercom.only_answers(payload.get("kind", ""))
+    # ...and neither is a REFUSAL: "refused — Nothing on your shopping list"
+    # was read back under "what did you do today" (2026-10-05). The line is
+    # still written; it is an event, not her doing.
+    did_something = (not intercom.only_answers(payload.get("kind", ""))
+                     and result["outcome"] == "done")
     journal.append("action" if did_something else "event",
                    f"core:{payload.get('kind')}",
                    f"{result['outcome']} — {result['detail']}", actor=ACTOR)

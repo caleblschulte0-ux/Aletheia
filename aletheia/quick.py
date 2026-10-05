@@ -690,6 +690,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # meeting" are different questions and belong to the planner.
     ("next_meeting", re.compile(
         r"^what(?:'s| is|s)? my next (?:meeting|appointment|event)$"
+        r"|^what time(?:'s| is) my next (?:meeting|appointment|event)\??$"
+        r"|^when am i next busy\??$|^what(?:'s| is|s)? (?:my )?next (?:thing )?on (?:my|the) calendar\??$"
         r"|^how long (?:until|till|before) my next (?:meeting|appointment|event)$"
         r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
         r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
@@ -2823,7 +2825,16 @@ def _mine(what: str) -> str | None:
         for field in fields:
             value = profile.answer(field)
             if value:
-                return str(value)
+                # A sentence, not a bare value: "what's my name" answered
+                # "Pat" (sandbox, 2026-10-05), which out loud is a word
+                # with nothing around it. For "name", the whole name when
+                # she has it.
+                said = str(value)
+                if asked in ("name", "full name") and field == "first_name":
+                    last = profile.answer("last_name")
+                    if last and str(last) not in said:
+                        said = f"{said} {last}"
+                return f"Your {asked} is {said}."
     except Exception:
         return None
     return (f"I don't have your {asked} on file. "
@@ -3756,8 +3767,8 @@ def _about_him() -> str:
     facts = []
     try:
         known = profile.known()
-        for key in ("first_name", "last_name", "current_title", "current_employer", "city", "state",
-                    "school", "degree", "years_experience"):
+        for key in ("first_name", "last_name", "preferred_name", "email", "phone", "street", "city", "state",
+                    "postal_code", "current_title", "current_employer", "school", "degree", "years_experience"):
             if known.get(key):
                 facts.append(f"{key.replace('_', ' ')}: {known[key]}")
     except Exception:

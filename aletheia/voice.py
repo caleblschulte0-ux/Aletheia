@@ -531,6 +531,14 @@ def _where_he_lives() -> str:
         known = profile.known()
         city = str(known.get("city") or memory.recall("identity", "home_city") or "").strip()
         state = str(known.get("state") or "").strip()
+        street = str(known.get("street") or "").strip()
+        if street:
+            # The street he just told her was on file and this read only the
+            # city, so "what's my address" answered "tell me your address if
+            # you want me to have it" one turn after he had (2026-10-05).
+            place = ", ".join(p for p in (street, city, state) if p)
+            zip_ = str(known.get("postal_code") or "").strip()
+            return f"You live at {place}{(' ' + zip_) if zip_ else ''}."
         if city:
             return f"You live in {city}" + (f", {state}" if state and state.casefold() not in city.casefold() else "") \
                 + ", as far as I know. Tell me your address if you want me to have it."
@@ -2026,6 +2034,15 @@ def _interpret(transcript: str) -> dict:
         # guess, and "macaroni and cheese" is one thing — so anything
         # that might be a list goes to the planner, which can emit a step
         # per item. A round trip beats a wrong entry.
+        #
+        # EXCEPT the plain case the handler already splits for itself:
+        # "eggs and bread" (every part one word, or a comma list) is two
+        # rows on every door, and sending it to the planner cost 4 s and an
+        # approval to do what "add milk" does in 0.0 s (2026-10-05).
+        from aletheia import intercom as _ic
+        if len(_ic.shopping_items_of(m.group(1))) >= 2:
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group(1).strip())},
+                    "say": None}
         return _to_the_planner(text)
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
@@ -3049,6 +3066,35 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:i can start|i could start|i(?:'m| am) (?:free|available) to start|i(?:'m| am) available from|my notice period is|my start date is|i(?:'m| am) available) (.+)", low)
     if m:
         return {"command": {"kind": "preference_set", "field": "notice_period", "value": m.group(1).strip()}, "say": None}
+    # FACTS ABOUT HIM, BY SAYING THEM. "my address is 412 Birch Lane, Hartford
+    # SD" went to the planner, which proposed a plan and asked his approval
+    # to remember his own address, while "where do I live" kept answering
+    # "Tell me and I'll remember it" (sandbox, 2026-10-05).
+    for pattern, field in (
+            (r"my (?:full |legal )?name is (?P<v>.+)", "name"),
+            (r"(?:call me|my preferred name is|i go by) (?P<v>.+)", "preferred_name"),
+            (r"(?:my (?:home |street )?address is|i live at) (?P<v>.+)", "address"),
+            (r"(?:i live in|my (?:city|town|home town|hometown) is|i(?:'m| am) based in) (?P<v>.+)", "city"),
+            (r"my (?:e-?mail(?: address)?) is (?P<v>\S+@\S+)", "email"),
+            (r"my (?:phone|cell|mobile|phone number|cell number|number) is (?P<v>[+\d][\d\s().-]{6,})", "phone"),
+            (r"(?:i work at|i work for|my employer is|my company is) (?P<v>.+)", "current_employer"),
+            (r"my (?:job )?title is (?P<v>.+)", "current_title"),
+            (r"my pronouns are (?P<v>.+)", "pronouns"),
+            (r"(?:my linkedin is|my linkedin url is) (?P<v>\S+)", "linkedin"),
+            (r"my (?:github|website|site) is (?P<v>\S+)", "website")):
+        m = re.fullmatch(pattern, low.rstrip(". "))
+        if not m:
+            continue
+        # His capitals from the SPAN, not from a search: "call me Sam" found
+        # "sam" inside... nothing, but "call me Cal" found "cal" inside "call".
+        start, end = m.span("v")
+        same_shape = len(text) == len(low) and text.lower() == low
+        value = (text[start:end].strip() if same_shape
+                 else _as_he_said(text, (m.group("v") or "").strip()))
+        if field == "website" and "github" in low:
+            field = "github"
+        return {"command": {"kind": "profile_set", "field": field, "value": value}, "say": None}
+
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
         # "REMEMBER THAT MY LANDLORD IS DANA" WENT ON A SHELF NOTHING READS. Found

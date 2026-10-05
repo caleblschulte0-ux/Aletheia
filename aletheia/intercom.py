@@ -121,6 +121,11 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
     # 2026-09-23: what the job hunt steers by, in his words, and read back.
     "preference_set": ({"field", "value"}, set()),
+    # A fact about him, by saying it: his name, address, city, email, phone,
+    # employer. Reversible (a row in his own profile, with provenance).
+    "profile_set":    ({"field", "value"}, set()),
+    # "What do you know about me": profile and memory in one breath.
+    "about_me":       (set(), set()),
     "preferences":   (set(), set()),
     # UNWIRED SINCE THE DAY IT WAS WRITTEN. `memory.forget` is a real
     # function in `aletheia.memory` with no kind, no registry entry and no
@@ -764,7 +769,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
 # approval — asking him to authorise "tell me the time" is how an approval
 # queue becomes noise he stops reading.
 READ_ONLY_KINDS = frozenset({
-    "instagram_posts", "interview_status",
+    "instagram_posts", "interview_status", "about_me",
     # Asking whether she is on changes nothing and must stay answerable
     # while she is halted, closed, or halfway between the two.
     "running",
@@ -821,6 +826,8 @@ ROUTINE_KINDS = frozenset({
     "preference_set",
     # A row in his own subscriptions store; nothing is cancelled or paid.
     "subscription_add",
+    # A fact about him in his own profile, with where it came from.
+    "profile_set",
     # Taking back one of her own reversible acts reaches nobody; the act
     # itself was routine, and only his word gets here (PLANNER_FORBIDDEN).
     "undo",
@@ -1092,6 +1099,7 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
     "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
     "subscription_add": {"cadence": _enum("aletheia.subscriptions", "CADENCES")},
+    "profile_set": {"field": _enum("aletheia.profile", "SPOKEN_FIELDS")},
 }
 
 
@@ -2217,6 +2225,49 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "preferences":
         from aletheia import profile
         return profile.preferences_words()
+    if kind == "profile_set":
+        from aletheia import profile
+        field = str(cmd["field"]); value = " ".join(str(cmd["value"] or "").split()).strip(" .")
+        if not value:
+            raise act.Refused(f"I need a value for your {field.replace('_', ' ')}")
+        source = f"operator via intercom: {quote[:80]}"
+        if field == "name":
+            parts = value.split()
+            profile.set_answer("legal_name", value, source=source)
+            profile.set_answer("first_name", parts[0], source=source)
+            if len(parts) > 1:
+                profile.set_answer("last_name", " ".join(parts[1:]), source=source)
+            return f"Got it: your name is {value}."
+        if field == "address":
+            # "412 Birch Lane, Hartford SD 57033": the street is what comes
+            # before the first comma; the rest is a place if it parses as one.
+            street, _, rest = value.partition(",")
+            place = profile._split_place(rest.strip()) if rest.strip() else {}
+            if not place and rest.strip():
+                m = re.match(r"\s*(?P<city>[^,]{2,60}?)\s+(?P<state>[A-Za-z]{2})(?:\s+(?P<zip>\d{5}))?\s*$", rest)
+                if m:
+                    place = {"city": m.group("city").strip(), "state": m.group("state").upper()}
+                    if m.group("zip"):
+                        place["postal_code"] = m.group("zip")
+            profile.set_answer("street", street.strip() if rest.strip() else value, source=source)
+            for k, v in place.items():
+                profile.set_answer(k, v, source=source)
+            return f"Got it: your address is {value}."
+        if field == "city":
+            place = profile._split_place(value) or {}
+            if not place:
+                m = re.match(r"\s*(?P<city>[^,]{2,60}?)\s+(?P<state>[A-Za-z]{2})\s*$", value)
+                place = ({"city": m.group("city").strip(), "state": m.group("state").upper()} if m
+                         else {"city": value})
+            for k, v in place.items():
+                profile.set_answer(k, v, source=source)
+            said = place["city"] + (f", {place['state']}" if place.get("state") else "")
+            return f"Got it: you live in {said}."
+        profile.set_answer(field, value, source=source)
+        return f"Got it: your {field.replace('_', ' ')} is {value}."
+    if kind == "about_me":
+        from aletheia import quick
+        return quick._about_him()
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
         # Read out loud through the planner's receipts: "journaled" is a
