@@ -89,7 +89,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "study_decide":     ({"choice"}, {"which", "study", "words"}),
     "study_confirm":    (set(), {"study"}),
     "task_new":      ({"id", "description"}, {"goal", "worker", "deadline", "replaces"}),
-    "task_status":   ({"id", "state"}, {"note"}),
+    "task_status":   ({"id", "state"}, {"note", "deadline", "priority"}),
     # She could CREATE a task by voice and change its status, and had no
     # verb for "what are my tasks" — so the commonest question about the
     # store went to the planner every time: 8.5 seconds, and markdown
@@ -2603,6 +2603,25 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"task {cmd['id']} queued — {_task_words(made)}"
                 + (f" (instead of {replaced})" if replaced else ""))
     if kind == "task_status":
+        if cmd.get("deadline") is not None or cmd.get("priority") is not None:
+            # a deadline or a priority on a task he already has: the state
+            # is the one it holds, said back as a sentence
+            try:
+                t = tasks.update_fields(cmd["id"], deadline=cmd.get("deadline"),
+                                        priority=int(cmd["priority"]) if cmd.get("priority") is not None else None)
+            except (ValueError, FileNotFoundError, KeyError) as exc:
+                raise act.Refused(str(exc)) from None
+            if str(cmd.get("state") or "").upper() not in ("", str(t.get("status") or "").upper()):
+                t = tasks.set_status(cmd["id"], cmd["state"], cmd.get("note", ""))
+            what = str(t.get("description") or cmd["id"])
+            if cmd.get("deadline") is not None:
+                given = str(cmd["deadline"])
+                when = tasks.parse_deadline(given)
+                if "T" not in given and when is not None:
+                    day = speech.humanize_time(f"{given}T12:00:00").split(" at ")[0]     # "by Friday", not "11:59 pm"
+                    return f"Deadline set: {what}, by {day}."
+                return f"Deadline set: {what}, by {speech.humanize_time(when.isoformat()) if when else given}."
+            return f"Moved to the top of your list: {what}." if int(cmd["priority"]) <= 1 else f"Priority {int(cmd['priority'])}: {what}."
         t = tasks.set_status(cmd["id"], cmd["state"], cmd.get("note", ""))
         return f"task {cmd['id']} -> {t['status']}"
     if kind == "halt":

@@ -968,6 +968,36 @@ def _holds_inside(window: tuple[str, int]) -> list[dict]:
     return out
 
 
+def _spoken_deadline(words: str) -> str | None:
+    """"friday", "next monday", "the 20th", "end of the month", "tomorrow at
+    5" as an ISO date the task store reads, or None."""
+    import datetime as dt
+    from aletheia import localtime
+    w = " ".join(str(words or "").casefold().split()).strip(" .?!")
+    w = re.sub(r"^(?:this |by |on |before )", "", w)
+    today = localtime.today()
+    if w in ("end of the month", "the end of the month", "month end"):
+        nxt = (today.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+        return (nxt - dt.timedelta(days=1)).isoformat()
+    if w in ("end of the week", "the end of the week", "end of week"):
+        return (today + dt.timedelta(days=(6 - today.weekday()) % 7 or 7)).isoformat()
+    at = re.search(r" (?:at|@) ([\w: ]+)$", w)
+    day_words = w[:at.start()] if at else w
+    nxt = re.fullmatch(r"next (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", day_words)
+    if nxt:
+        # a deadline of "next monday" is the one after this week's
+        days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        ahead = (days.index(nxt.group(1)) - today.weekday()) % 7
+        day_iso = (today + dt.timedelta(days=ahead + 7)).isoformat()
+    else:
+        day_iso = _spoken_day(day_words)
+    if not day_iso:
+        return None
+    if at and _spoken_time(at.group(1)):
+        return f"{day_iso}T{_spoken_time(at.group(1))}:00"
+    return day_iso
+
+
 def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time_words: str | None) -> dict | None:
     """A calendar_hold command from a day, an optional part and time. A bare
     hour on a calendar reads as a person means it: "dinner at 7" is the
@@ -1844,7 +1874,9 @@ def _interpret(transcript: str) -> dict:
     # notification, and it had no verb at all.
     m = re.fullmatch(r"snooze(?: (?:that|it|this|them|(?:your |all |the )?(?:notifications|notices|alerts)|the (?:alert|notification|"
                      r"reminder)))?\s*(?:for |by )?(.*)", low)
-    if m:
+    # "snooze the dentist till monday" names a reminder and a day: the
+    # reminder rule below moves it (2026-10-05); this rule is for notices
+    if m and not re.search(r"\b(?:till|until|to|back to) (?:tomorrow|today|next week|(?:next |this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b", low):
         rest = m.group(1).strip()
         # A bare "snooze that" is the commonest form and names no
         # interval. Fifteen minutes, and the confirmation says it back —
@@ -1856,6 +1888,24 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "notify_snooze", "minutes": minutes},
                     "say": None}
         return _to_the_planner(text)
+
+    # "FORGET EVERYTHING YOU KNOW ABOUT ME" (2026-10-05: "I have nothing
+    # remembered about everything you know about me" - the forget rule took
+    # the whole phrase as a key). A wipe is destructive and reached from the
+    # keyboard; a sentence forgets one thing by name.
+    if re.fullmatch(r"(?:forget|delete|wipe|erase|clear) (?:everything|all|all of it|it all)(?: (?:you|u) (?:know|remember|have)(?: about me)?)?"
+                    r"|(?:forget|delete|wipe|erase|clear) (?:everything|all) about me|wipe your memory|forget (?:me|who i am)|"
+                    r"(?:delete|erase|wipe|clear) your memory(?: of me)?|start (?:over|fresh|from scratch) with me", low):
+        try:
+            from aletheia import memory as _mem
+            n = _mem.count()
+        except Exception:
+            n = 0
+        held = speech.count_phrase(n, "fact") if n else "nothing"
+        return {"command": None,
+                "say": (f"That's everything I remember about you - {held} on my shelves - and I don't wipe it from a sentence. "
+                        "Say 'forget my landlord' and I'll forget one thing by name; wiping all of it is done at the keyboard, "
+                        "with 'python -m aletheia.memory forget-all'.")}
 
     # FORGETTING, which she could do all along and could not be asked to.
     # `memory.forget` is a real function with no kind, no registry entry
@@ -3804,6 +3854,68 @@ def _interpret(transcript: str) -> dict:
         if found is not None:
             return {"command": {"kind": "task_status", "id": str(found["id"]), "state": "CANCELLED",
                                 "note": "cancelled by voice"}, "say": None}
+        if why:
+            return {"command": None, "say": str(why)}
+
+    # "SNOOZE THE DENTIST TILL MONDAY" (2026-10-05: the planner, eight
+    # seconds, an approval): the reminder he named, on that day at its own
+    # time of day, or at the time he said.
+    m = re.fullmatch(r"(?:snooze|push|move|bump|defer|postpone|put off) (?:the |my )?(?P<what>.+?)(?: one| reminder)? "
+                     r"(?:till|until|to|for|back to) (?P<day>tomorrow|today|next week|(?:next |this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))"
+                     r"(?: (?:at|@) (?P<time>[\w: ]+?))?", low)
+    if m and m.group("what") not in ("that", "it", "this", "them"):
+        try:
+            from aletheia import intercom as _ic
+            found, _why = _ic._one_reminder(_as_he_said(text, m.group("what")))
+        except Exception:
+            found = None
+        day_iso = _spoken_day("monday" if m.group("day") == "next week" else m.group("day").replace("this ", ""))
+        if found is not None and found.get("kind") == "once" and found.get("at") and day_iso:
+            import datetime as dt
+            from aletheia import localtime
+            tz = localtime.operator_tz()
+            try:
+                old_at = dt.datetime.fromisoformat(str(found["at"]).replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                old_at = None
+            hhmm = _spoken_time(m.group("time")) if m.group("time") else (old_at.strftime("%H:%M") if old_at else "09:00")
+            if hhmm:
+                hour, minute = map(int, hhmm.split(":"))
+                if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+                    hour += 12
+                when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+                said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+                return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": said_text, "replaces": said_text}, "say": None}
+
+    # "ADD A DEADLINE OF FRIDAY TO THE PASSPORT TASK" / "THE PASSPORT TASK IS
+    # DUE FRIDAY" / "PRIORITIZE THE BANK ONE" (2026-10-05: the planner and an
+    # approval apiece): a field on a task he already has.
+    m = (re.fullmatch(r"(?:add|set|put) (?:a |the )?(?:deadline|due date) (?:of |for |to )?(?P<day>.+?) (?:to|on|for) (?:the |my )?(?P<what>.+?)(?: task| one| thing)?", low)
+         or re.fullmatch(r"(?:give|set) (?:the |my )?(?P<what>.+?)(?: task| one| thing)? (?:a )?(?:deadline|due date) (?:of |for )?(?P<day>.+)", low)
+         or re.fullmatch(r"(?:make )?(?:the |my )?(?P<what>.+?)(?: task| one| thing)? (?:is |are )?due (?:by |on )?(?P<day>.+)", low)
+         or re.fullmatch(r"(?:the |my )?(?P<what>.+?)(?: task| one| thing) (?:needs|has) to be done by (?P<day>.+)", low))
+    if m and not re.search(r"\b(?:reminder|alarm|timer|meeting|appointment|bill|rent|payment|invoice)\b", m.group("what")):
+        deadline = _spoken_deadline(m.group("day"))
+        if deadline:
+            try:
+                from aletheia import intercom as _ic
+                found, _why = _ic._one_task(_as_he_said(text, m.group("what").strip()))
+            except Exception:
+                found = None
+            if found is not None:
+                return {"command": {"kind": "task_status", "id": str(found["id"]), "state": str(found.get("status") or "QUEUED"),
+                                    "deadline": deadline}, "say": None}
+    m = re.fullmatch(r"(?:prioriti[sz]e|bump up|put (?:up )?(?:at the top|first|on top)|make (?:a )?priority(?: of)?|move (?:up|to the top)) "
+                     r"(?:the |my )?(?P<what>.+?)(?: task| one| thing)?(?: (?:to the top|first|up))?", low)
+    if m and m.group("what") not in ("that", "it", "this"):
+        try:
+            from aletheia import intercom as _ic
+            found, why = _ic._one_task(_as_he_said(text, m.group("what").strip()))
+        except Exception:
+            found, why = None, ""
+        if found is not None:
+            return {"command": {"kind": "task_status", "id": str(found["id"]), "state": str(found.get("status") or "QUEUED"),
+                                "priority": 1}, "say": None}
         if why:
             return {"command": None, "say": str(why)}
 

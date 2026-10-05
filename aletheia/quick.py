@@ -892,7 +892,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:my )?next (?:meeting|appointment)$"
         r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
     ("version", re.compile(
-        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
+        r"^what version are (?:you|u)(?: on| running)?$|^which version are (?:you|u)(?: on)?$|^what build are (?:you|u)(?: on)?$|^what(?:'s| is) your build$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
         r"|^which (?:branch|commit) are (?:you|u) on$"
         r"|^are (?:you|u) (?:up to date|current|stale)$"
@@ -911,6 +911,24 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how much is|what(?:'s| is|s)?|convert|change) (?:\$|€|£)?[\d.,]+ ?(?:dollars?|bucks|usd|euros?|pounds?|quid|gbp|eur|yen|cad|aud|pesos?|francs?) "
         r"(?:in|to|into|as) (?:euros?|dollars?|bucks|pounds?|quid|yen|gbp|eur|usd|cad|aud|pesos?|francs?)\s*\??$"
         r"|^what(?:'s| is|s)? the (?:exchange rate|rate) (?:for|of|between|from) .{3,40}$")),
+    ("deadlines", re.compile(
+        r"^(?:which|what) (?:tasks|things) have (?:deadlines|due dates|a deadline|a due date)\s*\??$|^what(?:'s| is|s)? got a deadline\s*\??$"
+        r"|^what (?:are|r) my deadlines\s*\??$|^what deadlines (?:do i have|have i got|are there)\s*\??$|^(?:any|are there any) deadlines(?: coming up)?\s*\??$")),
+    ("due_soonest", re.compile(
+        r"^what(?:'s| is|s)? due (?:soonest|next|first|the soonest)\s*\??$|^what(?:'s| is|s)? (?:the|my) next deadline\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the|my) (?:nearest|closest|soonest) deadline\s*\??$|^when(?:'s| is) my next deadline\s*\??$")),
+    ("finished", re.compile(
+        r"^how many tasks (?:did|have) i (?:finish|finished|do|done|complete|completed|get done)(?: (?P<fin_when>today|yesterday|this week|so far today|this month))?\s*\??$"
+        r"|^what (?:did|have) i (?:finish|finished|complete|completed|get done|tick off|ticked off|cross off|crossed off)(?: (?P<fin_when2>today|yesterday|this week|so far today|this month))?\s*\??$"
+        r"|^what tasks (?:did|have) i (?:finish|finished|do|done|complete|completed)(?: (?P<fin_when3>today|yesterday|this week|this month))?\s*\??$"
+        r"|^(?:did|have) i (?:finish|finished|complete|completed|get) anything(?: done)?(?: (?P<fin_when4>today|yesterday|this week|this month))?\s*\??$")),
+    ("left_week", re.compile(
+        r"^what(?:'s| is|s)? (?:left|remaining|still (?:left|open|to do)) (?P<left_when>this week|today|tomorrow|next week)\s*\??$"
+        r"|^what do i (?:still )?have left (?P<left_when2>this week|today|tomorrow|next week)\s*\??$"
+        r"|^what else (?:is there|do i have|have i got) (?P<left_when3>this week|today|tomorrow)\s*\??$")),
+    ("second", re.compile(
+        r"^what(?:'s| is|s)? (?:after that|next after that|second|the second (?:thing|one)|after the first(?: one)?)\s*\??$"
+        r"|^(?:and )?(?:after that|then what|what then|what comes after that|and then)\s*\??$")),
     ("timers", re.compile(
         r"^how many timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
         r"|^(?:what|which) timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
@@ -1011,7 +1029,33 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what are (?:you|u) waiting (?:on|for)\s*\??$")),
     ("who_are_you", re.compile(
         r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
-        r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
+        r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$"
+        # "who am I talking to", "are you an AI", "why are you called Thea" (2026-10-05: a model each)
+        r"|^who am i (?:talking|speaking|chatting) (?:to|with)\s*\??$|^who is this\s*\??$|^who(?:'s| is) there\s*\??$"
+        r"|^(?:are|r) (?:you|u) (?P<are_you>an? ai|an? robot|an? bot|human|an? human|real|an? person|an? real person|a machine|alive|"
+        r"chatgpt|chat gpt|claude|siri|alexa|google|a model|an llm|an? computer)\s*\??$"
+        r"|^(?P<why_thea>why (?:are|r) (?:you|u) (?:called|named) (?:thea|aletheia)|why (?:thea|aletheia)|what does (?:thea|aletheia) mean|"
+        r"what(?:'s| is) (?:thea|aletheia) short for|where does your name come from|who named (?:you|u))\s*\??$")),
+    ("halt_means", re.compile(
+        r"^what (?:happens|does it mean|would happen|does that do) (?:if|when) i say (?:halt|stop|the kill switch)\s*\??$"
+        r"|^what does (?:halt|the kill switch|stop) (?:do|mean)\s*\??$|^what(?:'s| is) (?:the )?(?:halt|kill switch)(?: for)?\s*\??$"
+        r"|^how do i (?:stop|halt) (?:you|u)(?: completely| entirely)?\s*\??$|^(?:is there|do (?:you|u) have) (?:a |an )?(?:kill switch|off switch|emergency stop)\s*\??$")),
+    ("never_do", re.compile(
+        r"^what (?:would|will|do) (?:you|u) never do\s*\??$|^what (?:won't|will not|wont) (?:you|u) (?:ever )?do(?: no matter what)?\s*\??$"
+        r"|^what are your (?:limits|rules|red lines|hard limits|boundaries)\s*\??$|^what(?:'s| is) off limits(?: for you)?\s*\??$"
+        r"|^(?:is there|are there) (?:anything|things) (?:you|u) (?:won't|will not|never) do\s*\??$")),
+    ("record_me", re.compile(
+        r"^(?:do|are) (?:you|u) (?:record|recording|listen to|listening to|spy on|spying on|watch|watching|taping) me(?: all the time| right now)?\s*\??$"
+        r"|^(?:are|r) (?:you|u) always listening\s*\??$|^(?:do|does) (?:you|u) keep (?:my voice|recordings|audio|what i say)\s*\??$"
+        r"|^is the mic(?:rophone)? (?:always )?on\s*\??$")),
+    ("unattended_allowed", re.compile(
+        r"^what (?:are|r) (?:you|u) allowed to do (?:without|before) asking(?: me)?\s*\??$|^what do (?:you|u) do on your own\s*\??$"
+        r"|^what (?:can|do) (?:you|u) do (?:on your own|by yourself|without (?:my|an) (?:ok|approval|permission|yes))\s*\??$"
+        r"|^what (?:kinds? of things? )?(?:needs|requires) my (?:approval|permission)(?: and what (?:doesn't|does not))?\s*\??$|^what (?:doesn't|does not|doesnt) need my (?:approval|permission|ok|yes)\s*\??$")),
+    ("allowed_to", re.compile(
+        r"^(?:are|r) (?:you|u) (?:allowed|permitted|cleared) to (?P<allowed>.{3,60}?)\s*\??$"
+        r"|^(?:do|does) (?:you|u) have permission to (?P<allowed2>.{3,60}?)\s*\??$"
+        r"|^(?:can|could) (?:you|u) (?P<allowed3>.{3,60}?) without (?:asking|my (?:ok|approval|permission|yes))\s*\??$")),
     ("offline_can", re.compile(
         r"^what (?:can|do) (?:you|u) (?:still )?do (?:offline|without (?:the )?(?:internet|a model|the big models|claude|wifi))\s*\??$"
         r"|^what (?:still )?works (?:offline|without (?:the )?(?:internet|a model|the big models|claude))\s*\??$"
@@ -1409,6 +1453,8 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9", "recall10",
+                                       "fin_when", "fin_when2", "fin_when3", "fin_when4", "left_when", "left_when2", "left_when3",
+                                       "are_you", "why_thea", "allowed", "allowed2", "allowed3",
                                        "repo_about", "repo_about2", "repo_about3",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
@@ -4956,6 +5002,89 @@ def _contacts_all() -> str | None:
         return None
 
 
+def _deadlines(first: bool = False) -> str:
+    """"Which tasks have deadlines" / "what's due soonest" (2026-10-05: a
+    model each). His open tasks that carry a deadline, soonest first."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    try:
+        rows = [r for r in tasks.due(now=now.astimezone(dt.timezone.utc), within_hours=24 * 3650) if tasks.is_his(r["task"])]
+    except Exception:
+        return "I can't read your task list right now."
+    rows.sort(key=lambda r: r["when"])
+    if not rows:
+        return "None of your open tasks has a deadline. Say 'the passport task is due Friday' and I'll put one on it."
+    said = []
+    for row in rows[: (1 if first else 5)]:
+        what = _shortened(str(row["task"].get("description") or "").strip().rstrip("."))
+        day = _day_phrase(row["when"].astimezone(tz).date(), now.date())
+        said.append(f"{what} is overdue" if row["overdue"] else f"{what} by {day}")
+    if first:
+        return f"Soonest: {said[0]}."
+    return (f"{speech.count_phrase(len(rows), 'task')} with a deadline: " + "; ".join(said)
+            + (f"; and {len(rows) - 5} more" if len(rows) > 5 else "") + ".")
+
+
+def _finished(when: str = "") -> str:
+    """"How many tasks did I finish this week" (2026-10-05: nineteen seconds
+    on a model, which looked three places and counted nothing). The task
+    store keeps finished tasks with the time they were finished."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    which = " ".join(str(when or "").casefold().split()) or "today"
+    tz = localtime.operator_tz()
+    today = localtime.today()
+    if which == "yesterday":
+        lo, hi = today - dt.timedelta(days=1), today
+    elif which == "this week":
+        lo, hi = today - dt.timedelta(days=today.weekday()), today + dt.timedelta(days=1)
+    elif which == "this month":
+        lo, hi = today.replace(day=1), today + dt.timedelta(days=1)
+    else:
+        lo, hi = today, today + dt.timedelta(days=1)
+    done = []
+    try:
+        for t in tasks.all_tasks():
+            if str(t.get("status") or "").upper() != "COMPLETED" or not tasks.is_his(t):
+                continue
+            try:
+                at = dt.datetime.fromisoformat(str(t.get("updated_at") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            if lo <= at < hi:
+                done.append(str(t.get("description") or t.get("id")))
+    except Exception:
+        return "I can't read your task list right now."
+    span = {"today": "today", "yesterday": "yesterday", "this week": "this week", "this month": "this month"}.get(which, which)
+    if not done:
+        return f"No tasks marked done {span}. (I only count what you marked done with me.)"
+    return f"{speech.count_phrase(len(done), 'task')} done {span}: {speech.and_list([_shortened(d) for d in done[:5]])}" \
+        + (f", and {len(done) - 5} more" if len(done) > 5 else "") + "."
+
+
+def _second() -> str:
+    """"What's after that" (2026-10-05: a model). The second open task."""
+    from aletheia import intercom
+    try:
+        rows = intercom._open_tasks()
+    except Exception:
+        return "I can't read your task list right now."
+    if not rows:
+        return "Nothing - your task list is empty."
+    if len(rows) == 1:
+        return f"Nothing after that - {_shortened(str(rows[0].get('description') or ''))} is the only thing on your list."
+    rest = len(rows) - 2
+    return (f"Then {_shortened(str(rows[1].get('description') or ''))}."
+            + (f" {speech_count(rest)} after that." if rest else " That's the list."))
+
+
+def speech_count(n: int) -> str:
+    from aletheia import speech
+    return speech.count_phrase(n, "more thing").replace("more things", "more").replace("more thing", "more")
+
+
 def _due_week(when: str = "") -> str:
     """His tasks with a deadline and his reminders inside the window, from
     the two stores and the clock. Nothing here guesses: a task with no
@@ -5182,14 +5311,69 @@ def _ran_today(name: str) -> str | None:
     return f"Not today. The last run of {said} was {n.replace('.yml', '')}, {verdict(w)}, {speech.humanize_time(s)}."
 
 
-def _who_are_you() -> str:
+def _who_are_you(rest: str = "") -> str:
     """Who she is, in one breath. A fact about herself, not a thought."""
+    asked = " ".join(str(rest or "").casefold().split())
+    if asked.startswith(("why", "what does", "what's", "what is", "where does", "who named")):
+        return ("Thea is short for Aletheia, the name you gave me - Greek for truth, or unconcealment - "
+                "which is the job: saying plainly what I can and can't do.")
+    if asked:
+        if re.search(r"\b(?:human|person|real person|alive)\b", asked):
+            return ("No, I'm not a person. I'm Thea - Aletheia - software of yours running on this PC, with your own stores "
+                    "and a big model helping me think when one is there.")
+        if re.search(r"\b(?:chatgpt|chat gpt|claude|siri|alexa|google)\b", asked):
+            return ("No. I'm Thea - Aletheia - your own assistant on this PC. Claude and ChatGPT are workers I ask to think "
+                    "when they're there; the stores, the rules and the kill switch are mine.")
+        return ("Yes - I'm software. Thea, Aletheia, your own assistant running on this PC: your stores, your rules, "
+                "and a big model helping me think when one is there.")
     # Said TO him: "Caleb's own assistant ... I keep his tasks" was the third
     # person about the person asking (sandbox, 2026-10-05).
     return ("I'm Thea - Aletheia - your own assistant, running on this PC. I keep your tasks, "
             "reminders, lists, notes and calendar, read and draft your email, hunt and apply for jobs, "
             "watch your projects, and I say plainly what I can't do. The big models help me think when "
             "they're there; my own stores and my own model carry me when they're not.")
+
+
+def _unattended_allowed() -> str:
+    """What runs without his yes, from the tool descriptors: every read, and
+    the reversible writes in her own stores, under the daily allowance."""
+    from aletheia import speech, tools
+    try:
+        cat = tools.catalog()
+        # the descriptor's own word: a WRITER (not read_only) whose consequence
+        # is reversible and local, and whose approval is none
+        groups = sorted({tools.group_of(n) for n, t in cat.items()
+                         if tools.runs_unattended(t) and not getattr(t, "read_only", False)
+                         and getattr(t, "consequence", "") == "reversible_local"
+                         and getattr(t, "approval", "") == "none" and tools.group_of(n)})
+    except Exception:
+        groups = []
+    said = ("Anything that only reads - your lists, your calendar, your mail, your files, the fleet. "
+            "And small reversible things in my own stores")
+    if groups:
+        said += " - " + speech.and_list(groups)
+    return (said + " - each one undoable, each one reported, under a daily allowance. Everything that reaches "
+            "somebody else or can't be taken back waits for your yes, and spending money is refused outright.")
+
+
+def _allowed_to(what: str) -> str | None:
+    """"Are you allowed to send emails": what she can do, and whose yes it takes."""
+    from aletheia import capabilities, self_knowledge
+    asked = " ".join(str(what or "").split()).rstrip("?. ")
+    can = _can_you(asked)
+    if not can:
+        return None
+    try:
+        best = (self_knowledge.for_question(asked).get("matches") or [{}])[0]
+        entry = capabilities.get(str(best.get("capability") or ""))
+        policy = str(entry.get("approval_policy") or "")
+    except Exception:
+        policy = ""
+    line = {"operator_always": " Only with your yes each time - it's never done on a standing grant.",
+            "operator_once": " It asks you the first time and then runs.",
+            "registry_grant": " Under a standing grant you give at the keyboard, or with your yes each time.",
+            "none": " Without asking - it's reversible and stays on this machine."}.get(policy, "")
+    return can.rstrip() + line
 
 
 def _offline_can() -> str:
@@ -6261,6 +6445,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "timers": lambda rest: _timers(),
+           "deadlines": lambda rest: _deadlines(),
+           "due_soonest": lambda rest: _deadlines(first=True),
+           "finished": _finished,
+           "left_week": lambda rest: _due_week(rest or "this week"),
+           "second": lambda rest: _second(),
            "exchange": lambda rest: "I don't have today's exchange rate, so I'd only be guessing. Ask me to look it up and I'll read a current rate and give you the exact number.",
            "bored": lambda rest: _bored(),
            "sending": lambda rest: _sending(rest),
@@ -6268,7 +6457,19 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
-           "who_are_you": lambda rest: _who_are_you(),
+           "who_are_you": _who_are_you,
+           "halt_means": lambda rest: ("Everything I can act with stops - every acting capability is suspended, nothing runs "
+                                       "on the beat, and anything that was waiting stays waiting. Reads still answer. Nothing starts "
+                                       "again until you say 'resume' yourself; I can't lift my own halt."),
+           "never_do": lambda rest: ("Spend your money - never, and no approval or grant changes that. Send, publish, delete for good, "
+                                     "create an account, open a pull request or change my own authority without your yes. Approve my "
+                                     "own requests, create or widen a grant, or lift my own halt. And I never fake a capability: "
+                                     "if I can't, I say so."),
+           "record_me": lambda rest: ("Not on my own. The room microphone is listened to for your voice only while the voice room is "
+                                      "running on your PC, and what you say is kept as text in our conversation thread, not as audio. "
+                                      "Screen recording happens only when you ask for it and stops when you say so."),
+           "unattended_allowed": lambda rest: _unattended_allowed(),
+           "allowed_to": _allowed_to,
            "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,

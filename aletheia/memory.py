@@ -222,6 +222,28 @@ def forget(domain: str, key: str, via: str = "operator-cli") -> bool:
     return True
 
 
+def count() -> int:
+    """How many facts she holds across every shelf."""
+    return sum(len(_load(d)) for d in DOMAINS)
+
+
+def forget_all(via: str = "operator-cli") -> int:
+    """Every shelf emptied: "forget everything you know about me". Returns
+    how many facts went. Reached from the keyboard only - a sentence in a
+    room can forget one thing by name, never all of it."""
+    from aletheia import journal
+    gone = 0
+    for domain in sorted(DOMAINS):
+        for key in list(_load(domain)):
+            if forget(domain, key, via=via):
+                gone += 1
+    try:
+        journal.append("action", "memory", f"forgot everything: {gone} facts, via {via}", actor="aletheia-memory")
+    except Exception:
+        pass
+    return gone
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Structured memory with provenance.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -238,7 +260,19 @@ def main(argv: list[str] | None = None) -> int:
     p_f.add_argument("domain", choices=sorted(DOMAINS)); p_f.add_argument("key")
     p_l = sub.add_parser("list")
     p_l.add_argument("domain", nargs="?", choices=sorted(DOMAINS))
+    p_fa = sub.add_parser("forget-all", help="empty every shelf (asks first)")
+    p_fa.add_argument("--yes", action="store_true", help="skip the question")
     args = ap.parse_args(argv)
+
+    if args.cmd == "forget-all":
+        n = count()
+        if not args.yes:
+            answer = input(f"Forget all {n} facts? This cannot be undone. [y/N] ").strip().lower()
+            if answer not in ("y", "yes"):
+                print("kept")
+                return 1
+        print(f"forgot {forget_all()} facts")
+        return 0
 
     if args.cmd == "set":
         try:

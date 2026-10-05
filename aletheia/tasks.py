@@ -237,6 +237,31 @@ def set_status(tid: str, status: str, note: str = "") -> dict:
     return task
 
 
+def update_fields(tid: str, *, deadline: str | None = None, priority: int | None = None) -> dict:
+    """A deadline or a priority put on a task after it was made ("the
+    passport task is due Friday", "prioritize the bank one", 2026-10-05:
+    the planner and an approval apiece, and nothing to set a deadline with).
+    Validated like `create`; journaled; a terminal task is left alone."""
+    task = load(tid)
+    if task["status"] in contracts.TASK_TERMINAL:
+        raise ValueError(f"task {tid!r} is {task['status']} — terminal states never change")
+    changed = []
+    if deadline is not None:
+        if parse_deadline(deadline) is None:
+            raise ValueError(f"deadline {deadline!r} is not a date or time I can read")
+        task["deadline"] = deadline
+        changed.append(f"deadline {deadline}")
+    if priority is not None:
+        task["priority"] = max(1, min(5, int(priority)))
+        changed.append(f"priority {task['priority']}")
+    if not changed:
+        return task
+    task["updated_at"] = _now()
+    save(task)
+    journal.append("task", f"task:{tid}", f"{task.get('description', tid)}: " + ", ".join(changed))
+    return task
+
+
 def is_ready(task: dict, index: dict[str, dict] | None = None) -> bool:
     """Derived: waiting on nothing. Never persisted (Playbook: derive, don't assert)."""
     if task["status"] not in ("QUEUED", "WAITING_DEPENDENCY", "READY"):
