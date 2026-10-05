@@ -56,7 +56,15 @@ class WhatHePaysComesFromHerStoreAndNowhereElse(unittest.TestCase):
 
 
 class TheProjectsSheCarriesAreTheCharters(unittest.TestCase):
-    def test_open_charters_are_counted_and_named_with_whose_turn_it_is(self):
+    """One implementation: quick reads the same answer the `projects` kind gives."""
+
+    def ask(self, q, rows, queued=()):
+        with mock.patch("aletheia.plans.all_plans", return_value=rows), \
+             mock.patch("aletheia.charters.pending", return_value=list(queued)), \
+             mock.patch("aletheia.projects.all_projects", return_value=[]):
+            return quick.answer(q)
+
+    def test_open_charters_are_named_with_their_progress_and_whose_turn_it_is(self):
         rows = [
             {"slug": "barkly", "title": "Barkly", "state": "open", "project": {"repo": "money_machine"},
              "steps": [{"n": 1, "text": "Get CI green", "state": "todo", "owner": "thea"},
@@ -65,23 +73,18 @@ class TheProjectsSheCarriesAreTheCharters(unittest.TestCase):
              "steps": [{"n": 1, "text": "Write the status", "state": "done", "owner": "thea"},
                        {"n": 2, "text": "Pick a film", "state": "todo", "owner": "caleb", "needs": [1]}]},
             {"slug": "old", "title": "Old plan", "state": "open", "steps": []},         # not a charter
-            {"slug": "drafted", "title": "Drafted thing", "state": "proposed", "project": {}, "steps": []},
         ]
-        with mock.patch("aletheia.plans.all_plans", return_value=rows):
-            said = quick.answer("what projects are you carrying")
-        self.assertEqual(said, "Carrying 2 projects: Barkly (0 of 2 done, mine next); "
-                               "Open Range demo films (1 of 2 done, yours next).")
+        said = self.ask("what projects are you carrying", rows)
+        self.assertEqual(said, "I'm carrying Barkly (0 of 2 steps done, mine next) and "
+                               "Open Range demo films (1 of 2 steps done, yours next).")
 
-    def test_nothing_open_but_a_draft_says_the_draft_waits_on_him(self):
+    def test_a_draft_and_an_ask_still_to_draft_are_both_said(self):
         rows = [{"slug": "drafted", "title": "Drafted thing", "state": "proposed", "project": {}, "steps": []}]
-        with mock.patch("aletheia.plans.all_plans", return_value=rows):
-            said = quick.answer("what are my projects")
-        self.assertEqual(said, "No project is under way; 1 draft waiting for your yes: Drafted thing.")
+        said = self.ask("what are my projects", rows, queued=[{"kind": "new", "text": "a recipe app for my mom"}])
+        self.assertEqual(said, "Waiting for your yes: Drafted thing. Still to draft or apply: a recipe app for my mom.")
 
     def test_an_empty_store_still_proves_the_store(self):
-        with mock.patch("aletheia.plans.all_plans", return_value=[]):
-            said = quick.answer("list my projects")
-        self.assertTrue(said.startswith("No projects on the books."), said)
+        self.assertEqual(self.ask("list my projects", []), "No active projects.")
 
 
 if __name__ == "__main__":

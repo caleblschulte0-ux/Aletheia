@@ -2162,9 +2162,14 @@ def _projects_answer() -> str:
     live = [p for p in charter_rows if p.get("state") == "open"]
     drafts = [p for p in charter_rows if p.get("state") == "proposed"]
     if live:
-        parts.append("I'm carrying " + speech.and_list([
-            f"{p['title']} ({plans.progress(p)[0]} of {plans.progress(p)[1]} steps done)"
-            for p in live[:6]]))
+        def _one(p: dict) -> str:
+            done, total = plans.progress(p)
+            nxt = plans.next_step(p)
+            turn = ""
+            if nxt:
+                turn = ", yours next" if plans.owner(nxt) == "caleb" else ", mine next"
+            return f"{p['title']} ({done} of {total} steps done{turn})"
+        parts.append("I'm carrying " + speech.and_list([_one(p) for p in live[:6]]))
     if drafts:
         parts.append("waiting for your yes: " + speech.and_list(
             [str(p["title"]) for p in drafts[:4]]))
@@ -2180,8 +2185,9 @@ def _projects_answer() -> str:
             for p in rows[:5]))
     if not parts:
         return "No active projects."
-    said = ". ".join(parts) + "."
-    return said[0].upper() + said[1:]
+    # Every sentence starts with a capital, not only the first: "Waiting for
+    # your yes: X. still to draft: Y." read as one run-on (2026-10-05).
+    return ". ".join(p[0].upper() + p[1:] for p in parts) + "."
 
 
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:

@@ -751,7 +751,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:list|show me) (?:my )?(?P<place3>desktop|downloads|documents)(?: folder| files)?\s*\??$")),
     ("stuck", re.compile(
         r"^(?:are|r) (?:you|u) (?:stuck|blocked|held up|waiting on (?:something|anything))(?: right now| now)?\s*\??$"
-        r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
+        r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$"
+        # "what's blocking you" and "why is nothing happening" each paid a
+        # twelve-second model round trip (2026-10-04) to be told there was an
+        # approval waiting "but I can't see what it is" - the stores say.
+        r"|^what(?:'s| is|s)? (?:blocking|stopping|holding) (?:you|u)(?: up)?\s*\??$"
+        r"|^why (?:is|isn't|isnt) (?:nothing|anything) happening\s*\??$"
+        r"|^why (?:aren't|arent|are) (?:you|u) (?:not )?doing anything\s*\??$"
+        r"|^what are (?:you|u) waiting (?:on|for)\s*\??$")),
     ("who_are_you", re.compile(
         r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
         r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
@@ -1933,7 +1940,16 @@ def _stuck() -> str:
         return "No, nothing is stuck." + (f" {speech.count_phrase(executable, 'thing')} in my queue." if executable else "")
     said = []
     if waiting:
-        said.append(f"{speech.count_phrase(waiting, 'thing')} wait on you - say what needs me")
+        # NAME THE FIRST ONE. "An approval is waiting on you but I can't see
+        # what it is" is a sentence with the answer missing from it.
+        first = ""
+        try:
+            row = needs_you.items()[0]
+            first = str(row.get("what") or row.get("label") or row.get("title") or "").strip()
+        except Exception:
+            first = ""
+        said.append(f"{speech.count_phrase(waiting, 'thing')} wait{'s' if waiting == 1 else ''} on you"
+                    + (f": {first[:120].rstrip('.')}" if first else " - say what needs me"))
     if blocked:
         said.append(f"{speech.count_phrase(blocked, 'piece')} of work {'is' if blocked == 1 else 'are'} blocked - "
                     "say what's blocked and I'll list them")
@@ -2594,36 +2610,19 @@ def _next_charge() -> str:
 
 
 def _projects() -> str:
-    """The projects she is carrying, from the charters in plans/.
+    """The projects she is carrying - the ONE answer `intercom` gives the `projects` kind.
 
     Asked "what projects are you carrying" with the frontier off, her own model said "I
-    don't see any projects in front of me ... if you tell me one, I'll start it" - a
-    store with a writer (charters) and no fast reader, so the model denied it existed.
+    don't see any projects in front of me ... if you tell me one, I'll start it" - the
+    reader existed in the grammar and this lane had no door to it, so a model denied the
+    store. One implementation: charters, drafts waiting for his yes, asks still to draft,
+    and the private records, in that order.
     """
-    from aletheia import plans, speech
+    from aletheia import intercom
     try:
-        rows = [p for p in plans.all_plans() if plans.is_charter(p)]
+        return intercom._projects_answer()
     except Exception:
-        rows = []
-    live = [p for p in rows if p.get("state") == "open"]
-    if not live:
-        drafted = [p for p in rows if p.get("state") == "proposed"]
-        if drafted:
-            return (f"No project is under way; {speech.count_phrase(len(drafted), 'draft')} waiting for your yes: "
-                    + speech.and_list([str(p.get("title")) for p in drafted[:6]]) + ".")
-        return "No projects on the books. Say \"new project:\" and what it is, and I'll draft one."
-    parts = []
-    for p in live[:8]:
-        done, total = plans.progress(p)
-        nxt = plans.next_step(p)
-        who = ""
-        if nxt:
-            who = "yours next" if plans.owner(nxt) == "caleb" else "mine next"
-        parts.append(f"{p.get('title')} ({done} of {total} done{', ' + who if who else ''})")
-    said = f"Carrying {speech.count_phrase(len(live), 'project')}: " + "; ".join(parts)
-    if len(live) > 8:
-        said += f"; and {len(live) - 8} more"
-    return said + "."
+        return "I couldn't read your projects just now."
 
 
 def _shopping() -> str | None:
