@@ -499,8 +499,32 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
     # "How many days until Christmas" paid a model for arithmetic on a
     # calendar (2026-09-23). Weekdays, named days and a month-and-day.
+    # The clock and the calendar, from arithmetic (2026-10-05: nine model
+    # turns of four seconds each for "what time is it in an hour", "is it
+    # the weekend", "what quarter is it", "how many days left in the year"...)
+    ("clock_ahead", re.compile(
+        r"^what time (?:is it|will it be|is) (?:in|after) (?P<ahead_n>an?|\d+|half an?|one|two|three|four|five|six|ten|twelve) ?(?P<ahead_unit>hours?|minutes?|mins?)(?: from now| from here)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?P<ahead_n2>an?|\d+|half an?|one|two|three|four|five|six|ten|twelve) ?(?P<ahead_unit2>hours?|minutes?|mins?) from now\s*\??$"
+        r"|^what time was it (?P<ago_n>\d+|an?|one|two|three) ?(?P<ago_unit>hours?|minutes?|mins?) ago\s*\??$")),
+    ("until_clock", re.compile(
+        r"^how (?:long|many (?:hours|minutes)) (?:until|till|before|to) (?P<until_t>\d{1,2}(?::\d{2})? ?(?:am|pm)?|noon|midnight|lunch|lunchtime|dinner|dinnertime)(?: today| tonight| tomorrow)?\s*\??$")),
+    ("day_part_now", re.compile(
+        r"^is it (?:morning|afternoon|evening|night) or (?:morning|afternoon|evening|night)\s*\??$"
+        r"|^(?:is it|what part of the day is it)(?: still| already)? (?:morning|afternoon|evening|night|late|early)(?: yet)?\s*\??$"
+        r"|^what (?:part|time) of (?:the )?day is it\s*\??$")),
+    ("weekend_now", re.compile(
+        r"^is it (?:the )?weekend(?: yet| already)?\s*\??$|^is (?:today|it) a (?:weekday|weekend day|work ?day|school day)\s*\??$"
+        r"|^how (?:long|many days) (?:until|till|to) the weekend\s*\??$")),
+    ("quarter", re.compile(r"^what quarter (?:is it|are we in|of the year is it)\s*\??$|^which quarter (?:is it|are we in)\s*\??$")),
+    ("days_left", re.compile(
+        r"^how many days (?:are )?left (?:in|of) (?:the|this) (?P<left_in>month|year|week|quarter)\s*\??$"
+        r"|^how (?:much|many days) (?:of )?(?:the|this) (?P<left_in2>month|year|week|quarter) (?:is|are) left\s*\??$"
+        r"|^when does (?:the|this) (?P<left_in3>month|year|week|quarter) end\s*\??$")),
+    ("when_asked", re.compile(
+        r"^(?:what time|when) did i (?:ask|say|tell you) (?:you )?that\s*\??$|^when was that\s*\??$|^what time was that\s*\??$"
+        r"|^(?:what time|when) did i (?:last )?(?:ask|say) (?:something|anything)\s*\??$")),
     ("until", re.compile(
-        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
+        r"^how (?:many (?:days|weeks)|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$"
@@ -1291,7 +1315,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "time_convert", "chance", "date_math"):
+        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -1321,7 +1345,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4",
                                            "wrong_when", "wrong_when2", "decided", "decided2", "decided3",
                                            "standing_for", "standing_for2", "standing_for3", "standing_for4",
-                                           "spell", "coin", "die", "dice_n", "lo", "since")
+                                           "spell", "coin", "die", "dice_n", "lo", "since", "until_t")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1574,6 +1598,159 @@ def _the_wall() -> str:
     """The wall is a pure view of the pulse: what it shows is the fleet."""
     fleet = _fleet() or "No fleet reading yet."
     return "The wall shows the fleet, read from the pulse: " + fleet + " Every panel on it links into the Thea page."
+
+
+_SMALL_NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+                  "ten": 10, "twelve": 12, "half a": 0.5, "half an": 0.5}
+
+
+def _clock_words(moment) -> str:
+    text = moment.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
+    return text.replace(" AM", " am").replace(" PM", " pm")
+
+
+def _clock_ahead(text: str) -> str | None:
+    """"What time is it in an hour": the clock moved, on his zone."""
+    import datetime as dt
+    from aletheia import localtime
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "clock_ahead"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    raw = (g.get("ahead_n") or g.get("ahead_n2") or g.get("ago_n") or "1").strip()
+    n = _SMALL_NUMBERS.get(raw)
+    if n is None:
+        n = float(raw) if raw.isdigit() else 1
+    unit = (g.get("ahead_unit") or g.get("ahead_unit2") or g.get("ago_unit") or "hour")
+    delta = dt.timedelta(hours=n) if unit.startswith("h") else dt.timedelta(minutes=n)
+    now = dt.datetime.now(localtime.operator_tz())
+    then = now - delta if g.get("ago_n") else now + delta
+    day = "" if then.date() == now.date() else (" tomorrow" if then.date() > now.date() else " yesterday")
+    return f"{_clock_words(then)}{day}." if g.get("ago_n") else f"It'll be {_clock_words(then)}{day}."
+
+
+def _until_clock(words: str) -> str:
+    """"How long until 5": to the next such time, a bare hour read the way a
+    person means it (never the small hours), and the other reading said."""
+    import datetime as dt
+    from aletheia import liveness, localtime
+    w = " ".join(str(words or "").casefold().split())
+    named = {"noon": (12, 0), "midnight": (0, 0), "lunch": (12, 0), "lunchtime": (12, 0), "dinner": (18, 0), "dinnertime": (18, 0)}
+    bare = False
+    if w in named:
+        hour, minute = named[w]
+    else:
+        m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))? ?(am|pm)?", w)
+        if not m:
+            return "I couldn't read that as a time."
+        hour, minute, half = int(m.group(1)), int(m.group(2) or 0), m.group(3)
+        if half == "pm" and hour != 12:
+            hour += 12
+        if half == "am" and hour == 12:
+            hour = 0
+        bare = half is None and 1 <= hour <= 11
+    now = dt.datetime.now(localtime.operator_tz())
+
+    def next_at(h):
+        at = now.replace(hour=h % 24, minute=minute, second=0, microsecond=0)
+        return at if at > now else at + dt.timedelta(days=1)
+
+    if bare:
+        readings = sorted([next_at(hour), next_at(hour + 12)])
+        soon, later = readings[0], readings[1]
+        if soon.hour < 6:                      # nobody means the small hours
+            soon, later = later, soon
+        day = "" if soon.date() == now.date() else " tomorrow"
+        return (f"{liveness.spoken_duration((soon - now).total_seconds())}, until {_clock_words(soon)}{day}. "
+                f"If you mean {_clock_words(later)}, that's {liveness.spoken_duration((later - now).total_seconds())}.")
+    at = next_at(hour)
+    day = "" if at.date() == now.date() else " tomorrow"
+    return f"{liveness.spoken_duration((at - now).total_seconds())}, until {_clock_words(at)}{day}."
+
+
+def _day_part_now() -> str:
+    import datetime as dt
+    from aletheia import localtime
+    now = dt.datetime.now(localtime.operator_tz())
+    h = now.hour
+    part = "morning" if 5 <= h < 12 else "afternoon" if 12 <= h < 17 else "evening" if 17 <= h < 22 else "night"
+    return f"{part.capitalize()} - it's {_clock_words(now)} on {now.strftime('%A')}."
+
+
+def _weekend_now() -> str:
+    import datetime as dt
+    from aletheia import localtime
+    now = dt.datetime.now(localtime.operator_tz())
+    if now.weekday() >= 5:
+        return f"Yes, it's {now.strftime('%A')} - the weekend" + (", and tomorrow is Monday." if now.weekday() == 6 else ".")
+    ahead = 5 - now.weekday()
+    return f"No, it's {now.strftime('%A')}; the weekend is {ahead} day{'s' if ahead != 1 else ''} away."
+
+
+def _quarter() -> str:
+    from aletheia import localtime
+    today = localtime.today()
+    q = (today.month - 1) // 3 + 1
+    ends = {1: "March", 2: "June", 3: "September", 4: "December"}[q]
+    return f"The {['first', 'second', 'third', 'fourth'][q - 1]} quarter of {today.year}, which runs to the end of {ends}."
+
+
+def _days_left(text: str) -> str | None:
+    import calendar as _calendar
+    import datetime as dt
+    from aletheia import localtime
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "days_left"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    span = g.get("left_in") or g.get("left_in2") or g.get("left_in3") or "month"
+    today = localtime.today()
+    if span == "month":
+        end = dt.date(today.year, today.month, _calendar.monthrange(today.year, today.month)[1])
+    elif span == "year":
+        end = dt.date(today.year, 12, 31)
+    elif span == "week":
+        end = today + dt.timedelta(days=6 - today.weekday())
+    else:
+        q_end_month = ((today.month - 1) // 3 + 1) * 3
+        end = dt.date(today.year, q_end_month, _calendar.monthrange(today.year, q_end_month)[1])
+    left = (end - today).days
+    when = f"{end.strftime('%A')} the {_ordinal(end.day)}" + ("" if span == "week" else f" of {end.strftime('%B')}")
+    if left == 0:
+        return f"Today is the last day of the {span}."
+    return f"{left} day{'s' if left != 1 else ''} after today; the {span} ends {when}."
+
+
+def _when_asked() -> str:
+    """When he last asked something: the thread's own stamp."""
+    from aletheia import converse, speech
+    try:
+        turns = converse.recent(limit=2)
+    except Exception:
+        turns = []
+    if not turns:
+        return "I don't have a record of when - the conversation thread is empty."
+    turn = turns[-2] if len(turns) > 1 else turns[-1]
+    when = speech.humanize_time(str(turn.get("at") or "")) if turn.get("at") else ""
+    asked = str(turn.get("he_asked") or "").strip()
+    return f"You asked \"{asked}\" {when}." if when else f"You asked \"{asked}\", but I don't have the time it was said."
+
+
+def _until_sentence(text: str) -> str | None:
+    """`until` gets the whole sentence now (weeks as well as days)."""
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "until"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    words = g.get("until") or g.get("until2") or g.get("until3") or ""
+    said = _until(words)
+    if said and re.match(r"^how many weeks", _tidy(text)):
+        m = re.match(r"^(\d+) days, (.+)$", said)
+        if m:
+            days = int(m.group(1))
+            weeks, rest = divmod(days, 7)
+            return f"{weeks} week{'s' if weeks != 1 else ''}" + (f" and {rest} day{'s' if rest != 1 else ''}" if rest else "") + f" - {days} days, {m.group(2)}"
+    return said
 
 
 def _my_zone() -> str:
@@ -5497,7 +5674,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "relocate": lambda rest: _relocate(),
            "overdue": lambda rest: _overdue(),
            "outcomes": _outcomes,
-           "until": _until,
+           "until": _until_sentence,
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
            "date_of": _date_of,
@@ -5528,6 +5705,13 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wrong": lambda rest: _wrong(rest),
            "standing": lambda rest: _standing(rest),
            "my_zone": lambda rest: _my_zone(),
+           "clock_ahead": _clock_ahead,
+           "until_clock": lambda rest: _until_clock(rest),
+           "day_part_now": lambda rest: _day_part_now(),
+           "weekend_now": lambda rest: _weekend_now(),
+           "quarter": lambda rest: _quarter(),
+           "days_left": _days_left,
+           "when_asked": lambda rest: _when_asked(),
            "her_page": lambda rest: _her_page(),
            "the_wall": lambda rest: _the_wall(),
            "working": lambda rest: _working(),
