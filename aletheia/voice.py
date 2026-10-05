@@ -2103,7 +2103,14 @@ def _interpret(transcript: str) -> dict:
         tz = localtime.operator_tz()
         when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
         if when <= dt.datetime.now(tz) and day_word in ("today", ""):
-            when += dt.timedelta(days=1)
+            if m.group("day") == "tonight":
+                # "tonight" said at 10:38 pm is still tonight (2026-10-05: it
+                # was set for tomorrow night): half an hour from now, on the
+                # quarter hour, rather than a day late.
+                soon = dt.datetime.now(tz) + dt.timedelta(minutes=30)
+                when = soon.replace(minute=(soon.minute // 15) * 15, second=0, microsecond=0)
+            else:
+                when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)

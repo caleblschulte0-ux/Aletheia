@@ -30,7 +30,14 @@ class SaidTired(unittest.TestCase):
         self.assertEqual(dt.datetime.fromisoformat(d["command"]["at"]).hour, 15)
         d = voice.interpret("thea don't let me forget to take the bins out tonight")
         self.assertEqual(d["command"]["text"], "take the bins out")
-        self.assertEqual(dt.datetime.fromisoformat(d["command"]["at"]).hour, 21)
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        when = dt.datetime.fromisoformat(d["command"]["at"])
+        if now.hour >= 21:
+            # "tonight" after nine is still tonight: within the hour, never tomorrow
+            self.assertTrue(dt.timedelta(minutes=14) <= when - now <= dt.timedelta(minutes=31), when)
+        else:
+            self.assertEqual((when.date(), when.hour), (now.date(), 21))
         self.assertEqual(voice.interpret("thea ping me in 10")["command"]["text"], "time's up")
 
     def test_a_nod_and_a_no_ask_for_nothing(self):
