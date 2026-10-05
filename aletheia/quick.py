@@ -474,8 +474,27 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:show me |what(?:'s| is) |how(?:'s| is) )?(?:the )?fleet(?: doing| status| looking| look)?$"
         r"|^how are (?:my|the) (?:other )?(?:projects|repos|repositories)(?: doing)?$"
         r"|^(?:what(?:'s| is) the )?fleet status$|^any faults(?: in the fleet)?$")),
+    # THE FLEET, ASKED SIDEWAYS (2026-10-05: a model each, four to five
+    # seconds, with no pulse to read and nothing to say but that).
+    ("last_fault", re.compile(
+        r"^(?:which|what) (?:repo|repository|project|one) (?:had|has|got) the (?:last|latest|newest|most recent) (?:fault|failure|alert|problem)\s*\??$"
+        r"|^what (?:failed|broke|went red) (?:last|most recently|latest)\s*\??$|^what(?:'s| is| was) the (?:last|latest|newest|most recent) (?:fault|failure|alert)\s*\??$"
+        r"|^where (?:was|is) the (?:last|latest|newest) (?:fault|failure)\s*\??$")),
+    ("pulse_age", re.compile(
+        r"^when (?:was|is) the (?:last|latest|next) (?:pulse|fleet (?:read|reading|check))\s*\??$|^how old is the (?:pulse|fleet reading)\s*\??$"
+        r"|^when did (?:you|u) last (?:read|check) the fleet\s*\??$|^how (?:fresh|stale|recent) is the (?:pulse|fleet reading)\s*\??$"
+        r"|^is the pulse (?:fresh|stale|current|up to date)\s*\??$|^when (?:was|is) the fleet last read\s*\??$")),
+    ("repo_list", re.compile(
+        r"^(?:list|name|show me) (?:the |my |all the )?(?:repos|repositories|fleet)(?: for me)?\s*\??$"
+        r"|^(?:what|which) (?:repos|repositories|projects) (?:do (?:you|u) (?:watch|monitor|track|have)|are (?:you|u) watching|are in the fleet|are there)\s*\??$"
+        r"|^what(?:'s| is) in the fleet\s*\??$|^what(?:'s| is) the fleet made of\s*\??$")),
+    ("ci_failing", re.compile(
+        r"^(?:what(?:'s| is)|which (?:workflows?|jobs?|runs?) (?:are|is)) (?:failing|red|broken) (?:in|on) (?:ci|github actions|actions|the (?:ci|pipelines))\s*\??$"
+        r"|^is (?:ci|the ci|github actions|actions) (?:green|red|passing|failing|ok|okay|good|broken)\s*\??$"
+        r"|^(?:any|are there any) (?:red|failing|broken) (?:workflows|runs|jobs|pipelines)\s*\??$|^(?:how(?:'s| is) )?ci(?: doing| looking)?\s*\??$")),
     ("wrong", re.compile(
         r"^what went wrong(?: today| tonight| so far today| overnight)?$"
+        r"|^(?:anything|something) (?:go|went|gone) wrong(?: today| tonight| overnight| last night| so far)?$|^anything wrong(?: today| tonight)?$"
         r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
         r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today| tonight| overnight| last night)?$"
         r"|^what failed(?: today| tonight)?$|^any (?:errors|failures|problems)(?: today| tonight)?$"
@@ -759,10 +778,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:broken|failing|wrong|red|down) (?:in|with|on|across) (?:the |my )?fleet$"
         r"|^is everything (?:ok|green|fine)$")),
     ("repos", re.compile(
-        r"^how many repos (?:are )?(?:you|u) (?:watching|watch|track|tracking)$"
-        r"|^how many repos do (?:you|u) watch$"
+        r"^how many (?:repos|repositories|projects) (?:are )?(?:you|u) (?:watching|watch|track|tracking|monitor|monitoring)$"
+        r"|^how many (?:repos|repositories|projects) do (?:you|u) (?:watch|monitor|track|have)$"
         r"|^what repos (?:are )?(?:you|u) watching$"
-        r"|^how many repos$")),
+        r"|^how many (?:repos|repositories|projects)(?: are (?:there|in the fleet))?$|^how (?:big|large) is the fleet$")),
     ("my_list", re.compile(r"^what(?:'s| is|s)? on (?:my|the) list$|^(?:read|show|tell) me (?:my|the) list$")),
     ("shopping", re.compile(
         r"^what(?:'s| is|s)? on my shopping list$"
@@ -1339,6 +1358,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
     ("status_of", _STATUS),
+    # LAST, after every other question: "what's the shorts pipeline" is the
+    # registry's own summary, and only when the words name a repo of the
+    # fleet - the answer returns None otherwise, so "what's the time" and
+    # "what's the weather" above are never reached from here.
+    ("repo_about", re.compile(
+        r"^what does (?:the |my )?(?P<repo_about3>[a-z0-9][a-z0-9 _-]{2,30}) do\s*\??$"
+        r"|^tell me about (?:the |my )?(?P<repo_about2>[a-z0-9][a-z0-9 _-]{2,30})\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the |my )?(?P<repo_about>[a-z0-9][a-z0-9 _-]{2,30})(?: for| about)?\s*\??$")),
 )
 
 
@@ -1352,11 +1379,14 @@ def match(question: str) -> tuple[str, str] | None:
         if not found:
             continue
         captured = found.groupdict()
+        if name == "repo_about" and not _repo_about(next((v for v in captured.values() if v), "")):
+            continue                # names no repo of the fleet: not hers to answer
         if name == "status_of":
             return name, text
         if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9",
+                                       "repo_about", "repo_about2", "repo_about3",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
@@ -3654,6 +3684,116 @@ def _repo_wrong(name: str) -> str | None:
     return said
 
 
+def _pulse_or_none():
+    import json
+    from aletheia import pulse
+    try:
+        return json.loads((pulse.PULSE_DIR / "latest.json").read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+_NO_PULSE = "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
+
+
+def _registry_repos() -> dict:
+    """The fleet registry's repos, by id. {} when it cannot be read."""
+    try:
+        from aletheia import fleet
+        return dict((fleet.load_fleet() or {}).get("repos") or {})
+    except Exception:
+        return {}
+
+
+def _repo_count() -> str:
+    repos = _registry_repos()
+    if not repos:
+        return None
+    active = [v.get("github") or k for k, v in repos.items() if v.get("status") == "active"]
+    rest = [v.get("github") or k for k, v in repos.items() if v.get("status") != "active"]
+    from aletheia import speech
+    said = f"{speech.count_phrase(len(active), 'repository')} being watched: {speech.and_list(active)}."
+    if rest:
+        marked = speech.and_list(sorted({str(repos[k].get('status')) for k in repos if repos[k].get('status') != 'active'}))
+        said += f" {len(rest)} more on the registry marked {marked}, not watched: {speech.and_list(rest)}."
+    return said
+
+
+def _repo_about(words: str) -> str | None:
+    """"What's the shorts pipeline": the registry's own summary, or None when
+    the words name no repo of the fleet - that question is a model's."""
+    said_words = re.sub(r"\s+(?:repo|repository|project|pipeline|bot|thing)$", "", " ".join(str(words or "").casefold().split()))
+    want = re.sub(r"[^a-z0-9]+", "", said_words)
+    if len(want) < 3:
+        return None
+    repos = _registry_repos()
+    exact, loose = [], []
+    for key, row in repos.items():
+        names = {re.sub(r"[^a-z0-9]+", "", str(n).casefold()) for n in (key, row.get("github") or "")}
+        if want in names:
+            exact.append(key)
+        elif len(want) >= 5 and any(want in n for n in names):
+            loose.append(key)          # "the trader" is schwab-trader
+    hits = exact or (loose if len(loose) == 1 else [])
+    for key in hits:
+        row = repos[key]
+        if True:
+            name = str(row.get("github") or key)
+            summary = " ".join(str(row.get("summary") or "").split()).rstrip(".")
+            status = str(row.get("status") or "")
+            role = str(row.get("role") or "")
+            said = f"{name}: {summary}." if summary else f"{name} is on the fleet registry with no summary."
+            if status and status != "active":
+                said += f" It's marked {status} - not watched."
+            elif role:
+                said += f" Its role is {role}."
+            return said
+    return None
+
+
+def _last_fault() -> str:
+    latest = _pulse_or_none()
+    if latest is None:
+        return _NO_PULSE
+    from aletheia import faults
+    repos = latest.get("repos") if isinstance(latest.get("repos"), dict) else {}
+    alerts = [a for a in (latest.get("alerts") or []) if isinstance(a, dict)]
+    if not alerts:
+        return "No faults in the last fleet reading - nothing is red."
+    # newest by the failing workflow's own stamp where the pulse has one
+    def stamp(a: dict) -> str:
+        row = repos.get(str(a.get("repo") or "")) or {}
+        wfs = row.get("workflows") if isinstance(row.get("workflows"), dict) else {}
+        return max((str((wfs.get(f) or {}).get("updated_at") or "") for f in (a.get("failing") or [])), default="")
+    alert = max(alerts, key=stamp)
+    row = repos.get(str(alert.get("repo") or "")) or {}
+    name = row.get("github") or alert.get("github") or alert.get("repo")
+    return f"{name}: {faults.said(alert, row).rstrip('.')}."
+
+
+def _ci_failing() -> str:
+    latest = _pulse_or_none()
+    if latest is None:
+        return _NO_PULSE
+    from aletheia import speech
+    repos = latest.get("repos") if isinstance(latest.get("repos"), dict) else {}
+    red, running = [], 0
+    for row in repos.values():
+        wfs = row.get("workflows") if isinstance(row.get("workflows"), dict) else {}
+        for wf, info in wfs.items():
+            if not isinstance(info, dict):
+                continue
+            if info.get("status") == "in_progress":
+                running += 1
+            elif str(info.get("conclusion") or "") not in ("success", "", "skipped", "neutral"):
+                short = wf[:-4] if wf.endswith(".yml") else wf
+                red.append(f"{short} on {row.get('github')} ({str(info.get('conclusion')).replace('_', ' ')})")
+    when = speech.humanize_time(str(latest.get("generated_at") or "")) if latest.get("generated_at") else "in the last reading"
+    if not red:
+        return f"Green: every workflow in the last fleet reading passed ({when})." + (f" {running} still running." if running else "")
+    return f"Red: {speech.and_list(red[:5])}" + (f", and {len(red) - 5} more" if len(red) > 5 else "") + f" - as of {when}."
+
+
 def _fleet_read_at() -> str:
     """When the pulse was last written - the fleet's own timestamp."""
     import json
@@ -3715,11 +3855,14 @@ def _repos() -> str | None:
         latest = json.loads((pulse.PULSE_DIR / "latest.json")
                             .read_text(encoding="utf-8"))
     except Exception:
-        return None
+        return _repo_count()
     repos = latest.get("repos")
     names = sorted(repos) if isinstance(repos, dict) else list(repos or [])
     if not names:
-        return None                 # an empty pulse is not "zero repos"
+        # an empty pulse is not "zero repos" - the registry says what she
+        # watches, when it can be read (2026-10-05: "list the repos" had
+        # answered from the projects store, "No active projects")
+        return _repo_count()
     shown = [str(n) for n in names[:4]]
     if len(names) > 4:
         shown.append(f"{len(names) - 4} more")
@@ -5994,6 +6137,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repo_wrong": _repo_wrong,
+           "last_fault": lambda rest: _last_fault(),
+           "pulse_age": lambda rest: _fleet_read_at(),
+           "repo_list": lambda rest: _repos(),
+           "ci_failing": lambda rest: _ci_failing(),
+           "repo_about": _repo_about,
            "fleet_read_at": lambda rest: _fleet_read_at(),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
