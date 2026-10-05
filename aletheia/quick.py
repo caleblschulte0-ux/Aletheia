@@ -631,6 +631,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
         r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
         r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
+    ("mail_watch", re.compile(
+        r"^how often do (?:you|u) (?:check|read|look at|poll) (?:my )?(?:mail|email|e-mail|inbox)\??$"
+        r"|^(?:are|r) (?:you|u) (?:watching|checking|reading|monitoring) (?:my )?(?:mail|email|e-mail|inbox)\??$"
+        r"|^do (?:you|u) (?:check|watch|read) (?:my )?(?:mail|email|e-mail|inbox)(?: on your own| automatically)?\??$"
+        r"|^when did (?:you|u) last (?:check|read) (?:my )?(?:mail|email|e-mail|inbox)\??$")),
     ("sunset", re.compile(
         r"^(?:what time (?:is|'s)|when(?:'s| is)) (?:the )?(?P<sun>sunset|sunrise|sundown|dawn|dusk)"
         r"(?: today| tonight| tomorrow)?\??$"
@@ -2609,6 +2614,28 @@ def _pay_for(rest: str) -> str:
             + " I don't see your bank.")
 
 
+def _mail_watch() -> str:
+    """Whether and how often she reads his inbox - from the mail setup and the
+    Core's beat, not a model's guess ("I don't check on a schedule", 2026-10-05,
+    about a poll that runs every beat)."""
+    from aletheia import mail, speech
+    try:
+        ok, why = mail.available()
+    except Exception as exc:  # noqa: BLE001
+        ok, why = False, speech.plainly(str(exc))
+    if not ok:
+        return f"I'm not reading your inbox yet: {speech.plainly(str(why)).rstrip('.')}. Once mail is set up I read it on every beat."
+    try:
+        from aletheia import core
+        every = int(core.SYNC_INTERVAL_S)
+    except Exception:
+        every = 60
+    back = int(mail.POLL_LOOKBACK_S // 3600)
+    return (f"Yes. I read your inbox on every beat, about every {speech.count_phrase(every, 'second') if every < 120 else speech.count_phrase(every // 60, 'minute')}, "
+            f"looking back {speech.count_phrase(back, 'hour')} so a message you opened on your phone still reaches me. "
+            "A reply from an employer, a request for time, or a decline is matched to the application it answers.")
+
+
 def _sunset() -> str:
     """She has no sunset lookup. Asked, a model answered "in the Chicago area it's
     around 6:15 PM" - a city she had never been told and a number it made up
@@ -4055,6 +4082,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "pay_for": _pay_for,
            "next_charge": lambda rest: _next_charge(),
            "sunset": lambda rest: _sunset(),
+           "mail_watch": lambda rest: _mail_watch(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
