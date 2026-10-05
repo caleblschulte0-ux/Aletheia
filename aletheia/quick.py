@@ -564,7 +564,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("capabilities", re.compile(
         r"^what can (?:you|u) do(?: for me)?$"
         r"|^what are (?:you|u) able to do$|^what are your capabilities$"
-        r"|^what do (?:you|u) do$")),
+        r"|^what do (?:you|u) do$"
+        # "help" paid a nine-second model round trip (2026-10-04) for the
+        # answer this already gives from the registry.
+        r"|^help(?: me)?\??$|^what can i (?:say|ask(?: you)?)\??$|^what should i say\??$")),
     # THE HONESTY QUESTION, answered from the registry with no model. With
     # every model down "what can't you do" came back "I can't think just
     # now" - the one question that must never need thinking.
@@ -622,6 +625,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
         r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
         r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
+    ("next_charge", re.compile(
+        r"^what(?:'s| is|s)? (?:my )?next (?:charge|bill|renewal|payment)(?: due)?\??$"
+        r"|^when(?:'s| is) (?:my )?next (?:charge|bill|renewal|payment)(?: due)?\??$"
+        r"|^what(?:'s| is|s)? (?:charging|renewing|due) next\??$")),
     ("pay_for", re.compile(
         r"^how much (?:do|am|will) i pay(?:ing)? for (?:my |the )?(?P<pay_for>.+?)\??$"
         r"|^what (?:do|am) i pay(?:ing)? for (?:my |the )?(?P<pay_for2>.+?)\??$"
@@ -2564,6 +2571,28 @@ def _pay_for(rest: str) -> str:
             + " I don't see your bank.")
 
 
+def _next_charge() -> str:
+    """The soonest charge on his subscriptions list, or the honest empty answer."""
+    from aletheia import subscriptions
+    try:
+        rows = [r for r in subscriptions.all_subscriptions(active_only=True) if r.get("next_charge")]
+    except Exception:
+        rows = []
+    if not rows:
+        try:
+            any_rows = subscriptions.all_subscriptions()
+        except Exception:
+            any_rows = []
+        if not any_rows:
+            return ("Your subscriptions list is empty, so I have no next charge to tell you about. "
+                    "I don't see your bank - say \"add Netflix at 15.49 a month to my subscriptions\" and I'll track it.")
+        return "None of your subscriptions has a charge date on it yet, so I can't say which is next."
+    r = rows[0]
+    amount = r.get("amount")
+    money = f"${amount:,.2f} " if amount is not None else ""
+    return f"Next charge: {money}for {r['merchant']} on {r['next_charge']}."
+
+
 def _projects() -> str:
     """The projects she is carrying, from the charters in plans/.
 
@@ -3755,7 +3784,11 @@ def _repeat() -> str:
         turns = converse.recent(limit=1)
     except Exception:
         turns = []
-    said = str((turns[-1] if turns else {}).get("she_said") or "").strip()
+    # `converse.recent` hands back "she_answered"; this read "she_said", so
+    # "what did you say" was "I haven't said anything yet" after eighteen
+    # answers (sandbox, 2026-10-04). A reader with the wrong key is a reader
+    # with no store.
+    said = str((turns[-1] if turns else {}).get("she_answered") or "").strip()
     return f"I said: {said}" if said else "I haven't said anything yet this conversation."
 
 
@@ -3943,6 +3976,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
            "pay_for": _pay_for,
+           "next_charge": lambda rest: _next_charge(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),

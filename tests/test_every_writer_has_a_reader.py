@@ -43,6 +43,7 @@ READER_FOR = {
     "task_status": "tasks",
     "task_done": "tasks",
     "shopping_add": "shopping_list",
+    "subscription_add": "subscriptions",
     "shopping_off": "shopping_list",
     "remind_at": "reminders",
     "remind_daily": "reminders",

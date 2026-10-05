@@ -31,6 +31,7 @@ from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json
 
 SUBS_DIR = private_dir("subscriptions")
 STATUSES = {"ACTIVE", "PAUSED", "CANCEL_REQUESTED", "CANCELLED", "UNKNOWN"}
+CADENCES = frozenset({"weekly", "monthly", "quarterly", "annual", "other"})
 
 
 def _path(subscription_id: str) -> Path:
@@ -46,7 +47,7 @@ def create(subscription_id: str, *, merchant: str, amount: float | None = None,
         raise ValueError("merchant is required")
     if amount is not None and (not isinstance(amount, (int, float)) or amount < 0):
         raise ValueError("amount must be non-negative")
-    if cadence not in {"weekly", "monthly", "quarterly", "annual", "other"}:
+    if cadence not in CADENCES:
         raise ValueError("unsupported cadence")
     if next_charge:
         dt.date.fromisoformat(next_charge)

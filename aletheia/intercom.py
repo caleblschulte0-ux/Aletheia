@@ -350,6 +350,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "shopping_list":   (set(), set()),
     "shopping_off":    ({"item"}, set()),
     "subscriptions":   (set(), set()),
+    # "add Netflix at 15.49 a month to my subscriptions": the store had a
+    # writer (subscriptions.create) and no sentence that reached it, so the
+    # planner filed the ask as a NOTE and the list stayed empty (2026-10-04).
+    "subscription_add": ({"merchant", "amount"}, {"cadence", "next_charge"}),
     # `about` says which half of the same store he asked about — balance
     # or spending — so the empty-store answer does not report a balance to
     # a man who asked what he spent.
@@ -815,6 +819,8 @@ READ_ONLY_KINDS = frozenset({
 ROUTINE_KINDS = frozenset({
     "task_new", "task_status", "plan_new", "plan_add_step", "plan_step",
     "preference_set",
+    # A row in his own subscriptions store; nothing is cancelled or paid.
+    "subscription_add",
     # Taking back one of her own reversible acts reaches nobody; the act
     # itself was routine, and only his word gets here (PLANNER_FORBIDDEN).
     "undo",
@@ -1085,6 +1091,7 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
     "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
+    "subscription_add": {"cadence": _enum("aletheia.subscriptions", "CADENCES")},
 }
 
 
@@ -2206,7 +2213,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return profile.preferences_words()
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
-        return "journaled"
+        # Read out loud through the planner's receipts: "journaled" is a
+        # developer's word (sandbox, 2026-10-04).
+        return "Noted."
     if kind == "dispatch":
         act.dispatch(fleet, cmd["repo"], cmd["workflow"], cmd.get("ref"), request=request)
         return f"dispatched {cmd['workflow']} on {cmd['repo']}"
@@ -3205,6 +3214,26 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             raise act.Refused(why)
         shopping.cancel(found["id"])
         return f"shopping item {found['id']} off — {found['need']}"
+    if kind == "subscription_add":
+        from aletheia import subscriptions
+        merchant = " ".join(str(cmd.get("merchant") or "").split())
+        try:
+            amount = float(str(cmd.get("amount")).replace("$", "").replace(",", ""))
+        except (TypeError, ValueError):
+            raise act.Refused(f"I need the amount as a number for {merchant or 'that'}")
+        cadence = str(cmd.get("cadence") or "monthly")
+        each = {"weekly": "a week", "monthly": "a month", "quarterly": "a quarter",
+                "annual": "a year"}.get(cadence, "")
+        sid = re.sub(r"[^a-z0-9]+", "-", merchant.lower()).strip("-")[:40]
+        try:
+            subscriptions.create(sid, merchant=merchant, amount=amount, cadence=cadence,
+                                 next_charge=cmd.get("next_charge") or None,
+                                 source=f"operator via intercom: {quote[:80]}")
+        except FileExistsError:
+            have = subscriptions.load(sid)
+            return (f"{have.get('merchant', merchant)} is already on your subscriptions list"
+                    + (f" at ${have['amount']:,.2f}" if have.get("amount") is not None else "") + ".")
+        return f"Tracking {merchant} at ${amount:,.2f}{(' ' + each) if each else ''}."
     if kind == "subscriptions":
         from aletheia import subscriptions
         rows = subscriptions.all_subscriptions(active_only=True)

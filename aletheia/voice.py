@@ -2053,6 +2053,21 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:what am i paying for|my subscriptions?|"
                     r"what subscriptions do i have)", low):
         return {"command": {"kind": "subscriptions"}, "say": None}
+    # "add Netflix at 15.49 a month to my subscriptions" / "track my Spotify
+    # subscription at 11.99 a month" / "I pay 15.49 a month for Netflix".
+    # Without this the planner filed it as a note and the list stayed empty.
+    _CAD = {"week": "weekly", "month": "monthly", "quarter": "quarterly", "year": "annual"}
+    m = (re.fullmatch(r"(?:add|track|log|record) (?:my |the )?(?P<m>.+?)(?: subscription)? "
+                      r"(?:at|for|costing) \$?(?P<amt>\d+(?:\.\d+)?) ?(?:dollars |bucks )?"
+                      r"(?:a|per|every|each|/) ?(?P<cad>week|month|quarter|year)(?:ly)?"
+                      r"(?: (?:to|in|on) (?:my |the )?subscriptions?(?: list)?)?", low)
+         or re.fullmatch(r"i(?:'m| am)? pay(?:ing)? \$?(?P<amt>\d+(?:\.\d+)?) ?(?:dollars |bucks )?"
+                         r"(?:a|per|every|each|/) ?(?P<cad>week|month|quarter|year)(?:ly)? "
+                         r"(?:for|on) (?:my |the )?(?P<m>.+?)(?: subscription)?", low))
+    if m:
+        merchant = _as_he_said(text, m.group("m").strip())
+        return {"command": {"kind": "subscription_add", "merchant": merchant, "amount": m.group("amt"),
+                            "cadence": _CAD[m.group("cad")]}, "say": None}
 
     # "What's my BANK balance" and "what do I have IN THE BANK" reached no
     # pattern, so `converse` answered them with no finance context and

@@ -69,7 +69,7 @@ class RehearsalCase(unittest.TestCase):
         """A rehearsal that refuses everything tests nothing."""
         said = intercom.execute_command({"kind": "note", "text": "a thought"},
                                         {"repos": {}}, quote="q")
-        self.assertEqual(said, "journaled")
+        self.assertEqual(said, "Noted.")
 
     def test_the_planner_still_runs(self):
         """`intent` is world-tier because its STEPS can be, and each step
