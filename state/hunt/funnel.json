@@ -178,18 +178,18 @@
     },
     "2026-10-05": {
       "filled": 18,
-      "found": 24,
+      "found": 26,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-05T20:41:19Z",
+  "generated_at": "2026-10-05T23:45:14Z",
   "sent_all_time": 229,
   "totals": {
     "filled": 355,
-    "found": 618,
+    "found": 620,
     "interviews": 0,
     "rejections": 1,
     "replies": 23,
