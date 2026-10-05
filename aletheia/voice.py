@@ -60,6 +60,14 @@ SHORTHAND = {
     "rn": "right now", "msg": "message", "msgs": "messages", "ur": "your", "cuz": "because",
     "appt": "appointment", "appts": "appointments", "mtg": "meeting", "mtgs": "meetings",
     "b4": "before", "w/": "with", "w/o": "without", "approx": "about",
+    # The typos his thumbs make (2026-10-05: "whats my adress" and "add a tsk"
+    # each paid a model; "whats on my calender tmrw" got a GUESS about his day)
+    "adress": "address", "adres": "address", "calender": "calendar", "calandar": "calendar",
+    "remnd": "remind", "remid": "remind", "rmind": "remind", "tsk": "task", "tasl": "task",
+    "tommorow": "tomorrow", "tomorow": "tomorrow", "tommorrow": "tomorrow", "teh": "the",
+    "wich": "which", "recieve": "receive", "recieved": "received", "shedule": "schedule",
+    "schedual": "schedule", "definately": "definitely", "seperate": "separate",
+    "nvm": "never mind", "k": "okay", "kk": "okay", "yh": "yeah", "ya": "yeah", "yea": "yeah",
 }
 _SHORTHAND_RE = re.compile(r"(?<![\w/])(" + "|".join(re.escape(k) for k in sorted(SHORTHAND, key=len, reverse=True))
                            + r")(?![\w/])")
@@ -1195,7 +1203,7 @@ a an the and or but so of to in on at for with from by is are was were be
 been am do does did done have has had will would could should may might
 must can it its it's this that these those there here he she they them
 him her his hers their we us our you your i me my mine
-uh uhh um umm er erm hmm mm mhm ah oh eh yeah yep yup nah nope ok okay
+uh uhh um umm er erm hmm mm mhm ah oh eh yeah yep yup nah nope ok okay k kk
 right well like just really actually thing things please thanks thank
 """.split())
 
@@ -2155,7 +2163,7 @@ def _interpret(transcript: str) -> dict:
     # live" went to the file finder ("I could not find anything matching
     # do I live") and "spell my last name" waited two minutes on her own
     # model (2026-09-22).
-    if re.fullmatch(r"where do i live|what(?:'s| is) my (?:address|home address|city|home ?town)|"
+    if re.fullmatch(r"where do i live|what(?:'s| is|s) my (?:address|home address|city|home ?town)|"
                     r"what city (?:am i in|do i live in)|where(?:'s| is) (?:my )?home", low):
         return {"command": None, "say": _where_he_lives()}
     m = re.fullmatch(r"(?:spell|how do (?:you|u) spell) my (?P<which>first|last|full|sur)?\s*name(?: for me)?", low)
@@ -2339,8 +2347,10 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "setup_status"}, "say": None}
     # "set up mail" / "how do I set up mail": the checklist for that one thing (2026-10-05: a model)
     m = re.fullmatch(r"(?:how do i |help me |let'?s |can (?:you|u|we) |i want to )?(?:set ?up|configure|connect|hook up) (?:my |the |your )?"
-                     r"(?P<what>[a-z][a-z -]{1,30}?)(?: for (?:you|me))?(?: please)?", low)
-    if m and m.group("what") not in ("you", "u", "it", "everything", "all", "a timer", "an alarm", "a reminder"):
+                     r"(?P<what>[a-z][a-z-]*(?: [a-z-]+){0,2})(?: for (?:you|me))?(?: please)?", low)
+    if m and m.group("what") not in ("you", "u", "it", "everything", "all") \
+            and not re.search(r"\b(?:meeting|call|appointment|reminder|timer|alarm|hold|task|session|with|a|an)\b", m.group("what")):
+        # ("set up a meeting with Dana next week" is a meeting, not the checklist)
         return {"command": {"kind": "setup_status", "about": _as_he_said(transcript, m.group("what"))}, "say": None}
     # "IS MY EMAIL SET UP?" is about ONE thing. It reached the whole
     # checklist and he heard four of sixteen done and every step left.
@@ -3247,6 +3257,18 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "screenshot", "monitor": "all"}, "say": None}
 
+    # "SOUNDS GOOD" IS NOT QUITE A YES (2026-10-05: nine seconds of a model
+    # saying so). With something pending, say what a yes would be; with
+    # nothing, it is an "okay".
+    if re.fullmatch(r"(?:sounds good|fine by me|works for me|sure thing|alright then|all right then|good with me|that works|fine)(?: to me)?(?: then)?", low):
+        pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
+        if not pending:
+            return {"command": None, "say": "Okay."}
+        first = approval_label(pending[0]) or "the first one"
+        return {"command": None,
+                "say": (f"If that's a yes to {first.rstrip('.')}, say approve"
+                        + (" - or name which, there are " + str(len(pending)) + " waiting." if len(pending) > 1 else "."))}
+
     # A BARE "YES" IS A YES. After "ok" had her ask "Do you want me to set the
     # gym reminder?", his "yes" compiled a NEW plan and offered it again
     # (sandbox, 2026-10-05). The pending-count and recency rules below say
@@ -3300,7 +3322,11 @@ def _interpret(transcript: str) -> dict:
             surfaced(only)
             return {"command": None,
                     "say": f"{head} Say approve that if you still want it."}
-        chosen = _pick_approval(pending, m.group("ord"), m.group("what"))
+        # A bare "yep" has no ordinal group: with two things pending it raised
+        # IndexError inside the Core's request handler and the connection
+        # dropped (sandbox, 2026-10-05).
+        groups = m.groupdict()
+        chosen = _pick_approval(pending, groups.get("ord"), groups.get("what"))
         if chosen is not None:
             return _approve_by_voice(chosen)
         # More than one is now the ORDINARY case — an intent, a mail draft
