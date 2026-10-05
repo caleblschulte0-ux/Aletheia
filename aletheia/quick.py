@@ -859,6 +859,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("looked_up", re.compile(
         r"^what (?:did|have) (?:you|u) (?:look up|looked up|research|researched|search for|searched for|google|googled)(?: for me)?(?: today| so far today| tonight)?\s*\??$"
         r"|^(?:did|have) (?:you|u) (?:look|looked) anything up(?: today)?\s*\??$|^what (?:searches|lookups) (?:did|have) (?:you|u) (?:do|done|run)(?: today)?\s*\??$")),
+    # The demand ledger is what he keeps asking for that she cannot do
+    # (2026-10-05: "I don't have a tally", and sixteen seconds of a model
+    # explaining it would have to build an index).
+    ("demand", re.compile(
+        r"^what do (?:you|u) (?:get|keep getting) asked (?:for )?(?:the )?most\s*\??$"
+        r"|^what do (?:i|people|we) (?:keep )?ask(?:ing)? (?:you|u) for (?:that|which|and) (?:you|u) can'?t (?:do|handle)\s*\??$"
+        r"|^what do i keep asking (?:you |u )?for\s*\??$|^what(?:'s| is|s)? (?:most )?in demand\s*\??$"
+        r"|^what (?:should|do) (?:you|u) (?:need to )?build next\s*\??$|^what(?:'s| is|s)? (?:the )?demand ledger\s*\??$"
+        r"|^what (?:are|r) (?:you|u) missing (?:that|which) i (?:keep )?(?:ask|asking|want|wanting)(?: for)?\s*\??$")),
     ("uptime", re.compile(
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
@@ -4894,7 +4903,42 @@ def _opportunity(rest: str) -> str | None:
         record = sorted(records, key=lambda r: r.get("submitted_at") or r.get("staged_at") or "",
                         reverse=True)[0]
         return _application_line(record)
+    # A PROJECT asked about like an application ("what's next on the recipe
+    # app" -> "I don't have an application to recipe", 2026-10-05).
+    project = _project_of(words)
+    if project and not project.startswith("I don't have a project called"):
+        return project
+    queued = _queued_project(words)
+    if queued:
+        return queued
     return f"I don't have an application to {words}."
+
+
+def _queued_project(words: str) -> str | None:
+    """A project he asked for that is not drafted yet, by its words."""
+    from aletheia import charters
+    wanted = [w for w in re.findall(r"[a-z0-9]+", str(words or "").casefold()) if len(w) > 2 and w not in ("the", "app", "project")]
+    if not wanted:
+        return None
+    try:
+        rows = charters.pending()
+    except Exception:
+        return None
+    for row in rows:
+        text = str(row.get("text") or "").casefold()
+        if row.get("kind") == "new" and all(w in text for w in wanted):
+            return (f"{str(row.get('text'))[:1].upper() + str(row.get('text'))[1:]} is still to draft: a charter goes to "
+                    "your phone to say yes to, usually within half an hour, and the steps come after that.")
+    return None
+
+
+def _demand() -> str:
+    """What he keeps asking for that she cannot do, from the demand ledger."""
+    from aletheia import demand
+    try:
+        return demand.spoken()
+    except Exception:
+        return "I can't read the demand ledger right now."
 
 
 def _application_line(record: dict) -> str:
@@ -5445,6 +5489,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "standing": lambda rest: _standing(rest),
            "my_zone": lambda rest: _my_zone(),
            "working": lambda rest: _working(),
+           "demand": lambda rest: _demand(),
            "looked_up": lambda rest: _looked_up(),
            "time_convert": _time_convert,
            "spell": lambda rest: _spell(rest),

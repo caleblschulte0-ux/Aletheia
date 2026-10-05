@@ -47,6 +47,9 @@ class TestAddresses(MailCase):
 
     def test_name_resolves_through_memory(self):
         memory.remember("people", "landlord", "lord@land.example", source="test")
+        # The suite shares one memory root: a landlord left here made a later
+        # "forget my landlord" test find one (2026-10-05).
+        self.addCleanup(lambda: memory.forget("people", "landlord", via="test cleanup"))
         addr, name = mail.resolve_address("Landlord")
         self.assertEqual(addr, "lord@land.example")
         self.assertEqual(name, "Landlord")

@@ -45,6 +45,7 @@ class ThePossessiveSurvives(unittest.TestCase):
 
     def test_the_phrase_is_kept_and_read_back(self):
         memory.remember("people", "sister_birthday", "March 3rd", source="test", about="your sister's birthday")
+        self.addCleanup(lambda: memory.forget("people", "sister_birthday", via="test cleanup"))
         held = memory._load("people")["sister_birthday"]
         self.assertEqual(held["about"], "your sister's birthday")
         with mock.patch("aletheia.memory.everything", return_value=SISTER), \
@@ -92,5 +93,6 @@ class ThePhraseReachesTheReader(unittest.TestCase):
         # phrase was stored: `memory.everything`, which every reader asks,
         # had dropped it on the way.
         memory.remember("people", "sister_birthday", "March 3rd", source="test", about="your sister's birthday")
+        self.addCleanup(lambda: memory.forget("people", "sister_birthday", via="test cleanup"))
         held = memory.everything()["people"]["sister_birthday"]
         self.assertEqual(held.get("about"), "your sister's birthday")

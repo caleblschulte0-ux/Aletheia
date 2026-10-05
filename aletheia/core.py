@@ -1332,6 +1332,15 @@ class OneCoreServer(ThreadingHTTPServer):
             self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
         super().server_bind()
 
+    def server_close(self):
+        # A closed Core is not a running one: the suite makes and closes
+        # dozens, and "is the core running" asked SERVERS (2026-10-05).
+        try:
+            SERVERS.remove(self)
+        except ValueError:
+            pass
+        super().server_close()
+
 
 #: How long a running Core may take to answer "are you there?". It was 2 s,
 #: and on 2026-09-21 the live Core answered in 2.5 s under memory load — so

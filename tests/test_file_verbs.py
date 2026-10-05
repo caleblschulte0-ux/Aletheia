@@ -119,7 +119,7 @@ class HeCanAskForThem(FileVerbCase):
         (self.ws / "summary.md").write_text("three bullets")
         said = intercom.execute_command(
             {"kind": "file_delete", "path": "summary.md"}, fleet={}, quote="q")
-        self.assertIn("previous version is kept", said)
+        self.assertIn("I kept a copy", said)   # read out plainly (2026-10-05)
 
     def test_moving_through_the_intercom_works(self):
         (self.ws / "a.md").write_text("A")

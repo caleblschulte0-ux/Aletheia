@@ -2318,8 +2318,16 @@ def _interpret(transcript: str) -> dict:
     # sentence got the answer he meant - two doors, two answers.
     if re.fullmatch(r"(?:what do you still need(?: from me)?|"
                     r"what'?s left to set up|am i done|"
-                    r"what'?s still missing|setup status)", low):
+                    r"what'?s still missing|setup status|"
+                    # "what's not set up yet", "what needs setting up" (2026-10-05: a model)
+                    r"what(?:'s| is|s)? not set ?up(?: yet)?|what (?:isn'?t|is not) set ?up(?: yet)?|"
+                    r"what (?:still )?needs (?:setting|to be set) up|what do i (?:still )?(?:need|have) to set up)", low):
         return {"command": {"kind": "setup_status"}, "say": None}
+    # "set up mail" / "how do I set up mail": the checklist for that one thing (2026-10-05: a model)
+    m = re.fullmatch(r"(?:how do i |help me |let'?s |can (?:you|u|we) |i want to )?(?:set ?up|configure|connect|hook up) (?:my |the |your )?"
+                     r"(?P<what>[a-z][a-z -]{1,30}?)(?: for (?:you|me))?(?: please)?", low)
+    if m and m.group("what") not in ("you", "u", "it", "everything", "all", "a timer", "an alarm", "a reminder"):
+        return {"command": {"kind": "setup_status", "about": _as_he_said(transcript, m.group("what"))}, "say": None}
     # "IS MY EMAIL SET UP?" is about ONE thing. It reached the whole
     # checklist and he heard four of sixteen done and every step left.
     m = re.fullmatch(r"(?:is|are) (?:my |the |your )?(?P<what>[a-z][a-z ]{1,30}?) "
