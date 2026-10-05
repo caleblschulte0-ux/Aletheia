@@ -379,6 +379,11 @@ SAID_NOT_DID = (
 
 def _something_she_did(entry: dict) -> bool:
     subject = str(entry.get("subject", ""))
+    if subject == "intent" and entry.get("kind") == "plan":
+        # "planned 1 step — Hold tomorrow at 10..." read back as a thing she
+        # did (2026-10-05). Planning it is not doing it; his yes and the
+        # planner's "Did it" are the lines that say what happened.
+        return False
     return (entry.get("kind") in HER_DOING
             and subject.split(":")[0] not in NOT_DOING_SUBJECTS
             and subject not in SAID_NOT_DID

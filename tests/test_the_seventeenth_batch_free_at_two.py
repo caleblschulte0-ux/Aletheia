@@ -15,9 +15,9 @@ import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import calendar as cal, intercom, recollection, voice
+from aletheia import calendar as cal, intercom, localtime, recollection, voice
 
-TOMORROW = (dt.date.today() + dt.timedelta(days=1)).isoformat()
+TOMORROW = (localtime.today() + dt.timedelta(days=1)).isoformat()
 NOW = dt.datetime.now(dt.timezone.utc).isoformat()
 DENTIST = {"version": 1, "id": "e1", "title": "Dentist", "status": "TENTATIVE",
            "start": f"{TOMORROW}T10:00:00-05:00", "end": f"{TOMORROW}T11:00:00-05:00",
@@ -27,7 +27,7 @@ DENTIST = {"version": 1, "id": "e1", "title": "Dentist", "status": "TENTATIVE",
 class TheHourTravels(unittest.TestCase):
     def test_a_time_with_no_day_is_today_and_a_bare_hour_is_the_afternoon(self):
         out = voice.interpret("thea am I free at 2")["command"]
-        self.assertEqual(out, {"kind": "free_time", "day": dt.date.today().isoformat(), "at": "14:00"})
+        self.assertEqual(out, {"kind": "free_time", "day": localtime.today().isoformat(), "at": "14:00"})
 
     def test_the_day_may_come_before_or_after_the_hour(self):
         for sentence in ("am I free tomorrow at 10 am", "am I free at 10 tomorrow"):

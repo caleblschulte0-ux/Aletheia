@@ -1267,10 +1267,7 @@ def _date_of(words: str) -> str | None:
     for lead in ("next ", "this "):
         if w.startswith(lead):
             w = w[len(lead):]
-    try:
-        today = dt.datetime.now(localtime.operator_tz()).date()
-    except Exception:
-        today = dt.date.today()
+    today = localtime.today()
     when = _named_date(w, today)
     if when is None:
         return None

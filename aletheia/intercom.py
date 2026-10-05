@@ -1589,7 +1589,7 @@ def _day_words(stamp: object) -> str:
         day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).date()
     except (TypeError, ValueError):
         return ""
-    today = _dt.date.today()
+    today = localtime.today()
     if day == today:
         return "today"
     if (today - day).days == 1:

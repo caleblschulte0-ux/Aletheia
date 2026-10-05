@@ -54,6 +54,18 @@ def operator_tz() -> ZoneInfo:
     return ZoneInfo(operator_timezone())
 
 
+def today() -> dt.date:
+    """HIS calendar date. `date.today()` is this process's, and the two
+    differ for five hours a night wherever the Core does not run on his
+    own clock (CI, a container): "am I free tomorrow at 10" put the day
+    on the process's tomorrow while the hold he had just approved went
+    on his, and she said yes (2026-10-05). Never raises."""
+    try:
+        return dt.datetime.now(operator_tz()).date()
+    except Exception:
+        return dt.date.today()
+
+
 def parse_utc(value: str) -> dt.datetime:
     """An ISO-8601 string (Z or offset) as an aware datetime in UTC."""
     parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))

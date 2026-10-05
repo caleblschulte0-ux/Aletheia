@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 import tempfile
 from pathlib import Path
 
-from aletheia import (calendar as cal, intents, intercom, planner,
+from aletheia import (calendar as cal, intents, intercom, localtime, planner,
                       policy, speech, voice)
 
 CHICAGO = ZoneInfo("America/Chicago")
@@ -124,7 +124,7 @@ class NamingDaysCase(unittest.TestCase):
         got = voice._spoken_day("friday")
         self.assertIsNotNone(got)
         self.assertEqual(dt.date.fromisoformat(got).strftime("%A"), "Friday")
-        self.assertGreaterEqual(dt.date.fromisoformat(got), dt.date.today())
+        self.assertGreaterEqual(dt.date.fromisoformat(got), localtime.today())
 
     def test_this_friday_is_the_same_friday(self):
         self.assertEqual(voice._spoken_day("this friday"),

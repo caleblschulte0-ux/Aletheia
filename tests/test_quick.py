@@ -14,7 +14,7 @@ worse than no fast path at all, because the slow path was working.
 import unittest
 from unittest import mock
 
-from aletheia import quick, speech, voice
+from aletheia import localtime, quick, speech, voice
 
 REGISTRY_MATCH = [{"capability": "documents.read", "status": "AVAILABLE",
                    "what_it_is": "Get the words out of a PDF or .docx"}]
@@ -484,9 +484,9 @@ class TheWiderLaneCase(unittest.TestCase):
         one thing this module may never do."""
         import datetime as dt
         said = quick.answer("what year is it")
-        self.assertIn(str(dt.date.today().year), said)
+        self.assertIn(str(localtime.today().year), said)
         month = quick.answer("what month is it")
-        self.assertIn(dt.date.today().strftime("%B"), month)
+        self.assertIn(localtime.today().strftime("%B"), month)
 
     def test_the_still_ambiguous_are_still_declined(self):
         """"What are my plans" is his calendar to a person and a `plans`

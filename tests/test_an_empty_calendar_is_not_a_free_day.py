@@ -29,9 +29,9 @@ import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import intercom
+from aletheia import intercom, localtime
 
-TOMORROW = dt.date.today() + dt.timedelta(days=1)
+TOMORROW = localtime.today() + dt.timedelta(days=1)
 
 
 def _event(day, hour=10):
