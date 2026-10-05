@@ -250,7 +250,29 @@ def _spoken_day(text: str) -> str | None:
     try:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
+        pass
+    # "By the 20th" stayed in the task's description with no deadline
+    # (2026-10-05). A bare ordinal is the next such day; a month and a day,
+    # a named day, are what the fast lane already reads.
+    m = re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)", t)
+    if m:
+        want = int(m.group(1))
+        year, month = today.year, today.month
+        for _ in range(3):
+            try:
+                when = dt.date(year, month, want)
+            except ValueError:
+                when = None
+            if when and when >= today:
+                return when.isoformat()
+            month, year = (month % 12) + 1, year + (1 if month == 12 else 0)
         return None
+    try:
+        from aletheia import quick
+        named = quick._named_date(t, today)
+    except Exception:
+        named = None
+    return named.isoformat() if named else None
 
 
 # Nobody means three in the morning. A bare hour with no am/pm is the
@@ -938,9 +960,40 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     previous = _previous_reminder_ask()
     if not previous:
         return None
-    hhmm = _spoken_time(time_words)
-    if not hhmm:
+    # "Move that to Monday" / "to Monday at 10" / "to 10 on Monday" (2026-10-05:
+    # a day was not a time, so she said she had set no reminder - she had).
+    words = " ".join(str(time_words or "").split())
+    split = (re.fullmatch(r"(?P<day>.+?) at (?P<time>.+)", words)
+             or re.fullmatch(r"(?P<time>.+?) on (?P<day>.+)", words))
+    day_words = split.group("day") if split else words
+    time_words = split.group("time") if split else words
+    new_day = _spoken_day(day_words)
+    if new_day and not split:
+        time_words = ""
+    hhmm = _spoken_time(time_words) if time_words else None
+    if not hhmm and not new_day:
         return None
+    if new_day and not hhmm:
+        try:
+            import datetime as dt
+            from aletheia import localtime
+            tz = localtime.operator_tz()
+            was = dt.datetime.fromisoformat(str(previous.get("at"))).astimezone(tz)
+            moved = dt.datetime.combine(dt.date.fromisoformat(new_day), was.timetz())
+            return {"command": {"kind": "remind_at", "at": moved.isoformat(),
+                                "text": previous["text"], "replaces": previous["text"]}, "say": None}
+        except Exception:
+            return None
+    if new_day and hhmm:
+        import datetime as dt
+        from aletheia import localtime
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(time_words) and 1 <= hour <= EARLIEST_BARE_HOUR:
+            hour += 12
+        moved = dt.datetime.combine(dt.date.fromisoformat(new_day), dt.time(hour, minute),
+                                    tzinfo=localtime.operator_tz())
+        return {"command": {"kind": "remind_at", "at": moved.isoformat(),
+                            "text": previous["text"], "replaces": previous["text"]}, "say": None}
     at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(time_words))
     # THE SAME DAY HE SET IT FOR. "Remind me tomorrow at 9" then "move that
     # to 10" moved it to TONIGHT at 10 (sandbox, 2026-10-05): the new time
@@ -953,7 +1006,10 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         was = dt.datetime.fromisoformat(str(previous.get("at"))).astimezone(tz)
         if was.date() > dt.datetime.now(tz).date():
             hour, minute = map(int, hhmm.split(":"))
-            if _is_bare_hour(time_words) and 1 <= hour <= 11 and abs(hour + 12 - was.hour) < abs(hour - was.hour):
+            if _is_bare_hour(time_words) and 1 <= hour <= 11 and (
+                    abs(hour + 12 - was.hour) < abs(hour - was.hour) or hour < EARLIEST_BARE_HOUR):
+                # Nearest to the old hour - and never the small hours: "make
+                # that 4" on a 9 am reminder was 4 in the morning (2026-10-05).
                 hour += 12
             at = was.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
     except Exception:
@@ -1477,6 +1533,12 @@ def _interpret(transcript: str) -> dict:
                             r"(?:the |some |a |an )?(.+?)", low)
         if said and _on_the_shopping_list(said.group(1)):
             m = said
+    if not m:
+        # "Take eggs off" (2026-10-05): no list named, and the store says
+        # whether that is a thing on it.
+        bare = re.fullmatch(r"(?:take|cross|scratch|tick) (.+?) off(?: the list| the shopping list)?", low)
+        if bare and _on_the_shopping_list(bare.group(1)):
+            m = bare
     if m:
         return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
                 "say": None}
@@ -3170,6 +3232,9 @@ def _interpret(transcript: str) -> dict:
             # Nothing of hers to move: the planner, asked instead, invented a
             # reminder to move ("finish the remaining Aletheia setup",
             # 2026-10-05). The honest sentence costs him one rephrase.
+            if _previous_reminder_ask():
+                return {"command": None,
+                        "say": f"I couldn't read '{m.group('time').strip()}' as a time or a day. Say it like 'move that to 4 pm' or 'to Monday at 10'."}
             return {"command": None,
                     "say": "I haven't set a reminder just now that I could move. Say the whole reminder and I'll set it."}
 

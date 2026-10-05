@@ -517,11 +517,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:applications|apps|emails|messages) (?:did|have) (?:you|u) (?:send|sent)(?: out)?(?: today)?$"
         r"|^what went out today$|^(?:did|have) (?:you|u) (?:send|sent) anything(?: out)?(?: today)?$")),
     # "What did you do yesterday" is one journal read and she was paying a
-    # round trip for it. Deliberately NOT "what did I ask you to do
-    # yesterday": that asks for HIS instructions, and her journal also
-    # holds scheduled work nobody asked for, so the fast lane would be
-    # answering a near-miss. That one keeps the model, which now gets the
-    # right day's journal to answer from (`recollection.for_question`).
+    # round trip for it. "What did I ask you to do yesterday" is a
+    # different store - his own words, journaled under `converse.ASKED_SUBJECT`
+    # - and `asked_on` below answers it from there.
     ("yesterday", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) yesterday$"
         r"|^what (?:did|have) (?:you|u) (?:do|done) last night$"
@@ -612,7 +610,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
-        r"|^what did (?:the |my )?(?P<repo_wrong2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? do (?:today|overnight|last night|this week)\s*\??$")),
+        # Not "what did I ask you to do today" (2026-10-05): that is his
+        # own words, answered from them further down, and this swallowed
+        # it as a repository called "i ask you to".
+        r"|^what did (?:the |my )?(?P<repo_wrong2>(?!(?:i|you|u|we)\b)[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? do (?:today|overnight|last night|this week)\s*\??$")),
     ("fleet_read_at", re.compile(
         r"^when (?:was|did) (?:the )?fleet (?:last )?(?:checked|read|looked at|scanned|updated|refreshed)(?: last)?\s*\??$"
         r"|^how (?:old|fresh|stale) is the fleet (?:reading|read|pulse)\s*\??$")),
@@ -920,6 +921,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:list|show me|read me) (?P<applied_on3>today'?s?|yesterday'?s?) (?:applications|jobs)\s*\??$")),
     # WHAT HE ASKED, by day, from the journal of his own words
     # (`converse.ASKED_SUBJECT`). Offline it was "I can't think just now".
+    # "What's due this week" is his task list and his reminders against the
+    # clock, and it paid a model round trip (2026-10-05).
+    ("due_week", re.compile(
+        r"^what(?:'s| is|s)? (?:due|coming up|on|on my plate|on the list) (?P<due_when>this week|today|tomorrow|next week)\s*\??$"
+        r"|^what do i have (?:due |coming up |on )?(?P<due_when2>this week|today|tomorrow|next week)\s*\??$"
+        r"|^(?:is )?anything due (?P<due_when3>this week|today|tomorrow|next week)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:due|coming up)\s*\??$")),
     ("asked_on", re.compile(
         r"^what (?:did|have) i (?:ask|asked|tell|told|say to|said to) (?:you|u)(?: to do| for| about)?"
         r" (?P<asked_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$"
@@ -1044,6 +1052,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
+                                           "due_when", "due_when2", "due_when3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4")
@@ -3056,6 +3065,69 @@ def _applied_on(rest) -> str:
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
 
 
+def _due_week(when: str = "") -> str:
+    """His tasks with a deadline and his reminders inside the window, from
+    the two stores and the clock. Nothing here guesses: a task with no
+    deadline is not "due", and a reminder she has switched off is not
+    coming."""
+    import datetime as dt
+    from aletheia import intercom, localtime, scheduler, speech, tasks
+    which = " ".join(str(when or "").casefold().split()) or "this week"
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if which == "today":
+        end = start_of_day + dt.timedelta(days=1)
+    elif which == "tomorrow":
+        end = start_of_day + dt.timedelta(days=2)
+    elif which == "next week":
+        end = start_of_day + dt.timedelta(days=14)
+    else:
+        end = start_of_day + dt.timedelta(days=7)
+    hours = (end - now).total_seconds() / 3600.0
+    lines: list[str] = []
+    try:
+        for row in tasks.due(now=now.astimezone(dt.timezone.utc), within_hours=hours):
+            task = row["task"]
+            if not tasks.is_his(task):
+                continue
+            what = _shortened(str(task.get("description") or "").strip().rstrip("."))
+            day = _day_phrase(row["when"].astimezone(tz).date(), now.date())
+            lines.append(f"{what} is overdue" if row["overdue"] else f"{what} by {day}")
+    except Exception:
+        return "I can't read your task list right now."
+    try:
+        reminders = intercom._reminder_schedules()
+    except Exception:
+        reminders = []
+    for spec in reminders:
+        try:
+            coming = scheduler.next_occurrence(spec, now.astimezone(dt.timezone.utc))
+        except Exception:
+            continue            # one unreadable schedule is not the whole week
+        if coming is None or coming.astimezone(tz) >= end:
+            continue
+        text = str((spec.get("command") or {}).get("text") or "").strip().rstrip(".")
+        lines.append(f"a reminder to {text} {speech.humanize_time(coming.isoformat())}")
+    label = {"today": "Today", "tomorrow": "Tomorrow", "next week": "Next week"}.get(which, "This week")
+    if not lines:
+        return f"Nothing due {which}: no task with a deadline and no reminder set for it."
+    return f"{label}: " + "; ".join(lines[:6]) + (f" - and {speech.count_phrase(len(lines) - 6, 'other thing')}" if len(lines) > 6 else "") + "."
+
+
+def _day_phrase(day, today) -> str:
+    """"today", "tomorrow", "Friday", "Monday the 20th" - a day as a person
+    names one, never an ISO date out loud."""
+    ahead = (day - today).days
+    if ahead <= 0:
+        return "today"
+    if ahead == 1:
+        return "tomorrow"
+    if ahead < 7:
+        return day.strftime("%A")
+    return f"{day.strftime('%A')} the {_ordinal(day.day)}"
+
+
 def _asked_on(rest) -> str:
     """What he asked her on a day, from the journal of his own words."""
     import datetime as dt
@@ -4089,6 +4161,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "job_hunt": lambda rest: _job_hunt(),
            "wrong": lambda rest: _wrong(),
            "today": lambda rest: _today(rest),
+           "due_week": lambda rest: _due_week(rest),
            "interview_when": lambda rest: _interview_when(),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),
