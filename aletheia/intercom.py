@@ -2093,7 +2093,8 @@ REHEARSAL_WORDS = {"message_send": "send the text", "email_draft": "draft the em
                    "apply_pause": "pause the job hunt", "apply_resume": "restart the job hunt",
                    "meet": "set up the meeting", "approve": "approve it", "deny": "deny it",
                    "social_publish": "post it", "issue": "open the issue",
-                   "dispatch": "start the workflow", "pr": "open the pull request"}
+                   "dispatch": "start the workflow", "pr": "open the pull request",
+                   "subscription_cancel": "cancel the subscription"}
 
 # Kinds that do not touch the world THEMSELVES — they compile a plan and
 # run its steps back through this same function, where each one is
@@ -3391,7 +3392,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         total = sum(m for m in monthly if m)
         names = ", ".join(str(r.get("merchant", "?")) for r in rows[:5])
         return (f"{len(rows)} active: {names}."
-                + (f" About {total:.2f} a month." if total else ""))
+                + (f" About ${total:,.2f} a month." if total else ""))
     if kind == "money":
         from aletheia import finance
         worth = finance.net_worth()

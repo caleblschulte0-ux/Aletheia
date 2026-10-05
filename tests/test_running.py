@@ -439,7 +439,11 @@ class SheIsRunningOldCodeCase(unittest.TestCase):
                                              "subject": "s",
                                              "running_old_code": False}):
             said = quick.answer("what version are you on")
-        self.assertIn("abc1234", said)
+        # The room hears the change's own words, never the hash or the branch
+        # (2026-10-05); `version_words` keeps both for a screen.
+        self.assertIn("'s'", said)
+        self.assertNotIn("abc1234", said)
+        self.assertNotIn("main", said)
 
     def test_being_behind_the_remote_is_said_out_loud(self):
         """THE staleness that actually bit him. A file changing on disk is

@@ -166,8 +166,9 @@ class SaidOutLoudCase(unittest.TestCase):
     def test_the_fast_lane_says_it_when_she_does(self):
         from aletheia import quick
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=7200):
-            self.assertEqual(quick.answer("how long have you been up"),
-                             "Up 2 hours.")
+            # ...and since when (2026-10-05: "when did you last restart" is
+            # the same question and wants a clock time).
+            self.assertTrue(quick.answer("how long have you been up").startswith("Up 2 hours, since "))
 
 
 

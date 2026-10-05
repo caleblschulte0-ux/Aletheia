@@ -408,6 +408,24 @@ def version_words(info: dict) -> str:
     return said
 
 
+def version_spoken(info: dict) -> str:
+    """`version_words` for the room: no branch, no hash (2026-10-05: "On
+    claude/compassionate-hamilton-4i0ziw at 26db655" was read out). The
+    change is named by its own words; the drawer keeps the rest."""
+    subject = str(info.get("subject") or "").strip().rstrip(".")
+    said = f"I'm running the change called '{subject}'" if subject else "I can't name the change I'm running"
+    if info.get("behind"):
+        said += f" - {info['behind']}, so this is not the newest code there is"
+    if info.get("running_old_code"):
+        said += (". I started before the current code was written, so I'm running an "
+                 "older copy - restart me to pick it up.")
+    elif info.get("running_old_code") is False:
+        said += ". That's the code I'm running now."
+    else:
+        said += "."
+    return said
+
+
 def _listening() -> bool:
     """Whether the microphone is open, never raising into a status read."""
     try:

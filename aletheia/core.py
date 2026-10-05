@@ -279,6 +279,12 @@ CODE_PATHS = ["aletheia", "interface", "config", "requirements-optional.txt"]
 # When this process loaded its code. Anything under CODE_PATHS newer than
 # this is code the running process is not executing.
 PROCESS_STARTED_AT = time.time()
+
+#: Every Core server made in this process. The fast lane asks it before the
+#: process list, because a Core answering "is the core running" is the proof
+#: and `running.snapshot` on a machine with no process of hers said "nothing
+#: of mine is running" to the Core that was answering (2026-10-05).
+SERVERS: list = []
 RESTART_EXIT_CODE = 42  # tells the supervisor: relaunch me, this is not a crash
 
 #: Set by `main`: the same door a code update uses to restart the Core.
@@ -1429,6 +1435,7 @@ def make_server(host: str = "127.0.0.1", port: int = DEFAULT_PORT,
     BoundHandler.computer_backend_factory = (
         staticmethod(computer_backend_factory) if computer_backend_factory else None)
     server = OneCoreServer((host, port), BoundHandler)
+    SERVERS.append(server)      # "is the core running", asked of the Core itself
     if tls_cert and tls_key and not access.is_loopback(host):
         import ssl
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

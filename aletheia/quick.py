@@ -734,6 +734,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^which (?:branch|commit) are (?:you|u) on$"
         r"|^are (?:you|u) (?:up to date|current|stale)$"
         r"|^are (?:you|u) running the latest code$")),
+    # Three the machine itself can answer (2026-10-05, each a model turn):
+    # the subscriptions total, what is left on a timer, memory by program.
+    ("subscription_spend", re.compile(
+        r"^how much (?:do i|am i|do we) (?:spend|spending|pay|paying) (?:a month |per month |monthly |every month |each month )?(?:on|for) (?:my |all my )?subscriptions(?: a month| per month| monthly| every month| each month| in total| all together| altogether)?\s*\??$"
+        r"|^what(?:'s| is|s)? my (?:monthly |total )?subscription (?:total|spend|bill|cost)(?: a month| per month)?\s*\??$"
+        r"|^what do (?:my|the|all my) subscriptions (?:cost|add up to|come to|total)(?: me)?(?: a month| per month| each month)?\s*\??$")),
+    ("timer_left", re.compile(
+        r"^how (?:long|much time)(?: is|'s)? left on (?:the|my|that) timer\s*\??$"
+        r"|^how long (?:until|till|before) (?:the|my) timer(?: goes off| is up| ends)?\s*\??$"
+        r"|^(?:is there|do i have|have i got) a timer (?:running|going|set|on)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:left|remaining) on (?:the|my) timer\s*\??$"
+        r"|^(?:what(?:'s| is)? the )?timer(?: status)?\s*\??$")),
+    ("top_memory", re.compile(
+        r"^what(?:'s| is|s)? (?:using|eating|hogging|taking)(?: up)? (?:the |my |all the |all my )?(?:most )?(?:memory|ram)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:using|eating|hogging|taking)(?: up)? (?:the )?most (?:memory|ram)\s*\??$"
+        r"|^which (?:program|programs|app|apps|process|processes) (?:is|are) (?:using|eating|hogging|taking)(?: up)? (?:the |all the )?(?:most )?(?:memory|ram)\s*\??$")),
     ("uptime", re.compile(
         r"^how long have (?:you|u) been (?:up|running|on|awake|going)$"
         r"|^how long have (?:you|u) been here$"
@@ -2827,18 +2843,28 @@ def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
     try:
-        return running.version_words(running.version())
+        return running.version_spoken(running.version())
     except Exception:
         return None
 
 
 def _uptime() -> str | None:
-    """How long she has been on, from her own heartbeat."""
-    from aletheia import liveness
+    """How long she has been on, from her own heartbeat - or, when a Core
+    is running in THIS process and has no heartbeat yet, from the process
+    itself. "When did you last restart" went to a model that said it could
+    not know (2026-10-05); the process's own start is a fact."""
+    import datetime as dt
+    import sys
+    from aletheia import liveness, localtime, speech
     seconds = liveness.uptime_seconds()
     if seconds is None:
-        return None                 # she does not know; do not invent one (test_liveness)
-    return f"Up {liveness.spoken_duration(seconds)}."
+        core = sys.modules.get("aletheia.core")
+        started = getattr(core, "PROCESS_STARTED_AT", None) if core else None
+        if not started:
+            return None             # she does not know; do not invent one (test_liveness)
+        seconds = max(0.0, dt.datetime.now(dt.timezone.utc).timestamp() - float(started))
+    since = dt.datetime.now(localtime.operator_tz()) - dt.timedelta(seconds=seconds)
+    return f"Up {liveness.spoken_duration(seconds)}, since {speech.humanize_time(since.isoformat())}."
 
 
 def _notify_count() -> str:
@@ -2896,6 +2922,83 @@ _MINE = {"email": ("email",), "email address": ("email",),
 
 # "Who am I" has no captured word to look up, so it names its own.
 _WHO_AM_I = "name"
+
+
+def _subscription_spend() -> str:
+    """What his tracked subscriptions come to a month, from the store."""
+    from aletheia import speech, subscriptions
+    try:
+        rows = subscriptions.all_subscriptions(active_only=True)
+    except Exception:
+        return "I can't read your subscriptions list right now."
+    if not rows:
+        return "Nothing: I'm not tracking any subscriptions yet. Say \"I pay 15.99 a month for Netflix\" and I'll keep it."
+    monthly = [subscriptions.monthly_equivalent(r) for r in rows]
+    total = sum(m for m in monthly if m)
+    unknown = sum(1 for m in monthly if not m)
+    names = speech.and_list([str(r.get("merchant") or "?") for r in rows[:5]])
+    said = f"About ${total:,.2f} a month across {speech.count_phrase(len(rows), 'subscription')}: {names}."
+    if unknown:
+        said += f" {speech.count_phrase(unknown, 'of them has', 'of them have')} no price I know, so the real total is higher."
+    return said
+
+
+def _timer_left() -> str:
+    """What is left on a timer he set, from the reminder it became."""
+    import datetime as dt
+    from aletheia import intercom, liveness, scheduler, speech
+    try:
+        rows = [r for r in intercom._reminder_schedules()
+                if r.get("kind") == "once" and "timer" in str((r.get("command") or {}).get("text") or "").casefold()]
+    except Exception:
+        return "I can't read my timers right now."
+    now = dt.datetime.now(dt.timezone.utc)
+    coming = []
+    for spec in rows:
+        try:
+            at = scheduler.next_occurrence(spec, now)
+        except Exception:
+            continue
+        if at is not None:
+            coming.append((at, spec))
+    if not coming:
+        return "No timer running."
+    at, spec = min(coming, key=lambda pair: pair[0])
+    left = (at - now).total_seconds()
+    text = str(spec["command"].get("text") or "").rstrip(".")
+    what = text[len("your "):] if text.startswith("your ") else text
+    what = what[:-len(" is up")] if what.endswith(" is up") else what
+    return f"About {liveness.spoken_duration(left)} left; your {what} goes off {speech.humanize_time(at.isoformat())}."
+
+
+def _top_memory() -> str:
+    """Which programs hold the most memory, from psutil - a number this
+    machine can read, not a thought ("I can't tell you ... open a terminal,
+    run top", 2026-10-05)."""
+    from aletheia import speech
+    try:
+        import psutil
+        shares: dict[str, int] = {}
+        for p in psutil.process_iter(["name", "memory_info"]):
+            try:
+                name = p.info["name"] or "?"
+                rss = int(p.info["memory_info"].rss) if p.info["memory_info"] else 0
+            except Exception:
+                continue
+            shares[name] = shares.get(name, 0) + rss
+        total = psutil.virtual_memory().total
+    except Exception:
+        return "I can't read this machine's memory by program right now."
+    if not shares:
+        return "I can't see any programs' memory right now."
+    top = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)[:3]
+
+    def size(n: int) -> str:
+        return f"{n / 2**30:.1f} GB" if n >= 2**30 else f"{n // 2**20} MB"
+
+    lines = [f"{name.removesuffix('.exe')} at {size(n)}" for name, n in top]
+    said = f"{speech.and_list(lines)}, out of {size(total)} in the machine."
+    return said[:1].upper() + said[1:]
 
 
 def _running() -> str | None:
@@ -3625,6 +3728,16 @@ def _status_of(text: str) -> str | None:
             # Her own status is the "what are you doing" answer, not the
             # Aletheia repository's row of the pulse.
             return _doing()
+        elif subject in ("core", "the core", "your core", "her core", "thea's core", "aletheia's core"):
+            # "Is the core running" went to the pulse (2026-10-05); the
+            # Core answering is the proof, and `running` has the rest.
+            import sys
+            core = sys.modules.get("aletheia.core")
+            headline = _running() or ""
+            if core is not None and getattr(core, "SERVERS", None):
+                tail = "" if headline.startswith("Nothing of mine") else f" {headline}"
+                return "Yes, the Core is running - I'm it." + tail
+            return headline or "Yes - I'm answering you, so the Core is up."
         else:
             said = current_state.repo_words(subject)
             if said is None and _no_pulse():
@@ -4255,6 +4368,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reply_rate": lambda rest: _reply_rate(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
+           "subscription_spend": lambda rest: _subscription_spend(),
+           "timer_left": lambda rest: _timer_left(),
+           "top_memory": lambda rest: _top_memory(),
            "version": lambda rest: _version(),
            "free": _free,
            "next_meeting": lambda rest: _next_meeting(),
