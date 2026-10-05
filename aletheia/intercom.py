@@ -2525,6 +2525,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         found, why = _one_task(cmd["which"])
         if found is None:
             return why
+        if str(cmd.get("as") or "done").strip().casefold() in ("cancelled", "canceled", "dropped", "cleared"):
+            # "never mind the dentist thing" (2026-10-05): dropped, not done
+            tasks_mod.set_status(found["id"], "CANCELLED", note=f"dropped: {quote[:120]}")
+            return f"Dropped your task: {found.get('description') or found['id']}."
         tasks_mod.set_status(found["id"], "COMPLETED",
                              note=f"marked done: {quote[:120]}")
         return f"marked done — {found.get('description') or found['id']}"

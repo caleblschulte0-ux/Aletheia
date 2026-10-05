@@ -1210,20 +1210,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "invalid", "detail": str(exc)}, code=400)
         if path == "/api/voice":
             from aletheia import voice
+            self._with_the_rest = lambda say, asks, quote: _run_the_rest(self.fleet, say, asks, quote)
             transcript = payload.get("transcript")
             if not isinstance(transcript, str) or not transcript.strip():
                 return self._json({"outcome": "invalid",
                                    "detail": "transcript must be a non-empty string"},
                                   code=400)
             intent = voice.interpret(transcript)
+            quote = f"spoken to the wall: {transcript[:200]}"
+            # TWO INSTRUCTIONS IN ONE BREATH (2026-10-05): the rest of the
+            # sentence rides in `and_then` as his words, read again once the
+            # first half has run. A half that needs thinking sends the whole
+            # sentence to the planner, which is where it was going anyway.
+            and_then = [str(c.get("ask") or "") for c in (intent.get("and_then") or [])
+                        if isinstance(c, dict) and c.get("ask")]
             if intent["command"] is None:
-                _remember_out_loud(transcript, intent["say"])
-                return self._json({"outcome": "answered", "say": intent["say"]})
+                say = self._with_the_rest(intent["say"], and_then, quote)
+                _remember_out_loud(transcript, say)
+                return self._json({"outcome": "answered", "say": say})
             cmd = dict(intent["command"])
             kind = cmd.get("kind")
-            quote = f"spoken to the wall: {transcript[:200]}"
             fast = answered_now(cmd)
-            if fast:
+            if and_then and ((kind in SLOW_KINDS and not fast) or any(_half_needs_thinking(a) for a in and_then)):
+                cmd, kind, and_then = {"kind": "intent", "text": voice.strip_wake_word(transcript)}, "intent", []
+                fast = None
+            if fast and not and_then:
                 try:
                     journal.append("event", "quick", f"answered from her own "
                                    f"stores: {transcript[:120]}",
@@ -1267,15 +1278,19 @@ class Handler(BaseHTTPRequestHandler):
                         code=503)
                 return self._json({"outcome": "thinking", "say": slot["say"],
                                    "followup_id": slot["id"]})
-            result = run_command({**cmd, "operator_quote": quote}, self.fleet)
-            if kind in ("approve", "resume"):
-                # Saying yes out loud acts now too — and the room waits a
-                # moment for it, so the next question tells the truth.
-                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
-            # a fallback intent carries its own words (e.g. "no command for
-            # that, journaled") — those beat the generic receipt phrasing
-            say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
-                                                      result["detail"])
+            if fast:
+                result, say = {"outcome": "answered", "detail": fast}, fast
+            else:
+                result = run_command({**cmd, "operator_quote": quote}, self.fleet)
+                if kind in ("approve", "resume"):
+                    # Saying yes out loud acts now too — and the room waits a
+                    # moment for it, so the next question tells the truth.
+                    kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
+                # a fallback intent carries its own words (e.g. "no command for
+                # that, journaled") — those beat the generic receipt phrasing
+                say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
+                                                          result["detail"])
+            say = self._with_the_rest(say, and_then, quote)
             _remember_out_loud(transcript, say)
             return self._json({**result, "say": say})
 
@@ -1309,6 +1324,43 @@ class Handler(BaseHTTPRequestHandler):
                 {"outcome": "error", "detail": f"{type(exc).__name__}: {exc}"},
                 code=500)
         return self._json({"outcome": "done", "result": result})
+
+
+def _half_needs_thinking(ask: str) -> bool:
+    """A half of a breath that only a model could carry out."""
+    from aletheia import quick, voice
+    try:
+        command = (voice.interpret(f"thea {ask}") or {}).get("command")
+    except Exception:
+        return True
+    if command is None:
+        return False
+    return command.get("kind") in SLOW_KINDS and not quick.match(ask)
+
+
+def _run_the_rest(fleet, say: str, asks: list[str], quote: str) -> str:
+    """The second half of a breath, read again now that the first has run,
+    and said after it. A half that would need thinking is handed back as
+    his own words rather than quietly dropped."""
+    from aletheia import voice
+    out = str(say or "")
+    for ask in asks:
+        try:
+            decided = voice.interpret(f"thea {ask}")
+        except Exception:
+            decided = {"command": None, "say": None}
+        command = decided.get("command")
+        if command is None:
+            more = str(decided.get("say") or "")
+        else:
+            more = answered_now(command)
+            if not more and command.get("kind") in SLOW_KINDS:
+                more = f"Ask me the rest again on its own: {ask}."
+            elif not more:
+                ran = run_command({**command, "operator_quote": quote}, fleet)
+                more = voice.spoken_reply(command.get("kind"), ran["outcome"], ran["detail"])
+        out = f"{out.rstrip()} {more}".strip()
+    return out
 
 
 class OneCoreServer(ThreadingHTTPServer):

@@ -29,8 +29,13 @@ class AskingForTheListCase(unittest.TestCase):
                      "list my tasks", "what do i have to do",
                      "what's left to do", "todo list"):
             with self.subTest(said=said):
-                self.assertEqual(voice.interpret(f"thea {said}")["command"],
-                                 {"kind": "tasks"}, said)
+                got = voice.interpret(f"thea {said}")
+                # "what's on my list" names no list, so it is answered from
+                # both of hers at once (2026-10-05) rather than guessing tasks
+                if got["command"] is None:
+                    self.assertIn("task list", got["say"], said)
+                else:
+                    self.assertEqual(got["command"], {"kind": "tasks"}, said)
 
     def test_it_reads_as_a_sentence(self):
         rows = [task("t1", "call the dentist"), task("t2", "renew my passport")]

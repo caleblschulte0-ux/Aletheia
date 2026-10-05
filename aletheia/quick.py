@@ -520,6 +520,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many days (?:are )?left (?:in|of) (?:the|this) (?P<left_in>month|year|week|quarter)\s*\??$"
         r"|^how (?:much|many days) (?:of )?(?:the|this) (?P<left_in2>month|year|week|quarter) (?:is|are) left\s*\??$"
         r"|^when does (?:the|this) (?P<left_in3>month|year|week|quarter) end\s*\??$")),
+    ("just_asked", re.compile(
+        r"^what did i (?:just )?(?:ask|say|tell)(?: you)?(?: just now| a (?:second|minute|moment) ago)?\s*\??$"
+        r"|^what was the last thing i (?:said|asked|told you)\s*\??$|^what did i (?:just )?say to you\s*\??$"
+        r"|^what did you (?:just )?(?:say|tell me|answer)(?: just now| a (?:second|minute|moment) ago)?\s*\??$"
+        r"|^(?:say|repeat) that again\s*\??$|^what was that\s*\??$|^come again\s*\??$|^repeat that\s*\??$")),
     ("when_asked", re.compile(
         r"^(?:what time|when) did i (?:ask|say|tell you) (?:you )?that\s*\??$|^when was that\s*\??$|^what time was that\s*\??$"
         r"|^(?:what time|when) did i (?:last )?(?:ask|say) (?:something|anything)\s*\??$")),
@@ -1317,7 +1322,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left"):
+        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -1721,6 +1726,28 @@ def _days_left(text: str) -> str | None:
     if left == 0:
         return f"Today is the last day of the {span}."
     return f"{left} day{'s' if left != 1 else ''} after today; the {span} ends {when}."
+
+
+def _just_asked(text: str) -> str:
+    """"What did I just ask you" / "say that again": the thread's last turn,
+    said back (2026-10-05: a model, four seconds, to read one line of her own
+    memory)."""
+    from aletheia import converse
+    try:
+        turns = converse.recent(limit=2)
+    except Exception:
+        turns = []
+    if not turns:
+        return "Nothing yet - the conversation thread is empty."
+    turn = turns[-1]
+    low = str(turn.get("he_asked") or "").casefold()
+    if re.match(r"(?:what did i|what was the last|what did you|say that|repeat|what was that|come again)", low) and len(turns) > 1:
+        turn = turns[-2]
+    asked = " ".join(str(turn.get("he_asked") or "").split()).strip(".")
+    answered = " ".join(str(turn.get("she_answered") or "").split())
+    if re.match(r"(?:what did you|say that|repeat|what was that|come again)", _tidy(text)):
+        return answered or f"I didn't say anything after you said \"{asked}\"."
+    return f"You said \"{asked}\"" + (f", and I said: {answered}" if answered else ".")
 
 
 def _when_asked() -> str:
@@ -3401,9 +3428,11 @@ def _math(text: str) -> str | None:
                      ("minutes", "hour"): 60, ("hours", "day"): 24, ("days", "week"): 7, ("weeks", "year"): 52,
                      ("months", "year"): 12, ("days", "year"): 365}
             key = (g["unit_small"], g["unit_big"])
-            if key not in facts:
-                return None
-            return f"{said(facts[key])} {g['unit_small']} in a {g['unit_big']}."
+            if key in facts:
+                return f"{said(facts[key])} {g['unit_small']} in a {g['unit_big']}."
+            # "how many feet in a meter" is a conversion, not a fact of the
+            # table: fall through to the units below with one of the big one
+            g = {"n": "1", "from": g["unit_big"], "to": g["unit_small"]}
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
@@ -5718,6 +5747,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weekend_now": lambda rest: _weekend_now(),
            "quarter": lambda rest: _quarter(),
            "days_left": _days_left,
+           "just_asked": _just_asked,
            "when_asked": lambda rest: _when_asked(),
            "her_page": lambda rest: _her_page(),
            "the_wall": lambda rest: _the_wall(),

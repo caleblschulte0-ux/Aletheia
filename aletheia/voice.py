@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import re
 
-from aletheia import capabilities, policy, speech, tasks
+from aletheia import capabilities, intercom, policy, speech, tasks
 
 WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 
@@ -1280,7 +1280,74 @@ def interpret(transcript: str) -> dict:
     somebody writes gets it for free.
     """
     transcript = _as_said_to_her(transcript)
+    both = _two_in_one_breath(transcript)
+    if both:
+        return both
     return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
+
+
+#: a half of a sentence may be any plain verb or question of hers - never
+#: a switch, a decision, a container or the planner, which would make the
+#: split a way of saying two things under one approval
+_NOT_HALF = {"intent", "handle", "approve", "deny", "halt", "resume", "restart", "undo",
+             "standing", "study_decide", "study_confirm"}
+_BREATH = re.compile(r",? and then | and | then |, then |; ", re.I)
+#: the second half has to be ADDRESSED to her to count as its own
+#: instruction: "add a task to call mom and text dad" is one task, "add a
+#: task to call mom and remind me at 4 to call the bank" is two
+_SECOND_HALF = re.compile(
+    r"(?:add|remind me|remember|set (?:a|an|the|my)|put|note|what|when|who|where|how|is|are|do you|can you|"
+    r"could you|mark|cross|check off|tick|cancel|forget|turn (?:on|off|up|down)|play|open|read me|delete|"
+    r"start|stop|tell me|show me|wake me|book|hold|my [a-z]+ is|i need|we need|we're out of|take .+ off|"
+    r"text|email|message)\b", re.I)
+
+
+def _two_in_one_breath(transcript: str) -> dict | None:
+    """"Add milk and remind me at 4 to call the bank" (2026-10-05): two
+    instructions she has a rule for apiece went to the planner as one, five
+    seconds and an approval for two things that are each instant alone.
+    Split at a joiner only where BOTH halves compile on their own to a plain
+    verb or question of hers - "add milk and eggs" stays one sentence,
+    because "eggs" is not an instruction. The first command is the command;
+    the rest ride in `and_then`, and the Core runs them in order."""
+    text = strip_wake_word(transcript)
+    for found in _BREATH.finditer(text):
+        left, right = text[:found.start()].strip(" ,"), text[found.end():].strip()
+        if len(left.split()) < 2 or len(right.split()) < 2 or not _SECOND_HALF.match(right):
+            continue
+        if re.match(r"(?:text|email|message)\b", right, re.I) and re.match(
+                r"(?:add|new task|note|remind|remember|email|text|message|tell|write|draft)\b", left, re.I):
+            continue            # "add a task to call mom and text dad" is one task
+        first = _half(left)
+        if first and _half(right):
+            # The second half travels as his WORDS, read again after the
+            # first has run: "add eggs and what's on my list" has to list
+            # the eggs.
+            return {**first, "and_then": [{"ask": right}]}
+    return None
+
+
+def _half(part: str) -> dict | None:
+    """A half of a sentence as its own ask: a plain verb of hers, a question a
+    rule answers, or a question the fast lane answers; None otherwise."""
+    try:
+        decided = _his_capitals(part, _interpret(part))
+    except Exception:
+        return None
+    command = decided.get("command")
+    if command is None and decided.get("say"):
+        return {"command": None, "say": str(decided["say"])}
+    if not isinstance(command, dict):
+        return None
+    if command.get("kind") == "intent":
+        try:
+            from aletheia import quick
+            return decided if quick.match(part) else None
+        except Exception:
+            return None
+    if command.get("kind") in _NOT_HALF:
+        return None
+    return {"command": command, "say": None}
 
 
 def _as_said_to_her(transcript: str) -> str:
@@ -2576,7 +2643,13 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:i|we) (?:need|want|could use) (?:some |more |a |an )?(?P<x>(?!to\b|a task|a reminder|an alarm|a timer|help|you)[a-z][a-z' -]{1,40})", low)
          or re.fullmatch(r"(?:put|add|stick) (?P<x>[a-z][a-z' -]{1,40}?) back(?: on| on the list| on my list| on the shopping list)?", low)
          or re.fullmatch(r"add (?P<x>(?!(?:a|an|the|my|some|task|tasks|reminder|alarm|timer|contact|note|event|meeting|hold|to|it|that)\b)[a-z][a-z'-]*(?: [a-z][a-z'-]*){0,2})", low))
-    if m and not _TASK_VERB.match(m.group("x")):
+    if m and not _TASK_VERB.match(m.group("x")) and not re.search(
+            # "add bread too" is the second-item rule below; "I want a second
+            # opinion on the launch plan" and "I need a ride to the airport"
+            # are not groceries (both found by the suite, 2026-10-05)
+            r"\b(?:too|as well|also|on|for|to|about|from|with|at|in|opinion|opinions|advice|help|plan|ride|lift|"
+            r"job|jobs|break|minute|second|moment|answer|list|update|report|summary|you|her|it|that|this)\b",
+            m.group("x")):
         from aletheia import intercom as _ic
         if not _might_be_several(m.group("x")) or len(_ic.shopping_items_of(m.group("x"))) >= 2:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group("x").strip())}, "say": None}
@@ -3426,8 +3499,10 @@ def _interpret(transcript: str) -> dict:
             # "Cancel it" right after "remind me at 3" means the reminder,
             # not the approval queue (bottom rung 2026-09-24: "Nothing is
             # waiting for approval" after setting one). His last ask, if it
-            # can be taken back, is what he means.
-            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low_c) \
+            # can be taken back, is what he means. "Never mind" a breath
+            # after "add a task" is the same sentence (2026-10-05).
+            if ((asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low_c))
+                    or (dropped_it and re.fullmatch(r"never ?mind|forget (?:it|that)|don'?t do (?:it|that)", low_c))) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
@@ -3577,6 +3652,11 @@ def _interpret(transcript: str) -> dict:
         if moved:
             return moved
         if re.match(r"(?:move|change) (?:that|it) to", low):
+            # "Change it to the orthodontist" after a TASK is the task's
+            # correction, matched below (2026-10-05).
+            meant = _meant_instead(text, _as_he_said(text, m.group("time").strip()))
+            if meant:
+                return meant
             # Nothing of hers to move: the planner, asked instead, invented a
             # reminder to move ("finish the remaining Aletheia setup",
             # 2026-10-05). The honest sentence costs him one rephrase.
@@ -3597,11 +3677,25 @@ def _interpret(transcript: str) -> dict:
 
     # "NO, I MEANT THE ELECTRICIAN" after a task he just added (2026-10-05:
     # the planner, six seconds, a two-step plan and an approval).
-    m = re.fullmatch(r"(?:no,? |actually,? |sorry,? )?i meant (?:to say )?(?P<new>.+?)(?: instead| not .+)?", low)
+    m = re.fullmatch(r"(?:no,? |actually,? |sorry,? |wait,? )?(?:i meant (?:to say )?|(?:make|change|switch|swap) (?:that|it) (?:to |for )?)"
+                     r"(?P<new>.+?)(?: instead| not .+)?", low)
     if m:
         meant = _meant_instead(text, _as_he_said(text, m.group("new").strip()))
         if meant:
             return meant
+
+    # "NEVER MIND THE DENTIST THING" (2026-10-05: the planner, an approval to
+    # cancel a task he had added one breath earlier). A task of his named by
+    # its words, dropped.
+    m = re.fullmatch(r"(?:never ?mind|scratch|drop|forget|cancel|scrap|remove|delete|kill|lose) (?:about )?"
+                     r"(?:the |my |that )?(?P<w>.+?)(?: thing| task| one| item| todo)", low)
+    if m and not re.search(r"\b(?:reminder|alarm|timer|approval|list|file|note|meeting|event)\b", m.group("w")):
+        try:
+            found, _why = intercom._one_task(m.group("w").strip())
+        except Exception:
+            found = None
+        if found:
+            return {"command": {"kind": "task_done", "which": m.group("w").strip(), "as": "cancelled"}, "say": None}
 
     # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
     # it went to nobody). A study verdict's "undo the change" is matched
@@ -3756,6 +3850,24 @@ def _interpret(transcript: str) -> dict:
         if field == "website" and "github" in low:
             field = "github"
         return {"command": {"kind": "profile_set", "field": field, "value": value}, "say": None}
+
+    # "MY LANDLORD IS DANA" with no "remember" in front (2026-10-05: the
+    # planner, four seconds, and an approval to remember it). A sentence of
+    # his that names a shelf of hers and a NAME - a capital letter in what
+    # he said, or a title - is the fact, said plainly. "My boss is annoying"
+    # names nobody and stays with the planner.
+    m = re.fullmatch(r"my (?P<k>[a-z][a-z' -]{1,30}?) is (?P<v>[a-z][a-z.' -]{0,60})", low)
+    if m:
+        from aletheia import memory
+        value = _as_he_said(text, m.group("v").strip())
+        if memory.domain_for(m.group("k")) in ("people", "organizations") \
+                and (value[:1].isupper() or re.match(r"(?:dr|mr|mrs|ms|miss|doctor)\b", m.group("v"))) \
+                and len(value.split()) <= 5:
+            fact = memory.parse_fact("remember " + text)
+            if fact and fact["domain"]:
+                return {"command": {"kind": "remember", "domain": fact["domain"], "key": fact["key"],
+                                    "value": fact["value"],
+                                    "about": "your " + _as_he_said(text, fact["subject"])}, "say": None}
 
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
