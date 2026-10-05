@@ -453,7 +453,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what went wrong(?: today| tonight| so far today| overnight)?$"
         r"|^what(?:'s| is|s)? (?:broken|failing|stuck)(?: today)?$"
         r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken)(?: today| tonight| overnight| last night)?$"
-        r"|^what failed(?: today| tonight)?$|^any (?:errors|failures|problems)(?: today| tonight)?$")),
+        r"|^what failed(?: today| tonight)?$|^any (?:errors|failures|problems)(?: today| tonight)?$"
+        # "what broke" and "what went wrong yesterday" (2026-10-05: a model;
+        # a model AND her own diagnosis, 29 seconds)
+        r"|^what (?:broke|blew up|crashed|fell over)(?: today| tonight)?$|^what(?:'s| has) gone wrong(?: today)?$"
+        r"|^what (?:went wrong|failed|broke|blew up|crashed) (?P<wrong_when>yesterday|last night)$"
+        r"|^(?:did|has) anything (?:fail|failed|go wrong|gone wrong|break|broken) (?P<wrong_when2>yesterday)$")),
+    # What he decided today is in the approvals store (2026-10-05: "I don't
+    # have the full journal for the day in front of me", six seconds).
+    ("decided", re.compile(
+        r"^what (?:did|have) i (?P<decided>approve|approved|ok'?d|okayed|say yes to|said yes to|green ?lit|green ?lighted|sign off on|signed off on)(?: today| so far today| this morning| tonight| this week)?\s*\??$"
+        r"|^what (?:did|have) i (?P<decided2>deny|denied|turn down|turned down|reject|rejected|say no to|said no to|refuse|refused|decline|declined)(?: today| so far today| this morning| tonight| this week)?\s*\??$"
+        r"|^what (?:approvals|decisions) (?:did|have) i (?P<decided3>make|made|give|given|do|done)(?: today)?\s*\??$")),
     # "What's the last thing you did" paid a model to read the newest
     # line of a journal she holds (2026-09-22).
     ("last", re.compile(
@@ -1210,7 +1221,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "recall6", "notes_search", "notes_search2", "notes_search3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
-                                           "pay_for", "pay_for2", "pay_for3", "pay_for4")
+                                           "pay_for", "pay_for2", "pay_for3", "pay_for4",
+                                           "wrong_when", "wrong_when2", "decided", "decided2", "decided3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1846,13 +1858,76 @@ def _job_hunt() -> str | None:
     return said
 
 
-def _wrong() -> str | None:
-    """What went wrong today: blocked applications and journal alerts."""
+def _wrong(when: str = "") -> str | None:
+    """What went wrong today: blocked applications and journal alerts. For
+    yesterday, the journal's alerts on that date."""
+    if str(when or "").casefold() in ("yesterday", "last night"):
+        return _wrong_yesterday()
     try:
         from aletheia import current_state
         return current_state.wrong_today_words()
     except Exception:
         return None
+
+
+def _wrong_yesterday() -> str:
+    import datetime as dt
+    from aletheia import localtime, recollection, speech
+    want = (localtime.today() - dt.timedelta(days=1)).isoformat()
+    try:
+        entries, readable = recollection._read_journal(60)
+    except Exception:
+        entries, readable = [], False
+    if not readable:
+        return "I can't read my journal just now, so I can't say what went wrong yesterday."
+    rows = [e for e in entries if e.get("kind") == "alert" and recollection._local_date(str(e.get("ts") or "")) == want]
+    if not rows:
+        return "Nothing went wrong that I recorded yesterday: no alerts in the journal for that day."
+    lines: list[str] = []
+    for e in reversed(rows):
+        line = speech.plainly(speech.strip_ids(str(e.get("text") or "")))[:90].rstrip(".")
+        if line and line not in lines:
+            lines.append(line)
+        if len(lines) == 3:
+            break
+    return f"{speech.count_phrase(len(rows), 'alert')} in the journal yesterday, the latest: " + "; ".join(lines) + "."
+
+
+def _decided(which: str = "") -> str:
+    """What he approved or turned down today, from the approvals store."""
+    import datetime as dt
+    from aletheia import localtime, policy, speech
+    low = " ".join(str(which or "").split()).casefold()
+    denied = any(w in low for w in ("deny", "denied", "turn", "reject", "no to", "refus", "declin"))
+    both = low in ("make", "made", "give", "given", "do", "done")
+    try:
+        rows = policy.all_approvals()
+    except Exception:
+        return "I can't read the approvals right now."
+    today = localtime.today().isoformat()
+    tz = localtime.operator_tz()
+
+    def on_today(a):
+        stamp = str(a.get("decided_at") or "")
+        try:
+            return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00")).astimezone(tz).date().isoformat() == today
+        except ValueError:
+            return False
+
+    wanted = {"APPROVED", "DENIED"} if both else ({"DENIED"} if denied else {"APPROVED"})
+    hits = [a for a in rows if str(a.get("state") or "").upper() in wanted and on_today(a)]
+    verb = "decided on" if both else ("turned down" if denied else "approved")
+    if not hits:
+        return f"Nothing {verb} today."
+    try:
+        from aletheia import voice
+        said = [str(voice.approval_label(a) or "").strip().rstrip(".") for a in hits]
+    except Exception:
+        said = [str(a.get("reason") or a.get("action") or "").strip() for a in hits]
+    if both:
+        said = [f"{'turned down' if str(a.get('state')).upper() == 'DENIED' else 'approved'}: {s}" for a, s in zip(hits, said)]
+    lead = f"Today you {verb}" if len(hits) == 1 else f"Today you {verb} {speech.count_phrase(len(hits), 'thing')}"
+    return f"{lead}: " + "; ".join(s for s in said[:5] if s) + (f"; and {len(hits) - 5} more" if len(hits) > 5 else "") + "."
 
 
 def doing_words() -> str:
@@ -3425,8 +3500,9 @@ def _mine(what: str) -> str | None:
                         said = f"{said} {last}"
                 if field == "desired_pay":
                     # "Your minimum salary is $100,000 minimum" (2026-10-05):
-                    # the fact already says which end of the range it is.
-                    return f"You're asking {said}." if "minimum" in said.lower() else f"Your {asked} is {said}."
+                    # the fact already says which end of the range it is, and
+                    # "Your salary is 110k" is not true of a job he has not got.
+                    return f"You're asking {said}."
                 return f"Your {asked} is {said}."
     except Exception:
         return None
@@ -4931,7 +5007,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
-           "wrong": lambda rest: _wrong(),
+           "wrong": lambda rest: _wrong(rest),
+           "decided": lambda rest: _decided(rest),
            "today": lambda rest: _today(rest),
            "due_week": lambda rest: _due_week(rest),
            "contacts_all": lambda rest: _contacts_all(),

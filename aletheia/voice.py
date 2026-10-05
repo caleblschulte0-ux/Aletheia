@@ -2154,7 +2154,10 @@ def _interpret(transcript: str) -> dict:
 
     # notifications
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
-                    r"what's new|anything new|notifications?)", low):
+                    r"what's new|anything new|notifications?|"
+                    # "read me my notifications" paid a model (2026-10-05)
+                    r"(?:read(?: me)?|show me|list|what are) (?:my |the )?(?:notifications?|notices)|"
+                    r"what notifications? (?:do i have|have i got|are there)|any notices)", low):
         return {"command": {"kind": "notify_check"}, "say": None}
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
