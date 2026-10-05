@@ -90,6 +90,18 @@ class TheCalendar(unittest.TestCase):
         self.assertEqual(d["and_then"], [{"ask": "take dentist off my calendar"}])
 
 
+class ANaiveDayIsHisDay(unittest.TestCase):
+    def test_tomorrow_on_his_calendar_is_never_today(self):
+        """At 9:46 pm Central on the 4th a container clock reads the 5th, and
+        "am I free tomorrow" answered "Free today 9 am to 5 pm"."""
+        from aletheia import speech
+        tomorrow = (localtime.today() + dt.timedelta(days=1)).isoformat()
+        self.assertEqual(speech.humanize_time(f"{tomorrow}T12:00:00"), "tomorrow at 12 pm")
+        self.assertEqual(speech.humanize_time(f"{localtime.today().isoformat()}T23:59:00")[:5], "today")
+        said = intercom._free_sentence([], localtime.today() + dt.timedelta(days=1), "")
+        self.assertEqual(said, "Nothing free tomorrow.")
+
+
 class TheConversationItself(unittest.TestCase):
     def setUp(self):
         converse.forget()

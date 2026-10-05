@@ -102,8 +102,14 @@ def humanize_time(stamp: str, now: dt.datetime | None = None) -> str:
         # he can catch a mistake; rendered in the wrong zone it cannot do
         # that job.
         parsed = parsed.astimezone(_operator_zone() or None)
-    now = now or dt.datetime.now(parsed.tzinfo) if parsed.tzinfo else (
-        now or dt.datetime.now())
+    if now is None:
+        # A naive stamp is a day on HIS calendar, so "today" is his today,
+        # not this process's: at 9:46 pm Central on the 4th a container
+        # clock already reads the 5th, and "am I free tomorrow" came back
+        # "Free today 9 am to 5 pm" (2026-10-05).
+        zone = _operator_zone()
+        now = (dt.datetime.now(parsed.tzinfo) if parsed.tzinfo
+               else (dt.datetime.now(zone).replace(tzinfo=None) if zone else dt.datetime.now()))
     if now.tzinfo is not None and parsed.tzinfo is None:
         now = now.replace(tzinfo=None)
     if parsed.tzinfo is not None and now.tzinfo is not None:
