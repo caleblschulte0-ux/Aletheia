@@ -112,7 +112,7 @@ LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research
 LOCAL_MODEL_WRITES = frozenset({
     "task_new", "task_status", "task_done", "remember", "note", "preference_set",
     "file_write", "file_edit", "compose", "doc_make",
-    "plan_step", "plan_add_step", "calendar_hold", "thread_draft",
+    "plan_step", "plan_add_step", "calendar_hold", "calendar_release", "calendar_move", "thread_draft",
     "notify_operator", "notify_snooze", "work_projects",
 })
 
@@ -161,6 +161,7 @@ STORE_OF = {
     "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
     "thread_followup": "conversations", "calendar_propose": "conversations",
     "calendar_find_free": "calendar", "calendar_hold": "calendar",
+    "calendar_release": "calendar", "calendar_move": "calendar",
 }
 
 #: Argument shapes the bare grammar cannot say. Everything not listed is
@@ -710,7 +711,8 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "posting to Instagram": ("instagram_post", "instagram_posts"),
     "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
-                                      "calendar_hold", "calendar_propose"),
+                                      "calendar_hold", "calendar_release", "calendar_move",
+                                      "calendar_propose"),
     "people you know": ("contacts", "contact_add", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "forget", "note"),

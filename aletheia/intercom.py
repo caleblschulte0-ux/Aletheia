@@ -237,6 +237,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
     "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread"}),
+    "calendar_release": ({"title"}, set()),
+    "calendar_move": ({"title", "start"}, {"end", "minutes"}),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
@@ -688,6 +690,13 @@ KIND_NOTES: dict[str, str] = {
         'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
         'timezone; end or minutes; location; thread links it to a conversation. It refuses when it '
         'clashes and says with what.'),
+    "calendar_release": (
+        'Take something off HIS calendar model by its title: "cancel the dentist". Only her own '
+        'calendar here; nobody is told. Refuses when nothing or more than one thing matches.'),
+    "calendar_move": (
+        'Move something on HIS calendar model to a new start, by its title: "move the dentist to 4". '
+        'start is ISO-8601 in his timezone; the length is kept unless end or minutes say otherwise. '
+        'Refuses when it clashes and says with what.'),
     "calendar_propose": (
         'Offer times to the other person in a conversation: "suggest some times to the landlord next '
         'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
@@ -733,6 +742,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # her conversations and his calendar model are private state on the PC
                "thread_draft", "thread_status", "thread_send", "thread_followup",
                "calendar_find_free", "calendar_hold", "calendar_propose",
+               "calendar_release", "calendar_move",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -908,6 +918,7 @@ ROUTINE_KINDS = frozenset({
     # approval (email.send / email.followup), so this tier authorizes writing
     # it down and nothing past that.
     "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
+    "calendar_release", "calendar_move",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -1772,6 +1783,30 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
     if kind == "note":
         return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
     return "Nothing to undo."
+
+
+def calendar_events_named(words: str) -> list[dict]:
+    """The live events on his calendar model whose title says these words.
+    Public because the voice door asks it before choosing a verb ("cancel
+    the dentist" is a subscription only when no appointment says dentist,
+    2026-10-05). Never raises; an unreadable calendar is no match."""
+    from aletheia import calendar as _cal
+    wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold())
+              if w not in ("the", "my", "a", "an", "appointment", "meeting", "event", "thing", "one")]
+    if not wanted:
+        return []
+    try:
+        rows = _cal.all_events()
+    except Exception:
+        return []
+    out = []
+    for event in rows:
+        if event.get("status") == "CANCELLED":
+            continue
+        title = str(event.get("title") or "").casefold()
+        if all(w in title for w in wanted):
+            out.append(event)
+    return out
 
 
 def free_time_answer(cmd: dict) -> str:
@@ -2895,6 +2930,39 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
         return (f"Pencilled in {held['event']['title']} {calendar_reasoning.human(held['event']['start'])}, "
                 "tentative, on your calendar here only.")
+    if kind in ("calendar_release", "calendar_move"):
+        from aletheia import calendar as _cal, calendar_reasoning
+        import datetime as _dt
+        title = " ".join(str(cmd.get("title") or "").split())
+        found = calendar_events_named(title)
+        if not found:
+            raise act.Refused(f"there's no {title} on your calendar")
+        if len(found) > 1:
+            raise act.Refused("which one - " + speech.or_list(
+                [f"{e.get('title')} {calendar_reasoning.human(e['start'])}" for e in found[:4]]) + "?")
+        event = found[0]
+        if kind == "calendar_release":
+            calendar_reasoning.release_hold(event["id"], why="released: you cancelled it")
+            return f"Taken off your calendar: {event.get('title')} {calendar_reasoning.human(event['start'])}."
+        try:
+            start = _dt.datetime.fromisoformat(str(cmd["start"]).replace("Z", "+00:00"))
+        except ValueError:
+            raise act.Refused(f"I couldn't read {cmd['start']!r} as a time") from None
+        if start.tzinfo is None:
+            start = start.replace(tzinfo=localtime.operator_tz())
+        was_start, was_end = _cal.parse_time(event["start"]), _cal.parse_time(event["end"])
+        if cmd.get("end"):
+            end = _dt.datetime.fromisoformat(str(cmd["end"]).replace("Z", "+00:00"))
+            end = end if end.tzinfo else end.replace(tzinfo=localtime.operator_tz())
+        else:
+            end = start + (_dt.timedelta(minutes=int(cmd["minutes"])) if cmd.get("minutes") else (was_end - was_start))
+        moved = calendar_reasoning.move_hold(event["id"], start.isoformat(), end.isoformat())
+        if not moved.get("moved"):
+            raise act.Refused(f"I didn't move it: {moved.get('why')}")
+        journal.append("action", f"calendar:{event['id']}",
+                       f"moved {event.get('title')} to {calendar_reasoning.human(start.isoformat())}",
+                       actor=calendar_reasoning.ACTOR)
+        return f"Moved {event.get('title')} to {calendar_reasoning.human(start.isoformat())}."
     if kind == "calendar_propose":
         from aletheia import conversations
         try:

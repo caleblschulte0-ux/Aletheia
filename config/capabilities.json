@@ -368,7 +368,7 @@
       "status": "EXPERIMENTAL",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "intercom kinds 'calendar_find_free', 'calendar_hold' and 'calendar_propose'; aletheia.conversation_tools (calendar.find_free, calendar.propose, calendar.hold); aletheia.conversations (accepting and confirming times); python -m aletheia.calendar_reasoning",
+      "caller": "intercom kinds 'calendar_find_free', 'calendar_hold', 'calendar_release', 'calendar_move' and 'calendar_propose'; aletheia.conversation_tools (calendar.find_free, calendar.propose, calendar.hold); aletheia.conversations (accepting and confirming times); python -m aletheia.calendar_reasoning",
       "module": "aletheia.calendar_reasoning",
       "notes": "Built 2026-09-16 (continuity brief IV.16). A hold is a TENTATIVE event in her local calendar model - private and reversible, so it asks nobody. Conflicts include travel buffers when both events have a location. Windows and sentences are in HIS timezone with the reference time passed in. Confirming a hold onto a LIVE calendar keeps calendar.write's rule unchanged: a write plan hash-bound to the exact event, operator_always, executed once after approval (calendar_reasoning.execute_approved_writes). Deadlines become work_engine items of kind 'deadline' that wake before they are due. EXPERIMENTAL: proven against InMemoryCalendarProvider only.",
       "verification": "tests/test_calendar_reasoning.py: travel-buffer conflicts, timezone windows and rendering, free-slot proposal, holds, confirm-to-write-plan approval, deadline wake"

@@ -444,8 +444,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$"
         # "What day of the week is Christmas" paid a model for the same arithmetic.
-        # not "what day is IT tomorrow", which is the date (found red 2026-10-05)
-        r"|^what day(?: of the week)? (?:is|does|will) (?:the )?(?P<until3>(?!(?:it|that|this|today)\b)[a-z][a-z' ]{2,30}?)(?: fall on| land on| be(?: on)?)?$")),
+        # "what day is X" is its own key now (`what_day`, 2026-10-05)
+        )),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -614,7 +614,30 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Show me my calendar for next week" planned for 73 s and died on a
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
-        r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$")),
+        r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
+        # "do I have anything on sunday" went looking for a FILE called that (2026-10-05)
+        r"|^(?:do i have|have i got|is there|is there) anything(?: on| for| happening)? (?P<day10>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+    # Four questions about the calendar itself (2026-10-05, each a model):
+    # the weekend, which day a date is, the week number, a leap year, and
+    # when the clocks change.
+    ("weekend", re.compile(
+        r"^(?:am i free|what(?:'s| is|s)? (?:on|happening)|do i have anything(?: on)?|what am i doing|anything (?:on|happening)|is there anything(?: on)?|what have i got(?: on)?)"
+        r"(?: for)? this weekend\s*\??$"
+        r"|^what(?:'s| is|s)? my weekend (?:look like|looking like)\s*\??$")),
+    ("what_day", re.compile(
+        r"^what day(?: of the week)? (?:is|does|will|falls?) (?:the )?(?P<what_day>(?!(?:it|that|this|today|tomorrow)\b)[a-z0-9][a-z0-9' ]{1,30}?)(?: fall on| land on| be(?: on)?)?\s*\??$"
+        r"|^what day (?:of the week )?(?:is it|will it be) on (?:the )?(?P<what_day2>[a-z0-9][a-z0-9' ]{1,30}?)\s*\??$")),
+    ("week_number", re.compile(
+        r"^what week (?:is it|are we in|of the year is it|number is it)\s*\??$"
+        r"|^what(?:'s| is|s)? the week number\s*\??$|^which week (?:is it|are we in|of the year is it)\s*\??$")),
+    ("leap_year", re.compile(
+        r"^is (?:it|this|this year|(?P<leap_year>\d{4})) a leap year\s*\??$"
+        r"|^when(?:'s| is) the next leap year\s*\??$|^(?:was|is) (?P<leap_year2>\d{4}) a leap year\s*\??$")),
+    ("dst", re.compile(
+        r"^when (?:is|does|do|did|will) (?:the )?(?:daylight ?savings?(?: time)?|dst|(?:the )?clocks? (?:change|go back|go forward|spring forward|fall back))"
+        r"(?: start| end| change| begin| happen)?\s*\??$"
+        r"|^(?:do|when do|when will) (?:the )?clocks (?:change|go back|go forward)(?: this year| next)?\s*\??$"
+        r"|^(?:is|are) (?:it|we) (?:on )?daylight ?savings?(?: time)?(?: now| right now)?\s*\??$")),
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
@@ -1120,7 +1143,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4", "day5", "day6", "day7",
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day10",
+                                           "what_day", "what_day2", "leap_year", "leap_year2",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "until3", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
@@ -1253,6 +1277,20 @@ def _named_date(words: str, today):
     if w in days:
         ahead = (days.index(w) - today.weekday()) % 7
         return today + dt.timedelta(days=ahead or 7)
+    bare = _re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)", w)
+    if bare:
+        # "the 20th": the next such day of a month (2026-10-05)
+        want = int(bare.group(1))
+        year, month = today.year, today.month
+        for _ in range(3):
+            try:
+                when = dt.date(year, month, want)
+            except ValueError:
+                when = None
+            if when and when >= today:
+                return when
+            month, year = (month % 12) + 1, year + (1 if month == 12 else 0)
+        return None
     m = (_re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+)", w)
          or _re.fullmatch(r"([a-z]+) (?:the )?(\d{1,2})(?:st|nd|rd|th)?", w))
     if m:
@@ -3473,6 +3511,88 @@ def _resume_says() -> str:
     return said
 
 
+def _weekend() -> str:
+    """Saturday and Sunday from the calendar mirror, in one breath."""
+    from aletheia import speech
+    days = []
+    for name in ("saturday", "sunday"):
+        said = _agenda(name)
+        if said is None:
+            return "I can't read your calendar right now."
+        days.append((name.capitalize(), said))
+    empty = [n for n, s in days if s.startswith("Nothing on your calendar")]
+    if len(empty) == 2:
+        return "Nothing on your calendar this weekend - Saturday and Sunday are both clear."
+    parts = []
+    for name, said in days:
+        parts.append(f"{name} is clear" if said.startswith("Nothing on your calendar")
+                     else said.rstrip("."))
+    return speech.and_list(parts) + "."
+
+
+def _what_day(words: str) -> str | None:
+    """"What day is the 20th" / "what day is Christmas": the weekday, and
+    how far off. None for words that name no date."""
+    from aletheia import localtime
+    today = localtime.today()
+    when = _named_date(words, today)
+    if when is None:
+        when, _about = _remembered_date(words, today)
+    if when is None:
+        return None
+    days = (when - today).days
+    away = "today" if days == 0 else "tomorrow" if days == 1 else f"{days} days away"
+    thing = " ".join(str(words or "").split())
+    thing = thing if thing.startswith("the ") or thing[:1].isdigit() else thing[:1].upper() + thing[1:]
+    thing = f"the {thing}" if thing[:1].isdigit() else thing
+    return f"{thing[:1].upper() + thing[1:]} is a {when.strftime('%A')}, {when.day} {when.strftime('%B')} - {away}."
+
+
+def _week_number() -> str:
+    import datetime as dt
+    from aletheia import localtime
+    today = localtime.today()
+    year, week, _ = today.isocalendar()
+    monday = today - dt.timedelta(days=today.weekday())
+    return f"Week {week} of the year, the one that started Monday {monday.day} {monday.strftime('%B')}."
+
+
+def _leap_year(words: str = "") -> str:
+    import calendar as _calendar
+    from aletheia import localtime
+    year = int(words) if str(words or "").strip().isdigit() else localtime.today().year
+    if _calendar.isleap(year):
+        return f"Yes, {year} is a leap year - February has 29 days."
+    after = next(y for y in range(year + 1, year + 9) if _calendar.isleap(y))
+    return f"No, {year} isn't a leap year. The next one is {after}."
+
+
+def _dst() -> str:
+    """When the clocks next change, from his own time zone's rules - no
+    model and no table of her own."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    offset = now.utcoffset()
+    probe = now.replace(hour=12, minute=0, second=0, microsecond=0)
+    for ahead in range(1, 400):
+        day = probe + dt.timedelta(days=ahead)
+        day = day.replace(tzinfo=None).replace(tzinfo=tz)
+        if day.utcoffset() != offset:
+            # the change happened between yesterday noon and today noon:
+            # find the hour by walking back
+            before = day - dt.timedelta(days=1)
+            back = "back" if day.utcoffset() < offset else "forward"
+            said = f"{before.strftime('%A')} night into {day.strftime('%A')} {day.day} {day.strftime('%B')}"
+            if ahead == 1:
+                said = "tonight"
+            on_dst = bool(now.dst())
+            now_line = "You're on daylight saving time now" if on_dst else "You're on standard time now"
+            return f"{now_line}. The clocks go {back} an hour {said}, {ahead} days from now."
+    return "Your time zone doesn't change its clocks."
+
+
 def _contacts_all() -> str | None:
     """Who she has saved, from the contacts store, said by `intercom` so the
     voice door and this one cannot drift."""
@@ -4624,6 +4744,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "capabilities": lambda rest: _capabilities(),
            "cannot": lambda rest: _cannot(),
            "agenda": lambda rest: _agenda(rest or "today"),
+           "weekend": lambda rest: _weekend(),
+           "what_day": lambda rest: _what_day(rest),
+           "week_number": lambda rest: _week_number(),
+           "leap_year": lambda rest: _leap_year(rest),
+           "dst": lambda rest: _dst(),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repo_wrong": _repo_wrong,

@@ -610,10 +610,71 @@ def _spell_his_name(which: str) -> str:
     return "; ".join(f"{p}: " + "-".join(ch.upper() for ch in p if ch.isalpha()) for p in parts) + "."
 
 
+def _tracks_a_subscription(name: str) -> bool:
+    """Is that a subscription she tracks? Asked, never guessed, and never raising."""
+    try:
+        from aletheia import subscriptions
+        needle = " ".join(str(name or "").casefold().split())
+        return any(needle and needle in str(r.get("merchant") or "").casefold()
+                   for r in subscriptions.all_subscriptions(active_only=True))
+    except Exception:
+        return False
+
+
+def _on_the_calendar(words: str) -> bool:
+    """Is there a live event on his calendar model with these words in its title?"""
+    try:
+        from aletheia import intercom
+        return bool(intercom.calendar_events_named(words))
+    except Exception:
+        return False
+
+
+def _calendar_move(transcript: str, what: str, when: str) -> dict | None:
+    """"Move the dentist to 4" / "to tuesday at 4": the event's own day when
+    only a time is said, the day's own hour when only a day is."""
+    import datetime as dt
+    from aletheia import intercom, localtime
+    found = intercom.calendar_events_named(what)
+    if len(found) != 1:
+        return None                 # the handler says which, or that there is none
+    try:
+        from aletheia import calendar as cal
+        was = cal.parse_time(found[0]["start"]).astimezone(localtime.operator_tz())
+    except Exception:
+        return None
+    split = (re.fullmatch(r"(?P<day>.+?) at (?P<time>.+)", when)
+             or re.fullmatch(r"(?P<time>.+?) on (?P<day>.+)", when))
+    day_words = split.group("day") if split else when
+    time_words = split.group("time") if split else when
+    day = _spoken_day(day_words)
+    if day and not split:
+        time_words = ""
+    hhmm = _spoken_time(time_words) if time_words else None
+    if not day and not hhmm:
+        return None
+    if hhmm:
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(time_words) and 1 <= hour <= 11 and (
+                abs(hour + 12 - was.hour) < abs(hour - was.hour) or hour < EARLIEST_BARE_HOUR):
+            hour += 12
+    else:
+        hour, minute = was.hour, was.minute
+    start = dt.datetime.combine(dt.date.fromisoformat(day) if day else was.date(),
+                                dt.time(hour, minute), tzinfo=localtime.operator_tz())
+    return {"command": {"kind": "calendar_move", "title": _as_he_said(transcript, what),
+                        "start": start.isoformat()}, "say": None}
+
+
 def _not_a_file(said: str) -> bool:
     """True when "find my X" is not about a file at all."""
     low = " ".join(str(said or "").casefold().split())
     if not low:
+        return True
+    # "Do I have anything on Sunday" is the calendar (2026-10-05: it read
+    # Documents for a file called "anything on sunday").
+    if re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+                 r"this week|next week|this weekend|the weekend)\b", low):
         return True
     # "Where do I live": a question with a verb in it is not a filename.
     if re.match(r"(?:do|does|did|am|is|are|can|could|should|will|was|were) (?:i|we|you|u)\b", low):
@@ -2534,6 +2595,24 @@ def _interpret(transcript: str) -> dict:
         # so "cancel the last one" arrives here as just "last one".
         r"|(?:first|second|third|fourth|last)(?: one)?)\b", re.IGNORECASE)
 
+    # THE STORES SAY WHICH "cancel the dentist" IS (2026-10-05: it went to
+    # subscription_cancel). A tracked subscription by that name is the
+    # service; an appointment by that name is the calendar; neither is the
+    # old guess.
+    m = re.fullmatch(r"(?:cancel|scrap|drop|take off|remove|delete) (?:my |the )?(?P<what>.+?)"
+                     r"(?: appointment| meeting| event| hold| booking)?(?: (?:from|off) (?:my |the )?calendar)?", low)
+    if m and 2 <= len(m.group("what")) <= 60:
+        what = m.group("what").strip()
+        if not _tracks_a_subscription(what) and _on_the_calendar(what):
+            return {"command": {"kind": "calendar_release", "title": _as_he_said(transcript, what)}, "say": None}
+        if re.search(r"\b(?:appointment|meeting|event|hold|booking)\b|calendar", low) and not _tracks_a_subscription(what):
+            return {"command": None, "say": f"There's no {what} on your calendar."}
+    m = re.fullmatch(r"(?:move|push|shift|reschedule|put) (?:my |the )?(?P<what>.+?)(?: appointment| meeting| event| hold)?"
+                     r" (?:to|back to|forward to|until|till) (?P<when>[\w: ]+?)(?: instead| please)?", low)
+    if m and _on_the_calendar(m.group("what")):
+        moved = _calendar_move(transcript, m.group("what").strip(), m.group("when").strip())
+        if moved:
+            return moved
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60
