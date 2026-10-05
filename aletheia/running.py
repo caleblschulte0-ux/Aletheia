@@ -469,6 +469,18 @@ def snapshot(include_tasks: bool = True) -> dict:
         parts.append({"part": key, "what": what, "up": bool(rows),
                       "pids": [r["pid"] for r in rows],
                       "mb": sum(r.get("mb", 0) for r in rows)})
+    # THE CORE ASKING IS A CORE RUNNING. The process list finds her by her
+    # command line, and a Core started inside another process (the audit's
+    # sandbox, a test) has none that says so - so "summarize my day" was
+    # answered "nothing of mine is running, so something went wrong" by the
+    # very Core answering (2026-10-05).
+    import os as _os
+    import sys as _sys
+    core = _sys.modules.get("aletheia.core")
+    if core is not None and getattr(core, "SERVERS", None):
+        for part in parts:
+            if part["part"] == "core" and not part["up"]:
+                part["up"], part["pids"] = True, [_os.getpid()]
     _started, newest_file, stale = running_old_code()
     try:
         stuck = update_stuck()
