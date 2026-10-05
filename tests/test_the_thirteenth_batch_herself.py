@@ -28,5 +28,26 @@ class HowOftenSheReadsTheInbox(unittest.TestCase):
                 self.assertIn("48 hours", said)
 
 
+class TheReplyRateIsTheFunnel(unittest.TestCase):
+    def test_nothing_sent_says_so(self):
+        with mock.patch("aletheia.hunt_funnel.read", return_value=None):
+            said = quick.answer("what's my reply rate")
+        self.assertTrue(said.startswith("No applications have gone out through me"), said)
+
+    def test_the_numbers_come_from_the_funnel(self):
+        funnel = {"totals": {"found": 40, "filled": 30, "sent": 20, "replies": 3, "interviews": 1, "rejections": 2}}
+        with mock.patch("aletheia.hunt_funnel.read", return_value=funnel):
+            said = quick.answer("how many employers replied")
+        self.assertEqual(said, "3 replies to 20 applications in the last 30 days - 15 percent heard back, "
+                               "1 interview, 2 said no.")
+
+
+class HowManyApplicationsThisWeek(unittest.TestCase):
+    def test_the_verbless_question_is_the_window_count(self):
+        with mock.patch("aletheia.quick._applied_in_window", return_value="4 sent this week.") as counted:
+            self.assertEqual(quick.answer("how many applications this week"), "4 sent this week.")
+            counted.assert_called_once_with("this week")
+
+
 if __name__ == "__main__":
     unittest.main()

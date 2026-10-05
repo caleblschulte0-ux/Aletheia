@@ -86,6 +86,8 @@ _STATUS = re.compile(
     r"|(?:is|are) (?P<paused>" + _JOB + r") (?:paused|stopped|on hold|off|held|suspended|on pause)"
     r"(?: right now| at the moment| still)?)$"
     # how many
+    # "How many applications this week" - no verb at all (sandbox, 2026-10-05).
+    r"|^how many (?:jobs|applications|apps)(?: (?:went out|sent|applied))?(?P<count3_window> (?:this week|this month|today|yesterday|last week|so far today))$"
     r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
     r"(?: (?:have|did|has) (?:you|u|she|we|i))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
     r"sent(?: out)?|send(?: out)?|went out|go out|got sent|were sent|was sent|submitted|submit|put in|done|"
@@ -631,6 +633,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
         r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
         r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
+    ("reply_rate", re.compile(
+        r"^what(?:'s| is|s)? (?:my |the )?(?:reply|response|hit|answer) rate(?: on (?:my )?applications)?\??$"
+        r"|^how many (?:replies|responses) have i (?:gotten|got|had|received)(?: this month| so far)?\??$"
+        r"|^how many (?:employers|companies|people) (?:have )?(?:replied|responded|got back to me|wrote back)\??$"
+        r"|^(?:is|are) anyone (?:replying|responding|getting back to me)\??$")),
     ("mail_watch", re.compile(
         r"^how often do (?:you|u) (?:check|read|look at|poll) (?:my )?(?:mail|email|e-mail|inbox)\??$"
         r"|^(?:are|r) (?:you|u) (?:watching|checking|reading|monitoring) (?:my )?(?:mail|email|e-mail|inbox)\??$"
@@ -2614,6 +2621,31 @@ def _pay_for(rest: str) -> str:
             + " I don't see your bank.")
 
 
+def _reply_rate() -> str:
+    """"What's my reply rate": the funnel the Core publishes (hunt_funnel), which
+    is the one place "is she doing a good job" has a number. A model, asked this,
+    took five seconds to say nothing had been sent (sandbox, 2026-10-05)."""
+    from aletheia import hunt_funnel, speech
+    try:
+        funnel = hunt_funnel.read()
+    except Exception:
+        funnel = None
+    totals = (funnel or {}).get("totals") or {}
+    sent = int(totals.get("sent") or 0)
+    if not funnel or not sent:
+        return ("No applications have gone out through me in the last 30 days, so there's no reply rate "
+                "to give yet. Once some have, I count every reply, interview and decline against them.")
+    replies = int(totals.get("replies") or 0)
+    interviews = int(totals.get("interviews") or 0)
+    rejections = int(totals.get("rejections") or 0)
+    rate = (100 * replies) // sent
+    said = (f"{speech.count_phrase(replies, 'reply')} to {speech.count_phrase(sent, 'application')} in the last "
+            f"30 days - {rate} percent heard back")
+    said += f", {speech.count_phrase(interviews, 'interview')}" if interviews else ", no interview yet"
+    said += f", {rejections} said no." if rejections else "."
+    return said
+
+
 def _mail_watch() -> str:
     """Whether and how often she reads his inbox - from the mail setup and the
     Core's beat, not a model's guess ("I don't check on a schedule", 2026-10-05,
@@ -3408,11 +3440,12 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
-    if groups.get("count_window") or groups.get("count2_window"):
+    if groups.get("count_window") or groups.get("count2_window") or groups.get("count3_window"):
         # "How many jobs did I apply to this week" waited two minutes on her
         # own model (2026-09-22); the records carry their dates. "How many
         # did you send this week" is the same count (2026-09-23).
-        return "count_window", (groups.get("count_window") or groups["count2_window"]).strip()
+        return "count_window", (groups.get("count_window") or groups.get("count2_window")
+                                or groups["count3_window"]).strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))
@@ -4083,6 +4116,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "next_charge": lambda rest: _next_charge(),
            "sunset": lambda rest: _sunset(),
            "mail_watch": lambda rest: _mail_watch(),
+           "reply_rate": lambda rest: _reply_rate(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
