@@ -2517,7 +2517,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                     if str(x.get("description") or "").strip().casefold() == str(cmd["description"]).strip().casefold()
                     and x.get("status") not in tasks.contracts.TASK_TERMINAL and tasks.is_his(x)]
             if same:
-                return f"task {same[0]['id']} already queued — that's already on your list: {same[0].get('description')}"
+                # A sentence: the receipt grammar is for a task that was made.
+                return f"That's already on your list: {same[0].get('description')}."
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
                             deadline=cmd.get("deadline"))
