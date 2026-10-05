@@ -1003,7 +1003,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("contacts_all", re.compile(
         r"^who (?:do (?:you|u) have|have (?:you|u) got) (?:numbers|phone numbers|contacts|emails|addresses|details) for\s*\??$"
         r"|^(?:who|what contacts) (?:do i have|have i got) saved(?: with you)?\s*\??$"
-        r"|^(?:list|read me|what are) my contacts\s*\??$|^who(?:'s| is) in my contacts\s*\??$")),
+        r"|^(?:list|read me|what are) my contacts\s*\??$|^who(?:'s| is) in my contacts\s*\??$"
+        # "who do I know", "how many contacts do I have" (2026-10-05: a model each)
+        r"|^who do i know\s*\??$|^how many (?:contacts|people) (?:do i have|have i got|are saved|have i saved)\s*\??$"
+        r"|^who have i saved\s*\??$|^what people do (?:you|u) know\s*\??$|^who do (?:you|u) (?:know|have)(?: saved| on file)?\s*\??$")),
     ("interview_when", re.compile(
         r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
         # "What's my next interview" / "do I have any interviews coming up" (2026-10-05)
@@ -1404,7 +1407,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         # "When is my sister's birthday" (2026-10-05): a date he told her, on her shelf.
-        r"|^when(?:'s| is|s)? (?:my |the )(?P<recall6>[a-z0-9][a-z0-9 '-]{1,30}?(?:'s)? (?:birthday|anniversary|appointment|flight|wedding|graduation|party|checkup|check-up|exam|trip|visit))\s*\??$"
+        r"|^when(?:'s| is|s)? (?:my |the )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,30}?(?:'s)? (?:birthday|anniversary|appointment|flight|wedding|graduation|party|checkup|check-up|exam|trip|visit))\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What did I note about the car", "what have I told you about the car" (2026-10-05: a model each)
@@ -2037,6 +2040,44 @@ def _when_asked() -> str:
     return f"You asked \"{asked}\" {when}." if when else f"You asked \"{asked}\", but I don't have the time it was said."
 
 
+def _birthday_of(name: str):
+    """The date of somebody's next birthday, from a note of his ("Dana's
+    birthday is March 3"), or None."""
+    from aletheia import localtime
+    want = " ".join(str(name or "").casefold().split()).strip(" '")
+    if not want:
+        return None
+    for row in _notes():
+        m = re.match(r"(?:remember (?:that )?)?(?P<who>[a-z][a-z' ]{1,30}?)'s (?:birthday|bday) is (?:on |the )?(?P<date>.+)$",
+                     " ".join(str(row.get("text") or "").casefold().split()).rstrip("."))
+        if m and (m.group("who") == want or m.group("who").split()[-1] == want.split()[-1]):
+            when = _named_date(re.sub(r"\b(19|20)\d{2}\b", "", m.group("date")).strip(), localtime.today())
+            if when:
+                return when
+    return None
+
+
+def _a_name_in(words: str) -> str | None:
+    """A person he has saved or remembered, named inside these words."""
+    names = set()
+    try:
+        from aletheia import contacts
+        names |= {str(c.get("display_name") or "").split(" ")[0].casefold() for c in contacts.all_contacts()}
+    except Exception:
+        pass
+    try:
+        from aletheia import memory
+        for domain in ("people",):
+            for entry in memory._load(domain).values():
+                names.add(str(entry.get("value") or "").split(" ")[0].casefold())
+    except Exception:
+        pass
+    for w in re.findall(r"[a-z][a-z'-]+", str(words or "").casefold()):
+        if w in names and len(w) > 1:
+            return w
+    return None
+
+
 def _until_sentence(text: str) -> str | None:
     """`until` gets the whole sentence now (weeks as well as days)."""
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "until"), None)
@@ -2044,6 +2085,15 @@ def _until_sentence(text: str) -> str | None:
         return None
     g = {k: v for k, v in found.groupdict().items() if v}
     words = g.get("until") or g.get("until2") or g.get("until3") or ""
+    whose = re.fullmatch(r"(?P<who>[a-z][a-z' ]{1,30}?)'s birthday", words.strip())
+    if whose:
+        # "how many days until Dana's birthday" (2026-10-05: a model): a note of his
+        from aletheia import localtime, speech
+        when = _birthday_of(whose.group("who"))
+        if when is None:
+            return f"I don't have {whose.group('who').title()}'s birthday. Say '{whose.group('who').title()}'s birthday is March 3' and I'll note it."
+        days = (when - localtime.today()).days
+        return f"{speech.count_phrase(days, 'day')} - {when.strftime('%A')} {when.day} {when.strftime('%B')}." if days else "It's today!"
     said = _until(words)
     if said and re.match(r"^how many weeks", _tidy(text)):
         m = re.match(r"^(\d+) days, (.+)$", said)

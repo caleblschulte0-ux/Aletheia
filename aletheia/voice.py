@@ -2618,6 +2618,55 @@ def _interpret(transcript: str) -> dict:
     # A NUMBER, not only an address. "Add a contact for my dentist, 000 555
     # 0100" went to the planner and asked approval to save a phone number
     # (2026-10-05); the handler took phones all along.
+    # "DELETE DANA FROM MY CONTACTS" (2026-10-05: the planner, an approval):
+    # the forget handler already takes a contact out by name.
+    m = re.fullmatch(r"(?:delete|remove|drop|take|erase) (?P<n>[a-z][a-z .'-]{1,40}?) (?:from|out of|off) (?:my |the )?(?:contacts|contact list|address book|people)"
+                     r"|forget (?P<n2>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone|email|contact|contact details|details)", low)
+    if m:
+        return {"command": {"kind": "forget", "about": _as_he_said(transcript, (m.group("n") or m.group("n2")).strip()),
+                            "domain": "contacts"}, "say": None}
+    # "ADD DANA TO MY CONTACTS HER NUMBER IS ..." (2026-10-05: saved as a
+    # contact called "add Dana to my contacts her").
+    m = re.fullmatch(r"(?:add|save|put) (?P<n>[a-z][a-z .'-]{1,40}?) (?:to|in|into) (?:my |the )?(?:contacts|contact list|address book)[,:]? "
+                     r"(?:his |her |their |the )?(?:number|phone|cell|mobile)(?: is|:)? (?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
+    if m:
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group("n").strip()),
+                            "phone": m.group("p").strip()}, "say": None}
+    m = re.fullmatch(r"(?:add|save|put) (?P<n>[a-z][a-z .'-]{1,40}?) (?:to|in|into) (?:my |the )?(?:contacts|contact list|address book)[,:]? "
+                     r"(?:his |her |their |the )?e-?mail(?: address)?(?: is|:)? (?P<e>\S+@\S+)", low)
+    if m:
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group("n").strip()),
+                            "email": m.group("e").strip()}, "say": None}
+    # "DANA'S BIRTHDAY IS MARCH 3" (2026-10-05: the planner, an approval): a
+    # note in his words, which "when's Dana's birthday" reads back.
+    m = re.fullmatch(r"(?P<who>[a-z][a-z' ]{1,30}?)'s (?:birthday|bday|anniversary) is (?:on |the )?(?P<date>[a-z0-9][a-z0-9 ,/-]{2,30})", low)
+    if m and m.group("who") not in ("my", "today", "tomorrow") and not re.match(r"(?:what|when|how|where|who|is|why)\b", m.group("who")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "REMIND ME TO CALL DANA ON HER BIRTHDAY": the date is a note of his.
+    m = re.fullmatch(r"remind me (?:to|that) (?P<what>.+?) on (?:his|her|their|(?P<who>[a-z][a-z' ]{1,30}?)'s) birthday", low)
+    if m:
+        who = m.group("who")
+        if not who:
+            try:
+                from aletheia import quick as _quick
+                who = _quick._a_name_in(m.group("what"))
+            except Exception:
+                who = None
+        when = None
+        if who:
+            try:
+                from aletheia import quick as _quick
+                when = _quick._birthday_of(who)
+            except Exception:
+                when = None
+        if when:
+            import datetime as dt
+            from aletheia import localtime
+            at = dt.datetime.combine(when, dt.time(9, 0), tzinfo=localtime.operator_tz())
+            return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": _as_he_said(text, m.group("what").strip())}, "say": None}
+        if who:
+            return {"command": None, "say": f"I don't have {who.strip().title()}'s birthday. Say '{who.strip().title()}'s birthday is March 3' and I'll note it, then ask me again."}
+
     m = (re.fullmatch(r"(?:add|save|remember) (?:a )?(?:contact|number) for (?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)"
                       r"[,:]? (?:at |on |number |phone |it's |its )?(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
          or re.fullmatch(r"(?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone|cell|mobile) is "

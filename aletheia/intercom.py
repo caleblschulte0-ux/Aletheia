@@ -1358,6 +1358,28 @@ def _reminder_list_words(rows: list) -> str:
 FORGOTTEN_SUBJECT = "operator:forgotten"
 
 
+def _forget_contact(about: str) -> str | None:
+    """Take one contact out by the name he says, or None when none (or more
+    than one) matches. Never raises: a store that cannot answer is a miss."""
+    try:
+        from aletheia import contacts
+        # "Dana" for "Dana Example": the first word of a name is how he says
+        # it, and resolve() wants the whole name.
+        q = contacts._norm(re.sub(r"'s (?:number|phone|email|contact|details)$", "", about, flags=re.I))
+        hits = [c for c in contacts.all_contacts()
+                if q and (q == contacts._norm(c.get("display_name", ""))
+                          or q == contacts._norm(str(c.get("display_name", "")).split(" ")[0])
+                          or q in {contacts._norm(a) for a in c.get("aliases", [])})]
+        found = hits[0] if len(hits) == 1 else {}
+        if found.get("id"):
+            was = contacts.forget(found["id"])
+            reached = ", ".join((was.get("emails") or []) + (was.get("phones") or []))
+            return f"Forgotten: {was.get('display_name', about)}" + (f" ({reached})" if reached else "") + "."
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 def _forget_note(about: str) -> str:
     """Tombstone the newest note that says what `about` names; return its
     text, or "" when no note matches. Never raises."""
@@ -2708,6 +2730,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # hers (2026-10-04). What he calls "my" she calls "your".
         about_said = re.sub(r"^(?:everything|all|anything|what you know|what i told you|what i said) about\s+", "", about, flags=re.I)
         about_said = re.sub(r"^(?:my|our)\b", "your", about_said, count=1, flags=re.I) or about
+        if str(cmd.get("domain") or "") == "contacts":
+            # "delete Dana from my contacts" forgot the LANDLORD fact first
+            # (2026-10-05): the contact is the thing named
+            said = _forget_contact(about)
+            return said or f"No contact called {about}."
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is
@@ -2720,23 +2747,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 return f"Forgotten: {gone}."
             # A CONTACT IS FORGETTABLE TOO. "Forget Dana" a turn after
             # "remember person Dana ..." said she had nothing (2026-10-05).
-            try:
-                from aletheia import contacts
-                # "Dana" for "Dana Example": the first word of a name is how
-                # he says it, and resolve() wants the whole name.
-                q = contacts._norm(about)
-                hits = [c for c in contacts.all_contacts()
-                        if q and (q == contacts._norm(c.get("display_name", ""))
-                                  or q == contacts._norm(str(c.get("display_name", "")).split(" ")[0])
-                                  or q in {contacts._norm(a) for a in c.get("aliases", [])})]
-                found = hits[0] if len(hits) == 1 else {}
-                if found.get("id"):
-                    was = contacts.forget(found["id"])
-                    reached = ", ".join((was.get("emails") or []) + (was.get("phones") or []))
-                    return (f"Forgotten: {was.get('display_name', about)}"
-                            + (f" ({reached})" if reached else "") + ".")
-            except Exception:  # noqa: BLE001 - a contact store that cannot answer is a miss here
-                pass
+            said = _forget_contact(about)
+            if said:
+                return said
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.
@@ -3542,6 +3555,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "recall":
         from aletheia import memory
         about = cmd["about"]
+        try:
+            # "what do you know about Dana" said "people: landlord is Dana"
+            # (2026-10-05); the person's own sentence first
+            from aletheia import quick as _quick
+            person = _quick._who_is(" ".join(str(about).split()))
+        except Exception:
+            person = None
+        if person and not person.lower().startswith("i don't"):
+            return person
         found = []
         domains = [cmd["domain"]] if cmd.get("domain") else sorted(memory.DOMAINS)
         for domain in domains:
@@ -3550,7 +3572,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             except Exception:
                 value = None
             if value is not None:
-                found.append(f"{domain}: {value}")
+                found.append(f"Your {str(about).replace('_', ' ')} is {value}." if domain in ("people", "identity", "organizations")
+                             else f"{str(about).replace('_', ' ')}: {value}.")
         if not found:
             # He says "what's my landlord's name"; it is stored under
             # "landlord". Exact key first, then the loose match `forget`
@@ -3559,10 +3582,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             loose = re.sub(r"'s (?:name|number|phone|email|address|birthday)$", "", loose,
                            flags=re.I).strip()
             for one, key, value in _remembered_matching(loose, cmd.get("domain"))[:4]:
-                found.append(f"{one}: {key} is {value}")
+                found.append(f"Your {str(key).replace('_', ' ')} is {value}." if one in ("people", "identity", "organizations")
+                             else f"{str(key).replace('_', ' ')}: {value}.")
         if not found:
-            return f"I don't have anything remembered about {about!r}."
-        return "; ".join(found[:4])
+            return f"I don't have anything remembered about {about}."
+        return " ".join(found[:4])
     if kind == "brief":
         from aletheia import brief, journal as _j, pulse as _p
         import json as _json
