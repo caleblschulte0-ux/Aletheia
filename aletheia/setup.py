@@ -729,6 +729,13 @@ def render(report: dict) -> str:
 #: too; this is for the words that are not in the title.
 _SAID_AS = {
     "mail.send": ("email", "mail", "gmail"),
+    # The Email step's capability is email.read: "set up mail" read the
+    # whole checklist for want of this line (2026-10-05).
+    "email.read": ("email", "mail", "gmail", "inbox"),
+    "browser.read": ("web", "browser", "internet", "browsing"),
+    "notification.deliver": ("notifications", "notices", "alerts"),
+    "reason.local": ("ollama", "local model", "own model", "offline"),
+    "intercom.relay": ("relay", "intercom"),
     "calendar.read": ("calendar",),
     "access.remote": ("phone", "iphone", "tailscale", "remote"),
     "phone.call": ("call", "calls", "calling"),
