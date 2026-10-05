@@ -2527,11 +2527,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             return ("Which one - "
                     + speech.or_list([k for _d, k, _v in hits[:4]]) + "?")
         domain, key, value = hits[0]
+        try:
+            phrase = str((memory._load(domain).get(key) or {}).get("about") or "").strip()
+        except Exception:
+            phrase = ""
         memory.forget(domain, key, via=f"operator via intercom: {quote[:80]}")
         # SAY WHAT WENT. "Forgotten" alone is unverifiable by ear, and
         # this is the one act in the system with no undo - `remember`
-        # keeps what it replaced, and forgetting keeps nothing.
-        return f"Forgotten: your {str(key).replace('_', ' ')}, which was {value}."
+        # keeps what it replaced, and forgetting keeps nothing. His own
+        # phrase for it when she has it ("your sister birthday", 2026-10-05).
+        named = phrase or f"your {str(key).replace('_', ' ')}"
+        return f"Forgotten: {named}, which was {value}."
     if kind.startswith("media_"):
         from aletheia import media
         ok, why = media.available()

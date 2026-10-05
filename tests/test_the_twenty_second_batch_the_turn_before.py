@@ -82,6 +82,13 @@ class TheTurnBefore(unittest.TestCase):
 
 
 class ForgetEverythingAbout(unittest.TestCase):
+    def test_the_receipt_uses_his_phrase(self):
+        from aletheia import memory
+        memory.remember("people", "sister_birthday", "March 3rd", source="test", about="your sister's birthday")
+        said = intercom.execute_command({"kind": "forget", "about": "everything about my sister"}, {"repos": {}})
+        self.assertEqual(said, "Forgotten: your sister's birthday, which was March 3rd.")
+
+
     def test_the_lead_words_come_off(self):
         with mock.patch("aletheia.memory.everything", return_value={"people": {"sister_birthday": {"value": "March 3rd"}}}), \
              mock.patch("aletheia.memory._load", return_value={"sister_birthday": {"value": "March 3rd"}}):
