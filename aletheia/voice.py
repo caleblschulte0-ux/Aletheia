@@ -1989,8 +1989,20 @@ def _interpret(transcript: str) -> dict:
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
     if m:
-        return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1).strip()),
                             "email": m.group(2).strip()}, "say": None}
+    # A NUMBER, not only an address. "Add a contact for my dentist, 000 555
+    # 0100" went to the planner and asked approval to save a phone number
+    # (2026-10-05); the handler took phones all along.
+    m = (re.fullmatch(r"(?:add|save|remember) (?:a )?(?:contact|number) for (?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)"
+                      r"[,:]? (?:at |on |number |phone |it's |its )?(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
+         or re.fullmatch(r"(?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone|cell|mobile) is "
+                         r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
+         or re.fullmatch(r"(?:save|add|remember) (?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone)[,:]? "
+                         r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low))
+    if m and m.group("n").strip() not in ("my", "me", "i"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group("n").strip()),
+                            "phone": m.group("p").strip()}, "say": None}
 
     # "what do you still need from me?" - SETUP. Not the bare "what do you
     # need from me": that is the brief's fourth question, about what is
@@ -2595,6 +2607,9 @@ def _interpret(transcript: str) -> dict:
                      r"(?: for me| now| please| back)?", low)
     if m and _is_a_person_to_ring(m.group("who")):
         who = _as_he_said(transcript, m.group("who"))
+        # "I can text or email dentist": keep the article he used.
+        if re.search(r"\b(?:the|my) " + re.escape(m.group("who")), low):
+            who = re.search(r"\b(the|my) ", low).group(1) + " " + who
         return {"command": None,
                 "say": f"I can't place phone calls from here. I can text or email {who}, "
                        "or remind you to call them - which would you like?"}

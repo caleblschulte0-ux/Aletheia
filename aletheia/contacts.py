@@ -70,6 +70,14 @@ def create(contact_id: str, display_name: str, *, emails: list[str] | None = Non
     return save(contact)
 
 
+def forget(contact_id: str) -> dict:
+    """"Forget Dana": the contact file goes, and what it held comes back once
+    so the receipt can say it. Private files only; nothing of this is in git."""
+    contact = load(contact_id)
+    _path(contact_id).unlink()
+    return contact
+
+
 def load(contact_id: str) -> dict:
     value = read_json(_path(contact_id))
     validate(value)

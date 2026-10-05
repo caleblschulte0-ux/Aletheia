@@ -2416,6 +2416,25 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             gone = _forget_note(about)
             if gone:
                 return f"Forgotten: {gone}."
+            # A CONTACT IS FORGETTABLE TOO. "Forget Dana" a turn after
+            # "remember person Dana ..." said she had nothing (2026-10-05).
+            try:
+                from aletheia import contacts
+                # "Dana" for "Dana Example": the first word of a name is how
+                # he says it, and resolve() wants the whole name.
+                q = contacts._norm(about)
+                hits = [c for c in contacts.all_contacts()
+                        if q and (q == contacts._norm(c.get("display_name", ""))
+                                  or q == contacts._norm(str(c.get("display_name", "")).split(" ")[0])
+                                  or q in {contacts._norm(a) for a in c.get("aliases", [])})]
+                found = hits[0] if len(hits) == 1 else {}
+                if found.get("id"):
+                    was = contacts.forget(found["id"])
+                    reached = ", ".join((was.get("emails") or []) + (was.get("phones") or []))
+                    return (f"Forgotten: {was.get('display_name', about)}"
+                            + (f" ({reached})" if reached else "") + ".")
+            except Exception:  # noqa: BLE001 - a contact store that cannot answer is a miss here
+                pass
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.
@@ -3456,8 +3475,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 changes["phones"] = [phone]
             contacts.update(cid, **changes)
         reached = " and ".join(x for x in (addr, phone) if x)
-        return (f"remembered {cmd['name']} as {reached} — private contacts "
-                "only, never the public repo")
+        # A sentence, not a developer's aside ("— private contacts only,
+        # never the public repo" was read out, 2026-10-05).
+        return f"Saved {cmd['name'].strip()}: {reached}."
     raise ValueError(f"unhandled kind {kind!r}")  # unreachable after validation
 
 

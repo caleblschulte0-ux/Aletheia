@@ -2,6 +2,7 @@
 kind -> gated execution -> durable private state -> speakable reply."""
 import datetime as dt
 import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -87,9 +88,14 @@ class TestSpokenVerbs(VoiceOSCase):
 
     def test_contact_by_voice_is_private_never_public_memory(self):
         detail = self.run_spoken("Thea, remember person mom caleb at gmail dot com")
-        self.assertIn("private contacts only", detail)
+        # The rule: the contact lands in the PRIVATE contacts store and in no
+        # public memory. The receipt is a sentence ("Saved mom: ...") rather
+        # than the aside that used to say so out loud.
+        self.assertTrue(detail.startswith("Saved mom: caleb@gmail.com"), detail)
         value = contacts.resolve("mom")
         self.assertEqual(value["emails"], ["caleb@gmail.com"])
+        from aletheia import memory
+        self.assertFalse(any("gmail" in json.dumps(memory._load(d)) for d in memory.DOMAINS))
 
     def test_free_time_speaks_slots(self):
         with mock.patch.object(voice, "_spoken_day", return_value="2026-08-27"):

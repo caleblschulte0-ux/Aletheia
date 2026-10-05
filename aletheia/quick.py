@@ -933,6 +933,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
         r"|^what are (?:you|u) drafting\s*\??$|^what have (?:you|u) (?:got )?drafted\s*\??$"
+        r"|^what drafts are (?:you|u) holding\s*\??$|^(?:are|r) (?:you|u) holding any(?:thing| drafts| emails?)?\s*\??$"
+        r"|^what are (?:you|u) holding(?: for me)?\s*\??$|^anything (?:held|on hold)\s*\??$"
         r"|^who have (?:you|u) drafted (?:to|for)(?: today)?\s*\??$|^what did (?:you|u) draft(?: today| so far)?\s*\??$")),
     # ONE DRAFT, read back: "read me the draft to Stripe" (bottom rung 2026-09-24).
     ("draft_to", re.compile(
