@@ -2579,7 +2579,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # Read out loud: "remembered people.landlord" is a developer's line,
         # and "sister s birthday" (2026-10-05) is a key with the possessive
         # knocked out of it. The subject as he said it, when it travelled.
-        return f"Remembered: {about or str(cmd['key']).replace('_', ' ')} is {cmd['value']}."
+        value = cmd["value"]
+        if str(cmd.get("key")) == "timezone":
+            # "your time zone is America/Chicago" (2026-10-05): the zone's name as a person says it.
+            value = {"America/Chicago": "Central time", "America/New_York": "Eastern time", "America/Denver": "Mountain time",
+                     "America/Los_Angeles": "Pacific time", "America/Anchorage": "Alaska time", "Pacific/Honolulu": "Hawaii time",
+                     "Europe/London": "UK time", "UTC": "UTC"}.get(str(value), str(value).replace("_", " "))
+        return f"Remembered: {about or str(cmd['key']).replace('_', ' ')} is {value}."
     if kind == "forget":
         # `speech` is NOT imported here. It is a module-level name, and an
         # import of it anywhere in this function makes it LOCAL to the whole
