@@ -88,7 +88,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "studies":          (set(), {"which", "about"}),
     "study_decide":     ({"choice"}, {"which", "study", "words"}),
     "study_confirm":    (set(), {"study"}),
-    "task_new":      ({"id", "description"}, {"goal", "worker", "deadline"}),
+    "task_new":      ({"id", "description"}, {"goal", "worker", "deadline", "replaces"}),
     "task_status":   ({"id", "state"}, {"note"}),
     # She could CREATE a task by voice and change its status, and had no
     # verb for "what are my tasks" — so the commonest question about the
@@ -1535,7 +1535,9 @@ def _contacts_answer(which: str = "") -> str:
                 parts.append(f"email is {speech.or_list(emails[:2])}")
             if not parts:
                 return f"I have {name} saved but no number or email for them."
-            return f"Your {name}'s " + " and ".join(parts) + "."
+            # "Your Dana's number" (2026-10-05): a role takes "your", a name does not.
+            owner = f"{name}'s" if name[:1].isupper() else f"Your {name}'s"
+            return f"{owner} " + " and ".join(parts) + "."
     if not rows:
         return "You have no contacts saved with me."
     if len(rows) == 1:
@@ -2492,13 +2494,25 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                              note=f"marked done: {quote[:120]}")
         return f"marked done — {found.get('description') or found['id']}"
     if kind == "task_new":
+        replaced = ""
+        old_words = " ".join(str(cmd.get("replaces") or "").split())
+        if old_words:
+            # "No, I meant the electrician" (2026-10-05): the task he just
+            # added, with the one word changed, is one task and not two.
+            for old in tasks.all_tasks():
+                if (str(old.get("description") or "").strip().casefold() == old_words.casefold()
+                        and old.get("status") not in tasks.contracts.TASK_TERMINAL):
+                    tasks.set_status(old["id"], "CANCELLED", "replaced: you meant something else")
+                    replaced = old_words
+                    break
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
                             deadline=cmd.get("deadline"))
         # The DEADLINE in the confirmation, because he just said one and
         # the whole point of a confirmation is that he can catch it being
         # wrong in one syllable.
-        return f"task {cmd['id']} queued — {_task_words(made)}"
+        return (f"task {cmd['id']} queued — {_task_words(made)}"
+                + (f" (instead of {replaced})" if replaced else ""))
     if kind == "task_status":
         t = tasks.set_status(cmd["id"], cmd["state"], cmd.get("note", ""))
         return f"task {cmd['id']} -> {t['status']}"

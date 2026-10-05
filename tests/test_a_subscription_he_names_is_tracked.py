@@ -40,7 +40,7 @@ class ASubscriptionIsASentence(unittest.TestCase):
         said = intercom.execute_command(cmd, {}, quote="t")
         self.assertEqual(said, "Tracking Netflix at $15.49 a month.")
         self.assertEqual(intercom.execute_command({"kind": "subscriptions"}, {}, quote="t"),
-                         "1 active: Netflix. About 15.49 a month.")
+                         "1 active: Netflix. About $15.49 a month.")
         self.assertEqual(quick.answer("how much do I pay for netflix"), "You pay $15.49 a month for Netflix.")
         again = intercom.execute_command(cmd, {}, quote="t")
         self.assertEqual(again, "Netflix is already on your subscriptions list at $15.49.")

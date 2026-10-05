@@ -320,6 +320,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
         r"sister|brother|mom|mother|dad|father|wife|husband|partner|girlfriend|boyfriend|roommate|"
         r"neighbou?r|best friend|emergency contact|recruiter)\s*\??$")),
+    # "Who is Dana" paid a model (2026-10-05); she is on the people shelf.
+    ("who_is", re.compile(
+        r"^who(?:'s| is) (?!(?:my|the|your|our|i|you|u|she|he|it|that|this|there|here|calling|on|in|at|this)\b)(?P<who_is>[a-z][a-z .'-]{1,40}?)\s*\??$")),
     # "How many opportunities are you working on" came back from her own
     # model as "opportunity tracking is experimental for me right now, not
     # something I run live yet" - while forty of them sat in her store.
@@ -788,10 +791,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^are (?:you|u) running the latest code$")),
     # Three the machine itself can answer (2026-10-05, each a model turn):
     # the subscriptions total, what is left on a timer, memory by program.
+    ("subscription_extreme", re.compile(
+        r"^what(?:'s| is|s)? my (?P<extreme>biggest|most expensive|largest|priciest|dearest|cheapest|smallest|least expensive) subscription\s*\??$"
+        r"|^which (?:subscription|one) (?:costs|is) (?:the )?(?P<extreme2>most|least)(?: a month| per month)?\s*\??$"
+        r"|^what do i (?:spend|pay) (?:the )?(?P<extreme3>most|least) on\s*\??$")),
     ("subscription_spend", re.compile(
-        r"^how much (?:do i|am i|do we) (?:spend|spending|pay|paying) (?:a month |per month |monthly |every month |each month )?(?:on|for) (?:my |all my )?subscriptions(?: a month| per month| monthly| every month| each month| in total| all together| altogether)?\s*\??$"
+        r"^how much (?:do i|am i|do we) (?:spend|spending|pay|paying) (?:(?P<spend_per>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year) )?(?:on|for) (?:my |all my )?subscriptions(?: (?P<spend_per2>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year))?(?: in total| all together| altogether)?\s*\??$"
         r"|^what(?:'s| is|s)? my (?:monthly |total )?subscription (?:total|spend|bill|cost)(?: a month| per month)?\s*\??$"
-        r"|^what do (?:my|the|all my) subscriptions (?:cost|add up to|come to|total)(?: me)?(?: a month| per month| each month)?\s*\??$")),
+        r"|^what do (?:my|the|all my) subscriptions (?:cost|add up to|come to|total)(?: me)?(?: (?P<spend_per3>a month|per month|each month|a year|per year|yearly|annually))?\s*\??$")),
     ("timer_left", re.compile(
         r"^how (?:long|much time)(?: is|'s)? left on (?:the|my|that) timer\s*\??$"
         r"|^how long (?:until|till|before) (?:the|my) timer(?: goes off| is up| ends)?\s*\??$"
@@ -1186,6 +1193,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "due_when", "due_when2", "due_when3",
+                                           "extreme", "extreme2", "extreme3", "spend_per", "spend_per2", "spend_per3", "who_is",
                                            "project_of", "project_of2", "project_of3", "project_turn",
                                            "access", "access2", "access3",
                                            "recall6", "notes_search", "notes_search2", "notes_search3",
@@ -2856,7 +2864,7 @@ def _repos() -> str | None:
             + speech.and_list(shown) + ".")
 
 
-def _pay_for(rest: str) -> str:
+def _pay_for(rest: str, *, want_date: bool = False) -> str:
     """"How much do I pay for Netflix": from her subscriptions store, and ONLY from it.
 
     Asked this with the frontier off, her own model answered "I can look through what's
@@ -2872,6 +2880,20 @@ def _pay_for(rest: str) -> str:
     except Exception:
         rows = []
     low = what.casefold()
+    cadence_words = {"weekly": "weekly", "a week": "weekly", "per week": "weekly", "every week": "weekly",
+                     "monthly": "monthly", "a month": "monthly", "per month": "monthly", "every month": "monthly",
+                     "quarterly": "quarterly", "yearly": "annual", "annually": "annual", "a year": "annual",
+                     "per year": "annual", "every year": "annual"}
+    if low in cadence_words:
+        # "What do I pay for weekly" is a list by cadence, not a merchant
+        # called weekly (2026-10-05).
+        cadence = cadence_words[low]
+        those = [r for r in rows if str(r.get("cadence") or "") == cadence and str(r.get("status") or "ACTIVE") == "ACTIVE"]
+        if not those:
+            return f"Nothing {low} on your subscriptions list."
+        return (f"{low[:1].upper() + low[1:]}: "
+                + speech.and_list([f"{r.get('merchant')} at ${r['amount']:,.2f}" if r.get("amount") is not None
+                                   else str(r.get("merchant")) for r in those[:6]]) + ".")
     hits = [r for r in rows if low and (low in str(r.get("merchant", "")).casefold()
                                         or str(r.get("merchant", "")).casefold() in low)]
     if hits:
@@ -2886,6 +2908,10 @@ def _pay_for(rest: str) -> str:
             said = f"You pay ${amount:,.2f}{(' ' + each) if each else ''} for {r['merchant']}."
         if r.get("next_charge"):
             said += f" Next charge {r['next_charge']}."
+        elif want_date:
+            # "When is spotify due" with no date kept: say so, rather than
+            # answering the amount as if it were the date.
+            said += " I don't have its charge date - tell me and I'll keep it."
         if status and status != "ACTIVE":
             said += f" It is {status.lower().replace('_', ' ')}."
         return said
@@ -3130,8 +3156,9 @@ _MINE = {"email": ("email",), "email address": ("email",),
 _WHO_AM_I = "name"
 
 
-def _subscription_spend() -> str:
-    """What his tracked subscriptions come to a month, from the store."""
+def _subscription_spend(per: str = "") -> str:
+    """What his tracked subscriptions come to a month - or a year, when he
+    asked that - from the store."""
     from aletheia import speech, subscriptions
     try:
         rows = subscriptions.all_subscriptions(active_only=True)
@@ -3143,10 +3170,78 @@ def _subscription_spend() -> str:
     total = sum(m for m in monthly if m)
     unknown = sum(1 for m in monthly if not m)
     names = speech.and_list([str(r.get("merchant") or "?") for r in rows[:5]])
-    said = f"About ${total:,.2f} a month across {speech.count_phrase(len(rows), 'subscription')}: {names}."
+    yearly = str(per or "").casefold() in ("a year", "per year", "yearly", "annually", "every year")
+    figure = f"${total * 12:,.2f} a year" if yearly else f"${total:,.2f} a month"
+    said = f"About {figure} across {speech.count_phrase(len(rows), 'subscription')}: {names}."
     if unknown:
         said += f" {speech.count_phrase(unknown, 'of them has', 'of them have')} no price I know, so the real total is higher."
     return said
+
+
+def _subscription_extreme(which: str = "") -> str:
+    """His biggest or smallest subscription, by what it costs a month."""
+    from aletheia import subscriptions
+    try:
+        rows = [r for r in subscriptions.all_subscriptions(active_only=True)
+                if subscriptions.monthly_equivalent(r)]
+    except Exception:
+        return "I can't read your subscriptions list right now."
+    if not rows:
+        return "I'm not tracking any priced subscriptions yet."
+    least = str(which or "").casefold() in ("cheapest", "smallest", "least expensive", "least")
+    rows.sort(key=subscriptions.monthly_equivalent, reverse=not least)
+    each = {"weekly": "a week", "monthly": "a month", "quarterly": "a quarter", "annual": "a year"}
+
+    def say(r):
+        return f"{r.get('merchant')} at ${r['amount']:,.2f} {each.get(r.get('cadence'), '')}".strip()
+
+    lead = "The cheapest" if least else "The biggest"
+    said = f"{lead}: {say(rows[0])}"
+    if len(rows) > 1:
+        said += f", then {say(rows[1])}"
+    return said + "."
+
+
+def _who_is(name: str) -> str | None:
+    """"Who is Dana": the shelf of people and the contacts, by the name.
+    None when the words are not a name she can look up."""
+    from aletheia import memory, speech
+    who = " ".join(str(name or "").split()).strip(" ?.")
+    if not who:
+        return None
+    low = who.casefold()
+    roles = []
+    try:
+        for domain, entries in (memory.everything(max_chars=8000) or {}).items():
+            if domain not in ("people", "organizations"):
+                continue
+            for key, held in entries.items():
+                value = str(held.get("value") or "")
+                if low == value.casefold() or low in {w.strip(",.") for w in value.casefold().split()}:
+                    about = str(held.get("about") or "").strip()
+                    roles.append(about[len("your "):] if about.startswith("your ") else key.replace("_", " "))
+    except Exception:
+        pass
+    reach = ""
+    try:
+        from aletheia import contacts
+        for c in contacts.all_contacts():
+            names = [str(c.get("display_name") or "")] + [str(a) for a in (c.get("aliases") or [])]
+            if any(low == n.casefold() or low == n.casefold().split(" ")[0] for n in names if n):
+                phones = [speech.phone_words(v) for v in (c.get("phones") or []) if v]
+                emails = [str(v) for v in (c.get("emails") or []) if v]
+                bits = ([f"number {phones[0]}"] if phones else []) + ([f"email {emails[0]}"] if emails else [])
+                reach = ", ".join(bits)
+                break
+    except Exception:
+        pass
+    shown = who[:1].upper() + who[1:]
+    if roles:
+        said = f"{shown} is your {speech.and_list(roles)}"
+        return said + (f"; {reach}." if reach else ".")
+    if reach:
+        return f"{shown} is in your contacts: {reach}."
+    return f"I don't have anyone called {shown} on file. Tell me who they are and I'll remember it."
 
 
 def _timer_left() -> str:
@@ -3994,6 +4089,14 @@ def _recall(words: str) -> str | None:
               if w not in _STOP_WORDS]
     if not wanted:
         return None
+    try:
+        # "When is spotify due" is the subscriptions store (2026-10-05).
+        from aletheia import subscriptions
+        merchants = [str(r.get("merchant") or "").casefold() for r in subscriptions.all_subscriptions()]
+        if any(m and (m in str(words).casefold() or str(words).casefold() in m) for m in merchants):
+            return _pay_for(words, want_date=True)
+    except Exception:
+        pass
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in wanted]
 
     def hit(text: str) -> bool:
@@ -4856,7 +4959,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reply_rate": lambda rest: _reply_rate(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
-           "subscription_spend": lambda rest: _subscription_spend(),
+           "subscription_spend": lambda rest: _subscription_spend(rest),
+           "subscription_extreme": lambda rest: _subscription_extreme(rest),
+           "who_is": lambda rest: _who_is(rest),
            "timer_left": lambda rest: _timer_left(),
            "top_memory": lambda rest: _top_memory(),
            "version": lambda rest: _version(),

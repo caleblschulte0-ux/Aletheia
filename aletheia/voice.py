@@ -983,6 +983,54 @@ def _last_ask_is_undoable() -> bool:
         return False
 
 
+def _previous_task_ask() -> dict:
+    """The command of his most recent ask that added a task, looking back a
+    few turns past questions, or {}."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=6)
+    except Exception:
+        return {}
+    for turn in reversed(turns or []):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
+        if not said or _IS_FOLLOW_UP.match(said.casefold()):
+            continue
+        try:
+            command = (interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            continue
+        if command.get("kind") == "task_new" and command.get("description"):
+            return command
+        if command.get("kind") not in ("intent",) and not intercom_is_read_only(command.get("kind")):
+            return {}
+    return {}
+
+
+def _meant_instead(transcript: str, phrase: str) -> dict | None:
+    """"No, I meant the electrician" after "add a task to call the plumber":
+    the same task with the last words swapped, replacing the one he added.
+    None when his last act was not a task or the swap does not fit."""
+    previous = _previous_task_ask()
+    if not previous:
+        return None
+    desc = str(previous.get("description") or "").strip()
+    new_words = phrase.strip().split()
+    old_words = desc.split()
+    if not new_words or len(new_words) > len(old_words):
+        return None
+    # "the electrician" replaces "the plumber"; "electrician" replaces "plumber"
+    tail = old_words[-len(new_words):]
+    if new_words[0].casefold() in ("the", "a", "an", "my") and tail[0].casefold() not in ("the", "a", "an", "my"):
+        return None
+    new_desc = " ".join(old_words[:-len(new_words)] + new_words).strip()
+    if new_desc.casefold() == desc.casefold():
+        return None
+    out = _new_task(_as_he_said(transcript, new_desc) if new_desc.casefold() in transcript.casefold() else new_desc)
+    out["command"]["replaces"] = desc
+    return out
+
+
 def _last_task_words() -> str:
     """The newest open task's words, for "remind me about it"."""
     try:
@@ -3381,6 +3429,14 @@ def _interpret(transcript: str) -> dict:
                         "say": f"I couldn't read '{m.group('time').strip()}' as a time or a day. Say it like 'move that to 4 pm' or 'to Monday at 10'."}
             return {"command": None,
                     "say": "I haven't set a reminder just now that I could move. Say the whole reminder and I'll set it."}
+
+    # "NO, I MEANT THE ELECTRICIAN" after a task he just added (2026-10-05:
+    # the planner, six seconds, a two-step plan and an approval).
+    m = re.fullmatch(r"(?:no,? |actually,? |sorry,? )?i meant (?:to say )?(?P<new>.+?)(?: instead| not .+)?", low)
+    if m:
+        meant = _meant_instead(text, _as_he_said(text, m.group("new").strip()))
+        if meant:
+            return meant
 
     # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
     # it went to nobody). A study verdict's "undo the change" is matched

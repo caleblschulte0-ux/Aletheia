@@ -89,8 +89,15 @@ def parse_fact(sentence: str) -> dict | None:
     if not found:
         return None
     subject = found.group("key").strip()
-    return {"subject": subject, "key": key_for(subject), "value": found.group("value").strip()[:480],
-            "domain": domain_for(subject), "mine": bool(found.group("my"))}
+    value = found.group("value").strip()[:480]
+    mine = bool(found.group("my"))
+    flipped = re.match(r"^(?:my|our)\s+(.+)$", value, re.I)
+    if flipped and not domain_for(subject) and domain_for(flipped.group(1)):
+        # "Remember Dana is my landlord" (2026-10-05): the shelf word is on
+        # the right. The fact is about the landlord, and the landlord is Dana.
+        subject, value, mine = flipped.group(1).strip(), subject, True
+    return {"subject": subject, "key": key_for(subject), "value": value,
+            "domain": domain_for(subject), "mine": mine}
 
 
 def domain_for(subject: str) -> str:

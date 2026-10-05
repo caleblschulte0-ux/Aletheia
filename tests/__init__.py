@@ -69,9 +69,23 @@ if not os.environ.get("ALETHEIA_HUNT_FUNNEL"):
 if not os.environ.get("ALETHEIA_RULINGS"):
     os.environ["ALETHEIA_RULINGS"] = str(_suite_root / "rulings.json")
 
+# Her workspace is real files in his Documents folder, anchored at Path.home():
+# a test that wrote a file put it on the actual disk (2026-10-05, and the same
+# miss the sandbox had on its third version). The variable is what
+# workspace.root() reads.
+if not os.environ.get("ALETHEIA_WORKSPACE"):
+    os.environ["ALETHEIA_WORKSPACE"] = str(_suite_root / "workspace")
+
 from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"
+
+# His task list is repo-anchored on purpose (state/tasks is run truth the
+# Core commits). A test that created a task without patching TASKS_DIR left
+# seventeen "call the plumber" files in the real repository (2026-10-05).
+# Redirected for the whole process; tests that patch it still work.
+from aletheia import tasks as _tasks  # noqa: E402
+_tasks.TASKS_DIR = _suite_root / "tasks"
 
 # Outward mail is ON HOLD by his 2026-09-24 ruling (aletheia.mail.outward_hold:
 # no file means on). The suite tests the send paths as they behave once he
