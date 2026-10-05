@@ -46,6 +46,29 @@ FILLER = re.compile(
     re.UNICODE)
 
 
+#: The way he types on a phone. Each is a whole word, so "u" in "thank u"
+#: and "waitin" in "whats waitin on me" are read, and "rn" inside "corn" is
+#: not. Fifteenth sandbox batch (2026-10-05): "whats waitin on me", "wats my
+#: next meeting", "remind me tmrw 9am gym" each paid a planner round trip
+#: for a sentence the fast lane knew in its tidy spelling.
+SHORTHAND = {
+    "tmrw": "tomorrow", "tmr": "tomorrow", "tomo": "tomorrow", "2moro": "tomorrow", "2morrow": "tomorrow",
+    "2day": "today", "2nite": "tonight", "tonite": "tonight",
+    "wats": "what's", "wat": "what", "whts": "what's", "hows": "how's", "wheres": "where's",
+    "waitin": "waiting", "goin": "going", "doin": "doing",
+    "pls": "please", "plz": "please", "thx": "thanks", "ty": "thanks",
+    "rn": "right now", "msg": "message", "msgs": "messages", "ur": "your", "cuz": "because",
+    "appt": "appointment", "appts": "appointments", "mtg": "meeting", "mtgs": "meetings",
+    "b4": "before", "w/": "with", "w/o": "without", "approx": "about",
+}
+_SHORTHAND_RE = re.compile(r"(?<![\w/])(" + "|".join(re.escape(k) for k in sorted(SHORTHAND, key=len, reverse=True))
+                           + r")(?![\w/])")
+
+
+def _longhand(low: str) -> str:
+    return _SHORTHAND_RE.sub(lambda m: SHORTHAND[m.group(1)], low)
+
+
 def _without_preamble(low: str) -> str:
     """Drop leading filler and decoration — never anything that carries meaning.
 
@@ -53,6 +76,7 @@ def _without_preamble(low: str) -> str:
     WAS the filler ("uh", "ok") and is handed back untouched so the
     ordinary "I didn't get that" path still sees it.
     """
+    low = _longhand(low)
     stripped = FILLER.sub("", low, count=1).lstrip(" ,.!?:;-").strip()
     return stripped or low
 
@@ -2126,6 +2150,29 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
 
+    # THE WAY HE TYPES ON A PHONE (fifteenth batch, 2026-10-05): "add task
+    # call mom", "remind me 3pm dentist", "shopping list add eggs" each went
+    # to the planner and asked approval for what the tidy sentence does for
+    # free. The shape is read and the sentence re-said in the shape the
+    # rules know.
+    m = re.fullmatch(r"(?:add|new|create|make) (?:a )?task[:,]? (?:to )?(?P<x>.+)", low)
+    if m and not _might_be_several(m.group("x")):
+        return _new_task(_as_he_said(transcript, m.group("x").strip()))
+    m = re.fullmatch(r"(?:shopping|grocery) list[:,]? (?:add|put|plus) (?P<x>.+)", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group("x").strip())},
+                "say": None}
+    m = re.fullmatch(r"remind me (?:(?P<day>tomorrow|today|tonight) )?(?:at |@ )?"
+                     r"(?P<t>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight) (?!(?:to|about|of|that|for|re) )(?P<x>.+)", low)
+    if m:
+        # The re-said sentence carries "to", so it cannot match this rule
+        # again (the first draft looped on "remind me tonight at 8pm bins").
+        day = f" {m.group('day')}" if m.group("day") else ""
+        again = interpret(f"thea remind me{day} at {m.group('t')} to {m.group('x').strip()}")
+        if again.get("command") is not None and again["command"].get("kind") == "remind_at":
+            again["command"]["text"] = _as_he_said(transcript, m.group("x").strip())
+            return again
+
     # "Why did you add milk to the list" put "why did you add milk" ON the
     # list. `add` was optional, so any sentence ENDING in "to the list"
     # was a write — and a question is never an instruction (the same rule
@@ -2851,9 +2898,14 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "screenshot", "monitor": "all"}, "say": None}
 
-    m = re.match(r"(?:approve|approved|yes to)\s*"
-                 r"(?:that|it|the pending one|the (?P<ord>first|second|third|last)"
-                 r"(?: one)?|(?P<what>.+?))?$", low)
+    # A BARE "YES" IS A YES. After "ok" had her ask "Do you want me to set the
+    # gym reminder?", his "yes" compiled a NEW plan and offered it again
+    # (sandbox, 2026-10-05). The pending-count and recency rules below say
+    # which approval it is, and when it is nothing, that nothing waits.
+    m = (re.match(r"(?:approve|approved|yes to)\s*"
+                  r"(?:that|it|the pending one|the (?P<ord>first|second|third|last)"
+                  r"(?: one)?|(?P<what>.+?))?$", low)
+         or re.fullmatch(r"(?:yes|yeah|yep|yup|sure|do it|go ahead|go for it|yes please|ok do it|okay do it)", low))
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if not pending:
@@ -2924,7 +2976,7 @@ def _interpret(transcript: str) -> dict:
     # report on a queue he did not ask about.
     dropped_it = re.match(
         r"(?:never ?mind|forget (?:it|that)|call it off|"
-        r"don'?t do (?:it|that))$", low_c)
+        r"don'?t do (?:it|that)|no|nope|nah|no thanks)$", low_c)
     m = asked_to_cancel or dropped_it
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
