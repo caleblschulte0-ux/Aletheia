@@ -773,7 +773,10 @@ def spoken_about(about: str, report: dict | None = None) -> str:
         said = f"{title} isn't set up yet"
         why = speech.plainly(_in_her_voice(str(best.get("why") or "")))
         if why:
-            said += f": {why[0].lower() + why[1:]}"
+            # Lowercase the first word after the colon - unless it is "I",
+            # which came out as "i can already read headers" (2026-10-05).
+            first_is_i = why[:2] in ("I ", "I'")
+            said += f": {why if first_is_i else why[0].lower() + why[1:]}"
     minutes = int(best.get("minutes") or 0)
     said = said.rstrip(".") + "."
     if minutes:

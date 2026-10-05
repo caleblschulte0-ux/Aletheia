@@ -80,7 +80,11 @@ _STATUS = re.compile(
     r"working|in progress|underway|live|being sent)"
     r"|(?:is|are) (?:the |any )?(?:applications|jobs) still (?P<still3>going|running|being sent|"
     r"happening|in progress)"
-    r"|(?:is|are) (?:she|it|the batch|the run) still (?P<still4>applying|running the job hunt))$"
+    r"|(?:is|are) (?:she|it|the batch|the run) still (?P<still4>applying|running the job hunt)"
+    # "is the job hunt paused" paid an eleven-second model round trip to
+    # read one marker file (sandbox, 2026-10-05).
+    r"|(?:is|are) (?P<paused>" + _JOB + r") (?:paused|stopped|on hold|off|held|suspended|on pause)"
+    r"(?: right now| at the moment| still)?)$"
     # how many
     r"|^how many (?:jobs|applications|apps|places|companies|positions|roles|employers)"
     r"(?: (?:have|did|has) (?:you|u|she|we|i))? ?(?P<count>applied (?:to|for|at)|apply (?:to|for|at)|"
@@ -3118,9 +3122,11 @@ def _ran_today(name: str) -> str | None:
 
 def _who_are_you() -> str:
     """Who she is, in one breath. A fact about herself, not a thought."""
-    return ("I'm Thea - Aletheia - Caleb's own assistant, running on this PC. I keep his tasks, "
-            "reminders, lists, notes and calendar, read and draft his email, hunt and apply for jobs, "
-            "watch his projects, and I say plainly what I can't do. The big models help me think when "
+    # Said TO him: "Caleb's own assistant ... I keep his tasks" was the third
+    # person about the person asking (sandbox, 2026-10-05).
+    return ("I'm Thea - Aletheia - your own assistant, running on this PC. I keep your tasks, "
+            "reminders, lists, notes and calendar, read and draft your email, hunt and apply for jobs, "
+            "watch your projects, and I say plainly what I can't do. The big models help me think when "
             "they're there; my own stores and my own model carry me when they're not.")
 
 
@@ -3136,8 +3142,11 @@ def _offline_can() -> str:
         role, why = reasoner.local_role_that_fits()
     except Exception:
         role, why = None, ""
+    # `why` often already says "my own model is switched off"; saying it
+    # twice in one breath is what the sandbox heard (2026-10-05).
     own = ("and my own model can plan the rest, slowly" if role
-           else f"but my own model can't run right now ({why})" if why else "")
+           else (f"but {why}" if why and "my own model" in why else f"but my own model can't run right now ({why})")
+           if why else "")
     return ("Without the big models I still answer from what I hold: your tasks, reminders and lists; your "
             "calendar and whether you're free; your notes and what I know about you; today's applications, "
             "replies and interviews; what needs you, what went wrong, what I did and what you asked me; the "
@@ -3352,6 +3361,8 @@ def status_of(text: str) -> tuple[str, str] | None:
             return "going", value
         if key.startswith("still"):
             return "still", value
+        if key.startswith("paused"):
+            return "paused", value
         if key.startswith("last_when"):
             return "last_when", value
         if key.startswith("last_what"):
@@ -3400,6 +3411,8 @@ def _status_of(text: str) -> str | None:
         return _applied_in_window(subject)
     if shape == "still":
         return current_state.still_applying_words()
+    if shape == "paused":
+        return _hunt_paused_words()
     if shape in ("count", "count_total"):
         return current_state.how_many_words(total=shape == "count_total")
     if shape == "last_when":
@@ -3411,6 +3424,27 @@ def _status_of(text: str) -> str | None:
         # stores goes on to the investigator, which can look properly.
         return current_state.blocking_words() or None
     return None
+
+
+def _hunt_paused_words() -> str:
+    """Whether the job hunt is paused, from the marker his "stop applying" writes."""
+    from aletheia import apply_forever
+    try:
+        held = apply_forever.paused()
+    except Exception:
+        held = None
+    if held:
+        why = " ".join(str(held.get("reason") or "").split())
+        return ("Yes, the job hunt is paused" + (f": {why}" if why else "")
+                + ". Say \"start applying\" and it picks up again.")
+    running = False
+    try:
+        from aletheia import campaign
+        running = bool(campaign.running())
+    except Exception:
+        running = False
+    return "No, it isn't paused." + (" A batch is running right now." if running
+                                     else " Nothing is holding it; the next batch runs on its schedule.")
 
 
 def _opportunity(rest: str) -> str | None:

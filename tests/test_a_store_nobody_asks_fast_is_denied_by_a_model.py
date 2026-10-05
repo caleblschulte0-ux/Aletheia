@@ -87,5 +87,16 @@ class TheProjectsSheCarriesAreTheCharters(unittest.TestCase):
         self.assertEqual(self.ask("list my projects", []), "No active projects.")
 
 
+class WhetherTheHuntIsPausedIsAMarkerFile(unittest.TestCase):
+    def test_paused_and_not(self):
+        with mock.patch("aletheia.apply_forever.paused", return_value={"reason": "until Monday"}):
+            self.assertEqual(quick.answer("is the job hunt paused"),
+                             'Yes, the job hunt is paused: until Monday. Say "start applying" and it picks up again.')
+        with mock.patch("aletheia.apply_forever.paused", return_value=None), \
+             mock.patch("aletheia.campaign.running", return_value=None):
+            said = quick.answer("is the job hunt on hold")
+        self.assertTrue(said.startswith("No, it isn't paused."), said)
+
+
 if __name__ == "__main__":
     unittest.main()
