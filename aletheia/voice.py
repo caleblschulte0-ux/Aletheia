@@ -3972,6 +3972,24 @@ def _interpret(transcript: str) -> dict:
             field = "github"
         return {"command": {"kind": "profile_set", "field": field, "value": value}, "say": None}
 
+    # "MY WIFI PASSWORD IS HUNTER2" (2026-10-05: the planner, an approval):
+    # a code of his, said plainly, is the note "remember the gate code is
+    # 4471" already makes, and "what's the wifi password" reads it back.
+    m = re.fullmatch(r"(?:my |the |our )?(?P<k>[a-z][a-z' -]{1,30}?) (?:password|passcode|code|pin|combination|combo) is (?P<v>\S{2,60})", low)
+    if m and not re.search(r"\b(?:wrong|right|broken|expired|old|new|changed|the same|different|not)\b", m.group("v")):
+        # A PASSWORD IS NEVER KEPT, and she says so at the time: every
+        # journal line is scrubbed on the way in (the journal is committed
+        # to a public repository), so "Noted." would have kept "my wifi
+        # password [redacted]" and read THAT back to him. The scrubber is
+        # the one predicate for both; a gate code it lets through is a note.
+        from aletheia import sensitivity
+        if sensitivity.scrub(low)[1]:
+            return {"command": None,
+                    "say": ("I don't keep passwords, even yours - anything I write down can end up in a log, "
+                            "so it would only ever come back as 'redacted'. Keep it in your password manager; "
+                            "a gate code or a door PIN I'll note if you ask.")}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+
     # "MY LANDLORD IS DANA" with no "remember" in front (2026-10-05: the
     # planner, four seconds, and an approval to remember it). A sentence of
     # his that names a shelf of hers and a NAME - a capital letter in what

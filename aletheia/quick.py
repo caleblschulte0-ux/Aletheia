@@ -1065,7 +1065,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:a |one )?(?P<frac>half|third|quarter|fifth|tenth|two thirds|three quarters) of (?:\$)?(?P<frac_of>[\d.,]+)(?P<frac_money> dollars| bucks)?$"
         r"|^(?:what(?:'s| is|s)? )?(?P<mult>double|triple|half|twice) (?:of )?(?:\$)?(?P<mult_of>[\d.,]+)(?P<mult_money> dollars| bucks)?$"
         r"|^how many (?P<unit_small>ounces|oz|inches|feet|yards|centimeters|centimetres|millimeters|millimetres|grams|milliliters|millilitres|cups|tablespoons|teaspoons|quarts|pints|fluid ounces|seconds|minutes|hours|days|weeks|months) (?:are |is )?(?:in|to|per|make) (?:a|an|one|1) (?P<unit_big>pound|foot|yard|mile|meter|metre|kilometer|kilometre|inch|kilogram|kilo|liter|litre|cup|quart|gallon|pint|tablespoon|minute|hour|day|week|year|month)$"
-        r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
+        r"|^(?:what(?:'s| is|s)? )?(?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
+        # "split 120 three ways" (2026-10-05: a model, seven seconds, for a division)
+        r"|^(?:split|divide|share) (?:\$)?(?P<split>[\d.,]+)(?P<split_money> dollars| bucks)? (?:by |into |between |among |across )?(?P<ways>\d+|two|three|four|five|six|seven|eight|nine|ten)(?: ways| people| of us| persons| each)?$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
         r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
@@ -1274,7 +1276,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When is my sister's birthday" (2026-10-05): a date he told her, on her shelf.
         r"|^when(?:'s| is|s)? (?:my |the )(?P<recall6>[a-z0-9][a-z0-9 '-]{1,30}?(?:'s)? (?:birthday|anniversary|appointment|flight|wedding|graduation|party|checkup|check-up|exam|trip|visit))\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What did I note about the car", "what have I told you about the car" (2026-10-05: a model each)
+        r"|^what (?:did|have) i (?:note|noted|write down|written down|jot down|jotted down|log|logged|told you|said|mention|mentioned) (?:about |on |regarding )(?:the |my )?(?P<recall7>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^(?:any|got any|do i have any|are there any) notes? (?:about|on) (?:the |my )?(?P<recall8>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^what(?:'s| is) (?:in|on) (?:my |the )?notes? (?:about|on|for) (?:the |my )?(?P<recall9>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     # "do you have access to my bank" was answered "Read-only, yes" by a
     # model (2026-10-05). There is no bank data; the registry says so.
     # Before "can you ...", which would otherwise swallow "can you get access to".
@@ -1335,7 +1341,7 @@ def match(question: str) -> tuple[str, str] | None:
             return name, text
         if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked"):
             return name, text           # the answer re-reads the whole sentence
-        rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
+        rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "recall7", "recall8", "recall9",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
@@ -3488,6 +3494,12 @@ def _math(text: str) -> str | None:
             # "how many feet in a meter" is a conversion, not a fact of the
             # table: fall through to the units below with one of the big one
             g = {"n": "1", "from": g["unit_big"], "to": g["unit_small"]}
+        if "split" in g:
+            ways = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+                    "ten": 10}.get(g["ways"]) or int(g["ways"])
+            if ways == 0:
+                return "You can't split it zero ways."
+            return f"{'$' if g.get('split_money') else ''}{said(round(num(g['split']) / ways, 2))} each."
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
