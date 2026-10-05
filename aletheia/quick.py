@@ -161,6 +161,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("waiting", re.compile(
         r"^what(?:'s| is|s)? waiting(?: on| for)? me(?: right now| now)?$"
         r"|^what(?:'s| is|s)? waiting$"
+        r"|^what(?:'s| is|s)? (?:blocked|stuck|held up|hung up) on me(?: right now| now)?\s*\??$"
         # "What needs me right now" / "the first thing waiting on me" (2026-09-24, offline)
         r"|^what needs me(?: right now| now| today)?\s*\??$"
         r"|^what(?:'s| is|s)? the (?:first|next|top) thing (?:waiting (?:on|for) me|i need to do|that needs me)\s*\??$"
@@ -280,6 +281,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # minutes. The records are the answer (2026-09-22).
     ("applied_to", re.compile(
         r"^(?:what|which) (?:companies|employers|places|jobs) have i applied (?:to|for)(?: so far| this week| today)?$"
+        # "what jobs have you applied to" paid eight seconds (2026-10-05)
+        r"|^(?:what|which) (?:companies|employers|places|jobs|roles|positions) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
+        r"|^what have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
         r"|^where have i applied(?: so far| this week| today)?$"
         r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
         r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: this week| so far)?$"
@@ -860,6 +864,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:anything|any word|any news|anything new) from (?:the )?(?:employers|recruiters|companies|jobs)"
         r"(?: yet| today| overnight| this morning)?$"
         r"|^did any (?:employers?|companies|recruiters) (?:reply|write back|get back|respond)(?: to me)?(?: yet)?$"
+        # "did anything come back from employers" went to the inbox, which is
+        # not set up, instead of the records (2026-10-05).
+        r"|^(?:did|has) (?:anything|anyone|anybody) (?:come|came|get|got|gotten) back(?: to me)?(?: from (?:the )?(?:employers|companies|recruiters|jobs|anyone))?(?: yet| today)?$"
+        r"|^anything (?:come|came) back(?: from (?:the )?(?:employers|companies|recruiters|jobs))?(?: yet| today)?$"
         r"|^(?:has|did) anyone (?:replied|reply|written back|write back|got back|get back)(?: to me)?(?: yet)?$"
         # "Which jobs have replied" / "who wrote back" waited two minutes on
         # her own model with every frontier off (2026-09-22); the answer is
@@ -912,7 +920,30 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:kind of |sort of )?(?:work|jobs) (?:do i|don't i|do i not|won't i|will i not) (?:want|do|take)(?: to do)?\s*\??$"
         r"|^what (?:have i|did i) (?:told|tell) (?:you|u) (?:i|that i) (?:want|don't want|do not want|won't do|will not do)\s*\??$"
         r"|^what (?:am i|are we|are you) not applying (?:to|for)\s*\??$"
-        r"|^what(?:'s| is) off the table\s*\??$")),
+        r"|^what(?:'s| is) off the table\s*\??$"
+        # "what have I told you not to apply to" (2026-10-05)
+        r"|^what (?:have i|did i) (?:told|tell|asked|ask) (?:you|u) (?:not to|to not|to never|never to) (?:apply (?:to|for)|do|take)\s*\??$"
+        r"|^what (?:am i|are (?:you|u|we)) (?:avoiding|skipping|leaving out|not going for|steering clear of)\s*\??$")),
+    # "What's the best job you found today" is the discovery summary's
+    # standouts (2026-10-05: a model, "tell me what kind of role").
+    ("best_found", re.compile(
+        r"^what(?:'s| is|s|'s been)? the best (?:job|one|opening|role|position) (?:you|u)(?:'ve| have)? (?:found|saw|seen|came across|turned up)(?: today| so far| this week)?\s*\??$"
+        r"|^(?:what|which) (?:jobs|openings|ones|roles) (?:stood out|stand out|looked good|look good)(?: today)?\s*\??$"
+        r"|^any (?:good|standout|great) (?:jobs|ones|openings|roles)(?: today| so far)?\s*\??$"
+        r"|^what did (?:you|u) find today\s*\??$")),
+    # "What's Barkly up to" / "whose turn is it on Barkly" is a charter by
+    # the name he calls it (2026-10-05: a model, "I don't know what Barkly is").
+    ("project_of", re.compile(
+        r"^what(?:'s| is|s)? (?:the |my )?(?P<project_of>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)? (?:up to|doing|at|looking like)(?: now| today| these days)?\s*\??$"
+        r"|^(?:where (?:are we|am i|is it)|how far along (?:are we|is it)) (?:on|with) (?:the |my )?(?P<project_of2>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$"
+        r"|^whose (?:turn|move|go) (?:is it )?(?:on|for|with) (?:the |my )?(?P<project_turn>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the )?next (?:step|move) (?:on|for|with) (?:the |my )?(?P<project_of3>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$")),
+    # "What's my resume say" (2026-10-05: a model, "tell me which file it is").
+    ("resume_says", re.compile(
+        r"^what(?:'s| does| is)? (?:my |the )?(?:resume|cv) say\s*\??$"
+        r"|^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:resume|cv)\s*\??$"
+        r"|^(?:summarize|summarise|sum up|gist of) (?:my |the )?(?:resume|cv)(?: for me)?\s*\??$"
+        r"|^(?:do (?:you|u) have|have (?:you|u) got|where(?:'s| is)) my (?:resume|cv)\s*\??$")),
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
@@ -1079,6 +1110,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "due_when", "due_when2", "due_when3",
+                                           "project_of", "project_of2", "project_of3", "project_turn",
                                            "recall6",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
@@ -3037,10 +3069,21 @@ def _hunting_for() -> str:
     else:
         parts.append("I read the roles off your resume each time I search; none are remembered yet")
     if wanted:
-        parts.append("you want " + wanted.rstrip("."))
+        parts.append("You want " + _steer_list(wanted))
     if unwanted:
-        parts.append("not " + unwanted.rstrip("."))
+        parts.append("You won't do " + _steer_list(unwanted, either=True))
     return ". ".join(parts) + "."
+
+
+def _steer_list(value: str, *, either: bool = False) -> str:
+    """A steering field is kept as "a; b; c" (profile.steer_by); it is said
+    as a list ("not anything in sales; recruiters" was read out, 2026-10-05).
+    What he won't do takes "or": "anything in sales or recruiters"."""
+    from aletheia import speech
+    items = [p.strip().rstrip(".") for p in str(value or "").split(";") if p.strip()]
+    if not items:
+        return str(value or "").rstrip(".")
+    return speech.or_list(items) if either else speech.and_list(items)
 
 
 def _work_wants() -> str:
@@ -3055,9 +3098,9 @@ def _work_wants() -> str:
         return "You haven't told me what work you want or won't do; tell me and I'll steer by it."
     said = []
     if wanted:
-        said.append("You want " + wanted.rstrip("."))
+        said.append("You want " + _steer_list(wanted))
     if unwanted:
-        said.append("You won't do " + unwanted.rstrip("."))
+        said.append("You won't do " + _steer_list(unwanted, either=True))
     return ". ".join(said) + "."
 
 
@@ -3209,6 +3252,86 @@ def _applied_on(rest) -> str:
             said.append(f"{title} at {company}" if company and title else (company or title or "one I did not name"))
     return (f"{speech.count_phrase(len(sent), 'application')} went out {when}: {speech.and_list(said)}"
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
+
+
+def _best_found() -> str:
+    """The standouts of today's discovery summary, by value, or that she has
+    not gone looking yet - never a guess about a job she did not see."""
+    from aletheia import job_discovery, speech
+    try:
+        summary = job_discovery.today()
+    except Exception:
+        return "I can't read today's search right now."
+    if not summary:
+        return job_discovery.spoken(None)
+    rows = job_discovery.standouts(summary, n=3)
+    if not rows:
+        return job_discovery.spoken(summary) + " None stood out."
+    named = [f"{r.get('title') or 'a role'} at {r.get('company') or 'an employer I did not catch the name of'}" for r in rows]
+    lead = "The best today" if len(named) == 1 else "The best today, in order"
+    return f"{lead}: {speech.and_list(named)}."
+
+
+def _project_of(name: str) -> str | None:
+    """One charter by the name he calls it: where it stands and whose turn
+    it is. None when the words name no charter and no fleet repository, so
+    the planner still gets "what's the weather doing"."""
+    from aletheia import plans, speech
+    wanted = " ".join(str(name or "").split())
+    if not wanted or wanted in ("weather", "the weather", "time", "market", "the market"):
+        return None
+    try:
+        plan, why = plans.find_charter(wanted)
+    except Exception:
+        return None
+    if plan is None:
+        if why.startswith("Which"):
+            return why
+        try:
+            from aletheia import current_state
+            repo = current_state.repo_words(wanted)
+        except Exception:
+            repo = None
+        if repo:
+            return repo
+        return (f"I don't have a project called {wanted} on record. Say \"new project: {wanted}\" "
+                "and a sentence about it, and I'll draft a charter for you to confirm.")
+    title = str(plan.get("title") or plan.get("slug") or wanted)
+    done, total = plans.progress(plan)
+    step = plans.next_step(plan)
+    if plan.get("state") == "proposed":
+        return f"{title} is a draft charter waiting for your yes - say yes to it and I'll start."
+    if step is None:
+        return f"{title}: every step is done, {done} of {total}."
+    who = plans.owner(step)
+    turn = "that one's yours" if who == "operator" else "that one's mine"
+    return (f"{title}: {done} of {total} steps done. Next is step {step.get('n')}, "
+            f"{speech.tidy(str(step.get('text') or '')).rstrip('.')} - {turn}.")
+
+
+def _resume_says() -> str:
+    """The resume she reads, in one breath: which file, how long, what it is
+    for, and how it opens. Never a summary she made up."""
+    from aletheia import campaign, speech
+    try:
+        path, text = campaign.read_resume("")
+    except Exception:
+        return ("I can't find a resume on this PC. I look in Documents, Downloads and Desktop "
+                "for a file with resume or CV in its name.")
+    import os
+    name = os.path.basename(str(path))
+    words = len(str(text or "").split())
+    try:
+        roles = campaign.roles_remembered(text) or []
+    except Exception:
+        roles = []
+    first = next((line.strip() for line in str(text or "").splitlines() if line.strip()), "")
+    said = f"Your resume is {name}, about {speech.count_phrase(words, 'word')}."
+    if roles:
+        said += f" It reads as a resume for {speech.and_list([str(r) for r in roles[:4]])}."
+    if first:
+        said += f" It opens: '{first[:120]}'."
+    return said
 
 
 def _contacts_all() -> str | None:
@@ -4331,6 +4454,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "today": lambda rest: _today(rest),
            "due_week": lambda rest: _due_week(rest),
            "contacts_all": lambda rest: _contacts_all(),
+           "best_found": lambda rest: _best_found(),
+           "project_of": lambda rest: _project_of(rest),
+           "resume_says": lambda rest: _resume_says(),
            "interview_when": lambda rest: _interview_when(),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),

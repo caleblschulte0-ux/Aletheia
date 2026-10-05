@@ -54,10 +54,13 @@ class TheStoreAndItsReader(unittest.TestCase):
     def test_the_lists_accumulate_and_the_facts_replace(self):
         self.assertEqual(profile.steer_by("work_wanted", "only remote jobs"), "From now on I'll look for only remote jobs.")
         self.assertEqual(profile.steer_by("work_not_wanted", "cold calling"), "From now on I'll leave out cold calling.")
+        # The store keeps "a; b"; the receipt names the new one and what it
+        # joins ("anything in sales; recruiters" was read as one thing, 2026-10-05).
         self.assertEqual(profile.steer_by("work_not_wanted", "part-time jobs"),
-                         "From now on I'll leave out cold calling; part-time jobs.")
+                         "From now on I'll leave out part-time jobs, along with cold calling.")
         self.assertEqual(profile.steer_by("work_not_wanted", "Cold calling"),
-                         "From now on I'll leave out cold calling; part-time jobs.", "a repeat is not said twice")
+                         "I already leave out cold calling, along with part-time jobs.", "a repeat is not said twice")
+        self.assertEqual(profile.answer("work_not_wanted"), "cold calling; part-time jobs")
         self.assertEqual(profile.steer_by("desired_pay", "110k"), "Your minimum pay is now 110k.")
         self.assertEqual(profile.steer_by("desired_pay", "$115,000"), "Your minimum pay is now $115,000.")
         said = profile.preferences_words()

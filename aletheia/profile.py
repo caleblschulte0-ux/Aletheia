@@ -398,10 +398,12 @@ def steer_by(field: str, value, *, quote: str = "") -> str:
     said = " ".join(str(value or "").split()).strip(" .")
     if not said:
         raise ValueError("nothing to steer by")
+    repeat = None
     if field in _LIST_FIELDS:
         before = str(answer(field) or "").strip(" .")
         parts = [p.strip() for p in before.split(";") if p.strip()]
-        if said.casefold() not in (p.casefold() for p in parts):
+        repeat = next((p for p in parts if p.casefold() == said.casefold()), None)
+        if repeat is None:
             parts.append(said)
         now = "; ".join(parts)
     else:
@@ -416,6 +418,17 @@ def steer_by(field: str, value, *, quote: str = "") -> str:
             "desired_pay": "Your minimum pay is now", "notice_period": "You can start",
             "willing_to_relocate": "Relocation is now",
             "roles_added": "Besides what your resume is for, I'll hunt for"}[field]
+    if field in _LIST_FIELDS:
+        # "From now on I'll leave out anything in sales; recruiters" (2026-10-05)
+        # read as one thing. The new one, then what it joins - and a repeat
+        # says it was already there.
+        from aletheia import speech
+        others = [p for p in parts if p.casefold() != said.casefold()]
+        if repeat is not None:
+            already = {"work_wanted": "I already look for", "work_not_wanted": "I already leave out",
+                       "roles_added": "I already hunt for"}[field]
+            return f"{already} {repeat}" + (f", along with {speech.and_list(others)}" if others else "") + "."
+        return f"{lead} {said}" + (f", along with {speech.and_list(others)}" if others else "") + "."
     return f"{lead} {now}."
 
 
