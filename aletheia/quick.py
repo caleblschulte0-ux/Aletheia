@@ -240,7 +240,31 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"made (?:me )?an (?P<outcome4>offer)|(?:wants?|asked) (?:to |an |for an )?(?P<outcome5>interview|talk))$"
         # "Did I get an interview" (2026-09-24, offline: "I could not plan that")
         r"|^(?:did|have) i (?:get|got|gotten|land|landed|receive|received) (?:an |any |a )?(?P<outcome6>interviews?|offers?|rejections?)"
-        r"(?: yet| today| this week| so far)?\s*\??$")),
+        r"(?: yet| today| this week| so far)?\s*\??$"
+        # "did anyone reject me" (2026-10-05: a model, "I can't tell")
+        r"|^(?:did|has) (?:anyone|anybody|any company|any employer|someone) (?P<outcome7>reject|rejected|turn down|turned down|say no to|said no to|pass on|passed on) me(?: yet| today| this week)?\s*\??$")),
+    # The records answer these (2026-10-05: six model turns, each denying
+    # or hedging about a store she holds).
+    ("ghosted", re.compile(
+        r"^who (?:ghosted|never (?:replied|got back|wrote back|answered)|hasn'?t (?:replied|got back|written back|answered)|owes me a reply)(?: (?:to )?me)?\s*\??$"
+        r"|^who (?:haven'?t|have i not) i heard (?:back )?from\s*\??$|^who haven'?t i heard back from\s*\??$"
+        r"|^(?:which|what) (?:companies|employers|applications) (?:haven'?t|never|didn'?t) (?:replied|got back|written back|answered)\s*\??$"
+        r"|^who (?:should i|do i need to) (?:chase|nudge|poke)\s*\??$")),
+    ("application_extreme", re.compile(
+        # (the newest is `newest_application` above - one door per question)
+        r"^what(?:'s| is|s)? (?:my |the )?(?P<app_extreme>oldest|first|earliest) application\s*\??$"
+        r"|^which application is (?:the )?(?P<app_extreme2>oldest|furthest along|farthest along|most advanced|closest)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the )?(?P<app_extreme3>furthest along|farthest along)\s*\??$")),
+    ("last_sent", re.compile(
+        r"^what(?:'s| is| was|s)? the last (?:thing|application|one) (?:you|u) sent(?: out)?\s*\??$"
+        r"|^what did (?:you|u) send (?:last|most recently)\s*\??$")),
+    ("found_companies", re.compile(
+        r"^(?:what|which) (?:companies|employers) (?:did (?:you|u) (?:find|see|come across|turn up)|came up|turned up)(?: today| so far today)?\s*\??$"
+        r"|^(?:who|what companies) (?:are|r|is) hiring(?: today| right now)?\s*\??$")),
+    ("next_batch", re.compile(
+        r"^when(?:'s| is) the next (?:batch|round|run)(?: of applications)?\s*\??$"
+        r"|^when (?:do|will|does) (?:you|u|the hunt|it) (?:apply|run|send|go) (?:again|next)\s*\??$"
+        r"|^when(?:'s| is) the next time (?:you|u)(?:'ll| will) apply\s*\??$")),
     ("job_hunt", re.compile(
         r"^how (?:did|have|are) (?:the )?(?:job )?(?:applications|apps|job hunt|hunt|job search)"
         r" (?:go|gone|going)(?: today| so far| so far today)?$"
@@ -1254,7 +1278,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7", "day10",
                                            "what_day", "what_day2", "leap_year", "leap_year2",
-                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
+                                           "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6", "outcome7",
+                                           "app_extreme", "app_extreme2", "app_extreme3",
                                            "until", "until2", "until3", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -1984,7 +2009,8 @@ def _outcomes(said: str) -> str:
     word = said.casefold().strip().rstrip("s")
     key = {"interview": "interview", "offer": "offer", "rejection": "rejected", "replie": "replied",
            "reply": "replied", "response": "replied", "talk": "interview", "turned": "rejected",
-           "rejected": "rejected"}.get(word, word)
+           "rejected": "rejected", "reject": "rejected", "turn down": "rejected", "turned down": "rejected",
+           "say no to": "rejected", "said no to": "rejected", "pass on": "rejected", "passed on": "rejected"}.get(word, word)
     try:
         rows = apply_run.all_runs()
     except Exception:
@@ -2004,6 +2030,113 @@ def _outcomes(said: str) -> str:
             names.append(company)
     return (f"{speech.count_phrase(len(hits), plural[:-1] if plural.endswith('s') else plural)} on record"
             + (f": {speech.and_list(names[:6])}" + (", and more" if len(names) > 6 else "") if names else "") + ".")
+
+
+def _sent_runs() -> list[dict]:
+    from aletheia import apply_run
+    rows = [r for r in apply_run.all_runs() if str(r.get("state") or "") == "SUBMITTED"]
+    rows.sort(key=lambda r: str(r.get("submitted_at") or r.get("created_at") or ""))
+    return rows
+
+
+def _heard_back(record: dict) -> bool:
+    return bool(record.get("outcomes")) or bool(record.get("outcome"))
+
+
+def _ghosted() -> str:
+    """Applications sent more than a week ago with nothing back, from the records."""
+    import datetime as dt
+    from aletheia import apply_run, speech
+    try:
+        rows = _sent_runs()
+    except Exception:
+        return "I can't read my application records right now."
+    if not rows:
+        return "Nobody to chase: no application has gone out through me yet."
+    cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)).isoformat()
+    quiet = [r for r in rows if not _heard_back(r) and str(r.get("submitted_at") or "") < cutoff]
+    recent = [r for r in rows if not _heard_back(r) and str(r.get("submitted_at") or "") >= cutoff]
+    if not quiet:
+        return (f"Nobody has gone quiet on you yet: {speech.count_phrase(len(recent), 'application')} went out inside the last week and "
+                "a week is the usual wait." if recent else "Everything that went out has had an answer.")
+    named = [apply_run.describe(r) for r in quiet[:5]]
+    return (f"{speech.count_phrase(len(quiet), 'application')} with nothing back after a week: {speech.and_list(named)}"
+            + (f", and {len(quiet) - 5} more" if len(quiet) > 5 else "") + ".")
+
+
+def _application_extreme(which: str = "") -> str:
+    """The oldest, newest or furthest-along application, from the records."""
+    from aletheia import apply_run, speech
+    try:
+        rows = _sent_runs()
+    except Exception:
+        return "I can't read my application records right now."
+    if not rows:
+        return "None: no application has gone out through me yet."
+    low = str(which or "").casefold()
+    if low in ("furthest along", "farthest along", "most advanced", "closest"):
+        rank = {"offer": 4, "interview": 3, "replied": 2, "rejected": 0}
+
+        def score(r):
+            outs = [str(o.get("outcome")) for o in (r.get("outcomes") or [])] + ([str(r.get("outcome"))] if r.get("outcome") else [])
+            return max((rank.get(o, 1) for o in outs), default=1)
+
+        best = max(rows, key=score)
+        if score(best) <= 1:
+            return "None is past the first step: nothing sent has had a reply yet."
+        stage = {4: "an offer", 3: "an interview", 2: "a reply"}[score(best)]
+        return f"{apply_run.describe(best)} is furthest along, with {stage}."
+    row = rows[0] if low in ("oldest", "first", "earliest") else rows[-1]
+    when = speech.humanize_time(str(row.get("submitted_at") or "")) if row.get("submitted_at") else ""
+    lead = "The oldest" if row is rows[0] and low in ("oldest", "first", "earliest") else "The newest"
+    return f"{lead}: {apply_run.describe(row)}" + (f", sent {when}" if when else "") + "."
+
+
+def _last_sent() -> str:
+    from aletheia import apply_run, speech
+    try:
+        rows = _sent_runs()
+    except Exception:
+        return "I can't read my application records right now."
+    if not rows:
+        return "Nothing has gone out through me yet."
+    row = rows[-1]
+    when = speech.humanize_time(str(row.get("submitted_at") or "")) if row.get("submitted_at") else ""
+    return f"The last application sent was {apply_run.describe(row)}" + (f", {when}" if when else "") + "."
+
+
+def _found_companies() -> str:
+    from aletheia import job_discovery, speech
+    try:
+        summary = job_discovery.today()
+    except Exception:
+        return "I can't read today's search right now."
+    if not summary:
+        return job_discovery.spoken(None)
+    names: list[str] = []
+    for row in (summary.get("employers_new") or []):
+        if str(row) not in names:
+            names.append(str(row))
+    for row in job_discovery.standouts(summary, n=9):
+        company = str(row.get("company") or "")
+        if company and company not in names:
+            names.append(company)
+    if not names:
+        return job_discovery.spoken(summary) + " I didn't record the employers by name."
+    return f"Today: {speech.and_list(names[:6])}" + (f", and {len(names) - 6} more" if len(names) > 6 else "") + "."
+
+
+def _next_batch() -> str:
+    from aletheia import apply_forever
+    try:
+        held = apply_forever.paused()
+    except Exception:
+        held = None
+    if held:
+        return "Not until you say start applying - the hunt is paused" + (f" ({held.get('reason')})" if held.get("reason") else "") + "."
+    minutes = max(1, int(round(float(getattr(apply_forever, "IDLE_WAIT_S", 600)) / 60)))
+    return (f"The hunt runs on its own loop: a batch of up to {getattr(apply_forever, 'BATCH', 5)} whenever the loop comes round, "
+            f"about every {minutes} minutes while there is something to send and a model to think with.")
 
 
 def _job_hunt() -> str | None:
@@ -5354,6 +5487,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda": lambda rest: _agenda(rest or "today"),
            "weekend": lambda rest: _weekend(),
            "my_list": lambda rest: _my_list(),
+           "ghosted": lambda rest: _ghosted(),
+           "application_extreme": lambda rest: _application_extreme(rest),
+           "last_sent": lambda rest: _last_sent(),
+           "found_companies": lambda rest: _found_companies(),
+           "next_batch": lambda rest: _next_batch(),
            "notes_count": lambda rest: _notes_count(),
            "notes_search": lambda rest: _recall(rest),
            "what_day": lambda rest: _what_day(rest),
