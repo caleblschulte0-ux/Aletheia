@@ -42,3 +42,23 @@ class TheKitchen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MyListNamesNoList(unittest.TestCase):
+    def test_both_stores_answer(self):
+        with mock.patch("aletheia.intercom._tasks_answer", return_value="Nothing on your list."), \
+             mock.patch("aletheia.intercom.shopping_answer", return_value="3 things on your shopping list: bread, eggs and milk."):
+            self.assertEqual(intercom.my_list_answer(), "3 things on your shopping list: bread, eggs and milk.")
+            self.assertEqual(voice.interpret("what's on my list")["say"], "3 things on your shopping list: bread, eggs and milk.")
+        with mock.patch("aletheia.intercom._tasks_answer", return_value="2 things on your list: a and b."), \
+             mock.patch("aletheia.intercom.shopping_answer", return_value="1 thing on your shopping list: milk."):
+            self.assertEqual(intercom.my_list_answer(), "Tasks: 2 things on your task list: a and b. Shopping: 1 thing on your shopping list: milk.")
+        with mock.patch("aletheia.intercom._tasks_answer", return_value="Nothing on your list."), \
+             mock.patch("aletheia.intercom.shopping_answer", return_value="Nothing on your shopping list."):
+            self.assertEqual(quick.answer("what's on my list"), "Nothing on your task list or your shopping list.")
+
+    def test_cross_off_asks_the_shopping_list_first(self):
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=True):
+            self.assertEqual(voice.interpret("cross off milk")["command"], {"kind": "shopping_off", "item": "milk"})
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=False):
+            self.assertEqual(voice.interpret("cross off milk")["command"], {"kind": "task_done", "which": "milk"})

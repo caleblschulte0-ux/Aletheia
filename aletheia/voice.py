@@ -1965,6 +1965,13 @@ def _interpret(transcript: str) -> dict:
     # "What are my tasks" is a store read and it was costing 8.5 seconds
     # through the planner, coming back as markdown bullets. She could
     # CREATE a task by voice and had no verb for reading the list.
+    # "What's on my list" names no list: both stores (2026-10-05).
+    if re.fullmatch(r"(?:what(?:'s| is|s)? on (?:my|the) list|(?:read|show|tell) me (?:my|the) list|my list)\s*\??", low):
+        try:
+            from aletheia import intercom as _ic
+            return {"command": None, "say": _ic.my_list_answer()}
+        except Exception:
+            pass
     if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
                     r"my tasks|list (?:my )?tasks|what do i have to do|"
                     r"what(?:'s| is|s)? left to do|todo list|"
@@ -1985,6 +1992,11 @@ def _interpret(transcript: str) -> dict:
     # to tick something off, so a bare "did" may not start this — only
     # "I did". The past-tense statements ("finished the passport one")
     # stand on their own because nobody asks a question that way.
+    # "Cross off milk" with milk on the SHOPPING list is the shopping list
+    # (2026-10-05: "Nothing open matching 'milk'" from the task store).
+    m = re.fullmatch(r"(?:tick|check|cross) off (?:the )?(.+?)", low)
+    if m and _on_the_shopping_list(m.group(1)):
+        return {"command": {"kind": "shopping_off", "item": m.group(1).strip()}, "say": None}
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(.+?)"
                       r"(?: one| task)? (?:as )?(?:done|complete[d]?|finished)",
                       low)

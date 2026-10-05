@@ -1962,6 +1962,23 @@ def _nothing_on_it_at_all(cal, day) -> str:
             "different calendar than the one you use.")
 
 
+def my_list_answer() -> str:
+    """"What's on my list" names no list: both stores answer, and an empty
+    one is not the other one (2026-10-05: "Nothing on your list" from the
+    task store while three things sat on the shopping list)."""
+    tasks_said = _tasks_answer()
+    shop_said = shopping_answer()
+    tasks_empty = tasks_said.startswith("Nothing on your list")
+    shop_empty = shop_said.startswith("Nothing on your shopping list")
+    if tasks_empty and shop_empty:
+        return "Nothing on your task list or your shopping list."
+    if tasks_empty:
+        return shop_said
+    if shop_empty:
+        return tasks_said.replace("on your list", "on your task list", 1)
+    return f"Tasks: {tasks_said.replace('on your list', 'on your task list', 1)} Shopping: {shop_said}"
+
+
 def shopping_answer() -> str:
     """His shopping list as one sentence. Public because `quick` answers
     "what's on my shopping list" from the same store, and the sentence

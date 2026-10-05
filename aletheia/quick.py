@@ -696,8 +696,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many repos do (?:you|u) watch$"
         r"|^what repos (?:are )?(?:you|u) watching$"
         r"|^how many repos$")),
+    ("my_list", re.compile(r"^what(?:'s| is|s)? on (?:my|the) list$|^(?:read|show|tell) me (?:my|the) list$")),
     ("shopping", re.compile(
-        r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
+        r"^what(?:'s| is|s)? on my shopping list$"
         r"|^(?:my )?shopping list$|^what do i need (?:to buy|from the store|to get|at the store)$"
         r"|^what(?:'s| is|s)? on the shopping list$"
         # "what's my shopping list" went to a model, which DENIED the store
@@ -4130,6 +4131,14 @@ def _dst() -> str:
     return "Your time zone doesn't change its clocks."
 
 
+def _my_list() -> str | None:
+    from aletheia import intercom
+    try:
+        return intercom.my_list_answer()
+    except Exception:
+        return None
+
+
 def _contacts_all() -> str | None:
     """Who she has saved, from the contacts store, said by `intercom` so the
     voice door and this one cannot drift."""
@@ -5344,6 +5353,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "cannot": lambda rest: _cannot(),
            "agenda": lambda rest: _agenda(rest or "today"),
            "weekend": lambda rest: _weekend(),
+           "my_list": lambda rest: _my_list(),
            "notes_count": lambda rest: _notes_count(),
            "notes_search": lambda rest: _recall(rest),
            "what_day": lambda rest: _what_day(rest),
