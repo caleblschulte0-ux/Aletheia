@@ -2569,7 +2569,10 @@ def _interpret(transcript: str) -> dict:
     # "Am I busy Friday" is the same question from the other side (2026-10-05:
     # a model); the answer says the free hours and what is pencilled in.
     m = re.fullmatch(r"(?:when am i free|am i free|are we free|am i busy|are we busy|how busy am i|is my calendar (?:free|clear|busy)|"
-                     r"what'?s my availability|any free time|do i have time|do i have anything (?:on|planned|booked))"
+                     r"what'?s my availability|any free time|do i have time|do i have anything(?: on| planned| booked)?|"
+                     # "what time works for a call on thursday" (2026-10-05: a model)
+                     r"what time (?:works|would work|is good|suits)(?: for (?:a |an )?(?:call|meeting|chat|catch[- ]?up))?|"
+                     r"when (?:could|can) i (?:fit in|do|take|have) (?:a |an )?(?:call|meeting|chat))"
                      r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
         asked = _ambiguous_next_weekday(m.group(1) or "")
@@ -3846,7 +3849,7 @@ def _interpret(transcript: str) -> dict:
     # here if you need anything"). A nod asks for nothing and gets no words
     # back; the yes and no rules above have already had their turn, so a
     # bare "okay" with something pending is still a yes there.
-    if re.fullmatch(r"(?:ok|okay|k|cool|ok cool|okay cool|cool cool|alright|all right|alright then|gotcha|got it|sweet|nice|"
+    if re.fullmatch(r"(?:cool|ok cool|okay cool|cool cool|alright|all right|alright then|gotcha|got it|sweet|nice|"
                     r"noted|roger|copy|copy that|fair enough|makes sense|sounds good|word|bet|aight|okay then|ok then|"
                     r"right|right on|good|great|fine|cool thanks|ok thanks|okay thanks|i see|ah ok|oh ok|ah okay|oh okay)"
                     r"(?: thea)?(?: then)?", low):
@@ -4194,6 +4197,20 @@ def _interpret(transcript: str) -> dict:
             if rest:
                 out["and_then"] = [{"ask": f"take {e.get('title')} off my calendar"} for e in rest[:6]]
             return out
+
+    # "HOLD LUNCH EVERY DAY AT NOON" (2026-10-05: the planner offered a
+    # reminder instead, for approval). A repeating hold is not built; said
+    # so, with the two things that are, and counted.
+    if re.fullmatch(r"(?:hold|block(?: out| off)?|reserve|keep) (?:.+?) (?:every|each) (?:day|weekday|morning|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?: .+)?"
+                    r"|(?:hold|block(?: out| off)?|reserve) (?:every|each) (?:day|weekday|morning|week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?: .+)?", low):
+        try:
+            from aletheia import demand as _demand
+            _demand.record("calendar.hold", text, status="NOT_BUILT", source="voice")
+        except Exception:
+            pass
+        return {"command": None,
+                "say": ("I can't pencil in a repeating hold yet - that isn't built, and I've counted the ask. One day at a time "
+                        "works: 'hold Monday at noon for lunch'. A repeating reminder works too: 'remind me every day at noon to have lunch'.")}
 
     # A HOLD ON HIS CALENDAR, in her own model: "put dinner with Sam on my
     # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is

@@ -44,7 +44,7 @@ class SaidTired(unittest.TestCase):
         with mock.patch.object(policy, "all_approvals", return_value=[]), \
                 mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
             self.assertEqual(voice.interpret("thea nah forget it")["say"], "Okay - nothing was waiting.")
-            for said in ("ok cool", "gotcha", "okay", "cool cool", "makes sense", "ah ok"):
+            for said in ("ok cool", "gotcha", "cool cool", "makes sense", "ah ok"):
                 self.assertEqual(voice.interpret(f"thea {said}"), {"command": None, "say": ""}, said)
 
     def test_the_wake_word_after_a_yo(self):

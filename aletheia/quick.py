@@ -566,7 +566,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how (?:many days|long|many weeks) (?:until|till|to|before) my (?:next )?birthday(?: is it)?\s*\??$"
         r"|^when(?:'s| is) my next birthday\s*\??$|^is my birthday (?:soon|coming up)\s*\??$")),
     ("until", re.compile(
-        r"^how (?:many (?:days|weeks)|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
+        r"^how (?:many (?:days|weeks)|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |my next (?:meeting|appointment|event))"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$"
@@ -743,7 +743,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
         r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
         # "do I have anything on sunday" went looking for a FILE called that (2026-10-05)
-        r"|^(?:do i have|have i got|is there|is there) anything(?: on| for| happening)? (?P<day10>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+        r"|^(?:do i have|have i got|is there|is there) anything(?: on| for| happening)? (?P<day10>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        # "what's on friday", "anything friday" (2026-10-05: a model each)
+        r"|^what(?:'s| is|s)? (?:on |happening |happening on |up )?(?P<day11>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        r"|^anything (?:on |happening |happening on )?(?P<day12>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     # Four questions about the calendar itself (2026-10-05, each a model):
     # the weekend, which day a date is, the week number, a leap year, and
     # when the clocks change.
@@ -1225,8 +1228,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("why_no_applications", re.compile(
         r"^why (?:haven't|havent|have not|didn't|didnt|did not) (?:you|u) (?:applied|apply|sent|send) (?:to |for )?(?:anything|any|any jobs|anywhere|more|any applications)(?: today| yet)?\s*\??$"
         r"|^why (?:no|zero|aren't there any|are there no) applications(?: today| yet)?\s*\??$|^why (?:aren't|arent|are not|isn't|isnt) (?:you|u|it) applying(?: to anything| anywhere)?\s*\??$"
-        r"|^why (?:isn't|isnt|is not) the (?:job )?hunt (?:running|working|going|doing anything|applying)\s*\??$|^why (?:is )?nothing (?:sent|applied|happening with the jobs?)(?: today)?\s*\??$"
-        r"|^what(?:'s| is) (?:stopping|blocking|holding up) the (?:job )?(?:hunt|applications|search)\s*\??$")),
+        r"|^why (?:isn't|isnt|is not) the (?:job )?hunt (?:running|working|going|doing anything|applying)\s*\??$|^why (?:is )?nothing (?:sent|applied|happening with the jobs?)(?: today)?\s*\??$")),
     ("work_wants", re.compile(
         r"^what (?:kind of |sort of )?(?:work|jobs) (?:do i|don't i|do i not|won't i|will i not) (?:want|do|take)(?: to do)?\s*\??$"
         r"|^what (?:have i|did i) (?:told|tell) (?:you|u) (?:i|that i) (?:want|don't want|do not want|won't do|will not do)\s*\??$"
@@ -1485,7 +1487,7 @@ def match(question: str) -> tuple[str, str] | None:
             continue                # names no repo of the fleet: not hers to answer
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
+        if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine", "next_meeting"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9", "recall10",
                                        "need_ord", "need_ord2", "need_ord3",
@@ -1495,7 +1497,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3",
-                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day10",
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day10", "day11", "day12",
                                            "what_day", "what_day2", "leap_year", "leap_year2",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6", "outcome7",
                                            "app_extreme", "app_extreme2", "app_extreme3",
@@ -4209,7 +4211,7 @@ def _free(when: str = "") -> str | None:
         return None             # no feed, or it could not be read
 
 
-def _next_meeting() -> str | None:
+def _next_meeting(text: str = "") -> str | None:
     """His next appointment, from the block the wall already renders.
 
     `presence._next_appointment` is the one definition of "next"; reading
@@ -4231,6 +4233,16 @@ def _next_meeting() -> str | None:
     when = str(appointment.get("when") or "").strip()
     if not when:
         return None
+    if re.match(r"how long", _tidy(text)) and appointment.get("start"):
+        # "how long until my next meeting" answered with the meeting, not
+        # the wait (2026-10-05)
+        from aletheia import liveness
+        try:
+            start = dt.datetime.fromisoformat(str(appointment["start"]))
+            left = (start - now).total_seconds()
+            return f"{liveness.spoken_duration(left).capitalize()} - {title} {when}." if left > 0 else f"Now - {title} {when}."
+        except (ValueError, TypeError):
+            pass
     return f"{title} {when}." if title else f"You've got something {when}."
 
 
@@ -6685,7 +6697,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "top_memory": lambda rest: _top_memory(),
            "version": lambda rest: _version(),
            "free": _free,
-           "next_meeting": lambda rest: _next_meeting(),
+           "next_meeting": lambda rest: _next_meeting(rest),
            "running": lambda rest: _running(),
            "mine": _mine_from,
            "birthday": lambda rest: _birthday("when"),
