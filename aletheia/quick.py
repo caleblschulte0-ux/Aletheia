@@ -358,6 +358,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("ip", re.compile(
         r"^what(?:'s| is) (?:my|this computer's|the|this machine's) ip(?: address)?$"
         r"|^what ip(?: address)? (?:am i on|is this|do i have)$")),
+    # Three about the machine that paid a model each (2026-10-05): the
+    # battery, the screen, and a speed she does not measure.
+    ("battery", re.compile(
+        r"^(?:how much|what(?:'s| is|s)?|how(?:'s| is)) (?:the |my )?battery(?: (?:do i have|left|at|is left|level|percent|charge))?(?: left)?\s*\??$"
+        r"|^(?:is|am i) (?:the )?(?:battery |laptop |pc |computer )?(?:plugged in|charging|on battery|on mains|on power|low on battery)\s*\??$"
+        r"|^how (?:long|much) (?:battery |charge )?(?:is |do i have )?left(?: on (?:the|my) (?:battery|laptop))?\s*\??$")),
+    ("screen_size", re.compile(
+        r"^what(?:'s| is|s)? (?:my |the |this )?(?:screen|display|monitor) (?:resolution|size)\s*\??$"
+        r"|^what resolution (?:is|am i on|is (?:my|the) (?:screen|display|monitor))\s*\??$"
+        r"|^how (?:big|large) is (?:my|the|this) (?:screen|display|monitor)\s*\??$")),
+    ("internet_speed", re.compile(
+        r"^how fast is (?:my |the |our )?(?:internet|wifi|wi-fi|connection|network)(?: right now| today)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:internet|download|connection) speed\s*\??$"
+        r"|^(?:run|do) a speed test\s*\??$|^(?:is|why is) (?:the |my )?(?:internet|wifi|wi-fi) (?:so )?slow\s*\??$")),
     ("internet", re.compile(
         r"^(?:is|do (?:i|we) have) (?:the |an )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
         r"(?: working| up| on| down| connected| okay| ok)?$"
@@ -4677,6 +4691,35 @@ def _ip() -> str:
             if found else "This computer has no network address right now - it looks offline.")
 
 
+def _battery() -> str:
+    from aletheia import machine
+    found = machine.battery()
+    if not found:
+        return ("I have no battery reading from this machine - a desktop on mains power has none, "
+                "and a laptop's would show here if I could read it.")
+    plugged = "plugged in" if found["plugged"] else "on battery"
+    return f"{found['percent']} percent, {plugged}."
+
+
+def _screen_size() -> str:
+    from aletheia import machine
+    size = machine.screen_size()
+    if not size:
+        return "I can only read the screen size on your Windows PC, and I'm not reading it from here."
+    w, h = size
+    return f"{w} by {h} pixels."
+
+
+def _internet_speed() -> str:
+    """She does not run speed tests; she can say whether the internet is
+    reachable at all, which is the half of the question she can check."""
+    from aletheia import machine
+    up = machine.internet_reachable()
+    return ("I don't measure speed - I have no speed test. " +
+            ("The internet is reachable from here right now, so a speed test site on your PC would settle it."
+             if up else "And right now I can't reach the internet from this computer at all."))
+
+
 def _internet() -> str:
     from aletheia import machine
     return ("Yes - the internet is reachable from here."
@@ -4740,6 +4783,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "disk": lambda rest: _disk(),
            "ip": lambda rest: _ip(),
            "internet": lambda rest: _internet(),
+           "battery": lambda rest: _battery(),
+           "screen_size": lambda rest: _screen_size(),
+           "internet_speed": lambda rest: _internet_speed(),
            "windows": lambda rest: _windows(),
            "opportunity": _opportunity,
            "unattended": lambda rest: _unattended(),

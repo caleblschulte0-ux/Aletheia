@@ -2824,12 +2824,14 @@ def _interpret(transcript: str) -> dict:
     # VOLUME is the same kind of key. "Turn the volume down" waited two
     # minutes on her own model for want of it (2026-09-22).
     m = re.fullmatch(r"(?:turn (?:the |it )?(?:volume |sound )?(?P<dir>up|down)(?: a (?:bit|little|notch))?|"
+                     # "turn UP the volume" - the other word order (2026-10-05)
+                     r"turn (?P<dir3>up|down) (?:the |my )?(?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
                      r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
                      r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
                      r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
     if m:
-        direction = m.group("dir") or m.group("dir2")
+        direction = m.group("dir") or m.group("dir2") or m.group("dir3")
         action = ("volume_up" if direction == "up" or m.group("louder")
                   else "volume_down" if direction == "down" or m.group("quieter")
                   else "mute")

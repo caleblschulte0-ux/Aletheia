@@ -181,6 +181,30 @@ def internet_reachable(timeout_s: float = 2.0) -> bool:
     return False
 
 
+def battery() -> dict | None:
+    """{"percent", "plugged"} from psutil, or None when there is no reading:
+    no psutil, or a desktop with no battery. Never raises."""
+    try:
+        import psutil
+        found = psutil.sensors_battery()
+    except Exception:
+        return None
+    if found is None:
+        return None
+    return {"percent": int(round(found.percent)), "plugged": bool(found.power_plugged)}
+
+
+def screen_size() -> tuple[int, int] | None:
+    """The primary display's pixels, on Windows, else None. Never raises."""
+    if sys.platform != "win32":
+        return None
+    try:
+        user32 = ctypes.windll.user32
+        return int(user32.GetSystemMetrics(0)), int(user32.GetSystemMetrics(1))
+    except Exception:
+        return None
+
+
 def open_windows(limit: int = 12) -> list[str]:
     """Titles of the visible top-level windows, most recent first, no
     duplicates. Empty off Windows. Never raises."""
