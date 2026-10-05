@@ -265,10 +265,10 @@ def search(query: str = "", *, place: str = "",
         asked = " ".join(str(place or "").casefold().split())
         heard_of = any(asked == name.split("/")[-1].casefold()
                        for name in PLACES)
-        lead = (f"there is no {place} folder on this machine"
-                if heard_of else f"she does not know a folder called {place}")
+        lead = (f"There is no {place} folder on this machine"
+                if heard_of else f"I don't know a folder called {place}")
         raise FilesError(
-            f"{lead}. She can look in " + speech.or_list(place_names()) + ".")
+            f"{lead}. I can look in " + speech.or_list(place_names()) + " instead.")
     targets = [("", named)] if named else places()
     found: list[dict] = []
     ran_out = False

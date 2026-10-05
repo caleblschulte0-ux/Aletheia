@@ -578,9 +578,12 @@ def run(question: str, *, reader=browse.read_page, think=None,
 
     sources, failed = read_sources(candidates, reader=reader)
     if not sources:
+        # Read out loud as "found 5 candidate pages and could read none of
+        # them" (sandbox, 2026-10-05): a log line. Say what it means for him.
         raise ResearchError(
-            "found " + speech.count_phrase(len(candidates), "candidate page")
-            + " and could read none of them")
+            "I found " + speech.count_phrase(len(candidates), "page") + " about that and could not "
+            "read any of them, so I have nothing to answer from. If my browser is blocked from the "
+            "web right now, that is why")
 
     # THE LOCAL RUNG HAS TO FIT (CLAUDE.md). With no frontier, her own
     # model writes the report, and 7.5 KB of extracts is a call it cannot

@@ -232,7 +232,7 @@ class SaidOutLoudCase(unittest.TestCase):
 
             with self.assertRaises(files.FilesError) as caught:
                 files.find("x", place="Attic")
-            self.assertIn("does not know", str(caught.exception))
+            self.assertIn("know a folder called Attic", str(caught.exception))
 
 
 class MatchingCase(unittest.TestCase):

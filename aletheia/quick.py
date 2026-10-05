@@ -938,6 +938,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # `interviews.status()` held 1 to 2:30 PM Central the whole time).
     ("interview_window", re.compile(
         r"^what(?:'s| is|s)? my interview (?:window|hours|times)\s*\??$"
+        r"|^what are my interview (?:window|hours|times)\s*\??$|^when (?:can|do) i (?:do|take) interviews\s*\??$"
         r"|^what times? (?:is|are) my interview (?:window|hours|times)\s*\??$"
         r"|^what(?:'s| is) the interview (?:switch|booking) (?:set to|on|at)\s*\??$"
         r"|^(?:is|are) interview (?:booking|bookings) (?:on|off|switched on|switched off)\s*\??$"
