@@ -32,7 +32,7 @@ class AllOfThem(unittest.TestCase):
         with mock.patch("aletheia.intercom._open_tasks", return_value=rows), \
              mock.patch("aletheia.tasks.set_status") as moved:
             said = intercom.execute_command({"kind": "task_done", "which": "everything", "as": "cancelled"}, {"repos": {}}, quote="clear all tasks")
-        self.assertEqual(said, "cleared — a and b")
+        self.assertEqual(said, "Cleared your task list: a and b.")
         self.assertEqual([c.args[1] for c in moved.call_args_list], ["CANCELLED", "CANCELLED"])
 
     def test_deny_all_is_each_its_own_no(self):

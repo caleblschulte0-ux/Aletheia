@@ -2518,7 +2518,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for row in rows:
                 tasks_mod.set_status(row["id"], "CANCELLED" if cancel else "COMPLETED",
                                      note=f"{'cleared' if cancel else 'marked done'}: {quote[:120]}")
-            return ("cleared — " if cancel else "marked done — ") + speech.and_list([str(r.get("description") or r["id"]) for r in rows[:6]])
+            named = speech.and_list([str(r.get("description") or r["id"]) for r in rows[:6]])
+            # "cleared — a and b" was read out raw (2026-10-05): the receipt
+            # grammar knows "marked done"; a clearing is said as a sentence.
+            return f"Cleared your task list: {named}." if cancel else f"marked done — {named}"
         found, why = _one_task(cmd["which"])
         if found is None:
             return why
