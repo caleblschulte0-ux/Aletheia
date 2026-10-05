@@ -793,6 +793,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # one — that is the whole point of there being one answer.
     ("running", re.compile(
         r"^what(?:'s| is|s)? running(?: right now)?$"
+        # "is thea awake" (2026-10-05: a model) - the running headline
+        r"|^(?:are|r) (?:you|u) (?:awake|alive|up|on|running|there|around)(?: right now| now)?$"
         r"|^which parts are running$|^what parts (?:of you )?are running$"
         r"|^is anything running$|^what(?:'s| is|s)? on right now$"
         r"|^are (?:you|u) all running$"
@@ -978,7 +980,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
     ("greeting", re.compile(
-        r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
+        r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there|hello there|hi thea|hello thea|hey thea|what'?s good|good day)$"
         r"|^good (?:morning|afternoon|evening)$"
         r"|^how (?:are|r) (?:you|u)(?: doing| today)?$"
         r"|^how (?:you|u) doing$|^how goes it$")),

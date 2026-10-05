@@ -208,6 +208,18 @@ def _spoken_time(text: str) -> str | None:
         if m.group(4) == "am" and hour == 12:
             hour = 0
         return f"{hour % 24:02d}:{minutes:02d}"
+    # "three thirty", "four fifteen", "six oh five" (2026-10-05: the planner)
+    spoken_minutes = {"oh five": 5, "o five": 5, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20,
+                      "twenty five": 25, "thirty": 30, "thirty five": 35, "forty": 40, "forty five": 45,
+                      "fifty": 50, "fifty five": 55}
+    m = re.fullmatch(r"([a-z]+) ((?:oh |o )?[a-z]+(?: five)?)\s*(am|pm)?", t)
+    if m and m.group(1) in _SPOKEN_HOURS and m.group(2) in spoken_minutes:
+        hour, minutes = _SPOKEN_HOURS[m.group(1)], spoken_minutes[m.group(2)]
+        if m.group(3) == "pm" and hour < 12:
+            hour += 12
+        if m.group(3) == "am" and hour == 12:
+            hour = 0
+        return f"{hour % 24:02d}:{minutes:02d}"
     named = re.fullmatch(r"([a-z]+)\s*(am|pm)?", t)
     if named and named.group(1) in _SPOKEN_HOURS:
         hour = _SPOKEN_HOURS[named.group(1)]
@@ -1267,7 +1279,43 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
+    transcript = _as_said_to_her(transcript)
     return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
+
+
+def _as_said_to_her(transcript: str) -> str:
+    """The sentence as said TO her (2026-10-05): a wake word said twice
+    ("thea, hey thea, what time is it"), the third person a person in the
+    room uses ("tell her to add eggs", "can she set a timer", "is thea
+    awake"), and a sentence typed in capitals, which has no capitals of
+    his to keep."""
+    text = " ".join(str(transcript or "").split())
+    if not text:
+        return text
+    # one wake word, however many times it was said
+    for _ in range(3):
+        stripped = strip_wake_word(re.sub(r"^(?:hey|hi|ok|okay)[, ]+(?=(?:thea|aletheia)\b)", "", text, flags=re.I))
+        if stripped == text:
+            break
+        text = stripped
+    # ... and the capitals are judged AFTER it: the room's door prefixes
+    # "thea " to a typed sentence, and "thea REMIND ME" is not upper-case
+    if text.isupper() and len(text) > 3:
+        text = text.lower()
+    low = text.casefold()
+    m = re.match(r"^(?:tell|ask|get) (?:her|thea|aletheia) to (.+)$", low)
+    if m:
+        return text[-len(m.group(1)):]
+    for third, second in ((r"^(?:can|could|will|would|does|did|has|should) (?:she|thea|aletheia)\b",
+                           lambda w: w.split(" ")[0] + " you"),
+                          (r"^is (?:she|thea|aletheia)\b", lambda w: "are you"),
+                          (r"^(?:what|where|how|when|why)(?:'s| is| does| did| can| will) (?:she|thea|aletheia)\b",
+                           lambda w: w.rsplit(" ", 1)[0].replace("'s", " is").replace(" is", " are").replace(" does", " do").replace(" did", " did") + " you")):
+        found = re.match(third, low)
+        if found:
+            head = found.group(0)
+            return second(head) + text[len(head):]
+    return text
 
 
 def _a_study_is_open() -> bool:
