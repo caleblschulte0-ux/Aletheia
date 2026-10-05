@@ -824,8 +824,10 @@ def spoken(record: dict) -> str:
 
 # A question ABOUT money is not an instruction to spend it.
 _A_QUESTION = re.compile(
-    r"^\s*(?:how|what|which|who|when|where|why|is|are|was|were|do|does|did|"
-    r"can|could|should|would|will|have|has|am|tell me|show me)\b", re.I)
+    # "whats 10 percent tip on 46" was refused at the money door (2026-10-05):
+    # the apostrophe-less contraction is still a question
+    r"^\s*(?:(?:how|what|which|who|when|where|why)(?:'s|s|'d|'re|'ll)?|is|are|was|were|do|does|did|"
+    r"can|could|should|would|will|have|has|am|tell me|show me|wats|hows|whos|wheres|whens)\b", re.I)
 
 
 #: Sentences whose verb writes something down: a task, a reminder, a note,

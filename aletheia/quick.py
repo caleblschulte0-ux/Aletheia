@@ -637,7 +637,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Did I miss anything while I was out" is today's journal, and it
         # waited two minutes on her own model (2026-09-22).
         r"|^(?:did|have) i miss(?:ed)? anything(?: while i was (?:out|gone|away|asleep|at work|busy))?$"
-        r"|^what did i miss(?: while i was (?:out|gone|away|asleep|at work))?$"
+        r"|^what(?: did|'d|d) i miss(?: while i was (?:out|gone|away|asleep|at work))?$"
         r"|^what happened while i was (?:out|gone|away|asleep|at work|busy)$"
         r"|^(?:did )?anything happen(?:ed)? while i was (?:out|gone|away|asleep|at work)$")),
     # "What did you send today" waited two minutes on her own model; the
@@ -907,6 +907,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how much (?:do i|am i|do we) (?:spend|spending|pay|paying) (?:(?P<spend_per>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year) )?(?:on|for) (?:my |all my )?subscriptions(?: (?P<spend_per2>a month|per month|monthly|every month|each month|a year|per year|yearly|annually|every year))?(?: in total| all together| altogether)?\s*\??$"
         r"|^what(?:'s| is|s)? my (?:monthly |total )?subscription (?:total|spend|bill|cost)(?: a month| per month)?\s*\??$"
         r"|^what do (?:my|the|all my) subscriptions (?:cost|add up to|come to|total)(?: me)?(?: (?P<spend_per3>a month|per month|each month|a year|per year|yearly|annually))?\s*\??$")),
+    ("exchange", re.compile(
+        r"^(?:how much is|what(?:'s| is|s)?|convert|change) (?:\$|€|£)?[\d.,]+ ?(?:dollars?|bucks|usd|euros?|pounds?|quid|gbp|eur|yen|cad|aud|pesos?|francs?) "
+        r"(?:in|to|into|as) (?:euros?|dollars?|bucks|pounds?|quid|yen|gbp|eur|usd|cad|aud|pesos?|francs?)\s*\??$"
+        r"|^what(?:'s| is|s)? the (?:exchange rate|rate) (?:for|of|between|from) .{3,40}$")),
     ("timers", re.compile(
         r"^how many timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
         r"|^(?:what|which) timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
@@ -1091,7 +1095,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:give|grant) yourself (?:standing )?(?:permission|authority|a grant)(?: (?:for|to|over) (?P<standing_for3>.+?))?\s*\??$"
         r"|^(?:how do i|can i) (?:give|grant) (?:you|u) (?:standing )?(?:permission|authority)(?: (?:for|to|over) (?P<standing_for4>.+?))?\s*\??$")),
     ("math", re.compile(
-        r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
+        r"^(?:what(?:'s| is|s)?|how much is) (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
+        # "whats 10 percent tip on 46" (2026-10-05: refused as spending)
+        r"|^(?:what(?:'s| is|s)? )?(?:a |the )?(?P<tip>[\d.]+) ?(?:%|percent) tip (?:on|for) (?:a )?(?:\$)?(?P<tip_on>[\d.,]+)(?: dollars| bucks| bill| check)?$"
+        r"|^(?:how much (?:is|should i tip|do i tip|to tip|should the tip be|would i tip)|what(?:'s| is|s)?) (?:a |the )?(?:tip )?on (?:a )?(?:\$)?(?P<tip_on2>[\d.,]+)(?: dollars| bucks| bill| check)?(?: at (?P<tip2>[\d.]+) ?(?:%|percent))?$"
         # "15 percent off 80", "a third of 90", "double 45", "how many ounces in a pound" (2026-10-05)
         r"|^what(?:'s| is|s)? (?P<pct_off>[\d.]+) ?(?:%|percent) off (?:of )?(?:\$)?(?P<off>[\d.,]+)(?P<off_money> dollars| bucks)?$"
         r"|^what(?:'s| is|s)? (?:a |one )?(?P<frac>half|third|quarter|fifth|tenth|two thirds|three quarters) of (?:\$)?(?P<frac_of>[\d.,]+)(?P<frac_money> dollars| bucks)?$"
@@ -1327,7 +1334,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What did I note about the car", "what have I told you about the car" (2026-10-05: a model each)
         r"|^what (?:did|have) i (?:note|noted|write down|written down|jot down|jotted down|log|logged|told you|said|mention|mentioned) (?:about |on |regarding )(?:the |my )?(?P<recall7>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^(?:any|got any|do i have any|are there any) notes? (?:about|on) (?:the |my )?(?P<recall8>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what(?:'s| is) (?:in|on) (?:my |the )?notes? (?:about|on|for) (?:the |my )?(?P<recall9>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^what(?:'s| is) (?:in|on) (?:my |the )?notes? (?:about|on|for) (?:the |my )?(?P<recall9>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "whats the wifi" (2026-10-05: a model) - the things he tells her once
+        r"|^what(?:'s| is|s)? (?:the |my |our )?(?P<recall10>wifi|wi-fi|wifi (?:name|network)|network name|(?:gate|door|garage|alarm|building|front door) code|"
+        r"(?:door|gate|garage|lock) pin|locker (?:combo|combination))\s*\??$")),
     # "do you have access to my bank" was answered "Read-only, yes" by a
     # model (2026-10-05). There is no bank data; the registry says so.
     # Before "can you ...", which would otherwise swallow "can you get access to".
@@ -1398,7 +1408,7 @@ def match(question: str) -> tuple[str, str] | None:
             return name, text
         if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
             return name, text           # the answer re-reads the whole sentence
-        rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9",
+        rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9", "recall10",
                                        "repo_about", "repo_about2", "repo_about3",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
@@ -3581,6 +3591,11 @@ def _math(text: str) -> str | None:
         if "pct" in g:
             # "20 percent of 45 dollars" went to a model for the word "dollars".
             return f"{'$' if g.get('pct_money') else ''}{said(num(g['pct']) * num(g['of']) / 100)}."
+        if "tip" in g or "tip_on2" in g:
+            rate = num(g.get("tip") or g.get("tip2") or "20")
+            bill = num(g.get("tip_on") or g.get("tip_on2"))
+            tip = round(bill * rate / 100, 2)
+            return f"${tip:,.2f} tip at {said(rate)} percent - ${bill + tip:,.2f} all in."
         if "pct_off" in g:
             total, off = num(g["off"]), num(g["pct_off"]) * num(g["off"]) / 100
             money = "$" if g.get("off_money") else ""
@@ -6246,6 +6261,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "timers": lambda rest: _timers(),
+           "exchange": lambda rest: "I don't have today's exchange rate, so I'd only be guessing. Ask me to look it up and I'll read a current rate and give you the exact number.",
            "bored": lambda rest: _bored(),
            "sending": lambda rest: _sending(rest),
            "draft_to": lambda rest: _draft_to(rest),

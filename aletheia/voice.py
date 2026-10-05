@@ -52,6 +52,7 @@ FILLER = re.compile(
 #: next meeting", "remind me tmrw 9am gym" each paid a planner round trip
 #: for a sentence the fast lane knew in its tidy spelling.
 SHORTHAND = {
+    "what'd": "what did", "lemme": "let me", "gimme": "give me",
     "tmrw": "tomorrow", "tmr": "tomorrow", "tomo": "tomorrow", "2moro": "tomorrow", "2morrow": "tomorrow",
     "2day": "today", "2nite": "tonight", "tonite": "tonight",
     "wats": "what's", "wat": "what", "whts": "what's", "hows": "how's", "wheres": "where's",
@@ -1402,7 +1403,7 @@ def _as_said_to_her(transcript: str) -> str:
         return text
     # one wake word, however many times it was said
     for _ in range(3):
-        stripped = strip_wake_word(re.sub(r"^(?:hey|hi|ok|okay)[, ]+(?=(?:thea|aletheia)\b)", "", text, flags=re.I))
+        stripped = strip_wake_word(re.sub(r"^(?:hey|hi|ok|okay|yo|sup|hiya|hello|yeah|hey there)[, ]+(?=(?:thea|aletheia)\b)", "", text, flags=re.I))
         if stripped == text:
             break
         text = stripped
@@ -1978,6 +1979,41 @@ def _interpret(transcript: str) -> dict:
         if m.group(2) == "tomorrow" or when <= now:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
+    # "LEMME KNOW WHEN THE BREAD IS DONE IN LIKE 20" and "GOTTA CALL THE BANK
+    # TMRW REMIND ME" (2026-10-05: the planner and an approval apiece). Each
+    # is a reminder said sideways; it is re-read as the sentence the
+    # reminder rules know, so one rule carries the time and the day.
+    m = (re.fullmatch(r"(?:let me know|tell me|ping me|give me a (?:shout|heads up|nudge)|holler|buzz me|remind me) "
+                      r"(?:when|that|if|once) (?P<what>.+?) in (?:like |about |around |roughly |say )?(?P<n>\w+)"
+                      r"(?: (?P<u>minutes?|mins?|hours?|hrs?|seconds?|secs?))?(?: or so| ish)?", low)
+         or re.fullmatch(r"(?:let me know|ping me|tell me|give me a (?:shout|heads up)|buzz me) in (?:like |about |around )?(?P<n>\w+)"
+                         r"(?: (?P<u>minutes?|mins?|hours?|hrs?))?(?: or so| ish)?(?: (?:when|that|if|to|about) (?P<what>.+))?", low))
+    if m and _spoken_amount(m.group("n")):
+        unit = m.group("u") or "minutes"
+        what = (m.group("what") or "").strip() or "time's up"
+        inner = _interpret(f"remind me in {m.group('n')} {unit} to {what}")
+        if (inner.get("command") or {}).get("kind") == "remind_at":
+            inner["command"]["text"] = _as_he_said(text, what) if what != "time's up" else what
+            return inner
+    m = (re.fullmatch(r"(?:i )?(?:gotta|got to|need to|have to|must|should|have got to|ought to) (?P<what>.+?) "
+                      r"(?P<when>tomorrow|tonight|today|this (?:afternoon|evening|morning)|tomorrow (?:morning|afternoon|evening|night)|"
+                      r"(?:on |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: morning| afternoon| evening)?)"
+                      r"(?: at (?P<at>[\w: ]+?))?,? ?(?:so )?(?:remind me|reminder|remind me please|don'?t let me forget)(?: please)?", low)
+         or re.fullmatch(r"remind me (?:that )?(?:i )?(?:gotta|got to|need to|have to|must|should|have got to) (?P<what>.+?) "
+                         r"(?P<when>tomorrow|tonight|today|this (?:afternoon|evening|morning)|tomorrow (?:morning|afternoon|evening|night)|"
+                         r"(?:on |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: morning| afternoon| evening)?)"
+                         r"(?: at (?P<at>[\w: ]+?))?", low)
+         or re.fullmatch(r"(?:don'?t let me forget|make sure i) (?:to )?(?P<what>.+?) "
+                         r"(?P<when>tomorrow|tonight|today|this (?:afternoon|evening|morning)|tomorrow (?:morning|afternoon|evening|night)|"
+                         r"(?:on |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: morning| afternoon| evening)?)"
+                         r"(?: at (?P<at>[\w: ]+?))?", low))
+    if m:
+        when = m.group("when") + (f" at {m.group('at')}" if m.group("at") else "")
+        inner = _interpret(f"remind me {when} to {m.group('what')}")
+        if (inner.get("command") or {}).get("kind") == "remind_at":
+            inner["command"]["text"] = _as_he_said(text, m.group("what").strip())
+            return inner
+
     # "ADD 5 MINUTES TO THE TIMER" (2026-10-05: the planner, an approval):
     # the timer is a reminder; it moves by the minutes he said.
     m = (re.fullmatch(r"(?:add|put) (?P<n>\w+) (?:more )?(?P<u>minutes?|mins?|seconds?|secs?|hours?) (?:to|on|onto) (?:the |my |that )?timer", low)
@@ -2033,7 +2069,9 @@ def _interpret(transcript: str) -> dict:
     # for TODAY at 6 with "on sunday" swallowed into the text (2026-09-22):
     # the day is read from either end of the sentence. "Next friday" is
     # still asked about, as before.
-    _days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    # "Remind me TONIGHT to take the bins out" (2026-10-05: to the planner):
+    # tonight and "this evening" are today with a part of the day in them.
+    _days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|tonight|this (?:morning|afternoon|evening))"
     # "Remind me TOMORROW MORNING to email Dana": a part of the day is a time
     # too (2026-09-24, offline: to the planner). Morning nine, afternoon two,
     # evening seven, night nine.
@@ -2047,9 +2085,14 @@ def _interpret(transcript: str) -> dict:
     if m:
         import datetime as dt
         from aletheia import localtime
-        day_iso = _spoken_day(m.group("day"))
+        day_word, part_word = m.group("day"), m.group("part")
+        if day_word == "tonight":
+            day_word, part_word = "today", part_word or "night"
+        elif day_word.startswith("this "):
+            day_word, part_word = "today", part_word or day_word[5:]
+        day_iso = _spoken_day(day_word)
         part_time = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(
-            m.group("part") or "")
+            part_word or "")
         hhmm = (_spoken_time(m.group("time")) if m.group("time")
                 else part_time or DEFAULT_REMINDER_TIME)
         if not day_iso or not hhmm:
@@ -2059,7 +2102,7 @@ def _interpret(transcript: str) -> dict:
             hour += 12                                  # "at 6" on a Sunday is the evening; "at 9" the morning
         tz = localtime.operator_tz()
         when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
-        if when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
+        if when <= dt.datetime.now(tz) and day_word in ("today", ""):
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
@@ -3596,7 +3639,7 @@ def _interpret(transcript: str) -> dict:
     # The whole sentence first, then without the breath: "no to that" is
     # a no in its own right, and stripping its "no" left "to that" (found
     # red 2026-10-05).
-    low_c = re.sub(r"^(?:actually|no|ok|okay|wait|hmm)[, ]+", "", low)
+    low_c = re.sub(r"^(?:actually|no|ok|okay|wait|hmm|nah|nope|yeah|yep|yea|alright|fine|well|so|eh)[, ]+", "", low)
     _cancel_re = (r"(?:deny|denied|no to|cancel|scrap|drop)"
                   r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$")
     asked_to_cancel = re.match(_cancel_re, low) or re.match(_cancel_re, low_c)
@@ -3649,6 +3692,16 @@ def _interpret(transcript: str) -> dict:
     # shape as "never mind" above: a turn that ends politely and asks for
     # nothing. Whole sentence only, so "thanks for the reminder, remind me
     # again at six" is still a reminder.
+    # "OK COOL" (2026-10-05: eight seconds on a model, to be told "Cool. I'm
+    # here if you need anything"). A nod asks for nothing and gets no words
+    # back; the yes and no rules above have already had their turn, so a
+    # bare "okay" with something pending is still a yes there.
+    if re.fullmatch(r"(?:ok|okay|k|cool|ok cool|okay cool|cool cool|alright|all right|alright then|gotcha|got it|sweet|nice|"
+                    r"noted|roger|copy|copy that|fair enough|makes sense|sounds good|word|bet|aight|okay then|ok then|"
+                    r"right|right on|good|great|fine|cool thanks|ok thanks|okay thanks|i see|ah ok|oh ok|ah okay|oh okay)"
+                    r"(?: thea)?(?: then)?", low):
+        return {"command": None, "say": ""}
+
     if re.fullmatch(r"(?:thanks|thank you|thanks a lot|thanks so much|thank you so much|thanks a bunch|thanks a million|"
                     r"thank you very much|ty|cheers|appreciate it|much appreciated|i appreciate (?:it|that|you)|"
                     r"thanks thea|thank you thea|thanks again|thank you again)(?: thea)?", low):
