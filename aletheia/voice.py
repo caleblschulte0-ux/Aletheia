@@ -4157,6 +4157,17 @@ def _interpret(transcript: str) -> dict:
     if m and not m.group(1).startswith(("if ", "when ")):
         return {"command": {"kind": "preference_set", "field": "work_wanted",
                             "value": "only " + m.group(1).strip()}, "say": None}
+    # "SKIP JOBS AT AMAZON" (2026-10-05: the planner, an approval): a company
+    # he will not apply to is one more line of what the hunt steers by.
+    m = (re.fullmatch(r"(?:skip|avoid|leave out|exclude|ignore|never apply to|don'?t apply (?:to|at|with)|no|not|nothing) "
+                      r"(?:any )?(?:jobs|roles|positions|openings|anything|work)? ?(?:at|from|with|for) (?P<co>[a-z0-9&.'][a-z0-9&.' -]{1,40}?)(?: jobs| roles| please)?", low)
+         or re.fullmatch(r"no (?:more )?(?P<co>[a-z0-9&.'][a-z0-9&.' -]{1,40}?) (?:jobs|roles|positions|openings)", low)
+         or re.fullmatch(r"(?:skip|avoid|leave out|exclude|blacklist|steer clear of|stay away from) (?P<co>[a-z0-9&.'][a-z0-9&.' -]{1,40}?)(?: from (?:the|my) (?:job )?(?:hunt|search))?", low))
+    if m and not re.search(r"\b(?:home|remote|the office|sales|part[- ]time|contract|night|weekends?|this song|the song|track|ahead|"
+                           r"it|that|this|them|him|her|me|you|us|everything|everyone)\b", m.group("co")):
+        return {"command": {"kind": "preference_set", "field": "work_not_wanted",
+                            "value": _as_he_said(text, m.group("co").strip())}, "say": None}
+
     m = re.match(r"(?:don'?t|do not|never|no longer|stop) (?:apply (?:to|for)|applying (?:to|for)|look at|go for|send me|consider) (.+)"
                  r"|no more (.+?)(?: jobs| roles| positions| work)?$", low)
     if m and (m.group(1) or m.group(2)) and not re.fullmatch(r"(?:jobs|anything|work|things|for (?:today|now)|today|now)", (m.group(1) or m.group(2)).strip()):

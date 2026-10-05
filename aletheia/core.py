@@ -1393,6 +1393,16 @@ class OneCoreServer(ThreadingHTTPServer):
             pass
         super().server_close()
 
+    def shutdown(self):
+        # ...and neither is one that was shut down and never closed: most of
+        # the suite stops a Core with shutdown() alone, and "how long have you
+        # been up" then answered from the test process's own start.
+        try:
+            SERVERS.remove(self)
+        except ValueError:
+            pass
+        super().shutdown()
+
 
 #: How long a running Core may take to answer "are you there?". It was 2 s,
 #: and on 2026-09-21 the live Core answered in 2.5 s under memory load — so

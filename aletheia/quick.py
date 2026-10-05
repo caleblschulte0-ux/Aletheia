@@ -484,8 +484,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:failed|broke|went red) (?:last|most recently|latest)\s*\??$|^what(?:'s| is| was) the (?:last|latest|newest|most recent) (?:fault|failure|alert)\s*\??$"
         r"|^where (?:was|is) the (?:last|latest|newest) (?:fault|failure)\s*\??$")),
     ("pulse_age", re.compile(
-        r"^when (?:was|is) the (?:last|latest|next) (?:pulse|fleet (?:read|reading|check))\s*\??$|^how old is the (?:pulse|fleet reading)\s*\??$"
-        r"|^when did (?:you|u) last (?:read|check) the fleet\s*\??$|^how (?:fresh|stale|recent) is the (?:pulse|fleet reading)\s*\??$"
+        # ("how fresh is the fleet reading" is `fleet_read_at`'s, below; this is the PULSE by name)
+        r"^when (?:was|is) the (?:last|latest|next) (?:pulse|fleet check)\s*\??$|^how (?:old|fresh|stale|recent) is the pulse\s*\??$"
+        r"|^when did (?:you|u) last (?:read|check) the fleet\s*\??$"
         r"|^is the pulse (?:fresh|stale|current|up to date)\s*\??$|^when (?:was|is) the fleet last read\s*\??$")),
     ("repo_list", re.compile(
         r"^(?:list|name|show me) (?:the |my |all the )?(?:repos|repositories|fleet)(?: for me)?\s*\??$"
@@ -1191,7 +1192,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:roles|jobs|titles|kind of (?:jobs|roles|work|positions)|positions) (?:are (?:you|u)|r u|are we|am i) "
         r"(?:looking for|hunting for|searching for|applying (?:to|for)|going after|after|targeting)(?: for me)?\s*\??$"
         r"|^what are (?:you|u|we) applying (?:to|for)(?: right now| these days)?\s*\??$"
-        r"|^what(?:'s| is) the (?:job )?(?:search|hunt) (?:for|looking for|after)\s*\??$")),
+        r"|^what(?:'s| is) the (?:job )?(?:search|hunt) (?:for|looking for|after)\s*\??$"
+        # "what jobs are you looking at" (2026-10-05: a model)
+        r"|^(?:what|which) (?:jobs|roles|openings) (?:are (?:you|u)|r u) (?:looking at|going for|chasing|on|working on)(?: right now| today)?\s*\??$"
+        r"|^what (?:are|r) (?:you|u) (?:hunting|after|going after|chasing)(?: right now| these days)?\s*\??$")),
+    ("why_no_applications", re.compile(
+        r"^why (?:haven't|havent|have not|didn't|didnt|did not) (?:you|u) (?:applied|apply|sent|send) (?:to |for )?(?:anything|any|any jobs|anywhere|more|any applications)(?: today| yet)?\s*\??$"
+        r"|^why (?:no|zero|aren't there any|are there no) applications(?: today| yet)?\s*\??$|^why (?:aren't|arent|are not|isn't|isnt) (?:you|u|it) applying(?: to anything| anywhere)?\s*\??$"
+        r"|^why (?:isn't|isnt|is not) the (?:job )?hunt (?:running|working|going|doing anything|applying)\s*\??$|^why (?:is )?nothing (?:sent|applied|happening with the jobs?)(?: today)?\s*\??$"
+        r"|^what(?:'s| is) (?:stopping|blocking|holding up) the (?:job )?(?:hunt|applications|search)\s*\??$")),
     ("work_wants", re.compile(
         r"^what (?:kind of |sort of )?(?:work|jobs) (?:do i|don't i|do i not|won't i|will i not) (?:want|do|take)(?: to do)?\s*\??$"
         r"|^what (?:have i|did i) (?:told|tell) (?:you|u) (?:i|that i) (?:want|don't want|do not want|won't do|will not do)\s*\??$"
@@ -5002,6 +5011,64 @@ def _contacts_all() -> str | None:
         return None
 
 
+def _why_no_applications() -> str:
+    """"Why haven't you applied to anything" (2026-10-05: sixteen seconds on
+    a model that then guessed). Every reason is a fact from a store: the
+    pause marker, the campaign lock, the resume, the grant, the rest window
+    and today's counts; none is a theory."""
+    from aletheia import current_state, speech
+    try:
+        hunt = current_state.job_hunt()
+    except Exception:
+        return "I can't read my application records right now, so I can't say why."
+    if not hunt.get("readable"):
+        return "I can't read my application records right now: " + str(hunt.get("note") or "") + "."
+    today = hunt.get("today") or {}
+    reasons: list[str] = []
+    try:
+        from aletheia import apply_forever
+        pause = apply_forever.paused()
+        if pause:
+            why = " ".join(str(pause.get("reason") or pause.get("why") or "you said so").split())
+            reasons.append(f"the job hunt is paused - {why}")
+    except Exception:
+        pass
+    try:
+        from aletheia import campaign
+        campaign.read_resume()
+    except Exception:
+        reasons.append("I can't find a resume on this PC to apply with - I look in Documents, Downloads and Desktop")
+    if not hunt.get("running"):
+        reasons.append("no batch is running right now; the next one starts on my own beat")
+    try:
+        from aletheia import reasoner
+        until = reasoner.resting_until()
+        if until:
+            reasons.append(f"Claude is resting until {speech.humanize_time(until.isoformat())}, so judging openings falls to my own model")
+    except Exception:
+        pass
+    sent, ready, found, qualified, blocked = (int(today.get(k) or 0) for k in ("sent", "ready", "discovered", "qualified", "blocked"))
+    if sent:
+        return f"I did - {speech.count_phrase(sent, 'application')} sent today." + (f" {ready} more are filled and waiting on you." if ready else "")
+    if ready:
+        try:
+            from aletheia import standing
+            granted = standing.jobs_status().get("granted")
+        except Exception:
+            granted = None
+        reasons.append(f"{speech.count_phrase(ready, 'application')} {'is' if ready == 1 else 'are'} filled and waiting on your yes"
+                       + ("" if granted else " - at your keyboard, 'python -m aletheia.standing jobs on' lets me send them without asking"))
+    if found and not qualified:
+        reasons.append(f"{speech.count_phrase(found, 'opening')} found today and none worth trying")
+    elif not found:
+        reasons.append("nothing was found today")
+    if blocked:
+        named = [f"{current_state.said_name(b.get('company'), b.get('job'))} - {current_state.said_clause(str(b.get('reason') or ''), 100)}"
+                 for b in (hunt.get("blockers") or [])[:2]]
+        reasons.append(f"{speech.count_phrase(blocked, 'form')} blocked" + (": " + "; ".join(named) if named else ""))
+    return "Nothing sent today. " + "; ".join(reasons[:5]).rstrip(".") + "."
+
+
 def _deadlines(first: bool = False) -> str:
     """"Which tasks have deadlines" / "what's due soonest" (2026-10-05: a
     model each). His open tasks that carry a deadline, soonest first."""
@@ -6445,6 +6512,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "timers": lambda rest: _timers(),
+           "why_no_applications": lambda rest: _why_no_applications(),
            "deadlines": lambda rest: _deadlines(),
            "due_soonest": lambda rest: _deadlines(first=True),
            "finished": _finished,
