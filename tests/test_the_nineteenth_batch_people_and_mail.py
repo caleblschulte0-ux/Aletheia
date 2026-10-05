@@ -84,3 +84,13 @@ class ARehearsalSpeaks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ThePhraseReachesTheReader(unittest.TestCase):
+    def test_everything_carries_his_phrase(self):
+        # The live sandbox still said "Sister birthday: march 3rd" after the
+        # phrase was stored: `memory.everything`, which every reader asks,
+        # had dropped it on the way.
+        memory.remember("people", "sister_birthday", "March 3rd", source="test", about="your sister's birthday")
+        held = memory.everything()["people"]["sister_birthday"]
+        self.assertEqual(held.get("about"), "your sister's birthday")

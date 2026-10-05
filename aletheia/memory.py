@@ -191,6 +191,8 @@ def everything(*, max_chars: int = 4_000) -> dict:
             held = {"value": value}
             if entry.get("kind") and entry["kind"] != "explicit":
                 held["kind"] = entry["kind"]   # a guess is labelled as one
+            if entry.get("about"):
+                held["about"] = entry["about"]  # his phrase for it, for reading back
             out.setdefault(domain, {})[key] = held
     return out
 
