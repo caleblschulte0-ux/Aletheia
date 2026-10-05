@@ -73,7 +73,9 @@ def key_for(subject: str) -> str:
     """A memory key from a subject's words: lowercase, words joined by underscores, so
     "best friend" is stored where "who is my best friend" looks (`quick._person` tries the
     underscored form)."""
-    words = re.sub(r"[^a-z0-9]+", "_", str(subject or "").lower()).strip("_")
+    # "sister's birthday" is a key about the sister, not about an "s".
+    bare = re.sub(r"'s\b", "", str(subject or "").lower())
+    words = re.sub(r"[^a-z0-9]+", "_", bare).strip("_")
     return words[:60].rstrip("_")
 
 
@@ -88,7 +90,7 @@ def parse_fact(sentence: str) -> dict | None:
         return None
     subject = found.group("key").strip()
     return {"subject": subject, "key": key_for(subject), "value": found.group("value").strip()[:480],
-            "domain": domain_for(subject)}
+            "domain": domain_for(subject), "mine": bool(found.group("my"))}
 
 
 def domain_for(subject: str) -> str:
@@ -125,7 +127,7 @@ def _save(domain: str, data: dict) -> None:
 
 
 def remember(domain: str, key: str, value, source: str,
-             kind: str = "explicit") -> dict:
+             kind: str = "explicit", about: str | None = None) -> dict:
     if kind not in KINDS:
         raise ValueError(f"kind {kind!r} not in {sorted(KINDS)}")
     if not source.strip():
@@ -135,6 +137,10 @@ def remember(domain: str, key: str, value, source: str,
         "value": value, "source": source, "kind": kind,
         "ts": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if about:
+        # The subject as he said it ("your sister's birthday"), so what is
+        # read back is his phrase and not the key's underscores.
+        entry["about"] = str(about)[:80]
     replaced = data.get(key)
     data[key] = entry
     _save(domain, data)

@@ -118,7 +118,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "running":       (set(), set()),
     "approve":       ({"id"}, set()),
     "deny":          ({"id"}, {"because"}),
-    "remember":      ({"domain", "key", "value"}, {"memory_kind"}),
+    "remember":      ({"domain", "key", "value"}, {"memory_kind", "about"}),
     # 2026-09-23: what the job hunt steers by, in his words, and read back.
     "preference_set": ({"field", "value"}, set()),
     # A fact about him, by saying it: his name, address, city, email, phone,
@@ -217,7 +217,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "screen_record": ({"window"}, {"name", "max_seconds"}),
     "screen_record_stop": (set(), set()),
     "recording":     (set(), set()),
-    "email_check":   (set(), set()),
+    "email_check":   (set(), {"from"}),
     # the text of ONE unread message, named by sender or subject; exactly
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
@@ -1448,9 +1448,10 @@ def _contact_words(contact: dict) -> str:
     """One contact, with whatever she actually has for them."""
     from aletheia import speech
     name = str(contact.get("display_name") or contact["id"])
-    reach = [str(v) for v in (list(contact.get("phones") or [])
-                              + list(contact.get("emails") or []))[:2] if v]
-    return f"{name} — {speech.and_list(reach)}" if reach else name
+    reach = [speech.phone_words(v) for v in list(contact.get("phones") or []) if v]
+    reach += [str(v) for v in list(contact.get("emails") or []) if v]
+    reach = reach[:2]
+    return f"{name}, {speech.and_list(reach)}" if reach else name
 
 
 def _contacts_answer(which: str = "") -> str:
@@ -1477,10 +1478,27 @@ def _contacts_answer(which: str = "") -> str:
         rows = hits
         if not rows:
             return f"I have no contact for {which!r}."
+        if len(rows) == 1:
+            # "1 contact: dentist — 0005550100" (2026-10-05) for "what's my
+            # dentist's number": the answer is the number, in a sentence.
+            one = rows[0]
+            name = str(one.get("display_name") or one["id"])
+            phones = [speech.phone_words(v) for v in list(one.get("phones") or []) if v]
+            emails = [str(v) for v in list(one.get("emails") or []) if v]
+            parts = []
+            if phones:
+                parts.append(f"number is {speech.or_list(phones[:2])}")
+            if emails:
+                parts.append(f"email is {speech.or_list(emails[:2])}")
+            if not parts:
+                return f"I have {name} saved but no number or email for them."
+            return f"Your {name}'s " + " and ".join(parts) + "."
     if not rows:
         return "You have no contacts saved with me."
-    said = speech.and_list([_contact_words(c) for c in rows[:6]])
-    more = f", and {len(rows) - 6} more" if len(rows) > 6 else ""
+    if len(rows) == 1:
+        return f"Just one: {_contact_words(rows[0])}."
+    said = "; ".join(_contact_words(c) for c in rows[:6])
+    more = f"; and {len(rows) - 6} more" if len(rows) > 6 else ""
     return f"{speech.count_phrase(len(rows), 'contact')}: {said}{more}."
 
 
@@ -2068,6 +2086,15 @@ def _free_sentence(ranges: list, day, part: str) -> str:
 # it.
 REHEARSAL = "ALETHEIA_REHEARSAL"
 
+#: What a rehearsal says it did not do, for the kinds a sandbox audit meets
+#: most. Anything else is the kind's own words with the underscores gone.
+REHEARSAL_WORDS = {"message_send": "send the text", "email_draft": "draft the email",
+                   "email_send": "send the email", "thread_send": "send it",
+                   "apply_pause": "pause the job hunt", "apply_resume": "restart the job hunt",
+                   "meet": "set up the meeting", "approve": "approve it", "deny": "deny it",
+                   "social_publish": "post it", "issue": "open the issue",
+                   "dispatch": "start the workflow", "pr": "open the pull request"}
+
 # Kinds that do not touch the world THEMSELVES — they compile a plan and
 # run its steps back through this same function, where each one is
 # checked on its own. Refusing the container would refuse the planner
@@ -2250,9 +2277,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # knows — the tier — rather than asserting a mechanism it has not
         # checked. Whether those two belong in a lower tier is a registry
         # decision, not one to take inside a refusal.
+        # In English (2026-10-05: "message_send is gated as world-touching"
+        # reached the room): the sandbox is the one place this fires, and it
+        # is still read out there.
         raise act.Refused(
-            f"this is a rehearsal — {kind} is gated as world-touching, so it "
-            "was not run. Everything local happened for real.")
+            f"this is a rehearsal, so I didn't {REHEARSAL_WORDS.get(kind, kind.replace('_', ' '))}: "
+            "it would reach past this machine. Everything local happened for real.")
     if kind == "preference_set":
         from aletheia import profile
         try:
@@ -2428,11 +2458,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return f"denied — {_approval_words(decided, cmd['id'])}"
     if kind == "remember":
         from aletheia import memory
+        about = " ".join(str(cmd.get("about") or "").split())
         memory.remember(cmd["domain"], cmd["key"], cmd["value"],
                         source=f"operator via intercom: {quote[:120]}",
-                        kind=cmd.get("memory_kind", "explicit"))
-        # Read out loud: "remembered people.landlord" is a developer's line.
-        return f"Remembered: {str(cmd['key']).replace('_', ' ')} is {cmd['value']}."
+                        kind=cmd.get("memory_kind", "explicit"), about=about or None)
+        # Read out loud: "remembered people.landlord" is a developer's line,
+        # and "sister s birthday" (2026-10-05) is a key with the possessive
+        # knocked out of it. The subject as he said it, when it travelled.
+        return f"Remembered: {about or str(cmd['key']).replace('_', ' ')} is {cmd['value']}."
     if kind == "forget":
         # `speech` is NOT imported here. It is a module-level name, and an
         # import of it anywhere in this function makes it LOCAL to the whole
@@ -2770,7 +2803,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "email_check":
         from aletheia import mail
         _mail_or_refuse(mail)
-        return mail.check_unread()
+        return mail.check_unread(sender=str(cmd.get("from") or "").strip() or None)
     if kind == "email_read":
         from aletheia import mail
         _mail_or_refuse(mail)
@@ -3511,7 +3544,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if phone:
                 changes["phones"] = [phone]
             contacts.update(cid, **changes)
-        reached = " and ".join(x for x in (addr, phone) if x)
+        from aletheia import speech as _speech
+        reached = " and ".join(x for x in (addr, _speech.phone_words(phone) if phone else "") if x)
         # A sentence, not a developer's aside ("— private contacts only,
         # never the public repo" was read out, 2026-10-05).
         return f"Saved {cmd['name'].strip()}: {reached}."

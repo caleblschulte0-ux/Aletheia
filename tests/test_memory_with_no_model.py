@@ -25,7 +25,8 @@ class RememberThatIsANote(unittest.TestCase):
         # the_question_looks). A fact about his week stays a note; neither is a reminder.
         out = voice.interpret("thea remember that my landlord is Mr Okafor")
         self.assertEqual(out["command"], {"kind": "remember", "domain": "people",
-                                          "key": "landlord", "value": "Mr Okafor"})
+                                          "key": "landlord", "value": "Mr Okafor",
+                                          "about": "your landlord"})
         out = voice.interpret("remember my lease is up in March")
         self.assertEqual(out["command"], {"kind": "note", "text": "my lease is up in March"})
         self.assertNotEqual(voice.interpret("remember to call mom at 3")["command"].get("kind"), "note")

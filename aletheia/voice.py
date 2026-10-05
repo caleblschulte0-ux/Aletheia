@@ -2561,6 +2561,12 @@ def _interpret(transcript: str) -> dict:
                     r"what(?:'s| is|s)? (?:the |my )?(?:last|latest|newest|most recent) e?mail(?: i got| i received)?|"
                     r"anything (?:new )?in (?:my|the) inbox)", low):
         return {"command": {"kind": "email_check"}, "say": None}
+    # "Any email from the bank" / "did the bank email me" (2026-10-05: a
+    # model, then the same not-set-up line the fast one gives).
+    m = re.fullmatch(r"(?:any|is there any|is there an?|did i get an?|have i got an?|do i have an?) (?:new )?e?mails? from (?:the )?(?P<who>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: today| this week)?"
+                     r"|(?:did|has) (?:the )?(?P<who2>[a-z0-9][a-z0-9 .&'-]{1,40}?) (?:e?mail|e?mailed|written to|write to|get back to|gotten back to|replied to|reply to) me(?: yet| today| back)?", low)
+    if m:
+        return {"command": {"kind": "email_check", "from": _as_he_said(text, m.group("who") or m.group("who2"))}, "say": None}
 
     # AN HOURLY REMINDER is a door she does not have (daily and weekly she
     # does). "Remind me to drink water every hour" planned for a hundred
@@ -3372,8 +3378,10 @@ def _interpret(transcript: str) -> dict:
         from aletheia import memory
         fact = memory.parse_fact(text)
         if fact and fact["domain"]:
+            about = _as_he_said(text, fact["subject"])
             return {"command": {"kind": "remember", "domain": fact["domain"], "key": fact["key"],
-                                "value": fact["value"]}, "say": None}
+                                "value": fact["value"],
+                                "about": ("your " if fact.get("mine") else "") + about}, "say": None}
         return {"command": {"kind": "note", "text": _as_he_said(text, m.group(1).strip())}, "say": None}
 
     # Unrecognized by the patterns above — which is not the same as

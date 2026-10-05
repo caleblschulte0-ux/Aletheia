@@ -745,8 +745,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-09-24). Neither needs thinking; both are facts about herself.
     # THE NEXT INTERVIEW, from her calendar store (2026-09-24, offline:
     # "I can't think just now").
+    # "Who do you have numbers for" paid a model round trip (2026-10-05).
+    ("contacts_all", re.compile(
+        r"^who (?:do (?:you|u) have|have (?:you|u) got) (?:numbers|phone numbers|contacts|emails|addresses|details) for\s*\??$"
+        r"|^(?:who|what contacts) (?:do i have|have i got) saved(?: with you)?\s*\??$"
+        r"|^(?:list|read me|what are) my contacts\s*\??$|^who(?:'s| is) in my contacts\s*\??$")),
     ("interview_when", re.compile(
         r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
+        # "What's my next interview" / "do I have any interviews coming up" (2026-10-05)
+        r"|^what(?:'s| is|s)? my next interview\s*\??$"
+        r"|^(?:do i have|are there|have i got) any interviews?(?: coming up| scheduled| booked| lined up)?\s*\??$"
         r"|^how (?:long|many days|many hours) (?:until|till|before) (?:my|the) (?:next )?interview\s*\??$"
         r"|^(?:do i have|is there) an interview (?:coming up|scheduled|booked)(?: today| tomorrow| this week)?\s*\??$"
         r"|^when(?:'s| is) my next interview\s*\??$")),
@@ -993,6 +1001,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
+        # "When is my sister's birthday" (2026-10-05): a date he told her, on her shelf.
+        r"|^when(?:'s| is|s)? (?:my |the )(?P<recall6>[a-z0-9][a-z0-9 '-]{1,30}?(?:'s)? (?:birthday|anniversary|appointment|flight|wedding|graduation|party|checkup|check-up|exam|trip|visit))\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     ("can_you", re.compile(
@@ -1053,6 +1063,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
                                            "due_when", "due_when2", "due_when3",
+                                           "recall6",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4")
@@ -1299,17 +1310,49 @@ def _until(words: str) -> str | None:
     # "how long until my interview" is the calendar's too (2026-09-24)
     if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
         return _interview_when()
-    today = dt.datetime.now(localtime.operator_tz()).date()
+    today = localtime.today()
     when = _named_date(words, today)
+    tail = ""
     if when is None:
-        return None            # a thing, not a date: the model may think
+        # "How many days until my sister's birthday" (2026-10-05): a date she
+        # was TOLD, on her own shelf, and the words name the entry.
+        when, about = _remembered_date(words, today)
+        if when is None:
+            return None            # a thing, not a date: the model may think
+        tail = f" - {about}"
     days = (when - today).days
     said = when.strftime("%A %d %B").replace(" 0", " ")
     if days == 0:
-        return f"That's today, {said}."
+        return f"That's today, {said}{tail}."
     if days == 1:
-        return f"Tomorrow, {said}."
-    return f"{days} days, {said}."
+        return f"Tomorrow, {said}{tail}."
+    return f"{days} days, {said}{tail}."
+
+
+def _remembered_date(words: str, today):
+    """(date, what it is) from a remembered fact whose subject these words
+    name and whose value reads as a date, else (None, "")."""
+    from aletheia import memory
+    asked = [w for w in re.findall(r"[a-z0-9]+", re.sub(r"'s\b", "", str(words or "").casefold()))
+             if w not in _STOP_WORDS and w not in ("my", "the", "our")]
+    if not asked:
+        return None, ""
+    try:
+        remembered = memory.everything(max_chars=8000)
+    except Exception:
+        return None, ""
+    for domain, entries in remembered.items():
+        for key, held in entries.items():
+            words_of = set(re.findall(r"[a-z0-9]+", key.replace("_", " ")))
+            if not all(w in words_of for w in asked):
+                continue
+            value = held.get("value")
+            when = _named_date(str(value), today) if isinstance(value, str) else None
+            if when is None:
+                continue
+            about = str(held.get("about") or "").strip() or key.replace("_", " ")
+            return when, f"{about} is {value}"
+    return None, ""
 
 
 _STATE_WORDS = {"SUBMITTED": "it went", "SUBMITTING": "it is going out now",
@@ -3065,6 +3108,16 @@ def _applied_on(rest) -> str:
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
 
 
+def _contacts_all() -> str | None:
+    """Who she has saved, from the contacts store, said by `intercom` so the
+    voice door and this one cannot drift."""
+    from aletheia import intercom
+    try:
+        return intercom._contacts_answer("")
+    except Exception:
+        return None
+
+
 def _due_week(when: str = "") -> str:
     """His tasks with a deadline and his reminders inside the window, from
     the two stores and the clock. Nothing here guesses: a task with no
@@ -3393,7 +3446,8 @@ def _recall(words: str) -> str | None:
     """What he told her about `words`: his notes and her memory, by the
     words themselves. Nothing matching is said as nothing - never guessed."""
     from aletheia import memory, speech
-    wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in _STOP_WORDS]
+    wanted = [w for w in re.findall(r"[a-z0-9']+", re.sub(r"'s\b", "", str(words or "").casefold()))
+              if w not in _STOP_WORDS]
     if not wanted:
         return None
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in wanted]
@@ -3417,7 +3471,8 @@ def _recall(words: str) -> str | None:
             value = held.get("value")
             text = value if isinstance(value, str) else str(value)
             if hit(key) or hit(text):
-                found.append(f"{key.replace('_', ' ')}: {text}")
+                about = str(held.get("about") or "").strip()
+                found.append(f"{about} is {text}" if about else f"{key.replace('_', ' ')}: {text}")
             if len(found) >= 5:
                 break
     if not found:
@@ -4162,6 +4217,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wrong": lambda rest: _wrong(),
            "today": lambda rest: _today(rest),
            "due_week": lambda rest: _due_week(rest),
+           "contacts_all": lambda rest: _contacts_all(),
            "interview_when": lambda rest: _interview_when(),
            "interview_window": lambda rest: _interview_window(),
            "jobs_left": lambda rest: _jobs_left(),

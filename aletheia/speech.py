@@ -823,6 +823,24 @@ def or_list(items: list[str]) -> str:
     return ", ".join(items[:-1]) + " or " + items[-1]
 
 
+def phone_words(number: object) -> str:
+    """A phone number as it is read out: "0005550100" -> "000 555 0100".
+    Anything that is not a run of digits is said as given."""
+    raw = str(number or "").strip()
+    digits = re.sub(r"\D", "", raw)
+    if not digits or len(digits) < 7 or len(digits) > 15:
+        return raw
+    lead = ""
+    if len(digits) == 11 and digits.startswith("1"):
+        lead, digits = "1 ", digits[1:]
+    if len(digits) == 10:
+        return f"{lead}{digits[:3]} {digits[3:6]} {digits[6:]}"
+    if len(digits) == 7:
+        return f"{digits[:3]} {digits[3:]}"
+    groups = [digits[i:i + 3] for i in range(0, len(digits), 3)]
+    return (("+" if raw.startswith("+") else "") + " ".join(groups)).strip()
+
+
 def count_phrase(count: int, singular: str, plural: str | None = None) -> str:
     """"3 boards", "1 match", "2 matches".
 

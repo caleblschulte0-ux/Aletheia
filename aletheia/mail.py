@@ -726,9 +726,16 @@ def held_drafts_words() -> str:
     return out
 
 
-def check_unread(limit: int = CHECK_LIMIT, transport: MailTransport | None = None) -> str:
+def check_unread(limit: int = CHECK_LIMIT, transport: MailTransport | None = None,
+                 sender: str | None = None) -> str:
     driver = transport or SmtpImapTransport()
     unread = driver.fetch_unread(limit)
+    if sender:
+        # "Any email from the bank": the unread ones whose sender says so.
+        needle = " ".join(str(sender).casefold().split())
+        unread = [m for m in unread if needle in str(m.get("from", "")).casefold()]
+        if not unread:
+            return f"Nothing unread from {sender}."
     if not unread:
         return "No unread email."
     parts = [f"{m['subject']} — from {parseaddr(m['from'])[0] or m['from']}" for m in unread]

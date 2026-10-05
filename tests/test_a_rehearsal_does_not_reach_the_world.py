@@ -38,7 +38,9 @@ class RehearsalCase(unittest.TestCase):
                     intercom.execute_command({"kind": kind, **cmd}, {"repos": {}},
                                              quote="q")
                 self.assertIn("rehearsal", str(caught.exception))
-                self.assertIn("world-touching", str(caught.exception))
+                # The rule is that it is refused AS A REHEARSAL; the wording is
+        # English now, not "gated as world-touching" (2026-10-05).
+        self.assertIn("rehearsal", str(caught.exception))
 
     def test_approving_is_not_itself_reaching_the_world(self):
         """The audit's most important path, and the gate ate it.

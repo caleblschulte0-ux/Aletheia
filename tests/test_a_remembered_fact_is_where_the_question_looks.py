@@ -28,7 +28,8 @@ class RememberXIsYGoesOnAShelf(unittest.TestCase):
     def test_the_sentence_compiles_to_a_memory_with_his_capitals(self):
         out = voice.interpret("remember that my landlord is Dana Whitfield")
         self.assertEqual(out["command"], {"kind": "remember", "domain": "people",
-                                          "key": "landlord", "value": "Dana Whitfield"})
+                                          "key": "landlord", "value": "Dana Whitfield",
+                                          "about": "your landlord"})
 
     def test_a_subject_with_no_shelf_is_still_a_note_with_his_capitals(self):
         out = voice.interpret("remember that the wifi password is Hunter2")
@@ -42,7 +43,8 @@ class RememberXIsYGoesOnAShelf(unittest.TestCase):
     def test_the_round_trip_she_failed(self):
         cmd = voice.interpret("remember that my landlord is Dana Whitfield")["command"]
         said = intercom.execute_command(cmd, {}, quote="remember that my landlord is Dana Whitfield")
-        self.assertEqual(said, "Remembered: landlord is Dana Whitfield.")
+        # His phrase, read back ("sister s birthday" was the key, 2026-10-05).
+        self.assertEqual(said, "Remembered: your landlord is Dana Whitfield.")
         self.assertNotIn("people.", said, "a receipt is read out loud, never domain.key")
         self.assertEqual(quick._person("landlord"), "Your landlord is Dana Whitfield.")
 
@@ -54,7 +56,7 @@ class RememberXIsYGoesOnAShelf(unittest.TestCase):
 
     def test_one_parser_serves_both_doors(self):
         fact = memory.parse_fact("Remember my gym is Great Life.")
-        self.assertEqual(fact, {"subject": "gym", "key": "gym", "value": "Great Life",
+        self.assertEqual(fact, {"subject": "gym", "key": "gym", "value": "Great Life", "mine": True,
                                 "domain": "organizations"})
         self.assertIsNone(memory.parse_fact("remember to call the dentist"))
 
