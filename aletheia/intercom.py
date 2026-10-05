@@ -2492,6 +2492,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _tasks_answer(cmd.get("which", ""))
     if kind == "task_done":
         from aletheia import tasks as tasks_mod
+        if str(cmd.get("which") or "").strip().casefold() in ("everything", "all", "all of them"):
+            rows = _open_tasks()
+            if not rows:
+                return "Nothing open on your task list."
+            for row in rows:
+                tasks_mod.set_status(row["id"], "COMPLETED", note=f"marked done: {quote[:120]}")
+            return "marked done — " + speech.and_list([str(r.get("description") or r["id"]) for r in rows[:6]])
         found, why = _one_task(cmd["which"])
         if found is None:
             return why

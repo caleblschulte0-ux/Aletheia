@@ -1995,7 +1995,11 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low))
     if m:
         which = (m.group(1) or "").strip()
-        if which and which not in ("it", "that", "them", "everything"):
+        if which in ("everything", "all", "all of them", "them all", "all of it", "the lot"):
+            # "mark everything done" went to the planner as one step per task
+            # (2026-10-05); the handler takes the whole list.
+            return {"command": {"kind": "task_done", "which": "everything"}, "say": None}
+        if which and which not in ("it", "that", "them"):
             return {"command": {"kind": "task_done", "which": which}, "say": None}
         # "Mark that done" with exactly ONE thing open is not ambiguous —
         # it is the ordinary way to say it, and it was costing a round
@@ -2454,6 +2458,17 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "shopping_add", "item": m.group(1).strip()},
                 "say": None}
+    # THE WAY A PERSON SAYS IT IN A KITCHEN (2026-10-05: "add milk", "I need
+    # eggs", "we're out of bread" and "put milk back on" each went to the
+    # planner for an approval to do what "add milk to the list" does free).
+    m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?P<x>[a-z][a-z' -]{1,40})", low)
+         or re.fullmatch(r"(?:i|we) (?:need|want|could use) (?:some |more |a |an )?(?P<x>(?!to\b|a task|a reminder|an alarm|a timer|help|you)[a-z][a-z' -]{1,40})", low)
+         or re.fullmatch(r"(?:put|add|stick) (?P<x>[a-z][a-z' -]{1,40}?) back(?: on| on the list| on my list| on the shopping list)?", low)
+         or re.fullmatch(r"add (?P<x>(?!(?:a|an|the|my|some|task|tasks|reminder|alarm|timer|contact|note|event|meeting|hold|to|it|that)\b)[a-z][a-z'-]*(?: [a-z][a-z'-]*){0,2})", low))
+    if m and not _TASK_VERB.match(m.group("x")):
+        from aletheia import intercom as _ic
+        if not _might_be_several(m.group("x")) or len(_ic.shopping_items_of(m.group("x"))) >= 2:
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group("x").strip())}, "say": None}
 
     # THE SECOND ITEM COST HIM FOUR AND A HALF SECONDS AND AN APPROVAL.
     #

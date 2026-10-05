@@ -705,6 +705,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # file somewhere") a turn after the fast lane had read it (2026-10-04).
         r"|^what(?:'s| is|s)? my (?:shopping|grocery|groceries) list$"
         r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
+        # "how many things are on the list" paid a model (2026-10-05)
+        r"|^how many (?:things|items)(?: are| do i have)? (?:on|in) (?:my |the )?(?:shopping |grocery )?list$"
+        r"|^how (?:long|big) is (?:my |the )?(?:shopping |grocery )?list$"
         r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
         r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
     ("reply_rate", re.compile(
