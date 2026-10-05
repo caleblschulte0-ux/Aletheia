@@ -169,27 +169,27 @@
       "sent": 4
     },
     "2026-10-04": {
-      "filled": 8,
-      "found": 24,
+      "filled": 7,
+      "found": 23,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     },
     "2026-10-05": {
-      "filled": 12,
-      "found": 12,
+      "filled": 13,
+      "found": 14,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-05T05:23:16Z",
+  "generated_at": "2026-10-05T05:53:32Z",
   "sent_all_time": 228,
   "totals": {
     "filled": 355,
-    "found": 612,
+    "found": 613,
     "interviews": 0,
     "rejections": 0,
     "replies": 22,
