@@ -271,7 +271,9 @@ class SpokenCase(unittest.TestCase):
 
 class ReachableCase(unittest.TestCase):
     def test_he_can_just_ask(self):
-        for phrase in ("what do you still need from me", "whats left",
+        # A bare "what's left" is his task list (2026-10-05); the setup
+        # checklist is "what's left to set up".
+        for phrase in ("what do you still need from me", "whats left to set up",
                        "am i done", "whats still missing"):
             out = voice.interpret(f"thea {phrase}")
             self.assertEqual(out["command"], {"kind": "setup_status"}, phrase)

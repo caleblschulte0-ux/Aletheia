@@ -432,7 +432,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
-        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$")),
+        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$"
+        # "What day of the week is Christmas" paid a model for the same arithmetic.
+        r"|^what day(?: of the week)? (?:is|does|will) (?:the )?(?P<until3>[a-z][a-z' ]{2,30}?)(?: fall on| land on| be(?: on)?)?$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -545,7 +547,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what tasks do i have(?: left| open| to do)?$"
         r"|^how many tasks (?:do i have|are there|have i got)(?: left| open| remaining| to do)?$"
         r"|^how many (?:things|items|tasks) (?:are |have i got )?on my (?:task |to.?do )?list(?: left| open)?\s*\??$"
-        r"|^what(?:'s| is|s)? left (?:on my list|to do)$|^how many things (?:do i have )?(?:left )?to do$"
+        r"|^what(?:'s| is|s)? left(?: on my list| to do)?$|^how many things (?:do i have )?(?:left )?to do$"
         r"|^(?:my )?task list$|^my tasks$"
         r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
     ("approvals", re.compile(
@@ -1012,7 +1014,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9",
+                                           "until", "until2", "until3", "day8", "day9",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",

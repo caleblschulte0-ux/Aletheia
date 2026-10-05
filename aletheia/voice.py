@@ -855,23 +855,83 @@ def _last_ask_is_undoable() -> bool:
         return False
 
 
+def _last_task_words() -> str:
+    """The newest open task's words, for "remind me about it"."""
+    try:
+        from aletheia import tasks
+        rows = [t for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() in ("QUEUED", "READY", "WAITING_DEPENDENCY")]
+        rows.sort(key=lambda t: str(t.get("created_at") or ""))
+        return str((rows[-1] if rows else {}).get("description") or "").strip()
+    except Exception:
+        return ""
+
+
+def _previous_reminder_ask() -> dict:
+    """The command of his most recent ask that was a one-off reminder, looking
+    back a few turns past questions, or {}."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=6)
+    except Exception:
+        return {}
+    for turn in reversed(turns or []):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
+        if not said or _IS_FOLLOW_UP.match(said.casefold()):
+            continue
+        try:
+            command = (interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            continue
+        if command.get("kind") == "remind_at" and command.get("text"):
+            return command
+        if command.get("kind") not in ("intent",) and not intercom_is_read_only(command.get("kind")):
+            # His last ACT was something else; "that" is not a reminder.
+            return {}
+    return {}
+
+
+def intercom_is_read_only(kind) -> bool:
+    try:
+        from aletheia import intercom
+        return bool(kind) and kind in intercom.READ_ONLY_KINDS
+    except Exception:
+        return False
+
+
 def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     """"Make that 4": the reminder he just set, at the new time, replacing
     the old one. None unless his last ask was a one-off reminder and the
     time reads."""
-    prev = _previous_ask()
-    if not prev:
-        return None
-    try:
-        previous = (interpret(f"thea {prev}") or {}).get("command") or {}
-    except Exception:
-        return None
-    if previous.get("kind") != "remind_at" or not previous.get("text"):
+    # THE LAST REMINDER HE SET, not the last thing he said: "remind me
+    # about it tomorrow at 9" / "what reminders do I have" / "move that to
+    # 10" found "what reminders do I have" as the previous ask and moved
+    # nothing (sandbox, 2026-10-05). A question in between does not change
+    # what "that" is.
+    previous = _previous_reminder_ask()
+    if not previous:
         return None
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return None
     at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(time_words))
+    # THE SAME DAY HE SET IT FOR. "Remind me tomorrow at 9" then "move that
+    # to 10" moved it to TONIGHT at 10 (sandbox, 2026-10-05): the new time
+    # was read from now, not from the reminder. A reminder on a later day
+    # keeps its day, and a bare hour takes the reading nearest the old one.
+    try:
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        was = dt.datetime.fromisoformat(str(previous.get("at"))).astimezone(tz)
+        if was.date() > dt.datetime.now(tz).date():
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(time_words) and 1 <= hour <= 11 and abs(hour + 12 - was.hour) < abs(hour - was.hour):
+                hour += 12
+            at = was.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat()
+    except Exception:
+        pass
     return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
                         "replaces": previous["text"]}, "say": None}
 
@@ -1939,7 +1999,7 @@ def _interpret(transcript: str) -> dict:
     # instead, to a twenty-second live setup audit, while typing the same
     # sentence got the answer he meant - two doors, two answers.
     if re.fullmatch(r"(?:what do you still need(?: from me)?|"
-                    r"what'?s left(?: to set up)?|am i done|"
+                    r"what'?s left to set up|am i done|"
                     r"what'?s still missing|setup status)", low):
         return {"command": {"kind": "setup_status"}, "say": None}
     # "IS MY EMAIL SET UP?" is about ONE thing. It reached the whole
@@ -1980,8 +2040,32 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "meet", "person": m.group(1).strip()},
                 "say": None}
 
+    # "REMIND ME ABOUT IT TOMORROW AT 9" was read as a recall of the key
+    # "it tomorrow at 9" (sandbox, 2026-10-05). A sentence carrying a time
+    # or a day is a reminder: the referent is resolved to his last task, and
+    # the sentence is re-said in the shape the reminder rules know.
+    m = re.fullmatch(r"remind me (?:about|of) (?P<what>.+?) (?P<when>(?:tomorrow|today|tonight|at \d.*|on \w+.*|"
+                     r"in \w+ (?:minutes?|mins?|hours?)|next \w+.*|this \w+.*)(?: at [\w: ]+)?)", low)
+    if m:
+        what = m.group("what").strip()
+        if what in ("it", "that", "this", "the task", "that task", "the last one"):
+            what = _last_task_words() or ""
+        if what:
+            when = m.group("when").strip()
+            # "tonight at 8" is "at 8 pm"; "today at 3" is "at 3".
+            w = re.fullmatch(r"tonight(?: at ([\w: ]+))?", when)
+            if w:
+                when = f"at {w.group(1)} pm" if w.group(1) and not re.search(r"[ap]\.?m\b", w.group(1)) \
+                    else (f"at {w.group(1)}" if w.group(1) else "at 8 pm")
+            when = re.sub(r"^today at ", "at ", when)
+            again = interpret(f"thea remind me {when} to {what}")
+            if again.get("command") is not None and again["command"].get("kind") != "intent":
+                return again
+            # A sentence with a time in it is a reminder whatever the shape;
+            # the planner reads it, a recall of "the bins tonight at 8" never.
+            return _to_the_planner(text)
     m = re.match(r"(?:what do you know about|what have you got on|"
-                 r"remind me about|tell me about) (.+)", low)
+                 r"remind me about(?! (?:it|that|this) )|tell me about) (.+)", low)
     # "What do you know about me" is not a lookup under the key "me" (it
     # answered "I don't have anything remembered about 'me'"); the fast
     # lane says the whole of what she holds about him.
@@ -2813,16 +2897,19 @@ def _interpret(transcript: str) -> dict:
     # Each is anchored to the whole sentence, so "cancel my gym
     # membership" is untouched and still reaches the capability that
     # really cancels things.
+    # "ACTUALLY cancel that" / "no, never mind" are the same words with a
+    # breath in front; the breath sent them to the planner (2026-10-05).
+    low_c = re.sub(r"^(?:actually|no|ok|okay|wait|hmm)[, ]+", "", low)
     asked_to_cancel = re.match(
         r"(?:deny|denied|no to|cancel|scrap|drop)"
-        r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$", low)
+        r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$", low_c)
     # DROPPING THE SUBJECT, which is not the same sentence. Both deny a
     # pending thing when there is one; they differ only when there is
     # nothing to cancel, and there "Nothing is waiting for approval" is a
     # report on a queue he did not ask about.
     dropped_it = re.match(
         r"(?:never ?mind|forget (?:it|that)|call it off|"
-        r"don'?t do (?:it|that))$", low)
+        r"don'?t do (?:it|that))$", low_c)
     m = asked_to_cancel or dropped_it
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
@@ -2842,7 +2929,7 @@ def _interpret(transcript: str) -> dict:
             # not the approval queue (bottom rung 2026-09-24: "Nothing is
             # waiting for approval" after setting one). His last ask, if it
             # can be taken back, is what he means.
-            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low_c) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
@@ -2986,6 +3073,12 @@ def _interpret(transcript: str) -> dict:
         moved = _moved_reminder(text, m.group("time"))
         if moved:
             return moved
+        if re.match(r"(?:move|change) (?:that|it) to", low):
+            # Nothing of hers to move: the planner, asked instead, invented a
+            # reminder to move ("finish the remaining Aletheia setup",
+            # 2026-10-05). The honest sentence costs him one rephrase.
+            return {"command": None,
+                    "say": "I haven't set a reminder just now that I could move. Say the whole reminder and I'll set it."}
 
     # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
     # it went to nobody). A study verdict's "undo the change" is matched
