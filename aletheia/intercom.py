@@ -1373,7 +1373,7 @@ def _forget_contact(about: str) -> str | None:
         found = hits[0] if len(hits) == 1 else {}
         if found.get("id"):
             was = contacts.forget(found["id"])
-            reached = ", ".join((was.get("emails") or []) + (was.get("phones") or []))
+            reached = ", ".join(list(was.get("emails") or []) + [speech.phone_words(p) for p in (was.get("phones") or [])])
             return f"Forgotten: {was.get('display_name', about)}" + (f" ({reached})" if reached else "") + "."
     except Exception:  # noqa: BLE001
         pass
