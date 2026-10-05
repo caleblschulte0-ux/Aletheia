@@ -2424,6 +2424,19 @@ def _interpret(transcript: str) -> dict:
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
 
+    # "SEARCH FOR THE BEST BUDGET MONITOR" went to the FILE finder (2026-10-05:
+    # "I looked in Documents and my workspace"); a search for a thing that is
+    # not a file of his is the web. "What's on Hacker News" is a page she can
+    # read; "the latest news" needs a topic and is asked for one.
+    m = re.fullmatch(r"(?:search|google|web search|search (?:the web|online|the internet|google)|do a search|look online) (?:for )?(?P<q>.{3,120})", low)
+    if m and not re.search(r"\b(?:resume|cv|file|files|document|documents|pdf|docx?|notes?|folder|downloads?|desktop|workspace|photo|picture|jobs?|openings)\b", m.group("q")):
+        return {"command": {"kind": "research", "question": m.group("q").strip(" ?.")}, "say": None}
+    if re.fullmatch(r"(?:what(?:'s| is) (?:on|new on|top on|trending on)|read|read me|show me|check|open) (?:the )?(?:hacker ?news|hn)(?: front page| today)?", low):
+        return {"command": {"kind": "browse_read", "url": "https://news.ycombinator.com/"}, "say": None}
+    if re.fullmatch(r"(?:what(?:'s| is) (?:the )?(?:latest|today's|in the|the) news|any news|what(?:'s| is) (?:happening|going on) in the (?:world|news)|news|headlines|what are the headlines)(?: today)?", low):
+        return {"command": None,
+                "say": "Which topic? Say 'research the latest news on ...' and I'll read real pages rather than guess."}
+
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
         r"(?:a |an |any |my |the )?(?:files? |documents? )?"
@@ -3035,12 +3048,37 @@ def _interpret(transcript: str) -> dict:
         if found is not None:
             return {"command": {"kind": "project_step", "project": found["slug"],
                                 "text": _as_he_said(transcript, m.group(1))}, "say": None}
-    m = re.fullmatch(r"(?:drop|shelve|abandon|stop working on) (?:the |my )?(.+?)"
-                     r"(?: project| charter)?", low)
+    m = re.fullmatch(r"(?:drop|shelve|abandon|stop working on|forget about|scrap|kill|cancel) (?:the |my |that )?(.+?)"
+                     r"(?: project| charter| idea| thing)?", low)
     if m:
         found, _why = _plans.find_charter(m.group(1))
         if found is not None:
             return {"command": {"kind": "project_drop", "project": found["slug"]}, "say": None}
+        # not a charter yet: an idea still in the queue (2026-10-05)
+        try:
+            from aletheia import charters as _charters
+            wanted = set(re.findall(r"[a-z0-9]+", m.group(1))) - {"the", "a", "an", "my", "that", "project", "app", "thing"}
+            queued = [r for r in _charters.pending() if r.get("kind") == "new" and wanted
+                      and wanted <= set(re.findall(r"[a-z0-9]+", str(r.get("text") or "").casefold()))]
+        except Exception:
+            queued = []
+        if len(queued) == 1:
+            return {"command": {"kind": "project_drop", "project": str(queued[0]["id"])}, "say": None}
+    # "WHAT'S NEXT ON BARKLY" (2026-10-05: a model): the charter's first step
+    # not done, and whose it is.
+    m = re.fullmatch(r"what(?:'s| is) (?:next|the next step|left|the plan|the next thing) (?:on|for|with|in) (?:the |my )?(?P<proj>.+?)(?: project| charter)?", low)
+    if m:
+        found, why = _plans.find_charter(m.group("proj"))
+        if found is not None:
+            step = _plans.next_step(found)
+            title = str(found.get("title") or found.get("slug"))
+            if step is None:
+                return {"command": None, "say": f"Nothing left on {title} - every step is done."}
+            whose = "yours" if _plans.owner(step) != _plans.THEA else "mine"
+            done, total = _plans.progress(found)
+            return {"command": None, "say": f"Next on {title}: {str(step.get('text') or '').rstrip('.')} - that one's {whose}. {done} of {total} steps done."}
+        if why and not why.startswith("I don't have a project"):
+            return {"command": None, "say": why}
 
     # "Cancel my gym membership." HIGH-RISK and operator_always, so
     # reaching the verb means she PREPARES it and asks him — which is
@@ -4258,7 +4296,9 @@ def _interpret(transcript: str) -> dict:
     # 4471" already makes, and "what's the wifi password" reads it back.
     m = re.fullmatch(r"(?:my |the |our )?(?P<k>[a-z][a-z' -]{1,30}?) (?:password|passcode|code|pin|combination|combo) is (?P<v>\S{2,60})", low)
     if m and not re.search(r"\b(?:wrong|right|broken|expired|old|new|changed|the same|different|not)\b", m.group("v")) \
-            and not re.match(r"(?:remember|note|keep in mind|save|record|write down|jot)\b", low):
+            and not re.match(r"(?:remember|note|keep in mind|save|record|write down|jot)\b", low) \
+            and not re.match(r"(?:what|how|where|when|why|which|who|is|are|does|do|can|could|did|was|were)\b", low):
+        # ("how many lines of code is aletheia" was noted as a code, 2026-10-05)
         # ("remember the gate code is 4471" is the remember rule's, below)
         # A PASSWORD IS NEVER KEPT, and she says so at the time: every
         # journal line is scrubbed on the way in (the journal is committed

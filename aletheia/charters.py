@@ -146,6 +146,22 @@ def ask(kind: str, *, via: str, text: str = "", project: str = "", path=None,
     return row
 
 
+def withdraw(ask_id: str, *, via: str, path=None) -> dict | None:
+    """"Drop the recipe app project" before it was ever drafted (2026-10-05:
+    the planner, an approval): the pending ask is marked dropped, nothing
+    else moves. Returns the row, or None when no pending ask has that id."""
+    path = path if path is not None else QUEUE_PATH
+    queue = _read_queue(path)
+    for row in queue["asks"]:
+        if isinstance(row, dict) and row.get("id") == str(ask_id) and row.get("state") == "pending":
+            row["state"] = "dropped"
+            row["dropped_at"] = _stamp(_now())
+            _write_queue(path, queue)
+            journal.append("note", "charters", f"dropped before drafting: {row.get('text') or row.get('project')}"[:200], actor=via)
+            return row
+    return None
+
+
 def pending(path=None) -> list[dict]:
     """What he asked for that has not been drafted or applied yet."""
     return [r for r in _read_queue(path if path is not None else QUEUE_PATH)["asks"]

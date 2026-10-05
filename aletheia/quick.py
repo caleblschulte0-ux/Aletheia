@@ -896,6 +896,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what version are (?:you|u)(?: on| running)?$|^which version are (?:you|u)(?: on)?$|^what build are (?:you|u)(?: on)?$|^what(?:'s| is) your build$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
         r"|^which (?:branch|commit) are (?:you|u) on$"
+        r"|^what(?:'s| is|s)? the (?:latest|last|newest|most recent) (?:commit|change)(?: on (?:aletheia|you|your code|the repo))?$|^what(?:'s| is) the last thing that changed in your code$"
         r"|^are (?:you|u) (?:up to date|current|stale)$"
         r"|^are (?:you|u) running the latest code$")),
     # Three the machine itself can answer (2026-10-05, each a model turn):
@@ -930,6 +931,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("second", re.compile(
         r"^what(?:'s| is|s)? (?:after that|next after that|second|the second (?:thing|one)|after the first(?: one)?)\s*\??$"
         r"|^(?:and )?(?:after that|then what|what then|what comes after that|and then)\s*\??$")),
+    ("code_size", re.compile(
+        r"^how (?:many lines of code|much code|big) (?:is|are|does|do) (?:aletheia|you|u|your code|your codebase|the (?:repo|codebase|code))(?: have)?\s*\??$"
+        r"|^how (?:big|large) is (?:your|the) (?:code|codebase|repo)\s*\??$|^how many lines (?:of code )?(?:are (?:you|u)|do (?:you|u) have)\s*\??$")),
+    ("prs_opened", re.compile(
+        r"^(?:did|have) (?:you|u) open(?:ed)? any (?:pull requests|prs|pull request)(?: today| this week| recently| lately)?\s*\??$"
+        r"|^(?:any|what|which|how many) (?:pull requests|prs) (?:did|have) (?:you|u) open(?:ed)?(?: today| this week| recently)?\s*\??$"
+        r"|^(?:any|what) (?:open )?(?:pull requests|prs)(?: from you| of yours)?(?: today| this week)?\s*\??$|^what prs are open\s*\??$")),
     ("timers", re.compile(
         r"^how many timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
         r"|^(?:what|which) timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
@@ -4346,6 +4354,39 @@ def _who_is(name: str) -> str | None:
     return f"I don't have anyone called {shown} on file. Tell me who they are and I'll remember it."
 
 
+def _code_size() -> str:
+    """"How many lines of code is Aletheia" (2026-10-05: "Noted." - the
+    question was taken for a code of his). Counted from the checkout."""
+    from pathlib import Path
+    from aletheia import speech
+    root = Path(__file__).resolve().parent.parent
+    try:
+        code = [p for p in (root / "aletheia").glob("*.py")]
+        tests = [p for p in (root / "tests").glob("test_*.py")]
+        lines = sum(sum(1 for _ in p.open(encoding="utf-8", errors="ignore")) for p in code)
+        test_lines = sum(sum(1 for _ in p.open(encoding="utf-8", errors="ignore")) for p in tests)
+    except Exception:
+        return "I can't read my own checkout right now."
+    return (f"About {lines:,} lines of Python in {speech.count_phrase(len(code), 'module')}, "
+            f"and {test_lines:,} more lines in {speech.count_phrase(len(tests), 'test file')}.")
+
+
+def _prs_opened() -> str:
+    """"Did you open any pull requests" (2026-10-05: "I haven't run a work
+    session yet"). The unattended ledger keeps every outward act, a pull
+    request first among them."""
+    from aletheia import autonomy, speech
+    try:
+        rows = autonomy.recent(hours=24 * 7, limit=200)
+    except Exception:
+        return "I can't read my ledger right now."
+    prs = [r for r in rows if "pull request" in str(r.get("said") or "").casefold()]
+    if not prs:
+        return "No pull requests opened in the last week - nothing outward on my ledger."
+    said = [f"{str(r.get('said') or '').rstrip('.')} ({speech.humanize_time(str(r.get('at') or ''))})" for r in prs[:4]]
+    return f"{speech.count_phrase(len(prs), 'pull request')} in the last week: " + "; ".join(said) + "."
+
+
 def _timers() -> str:
     """"How many timers do I have" (2026-10-05: a model, six seconds)."""
     import datetime as dt
@@ -6512,6 +6553,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "timers": lambda rest: _timers(),
+           "code_size": lambda rest: _code_size(),
+           "prs_opened": lambda rest: _prs_opened(),
            "why_no_applications": lambda rest: _why_no_applications(),
            "deadlines": lambda rest: _deadlines(),
            "due_soonest": lambda rest: _deadlines(first=True),

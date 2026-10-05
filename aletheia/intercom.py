@@ -2519,6 +2519,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 "your phone to say yes to, usually within half an hour.")
     if kind in ("project_step", "project_drop"):
         from aletheia import charters
+        if kind == "project_drop" and str(cmd["project"]).startswith("ask-"):
+            # an idea still in the queue, not yet a charter
+            row = charters.withdraw(str(cmd["project"]), via=ACTOR)
+            if row is None:
+                raise act.Refused("that idea isn't waiting to be drafted any more")
+            return f"Dropped {row.get('text') or 'it'} before it was drafted."
         found, why = plans.find_charter(cmd["project"])
         if found is None:
             return why
