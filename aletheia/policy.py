@@ -200,7 +200,14 @@ def decide(aid: str, decision: str, via: str, because: str = "") -> dict:
         label = voice.approval_label(approval)
     except Exception:
         label = ""
-    word = "Approved" if decision == "APPROVED" else "Refused"
+    # His word, not hers: a DENIED decision is "Denied" (the deny receipt
+    # already said so, and "Refused: ... — denied by voice" beside "Denied:
+    # ..." read as two acts, 2026-10-05). "Refused" is what SHE does.
+    word = "Approved" if decision == "APPROVED" else "Denied"
+    # "Denied: <label> — denied by voice" says it twice; keep a reason that
+    # adds something ("too expensive"), drop one that repeats the word.
+    if str(because or "").strip().lower().startswith(word.lower()):
+        because = ""
     journal.append("decision", f"approval:{aid}",
                    # No trailing stop on the label: the list that reads this
                    # back adds its own, and "no undo.." reached the page.

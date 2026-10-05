@@ -111,7 +111,7 @@ class TestAvailability(BrowseCase):
         with mock.patch.object(builtins, "__import__", blocked):
             ok, reason = browse.available()
         self.assertFalse(ok)
-        self.assertIn("playwright", reason)
+        self.assertIn("not installed", reason)
 
 
 @needs_browser

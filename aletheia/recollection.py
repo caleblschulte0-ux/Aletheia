@@ -352,7 +352,11 @@ NOT_DOING_SUBJECTS = ("converse",) + PLUMBING_HEADS
 # own previous answers back at him, including the answer to the question
 # before this one. Anything the intent really executed is journaled by
 # `planner` under its own subject, so nothing is lost here.
-SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
+SAID_NOT_DID = (
+    # His yes and his no are journaled ONCE, as the decision on the approval
+    # (policy.decide); the command receipt is the same act said twice.
+    "core:approve", "core:deny",
+    "core:intent", "core:screen_ask", "core:brief",
                 # One act, two writers. The task store journals
                 # "created — call the plumber" and the command path
                 # journals "task t1 queued"; the store's line names the

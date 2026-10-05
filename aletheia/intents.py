@@ -778,6 +778,17 @@ def spoken(record: dict) -> str:
                    if tier and tier != intercom.TIER_ROUTINE
                    else "Say approve and I'll do it. Nothing happens until you do.")
             parts.append(said + " " + how + _why_it_asks(record))
+    # A GAP ON AN EXPERIMENTAL CAPABILITY IS NOT "I CAN'T". Live, 2026-10-05:
+    # "put a hold on monday at 10 for the dentist" came back "I can't find
+    # free time around travel, pencil in a tentative hold on the calendar ...
+    # yet. I've put it on the build list. What I can do: here's what I'd do:
+    # Hold Monday at 10 for the dentist." - the model had named calendar.hold
+    # as a gap beside the step that USES it, calendar.hold is EXPERIMENTAL,
+    # and the registry's own description was read out as a thing she lacks.
+    # When the plan has a real step, a gap on a capability she has (however
+    # unproven) is dropped from the sentence; its verify task is still filed.
+    if gaps_named and parts:
+        gaps_named = [s for s in gaps_named if not _is_verify_status(s)]
     if gaps_named:
         # WHAT SHE CANNOT DO COMES FIRST. "Here's what I'd do: text your
         # sister that you're late. Say yes and I'll do it. I can't send a
@@ -983,6 +994,16 @@ def _in_english(capability: str | None) -> str:
     return plain or "that"
 
 
+def _is_verify_status(step: dict) -> bool:
+    """A gap step whose capability the registry holds as EXPERIMENTAL or DEGRADED."""
+    try:
+        from aletheia import capabilities, gaps
+        cid = str(step.get("capability") or "")
+        return bool(cid) and capabilities.get(cid)["status"] in gaps.VERIFY_STATUSES
+    except Exception:
+        return False
+
+
 def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
     """"Not yet" — and the one thing that would change it.
 
@@ -1018,6 +1039,13 @@ def _cannot_yet(gaps_named: list[dict], record: dict) -> str:
     # can't a local secret vault sealed by Windows DPAPI ... yet" reached
     # the room (2026-09-24). A thing she lacks is said as a thing she does
     # not have; an id the registry has never heard of is "a way to ...".
+    # A gap on an EXPERIMENTAL capability, with no other step to offer, is
+    # "I can try" - never "I can't", which is false in the registry's own terms.
+    trying = [s for s in gaps_named if _is_verify_status(s)]
+    if trying and len(trying) == len(gaps_named):
+        named = [_in_english(s.get("capability")) for s in trying]
+        return ("I can try to " + speech.and_list([n[:1].lower() + n[1:] for n in named])
+                + ", but that part of me is still experimental - say it again plainly and I'll make a plan.")
     named = [_in_english(c) for c in wanted]
     things = [n for n in named if re.match(r"^(?:a|an|the|some|any)\b|^way to\b|^a way\b", n)]
     if things and len(things) == len(named):

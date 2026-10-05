@@ -2142,7 +2142,14 @@ def _approvals() -> str:
                if str(a.get("state") or "").upper() == "PENDING"]
     if not pending:
         return "Nothing is waiting on your approval."
-    first = str(pending[0].get("reason") or pending[0].get("action") or "").strip()
+    # THE LABEL, never the raw reason: "The first: operator said: \"spoken to
+    # the wall: thea put a hold on monday...\"" was read out (sandbox,
+    # 2026-10-05). voice.approval_label is what every interface shows.
+    try:
+        from aletheia import voice
+        first = str(voice.approval_label(pending[0]) or "").strip()
+    except Exception:
+        first = str(pending[0].get("reason") or pending[0].get("action") or "").strip()
     return (f"{speech.count_phrase(len(pending), 'approval')} pending"
             + (f". The first: {first[:130].rstrip('.')}." if first else "."))
 
