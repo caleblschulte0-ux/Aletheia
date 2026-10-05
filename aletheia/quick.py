@@ -444,7 +444,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$"
         # "What day of the week is Christmas" paid a model for the same arithmetic.
-        r"|^what day(?: of the week)? (?:is|does|will) (?:the )?(?P<until3>[a-z][a-z' ]{2,30}?)(?: fall on| land on| be(?: on)?)?$")),
+        # not "what day is IT tomorrow", which is the date (found red 2026-10-05)
+        r"|^what day(?: of the week)? (?:is|does|will) (?:the )?(?P<until3>(?!(?:it|that|this|today)\b)[a-z][a-z' ]{2,30}?)(?: fall on| land on| be(?: on)?)?$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -591,7 +592,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what are (?:you|u) (?:unable|not able) to do$"
         r"|^what (?:don'?t|doesn'?t) (?:you|u) (?:do|support|handle)(?: yet)?$"
         r"|^what(?:'s| is|s)? (?:still )?(?:missing|not built|not built yet|unavailable|not working)$"
-        r"|^what (?:isn'?t|is not) (?:built|working|set up)(?: yet)?$")),
+        r"|^what (?:isn'?t|is not) (?:built|working|set up)(?: yet)?$"
+        # "what are you bad at" was read as a project called "are you bad" (2026-10-05)
+        r"|^what (?:are|r) (?:you|u) (?:bad|weak|not good|no good|worst|hopeless) at$"
+        r"|^what do (?:you|u) struggle with$|^what(?:'s| are) your (?:weaknesses|weak spots|limits|limitations)$")),
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
@@ -934,7 +938,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's Barkly up to" / "whose turn is it on Barkly" is a charter by
     # the name he calls it (2026-10-05: a model, "I don't know what Barkly is").
     ("project_of", re.compile(
-        r"^what(?:'s| is|s)? (?:the |my )?(?P<project_of>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)? (?:up to|doing|at|looking like)(?: now| today| these days)?\s*\??$"
+        r"^what(?:'s| is) (?:the |my )?(?P<project_of>(?!(?:the|my|a|an|are|is|do|did|were|was|am|can|could|will|would|should|he|she|it|you|u|i|we|they|cpu|processor|memory|ram|disk|battery|weather|time|clock|market|date|temperature|forecast|fleet|core|hunt|job hunt|search|wifi|network|internet)\b)[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)? (?:up to|doing|at|looking like)(?: now| today| these days)?\s*\??$"
         r"|^(?:where (?:are we|am i|is it)|how far along (?:are we|is it)) (?:on|with) (?:the |my )?(?P<project_of2>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$"
         r"|^whose (?:turn|move|go) (?:is it )?(?:on|for|with) (?:the |my )?(?P<project_turn>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$"
         r"|^what(?:'s| is|s)? (?:the )?next (?:step|move) (?:on|for|with) (?:the |my )?(?P<project_of3>[a-z0-9][a-z0-9 '-]{1,40}?)(?: project)?\s*\??$")),
@@ -1052,10 +1056,29 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when(?:'s| is|s)? (?:my |the )(?P<recall6>[a-z0-9][a-z0-9 '-]{1,30}?(?:'s)? (?:birthday|anniversary|appointment|flight|wedding|graduation|party|checkup|check-up|exam|trip|visit))\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+    # "do you have access to my bank" was answered "Read-only, yes" by a
+    # model (2026-10-05). There is no bank data; the registry says so.
+    # Before "can you ...", which would otherwise swallow "can you get access to".
+    ("access_to", re.compile(
+        r"^(?:do|can|could) (?:you|u) (?:have|get|got) access to (?:my |the |our )?(?P<access>.{2,80})$"
+        r"|^(?:are|r) (?:you|u) (?:connected|hooked up|linked) to (?:my |the |our )?(?P<access2>.{2,80})$"
+        r"|^(?:do|can) (?:you|u) (?:see|read|get into|get at) (?:my |the |our )?(?P<access3>bank(?: account)?|bank accounts?|accounts?|finances|money|credit card|cards?|statements?)$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
         r"|^do (?:you|u) know how to (?P<what3>.{3,120})$")),
+    # Three questions about the turn before (2026-10-05, each a model turn
+    # of nine seconds and a guess): why, whether she is sure, who made her.
+    ("why_that", re.compile(
+        r"^why (?:did|would|have) (?:you|u) (?:do|say|done|said) that(?: for)?\s*\??$|^why(?:'d| did) (?:you|u) do it\s*\??$"
+        r"|^what was that for\s*\??$|^why that\s*\??$")),
+    ("sure", re.compile(
+        r"^(?:are|r) (?:you|u) (?:sure|certain|positive)(?: about that| about this| of that)?\s*\??$"
+        r"|^(?:is|are) (?:that|those|you) (?:right|correct|true|for real)\s*\??$|^really\s*\??$|^for real\s*\??$"
+        r"|^how (?:sure|certain) (?:are|r) (?:you|u)(?: about that)?\s*\??$|^(?:did|do) (?:you|u) make that up\s*\??$")),
+    ("who_made", re.compile(
+        r"^who (?:made|built|created|wrote|programmed|designed|coded|trained) (?:you|u)\s*\??$"
+        r"|^where (?:do|did) (?:you|u) come from\s*\??$|^what (?:are|r) (?:you|u) (?:built|made|running) on\s*\??$")),
     # The friction ledger, read out: what he has had to do himself.
     ("friction", re.compile(
         r"^what (?:have|did) i (?:had|have) to do (?:myself|on my own|by hand|for you)(?: lately| this (?:week|month))?$"
@@ -1111,6 +1134,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "applied_on", "applied_on2", "applied_on3",
                                            "due_when", "due_when2", "due_when3",
                                            "project_of", "project_of2", "project_of3", "project_turn",
+                                           "access", "access2", "access3",
                                            "recall6",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3",
@@ -2177,6 +2201,62 @@ def _and_the_money_line(asked: str) -> str:
             "I hold it - I stop at showing you what to buy.")
 
 
+def _his_verb(what: str) -> str:
+    """The first content word of "can you ...": the thing he is asking about."""
+    from aletheia import self_knowledge
+    for word in self_knowledge._words(what):
+        if word not in self_knowledge.STOP and len(word) >= 3:
+            return word
+    return ""
+
+
+def _names_his_verb(entry: dict, what: str) -> bool:
+    """Is the thing he asked about the thing this capability DOES? "Can you
+    drive" matched the vehicle-facts entry on a synonym and answered "Yes"
+    (2026-10-05). The description is a verb phrase by house style, so its
+    first word is what the capability does: that word, or a synonym of his
+    word, says yes - as does his own word anywhere in the entry's text. A
+    synonym buried in the middle ("vehicle") is how the search FOUND it,
+    not what it does, so it is the closest thing she does and not a yes."""
+    from aletheia import self_knowledge
+    verb = _his_verb(what)
+    if not verb:
+        return True
+    description = str(entry.get("what_it_is") or "")
+    words = self_knowledge._words(str(entry.get("capability") or "") + " " + description)
+    if verb in set(words):
+        return True
+    first = (self_knowledge._words(description) or [""])[0]
+    kin = {self_knowledge._stem(a) for a in self_knowledge.SYNONYMS.get(verb, ())}
+    return bool(first) and first in kin
+
+
+def _in_her_mouth(what: str) -> str:
+    """His words as she says them back: "buy me a monitor" -> "buy you a monitor"."""
+    swaps = {"me": "you", "my": "your", "mine": "yours", "myself": "yourself", "i": "you", "i'm": "you're"}
+    return " ".join(swaps.get(w.casefold(), w) for w in str(what or "").split())
+
+
+def _access_to(thing: str) -> str:
+    """"Do you have access to my bank": yes only when an AVAILABLE capability
+    says so in its own words; otherwise no, plainly, with the money rule."""
+    from aletheia import self_knowledge
+    asked = " ".join(str(thing or "").split()).rstrip("?. ")
+    found = self_knowledge.for_question(asked)
+    matches = [m for m in (found.get("matches") or []) if _names_his_verb(m, asked)]
+    line = _and_the_money_line("access " + asked)
+    best = matches[0] if matches else None
+    if best and str(best.get("status")) == "AVAILABLE":
+        name = str(best.get("what_it_is") or best.get("capability") or "")
+        return f"Yes - {name[:1].lower() + name[1:]}.{line}"
+    said = f"No - I have no access to your {asked}."
+    if best:
+        status = str(best.get("status") or "").replace("_", " ").lower()
+        name = str(best.get("what_it_is") or "")
+        said += f" The nearest thing, {name[:1].lower() + name[1:].rstrip('.')}, is {status}."
+    return said + line
+
+
 def _can_you(what: str) -> str | None:
     from aletheia import self_knowledge
     found = self_knowledge.for_question(what)
@@ -2186,6 +2266,12 @@ def _can_you(what: str) -> str | None:
     best = matches[0]
     status = str(best.get("status") or "")
     name = str(best.get("what_it_is") or best.get("capability") or "")
+    if not _names_his_verb(best, what):
+        verb_phrase = _in_her_mouth(" ".join(str(what).split()).rstrip("?. "))
+        closest = (name[:1].lower() + name[1:]).rstrip(".")
+        return (f"No - I can't {verb_phrase}. The closest thing I do is {closest}"
+                + ("" if status == "AVAILABLE" else f", and that is {status.replace('_', ' ').lower()}")
+                + "." + _and_the_money_line(what))
     if status != "AVAILABLE":
         # THE LEDGER STILL HEARS IT. `converse` records a "can you...?"
         # whose best match is not AVAILABLE, and this path now answers
@@ -3252,6 +3338,59 @@ def _applied_on(rest) -> str:
             said.append(f"{title} at {company}" if company and title else (company or title or "one I did not name"))
     return (f"{speech.count_phrase(len(sent), 'application')} went out {when}: {speech.and_list(said)}"
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
+
+
+def _why_that() -> str:
+    """Why she did the last thing: the sentence of his that got that
+    answer, from the thread, never a motive she invents."""
+    from aletheia import converse, recollection
+    try:
+        rows = recollection.day()
+    except Exception:
+        rows = []
+    try:
+        turns = converse.recent(limit=8)
+    except Exception:
+        turns = []
+    if not rows:
+        return "I haven't done anything today to explain."
+    did = str(rows[-1].get("what") or "").rstrip(".")
+    key = did.casefold()[:24]
+    asked = ""
+    for turn in reversed(turns):
+        if key and str(turn.get("she_answered") or "").casefold().startswith(key):
+            asked = str(turn.get("he_asked") or "")
+            break
+    if asked:
+        return f"Because you said \"{asked}\" - so I did: {did[:1].lower() + did[1:]}."
+    return f"The last thing I did was: {did[:1].lower() + did[1:]}. I don't have the sentence that asked for it in this conversation."
+
+
+def _sure() -> str:
+    """How sure she is of her last answer: a store or a model, from the
+    thread's own record of where it came from."""
+    from aletheia import converse
+    try:
+        turns = converse.recent(limit=1)
+    except Exception:
+        turns = []
+    if not turns:
+        return "I haven't answered anything yet this conversation to be sure about."
+    last = turns[-1]
+    said = str(last.get("she_answered") or "").strip()
+    how = str(last.get("how") or "")
+    if how == "stores":
+        return f"Yes - that came straight from my own records, not a guess: {said}"
+    if how == "model":
+        return ("That one came from a model reading my records, so it can be wrong. "
+                "Ask me the plain question and I'll read it from the store.")
+    return "I can't say how sure - I don't have a record of where that answer came from."
+
+
+def _who_made() -> str:
+    return ("You did. Claude and Codex wrote the code under your direction, on your "
+            "subscriptions, and I think with Claude and ChatGPT when they're there and "
+            "with my own model when they're not. Nobody else's keys are in me.")
 
 
 def _best_found() -> str:
@@ -4455,6 +4594,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "due_week": lambda rest: _due_week(rest),
            "contacts_all": lambda rest: _contacts_all(),
            "best_found": lambda rest: _best_found(),
+           "why_that": lambda rest: _why_that(),
+           "sure": lambda rest: _sure(),
+           "who_made": lambda rest: _who_made(),
            "project_of": lambda rest: _project_of(rest),
            "resume_says": lambda rest: _resume_says(),
            "interview_when": lambda rest: _interview_when(),
@@ -4476,6 +4618,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "month": lambda rest: _month(),
            "year": lambda rest: _year(),
            "can_you": _can_you,
+           "access_to": _access_to,
            "tasks": lambda rest: _tasks(),
            "approvals": lambda rest: _approvals(),
            "capabilities": lambda rest: _capabilities(),

@@ -502,7 +502,7 @@ KICK_WAIT_S = 2.0
 CLOSE_POLL_S = 2.0
 
 
-def _remember_out_loud(transcript: str, said: str) -> None:
+def _remember_out_loud(transcript: str, said: str, how: str = "stores") -> None:
     """Put a spoken turn in her conversation memory. Never raises.
 
     The memory lived inside `converse`, so it held only the turns a MODEL
@@ -515,7 +515,7 @@ def _remember_out_loud(transcript: str, said: str) -> None:
         # WITHOUT the wake word: "thea add a task to call the plumber" is
         # not how he would refer to it a turn later, and the thread is
         # read back to a model as what he said.
-        converse.remember_exchange(voice.strip_wake_word(transcript), said)
+        converse.remember_exchange(voice.strip_wake_word(transcript), said, how=how)
     except Exception:
         pass
 
@@ -1245,7 +1245,7 @@ class Handler(BaseHTTPRequestHandler):
                     # "remind me at 8 tomorrow" was answered through this
                     # path, and "make that 9 instead" a breath later found
                     # "no visible prior request".
-                    _remember_out_loud(transcript, detail)
+                    _remember_out_loud(transcript, detail, how="model")
                     return detail
 
                 try:

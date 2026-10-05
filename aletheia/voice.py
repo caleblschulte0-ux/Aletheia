@@ -2110,7 +2110,10 @@ def _interpret(transcript: str) -> dict:
                          r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low)
          or re.fullmatch(r"(?:save|add|remember) (?:my |the )?(?P<n>[a-z][a-z .'-]{1,40}?)(?:'s)? (?:number|phone)[,:]? "
                          r"(?P<p>[+(]?\d[\d\s().-]{6,}\d)", low))
-    if m and m.group("n").strip() not in ("my", "me", "i"):
+    # "my phone number is ..." is HIS number (profile_set), not a contact
+    # called "phone" (found red 2026-10-05).
+    if m and m.group("n").strip() not in ("my", "me", "i", "phone", "cell", "mobile", "work", "home",
+                                          "my phone", "my cell", "my mobile", "my work", "my home"):
         return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group("n").strip()),
                             "phone": m.group("p").strip()}, "say": None}
 
@@ -3003,6 +3006,11 @@ def _interpret(transcript: str) -> dict:
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if not pending:
+            if re.fullmatch(r"yeah|yep|yup|sure", low):
+                # A fragment the television says. With nothing pending it
+                # is noise, and she says nothing to the television
+                # (test_she_says_nothing_to_the_television; found red 2026-10-05).
+                return {"command": None, "say": None}
             return {"command": None, "say": "Nothing is waiting for approval."}
         if len(pending) == 1:
             only = pending[0]
@@ -3060,17 +3068,20 @@ def _interpret(transcript: str) -> dict:
     # really cancels things.
     # "ACTUALLY cancel that" / "no, never mind" are the same words with a
     # breath in front; the breath sent them to the planner (2026-10-05).
+    # The whole sentence first, then without the breath: "no to that" is
+    # a no in its own right, and stripping its "no" left "to that" (found
+    # red 2026-10-05).
     low_c = re.sub(r"^(?:actually|no|ok|okay|wait|hmm)[, ]+", "", low)
-    asked_to_cancel = re.match(
-        r"(?:deny|denied|no to|cancel|scrap|drop)"
-        r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$", low_c)
+    _cancel_re = (r"(?:deny|denied|no to|cancel|scrap|drop)"
+                  r"(?:\s+(?:that|it|the pending one|(?P<which>the (?:last|latest|newest|most recent|first|oldest)(?: one)?)))?$")
+    asked_to_cancel = re.match(_cancel_re, low) or re.match(_cancel_re, low_c)
     # DROPPING THE SUBJECT, which is not the same sentence. Both deny a
     # pending thing when there is one; they differ only when there is
     # nothing to cancel, and there "Nothing is waiting for approval" is a
     # report on a queue he did not ask about.
-    dropped_it = re.match(
-        r"(?:never ?mind|forget (?:it|that)|call it off|"
-        r"don'?t do (?:it|that)|no|nope|nah|no thanks)$", low_c)
+    _drop_re = (r"(?:never ?mind|forget (?:it|that)|call it off|"
+                r"don'?t do (?:it|that)|no|nope|nah|no thanks)$")
+    dropped_it = re.match(_drop_re, low) or re.match(_drop_re, low_c)
     m = asked_to_cancel or dropped_it
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]

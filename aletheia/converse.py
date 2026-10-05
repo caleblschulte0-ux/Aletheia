@@ -274,7 +274,7 @@ def nobody_can_think_words(why: str = "") -> str:
     return said + " Everything that doesn't need thinking still works."
 
 
-def remember_exchange(said: str, reply: str) -> None:
+def remember_exchange(said: str, reply: str, how: str = "") -> None:
     """Record a turn that did NOT go through this module. Never raises.
 
     Her memory of the conversation lived here, so it only ever held the
@@ -297,8 +297,13 @@ def remember_exchange(said: str, reply: str) -> None:
             if turns and turns[-1].get("you") == said[:600] \
                     and turns[-1].get("her") == reply[:900]:
                 return
-            turns.append({"at": stateio.utcnow(), "you": said[:600],
-                          "her": reply[:900]})
+            turn = {"at": stateio.utcnow(), "you": said[:600], "her": reply[:900]}
+            if how:
+                # WHERE the answer came from: her stores or a model. "Are you
+                # sure" is a question about that (2026-10-05: a model, ten
+                # seconds, "I shouldn't have said that").
+                turn["how"] = str(how)[:20]
+            turns.append(turn)
             stateio.write_json_atomic(THREAD_PATH, {"turns": _trim(turns)})
     except Exception:
         pass
@@ -365,7 +370,8 @@ def recent(limit: int = 3) -> list[dict]:
         if isinstance(turn, dict):
             out.append({"at": str(turn.get("at", ""))[:40],
                         "he_asked": str(turn.get("you", ""))[:240],
-                        "she_answered": str(turn.get("her", ""))[:240]})
+                        "she_answered": str(turn.get("her", ""))[:240],
+                        "how": str(turn.get("how", ""))[:20]})
     return out
 
 

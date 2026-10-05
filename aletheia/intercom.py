@@ -1370,9 +1370,14 @@ def _remembered_matching(about: str, domain: str | None = None):
     from aletheia import memory
     needle = " ".join(str(about or "").casefold().split())
     # "My landlord" is how he says it; "landlord" is how it is stored.
-    for lead in ("my ", "the ", "what you know about ", "everything about "):
-        if needle.startswith(lead):
-            needle = needle[len(lead):]
+    # Until every lead is gone: "everything about my sister" left "my sister"
+    # behind because "my " had already been tried (2026-10-05).
+    leads = ("my ", "the ", "our ", "what you know about ", "everything about ", "all about ",
+             "anything about ", "what i told you about ", "what i said about ")
+    while any(needle.startswith(lead) for lead in leads):
+        for lead in leads:
+            if needle.startswith(lead):
+                needle = needle[len(lead):]
     found = []
     for one in memory.DOMAINS if not domain else [domain]:
         try:
@@ -2476,7 +2481,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         about = " ".join(str(cmd.get("about") or "").split())
         # "I have nothing remembered about my landlord" echoed HIS words as
         # hers (2026-10-04). What he calls "my" she calls "your".
-        about_said = re.sub(r"^(?:my|our)\b", "your", about, count=1, flags=re.I) or about
+        about_said = re.sub(r"^(?:everything|all|anything|what you know|what i told you|what i said) about\s+", "", about, flags=re.I)
+        about_said = re.sub(r"^(?:my|our)\b", "your", about_said, count=1, flags=re.I) or about
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is

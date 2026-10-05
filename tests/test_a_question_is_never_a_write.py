@@ -106,12 +106,12 @@ class TheFastLaneNeverEndsTheTurn(unittest.TestCase):
 
     def test_a_day_it_can_read_is_still_instant(self):
         for said in ("am I free friday", "am I free tomorrow afternoon",
-                     "am I free"):
+                     "am I free", "am I free at 3 on friday"):   # the hour reads since 2026-10-05
             got = voice.interpret(said)
             self.assertEqual(got["command"]["kind"], "free_time", said)
 
     def test_a_day_it_cannot_read_goes_to_the_planner(self):
-        for said in ("am I free at 3 on friday", "am I free the week after next"):
+        for said in ("am I free the week after next",):
             got = voice.interpret(said)
             self.assertEqual((got.get("command") or {}).get("kind"), "intent", said)
             self.assertIsNone(got.get("say"), said)

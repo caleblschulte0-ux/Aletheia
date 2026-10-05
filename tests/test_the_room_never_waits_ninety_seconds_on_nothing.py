@@ -297,7 +297,7 @@ class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):
         self.assertEqual(quick.match("how long has the core been running")[0], "uptime")
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=3700.0), \
                 mock.patch("aletheia.liveness.spoken_duration", return_value="an hour"):
-            self.assertEqual(quick.answer("how long has the core been running"), "Up an hour.")
+            self.assertTrue(quick.answer("how long has the core been running").startswith("Up an hour, since "))
 
 
 class TheThirdBatteryFallThroughs(unittest.TestCase):
