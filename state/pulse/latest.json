@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-05T05:49:36Z",
+  "generated_at": "2026-10-05T14:51:18Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "924a343af6bc",
-          "date": "2026-10-05T05:23:21Z",
+          "sha": "7000309b89f7",
+          "date": "2026-10-05T12:32:28Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "6b5badeea186",
-          "date": "2026-10-05T04:53:12Z",
+          "sha": "60f495c765fe",
+          "date": "2026-10-05T08:57:58Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "0a97d52b1832",
-          "date": "2026-10-05T02:37:53Z",
+          "sha": "3ed9c7d1f204",
+          "date": "2026-10-05T07:56:51Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "7c2acd8067a9",
-          "date": "2026-10-05T02:05:33Z",
+          "sha": "5f4d5fa29230",
+          "date": "2026-10-05T07:25:37Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "16f335a4706f",
-          "date": "2026-10-05T01:35:14Z",
+          "sha": "dc3e56ad58be",
+          "date": "2026-10-05T05:53:37Z",
           "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "924a343af6bc",
-        "date": "2026-10-05T05:23:21Z",
+        "sha": "7000309b89f7",
+        "date": "2026-10-05T12:32:28Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,8 +46,8 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-05T05:49:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37269484044"
+          "updated_at": "2026-10-05T14:51:16Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37328072192"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20934
+          "bytes": 20948
         }
       },
       "health": "green"
@@ -71,48 +71,48 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "b81510478c59",
-          "date": "2026-10-05T05:47:49Z",
-          "message": "claim: mailbox verdicts 2026-10-05T05:47Z [skip ci]"
+          "sha": "2b023433c69a",
+          "date": "2026-10-05T14:50:35Z",
+          "message": "claim: mailbox verdicts 2026-10-05T14:50Z [skip ci]"
         },
         {
-          "sha": "063b8ed6ad58",
-          "date": "2026-10-05T05:46:02Z",
-          "message": "exchange: phase A bundle for 20261005 [skip ci]"
+          "sha": "9a38b4cda7b2",
+          "date": "2026-10-05T14:45:17Z",
+          "message": "explainer: posted youth-sports-dropout [skip ci]"
         },
         {
-          "sha": "2fa0630c0448",
-          "date": "2026-10-05T05:45:47Z",
-          "message": "render: seeded, attributable renderer randomness (doctor 66d90578bc9b) (#513)"
+          "sha": "82d7eac9c7c0",
+          "date": "2026-10-05T14:45:08Z",
+          "message": "explainer: claim upload slot youth-sports-dropout [skip ci]"
         },
         {
-          "sha": "7b1f35c7441c",
-          "date": "2026-10-05T05:30:59Z",
-          "message": "doctor: evidence pack + backlog 2026-10-05 [skip ci]"
+          "sha": "387ad122faa5",
+          "date": "2026-10-05T14:31:14Z",
+          "message": "watchdog: chatgpt task verdicts 20261005 [skip ci]"
         },
         {
-          "sha": "87a3821ed9ee",
-          "date": "2026-10-05T04:48:02Z",
-          "message": "claim: mailbox verdicts 2026-10-05T04:48Z [skip ci]"
+          "sha": "576074972cc6",
+          "date": "2026-10-05T14:27:24Z",
+          "message": "explainer: posted nobel-prize-discovery-age [skip ci]"
         }
       ],
       "commit": {
-        "sha": "b81510478c59",
-        "date": "2026-10-05T05:47:49Z",
-        "message": "claim: mailbox verdicts 2026-10-05T05:47Z [skip ci]"
+        "sha": "2b023433c69a",
+        "date": "2026-10-05T14:50:35Z",
+        "message": "claim: mailbox verdicts 2026-10-05T14:50Z [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 413
+          "value": 418
         },
         {
           "label": "explainer posted",
-          "value": 296
+          "value": 299
         },
         {
           "label": "third posted",
-          "value": 813
+          "value": 827
         },
         {
           "label": "curiosity posted",
@@ -123,39 +123,39 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-10-04T12:15:02Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37199471861",
+          "updated_at": "2026-10-05T12:01:28Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37305070800",
           "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-05T05:46:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37269227166"
+          "updated_at": "2026-10-05T12:34:35Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37310411006"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-04T18:14:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37223645246"
+          "updated_at": "2026-10-05T14:46:23Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37327384825"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-05T05:47:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37269221285"
+          "updated_at": "2026-10-05T12:23:45Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37308999001"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-04T15:51:53Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37214202745"
+          "updated_at": "2026-10-05T12:42:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37305067508"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-10-04T20:58:09Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37230997419"
+          "status": "pending",
+          "conclusion": null,
+          "updated_at": "2026-10-05T14:01:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37321307120"
         },
         "retro.yml": {
           "status": "completed",
@@ -166,22 +166,22 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-05T05:31:02Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37268125094"
+          "updated_at": "2026-10-05T12:13:28Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37308021508"
         }
       },
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 136804
+          "bytes": 140100
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 121366
+          "bytes": 124877
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 449630
+          "bytes": 459552
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,11 +189,11 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 2842274
+          "bytes": 2915244
         },
         "config/channel_registry.json": {
           "exists": true,
-          "bytes": 17324
+          "bytes": 18322
         }
       },
       "health": "red"
@@ -362,7 +362,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 11,
+        "days_quiet": 12,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -438,7 +438,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-05T05:23:21Z",
+        "last_progress_at": "2026-10-05T12:32:28Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": []
@@ -463,7 +463,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 11,
+        "days_quiet": 12,
         "commits_7d": 0,
         "open_prs": [
           {
