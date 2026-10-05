@@ -1947,7 +1947,13 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:clear|cancel|delete|remove|wipe|drop|scrap) (?:all |every |all of |all my |my )?(?:tasks?|the (?:whole )?task list|my task list|the list of tasks)", low) \
             and re.search(r"\b(?:all|every|whole|list)\b", low):
         return {"command": {"kind": "task_done", "which": "everything", "as": "cancelled"}, "say": None}
-    if re.fullmatch(r"(?:deny|reject|refuse|turn down|say no to|cancel) (?:all|everything|them all|all of them|all of it|every approval|all the approvals|all pending)(?: of them)?", low):
+    # "CLEAR THEM" after "what notifications do I have" (2026-10-05: the
+    # planner, an approval, for a read-only store's unread flags).
+    if re.fullmatch(r"(?:clear|dismiss|mark (?:as )?read|read) (?:them|them all|all of them|those|all|my notifications|the notifications|all notifications|my notices|the notices)(?: (?:as )?read)?(?: please)?"
+                    r"|mark (?:them|them all|all of them|all|everything|my notifications|the notifications) (?:as )?read", low):
+        return {"command": {"kind": "notify_clear"}, "say": None}
+    if re.fullmatch(r"(?:deny|reject|refuse|turn down|say no to|cancel) (?:all|everything|them all|all of them|all of it|every approval|all the approvals|all pending|the rest|the others|everything else|the rest of them)(?: of them)?"
+                    r"|(?:no|nope) to (?:the rest|the others|everything else|all of them|all)|the rest (?:no|nope|can wait)", low):
         return {"command": {"kind": "deny", "id": "all", "because": "denied by voice, all at once"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
@@ -3549,7 +3555,7 @@ def _interpret(transcript: str) -> dict:
     # "MARK IT AS READ" / "UNSUBSCRIBE ME FROM THAT NEWSLETTER" (2026-10-05: a
     # model each, asking which). Neither is built; both are said so, and
     # counted in the demand ledger with his words.
-    m = (re.fullmatch(r"mark (?:it|that|this|them|the (?:email|e-mail|message)|(?P<w1>.{2,40}?)) (?:as )?(?:read|unread|seen)", low)
+    m = (re.fullmatch(r"mark (?:it|that|this|the (?:email|e-mail|message)|(?P<w1>(?!them\b|all\b|everything\b|my notifications\b|the notifications\b).{2,40}?)) (?:as )?(?:read|unread|seen)", low)
          or re.fullmatch(r"(?:unsubscribe|unsub)(?: me)?(?: from)?(?: (?:that|this|the|those))? ?(?P<w2>.{0,60})", low))
     if m:
         unsub = low.startswith("unsub")

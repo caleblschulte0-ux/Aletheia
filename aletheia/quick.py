@@ -938,6 +938,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|have) (?:you|u) open(?:ed)? any (?:pull requests|prs|pull request)(?: today| this week| recently| lately)?\s*\??$"
         r"|^(?:any|what|which|how many) (?:pull requests|prs) (?:did|have) (?:you|u) open(?:ed)?(?: today| this week| recently)?\s*\??$"
         r"|^(?:any|what) (?:open )?(?:pull requests|prs)(?: from you| of yours)?(?: today| this week)?\s*\??$|^what prs are open\s*\??$")),
+    ("needs_detail", re.compile(
+        r"^what (?:would|does|will|is) (?:the (?P<need_ord>first|second|third|last|latest|newest|oldest) one|that one|that|it|this) (?:do|about|mean|involve)(?: exactly| really| actually)?\s*\??$"
+        r"|^what exactly (?:would|does|will|is) (?:the (?P<need_ord2>first|second|third|last|latest|newest|oldest) one|that one|that|it|this)(?: do)?\s*\??$"
+        r"|^(?:tell me more about|more about|details on|what(?:'s| is) in) (?:the (?P<need_ord3>first|second|third|last|latest|newest|oldest) one|that one|that)\s*\??$")),
+    ("why_approval", re.compile(
+        r"^why (?:do|does|did) (?:you|u|that|it|this) need my (?:approval|permission|ok|okay|yes)(?: for (?:that|it|this))?\s*\??$"
+        r"|^why (?:are|r) (?:you|u) asking(?: me)?(?: for (?:approval|permission))?(?: for (?:that|it|this))?\s*\??$"
+        r"|^why (?:do|must|should) i (?:have to )?approve (?:that|it|this|things like that)\s*\??$|^why (?:can't|cant|won't|wont) (?:you|u) just do (?:it|that)\s*\??$")),
+    ("next_brief", re.compile(
+        r"^when(?:'s| is| does) (?:the )?(?:next |morning )?brief(?: come| due| arrive| posted| land)?\s*\??$|^what time (?:is|does) the brief(?: come| arrive| post)?\s*\??$"
+        r"|^when do i get the brief\s*\??$|^is there a brief (?:tomorrow|today)\s*\??$")),
+    ("allowance", re.compile(
+        r"^what(?:'s| is) your (?:daily |unattended )?(?:allowance|budget)(?: today)?\s*\??$|^how much of your (?:allowance|budget) is left(?: today)?\s*\??$"
+        r"|^how (?:much|many) (?:allowance|budget|unattended (?:actions|things|acts)) (?:do (?:you|u) have|is left|are left|have (?:you|u) used)(?: today)?\s*\??$"
+        r"|^how many things (?:can|may) (?:you|u) (?:still )?do (?:on your own|without asking)(?: today)?\s*\??$")),
     ("timers", re.compile(
         r"^how many timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
         r"|^(?:what|which) timers (?:do i have|are (?:running|set|going|on)|have i got)\s*\??$"
@@ -1470,6 +1485,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("math", "farewell", "time_convert", "chance", "date_math", "clock_ahead", "until", "days_left", "just_asked", "mine"):
             return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine", "mine2", "mine3", "mine4", "recall7", "recall8", "recall9", "recall10",
+                                       "need_ord", "need_ord2", "need_ord3",
                                        "fin_when", "fin_when2", "fin_when3", "fin_when4", "left_when", "left_when2", "left_when3",
                                        "are_you", "why_thea", "allowed", "allowed2", "allowed3",
                                        "repo_about", "repo_about2", "repo_about3",
@@ -4387,6 +4403,87 @@ def _prs_opened() -> str:
     return f"{speech.count_phrase(len(prs), 'pull request')} in the last week: " + "; ".join(said) + "."
 
 
+def _needs_rows() -> list[dict]:
+    from aletheia import needs_you
+    try:
+        return list(needs_you.items() or [])
+    except Exception:
+        return []
+
+
+def _needs_detail(which: str = "") -> str:
+    """"What would the first one do exactly" (2026-10-05: a model described a
+    capability lookup, with nothing pending). The needs list, one row."""
+    from aletheia import speech
+    rows = _needs_rows()
+    word = " ".join(str(which or "").split()).casefold()
+    if not rows:
+        # a bare "what does that do" with nothing waiting is about something
+        # else entirely - not hers to answer here
+        return "Nothing is waiting on you right now, so there's no first one." if word else None
+    word = word or "first"
+    index = {"first": 0, "second": 1, "third": 2, "last": -1, "latest": 0, "newest": 0, "oldest": -1}.get(word, 0)
+    try:
+        row = rows[index]
+    except IndexError:
+        return f"There {'is' if len(rows) == 1 else 'are'} only {speech.count_phrase(len(rows), 'thing')} waiting on you."
+    said = str(row.get("what") or "").rstrip(".") + "."
+    if row.get("why"):
+        said += f" {str(row['why']).rstrip('.')}."
+    if row.get("if_ignored"):
+        said += f" If you leave it: {str(row['if_ignored']).rstrip('.')}."
+    return said
+
+
+def _why_approval() -> str:
+    """"Why do you need my approval for that" (2026-10-05: twenty seconds on
+    a model). The rule, and the row it applies to when one is waiting."""
+    rows = _needs_rows()
+    rule = ("As a rule I ask before anything that reaches somebody else, can't be taken back, or decides "
+            "for you - sending, publishing, deleting for good, a pull request, an account. Money I refuse "
+            "outright. Small reversible things in my own stores I do without asking and report.")
+    if not rows:
+        return "Nothing is waiting on your approval right now. " + rule
+    first = rows[0]
+    why = str(first.get("why") or "").rstrip(".")
+    return f"The first thing waiting is {str(first.get('what') or '').rstrip('.')}." + (f" {why}." if why else "") + " " + rule
+
+
+def _next_brief() -> str:
+    """"When's the next brief" (2026-10-05: a model, five seconds). The
+    schedule is in the workflow file; the time is said in his zone."""
+    import re as _re
+    from pathlib import Path
+    from aletheia import localtime, speech
+    try:
+        text = (Path(__file__).resolve().parent.parent / ".github" / "workflows" / "brief.yml").read_text(encoding="utf-8")
+        found = _re.search(r"cron:\s*[\"']?(\d+) (\d+) \* \* \*", text)
+        minute, hour = int(found.group(1)), int(found.group(2))
+    except Exception:
+        return "The morning brief is posted by GitHub on its own schedule; I can't read the time from here."
+    tz = localtime.operator_tz()
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    nxt = now_utc.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if nxt <= now_utc:
+        nxt += dt.timedelta(days=1)
+    local = nxt.astimezone(tz)
+    return (f"The morning brief is posted by GitHub at {speech.clock_words(local.strftime('%H:%M'))} your time; "
+            f"the next one is {speech.humanize_time(local.isoformat())}. It's read back on the Thea page and in 'read me the brief'.")
+
+
+def _allowance() -> str:
+    """"What's your daily allowance" (2026-10-05: a model said it did not have
+    the number). The unattended budget, counted."""
+    from aletheia import autonomy
+    try:
+        c = autonomy.counts()
+    except Exception:
+        return "I can't read my ledger right now."
+    left = max(0, int(c["day_limit"]) - int(c["day"]))
+    return (f"{int(c['day_limit'])} reversible things a day on my own; {int(c['day'])} used today, {left} left. "
+            "Past that, anything else becomes a handoff to you.")
+
+
 def _timers() -> str:
     """"How many timers do I have" (2026-10-05: a model, six seconds)."""
     import datetime as dt
@@ -6553,6 +6650,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "timers": lambda rest: _timers(),
+           "needs_detail": _needs_detail,
+           "why_approval": lambda rest: _why_approval(),
+           "next_brief": lambda rest: _next_brief(),
+           "allowance": lambda rest: _allowance(),
            "code_size": lambda rest: _code_size(),
            "prs_opened": lambda rest: _prs_opened(),
            "why_no_applications": lambda rest: _why_no_applications(),
