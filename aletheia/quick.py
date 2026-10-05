@@ -1038,6 +1038,30 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("home", re.compile(
         r"^where do i live$|^what city do i live in$"
         r"|^what town do i live in$|^where(?:'s| is) home$")),
+    # "where am I" is the city on file and an honest "I can't see where you are" (2026-10-05)
+    ("where_am_i", re.compile(r"^where (?:am i|are we)(?: right now| now)?$|^what city (?:am i in|are we in)$")),
+    # His clock and hers, and the clock elsewhere converted (2026-10-05: five
+    # model turns for what zoneinfo knows).
+    ("my_zone", re.compile(
+        r"^what(?:'s| is|s)? (?:my|the) time ?zone(?: here)?\s*\??$|^what time ?zone am i (?:in|on)\s*\??$"
+        r"|^what time ?zone (?:are|r) (?:you|u) (?:in|on|using|working in)\s*\??$|^what(?:'s| is) your time ?zone\s*\??$")),
+    ("time_convert", re.compile(
+        r"^what(?:'s| is|s)? (?P<conv_t>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight)(?: my time| here| our time)? in (?P<conv_place>[a-z][a-z .'-]{1,40}?)\s*\??$"
+        r"|^when it(?:'s| is) (?P<conv_t2>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight) in (?P<conv_place2>[a-z][a-z .'-]{1,40}?),? what time is it (?:here|for me|my time)\s*\??$"
+        r"|^what time is (?P<conv_t3>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight) in (?P<conv_place3>[a-z][a-z .'-]{1,40}?) (?:here|for me|my time)\s*\??$")),
+    # Letters, chance and date arithmetic (2026-10-05: eight seconds to spell
+    # a word, seven to flip a coin, six for "how many days since January 1").
+    ("spell", re.compile(r"^(?:spell|how do (?:you|u) spell|how is .* spelled)(?: the word)? (?P<spell>[a-z][a-z'-]{1,40})(?: for me)?\s*\??$")),
+    ("chance", re.compile(
+        r"^(?P<coin>flip a coin|toss a coin|heads or tails|coin flip)\s*\??$"
+        r"|^(?:roll (?:a |the |one )?(?P<die>die|dice|d6)|roll (?P<dice_n>two|2|three|3) dice)\s*\??$"
+        r"|^(?:pick|choose|give me|say) (?:a )?(?:random )?number (?:between|from) (?P<lo>\d+) (?:and|to) (?P<hi>\d+)\s*\??$"
+        r"|^(?:random number|pick a number|give me a number)\s*\??$")),
+    ("date_math", re.compile(
+        r"^what(?:'s| is|s)? the date (?:in|after) (?P<ahead_n>\d+) (?P<ahead_unit>days?|weeks?)(?: from now| from today)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the date |the day |it )?(?P<ahead_n2>\d+) (?P<ahead_unit2>days?|weeks?) from (?:now|today)\s*\??$"
+        r"|^what (?:day|date) (?:was it|was) (?P<ago_n>\d+) (?P<ago_unit>days?|weeks?) ago\s*\??$"
+        r"|^how many days (?:since|from|have passed since|has it been since) (?P<since>[a-z0-9][a-z0-9 ']{2,30}?)\s*\??$")),
     # WHAT HE TOLD HER, read back without a model (2026-09-23 night sweep:
     # "what's my landlord's name", "what did I tell you about the car",
     # "when is my lease up" and "what notes do you have" each waited on a
@@ -1209,8 +1233,8 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
-            return name, text
+        if name in ("math", "farewell", "time_convert", "chance", "date_math"):
+            return name, text           # the answer re-reads the whole sentence
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
@@ -1237,7 +1261,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "place", "place2", "place3",
                                            "pay_for", "pay_for2", "pay_for3", "pay_for4",
                                            "wrong_when", "wrong_when2", "decided", "decided2", "decided3",
-                                           "standing_for", "standing_for2", "standing_for3", "standing_for4")
+                                           "standing_for", "standing_for2", "standing_for3", "standing_for4",
+                                           "spell", "coin", "die", "dice_n", "lo", "since")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -1462,6 +1487,120 @@ def _time_in(place: str) -> str | None:
     else:
         said += " - the same as yours"
     return said + "."
+
+
+def _my_zone() -> str:
+    """His time zone, which is the one she works in, and the clock there."""
+    import datetime as dt
+    from aletheia import localtime
+    name = localtime.operator_timezone()
+    now = dt.datetime.now(localtime.operator_tz())
+    said = {"America/Chicago": "Central time", "America/New_York": "Eastern time", "America/Denver": "Mountain time",
+            "America/Los_Angeles": "Pacific time", "America/Anchorage": "Alaska time", "Pacific/Honolulu": "Hawaii time",
+            "Europe/London": "UK time", "UTC": "UTC"}.get(name, name.replace("_", " "))
+    clock = now.strftime("%I:%M %p").lstrip("0").replace("AM", "am").replace("PM", "pm")
+    return f"{said} - it's {clock} on {now.strftime('%A')}. I keep my records in universal time and work in yours."
+
+
+def _time_convert(text: str) -> str | None:
+    """"What's 3 pm my time in London" and "when it's 9 am in Tokyo what time
+    is it here": the same clock, read in the other zone, today."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from aletheia import localtime
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "time_convert"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    clock_words = g.get("conv_t") or g.get("conv_t2") or g.get("conv_t3")
+    place = (g.get("conv_place") or g.get("conv_place2") or g.get("conv_place3") or "").strip()
+    key = " ".join(place.casefold().split())
+    zone = _ZONES.get(key) or _ZONES.get(key.replace("the ", "", 1))
+    if not zone:
+        return None
+    if clock_words == "noon":
+        hour, minute = 12, 0
+    elif clock_words == "midnight":
+        hour, minute = 0, 0
+    else:
+        m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))? ?(am|pm)", clock_words)
+        hour, minute = int(m.group(1)) % 12 + (12 if m.group(3) == "pm" else 0), int(m.group(2) or 0)
+    his, theirs = localtime.operator_tz(), ZoneInfo(zone)
+    there_first = bool(g.get("conv_t2") or g.get("conv_t3"))
+    source, target = (theirs, his) if there_first else (his, theirs)
+    today = dt.datetime.now(source).date()
+    moment = dt.datetime.combine(today, dt.time(hour, minute), tzinfo=source)
+    other = moment.astimezone(target)
+
+    def clock(x):
+        return x.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").replace("AM", "am").replace("PM", "pm")
+
+    day = "" if other.date() == moment.date() else (" the next day" if other.date() > moment.date() else " the day before")
+    name = place.strip().title() if key not in ("utc", "gmt") else key.upper()
+    if there_first:
+        return f"{clock(moment)} in {name} is {clock(other)}{day} for you."
+    return f"{clock(moment)} your time is {clock(other)}{day} in {name}."
+
+
+def _spell(word: str) -> str:
+    letters = [c.upper() for c in str(word or "") if c.isalpha()]
+    if not letters:
+        return "Spell what?"
+    return f"{str(word).strip().capitalize()}: " + ", ".join(letters) + "."
+
+
+def _chance(text: str) -> str | None:
+    """A coin, a die, a number - chance is code, not a model (2026-10-05:
+    seven seconds to flip a coin)."""
+    import random
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "chance"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    if g.get("coin"):
+        return random.choice(["Heads.", "Tails."])
+    if g.get("die"):
+        return f"{random.randint(1, 6)}."
+    if g.get("dice_n"):
+        n = {"two": 2, "2": 2, "three": 3, "3": 3}[g["dice_n"]]
+        rolls = [random.randint(1, 6) for _ in range(n)]
+        return " and ".join(str(r) for r in rolls) + f" - {sum(rolls)} together."
+    lo, hi = int(g.get("lo") or 1), int(g.get("hi") or 10)
+    if lo > hi:
+        lo, hi = hi, lo
+    return f"{random.randint(lo, hi)}."
+
+
+def _date_math(text: str) -> str | None:
+    """A date some days ahead or behind, and days since a named date."""
+    import datetime as dt
+    from aletheia import localtime
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "date_math"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    today = localtime.today()
+
+    def say(d):
+        return f"{d.strftime('%A')} the {_ordinal(d.day)} of {d.strftime('%B')}" + (f" {d.year}" if d.year != today.year else "")
+
+    if g.get("ahead_n") or g.get("ahead_n2"):
+        n, unit = int(g.get("ahead_n") or g.get("ahead_n2")), (g.get("ahead_unit") or g.get("ahead_unit2"))
+        days = n * (7 if unit.startswith("week") else 1)
+        return f"{say(today + dt.timedelta(days=days))}."
+    if g.get("ago_n"):
+        days = int(g["ago_n"]) * (7 if g["ago_unit"].startswith("week") else 1)
+        return f"{say(today - dt.timedelta(days=days))}."
+    when = _named_date(g.get("since", ""), today)
+    if when is None:
+        return None
+    if when > today:
+        try:
+            when = when.replace(year=when.year - 1)
+        except ValueError:
+            when = when - dt.timedelta(days=365)
+    days = (today - when).days
+    return f"{days} days, since {say(when)}." if days else "That's today."
 
 
 def _date_of(words: str) -> str | None:
@@ -4323,6 +4462,14 @@ def _home() -> str | None:
     return f"{city}, {state}" if state else str(city)
 
 
+def _where_am_i() -> str:
+    """"Where am I": the city on file, and that she cannot see him."""
+    home = _home()
+    if not home or home.startswith("I don't have"):
+        return "I can't see where you are, and I don't have your city on file - tell me and I'll remember it."
+    return f"I can't see where you are. Your city on file is {home}."
+
+
 def _weather(when: str = "") -> str | None:
     """What it is doing outside, from the free national service.
 
@@ -5086,6 +5233,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "job_hunt": lambda rest: _job_hunt(),
            "wrong": lambda rest: _wrong(rest),
            "standing": lambda rest: _standing(rest),
+           "my_zone": lambda rest: _my_zone(),
+           "time_convert": _time_convert,
+           "spell": lambda rest: _spell(rest),
+           "chance": _chance,
+           "date_math": _date_math,
            "decided": lambda rest: _decided(rest),
            "today": lambda rest: _today(rest),
            "due_week": lambda rest: _due_week(rest),
@@ -5156,6 +5308,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
+           "where_am_i": lambda rest: _where_am_i(),
            "notes_list": lambda rest: _notes_list(),
            "drafts": lambda rest: _drafts(),
            "sending": lambda rest: _sending(rest),

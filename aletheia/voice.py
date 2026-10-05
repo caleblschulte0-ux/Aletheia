@@ -3552,8 +3552,24 @@ def _interpret(transcript: str) -> dict:
     # SD" went to the planner, which proposed a plan and asked his approval
     # to remember his own address, while "where do I live" kept answering
     # "Tell me and I'll remember it" (sandbox, 2026-10-05).
+    # "I'm in central time" / "my timezone is eastern" went to the planner
+    # for an approval to remember where his own clock is (2026-10-05).
+    m = re.fullmatch(r"(?:i(?:'m| am) (?:in|on) |my time ?zone is |set my time ?zone to |i live in )(?:the )?"
+                     r"(?P<zone>central|eastern|mountain|pacific|alaska|hawaii|uk|london|gmt|utc)(?: time| time ?zone)?", low)
+    if m:
+        zone = {"central": "America/Chicago", "eastern": "America/New_York", "mountain": "America/Denver",
+                "pacific": "America/Los_Angeles", "alaska": "America/Anchorage", "hawaii": "Pacific/Honolulu",
+                "uk": "Europe/London", "london": "Europe/London", "gmt": "UTC", "utc": "UTC"}[m.group("zone")]
+        return {"command": {"kind": "remember", "domain": "identity", "key": "timezone", "value": zone,
+                            "about": "your time zone"}, "say": None}
     for pattern, field in (
             (r"my (?:full |legal )?name is (?P<v>.+)", "name"),
+            # "set my city to Springfield" (2026-10-05: the planner, and an approval)
+            (r"(?:set|change|update|make) my (?:city|town|home town|hometown) (?:to|as) (?P<v>.+)", "city"),
+            (r"(?:set|change|update|make) my (?:home |street )?address (?:to|as) (?P<v>.+)", "address"),
+            (r"(?:set|change|update|make) my (?:e-?mail(?: address)?) (?:to|as) (?P<v>\S+@\S+)", "email"),
+            (r"(?:set|change|update|make) my (?:phone|cell|mobile|phone number|cell number|number) (?:to|as) (?P<v>[+\d][\d\s().-]{6,})", "phone"),
+            (r"(?:set|change|update|make) my (?:full |legal )?name (?:to|as) (?P<v>.+)", "name"),
             (r"(?:call me|my preferred name is|i go by) (?P<v>.+)", "preferred_name"),
             (r"(?:my (?:home |street )?address is|i live at) (?P<v>.+)", "address"),
             (r"(?:i live in|my (?:city|town|home town|hometown) is|i(?:'m| am) based in) (?P<v>.+)", "city"),
