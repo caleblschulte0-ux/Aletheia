@@ -1373,6 +1373,11 @@ def _interpret(transcript: str) -> dict:
     #
     # "Got the milk" is here because that is what a person says in a shop,
     # and it means the same thing.
+    # "Clear the shopping list" paid a model round trip (2026-10-05) for
+    # the removal the handler already does for "everything".
+    if re.fullmatch(r"(?:clear|empty|wipe|reset)(?: out)? (?:my |the )?(?:whole )?(?:shopping |grocery )?list"
+                    r"|take everything off (?:my |the )?(?:shopping |grocery )?list", low):
+        return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
     m = re.match(r"(?:take|remove|delete|cross|scratch|tick) (?:off )?(.+?) "
                  r"(?:off|from) (?:my |the )?(?:shopping |grocery )?list", low)
     if not m:
@@ -1453,6 +1458,9 @@ def _interpret(transcript: str) -> dict:
         # untouched and still reaches the thing that really cancels.
         m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
+    if not m:
+        # "Cancel the timer": a timer is a reminder whose text says timer.
+        m = re.fullmatch(r"(?:cancel|stop|kill|turn off|delete) (?:the |my |that )?(timer|alarm)s?\s*", low)
     if m:
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
@@ -1513,11 +1521,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
     m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
-                     r"|remind me in (\w+) (minutes?|mins?|hours?)", low)
+                     r"|remind me in (\w+) (minutes?|mins?|hours?)"
+                     # "set a 20 minute timer": the amount before the word. It went to
+                     # the planner and asked approval for what "set a timer for 20
+                     # minutes" does in 0.0 s (sandbox, 2026-10-05).
+                     r"|(?:set|start|put on|give me) (?:a |an |me a )?(\w+)[- ](minutes?|mins?|hours?|seconds?) timer", low)
     if m:
         import datetime as dt
-        raw = m.group(1) or m.group(3) or m.group(5)
-        unit = m.group(2) or m.group(4) or m.group(6)
+        raw = m.group(1) or m.group(3) or m.group(5) or m.group(7)
+        unit = m.group(2) or m.group(4) or m.group(6) or m.group(8)
         amount = _spoken_amount(raw)
         if amount:
             seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)

@@ -2670,9 +2670,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # An empty store still proves the store: "(empty)" out loud is
             # a bare parenthesis, and it reads as "you have no files"
             # rather than "the directory I write into is new".
-            where = cmd.get("subdir") or "her workspace"
-            return (f"nothing in {where} yet - that is the folder she "
-                    f"writes into, not where your own files are")
+            where = cmd.get("subdir") or "my workspace"
+            # In her voice, with a capital: "nothing in her workspace yet -
+            # that is the folder she writes into" was read out (2026-10-05).
+            return (f"Nothing in {where} yet - that is the folder I write "
+                    f"into, not where your own files are.")
         return ", ".join(r["path"] for r in rows[:40])
 
     if kind == "file_find":

@@ -629,6 +629,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:read|show|tell) me (?:my |the )?(?:shopping|grocery|groceries) list$"
         r"|^what(?:'s| is|s)? on (?:my |the )?(?:grocery|groceries) list$|^(?:my )?grocery list$"
         r"|^(?:what(?:'s| is|s)? )?(?:my |the )?shopping list\?$")),
+    ("sunset", re.compile(
+        r"^(?:what time (?:is|'s)|when(?:'s| is)) (?:the )?(?P<sun>sunset|sunrise|sundown|dawn|dusk)"
+        r"(?: today| tonight| tomorrow)?\??$"
+        r"|^(?:what time does|when does) the sun (?P<sun2>set|rise|go down|come up)(?: today| tonight| tomorrow)?\??$")),
     ("next_charge", re.compile(
         r"^what(?:'s| is|s)? (?:my )?next (?:charge|bill|renewal|payment)(?: due)?\??$"
         r"|^when(?:'s| is) (?:my )?next (?:charge|bill|renewal|payment)(?: due)?\??$"
@@ -2601,6 +2605,23 @@ def _pay_for(rest: str) -> str:
             + " I don't see your bank.")
 
 
+def _sunset() -> str:
+    """She has no sunset lookup. Asked, a model answered "in the Chicago area it's
+    around 6:15 PM" - a city she had never been told and a number it made up
+    (sandbox, 2026-10-05). The honest answer names what she lacks and the one
+    sentence that gets it."""
+    city = ""
+    try:
+        from aletheia import profile
+        city = str(profile.known().get("city") or "").strip()
+    except Exception:
+        city = ""
+    where = f" in {city}" if city else ""
+    return ("I don't have a sunset lookup yet, and I won't guess a time. Say "
+            f"\"look up tonight's sunset{where}\" and I'll research it"
+            + ("" if city else " - tell me your city first so I know where you are") + ".")
+
+
 def _next_charge() -> str:
     """The soonest charge on his subscriptions list, or the honest empty answer."""
     from aletheia import subscriptions
@@ -4029,6 +4050,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "shopping": lambda rest: _shopping(),
            "pay_for": _pay_for,
            "next_charge": lambda rest: _next_charge(),
+           "sunset": lambda rest: _sunset(),
            "projects": lambda rest: _projects(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
