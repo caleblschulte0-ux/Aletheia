@@ -57,6 +57,9 @@ class TheCalendar(unittest.TestCase):
         with mock.patch("aletheia.converse.recent", return_value=turns):
             said = quick.answer("what time did i ask you that")
         self.assertTrue(said.startswith('You asked "how many weeks until christmas" '), said)
+        # ...and live, where the question being answered is not in the thread yet
+        with mock.patch("aletheia.converse.recent", return_value=turns[:1]):
+            self.assertTrue(quick.answer("what time did i ask you that").startswith('You asked "how many weeks until christmas" '))
         with mock.patch("aletheia.converse.recent", return_value=[]):
             self.assertIn("thread is empty", quick.answer("when was that"))
 

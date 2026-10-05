@@ -1730,7 +1730,12 @@ def _when_asked() -> str:
         turns = []
     if not turns:
         return "I don't have a record of when - the conversation thread is empty."
-    turn = turns[-2] if len(turns) > 1 else turns[-1]
+    # The question being answered is not in the thread yet (the Core records
+    # a turn after answering it), so the last turn IS the one he means -
+    # unless the thread already holds this question (a replay, a test).
+    turn = turns[-1]
+    if re.search(r"\b(?:when|what time) (?:did i|was that|was it)\b", str(turn.get("he_asked") or "").casefold()) and len(turns) > 1:
+        turn = turns[-2]
     when = speech.humanize_time(str(turn.get("at") or "")) if turn.get("at") else ""
     asked = str(turn.get("he_asked") or "").strip()
     return f"You asked \"{asked}\" {when}." if when else f"You asked \"{asked}\", but I don't have the time it was said."
