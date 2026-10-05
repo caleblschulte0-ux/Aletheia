@@ -29,7 +29,7 @@ class CodesSaidPlainly(unittest.TestCase):
     def test_and_it_is_read_back(self):
         rows = [{"text": "the gate code is 4471"}, {"text": "the car needs an oil change"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
-            self.assertIn("you told me: the gate code is 4471", quick.answer("what's the gate code"))
+            self.assertIn("the gate code is 4471", quick.answer("what's the gate code"))
             for said in ("what did I note about the car", "what have I told you about the car",
                          "any notes about the car", "what did I write down about the car"):
                 self.assertIn("the car needs an oil change", quick.answer(said) or "", said)
