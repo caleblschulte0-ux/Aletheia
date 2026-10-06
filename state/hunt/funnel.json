@@ -187,20 +187,20 @@
     "2026-10-06": {
       "filled": 12,
       "found": 13,
-      "interviews": 0,
+      "interviews": 1,
       "rejections": 0,
-      "replies": 0,
+      "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-06T07:25:03Z",
+  "generated_at": "2026-10-06T14:40:55Z",
   "sent_all_time": 229,
   "totals": {
     "filled": 355,
     "found": 626,
-    "interviews": 0,
+    "interviews": 1,
     "rejections": 1,
-    "replies": 23,
+    "replies": 25,
     "sent": 229
   },
   "window_days": 30
