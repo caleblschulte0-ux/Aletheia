@@ -186,21 +186,21 @@
     },
     "2026-10-06": {
       "filled": 12,
-      "found": 21,
+      "found": 22,
       "interviews": 2,
       "rejections": 2,
-      "replies": 6,
+      "replies": 7,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-06T22:14:39Z",
+  "generated_at": "2026-10-06T22:45:45Z",
   "sent_all_time": 230,
   "totals": {
     "filled": 350,
-    "found": 629,
+    "found": 630,
     "interviews": 2,
     "rejections": 3,
-    "replies": 29,
+    "replies": 30,
     "sent": 230
   },
   "window_days": 30
