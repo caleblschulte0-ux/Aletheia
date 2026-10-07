@@ -350,6 +350,7 @@ SAID_AS = {
     "calendar_hold": "pencilled in {title} (a tentative hold in my own calendar, nothing sent)",
     "shopping_add": "put {item} on your list",
     "list_add": "put {item} on your {list} list",
+    "stopwatch": "your stopwatch: {action}",
     "plan_step": "moved a step of {slug}",
     "notify_operator": "raised a notice: {text}",
     "remind_at": "set a reminder: {text}",

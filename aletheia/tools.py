@@ -86,7 +86,7 @@ DESTRUCTIVE_KINDS = frozenset({
 IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
-    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off",
+    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -125,6 +125,7 @@ STORE_OF = {
     "task_change": "tasks",
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
     "list_new": "lists", "list_add": "lists", "list_read": "lists", "list_off": "lists",
+    "stopwatch": "stopwatch", "stopwatch_read": "stopwatch",
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
@@ -700,7 +701,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "your tasks and reminders": ("task_new", "tasks", "task_done", "task_change",
                                  "task_status", "remind_at", "remind_daily",
                                  "remind_weekly", "remind_monthly", "remind_every", "reminders", "reminder_off",
-                                 "do_task"),
+                                 "stopwatch", "stopwatch_read", "do_task"),
     "your lists": ("shopping_add", "shopping_list", "shopping_off", "list_new", "list_add", "list_read", "list_off"),
     # Third on purpose: dict order is spoken order, only the first six
     # are said, and "can you make me a spreadsheet" is a question he

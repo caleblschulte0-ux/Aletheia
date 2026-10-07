@@ -362,6 +362,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "list_add":        ({"list", "item"}, set()),
     "list_read":       (set(), {"list"}),
     "list_off":        ({"list", "item"}, set()),
+    # HIS STOPWATCH - counts up until he says stop (a timer counts down).
+    "stopwatch":       ({"action"}, set()),
+    "stopwatch_read":  (set(), set()),
     "subscriptions":   (set(), set()),
     # `about` says which half of the same store he asked about — balance
     # or spending — so the empty-store answer does not report a balance to
@@ -499,6 +502,11 @@ KIND_NOTES: dict[str, str] = {
     "list_read": (
         'Read one of his named lists, or with no list name say which lists '
         'he has.'),
+    "stopwatch": (
+        'His stopwatch: action is start, stop or reset. "Start a stopwatch", '
+        '"stop the stopwatch". A countdown is a timer (remind_at), not this.'),
+    "stopwatch_read": (
+        'What his stopwatch says right now - "how long has the stopwatch been running".'),
     "list_off": (
         'Take a line off one of his named lists, or "everything" to clear '
         'it. Lines are marked done, not deleted.'),
@@ -781,7 +789,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # every private-state verb below lives on the PC
                "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
-               "list_new", "list_add", "list_read", "list_off",
+               "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -815,7 +823,7 @@ READ_ONLY_KINDS = frozenset({
     "chatgpt",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read",
+    "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read", "stopwatch_read",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
@@ -887,6 +895,8 @@ ROUTINE_KINDS = frozenset({
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
     # His own named lists: the same act on the same kind of store.
     "list_new", "list_add", "list_off",
+    # His stopwatch: one small record of his own, reset by one word.
+    "stopwatch",
     # Writes one file inside her own workspace: reversible, reaches
     # nobody, and the workspace keeps the previous version. Same tier as
     # `file_write`, which it sits beside.
@@ -1124,6 +1134,7 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
     "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
+    "stopwatch": {"action": _enum("aletheia.stopwatch", "ACTIONS")},
 }
 
 
@@ -3437,6 +3448,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _applications_answer()
     if kind == "shopping_list":
         return shopping_answer()
+    if kind == "stopwatch":
+        from aletheia import stopwatch
+        return stopwatch.act(str(cmd["action"]))
+    if kind == "stopwatch_read":
+        from aletheia import stopwatch
+        return stopwatch.spoken()
     if kind in ("list_new", "list_add", "list_read", "list_off"):
         return _named_list(kind, cmd)
     if kind == "shopping_off":

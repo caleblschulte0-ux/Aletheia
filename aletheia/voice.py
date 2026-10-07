@@ -2533,6 +2533,13 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
                     r"what's new|anything new|notifications?)", low):
         return {"command": {"kind": "notify_check"}, "say": None}
+    # HIS STOPWATCH (2026-10-07: "start a stopwatch" went to the planner).
+    if re.fullmatch(r"(?:start|begin|set|run) (?:a |the |my )?stopwatch(?: now| for me)?|stopwatch(?: start| go)", low):
+        return {"command": {"kind": "stopwatch", "action": "start"}, "say": None}
+    if re.fullmatch(r"(?:stop|pause|end|halt) (?:the |my )?stopwatch(?: now)?|stopwatch stop", low):
+        return {"command": {"kind": "stopwatch", "action": "stop"}, "say": None}
+    if re.fullmatch(r"(?:reset|clear|restart) (?:the |my )?stopwatch", low):
+        return {"command": {"kind": "stopwatch", "action": "reset"}, "say": None}
     # "CLEAR MY SHOPPING LIST" (2026-10-07: to the planner). Every row is
     # cancelled, never deleted, through the verb that already does it.
     if re.fullmatch(r"(?:clear|empty|wipe|reset|delete everything on|clear out|empty out) (?:my |the )?"
