@@ -4521,5 +4521,36 @@ class TheCar(unittest.TestCase):
             self.assertIn("inspection", quick.answer("when is my car due"))
 
 
+class TheKidsDays(unittest.TestCase):
+    """2026-10-07: "Leo has soccer practice at 5 today", "Emma's school
+    starts at 8", "the kids are at grandma's this weekend" and "my daughter is
+    sick" went to the planner; "where are the kids" searched his files."""
+
+    def _r(self, said):
+        from aletheia import voice
+        return voice._interpret(said) or {}
+
+    def test_writers(self):
+        c = self._r("leo has soccer practice at 5 today")["command"]
+        self.assertEqual(c["kind"], "calendar_hold")
+        self.assertEqual(c["title"].casefold(), "leo's soccer practice")
+        for said in ("emma's school starts at 8", "the kids are at grandma's this weekend", "my wife is at work"):
+            self.assertEqual(self._r(said)["command"]["kind"], "note", said)
+        r = self._r("my daughter is sick")
+        self.assertEqual(r["command"]["kind"], "note")
+        self.assertIn("she feels better", r["say"])
+        self.assertNotEqual((self._r("dinner is at 6").get("command") or {}).get("kind"), "note")
+
+    def test_where_a_person_is_is_never_a_file(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "The kids are at grandma's this weekend"}]):
+            self.assertIn("grandma", self._r("where are the kids this weekend")["say"])
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            r = self._r("where's my husband")
+            self.assertIsNone(r["command"])
+            self.assertIn("haven't told me", r["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

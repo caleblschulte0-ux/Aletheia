@@ -1277,7 +1277,7 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)"
                        r"|(?:i'?m|we'?re|i am|we are) (?:having|hosting|throwing|going to|off to) (?:a|an|my|our|the) (.+)",
                        str(title), flags=re.IGNORECASE)
-    theirs = re.fullmatch(r"([a-z][a-z']{1,20}) (?:has|has got|'s got) (?:a|an|his|her|their) (.+)", str(title), flags=re.IGNORECASE)
+    theirs = re.fullmatch(r"([a-z][a-z']{1,20}) (?:has|has got|'s got) (?:(?:a|an|his|her|their) )?(.+)", str(title), flags=re.IGNORECASE)
     if own:
         title = own.group(1) or own.group(2)
     elif theirs and theirs.group(1).casefold() not in ("he", "she", "it", "who", "what", "that", "this", "there", "everyone",
@@ -4878,12 +4878,18 @@ def _interpret(transcript: str) -> dict:
                 "say": "I only read your email and write drafts - I can't delete, archive or mark messages. "
                        "Do that in your mail app."}
 
-    m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)\s*\??", low)
+    m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?\s*\??", low)
     # "Note that the wifi code is on the fridge", then "where's the wifi
     # code" searched his Documents (2026-10-07). A note saying where it is
     # answers before a file search does.
     if m:
         put = _where_he_put(m.group(1))
+        # "Where are the kids" searched his Documents for "kids" (2026-10-07).
+        # A person is never a file.
+        if not put and re.fullmatch(r"kids|children|boys|girls|son|daughter|wife|husband|partner|mom|dad|mum|parents"
+                                    r"|grandma|grandpa|family|baby|sister|brother", m.group(1)):
+            put = (f"You haven't told me where your {m.group(1)} {'is' if m.group(1) in ('son', 'daughter', 'wife', 'husband', 'partner', 'mom', 'dad', 'mum', 'grandma', 'grandpa', 'baby', 'sister', 'brother', 'family') else 'are'}. "
+                   "I can't see where anybody is - tell me and I'll remember.")
         if put:
             return {"command": None, "say": put}
         # "The gym is at 20 Oak Ave", then "where is the gym" searched his
@@ -6278,7 +6284,7 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
-                     r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: please)?", low)
+                     r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?(?: please)?", low)
     if m:
         put = _where_he_put(m.group("thing"))
         if put:
@@ -7367,6 +7373,14 @@ def _interpret(transcript: str) -> dict:
                 held["command"]["minutes"] = minutes
                 return held
     if not m:
+        # "LEO HAS SOCCER PRACTICE AT 5 TODAY" (2026-10-07: to the planner) -
+        # the day said after the time. The same sentence with the day first.
+        swap = re.fullmatch(r"(?P<head>.+? (?:has|have|has got|'ve got|got) .+?) at (?P<time>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)"
+                            r" (?P<day>today|tonight|tomorrow|(?:on |this |next )?(?:mon|tues|wednes|thurs|fri|satur|sun)day)", low)
+        if swap:
+            again = _interpret(f"{swap.group('head')} {swap.group('day')} at {swap.group('time')}")
+            if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                return again
         # "I'M MEETING SAM FOR COFFEE AT 10 TOMORROW" (2026-10-07: to the
         # planner, and "who am I meeting tomorrow" found nothing). The same
         # hold, called what it is and who with.
@@ -7559,6 +7573,33 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:i|we) (?:just )?(?:got|bought) (?:a |an |my )?new (?:phone|car|truck|laptop|computer|tv|television|bike|watch"
                     r"|tablet|ipad|iphone|couch|bed|mattress|fridge|washer|dryer|dishwasher|puppy|dog|cat|kitten|house|apartment)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "MY DAUGHTER IS SICK" (2026-10-07: to the planner). Kept, and one
+    # kind line - with the pronoun the relation carries.
+    m = re.fullmatch(r"(?:my|our) (?P<rel>son|daughter|wife|husband|partner|kid|kids|mom|mum|dad|mother|father|brother|sister"
+                     r"|baby|grandma|grandpa|girlfriend|boyfriend|dog|cat)(?:'s| is| are) (?:really |pretty |a bit |home )?"
+                     r"(?:sick|ill|unwell|not feeling well|under the weather|in the hospital|in hospital|home sick|down with [a-z ]{2,20})", low)
+    if m:
+        rel = m.group("rel")
+        who = ("she" if rel in ("daughter", "wife", "mom", "mum", "mother", "sister", "grandma", "girlfriend")
+               else "they" if rel in ("kids", "partner", "baby", "kid", "dog", "cat") else "he")
+        feels = "feel" if who == "they" else "feels"
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"I'm sorry. I hope {who} {feels} better soon - I've noted it."}
+    # WHEN SOMEBODY'S DAY STARTS, AND WHERE THEY ARE (2026-10-07: "Emma's
+    # school starts at 8" and "the kids are at grandma's this weekend" went
+    # to the planner; "where are the kids" then searched his files).
+    if re.fullmatch(r"(?:(?:my |our )?[a-z][a-z']{1,20}(?:'s|s'|s) |the |my |our )?(?:school|class|classes|practice|game|shift|bus|daycare"
+                    r"|lesson|lessons|recital|rehearsal|work|camp|pickup|pick-up|drop-off|dropoff)"
+                    r" (?:starts|begins|ends|finishes|gets out|lets out|is over|comes|leaves|is)(?: at| around| by)? "
+                    r"\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: (?:on )?(?:weekdays|mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|every day))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?P<who>the kids|my kids|our kids|the boys|the girls|my (?:son|daughter|wife|husband|partner|mom|dad|parents)"
+                     r"|[a-z]{2,15}) (?:is|are|will be|'s|'re) (?:at|staying at|staying with|with|over at) "
+                     r"(?P<where>(?:the |my |our |a )?[a-z][a-z' ]{1,30}?)(?: (?:this|next|for the|tonight|today|tomorrow|until|till)[a-z ]{0,20})?", low)
+    if m and not re.search(r"\d", low) and m.group("who") not in (
+            "it", "this", "that", "he", "she", "they", "we", "dinner", "lunch", "breakfast", "work", "school", "practice", "everything",
+            "nobody", "everyone", "someone", "who", "what", "where", "there", "here", "the meeting", "my meeting", "class", "party"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # THE CAR (2026-10-07: "the check engine light is on" and "my car is due
     # for inspection in November" went to the planner). A warning light is
