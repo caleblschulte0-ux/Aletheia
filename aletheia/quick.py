@@ -1506,6 +1506,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:the )?(?P<rootw>square|cube) root of (?P<root>[\d.,]+)$")),
     ("joke", re.compile(r"^(?:tell me|say|got|know|give me) (?:a |another |any )?(?:good |funny |dad )?jokes?$"
                         r"|^(?:make me laugh|tell me something funny|say something funny|cheer me up with a joke)$")),
+    # "What should I have for dinner" (2026-10-07: "I can't think just
+    # now"). A suggestion is not a fact, so it is said as one - and what
+    # he told her he likes comes first.
+    ("meal_idea", re.compile(
+        r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
+        r"|^what(?:'s| is) for (?P<meal2>breakfast|lunch|dinner|supper)(?: tonight| today)?$"
+        r"|^(?:give me |any )?(?P<meal3>breakfast|lunch|dinner|supper) ideas?$")),
     ("parked", re.compile(r"^where (?:did i|have i) park(?:ed)?(?: the car| my car)?$"
                           r"|^where(?:'s| is) (?:my|the) car(?: parked)?$")),
     # 2026-10-07, every one to a model with nothing to think about:
@@ -1716,7 +1723,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -4110,6 +4117,26 @@ JOKES = (
 def _joke() -> str:
     import secrets
     return secrets.choice(JOKES)
+
+
+_MEALS = {
+    "breakfast": ("eggs on toast", "porridge with fruit", "yogurt and granola", "pancakes", "a breakfast burrito"),
+    "lunch": ("a toasted sandwich", "soup and bread", "a big salad", "leftovers", "a wrap"),
+    "dinner": ("tacos", "a stir-fry", "pasta", "a curry", "something on the grill", "soup and a sandwich",
+               "breakfast for dinner", "a sheet-pan dinner"),
+}
+
+
+def _meal_idea(meal: str) -> str:
+    """One idea, from what he told her he likes when he told her anything."""
+    import secrets
+    meal = {"supper": "dinner", "tea": "dinner"}.get(str(meal or "dinner").strip(), str(meal or "dinner").strip())
+    for row in _notes():
+        said = str(row.get("text") or "")
+        liked = re.search(r"\bmy fav(?:ou?rite)? (?:food|meal|dinner|dish) is (.+?)\.?$", said, re.IGNORECASE)
+        if liked and meal != "breakfast":
+            return f"How about {liked.group(1).strip()}? You told me that's your favorite."
+    return f"How about {secrets.choice(_MEALS.get(meal, _MEALS['dinner']))}? Just an idea - I don't know what's in the fridge."
 
 
 def _parked() -> str:
@@ -7259,6 +7286,7 @@ def _good_morning() -> str:
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "power": lambda rest: _power(rest),
            "joke": lambda rest: _joke(),
+           "meal_idea": lambda rest: _meal_idea(rest),
            "parked": lambda rest: _parked(),
            "fact_q": lambda rest: _fact_q(rest),
            "help": lambda rest: HELP,

@@ -678,5 +678,20 @@ class MakeItAnotherDay(unittest.TestCase):
         self.assertEqual((at.date(), at.hour), (moved.date(), 16))
 
 
+
+
+class WhatsForDinner(unittest.TestCase):
+    def test_what_he_likes_first(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my favorite food is tacos"}]):
+            self.assertEqual(quick.answer("what should i have for dinner"),
+                             "How about tacos? You told me that's your favorite.")
+
+    def test_otherwise_an_idea_said_as_one(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            said = quick.answer("what's for dinner")
+        self.assertTrue(said.startswith("How about "), said)
+        self.assertIn("Just an idea", said)
+
+
 if __name__ == "__main__":
     unittest.main()
