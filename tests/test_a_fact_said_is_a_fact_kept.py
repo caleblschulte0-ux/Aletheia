@@ -4709,5 +4709,38 @@ class LunchWithSomeoneByName(unittest.TestCase):
         self.assertIn("day", quick.answer("how long until christmas") or "")
 
 
+class TheCarAndAMonth(unittest.TestCase):
+    """"Where's my car" is never his car insurance; a month is its first; mileage is kept."""
+
+    def test_car_insurance_is_not_where_the_car_is(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my car insurance is due on the 15th"}]):
+            self.assertIsNone(voice._where_he_put("car"))
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "the car is at the shop"}]):
+            self.assertIn("at the shop", voice._where_he_put("car"))
+
+    def test_a_month_is_the_first_of_it(self):
+        import datetime as dt
+        from aletheia import localtime, voice
+        this = dt.datetime.now(localtime.operator_tz()).month
+        month = dt.date(2000, this % 12 + 1, 1).strftime("%B").casefold()
+        got = voice.interpret(f"remind me to renew my registration in {month}")["command"]
+        self.assertEqual(got["kind"], "remind_at")
+        self.assertEqual(got["text"], "renew my registration")
+        self.assertIn(f"-{this % 12 + 1:02d}-01T", got["at"])
+
+    def test_this_month_is_left_alone(self):
+        import datetime as dt
+        from aletheia import localtime, voice
+        month = dt.datetime.now(localtime.operator_tz()).strftime("%B").casefold()
+        got = voice.interpret(f"remind me to renew my registration in {month}")
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "remind_at")
+
+    def test_the_mileage_is_a_note(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("my car has 45000 miles")["command"],
+                         {"kind": "note", "text": "my car has 45000 miles"})
+
+
 if __name__ == "__main__":
     unittest.main()

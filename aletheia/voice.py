@@ -1370,8 +1370,14 @@ def _where_he_put(thing: str) -> str | None:
         for row in quick._notes():
             said = str(row.get("text") or "").strip()
             low = said.casefold()
+            # The thing itself is where it is: "my car insurance is due on
+            # the 15th" answered "where's my car" (2026-10-07), because "is
+            # ... on" was anywhere in the note.
             if re.search(rf"\b{re.escape(stem)}", low) and re.search(
-                    r"\b(?:put|left|keep|hid|placed|parked|are|is)\b.*\b(?:in|on|at|under|by|behind|next to|inside|near)\b"
+                    rf"\b(?:put|left|keep|hid|placed|parked)\b.*\b{re.escape(stem)}"
+                    rf"|\b{re.escape(stem)}\w*(?:'s)? (?:is|are|was|were)(?: (?:still|now|probably))? "
+                    r"(?:in|on|at|under|by|behind|next to|inside|near|up|down|out|with)\b"
+                    rf"|\b{re.escape(stem)}\w* (?:in|on|at|under|by|behind|next to|inside|near)\b"
                     # "I lent my drill to Bob" answers "where's my drill" too.
                     r"|\b(?:lent|loaned|borrowed)\b", low):
                 hers = speech.as_she_says_it(said).rstrip(".")
@@ -5955,6 +5961,22 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
+    # "Remind me to renew my registration in March" (2026-10-07: to the
+    # planner) is the first of that month, the way "next month" already is.
+    months = r"(?P<mon>january|february|march|april|may|june|july|august|september|october|november|december)"
+    m = (re.fullmatch(r"remind me (?P<what>to .{2,80}?) in (?:early )?" + months, low)
+         or re.fullmatch(r"remind me in (?:early )?" + months + r" (?P<what>to .{2,80})", low))
+    if m and not re.search(r"\b(?:on|at|by|every|each)\b \d|\bevery\b", m.group("what")):
+        import datetime as _dt_mon
+        from aletheia import localtime as _lt_mon
+        # This month's first has passed; "in October" said in October is not next year.
+        if _dt_mon.datetime.now(_lt_mon.operator_tz()).strftime("%B").casefold() != m.group("mon"):
+            return _interpret(f"remind me {m.group('what')} on {m.group('mon')} 1")
+    # "My car has 45000 miles on it" (2026-10-07: to the planner) - read
+    # back by "what's my car's mileage".
+    if re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:has|is at|is on|just hit|hit) (?:about |around |over )?"
+                    r"\d[\d,]*k?(?: thousand)? miles(?: on it)?(?: now)?", low):
+        return {"command": {"kind": "note", "text": low}, "say": None}
     # "Push my 2pm back an hour" (2026-10-07: to the planner). Her own hold
     # moves by that much, the same length; anything else is said plainly.
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
