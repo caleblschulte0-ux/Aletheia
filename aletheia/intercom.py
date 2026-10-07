@@ -235,7 +235,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "thread_followup": ({"thread"}, set()),
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
-    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces"}),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
@@ -726,7 +726,8 @@ KIND_NOTES: dict[str, str] = {
     "calendar_hold": (
         'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
         'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
-        'timezone; end or minutes; location; thread links it to a conversation. It refuses when it '
+        'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
+        'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
         'clashes and says with what.'),
     "calendar_propose": (
         'Offer times to the other person in a conversation: "suggest some times to the landlord next '
@@ -2947,11 +2948,30 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             end = end if end.tzinfo else end.replace(tzinfo=localtime.operator_tz())
         else:
             end = start + _dt.timedelta(minutes=int(cmd.get("minutes") or 60))
+        # "Make it 8": the hold he just made, moved. The old one is released
+        # first (so it cannot clash with its own new time) and put back if
+        # the new time is refused - he is never left with neither.
+        old = None
+        if cmd.get("replaces"):
+            try:
+                from aletheia import calendar as _calendar
+                old_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["replaces"]), cmd.get("thread") or "")
+                old = _calendar.load(old_id)
+                if old and old.get("status") != "CANCELLED":
+                    calendar_reasoning.release_hold(old_id, why="moved: he gave it a new time")
+                else:
+                    old = None
+            except Exception:  # noqa: BLE001
+                old = None
         held = calendar_reasoning.hold(cmd["title"], start.isoformat(), end.isoformat(),
                                        location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
         if not held.get("event"):
+            if old:
+                calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
+                                        location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
-        return (f"Pencilled in {held['event']['title']} {calendar_reasoning.human(held['event']['start'])}, "
+        return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
+                f"{'to ' if old else ''}{calendar_reasoning.human(held['event']['start'])}, "
                 "tentative, on your calendar here only.")
     if kind == "calendar_propose":
         from aletheia import conversations

@@ -594,6 +594,11 @@ def spoken_receipt(kind: str, detail: str, *,
             named = re.fullmatch(r"(.*\b(?:minutes?|hours?|seconds?)) (?!and\b)([a-z][a-z ]*)", span)
             if named:
                 span = f"{named.group(1)} for the {named.group(2)}"
+            if text.rstrip().endswith("(moved)"):
+                # "Add 5 minutes" said "Timer set for 10 minutes" about a
+                # timer that now ran fifteen (2026-10-07). What moved is when.
+                return (f"Done - your timer{' for the ' + named.group(2) if named else ''} now goes off "
+                        f"{humanize_time(when.group(0), now)}.")
             return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."

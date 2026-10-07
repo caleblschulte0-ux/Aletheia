@@ -661,5 +661,40 @@ class ItIsTheTaskJustAdded(unittest.TestCase):
             self.assertNotEqual((voice._interpret("make it due friday").get("command") or {}).get("kind"), "task_change")
 
 
+
+class MakeTheHoldEight(unittest.TestCase):
+    def test_make_it_8_moves_the_hold_just_made(self):
+        held = {"kind": "calendar_hold", "title": "dinner with sam", "start": "2026-10-09T19:00:00-05:00"}
+        with mock.patch.object(voice, "_recent_reminder_ask", return_value={}), \
+                mock.patch.object(voice, "_recent_ask_of", return_value=held):
+            cmd = voice._interpret("make it 8")["command"]
+        self.assertEqual(cmd, {"kind": "calendar_hold", "title": "dinner with sam",
+                               "start": "2026-10-09T20:00:00-05:00", "replaces": "2026-10-09T19:00:00-05:00"})
+
+    def test_the_old_hold_is_released_and_the_new_one_held(self):
+        import tempfile
+        from aletheia import calendar, calendar_reasoning, intercom
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(calendar, "CALENDAR_DIR", __import__("pathlib").Path(tmp), create=True):
+            first = intercom.execute_command({"kind": "calendar_hold", "title": "Dinner",
+                                              "start": "2030-10-09T19:00:00-05:00"}, {}, quote="put dinner on my calendar")
+            said = intercom.execute_command({"kind": "calendar_hold", "title": "Dinner",
+                                             "start": "2030-10-09T20:00:00-05:00",
+                                             "replaces": "2030-10-09T19:00:00-05:00"}, {}, quote="make it 8")
+            old = calendar.load(calendar_reasoning.hold_id("Dinner", "2030-10-09T19:00:00-05:00"))
+        self.assertIn("Pencilled in", str(first))
+        self.assertIn("Moved Dinner to", str(said))
+        self.assertEqual(old["status"], "CANCELLED")
+
+
+
+class AddingMinutesSaysWhenNotHowLong(unittest.TestCase):
+    def test_a_moved_timer_says_when_it_goes_off(self):
+        from aletheia import speech
+        said = speech.spoken_receipt(
+            "remind_at", "reminder remind-1 set for 2030-10-07T08:29:00+00:00 — 'your 10 minute pasta timer is up' (moved)")
+        self.assertTrue(said.startswith("Done - your timer for the pasta now goes off"), said)
+
+
 if __name__ == "__main__":
     unittest.main()

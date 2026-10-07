@@ -1204,6 +1204,10 @@ def _last_ask_is_undoable() -> bool:
 
 
 def _recent_reminder_ask(turns: int = 4) -> dict:
+    return _recent_ask_of("remind_at", "text", turns)
+
+
+def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
     """The one-off reminder among his last few asks, newest first, or {}.
 
     "Remind me at 6", "what are my reminders for today", "actually make
@@ -1229,7 +1233,7 @@ def _recent_reminder_ask(turns: int = 4) -> dict:
             cmd = (interpret(f"thea {said}") or {}).get("command") or {}
         except Exception:
             return {}
-        if cmd.get("kind") == "remind_at" and cmd.get("text"):
+        if cmd.get("kind") == kind and cmd.get(needs):
             return cmd
         if cmd.get("kind") not in intercom.READ_ONLY_KINDS:
             return {}
@@ -1262,6 +1266,40 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     at = _next_occurrence_iso(hhmm, bare_hour=bare)
     return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
                         "replaces": previous["text"]}, "say": None}
+
+
+def _moved_hold(time_words: str) -> dict | None:
+    """"Make it 8" after "put dinner with Sam on my calendar Friday at 7"
+    (2026-10-07: to the planner): the hold he just made, same day, the new
+    time, the same length. None unless his last ask was a hold."""
+    import datetime as dt
+    previous = _recent_ask_of("calendar_hold", "start")
+    hhmm = _spoken_time(time_words) if previous else None
+    if not hhmm:
+        return None
+    try:
+        was = dt.datetime.fromisoformat(str(previous["start"]).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    hour, minute = map(int, hhmm.split(":"))
+    # A bare hour keeps the half of the day the hold was in: dinner at 7
+    # "made 8" is eight in the evening.
+    if _is_bare_hour(time_words) and was.hour >= 12 and hour < 12:
+        hour += 12
+    new = was.replace(hour=hour, minute=minute)
+    command = {"kind": "calendar_hold", "title": previous["title"], "start": new.isoformat(),
+               "replaces": previous["start"]}
+    if previous.get("minutes"):
+        command["minutes"] = previous["minutes"]
+    elif previous.get("end"):
+        try:
+            ends = dt.datetime.fromisoformat(str(previous["end"]).replace("Z", "+00:00"))
+            command["minutes"] = max(5, int((ends - was).total_seconds() // 60))
+        except (TypeError, ValueError):
+            pass
+    if previous.get("location"):
+        command["location"] = previous["location"]
+    return {"command": command, "say": None}
 
 
 def _reminder_moved_to(which: str, time_words: str) -> dict | None:
@@ -4692,7 +4730,7 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:make (?:that|it)|change (?:that|it) to|move (?:that|it) to|actually,? make (?:that|it)|"
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
     if m:
-        moved = _moved_reminder(text, m.group("time"))
+        moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))
         if moved:
             return moved
 
