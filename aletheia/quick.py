@@ -783,11 +783,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("logged", re.compile(
         r"^how (?:much|many (?:glasses|cups|bottles|mugs|cans)(?: of)?) (?P<logged_drink>water|coffee|tea|soda|beer|wine|juice|milk)"
         r"(?: (?:have i (?:had|drunk|drank)|did i (?:have|drink))(?P<logged_w> today| this week)?|(?P<logged_w5> today| this week))\s*\??$"
+        # "How many coffees have I had today" (2026-10-07: to a model).
+        r"|^how many (?P<logged_drink2>coffee|tea|soda|beer|wine|juice|milk|latte|espresso)s? (?:have i (?:had|drunk|drank)|did i (?:have|drink))"
+        r"(?P<logged_w6> today| this week)?\s*\??$"
         r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
         r"(?P<logged_w2> today| this week)?\s*\??$"
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
         r"(?: for)?(?P<logged_w4> today| this week)?\s*\??$"
         r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
+        # "How much sleep did I get" (2026-10-07: to a model).
+        r"|^how (?:much|many hours of) (?P<logged_sleep2>sleep) (?:did i get|have i had|have i gotten)(?: last night)?\s*\??$"
         r"|^(?:did|have) i (?P<logged_did>work(?:ed)? out|exercised?|meditated?|stretch(?:ed)?|done yoga|did yoga|gone to the gym|go to the gym)"
         r"(?P<logged_w3> today| this week)?\s*\??$")),
     ("holiday_next", re.compile(
@@ -1679,6 +1684,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "I got married in 2018").
     ("married", re.compile(r"^how long (?:have|has) (?:i|we|anna and i|my wife and i|my husband and i) been married\s*\??$"
                            r"|^how many years (?:have i|have we) been married\s*\??$|^when did (?:i|we) get married\s*\??$")),
+    # "What time should I go to bed if I wake up at 6" (2026-10-07: to a model).
+    ("bedtime_calc", re.compile(
+        r"^(?:what time|when) should i (?:go to bed|go to sleep|sleep|be in bed) (?:if|so|to)(?: that)? i (?:can )?(?:wake up|get up|have to (?:wake|get) up"
+        r"|need to (?:wake|get) up|want to (?:wake|get) up|wake) (?:at )?(?P<bt>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
+        r"(?:,? (?:and |to )?(?:get|have|sleep)(?: for)? (?P<bh>\d{1,2}|seven|eight|nine|six) hours?(?: of sleep)?)?\s*\??$")),
     ("dislikes", re.compile(
         r"^what (?:foods?|things?|food) (?:don't|do not|dont) i (?:like|eat)\s*\??$"
         r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what do i (?:not like|hate|dislike|not eat)\s*\??$"
@@ -2190,7 +2200,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2334,6 +2344,7 @@ def _logged(text: str) -> str | None:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or g.get("logged_w4") or g.get("logged_w5")
+              or g.get("logged_w6")
               or (" this week" if g.get("logged_dur") else " today")).strip()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if window == "this week":
@@ -2349,19 +2360,31 @@ def _logged(text: str) -> str | None:
 
     def amount(word):
         return float(word) if re.fullmatch(r"\d+(?:\.\d+)?", word) else _COUNT_WORDS.get(word)
-    if g.get("logged_drink"):
-        drink = g["logged_drink"]
+    if g.get("logged_drink") or g.get("logged_drink2"):
+        drink = g.get("logged_drink") or g["logged_drink2"]
         total, unit = 0.0, "glass"
         for at, said in rows:
             # "Log 8 glasses of water" is kept as "8 glasses of water" (2026-10-07: not counted).
-            m = re.match(rf"(?:i (?:drank|had) )?(\w+) (glass(?:es)?|cups?|bottles?|mugs?|cans?) of {drink}\b", said)
+            m = re.match(rf"(?:i (?:just )?(?:drank|had) )?(\w+) (glass(?:es)?|cups?|bottles?|mugs?|cans?) of {drink}\b", said)
             if m and at >= start and amount(m.group(1)):
                 total += amount(m.group(1))
                 unit = {"glasses": "glass"}.get(m.group(2), m.group(2) if m.group(2) == "glass" else m.group(2).rstrip("s"))
+                continue
+            # "I had a coffee", "I had coffee at 3", "I drank 2 beers"
+            # (2026-10-07): one each, in the vessel it comes in.
+            m = re.match(rf"i (?:just )?(?:drank|had|finished) (?:(an?|another|one|two|three|four|five|\d+|my \w+) )?{drink}s?\b", said)
+            if m and at >= start:
+                n = 1.0 if not m.group(1) or m.group(1) in ("a", "an", "another") or m.group(1).startswith("my ") else amount(m.group(1))
+                if n:
+                    total += n
+                    unit = {"coffee": "cup", "tea": "cup", "latte": "cup", "espresso": "cup", "soda": "can",
+                            "beer": "", "wine": "glass"}.get(drink, unit)
         if not total:
             # "Say 'I drank a glass of coffee'" (2026-10-07): a cup is what coffee comes in.
             vessel = {"coffee": "cup", "tea": "cup", "beer": "can", "soda": "can"}.get(drink, "glass")
             return f"You haven't told me about any {drink} {when}. Say \"I drank a {vessel} of {drink}\" and I'll keep count."
+        if not unit:
+            return f"{_plain(total)} {drink if total == 1 else drink + 's'} {when}."
         plural = {"glass": "glasses"}.get(unit, unit + "s")
         return f"{_plain(total)} {unit if total == 1 else plural} of {drink} {when}."
     if g.get("logged_move"):
@@ -2418,12 +2441,36 @@ def _logged(text: str) -> str | None:
             bits.append(f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''}")
         said = " and ".join(bits)
         return f"{said[:1].upper() + said[1:]} {when}."
-    if g.get("logged_sleep"):
+    if g.get("logged_sleep") or g.get("logged_sleep2"):
         for at, said in rows:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
             if m and amount(m.group(1)):
                 hours = amount(m.group(1)) + (0.5 if m.group(2) else 0)
                 return f"{_plain(hours)} hours, you told me {speech.humanize_time(at.isoformat())}."
+        # "I went to bed at midnight" and "I woke up at 7" (2026-10-07): the
+        # night between them, when both were told within the last day.
+        woke = bed = None
+        for at, said in rows:
+            if now - at > dt.timedelta(hours=20):
+                break
+            m = re.match(r"i (?:woke up|got up) (?:at |around |about )?(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?", said)
+            if m and woke is None:
+                woke = (int(m.group(1)) % 12 + (12 if (m.group(3) or "").startswith("p") else 0), int(m.group(2) or 0))
+            m = re.match(r"i (?:went to bed|went to sleep|fell asleep) (?:at |around |about )?(midnight|(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?)", said)
+            if m and bed is None:
+                if m.group(1) == "midnight":
+                    bed = (0, 0)
+                else:
+                    h = int(m.group(2)) % 12
+                    # a bare 11 is at night; a bare 1 is after midnight
+                    pm = (m.group(4) or "").startswith("p") or (not m.group(4) and h >= 7)
+                    bed = (h + (12 if pm else 0), int(m.group(3) or 0))
+        if woke and bed:
+            minutes = (woke[0] * 60 + woke[1] - bed[0] * 60 - bed[1]) % (24 * 60)
+            if 0 < minutes <= 16 * 60:
+                h, mm = divmod(minutes, 60)
+                said = speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(mm, 'minute')}" if mm else "")
+                return f"About {said} - you told me when you went to bed and when you woke up."
         return "You haven't told me how you slept. Say \"I slept 7 hours\" and I'll remember."
     if g.get("logged_did"):
         stem = re.match(r"(?:work|exercise|meditat|stretch|yoga|gym)", re.sub(r"^(?:done |did |gone to the |go to the )", "", g["logged_did"]))
@@ -7830,6 +7877,26 @@ def _promised(text: str) -> str | None:
     return "You told me: " + speech.and_list(said[:4]) + "."
 
 
+def _bedtime_calc(text: str) -> str | None:
+    """When to be asleep for a wake-up time: eight hours unless he names
+    another, and a quarter of an hour to fall asleep said beside it."""
+    g = _groups("bedtime_calc", text)
+    m = re.fullmatch(r"(\d{1,2})(?::(\d\d))?\s*(am|pm)?", str(g.get("bt") or "").strip())
+    if not m:
+        return None
+    hour = int(m.group(1)) % 12 + (12 if m.group(3) == "pm" else 0)
+    hours = {"six": 6, "seven": 7, "eight": 8, "nine": 9}.get(str(g.get("bh") or ""), int(g.get("bh") or 8) if str(g.get("bh") or "8").isdigit() else 8)
+    if not 4 <= hours <= 12:
+        return None
+    asleep = (hour * 60 + int(m.group(2) or 0) - hours * 60) % (24 * 60)
+
+    def clock(minutes):
+        h, mm = divmod(minutes % (24 * 60), 60)
+        return f"{h % 12 or 12}{':%02d' % mm if mm else ''} {'am' if h < 12 else 'pm'}"
+    return (f"Asleep by {clock(asleep)} for {hours} hours - so in bed around {clock(asleep - 15)}, "
+            "since it takes a while to drop off.")
+
+
 def _home() -> str | None:
     """Where he lives — the city AND the state, which is how it is said.
 
@@ -9755,6 +9822,9 @@ def _ate(text: str) -> str | None:
             continue
         of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(3) or "").casefold(),
                                                             (m.group(1) or m.group(3) or "").casefold())
+        if not of:
+            # "I had pizza last night" is dinner (2026-10-07).
+            of = {"last night": "dinner", "tonight": "dinner", "this morning": "breakfast"}.get((m.group(4) or "").casefold(), "")
         if meal and of != meal:
             continue
         try:
@@ -10513,6 +10583,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "married": _married,
            "promised": _promised,
            "capital": _capital,
+           "bedtime_calc": _bedtime_calc,
            "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),

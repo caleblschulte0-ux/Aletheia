@@ -7991,10 +7991,28 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:ate|just ate) (?!it\b|that\b|this\b|nothing\b)[a-z0-9][a-z0-9' ,&-]{1,50}?"
                             r"(?: (?:today|yesterday|this morning|tonight|last night))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I had coffee at 3", "I drank 2 beers" (2026-10-07: to the planner),
+    # added up by "how many coffees have I had today".
+    if re.fullmatch(r"i (?:just )?(?:had|drank|finished) (?:an? |another |my (?:first|second|third|fourth) |\d+ |one |two |three |four )?"
+                    r"(?:coffee|tea|soda|beer|wine|juice|milk|latte|espresso)s?"
+                    r"(?: (?:at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|this morning|this afternoon|today|tonight|just now))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I had pizza last night" (2026-10-07: to the planner) - a meal by
+    # when, with the things that are not food left out.
+    if re.fullmatch(r"i (?:had|ate) (?!(?:a|an|the|my) (?:bad|good|great|rough|long|hard|fun|weird|strange|crazy|busy)\b)"
+                    r"(?!.*\b(?:fight|dream|nightmare|argument|date|call|meeting|party|fever|headache|time|blast|day|talk"
+                    r"|chat|conversation|idea|thought|feeling|drink|drinks|accident|fall|crash|game|class|lesson|session|visitor"
+                    r"|guests?|friends? over|breakdown|panic attack|migraine|cold|flu|baby)\b)"
+                    r"[a-z][a-z' ,&-]{1,40}? (?:last night|tonight|this morning)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"i (?:just )?(?:took|had) a (?:quick |short |long |little |power )?nap(?: (?:for|of) (?:\d{1,3}|an?|one|two) (?:minutes?|mins?|hours?))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
     # "I woke up at 7", "I went to bed at 11" (2026-10-07: to the planner).
     # Kept in his words; "what time did I wake up" reads the newest back.
     if re.fullmatch(r"i (?:woke up|got up|went to bed|went to sleep|fell asleep) (?:at |around |about )?"
-                    r"\d{1,2}(?::\d{2})?(?: ?(?:am|pm|a\.m\.|p\.m\.))?"
+                    r"(?:midnight|\d{1,2}(?::\d{2})?(?: ?(?:am|pm|a\.m\.|p\.m\.))?)"
                     r"(?: (?:today|this morning|last night|yesterday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).

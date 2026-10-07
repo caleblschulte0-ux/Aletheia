@@ -4552,5 +4552,34 @@ class TheKidsDays(unittest.TestCase):
             self.assertIn("haven't told me", r["say"])
 
 
+class SleepDrinksAndLastNightsDinner(unittest.TestCase):
+    """2026-10-07: "I had coffee at 3", "I had pizza last night", "I took a
+    nap" and "I went to bed at midnight" went to the planner; "how many
+    coffees have I had today", "how much sleep did I get" and "what time
+    should I go to bed if I wake up at 6" went to a model."""
+
+    def _rows(self, *texts):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        return [{"text": t, "ts": (now - dt.timedelta(minutes=i)).isoformat()} for i, t in enumerate(texts)]
+
+    def test_writers(self):
+        from aletheia import voice
+        for said in ("i had coffee at 3", "i drank 2 beers", "i had pizza last night", "i took a nap",
+                     "i went to bed at midnight", "i'm going to bed at 11"):
+            self.assertEqual(((voice._interpret(said) or {}).get("command") or {}).get("kind"), "note", said)
+        self.assertNotEqual(((voice._interpret("i had a fight last night") or {}).get("command") or {}).get("kind"), "note")
+
+    def test_readers(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self._rows("I had a coffee", "I had coffee at 3", "I drank 2 beers")):
+            self.assertEqual(quick.answer("how many coffees have i had today"), "2 cups of coffee today.")
+            self.assertEqual(quick.answer("how many beers have i had today"), "2 beers today.")
+        with mock.patch.object(quick, "_notes", return_value=self._rows("I woke up at 7", "I went to bed at midnight")):
+            self.assertTrue(quick.answer("how much sleep did i get").startswith("About 7 hours"))
+        self.assertTrue(quick.answer("what time should i go to bed if i wake up at 6").startswith("Asleep by 10 pm"))
+
+
 if __name__ == "__main__":
     unittest.main()
