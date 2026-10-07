@@ -1396,9 +1396,10 @@ def _interpret(transcript: str) -> dict:
     # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
     # place a bare thing goes. A verb is a task; anything naming another
     # store, or with a preposition in it, is left to the patterns for those.
+    # "Add bread too" is the thread's ("the second item is free too").
     m = re.fullmatch(r"add (?:some |more )?(?P<item>[a-z][a-z' -]{1,30})", low)
     if m and not re.search(r"\b(?:to|on|with|at|for|from|in|into|by|task|tasks|meeting|reminder|note|contact|event|"
-                           r"appointment|calendar|alarm|timer|that|it|this|them|everything|all)\b", m.group("item")):
+                           r"appointment|calendar|alarm|timer|that|it|this|them|everything|all|too|also|well)\b", m.group("item")):
         if _TASK_VERB.match(m.group("item")):
             return _new_task(_as_he_said(text, m.group("item")))
         if not _might_be_several(m.group("item")):
