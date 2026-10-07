@@ -50,6 +50,22 @@ class WhatBatchesDid(unittest.TestCase):
         self.assertEqual(tally["employer_full"], 1)
         self.assertEqual(tally["unjudged"], 1)
 
+    def test_a_job_passed_over_is_counted_by_the_rule_that_did_it(self):
+        hunt_funnel.note_batch(result(passed_over=[
+            {"url": "u1", "why": "it asks for 7+ years of experience"},
+            {"url": "u2", "why": "it is a sales job, and he does not want sales"},
+            {"url": "u3", "why": "Acme wants a CPA and his resume shows none"},
+            {"url": "u4", "why": "not realistic: it requires a CDL license"},
+            {"url": "u5", "why": "closed as not realistic"},
+            {"url": "u6", "why": "a weak shot: no pair"}]), now=NOW, path=self.path)
+        tally = json.loads(self.path.read_text(encoding="utf-8"))[0]
+        self.assertEqual(tally["not_realistic"], 5)
+        self.assertEqual(tally["weak_shot"], 1)
+        self.assertEqual({k: v for k, v in tally.items() if k.startswith("unfit_")},
+                         {"unfit_years": 1, "unfit_sales": 1, "unfit_model": 1,
+                          "unfit_license": 1, "unfit_closed_before": 1})
+        self.assertNotIn("acme", json.dumps(tally).casefold())
+
     def test_batches_sum_by_his_local_day_and_a_month_is_kept(self):
         old = NOW - dt.timedelta(days=40)
         hunt_funnel.note_batch(result(ready=[{}]), offered=5, now=old, path=self.path)

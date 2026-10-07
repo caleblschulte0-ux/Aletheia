@@ -132,6 +132,28 @@ BATCH_PARTS = (("ready", "ready"), ("blocked", "needs_answer"), ("failed", "unre
                ("duplicates", "duplicate"), ("later", "unjudged"))
 
 
+#: Why the fit judge turned a job down, by the rule's own fixed words
+#: (`job_fit.hard_reason`, `UNWANTED_KINDS`). A model's reason is free text
+#: that can name the employer, so it is only ever counted as "model".
+_UNFIT_WORDS = (("years", re.compile(r"asks for \d+\+? years")),
+                ("language", re.compile(r"someone who speaks")),
+                ("clearance", re.compile(r"military or security-clearance")),
+                ("license", re.compile(r"requires an? .{1,40} license")),
+                ("hands_on", re.compile(r"hands-on shift work")),
+                ("sales", re.compile(r"sales job|cold calling|outbound prospecting|quota")))
+
+
+def _unfit_bucket(why: str) -> str:
+    """Which rule passed a job over, or "model", or "closed_before"."""
+    why = str(why or "").casefold()
+    for bucket, pattern in _UNFIT_WORDS:
+        if pattern.search(why):
+            return bucket
+    if why.startswith(("not realistic", "closed as not realistic")):
+        return "closed_before"
+    return "model"
+
+
 def _batch_tally(result: dict) -> dict:
     """One batch's answer as counts. A weak shot and a full employer are
     told apart from the plain not-realistic and same-job, because each is
@@ -143,6 +165,10 @@ def _batch_tally(result: dict) -> dict:
             why = str(row.get("why") or "").casefold() if isinstance(row, dict) else ""
             if part == "passed_over" and why.startswith("a weak shot"):
                 tally["weak_shot"] += 1
+            elif part == "passed_over":
+                tally[name] += 1
+                bucket = "unfit_" + _unfit_bucket(why)
+                tally[bucket] = tally.get(bucket, 0) + 1
             elif part == "duplicates" and "this month" in why:
                 tally["employer_full"] += 1
             else:
