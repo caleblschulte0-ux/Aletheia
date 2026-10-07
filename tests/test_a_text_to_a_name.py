@@ -756,5 +756,29 @@ class TheOtherOne(unittest.TestCase):
             self.assertEqual(voice._interpret("what's left")["command"], {"kind": "tasks"})
 
 
+
+class AShoppingRunAfterABareAdd(unittest.TestCase):
+    def turns(self, *pairs):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[{"he_asked": a, "she_answered": b} for a, b in pairs])
+
+    def test_and_apples_after_add_bananas(self):
+        with self.turns(("add bananas", "Added to the shopping list: bananas.")):
+            self.assertEqual(voice._interpret("and apples and oranges")["command"],
+                             {"kind": "shopping_add", "item": "apples and oranges"})
+
+    def test_a_bare_add_that_became_a_task_is_not_a_run(self):
+        with self.turns(("add call mom", "Added a task: call mom.")):
+            self.assertNotEqual((voice._interpret("and eggs").get("command") or {}).get("kind"), "shopping_add")
+
+    def test_clear_it_only_right_after_the_list(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("how many are on it", "2 things on your shopping list: a and b.")):
+            self.assertEqual(voice._interpret("clear it")["command"], {"kind": "shopping_off", "item": "everything"})
+        with mock.patch.object(voice, "_previous_turn", return_value=("what time is it", "3 pm.")), \
+                self.turns(("add milk to the shopping list", "Added to the shopping list: milk."), ("what time is it", "3 pm.")):
+            self.assertNotEqual((voice._interpret("clear it").get("command") or {}).get("kind"), "shopping_off")
+            self.assertEqual(voice._interpret("how many things are on it")["command"], {"kind": "shopping_list"})
+
+
 if __name__ == "__main__":
     unittest.main()

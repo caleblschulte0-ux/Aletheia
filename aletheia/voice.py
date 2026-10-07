@@ -688,6 +688,17 @@ _ALSO = re.compile(r"(?:and |also )add (.+)"
                    r"|(?:and|also) (.+)")
 
 
+def _in_a_shopping_turns(turns: int = 3) -> bool:
+    """Was the shopping list what his last few exchanges were about?"""
+    try:
+        from aletheia import converse
+        rows = converse.recent(limit=turns) or []
+    except Exception:  # noqa: BLE001
+        return False
+    return any(re.search(r"\b(?:shopping|grocery) list\b",
+                         f"{t.get('he_asked') or ''} {t.get('she_answered') or ''}", re.IGNORECASE) for t in rows)
+
+
 def _also_item(said: str) -> str:
     """The thing named by a continuation, or "".
 
@@ -769,6 +780,12 @@ def _just_added_to_the_list() -> bool:
         said = _without_preamble(
             str(turn.get("he_asked") or "").casefold()).strip()
         if _SHOPPING_ADD.match(said):
+            return True
+        # A bare "add bananas" is a shopping add too (2026-10-07: "and
+        # apples" after it went to the planner) - but only when it really
+        # went on the list, since a bare "add" can also be a task.
+        if re.fullmatch(r"add (?:some |more )?[a-z][a-z' -]{1,30}", said) and \
+                str(turn.get("she_answered") or "").startswith("Added to the shopping list"):
             return True
         if _also_item(said):
             continue
@@ -2090,9 +2107,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "applications"}, "say": None}
     # "WHAT'S ON IT" right after the shopping list was touched (2026-10-07:
     # to a model, with "it" lost). The list the last exchange was about.
-    if re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that) (?:back|out)|read it|what'?s left(?: on it)?", low):
+    # "How many things are on it", "clear it" (2026-10-07: to the planner) -
+    # the same list. A list touched in the last few turns, not only the last.
+    clear_it = re.fullmatch(r"(?:clear|empty|wipe) it(?: out)?|(?:clear|empty) (?:it|that) (?:all )?out", low)
+    if clear_it or re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that) (?:back|out)|read it|what'?s left(?: on it)?"
+                                r"|how many (?:things|items|things are|items are)(?: are)? on (?:it|there)(?: now)?", low):
         said, answered = _previous_turn()
-        if re.search(r"\b(?:shopping|grocery) list\b", f"{said} {answered}", re.IGNORECASE):
+        just_now = re.search(r"\b(?:shopping|grocery) list\b", f"{said} {answered}", re.IGNORECASE)
+        # Emptying it needs the list to be the LAST thing said; reading it
+        # back may reach a few turns further.
+        if clear_it and just_now:
+            return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
+        if not clear_it and (just_now or _in_a_shopping_turns()):
             return {"command": {"kind": "shopping_list"}, "say": None}
         named = re.search(r"\byour ([a-z][a-z' -]{1,30}?) list\b", answered, re.IGNORECASE)
         if named:
