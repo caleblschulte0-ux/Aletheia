@@ -367,6 +367,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many (?P<counted>(?!tasks|reminders|notes|things|emails|people|contacts|days|hours|minutes|weeks)[a-z][a-z -]{1,20}?) "
         r"(?:have i done|did i do|have i walked|did i walk|did i take|have i taken)"
         r"(?P<counted_when> today| this week| yesterday)?\s*\??$")),
+    ("ate", re.compile(
+        r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
+        r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
     ("weight", re.compile(
         r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
     ("work_at", re.compile(
@@ -1860,7 +1863,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted"):
+        if name in ("owed", "fact_any", "counted", "ate"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -7927,6 +7930,54 @@ def _counted(text: str) -> str | None:
     return f"{total:,} {what} {when}."
 
 
+def _ate(text: str) -> str | None:
+    """"What did I have for lunch yesterday": his notes saying "I had a
+    burrito for lunch" or "I ate a salad", for that day (and that meal, when
+    he named one). Nothing kept is said as nothing kept - never guessed."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "ate"), None)
+    if not found:
+        return None
+    meal = {"supper": "dinner"}.get(found.group("ate_meal") or "", found.group("ate_meal") or "")
+    when = (found.group("ate_when") or found.group("ate_when2") or " today").strip()
+    if when == "last night":
+        when = "yesterday"
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    day = today - dt.timedelta(days=1) if when == "yesterday" else today
+    said = re.compile(r"^(?:for (breakfast|lunch|dinner|supper|dessert)(?: today| yesterday| tonight)?,? )?"
+                      r"i (?:just )?(?:had|ate) (.+?)(?: for (breakfast|lunch|dinner|supper|a snack|dessert))?"
+                      r"(?: (today|yesterday|this morning|tonight|last night))?\.?$", re.IGNORECASE)
+    hits: list[str] = []
+    for row in _notes():
+        m = said.match(" ".join(str(row.get("text") or "").split()))
+        if not m:
+            continue
+        of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(3) or "").casefold(),
+                                                            (m.group(1) or m.group(3) or "").casefold())
+        if meal and of != meal:
+            continue
+        try:
+            noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if (m.group(4) or "").casefold() in ("yesterday", "last night"):
+            noted -= dt.timedelta(days=1)
+        if noted != day:
+            continue
+        food = speech.as_she_says_it(m.group(2).strip()).rstrip(".")
+        hits.append(f"{food} for {of}" if of and not meal else food)
+        if len(hits) >= 4:
+            break
+    named = f"for {meal} {when}" if meal else when
+    if not hits:
+        return (f"You didn't tell me what you had {named}. "
+                "Say \"I had a burrito for lunch\" and I'll remember it.")
+    hits.reverse()                      # newest first in the store; said in the order he ate
+    return f"You told me you had {speech.and_list(hits)} {named}."
+
+
 def _weight() -> str | None:
     """"What's my weight": the newest weight he told her, with when."""
     said = re.compile(r"\bi(?: weigh| weighed| am|'m) (\d{2,3}(?:\.\d)?)(?: ?(pounds|lbs?|kg|kilos|kilograms))?", re.IGNORECASE)
@@ -8282,6 +8333,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "born_facts": lambda rest: _born_facts("day" if rest == "day" else "sign"),
            "weight": lambda rest: _weight(),
            "counted": _counted,
+           "ate": _ate,
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

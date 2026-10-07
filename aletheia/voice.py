@@ -7140,6 +7140,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i (?:did|just did|have done|walked|took|swam|rowed) (?:another )?\d[\d,]* [a-z][a-z -]{1,20}"
                     r"(?: (?:today|this morning|this afternoon|this evening|tonight|yesterday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I had a burrito for lunch", "I ate a salad" (2026-10-07: to the
+    # planner). What he ate is a note; "what did I have for lunch
+    # yesterday" reads it back by day and meal.
+    if re.fullmatch(r"i (?:had|ate|just had|just ate) (?!lunch\b|dinner\b|breakfast\b|a meeting\b|a call\b|an? (?:idea|question|dream)\b)"
+                    r"[a-z0-9][a-z0-9' ,&-]{1,50}? for (?:breakfast|lunch|dinner|supper|a snack|dessert)"
+                    r"(?: (?:today|yesterday|this morning|tonight|last night))?", low) \
+            or re.fullmatch(r"(?:for (?:breakfast|lunch|dinner|supper|dessert)(?: today| yesterday| tonight)?,? )i (?:had|ate) "
+                            r"[a-z0-9][a-z0-9' ,&-]{1,50}", low) \
+            or re.fullmatch(r"i (?:ate|just ate) (?!it\b|that\b|this\b|nothing\b)[a-z0-9][a-z0-9' ,&-]{1,50}?"
+                            r"(?: (?:today|yesterday|this morning|tonight|last night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).
     # Kept in his words; "what's my weight" reads the newest one back.
     if re.fullmatch(r"i(?: weigh| weighed| am|'m) \d{2,3}(?:\.\d)?(?: ?(?:pounds|lbs?|kg|kilos|kilograms))?"

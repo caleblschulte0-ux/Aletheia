@@ -2783,5 +2783,27 @@ class CountsHeKeeps(unittest.TestCase):
             self.assertTrue(quick.answer("how many squats have I done").startswith("You haven't told me about any squats"))
 
 
+class WhatHeAte(unittest.TestCase):
+    def test_kept_and_read_back_by_day_and_meal(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I had a burrito for lunch")["command"],
+                         {"kind": "note", "text": "I had a burrito for lunch"})
+        self.assertEqual(voice._interpret("for dinner I had pasta")["command"]["kind"], "note")
+        for not_food in ("I had a meeting for lunch", "I had lunch with Dana", "I ate it"):
+            got = voice._interpret(not_food)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", not_food)
+        now = dt.datetime.now(dt.timezone.utc)
+        notes = [{"text": "I ate an apple", "ts": now.isoformat()},
+                 {"text": "I had a burrito for lunch", "ts": now.isoformat()},
+                 {"text": "I had soup for lunch", "ts": (now - dt.timedelta(days=1)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what did I have for lunch"), "You told me you had a burrito for lunch today.")
+            self.assertEqual(quick.answer("what did I have for lunch yesterday"), "You told me you had soup for lunch yesterday.")
+            self.assertEqual(quick.answer("what did I eat today"),
+                             "You told me you had a burrito for lunch and an apple today.")
+            self.assertTrue(quick.answer("what did I have for breakfast").startswith("You didn't tell me"))
+
+
 if __name__ == "__main__":
     unittest.main()
