@@ -94,7 +94,7 @@ class HisAlarmAskedEveryWay(unittest.TestCase):
 class SaidToHerAndAboutHer(unittest.TestCase):
     def test_shut_up_quiets_her_notices(self):
         for said in ("shut up", "be quiet", "stop talking"):
-            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60}, said)
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60, "quiet": True}, said)
         self.assertEqual(voice._interpret("stop talking unless i ask")["command"]["kind"], "announce_set")
 
     def test_not_what_i_meant(self):

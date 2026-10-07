@@ -579,7 +579,7 @@ class NumbersAPersonCanSay(unittest.TestCase):
 class HowHeIs(unittest.TestCase):
     def test_busy_is_an_hour_of_quiet(self):
         for said in ("i'm in a meeting", "i'm driving"):
-            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60}, said)
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60, "quiet": True}, said)
 
     def test_a_nap_timer_asks_how_long(self):
         self.assertIn("For how long", voice._interpret("set a nap timer")["say"])

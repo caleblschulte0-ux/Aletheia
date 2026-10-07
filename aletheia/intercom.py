@@ -305,7 +305,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "Snooze that for an hour." The notice is put away and comes BACK —
     # a notification he has read and cannot act on yet is the commonest
     # thing in the room, and "I can't do that yet" was the answer.
-    "notify_snooze":   ({"minutes"}, {"which"}),
+    "notify_snooze":   ({"minutes"}, {"which", "quiet"}),
     "reminder_off":    ({"which"}, set()),
     "reminder_on":     ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
@@ -488,7 +488,9 @@ KIND_NOTES: dict[str, str] = {
     "notify_snooze": (
         'Put a notification away and bring it BACK. minutes is how long; '
         'which is optional and defaults to the most recent unread one, '
-        'because "snooze that" always means the thing that just spoke.'),
+        'because "snooze that" always means the thing that just spoke. '
+        'quiet=true (do not disturb, "I\'m in a meeting") also keeps her '
+        'from speaking up for those minutes.'),
     "contacts": (
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
@@ -1320,7 +1322,7 @@ def _tasks_answer(which: str = "") -> str:
                 if needle in str(t.get("description", "")).casefold()
                 or needle in str(t.get("id", "")).casefold()]
         if not rows:
-            return f"Nothing open matching {which!r}."
+            return f"Nothing on your list matches {str(which).strip()}."
     if not rows:
         # "Add milk to my list", then "what's on my list": "Nothing on your
         # list" - the milk was on the other one.
@@ -2496,7 +2498,8 @@ def _one_task(which: str):
         best = max((n for n, _t in scored), default=0)
         hits = [t for n, t in scored if n == best and n > 0]
     if not hits:
-        return None, f"Nothing open matching {which!r}."
+        # "Nothing open matching 'call the vet'" read its quote marks out (2026-10-07).
+        return None, f"Nothing on your list matches {str(which).strip()}."
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str(t.get("description") or t["id"])[:50]
@@ -3808,6 +3811,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not 1 <= minutes <= 60 * 24 * 7:
             raise act.Refused("snooze it for anything from a minute to a week.")
         found, why = _one_notice(cmd.get("which", ""))
+        hushed = ""
+        if cmd.get("quiet"):
+            from aletheia import announce
+            until = announce.hush(minutes, via="operator")
+            hushed = f"quiet until {until.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            if not announce.load_config().get("enabled"):
+                hushed += " (speaking first is off anyway)"
+            if found is None:
+                return hushed
         if found is None:
             raise act.Refused(why)
         when = (dt.datetime.now(dt.timezone.utc)
@@ -3820,7 +3832,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # deferred it, and it is coming back to say so.
         notifications.set_state(found["id"], "READ")
         return (f"snoozed {sid} until {when.isoformat()} — "
-                f"{(found.get('body') or found['title'])[:80]!r}")
+                f"{(found.get('body') or found['title'])[:80]!r}") + (f"; {hushed}" if hushed else "")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
