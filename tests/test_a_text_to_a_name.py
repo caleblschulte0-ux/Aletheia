@@ -780,5 +780,51 @@ class AShoppingRunAfterABareAdd(unittest.TestCase):
             self.assertEqual(voice._interpret("how many things are on it")["command"], {"kind": "shopping_list"})
 
 
+
+class TheAnswerToHerQuestion(unittest.TestCase):
+    def after(self, answered):
+        return mock.patch.object(voice, "_previous_turn", return_value=("x", answered))
+
+    def test_a_reminder_with_no_time_asks_and_the_answer_sets_it(self):
+        self.assertIn("When should I remind you to email sam", voice._interpret("remind me to email sam")["say"])
+        with self.after('When should I remind you to email sam? Say a time, like "at 3" or "tomorrow morning".'):
+            cmd = voice._interpret("tomorrow at 2")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "email sam"))
+        self.assertIn("T14:00", cmd["at"])
+
+    def test_how_long_and_what_time(self):
+        with self.after('For how long? Say "set a timer for ten minutes".'):
+            self.assertEqual(voice._interpret("10 minutes")["command"]["kind"], "remind_at")
+        with self.after('For what time? Say "wake me up at 6".'):
+            self.assertEqual(voice._interpret("6:30")["command"]["text"], "wake up")
+
+    def test_a_sentence_that_is_not_an_answer_is_left_alone(self):
+        with self.after('For how long? Say "set a timer for ten minutes".'):
+            self.assertNotEqual((voice._interpret("what's the weather").get("command") or {}).get("kind"), "remind_at")
+
+
+class CancelTheBankOne(unittest.TestCase):
+    def test_a_reminder_by_its_words_is_not_a_subscription(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_reminder", return_value=({"id": "r1"}, "")):
+            self.assertEqual(voice._interpret("cancel the bank one")["command"], {"kind": "reminder_off", "which": "bank"})
+
+    def test_and_remind_me_too(self):
+        cmd = voice._interpret("and remind me tomorrow at 9 to email sam too")["command"]
+        self.assertEqual(cmd["text"], "email sam")
+
+
+class MakeItTenKeepsTheDay(unittest.TestCase):
+    def test_tomorrows_reminder_stays_tomorrow(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        tomorrow = (dt.datetime.now(tz) + dt.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        with mock.patch.object(voice, "_recent_reminder_ask",
+                               return_value={"kind": "remind_at", "at": tomorrow.isoformat(), "text": "call the bank"}):
+            cmd = voice._interpret("make it 10am")["command"]
+        self.assertEqual(dt.datetime.fromisoformat(cmd["at"]).date(), tomorrow.date())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1252,6 +1252,11 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
             return {}
         if cmd.get("kind") == kind and cmd.get(needs):
             return cmd
+        # A QUESTION nobody could answer in between ("what time?") changed
+        # nothing, so it is stepped over like any other question.
+        if cmd.get("kind") == "intent" and re.match(
+                r"(?:what|when|where|who|why|how|which|is|are|do|does|did|can|could|will|would)\b", said.casefold()):
+            continue
         if cmd.get("kind") not in intercom.READ_ONLY_KINDS:
             return {}
     return {}
@@ -1281,6 +1286,20 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         except (ValueError, TypeError):
             pass
     at = _next_occurrence_iso(hhmm, bare_hour=bare)
+    # "Remind me tomorrow to call the bank" then "make it 10am" moved it to
+    # TODAY at ten (2026-10-07). A new time keeps the reminder's own day,
+    # unless that would put it in the past.
+    try:
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")).astimezone(tz)
+        hour, minute = map(int, hhmm.split(":"))
+        same_day = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if same_day > dt.datetime.now(tz):
+            at = same_day.isoformat()
+    except (ValueError, TypeError):
+        pass
     return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
                         "replaces": previous["text"]}, "say": None}
 
@@ -1672,6 +1691,30 @@ def _with_the_person_named(transcript: str) -> str:
 _PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing"}
 
 
+_HER_QUESTIONS = (
+    (r"When should I remind you to (.+?)\? ", "remind me {low} to {0}", "remind_"),
+    (r"For how long\? Say \"set a timer", "set a timer for {low}", "remind_at"),
+    (r"For what time\? Say \"wake me up", "wake me up at {low}", "remind_"),
+)
+
+
+def _answering_her(low: str) -> dict | None:
+    """His short answer to the question she just asked, as the whole ask."""
+    if len(low.split()) > 6:
+        return None
+    _said, answered = _previous_turn()
+    for question, template, kind in _HER_QUESTIONS:
+        m = re.match(question, answered or "")
+        if not m:
+            continue
+        rebuilt = template.format(*[g for g in m.groups()], low=re.sub(r"^(?:at|for|in) (?=\d)", "", low)
+                                  if "{low} to" not in template else low)
+        got = _interpret(rebuilt)
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith(kind):
+            return got
+    return None
+
+
 def _no_reminder_about_a_pronoun(said: dict) -> dict:
     """"Remind me about this tomorrow" set a reminder whose whole text was
     "this" (2026-10-07). At nine tomorrow "this" means nothing, so she asks
@@ -1749,6 +1792,17 @@ def _interpret(transcript: str) -> dict:
     # "Every weekday at 8 remind me to stretch" (2026-10-07: to the planner):
     # the when said first. The same sentence with the when after "remind me"
     # is one every reminder branch below already reads.
+    # THE ANSWER TO HER OWN QUESTION (2026-10-07): "When should I remind
+    # you to email Sam?" - "tomorrow at 2" went to the planner, as did "ten
+    # minutes" after "For how long?". The question and the answer are one
+    # sentence, put back together; kept only if it becomes that command.
+    answered = _answering_her(low)
+    if answered:
+        return answered
+    # "And remind me to email Sam too" (2026-10-07: to the planner).
+    also = re.fullmatch(r"(?:and|also|oh and|and also) (remind me .+?)(?: too| as well| also)?", low)
+    if also:
+        return _interpret(also.group(1))
     lead = re.fullmatch(r"((?:every|each|tomorrow|tonight|today|on|at|this|in) [a-z0-9: ]{1,40}?),? "
                         r"remind me (to|about|that) (.+)", low)
     if lead:
@@ -3878,6 +3932,21 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't move things on your calendar yet - I can only add holds to it. "
                        "Move it in your calendar, and if you want a hold at the new time, tell me when."}
+    # "CANCEL THE BANK ONE" after reading his reminders was prepared as a
+    # cancellation of a SUBSCRIPTION called "bank one" (2026-10-07). A
+    # reminder or a task of his that the words name is the thing; only
+    # what names neither is left to be a service.
+    one = re.fullmatch(r"(?:cancel|stop|turn off|delete|remove) (?:my |the )?(?P<w>[a-z][a-z' ]{1,40}?)(?: one| reminder| alarm)", low)
+    if one:
+        try:
+            from aletheia import intercom
+            found, _why = intercom._one_reminder(one.group("w"))
+        except Exception:  # noqa: BLE001
+            found = None
+        if found is not None:
+            return {"command": {"kind": "reminder_off", "which": one.group("w")}, "say": None}
+        if _names_one_open_task(one.group("w")):
+            return {"command": {"kind": "task_change", "which": one.group("w"), "drop": True}, "say": None}
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60
@@ -5126,6 +5195,16 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
+
+    # "REMIND ME TO EMAIL SAM" with no when (2026-10-07: to the planner,
+    # which with nothing thinking kept it "for later"). Every reminder
+    # branch above needs a time; asked for, not guessed.
+    m = re.fullmatch(r"remind me (?:to|about) (?P<what>[a-z][a-z0-9' ,-]{1,80}?)(?: later| sometime| at some point)?", low)
+    if m and not re.search(r"\b(?:today|tomorrow|tonight|morning|afternoon|evening|noon|midnight|at|in|on|every|each|"
+                           r"next|when|if|after|before|once|until|by|monday|tuesday|wednesday|thursday|friday|"
+                           r"saturday|sunday|weekend|week|month|daily|weekly|hourly)\b", m.group("what")):
+        what = _as_he_said(text, m.group("what").strip())
+        return {"command": None, "say": f"When should I remind you to {what}? Say a time, like \"at 3\" or \"tomorrow morning\"."}
 
     # Unrecognized by the patterns above — which is not the same as
     # unrecognizable. Until 2026-08-27 this branch journaled the sentence
