@@ -5972,6 +5972,12 @@ def _interpret(transcript: str) -> dict:
         # This month's first has passed; "in October" said in October is not next year.
         if _dt_mon.datetime.now(_lt_mon.operator_tz()).strftime("%B").casefold() != m.group("mon"):
             return _interpret(f"remind me {m.group('what')} on {m.group('mon')} 1")
+    # "I lost 2 pounds" (2026-10-07: to the planner) - a change in his
+    # weight, kept for "how much weight have I lost".
+    if re.fullmatch(r"i(?:'ve| have)? (?:lost|dropped|gained|put on) (?:another |about |almost |over )?\d{1,3}(?:\.\d)? ?"
+                    r"(?:pounds?|lbs?|kg|kilos?)(?: (?:this|last) (?:week|month)| since [a-z ]{2,20}| so far)?", low):
+        return {"command": {"kind": "note", "text": re.sub(r"^i(?:'ve| have) ", "i ", re.sub(r" (?:another|about|almost|over) ", " ", low))},
+                "say": None}
     # "My car has 45000 miles on it" (2026-10-07: to the planner) - read
     # back by "what's my car's mileage".
     if re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:has|is at|is on|just hit|hit) (?:about |around |over )?"

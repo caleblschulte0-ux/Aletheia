@@ -4851,5 +4851,24 @@ class SafeTemperaturesAndEggs(unittest.TestCase):
             self.assertEqual(quick.answer("recommend a book"), "From your reading list: Dune.")
 
 
+class WeightLostAndTheGoal(unittest.TestCase):
+    def test_a_change_is_a_note(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("i lost 2 pounds")["command"], {"kind": "note", "text": "i lost 2 pounds"})
+
+    def test_how_much_have_i_lost_counts_the_changes(self):
+        from aletheia import quick
+        notes = [{"text": "i lost 2 pounds"}, {"text": "i lost 3 pounds"}, {"text": "i gained 1 pound"}]
+        with mock.patch.object(quick, "_notes", return_value=notes), mock.patch.object(quick, "_weights", return_value=[]):
+            self.assertEqual(quick.answer("how much weight have i lost"), "Down about 4 pounds, from what you've told me.")
+
+    def test_the_goal_gap(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my goal weight is 175"}]), \
+                mock.patch.object(quick, "_weights", return_value=[("", 185 * 0.4536)]):
+            self.assertEqual(quick.answer("how far am i from my goal weight"),
+                             "10 pounds to go: you told me 185, and your goal is 175.")
+
+
 if __name__ == "__main__":
     unittest.main()

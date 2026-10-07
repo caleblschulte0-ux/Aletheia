@@ -472,7 +472,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What did I weigh last week" (2026-10-07: to a model).
         r"|what (?:did i weigh|was my weight)(?: (?:last week|last month|yesterday|a week ago|a month ago|last time))?"
         r"|how much (?:do|did) i weigh(?: (?:last week|last month|yesterday|a week ago|a month ago|last time))?"
-        r"|what(?:'s| is) my (?:current )?weight)\s*\??$")),
+        r"|what(?:'s| is) my (?:current )?weight"
+        # "How far am I from my goal weight" (2026-10-07: to the planner).
+        r"|how (?:far|close) am i (?:from|to) my (?:goal|target) weight|how much (?:more )?(?:weight )?(?:do i (?:have|need) to|to) lose"
+        r"|how many (?:more )?pounds (?:to go|(?:do i have|do i need) to lose|until my goal))\s*\??$")),
     ("meds", re.compile(
         r"^what (?:medications?|medicines?|meds|prescriptions?|pills) (?:do i take|am i on|am i taking|do i have)\s*\??$"
         r"|^what(?:'s| is| are) my (?:medications?|meds|prescriptions?)\s*\??$")),
@@ -10062,6 +10065,23 @@ def _body(text: str) -> str | None:
         bmi = w[0][1] / (h[0] ** 2)
         return f"About {bmi:.1f}, from the height and weight you told me."
     w = _weights()
+    if re.search(r"\b(?:goal|target|to go|to lose|until my goal)\b", asked):
+        goal = None
+        for row in _notes():
+            g = re.match(r"(?:my )?(?:goal|target) weight is (?:about |around )?(\d{2,3}(?:\.\d)?)\s*(kg|kilos?|pounds|lbs?)?",
+                         " ".join(str(row.get("text") or "").split()).casefold())
+            if g:
+                goal = float(g.group(1)) * (1 / 0.4536 if (g.group(2) or "").startswith("k") else 1)
+                break
+        if goal is None:
+            return "You haven't told me a goal weight. Say \"my goal weight is\" and the number."
+        if not w:
+            return f"Your goal is {goal:.0f} pounds, but you haven't told me what you weigh. Say \"I weigh\" and the number."
+        now = w[0][1] / 0.4536
+        gap = now - goal
+        if abs(gap) < 0.5:
+            return f"You're there - {now:.0f} pounds, and your goal is {goal:.0f}."
+        return (f"{abs(gap):.0f} pounds to {'go' if gap > 0 else 'gain'}: you told me {now:.0f}, and your goal is {goal:.0f}.")
     m = re.search(r"\b(?:weigh|weight)\b(?: (?P<when>last week|last month|yesterday|a week ago|a month ago|last time))?\s*\??$", asked)
     if m and not re.search(r"\b(?:lost|lose|gained|gain|doing|how's|how is)\b", asked):
         if not w:
@@ -10081,6 +10101,16 @@ def _body(text: str) -> str | None:
         when = speech.humanize_time(pick[0]) if pick[0] else "the last time you told me"
         return f"{pick[1] / 0.4536:.0f} pounds, {when}."
     if len(w) < 2:
+        # "I lost 2 pounds" said as a change, with no second weigh-in.
+        change = 0.0
+        for row in _notes():
+            c = re.match(r"i (lost|dropped|gained|put on) (\d{1,3}(?:\.\d)?) ?(pounds?|lbs?|kg|kilos?)",
+                         " ".join(str(row.get("text") or "").split()).casefold())
+            if c:
+                n = float(c.group(2)) * (2.2046 if c.group(3).startswith("k") else 1)
+                change += n if c.group(1) in ("lost", "dropped") else -n
+        if change:
+            return f"{'Down' if change > 0 else 'Up'} about {abs(change):.0f} pounds, from what you've told me."
         return ("I only have one weight from you so far - tell me again as it changes and I'll keep track."
                 if w else "You haven't told me your weight yet. Say \"I weigh\" and the number.")
     pounds = (w[-1][1] - w[0][1]) / 0.4536
