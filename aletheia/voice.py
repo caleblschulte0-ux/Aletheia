@@ -1159,7 +1159,12 @@ def _where_he_put(thing: str) -> str | None:
             low = said.casefold()
             if re.search(rf"\b{re.escape(stem)}", low) and re.search(
                     r"\b(?:put|left|keep|hid|placed|parked|are|is)\b.*\b(?:in|on|at|under|by|behind|next to|inside|near)\b", low):
-                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+                hers = speech.as_she_says_it(said).rstrip(".")
+                # "You left your keys on the counter.", not "You told me:
+                # you left..." - the same as where he parked.
+                if re.match(r"you (?!told\b)", hers):
+                    return hers[0].upper() + hers[1:] + "."
+                return f"You told me: {hers}."
     except Exception:
         return None
     return None

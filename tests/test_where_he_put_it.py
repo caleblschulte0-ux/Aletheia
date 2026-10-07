@@ -17,7 +17,7 @@ class WhereHePutIt(unittest.TestCase):
         notes = [{"text": "I put my keys in the drawer", "ts": "2026-10-07T01:00:00Z"}]
         with mock.patch.object(quick, "_notes", return_value=notes):
             self.assertEqual(voice._interpret("where are my keys")["say"],
-                             "You told me: you put your keys in the drawer.")
+                             "You put your keys in the drawer.")
 
     def test_no_note_is_still_the_honest_no_eyes(self):
         with mock.patch.object(quick, "_notes", return_value=[]):
