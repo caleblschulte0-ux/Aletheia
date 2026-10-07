@@ -4726,7 +4726,10 @@ def _interpret(transcript: str) -> dict:
     # answered "I don't have anything remembered" (2026-10-07): he wanted a
     # reminder, and she asks when rather than look up nothing.
     m = re.fullmatch(r"remind me (?:later |sometime )?about (?P<what>[a-z][a-z0-9' ,-]{1,60})", low)
-    if m and m.group("what").strip() not in ("me", "myself", "it", "that", "this", "you"):
+    # "Remind me about my landlord" is still a lookup: a person or thing of
+    # his is what he wants told, and that rule is older than this one.
+    if m and m.group("what").strip() not in ("me", "myself", "it", "that", "this", "you") \
+            and not re.match(r"(?:my|our)\b", m.group("what")):
         try:
             from aletheia import quick
             known = quick._recall(m.group("what").strip())
