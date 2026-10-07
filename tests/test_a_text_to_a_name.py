@@ -87,5 +87,19 @@ class ListsAndBills(unittest.TestCase):
                              {"kind": "list_off", "list": "packing", "item": "everything"})
 
 
+class HerName(unittest.TestCase):
+    def test_her_name_alone_is_answered(self):
+        for said in ("hey thea", "ok thea", "thea"):
+            self.assertEqual(voice._interpret(said), {"command": None, "say": "I'm listening."}, said)
+
+    def test_her_name_after_filler_does_not_hide_a_quick_question(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("hey thea what time is it"), quick.match("what time is it"))
+
+    def test_a_word_that_starts_with_her_name_is_not_her_name(self):
+        self.assertEqual(voice.strip_wake_word("theater tickets"), "theater tickets")
+        self.assertEqual(voice.strip_wake_word("tiara"), "tiara")
+
+
 if __name__ == "__main__":
     unittest.main()

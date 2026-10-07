@@ -28,7 +28,8 @@ WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 def strip_wake_word(text: str) -> str:
     t = text.strip()
     for w in WAKE_WORDS:
-        if t.lower().startswith(w):
+        # A whole word only: "theater tickets" was "ter tickets" (2026-10-07).
+        if t.lower().startswith(w) and not t[len(w):len(w) + 1].isalnum():
             rest = t[len(w):].lstrip(" ,.!?:;")
             return rest
     return t
@@ -1572,7 +1573,8 @@ def _interpret(transcript: str) -> dict:
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
     # "hey thea, apply to jobs for me": the filler hid her name from the
     # strip above, and her name then hid the sentence from every pattern.
-    low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low) or low
+    # Only her name ("hey thea") is a call, not a sentence: she answers it.
+    low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
 

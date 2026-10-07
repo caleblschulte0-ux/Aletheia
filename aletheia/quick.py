@@ -45,8 +45,10 @@ def _tidy(text: str) -> str:
     """
     text = " ".join(str(text or "").split()).strip().rstrip("?.! ").casefold()
     try:
-        from aletheia.voice import _without_preamble
-        return _without_preamble(text)
+        from aletheia.voice import WAKE_WORDS, _without_preamble
+        # "Hey Thea, what time is it" (2026-10-07: to the planner): her name
+        # after the filler hid the sentence from every pattern here.
+        return re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", _without_preamble(text))
     except Exception:
         return text
 
