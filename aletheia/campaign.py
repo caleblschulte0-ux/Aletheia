@@ -109,6 +109,11 @@ LOG_PATH = RUN_DIR / "last-run.log"
 #: kept a day. Live 2026-09-24 Aptiv's J000698866 timed out on the same
 #: select box on every pass, every twelve minutes, all night.
 UNREACHABLE_PATH = RUN_DIR / "unreachable.json"
+#: Openings a batch judged not realistic or a weak shot, by url, so the next
+#: batch's search leaves them out instead of spending its window on them.
+PASSED_PATH = RUN_DIR / "passed_over.json"
+PASSED_DAYS = 30
+PASSED_KEEP = 4000
 UNREACHABLE_ENOUGH = 2
 UNREACHABLE_HOURS = 24.0
 
@@ -147,6 +152,56 @@ def remember_unreachable(rows: list[dict], *, now: dt.datetime | None = None) ->
         stateio.write_json_atomic(UNREACHABLE_PATH, store)
     except Exception:
         pass
+
+
+def _passed_read() -> dict:
+    try:
+        value = json.loads(PASSED_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def remember_passed(rows: list[dict], *, now: dt.datetime | None = None) -> None:
+    """Keep the openings a batch passed over, a month at most. Never raises."""
+    rows = [r for r in rows if isinstance(r, dict) and str(r.get("url") or "").strip()]
+    if not rows:
+        return
+    try:
+        floor = _stamp((now or dt.datetime.now(dt.timezone.utc)) - dt.timedelta(days=PASSED_DAYS))
+        store = {url: row for url, row in _passed_read().items()
+                 if isinstance(row, dict) and str(row.get("at") or "") >= floor}
+        for r in rows:
+            store[str(r["url"]).strip()] = {"at": _stamp(now),
+                                            "why": " ".join(str(r.get("why") or "").split())[:160]}
+        if len(store) > PASSED_KEEP:
+            store = dict(sorted(store.items(), key=lambda kv: str(kv[1].get("at") or ""))[-PASSED_KEEP:])
+        PASSED_PATH.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(PASSED_PATH, store)
+    except Exception:
+        pass
+
+
+def settled_already(*, since: str = "", now: dt.datetime | None = None):
+    """A `skip(job)` for the search: True for a job already sent, waiting or
+    closed, one a batch judged not realistic since he last said what work he
+    wants, or one she could not reach twice today. Built once per batch."""
+    try:
+        urls, roles = apply_run.settled_index(since)
+    except Exception:
+        urls, roles = set(), set()
+    passed = {url for url, row in _passed_read().items()
+              if isinstance(row, dict) and str(row.get("at") or "") >= str(since or "")}
+    unreachable = _unreachable_read()
+
+    def skip(job: dict) -> bool:
+        url = str(job.get("apply_url") or job.get("url") or "").strip()
+        if url and (url in urls or url in passed or unreachable_today(url, store=unreachable, now=now)):
+            return True
+        company, title = str(job.get("company") or ""), str(job.get("title") or "")
+        return bool(company.strip() and title.strip()
+                    and apply_run.role_key(company, title) in roles)
+    return skip
 
 
 def unreachable_today(url: str, *, store: dict | None = None, now: dt.datetime | None = None) -> str:
@@ -1148,11 +1203,15 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         known = profile.known()
 
         def _openings(for_roles: list[str]) -> tuple[dict, list[dict]]:
+            # Jobs already settled are left out before the search cuts its
+            # window, so the window holds openings she has not met yet.
+            fresh_only = ({"skip": settled_already(since=job_fit.preferences_changed_at())}
+                          if searcher is None else {})
             found = (searcher or jobs.search_many)(
                 for_roles, where=where, limit=want * PER_COMPANY, discover=True,
                 # Only where he can work without sponsorship, and at his level.
                 country=str(known.get("country") or ""),
-                exclude=_seniority_to_leave_out(known))
+                exclude=_seniority_to_leave_out(known), **fresh_only)
             return found, [{"url": j["apply_url"], "title": f"{j['title']} — {j['company']}",
                             "posting": j.get("posting_url") or j["apply_url"],
                             "company": j.get("company", ""),
@@ -1485,6 +1544,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
         (needs_you if record["state"] == "NEEDS_YOU" else staged).append(record)
 
     remember_unreachable([row for row in failed if not row.get("remembered")])
+    remember_passed(passed_over)
     journal.append("action", "campaign",
                    f"{len(staged)} ready, {len(needs_you)} waiting on answers, "
                    f"{len(failed)} could not be reached, "

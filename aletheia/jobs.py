@@ -833,11 +833,28 @@ def search(role: str, *, where: str = "", limit: int = 10,
     return search_many([role], where=where, limit=limit, fetcher=fetcher)
 
 
+def _settled(skip, job: dict) -> bool:
+    """Whether the caller's `skip` says this job is already settled. A skip
+    that raises settles nothing: the job is offered as it always was."""
+    if skip is None:
+        return False
+    try:
+        return bool(skip(job))
+    except Exception:
+        return False
+
+
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
                 country: str = "", exclude=(), namer=None, companies=None,
-                websearch=None, employers=None, admit_crawled: bool | None = None) -> dict:
+                websearch=None, employers=None, admit_crawled: bool | None = None,
+                skip=None) -> dict:
     """Openings for ANY of these roles, each scored by the role it fits best.
+
+    `skip(job)` says a job is already settled (sent, waiting, closed, judged
+    not realistic). Such a job is left out BEFORE the window is cut: live
+    2026-10-07 a batch was handed 90 openings and 36 were jobs already
+    applied for and 43 jobs already judged, so one was new enough to stage.
 
     `discover` adds openings on boards nobody configured: a web search for
     each role on Greenhouse and Lever, whose public forms need no login. The
@@ -881,6 +898,8 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
         if country and not _in_country(job.get("location", ""), country):
             continue
         value = max(_score(job, terms, where, exclude=exclude) for terms in term_sets)
+        if value > 0 and _settled(skip, job):
+            continue
         if value > 0:
             # Kept on the job: the campaign chooses between EQUAL openings by
             # what else it knows (a form that carries a CAPTCHA goes later).
@@ -929,6 +948,8 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                     continue
                 value = max(_score(job, terms, "", exclude=exclude) for terms in term_sets)
                 if value <= 0:
+                    continue
+                if _settled(skip, job):
                     continue
                 job["score"] = round(value, 3)
                 seen.add(job["apply_url"])
@@ -1041,6 +1062,7 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     while i < max(len(web), len(own), len(searched), len(crawled)):
         beyond += [row[i] for row in (web, own, searched, crawled) if i < len(row)]
         i += 1
+    beyond = [job for job in beyond if not _settled(skip, job)]
     # Two from the boards, then one found beyond them, so both get tried.
     matches, b, w = [], 0, 0
     while len(matches) < cap and (b < len(board) or w < len(beyond)):
