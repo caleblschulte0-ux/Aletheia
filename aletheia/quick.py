@@ -1284,7 +1284,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
         r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tomorrow|monday|tuesday|wednesday|thursday"
-        r"|friday|saturday|sunday)\s*\??$|^do i have any reminders (?:for |on )?(?P<reminders_on3>today|tomorrow"
+        r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tomorrow"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     # A WORD'S MEANING (2026-10-07): "define serendipity" and "what does
     # ubiquitous mean" went to the planner. Not "what does that mean",
@@ -2057,6 +2057,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # made saying so (2026-10-07: all to a model). None when no note does.
     # "How long is my meeting with Sam", "who is my meeting with at 3",
     # "what's my busiest day this week" (2026-10-07: all to a model).
+    # "Did I miss any reminders" (2026-10-07: to the planner).
+    ("missed_reminders", re.compile(
+        r"^(?:did i miss|have i missed|did i skip) (?:any )?reminders?(?: today)?\s*\??$"
+        r"|^(?:any|are there any|were there any) (?:missed|unseen|unread) reminders?(?: today)?\s*\??$"
+        r"|^(?:any|are there any|were there any) reminders? (?:that )?i (?:missed|haven'?t seen|didn'?t see)\s*\??$")),
     ("event_detail", re.compile(
         r"^how long (?:is|will be) (?:my|the) (?:next )?(?P<ed_long>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner)"
         r"(?: with [a-z][a-z' ]{1,25}?)?)(?: today| tomorrow)?\s*\??$"
@@ -2118,7 +2123,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5034,6 +5039,23 @@ def _event_detail(text: str) -> str | None:
         day, n = min(sorted(counts.items()), key=lambda r: r[1])
         return f"{day.strftime('%A')}, with {speech.count_phrase(n, 'thing')} on it."
     return None
+
+
+def _missed_reminders(text: str = "") -> str | None:
+    """Reminders that went off and he has not seen: the unread notices
+    titled Reminder, said by their bodies."""
+    from aletheia import notifications, speech
+    try:
+        rows = [n for n in notifications.all_notifications(state="UNREAD", limit=200)
+                if str(n.get("title") or "") == "Reminder"]
+    except Exception:
+        return None
+    if not rows:
+        return "No - nothing I reminded you of is still unseen."
+    said = [f"{str(n.get('body') or '').strip().rstrip('.')} ({speech.humanize_time(str(n.get('created_at') or ''))})"
+            for n in rows[:4]]
+    return (f"{speech.count_phrase(len(rows), 'reminder')} you haven't seen: " + speech.and_list(said)
+            + (f", and {len(rows) - 4} more" if len(rows) > 4 else "") + ".")
 
 
 def _agenda_and_reminders(day: str) -> str | None:
@@ -10019,6 +10041,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "life_when": _life_when,
            "agenda_part": _agenda_part,
            "event_detail": _event_detail,
+           "missed_reminders": _missed_reminders,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

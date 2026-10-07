@@ -4042,5 +4042,25 @@ class OneHonestLineForHowHeFeels(unittest.TestCase):
         self.assertIn("starting things", quick.answer("give me a compliment"))
 
 
+class RemindersHeMissed(unittest.TestCase):
+    """2026-10-07: "did I miss any reminders" and "any reminders today" went
+    to the planner."""
+
+    def test_unseen_reminders_are_read_by_their_bodies(self):
+        from aletheia import notifications, quick
+        rows = [{"title": "Reminder", "body": "call the vet", "created_at": "2026-10-07T15:00:00Z", "state": "UNREAD"},
+                {"title": "Jobs", "body": "3 sent", "created_at": "2026-10-07T15:00:00Z", "state": "UNREAD"}]
+        with mock.patch.object(notifications, "all_notifications", return_value=rows):
+            said = quick.answer("did i miss any reminders")
+        self.assertIn("1 reminder you haven't seen: call the vet", said)
+        with mock.patch.object(notifications, "all_notifications", return_value=[]):
+            self.assertTrue(quick.answer("any missed reminders").startswith("No"))
+
+    def test_any_reminders_with_a_day_reads_the_day_and_without_one_is_left_alone(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("any reminders today")[0], "reminders_on")
+        self.assertIsNone(quick.match("any reminders"))
+
+
 if __name__ == "__main__":
     unittest.main()
