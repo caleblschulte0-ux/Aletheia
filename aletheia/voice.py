@@ -1095,6 +1095,25 @@ def _last_ask_kind() -> str:
         return ""
 
 
+def _where_he_put(thing: str) -> str | None:
+    """His newest note saying where the thing is, read back to him; None
+    when there is none. Never raises."""
+    stem = re.sub(r"(?:es|s)$", "", str(thing or "").strip().casefold()) or thing
+    if len(stem) < 3:
+        return None
+    try:
+        from aletheia import quick, speech
+        for row in quick._notes():
+            said = str(row.get("text") or "").strip()
+            low = said.casefold()
+            if re.search(rf"\b{re.escape(stem)}", low) and re.search(
+                    r"\b(?:put|left|keep|hid|placed|parked|are|is)\b.*\b(?:in|on|at|under|by|behind|next to|inside|near)\b", low):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    except Exception:
+        return None
+    return None
+
+
 def _known_person_first(rest: str) -> tuple[str, str] | None:
     """(who, the rest) when the leading words name a contact he has, or a
     one-word relation; else None. Never a stranger guessed at."""
@@ -2163,7 +2182,10 @@ def _interpret(transcript: str) -> dict:
     # "SET AN ALARM FOR 6AM EVERY DAY", "wake me up at 7 every weekday"
     # (2026-10-07: to the planner). The repeating kinds, a wake-up's words.
     m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) (?:at )?(?P<time>[\w: ]+?) "
-                     r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|daily|on weekdays|weekdays)", low)
+                     r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|daily|on weekdays|weekdays)", low) \
+        or re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) "
+                        r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|on weekdays|weekdays|weekday mornings)"
+                        r" (?:at |for )(?P<time>[\w: ]+?)", low)
     if m and _spoken_time(m.group("time")):
         hour, minute = map(int, _spoken_time(m.group("time")).split(":"))
         if _is_bare_hour(m.group("time")) and hour == 12:
@@ -2176,6 +2198,54 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_weekly", "days": ["weekend"], "time": hhmm, "text": "wake up"},
                     "say": None}
         return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up"}, "say": None}
+
+    # "WAKE ME UP IN 20 MINUTES" (2026-10-07: to the planner) - a nap is an
+    # alarm from now.
+    m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set an alarm) (?:in|for) (?P<span>.+?)(?: from now)?", low)
+    if m and _spoken_minutes(m.group("span")) and not re.search(r"\d:\d|\b(?:am|pm)\b", m.group("span")):
+        import datetime as dt
+        at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=_spoken_minutes(m.group("span")))).isoformat()
+        return {"command": {"kind": "remind_at", "at": at, "text": "wake up"}, "say": None}
+    # "REMIND ME THIS WEEKEND TO CLEAN THE GARAGE" (2026-10-07: to the
+    # planner): Saturday at nine, the same default hour a day with no time gets.
+    m = re.fullmatch(r"remind me (?:this|on the|over the|next) weekend to (?P<what>.+)"
+                     r"|remind me to (?P<what2>.+?) (?:this|on the|over the|next) weekend", low)
+    if m:
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        ahead = (5 - now.weekday()) % 7 + (7 if low.find("next weekend") >= 0 and now.weekday() < 5 else 0)
+        when = (now + dt.timedelta(days=ahead)).replace(hour=9, minute=0, second=0, microsecond=0)
+        if when <= now:
+            when = now.replace(second=0, microsecond=0) + dt.timedelta(hours=1)   # it is the weekend now
+        what = m.group("what") or m.group("what2")
+        return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": _as_he_said(text, what)}, "say": None}
+
+    # BEFORE AN EVENT, SAID THE OTHER WAY ROUND (2026-10-07): "remind me
+    # about the meeting 10 minutes before" compiled a memory RECALL of "the
+    # meeting 10 minutes before". It is "remind me 10 minutes before my
+    # meeting", which has its own branch.
+    m = re.fullmatch(r"remind me (?:about |of )?(?:my |the )?(?P<what>[a-z][a-z' ]{1,40}?) "
+                     r"(?P<n>\d{1,3}|an|a|one|five|ten|fifteen|twenty|thirty|forty-five) (?P<unit>minutes?|mins?|hours?) "
+                     r"(?:before|ahead|early|beforehand)(?: it starts)?", low)
+    if m:
+        return _interpret(f"remind me {m.group('n')} {m.group('unit')} before my {m.group('what')}")
+
+    # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
+    # tomorrow" and "don't let me forget to pay rent" went to the planner.
+    # Only when what follows starts like a thing to do - "I need to know"
+    # and "I have to say" are not tasks.
+    m = re.fullmatch(r"(?:i (?:need|have|got) to|i've got to|i gotta|i must|i should(?: really)?|"
+                     r"(?:don'?t|do not) let me forget to|make sure i|remember i (?:need|have) to)"
+                     r" (?P<what>.{3,120})", low)
+    if m and (_TASK_VERB.match(m.group("what")) or low.startswith(("don't let me", "dont let me", "do not let me"))):
+        if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b", m.group("what")):
+            # A clock time makes it a reminder: "pick up the kids at 3".
+            timed = _interpret(f"remind me to {m.group('what')}")
+            if ((timed or {}).get("command") or {}).get("kind") == "remind_at":
+                return timed
+        return _new_task(_as_he_said(text, m.group("what")))
 
     # THE VERB WITH NOTHING AFTER IT. "Set a reminder", "take a note" and
     # "add a task" went to the planner, which with nothing thinking kept
@@ -2641,7 +2711,10 @@ def _interpret(transcript: str) -> dict:
         r"(?P<what>[a-z][a-z0-9 '-]{1,40}?) "
         r"(?:note|draft|file|document|letter|memo|doc)s?\s*\??", low)
     if m and not _not_a_file(m.group("what")) and any(
-            w not in ("me", "my", "your", "the", "all", "any", "those", "these", "our", "a")
+            w not in ("me", "my", "your", "the", "all", "any", "those", "these", "our", "a",
+                      # "read me my latest note" is the newest note, not a file
+                      # called "latest" (2026-10-07).
+                      "last", "latest", "newest", "recent", "most", "new")
             for w in m.group("what").split()):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group("what"))},
@@ -3557,6 +3630,23 @@ def _interpret(transcript: str) -> dict:
 
     # A LOST OBJECT is not a file. "Find my keys" planned for a minute and
     # came back "she does not know a folder called on my computer" (2026-09-23).
+    # WHERE HE PUT IT (2026-10-07): "I put my keys in the drawer" went to the
+    # planner, and "where are my keys" said she had no eyes - with the note
+    # that would have answered it never written. A note in his words, read
+    # back by the question.
+    m = re.fullmatch(r"(?:i (?:put|left|stuck|keep|hid|placed)|i've (?:put|left)|i have (?:put|left)) (?:my |the |our )"
+                     r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of) .+"
+                     r"|(?:my|the|our) (?P<thing2>[a-z][a-z' ]{1,25}?) (?:are|is) (?:in|on|under|behind|next to|inside|on top of) "
+                     r"(?:the|my|our|a) .+", low)
+    if m and not re.search(r"\b(?:car|calendar|list|schedule|computer|pc|account|name|password|birthday)\b",
+                           m.group("thing") or m.group("thing2") or ""):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
+                     r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: please)?", low)
+    if m:
+        put = _where_he_put(m.group("thing"))
+        if put:
+            return {"command": None, "say": put}
     m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
                      r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
                      r"(?: please)?", low)

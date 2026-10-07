@@ -514,6 +514,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
     # calendar (2026-09-23). Weekdays, named days and a month-and-day.
+    # "How long until my alarm" (2026-10-07: to the planner).
+    ("alarm_left", re.compile(
+        r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
@@ -1150,12 +1153,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
         r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
+    # "What's my last note", "what did I note yesterday" (2026-10-07: to
+    # the planner). The journal keeps when each was written.
+    ("note_last", re.compile(
+        r"^(?:what(?:'s| is|s| was)|read(?: me)?|tell me) (?:my |the )?(?:last|latest|newest|most recent) note\s*\??$")),
+    ("notes_day", re.compile(
+        r"^what (?:did i|notes did i) (?:note|write down|jot down|save|take|make) (?P<notes_day>today|yesterday)\s*\??$"
+        r"|^(?:what are |read(?: me)? )?(?:my )?notes from (?P<notes_day2>today|yesterday)\s*\??$")),
     # "Is milk on my list" went to the planner (2026-10-07). The list is a
     # store; whether a thing is on it is a read.
     ("shopping_has", re.compile(
         r"^(?:is|are) (?:there )?(?:any |some )?(?P<has>[a-z0-9][a-z0-9 '&-]{1,40}?) on (?:my|the) (?:shopping |grocery )?list\s*\??$"
         r"|^(?:did i|have i) (?:put|add|added) (?:any |some )?(?P<has2>[a-z0-9][a-z0-9 '&-]{1,40}?) (?:on|to) (?:my|the) (?:shopping |grocery )?list\s*\??$"
         r"|^how many (?:things|items) (?:are )?on (?:my|the) (?:shopping|grocery) list\s*\??$")),
+    # "Do I need milk" (2026-10-07: to the planner). Only a YES is quick:
+    # "do I need a visa" is not a shopping question, so a miss goes on.
+    ("shopping_need", re.compile(
+        r"^do (?:i|we) need (?:any |some |more )?(?P<need_q>(?!to\b)[a-z][a-z '&-]{1,30}?)\s*\??$")),
     # A FACT HE TOLD HER, asked back (2026-10-07: "what's my favorite
     # color", "what is my blood type", "when is jess's birthday" each went
     # to a model while the note sat in her journal).
@@ -1393,7 +1407,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -3926,6 +3940,39 @@ def _shopping_has(item: str = "") -> str | None:
     return f"No, {item} {verb} on your shopping list."
 
 
+def _note_last() -> str:
+    from aletheia import speech
+    rows = _notes()
+    if not rows:
+        return "No notes yet. Say \"note that\" and I'll keep it."
+    return f"Your last note: {speech.as_she_says_it(str(rows[0].get('text') or '').strip()).rstrip('.')}."
+
+
+def _notes_day(day: str) -> str:
+    """His notes written today or yesterday, on his clock."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    want = dt.datetime.now(tz).date() - dt.timedelta(days=1 if day == "yesterday" else 0)
+    said = []
+    for row in _notes():
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if at.date() == want:
+            said.append(speech.as_she_says_it(str(row.get("text") or "").strip()).rstrip("."))
+    if not said:
+        return f"No notes from {day}."
+    return (f"{speech.count_phrase(len(said), 'note')} from {day}: " + "; ".join(said[:5])
+            + (f"; and {len(said) - 5} more" if len(said) > 5 else "") + ".")
+
+
+def _shopping_need(item: str) -> str | None:
+    said = _shopping_has(item)
+    return said if said and said.startswith("Yes") else None
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -4694,6 +4741,22 @@ def _coming(now=None) -> list[tuple]:
 
 _WHEN_NOUNS = frozenset({"appointment", "appt", "meeting", "call", "interview", "dinner", "lunch", "breakfast",
                          "class", "game", "flight", "party", "reservation", "session", "visit"})
+
+
+def _alarm_left() -> str:
+    """His next alarm and how long until it, from the reminder store."""
+    import datetime as dt
+    from aletheia import speech
+    now = dt.datetime.now(dt.timezone.utc)
+    alarms = [at for at, text, store in _coming(now) if store == "reminder" and text.strip().casefold() == "wake up"]
+    if not alarms:
+        return "No alarm set. Say \"wake me up at 7\" to set one."
+    at = alarms[0]
+    minutes = int(round((at - now).total_seconds() / 60))
+    hours, mins = divmod(max(minutes, 0), 60)
+    span = " and ".join(p for p in (f"{hours} hour{'s' if hours != 1 else ''}" if hours else "",
+                                    f"{mins} minute{'s' if mins != 1 else ''}" if mins or not hours else "") if p)
+    return f"Your alarm goes off {speech.humanize_time(at.isoformat())} - {span} from now."
 
 
 def _when_mine(what: str) -> str | None:
@@ -5840,6 +5903,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),
+           "shopping_need": lambda rest: _shopping_need(rest),
+           "note_last": lambda rest: _note_last(),
+           "notes_day": lambda rest: _notes_day(rest),
            "battery": lambda rest: _battery(),
            "free": _free,
            "free_at": lambda rest: _free_at(rest),
@@ -5859,6 +5925,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather_in": lambda rest: _weather_in(rest),
            "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
+           "alarm_left": lambda rest: _alarm_left(),
            "reminders_on": lambda rest: _reminders_on(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
