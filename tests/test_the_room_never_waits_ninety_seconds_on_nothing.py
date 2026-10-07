@@ -809,7 +809,10 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         said = quick.answer("what's using the cpu")
         self.assertTrue(said.startswith(("The processor is at", "I can't read this machine's processor")), said)
         self.assertNotIn("System Idle Process", said)
-        self.assertEqual((voice.interpret("thea what timers do I have").get("command") or {}).get("kind"), "reminders")
+        # Answered from the store, never a model: the timers themselves now,
+        # with what is left on each (2026-10-07), rather than the reminder list.
+        timers = voice.interpret("thea what timers do I have")
+        self.assertTrue(timers.get("say") or (timers.get("command") or {}).get("kind") == "reminders", timers)
         for s in ("shut down the computer", "lock the pc", "restart the computer", "turn off my laptop"):
             out = voice.interpret(f"thea {s}")
             self.assertIsNone(out["command"], s)

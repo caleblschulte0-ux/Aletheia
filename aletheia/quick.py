@@ -329,7 +329,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what were we (?:just )?(?:talking about|discussing)$|^recap (?:our|the|this) conversation$")),
     ("repeat", re.compile(
         r"^(?:say that again|repeat that|come again|what did (?:you|u) just say|what was that|"
-        r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say)$")),
+        r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say"
+        # "What was the last thing you said" (2026-10-07: to a model).
+        r"|what was the last thing (?:you|u) said|what did (?:you|u) (?:just )?tell me|repeat (?:your|the) last answer"
+        r"|say (?:it|that) one more time|can you repeat that|could you repeat that)\??$")),
     # "Who is my landlord" came back from her own model as "no lease or
     # rental info connected here" - a capability she has, denied. The
     # person is remembered or he is asked, in words, never a model's guess.

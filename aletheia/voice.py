@@ -1005,11 +1005,13 @@ def _might_be_several(text: str) -> bool:
     return "," in t or " and " in t or " & " in t or " plus " in t
 
 
-def _timer_left(now=None) -> str:
-    """What is left on each running timer, from the reminder store."""
+def _timer_left(now=None, named: str = "") -> str:
+    """What is left on each running timer, from the reminder store; with
+    `named`, only the timer whose name has that word ("the pasta")."""
     from aletheia import intercom, speech
     now = now or dt.datetime.now(dt.timezone.utc)
-    left = []
+    named = re.sub(r"^(?:the|my) ", "", " ".join(str(named or "").casefold().split()))
+    left, others = [], []
     for spec in intercom._reminder_schedules():
         text = str((spec.get("command") or {}).get("text") or "")
         m = re.fullmatch(r"your (.+?) timer is up", text)
@@ -1028,7 +1030,19 @@ def _timer_left(now=None) -> str:
         amount = (speech.count_phrase(int(seconds), "second") if seconds < 60
                   else speech.count_phrase(minutes, "minute") if minutes < 60
                   else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))
-        left.append((seconds, f"{amount} left on your {m.group(1)} timer"))
+        line = (seconds, f"{amount} left on your {m.group(1)} timer")
+        if named and not re.search(r"\b" + re.escape(named) + r"\b", m.group(1)):
+            others.append(line)
+            continue
+        left.append(line)
+    if named and not left:
+        # "How long on the pasta" answered about the EGGS (2026-10-07).
+        said = f"You don't have a {named} timer."
+        if others:
+            others.sort()
+            rest = speech.and_list([words for _, words in others])
+            said += f" There's {rest}."
+        return said
     if not left:
         return "No timer is running."
     left.sort()
@@ -1665,10 +1679,16 @@ def _running_once(marker: str) -> list:
     return sorted(out)
 
 
-def _more_on_the_timer(minutes: int) -> dict:
-    """"Add 5 minutes" to the one timer running (2026-10-07: to the planner)."""
+def _more_on_the_timer(minutes: int, named: str = "") -> dict:
+    """"Add 5 minutes" to the one timer running (2026-10-07: to the planner),
+    or to the one he names when there are several."""
     import datetime as dt
     running = _running_once("timer is up")
+    if named:
+        word = re.sub(r"^(?:the|my) ", "", named.strip())
+        running = [(at, w) for at, w in running if re.search(r"\b" + re.escape(word) + r"\b", w.casefold())]
+        if not running:
+            return {"command": None, "say": f"You don't have a {word} timer running."}
     if not running:
         return {"command": None, "say": "No timer running. Say \"set a timer for 5 minutes\" to start one."}
     if len(running) > 1:
@@ -2777,8 +2797,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:how (?:long|much time|many minutes)(?: is)? (?:left|remaining)|time left|"
                     r"how long (?:until|till|before)|when (?:does|will))"
                     r"(?: on| for| in)? (?:my|the|that) timers?(?: (?:go off|be done|ring|done))?"
-                    r"|how(?:'s| is) (?:my|the) timer(?: doing| going)?", low):
+                    r"|how(?:'s| is) (?:my|the) timer(?: doing| going)?"
+                    # "What timers do I have" read back "1 reminder: ..." (2026-10-07).
+                    r"|(?:what|which) timers (?:do i have|are (?:running|set|going))|(?:any|my) timers(?: running)?", low):
         return {"command": None, "say": _timer_left()}
+    # "How long on the pasta", "how long left on the eggs timer" (2026-10-07:
+    # to the planner, and once answered about a different timer).
+    m = re.fullmatch(r"how (?:long|much time|many minutes)(?: is)?(?: left| remaining)?(?: on| for| until| till) (?:the |my )?"
+                     r"(?P<what>[a-z][a-z ]{1,25}?)(?: timer)?(?: (?:go off|is done|be done|ready))?", low)
+    if m and m.group("what") not in ("timer", "timers", "it", "that", "my alarm", "alarm", "reminder", "my reminder",
+                                     "next reminder", "next alarm") and _running_once("timer is up"):
+        return {"command": None, "say": _timer_left(named=m.group("what"))}
 
     # "When's my next alarm" read out every alarm he had (2026-10-07).
     m = re.fullmatch(r"(?:(?:when|what time)(?: is|'s) (?:my|the) next|what(?:'s| is) (?:my|the) next|next) "
@@ -3351,9 +3380,15 @@ def _interpret(transcript: str) -> dict:
     # check the oven" has worked for weeks. So a timer said AS a timer
     # compiles to the same durable schedule, with the words a person
     # wants to hear at the end.
+    # "Set a 10 minute timer for the pasta" (2026-10-07: to the planner) is
+    # the same timer with the length said first.
+    said_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(\d+)[- ]?(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
+                              r" timer(?:\s+(to|for|so i can)\s+(.+))?", low)
+    timer_words = (f"set a timer for {said_first.group(1)} {said_first.group(2)}"
+                   + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else low
     m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
                      r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                     r"(?:\s+(to|for|so i can)\s+(.+))?", low)
+                     r"(?:\s+(to|for|so i can)\s+(.+))?", timer_words)
     if m:
         import datetime as dt
         amount, unit = int(m.group(1)), m.group(2)
@@ -3812,15 +3847,18 @@ def _interpret(transcript: str) -> dict:
                      r"|(?P<n2>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) more (?P<unit2>minutes?|mins?)(?: on (?:the |my )?timer)?"
                      r"|give me (?P<n4>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) more (?P<unit4>minutes?|mins?)"
                      r"(?: on (?:the |my )?timer)?"
-                     r"|(?:extend|add to) (?:the |my )?timer by (?P<n3>\d{1,3}|five|ten|fifteen|twenty|thirty) (?P<unit3>minutes?|mins?)", low)
+                     r"|(?:extend|add to) (?:the |my )?timer by (?P<n3>\d{1,3}|five|ten|fifteen|twenty|thirty) (?P<unit3>minutes?|mins?)"
+                     # "Add 2 minutes to the pasta timer" (2026-10-07: to the planner).
+                     r"|(?:add|put) (?P<n5>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?(?P<unit5>minutes?|mins?)"
+                     r" (?:to|on) (?:the |my )?(?P<named>[a-z][a-z ]{1,25}?) timer", low)
     if m:
         words = {"a": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30}
-        n = m.group("n") or m.group("n2") or m.group("n3") or m.group("n4")
-        unit = m.group("unit") or m.group("unit2") or m.group("unit3") or m.group("unit4") or "minutes"
+        n = m.group("n") or m.group("n2") or m.group("n3") or m.group("n4") or m.group("n5")
+        unit = m.group("unit") or m.group("unit2") or m.group("unit3") or m.group("unit4") or m.group("unit5") or "minutes"
         count = int(n) if n.isdigit() else words[n]
         if unit.startswith("sec"):
             return {"command": None, "say": "I can add whole minutes to a timer, not seconds."}
-        return _more_on_the_timer(count)
+        return _more_on_the_timer(count, named=m.group("named") or "")
     m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?alarm (?:to|for|until) (?P<time>[\w: ]+?)", low)
     if m:
         return _moved_alarm(m.group("time"))

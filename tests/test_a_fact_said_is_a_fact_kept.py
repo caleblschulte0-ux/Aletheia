@@ -828,5 +828,34 @@ class KitchenSums(unittest.TestCase):
         self.assertEqual(quick.answer("what's 2 plus 2"), "4.")
 
 
+class TimersByName(unittest.TestCase):
+    def specs(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        return [{"id": "a", "kind": "once", "enabled": True, "at": (now + dt.timedelta(minutes=3)).isoformat(),
+                 "command": {"text": "your 3 minute eggs timer is up"}},
+                {"id": "b", "kind": "once", "enabled": True, "at": (now + dt.timedelta(minutes=10)).isoformat(),
+                 "command": {"text": "your 10 minute pasta timer is up"}}]
+
+    def test_the_length_said_first(self):
+        cmd = voice._interpret("set a 10 minute timer for the pasta")["command"]
+        self.assertEqual(cmd["text"], "your 10 minute pasta timer is up")
+        self.assertEqual(voice._interpret("set a 5 minute timer")["command"]["text"], "your 5 minute timer is up")
+
+    def test_the_one_he_names(self):
+        from aletheia import intercom, scheduler
+        rows = self.specs()
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+             mock.patch.object(scheduler, "all_schedules", return_value=rows), \
+             mock.patch.object(scheduler, "next_occurrence",
+                               side_effect=lambda spec, now: __import__("datetime").datetime.fromisoformat(spec["at"])):
+            self.assertEqual(voice._interpret("how long on the pasta")["say"],
+                             "10 minutes left on your 10 minute pasta timer.")
+            self.assertTrue(voice._interpret("how long left on the rice")["say"].startswith("You don't have a rice timer."))
+            cmd = voice._interpret("add 2 minutes to the pasta timer")["command"]
+            self.assertEqual(cmd["replaces"], "your 10 minute pasta timer is up")
+            self.assertIn("eggs timer", voice._interpret("what timers do i have")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
