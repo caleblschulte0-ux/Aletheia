@@ -6571,7 +6571,9 @@ def _interpret(transcript: str) -> dict:
                 "say": (f"I can't see where your {thing} are - I have no eyes in the room. "
                         if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
                         else f"I can't see where your {thing} is - I have no eyes in the room. ")
-                       + "I can find files and places, and I can ring your phone if it's linked."}
+                       + (f"Next time, tell me where you put them - say \"my {thing} are on the counter\" - and I'll remember."
+                          if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                          else f"Next time, tell me where you put it - say \"my {thing} is on the counter\" - and I'll remember.")}
 
     # "I found my keys" (2026-10-07: to the planner).
     m = re.fullmatch(r"(?:i )?found (?:my |the )?(?P<it>keys|phone|wallet|glasses|remote|bag|purse|shoes|charger|headphones|earbuds|passport|watch)(?: again)?!*", low)

@@ -3716,6 +3716,8 @@ class HisPlansAndHowHeFeels(unittest.TestCase):
 
     def test_lost_and_found(self):
         self.assertIn("no eyes in the room", voice._interpret("I lost my keys")["say"])
+        # She has no way to ring a phone, so she does not offer to.
+        self.assertNotIn("ring", voice._interpret("where's my phone")["say"])
         self.assertEqual(voice._interpret("I found my wallet")["say"], "Good. Tell me where you put it next time and I'll remember.")
 
 
