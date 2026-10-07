@@ -201,7 +201,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-07T13:28:08Z",
+  "generated_at": "2026-10-07T14:09:05Z",
   "sent_all_time": 236,
   "totals": {
     "filled": 356,
@@ -214,10 +214,18 @@
   "waiting": {
     "closed": {
       "duplicate": 3,
-      "not_realistic": 7,
-      "other": 276
+      "gone": 31,
+      "left": 139,
+      "not_a_form": 38,
+      "not_realistic": 75
     },
     "failed": 74,
+    "failed_because": {
+      "ApplyError": 3,
+      "TargetClosedError": 3,
+      "TimeoutError": 14,
+      "other": 54
+    },
     "his_ok": {},
     "needs_account": 0,
     "needs_answer": 10,
