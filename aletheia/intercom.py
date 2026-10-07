@@ -2622,7 +2622,11 @@ def _free_sentence(ranges: list, day, part: str) -> str:
     if part:
         # "today evening" is not English. Today takes "this"; every other
         # day keeps its name ("tomorrow afternoon", "Friday morning").
-        when = f"this {part}" if when == "today" else f"{when} {part}"
+        # "Free this tonight" (2026-10-07): tonight already says which day.
+        if part == "tonight":
+            when = "tonight" if when == "today" else f"{when} night"
+        else:
+            when = f"this {part}" if when == "today" else f"{when} {part}"
     if not ranges:
         return f"Nothing free {when}."
     said = speech.and_list([f"{clock(a)} to {clock(b)}" for a, b in ranges[:3]])

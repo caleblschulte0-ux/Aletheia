@@ -3713,5 +3713,39 @@ class HisPlansAndHowHeFeels(unittest.TestCase):
         self.assertEqual(voice._interpret("I found my wallet")["say"], "Good. Tell me where you put it next time and I'll remember.")
 
 
+class PartsOfDaysAndMeetingDetails(unittest.TestCase):
+    def setUp(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        start = (dt.datetime.now(tz) + dt.timedelta(days=1)).replace(hour=15, minute=0, second=0, microsecond=0)
+        morning = start.replace(hour=9, minute=30)
+        self.events = [{"title": "meeting with Sam", "start": start.isoformat(),
+                        "end": (start + dt.timedelta(minutes=45)).isoformat()},
+                       {"title": "standup", "start": morning.isoformat(), "end": (morning + dt.timedelta(minutes=15)).isoformat()}]
+
+    def test_a_part_of_a_day(self):
+        from aletheia import quick
+        with mock.patch("aletheia.calendar.all_events", return_value=self.events):
+            self.assertEqual(quick.answer("what's on my calendar tomorrow morning"), "Tomorrow morning: standup at 9:30 am.")
+            self.assertEqual(quick.answer("what do I have tomorrow afternoon"), "Tomorrow afternoon: meeting with Sam at 3 pm.")
+
+    def test_a_meeting_how_long_who_and_the_busiest_day(self):
+        from aletheia import quick
+        with mock.patch("aletheia.calendar.all_events", return_value=self.events):
+            self.assertTrue(quick.answer("how long is my meeting with Sam").startswith("45 minutes: meeting with Sam"))
+            self.assertTrue(quick.answer("who is my meeting with at 3").startswith("Meeting with Sam, tomorrow"))
+            # tomorrow is next week's Monday when today is Sunday: both sides move
+            import datetime as dt
+            week = "next week" if (dt.date.today() + dt.timedelta(days=1)).weekday() == 0 else "this week"
+            self.assertTrue(quick.answer(f"what's my busiest day {week}").endswith("with 2 things on it."))
+        self.assertIsNone(quick.match("how long is my commute"))
+
+    def test_free_tonight_is_english(self):
+        import datetime as dt
+        from aletheia import intercom
+        self.assertEqual(intercom._free_sentence([], dt.date.today(), "tonight"), "Nothing free tonight.")
+
+
 if __name__ == "__main__":
     unittest.main()

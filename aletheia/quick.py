@@ -420,6 +420,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when do (?:i|we) (?P<lw2>start (?:my |the |our )?(?:new job|school|college|classes)|move|leave for (?:my |our |the )?(?:vacation|trip|holiday)"
         r"|fly to [a-z][a-z ]{1,25}?)\s*\??$"
         r"|^when(?:'s| is) (?:my|our) (?P<lw3>vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon)\s*\??$")),
+    # "What's on my calendar tomorrow morning" (2026-10-07: to a model).
+    ("agenda_part", re.compile(
+        r"^(?:what(?:'s| is)(?: on)?(?: my (?:calendar|schedule))?|what do i have(?: on)?|what have i got(?: on)?|anything(?: on)?"
+        r"|do i have anything|is there anything(?: on my calendar)?)"
+        r"(?: (?:for|on))? (?:(?P<ap_day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday) (?P<ap_part>morning|afternoon|evening|night)"
+        r"|this (?P<ap_part2>morning|afternoon|evening)|(?P<ap_part3>tonight))\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -2019,10 +2025,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("gift_for", re.compile(
         r"^what (?:gift ideas|gifts|presents|present ideas) (?:do i have|have i (?:got|saved|kept)|did i (?:save|have)) for (?P<gift_for>(?:my )?[a-z][a-z' ]{1,25}?)\s*\??$"
         r"|^what (?:should|could|can) i (?:get|buy|give) (?P<gift_for2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas|the holidays|our anniversary))?\s*\??$")),
-    ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
+    ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!(?:busiest|quietest|least busy|freest) day\b)(?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
     # LAST, so every specific door wins: "when does the trash go out",
     # "when is soccer", "when is the babysitter coming" read the note he
     # made saying so (2026-10-07: all to a model). None when no note does.
+    # "How long is my meeting with Sam", "who is my meeting with at 3",
+    # "what's my busiest day this week" (2026-10-07: all to a model).
+    ("event_detail", re.compile(
+        r"^how long (?:is|will be) (?:my|the) (?:next )?(?P<ed_long>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner)"
+        r"(?: with [a-z][a-z' ]{1,25}?)?)(?: today| tomorrow)?\s*\??$"
+        r"|^who(?:'s| is) my (?:meeting|call|appointment|lunch|dinner) (?:with )?(?:at|for) (?P<ed_at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)(?: (?P<ed_day>today|tomorrow))?\s*\??$"
+        r"|^(?:what(?:'s| is)|which (?:day|is)) my (?P<ed_busy>busiest|quietest|least busy|freest) day(?: (?:this|next) week)?\s*\??$")),
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         # the calendar's own words belong to the calendar's readers
@@ -2076,7 +2089,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -4816,6 +4829,114 @@ def _agenda(day: str = "today") -> str | None:
             for start, title in rows[:6]]
     return (f"{label}: " + speech.and_list(said)
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+
+
+_PART_HOURS = {"morning": (5, 12), "afternoon": (12, 17), "evening": (17, 22), "night": (17, 24), "tonight": (17, 24)}
+
+
+def _agenda_part(text: str) -> str | None:
+    """One part of one day on his calendar: "tomorrow morning", "tonight"."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    g = _groups("agenda_part", text)
+    day = g.get("ap_day") or "today"
+    part = g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or ""
+    lo, hi = _PART_HOURS.get(part, (0, 24))
+    try:
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        if day in _WEEKDAYS:
+            when = now.date() + dt.timedelta(days=(_WEEKDAYS.index(day) - now.weekday()) % 7)
+        else:
+            when = now.date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start.date() == when and lo <= start.hour < hi:
+                rows.append((start, str(event.get("title") or "something")[:80]))
+    except Exception:
+        return None
+    label = ("tonight" if part in ("tonight", "night") and when == now.date()
+             else f"this {part}" if when == now.date()
+             else f"tomorrow {part}" if when == now.date() + dt.timedelta(days=1) else f"{when.strftime('%A')} {part}")
+    if not rows:
+        return f"Nothing on your calendar {label}."
+    rows.sort()
+    said = [f"{t} at " + s.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for s, t in rows[:6]]
+    return f"{label[:1].upper() + label[1:]}: {speech.and_list(said)}."
+
+
+def _event_detail(text: str) -> str | None:
+    """A meeting's length, who a meeting at a time is with, and the week's
+    busiest or quietest day - all off the calendar mirror."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    g = _groups("event_detail", text)
+    try:
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        events = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+                end = calendar.parse_time(event["end"]).astimezone(tz) if event.get("end") else None
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start >= now - dt.timedelta(hours=1):
+                events.append((start, end, str(event.get("title") or "something")[:80]))
+    except Exception:
+        return None
+    events.sort(key=lambda e: e[0])
+    if g.get("ed_long"):
+        words = [w for w in re.findall(r"[a-z0-9']+", g["ed_long"]) if w not in ("with", "the", "my", "a")]
+        hits = [e for e in events if all(re.search(r"\b" + re.escape(w), e[2].casefold()) for w in words)]
+        if not hits:
+            return None
+        start, end, title = hits[0]
+        if not end:
+            return f"{title} has no end time on your calendar."
+        minutes = int((end - start).total_seconds() // 60)
+        amount = (speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else "")
+                  if minutes >= 60 else speech.count_phrase(minutes, "minute"))
+        return f"{amount}: {title}, {speech.humanize_time(start.isoformat())} to {end.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}."
+    if g.get("ed_at"):
+        m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", g["ed_at"])
+        hour = int(m.group(1)) % 12 + (12 if (m.group(3) == "pm" or (not m.group(3) and int(m.group(1)) < 8)) else 0)
+        days = [now.date() + dt.timedelta(days=1)] if g.get("ed_day") == "tomorrow" else \
+               [now.date()] if g.get("ed_day") == "today" else [now.date(), now.date() + dt.timedelta(days=1)]
+        for day in days:
+            for start, _end, title in events:
+                if start.date() == day and start.hour == hour and (not m.group(2) or start.minute == int(m.group(2))):
+                    return f"{title[:1].upper() + title[1:]}, {speech.humanize_time(start.isoformat())}."
+        return f"Nothing on your calendar at {g['ed_at']}."
+    if g.get("ed_busy"):
+        nxt = "next week" in text.casefold()
+        monday = now.date() - dt.timedelta(days=now.weekday())
+        first = monday + dt.timedelta(days=7) if nxt else now.date()
+        last = monday + dt.timedelta(days=13 if nxt else 6)
+        counts = {}
+        for start, _end, _t in events:
+            if first <= start.date() <= last:
+                counts[start.date()] = counts.get(start.date(), 0) + 1
+        if g["ed_busy"] == "busiest":
+            if not counts:
+                return "Nothing on your calendar " + ("next week." if nxt else "for the rest of this week.")
+            day, n = max(sorted(counts.items()), key=lambda r: r[1])
+            return f"{day.strftime('%A')}, with {speech.count_phrase(n, 'thing')} on it."
+        free = [first + dt.timedelta(days=i) for i in range((last - first).days + 1)
+                if first + dt.timedelta(days=i) not in counts]
+        if free:
+            return f"{free[0].strftime('%A')} - nothing on it at all."
+        day, n = min(sorted(counts.items()), key=lambda r: r[1])
+        return f"{day.strftime('%A')}, with {speech.count_phrase(n, 'thing')} on it."
+    return None
 
 
 def _agenda_and_reminders(day: str) -> str | None:
@@ -9664,6 +9785,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "worked": _worked,
            "sums_more": _sums_more,
            "life_when": _life_when,
+           "agenda_part": _agenda_part,
+           "event_detail": _event_detail,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,
