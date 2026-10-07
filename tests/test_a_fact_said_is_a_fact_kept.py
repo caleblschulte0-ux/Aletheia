@@ -1789,5 +1789,22 @@ class HerNameAndHerBirthdayCase(unittest.TestCase):
             self.assertIsNone(quick._relation_for_name("Sam"))
 
 
+
+class AnOutgrownTimerCase(unittest.TestCase):
+    """2026-10-07: after "add 5 minutes", "how much time is left" said
+    "15 minutes left on your 10-minute timer"."""
+
+    def test_a_length_it_outgrew_is_not_its_name(self):
+        from aletheia import quick, scheduler
+        now = dt.datetime(2026, 10, 7, 12, 0, tzinfo=dt.timezone.utc)
+        spec = {"kind": "once", "enabled": True, "command": {"text": "your 10-minute timer is up"}}
+        with mock.patch.object(scheduler, "all_schedules", return_value=[spec]), \
+                mock.patch.object(scheduler, "next_occurrence", return_value=now + dt.timedelta(minutes=15)):
+            self.assertEqual(quick._timer_left(now), "15 minutes left on your timer.")
+        with mock.patch.object(scheduler, "all_schedules", return_value=[spec]), \
+                mock.patch.object(scheduler, "next_occurrence", return_value=now + dt.timedelta(minutes=4)):
+            self.assertEqual(quick._timer_left(now), "4 minutes left on your 10-minute timer.")
+
+
 if __name__ == "__main__":
     unittest.main()

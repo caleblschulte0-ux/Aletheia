@@ -6762,14 +6762,20 @@ def _timer_left(now=None) -> str | None:
             bits.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
         return " and ".join(bits) or "under a minute"
 
-    def name(text: str) -> str:
+    def name(text: str, at) -> str:
         found = re.search(r"your (.+?) timer is up", text)
         if not found:
+            return "your timer"
+        # "15 minutes left on your 10-minute timer" after "add 5 minutes"
+        # (2026-10-07): a length it has outgrown is not its name any more -
+        # the rule voice's own answer already kept.
+        length = re.fullmatch(r"(\d+)[- ](minute|hour)s?", found.group(1))
+        if length and (at - now).total_seconds() > int(length.group(1)) * (3600 if length.group(2) == "hour" else 60) + 30:
             return "your timer"
         # A named one is "the eggs timer" - the same words voice uses.
         called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", found.group(1))
         return f"the {called.group(1)} timer" if called else f"your {found.group(1)} timer"
-    lines = [f"{left(at)} left on {name(text)}" for at, text in running[:3]]
+    lines = [f"{left(at)} left on {name(text, at)}" for at, text in running[:3]]
     return lines[0][0].upper() + "; ".join(lines)[1:] + "."
 
 
