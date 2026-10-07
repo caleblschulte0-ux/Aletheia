@@ -673,6 +673,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("meetings_count", re.compile(
         r"^how many (?:meetings|appointments|events)(?: (?:do i have|are on my calendar|have i got))?"
         r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
+    # "How many meetings do I have this week" (2026-10-07: to a model).
+    ("meetings_week", re.compile(
+        r"^how many (?:meetings|appointments|events|calls)(?: (?:do i have|are on my calendar|have i got))?"
+        r" (?P<meetings_week>this week|next week)\s*\??$")),
     # "How long until my alarm" (2026-10-07: to the planner).
     ("alarm_left", re.compile(
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$"
@@ -811,6 +815,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:did|have) (?:you|u) (?:do|done|been doing|been up to) while i was (?:gone|away|out|asleep|sleeping|at work)$"
         r"|^what have (?:you|u) been up to(?: today)?$"
         r"|^what did (?:you|u) get done(?: today)?$"
+        # "Show me what you did" (2026-10-07: to the planner).
+        r"|^(?:show|tell) me what (?:you|u) (?:did|have done|'ve done|been doing)(?: today)?$"
         # A part of the day (2026-09-24, offline: "I can't think just now")
         r"|^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) (?P<day_part>this morning|this afternoon|this evening|tonight|earlier|earlier today|so far today)$"
         # "What happened this morning" (2026-10-07: to a model).
@@ -964,11 +970,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     # "When am I done today", "when's my last meeting" (2026-10-07: to the planner).
     ("last_meeting", re.compile(
-        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow))?\s*\??$"
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow))?\s*\??$"
         r"|^(?:when|what time) (?:am i|will i be) (?:done|finished|free)(?: for the day)?(?: (?P<lastday2>today|tomorrow))?\s*\??$"
         r"|^what time do i (?:finish|get done|wrap up)(?: (?P<lastday3>today|tomorrow))?\s*\??$")),
     ("first_meeting", re.compile(
-        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my first (?:meeting|appointment|event|call|thing)(?:(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my first (?:meeting|appointment|event|call|thing)(?:(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
@@ -1119,6 +1125,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # THE DAY AS SHE HOLDS IT: calendar, tasks, the hunt.
     ("plan_today", re.compile(
         r"^what(?:'s| is|s)? (?:the |my )?plan (?:for )?(?:today|this morning|this afternoon)\s*\??$"
+        # "Give me a summary of my day" (2026-10-07: to the planner).
+        r"|^(?:give me |can i get |what(?:'s| is) )?(?:a |the )?(?:summary|rundown|run-down|overview) of (?:my day|today)\s*\??$"
+        r"|^(?:summari[sz]e|sum up) my day\s*\??$"
         r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
         r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$"
         # "How's my day look" fell to the planner (2026-10-07).
@@ -1185,7 +1194,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # appointment" and "what are my reminders for tomorrow" went to the
     # planner. Her calendar and her reminders hold both answers.
     ("when_mine", re.compile(
-        r"^(?:what time|when|what day)(?:'s| is) (?:my|the|our) (?:next )?(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
+        r"^(?:what time|when|what day)(?:'s| is) (?:my|the|our) (?:next )?(?!last |first )(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
         r"(?:appointment|appt|meeting|call|interview|dinner|lunch|breakfast|class|game|flight|party|reservation|session|visit"
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
@@ -1961,7 +1970,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4413,6 +4422,39 @@ def _first_meeting(day: str = "today") -> str | None:
     head, _, rest = said.partition(": ")
     first = re.split(r",? and |, ", rest, maxsplit=1)[0].rstrip(".")
     return f"{head}, first up: {first}."
+
+
+def _meetings_week(which: str = "this week") -> str | None:
+    """How many things are on his calendar for the rest of this week, or
+    next week, Monday to Sunday on his clock."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    monday = (now - dt.timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    nxt = str(which).strip() == "next week"
+    start = monday + dt.timedelta(days=7) if nxt else now
+    end = monday + dt.timedelta(days=14 if nxt else 7)
+    try:
+        titles = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                at = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start <= at < end:
+                titles.append((at, str(event.get("title") or "something")[:60]))
+    except Exception:
+        return None
+    label = "next week" if nxt else "for the rest of this week"
+    if not titles:
+        return f"Nothing on your calendar {label}."
+    titles.sort()
+    shown = [f"{t} {speech.humanize_time(at.isoformat())}" for at, t in titles[:4]]
+    return (f"{speech.count_phrase(len(titles), 'thing')} on your calendar {label}: {speech.and_list(shown)}"
+            + (f", and {len(titles) - 4} more." if len(titles) > 4 else "."))
 
 
 def _last_meeting(day: str = "today") -> str | None:
@@ -8009,6 +8051,16 @@ def _about_him() -> str:
     except Exception:
         pass
     if not facts:
+        # "What do you remember about me" said "Nothing yet" with two notes
+        # in the store (2026-10-07). They are not about HIM, but they are
+        # what she holds, and an empty answer denies the store.
+        try:
+            held = len(_notes())
+        except Exception:
+            held = 0
+        if held:
+            return (f"Nothing about you yourself yet, but I'm keeping {speech.count_phrase(held, 'note')} for you - "
+                    "say \"read my notes\" to hear them.")
         return "Nothing yet. Tell me things and I'll remember them; a resume teaches me a lot at once."
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
 
@@ -9038,6 +9090,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),
            "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),
+           "meetings_week": lambda rest: _meetings_week(rest),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
            "reminders_on": lambda rest: _reminders_on(rest),

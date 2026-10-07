@@ -3247,5 +3247,45 @@ class SomebodysAddress(unittest.TestCase):
             self.assertEqual(voice._interpret("where does mom live")["say"], "You told me: Mom lives at 12 Oak Street.")
 
 
+class HerDayAndHisWeek(unittest.TestCase):
+    def test_meetings_this_week_are_counted_from_the_calendar(self):
+        import datetime as dt
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        sunday_night = (now + dt.timedelta(days=6 - now.weekday())).replace(hour=23, minute=0, second=0, microsecond=0)
+        soon = min(now + dt.timedelta(seconds=60), sunday_night)
+        events = [{"title": "standup", "start": soon.isoformat()},
+                  {"title": "far off", "start": (now + dt.timedelta(days=30)).isoformat()},
+                  {"title": "gone", "start": soon.isoformat(), "status": "CANCELLED"}]
+        with mock.patch.object(calendar, "all_events", return_value=events):
+            said = quick.answer("how many meetings do I have this week")
+            self.assertTrue(said.startswith("1 thing on your calendar for the rest of this week: standup"), said)
+
+    def test_first_and_last_asked_with_what_time(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what time is my last meeting today")[0], "last_meeting")
+        self.assertEqual(quick.match("what time is my first meeting tomorrow")[0], "first_meeting")
+
+    def test_a_summary_of_the_day_and_what_she_did(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("give me a summary of my day")[0], "plan_today")
+        self.assertEqual(quick.match("show me what you did")[0], "today")
+
+    def test_notes_that_are_not_about_him_are_not_nothing(self):
+        from aletheia import memory, profile, quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "the spare key is under the mat"}]), \
+                mock.patch.object(profile, "known", return_value={}), \
+                mock.patch.object(memory, "everything", return_value={}):
+            self.assertIn("keeping 1 note", quick.answer("what do you remember about me"))
+
+    def test_a_refusal_is_not_a_thing_she_did(self):
+        from aletheia import recollection
+        entry = {"kind": "action", "subject": "core:undo", "actor": "operator-local-core",
+                 "text": "done — Nothing to undo: I haven't done anything on my own in the last two days."}
+        self.assertFalse(recollection._something_she_did(entry))
+        self.assertTrue(recollection._something_she_did(dict(entry, text="done — Took it off your list: milk.")))
+
+
 if __name__ == "__main__":
     unittest.main()
