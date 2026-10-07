@@ -1459,5 +1459,16 @@ class PauseEverythingIsTheSwitchCase(unittest.TestCase):
         self.assertNotEqual((voice._interpret("did the printer stop working")["command"] or {}).get("kind"), "halt")
 
 
+class WhenIsItFromANoteCase(unittest.TestCase):
+    def test_a_note_with_a_day_answers(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_coming", return_value=[]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "dentist is the 15th at 10"}]):
+            self.assertIn("15th at 10", quick._when_mine("dentist appointment"))
+        with mock.patch.object(quick, "_coming", return_value=[]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "the dentist is nice"}]):
+            self.assertIsNone(quick._when_mine("dentist appointment"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6589,6 +6589,13 @@ def _when_mine(what: str) -> str | None:
             if store == "calendar":
                 return f"{text[:1].upper() + text[1:]} is {when}."
             return f"You have a reminder {when}: {text.rstrip('.')}."
+    # A note he told her: "the dentist is the 15th at 10" before there was a
+    # calendar hold for it (2026-10-07: to the planner, with the note held).
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", said.casefold()) for w in words) \
+                and re.search(r"\d|day\b|tomorrow|tonight|noon", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
     # Nothing by that name in her stores is not "you have none": it may be
     # in his mail, which a model can read. Only a found answer is quick.
     return None
