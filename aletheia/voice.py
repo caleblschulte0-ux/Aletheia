@@ -6233,6 +6233,11 @@ def _interpret(transcript: str) -> dict:
     if told and not told.group("lead") and " " not in told.group("title").strip() \
             and not (told.group("time") or told.group("part")):
         told = None
+    # ...and "book a dentist appointment friday" is somebody else's diary.
+    if told and not told.group("lead") and re.match(
+            r"(?:book|make|get|cancel|move|reschedule|find|plan|organi[sz]e|arrange|set|call|text|email|confirm"
+            r"|skip|miss|need|want|remind|add|schedule|put|is|was|when|what|did|do)\b", low):
+        told = None
     m = m or told
     # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
     # errand to approve. A meeting or call with a person, on a day, is his
