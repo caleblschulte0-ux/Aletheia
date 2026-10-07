@@ -39,3 +39,10 @@ class ANodIsSilentInTheRoom(unittest.TestCase):
             self.assertEqual(voice.interpret("got it")["say"], "Okay.")
             self.assertFalse(voice.worth_answering("got it"))
             self.assertFalse(voice.worth_answering("ok"))
+
+    def test_wait_and_hold_on_are_nods_too(self):
+        from aletheia import policy, voice
+        with mock.patch.object(policy, "all_approvals", return_value=[]):
+            for said in ("wait", "hold on", "one sec", "give me a minute"):
+                self.assertEqual(voice.interpret(said)["say"], "Okay.", said)
+                self.assertFalse(voice.worth_answering(said), said)

@@ -923,7 +923,10 @@ right well like just really actually thing things please thanks thank
 #: planner error; heard by the room, it is the commonest television noise
 #: there is, so `worth_answering` keeps it SILENT.
 _A_NOD = re.compile(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all right|sounds good|"
-                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do)(?: thanks| thea)?")
+                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do|"
+                    # "Wait" and "hold on" went to the planner (2026-10-07).
+                    r"wait|hold on|hang on|one sec(?:ond)?|just a (?:sec|second|minute|moment)|"
+                    r"give me a (?:sec|second|minute|moment))(?: thanks| thea| please)?")
 
 
 def worth_answering(said: str) -> bool:
