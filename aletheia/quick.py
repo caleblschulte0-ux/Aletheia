@@ -2660,12 +2660,13 @@ def _tasks_done(when: str = "") -> str:
     """His tasks finished today, yesterday or this week, by when they closed."""
     import datetime as dt
     from aletheia import localtime, speech, tasks
-    when = str(when or "today").strip() or "today"
+    asked = str(when or "").strip()
+    when = asked or "today"
     tz = localtime.operator_tz()
     today = dt.datetime.now(tz).date()
     first, last = {"yesterday": (today - dt.timedelta(days=1),) * 2,
                    "this week": (today - dt.timedelta(days=today.weekday()), today)}.get(when, (today, today))
-    done = []
+    done, earlier = [], []
     for t in tasks.all_tasks():
         if str(t.get("status") or "").upper() != "COMPLETED" or not tasks.is_his(t):
             continue
@@ -2675,6 +2676,12 @@ def _tasks_done(when: str = "") -> str:
             continue
         if first <= closed <= last:
             done.append(str(t.get("description") or "").strip().rstrip("."))
+        elif closed < first:
+            earlier.append((closed, str(t.get("description") or "").strip().rstrip(".")))
+    if not done and not asked and earlier:
+        # "What tasks did I finish" names no day: today first, and when
+        # today is empty, the last thing he did finish rather than nothing.
+        return f"Nothing ticked off today. The last you finished was {max(earlier)[1]}."
     if not done:
         return f"Nothing ticked off your list {when}."
     return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])

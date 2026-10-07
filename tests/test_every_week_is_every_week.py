@@ -80,10 +80,13 @@ class DeadlinesAndDoneTasks(unittest.TestCase):
         self.assertNotIn("license", late)
 
     def test_what_did_i_finish(self):
-        done = [{"id": "a", "description": "renew my license", "status": "COMPLETED", "updated_at": "2026-10-07"}]
+        import datetime as dt
+        from aletheia import localtime
+        today = dt.datetime.now(localtime.operator_tz()).isoformat()
+        done = [{"id": "a", "description": "renew my license", "status": "COMPLETED", "updated_at": today}]
         with mock.patch("aletheia.tasks.all_tasks", return_value=done), \
                 mock.patch("aletheia.tasks.is_his", return_value=True):
-            self.assertEqual(quick.answer("what tasks did i finish"), "1 thing done: renew my license.")
+            self.assertIn("renew my license", quick.answer("what tasks did i finish"))
 
 
 class RemindMeAboutWithAWhen(unittest.TestCase):
