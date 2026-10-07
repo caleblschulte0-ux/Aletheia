@@ -50,6 +50,22 @@ CLOSED_KINDS = {"not-a-form": "not_a_form", "gone": "gone", "left": "left",
                 "duplicate": "duplicate"}
 
 
+def _left_bucket(why: str) -> str:
+    """Which wall the general browser left an application at, by the
+    mission's own words. Live 2026-10-07 "left" was 139 of the month's
+    closures, the largest by far, and a human check, a page with no way
+    forward and a question nobody answered are three different fixes."""
+    try:
+        from aletheia import browser_mission
+        words = browser_mission._KIND_WORDS
+    except Exception:
+        words = {}
+    for kind, said in sorted(words.items(), key=lambda kv: -len(kv[1])):
+        if said.casefold() in why:
+            return "left_" + kind.casefold()
+    return "left"
+
+
 def _closed_bucket(record: dict) -> str:
     why = str(record.get("closed_because") or "").casefold()
     named = next((name for lead, name in CLOSED_BECAUSE if lead in why), "")
@@ -58,6 +74,8 @@ def _closed_bucket(record: dict) -> str:
         kind = apply_run.closure_kind(record)
     except Exception:
         kind = str(record.get("closed_kind") or "")
+    if kind == "left":
+        return _left_bucket(why)
     if kind in CLOSED_KINDS:
         return CLOSED_KINDS[kind]
     if named:

@@ -56,6 +56,20 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
                          {"gone": 1, "left": 1, "not_a_form": 2, "stale": 1})
 
+    def test_an_application_the_browser_left_is_counted_by_the_wall(self):
+        at = "2026-10-06T10:00:00Z"
+        rows = [row("CLOSED", closed_kind="left", closed_at=at,
+                    closed_because="a human check on a job application, which is not yours to do"),
+                row("CLOSED", closed_kind="left", closed_at=at,
+                    closed_because="nothing more she could do here: no way forward on the page"),
+                row("CLOSED", closed_kind="left", closed_at=at,
+                    closed_because="waited two days for questions only you can answer and you did not come"),
+                row("CLOSED", closed_kind="left", closed_at=at,
+                    closed_because="nothing more she could do here: she ran out of steps")]
+        self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
+                         {"left_captcha": 1, "left_no_way_forward": 1, "left_out_of_steps": 1,
+                          "left_questions": 1})
+
     def test_a_failure_is_counted_by_its_shape_never_its_words(self):
         rows = [row("FAILED", failure="TimeoutError: page.goto https://acme.example/jobs/1 timed out"),
                 row("FAILED", failure="BrowserBusy: in use (tried 3 times, nothing was ever pressed)"),
