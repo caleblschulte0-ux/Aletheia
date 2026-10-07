@@ -621,6 +621,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:have i (?:had|drunk|drank)|did i (?:have|drink))(?P<logged_w> today| this week)?\s*\??$"
         r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
         r"(?P<logged_w2> today| this week)?\s*\??$"
+        r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
+        r"(?: for)?(?P<logged_w4> today| this week)?\s*\??$"
         r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
         r"|^(?:did|have) i (?P<logged_did>work(?:ed)? out|exercised?|meditated?|stretch(?:ed)?|done yoga|did yoga|gone to the gym|go to the gym)"
         r"(?P<logged_w3> today| this week)?\s*\??$")),
@@ -1936,7 +1938,8 @@ def _logged(text: str) -> str | None:
     g = _groups("logged", text)
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
-    window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or " today").strip()
+    window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or g.get("logged_w4")
+              or (" this week" if g.get("logged_dur") else " today")).strip()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if window == "this week":
         start -= dt.timedelta(days=now.weekday())
@@ -1976,6 +1979,47 @@ def _logged(text: str) -> str | None:
         if not found:
             return f"You haven't told me about a {g['logged_move'].rstrip('ed')} {when}. Say \"I {verb} 3 miles\" and I'll add it up."
         return f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''} {when}."
+    if g.get("logged_dur"):
+        # "Log 30 minutes of running", then "how much did I run this week"
+        # (2026-10-07: to the planner). Minutes and miles, both as he said them.
+        first = g["logged_dur"].split()[0]
+        words = next((w for k, w in (
+            ("r", r"ran|run|runs|running"), ("wa", r"walk|walked|walks|walking"), ("j", r"jog|jogged|jogging"),
+            ("b", r"bike|biked|biking|bike ride|cycled|cycling|cycle"), ("c", r"bike|biked|biking|cycled|cycling|cycle"),
+            ("s", r"swim|swam|swum|swimming"), ("h", r"hike|hiked|hiking"),
+            ("e", r"exercise|exercised|exercising|worked out|workout|working out"),
+            ("wo", r"worked out|work out|workout|working out|exercised")) if first.startswith(k)), None)
+        if not words:
+            return None
+        noun = {"r": "running", "wa": "walking", "j": "jogging", "b": "biking", "c": "cycling", "s": "swimming",
+                "h": "hiking", "e": "exercise", "wo": "working out"}[next(k for k in ("r", "wa", "j", "b", "c", "s", "h", "e", "wo")
+                                                                           if first.startswith(k))]
+        minutes, miles, seen = 0.0, 0.0, False
+        for at, said in rows:
+            if at < start or not re.search(rf"\b(?:{words})\b", said):
+                continue
+            t = re.search(r"\b(\d+(?:\.\d+)?|an?|one|two|half an?)[- ](minutes?|mins?|hours?|hrs?)\b", said)
+            d = re.search(r"\b(\d+(?:\.\d+)?)[- ]?(miles?|km|kilometers?|kilometres?|k)\b", said)
+            if t:
+                n = {"a": 1, "an": 1, "one": 1, "two": 2, "half a": 0.5, "half an": 0.5}.get(t.group(1)) or float(t.group(1))
+                minutes += n * (60 if t.group(2).startswith("h") else 1)
+                seen = True
+            if d:
+                miles += float(d.group(1)) / (1 if d.group(2).startswith("mile") else 1.609344)
+                seen = True
+        example = {"running": "run", "walking": "walk", "jogging": "jog", "biking": "bike ride", "cycling": "bike ride",
+                   "swimming": "swim", "hiking": "hike"}.get(noun, "workout")
+        if not seen:
+            return f"You haven't told me about any {noun} {when}. Say \"I went for a 30 minute {example}\" and I'll add it up."
+        bits = []
+        if minutes:
+            h, mm = divmod(int(round(minutes)), 60)
+            bits.append(" and ".join(x for x in (speech.count_phrase(h, "hour") if h else "",
+                                                  speech.count_phrase(mm, "minute") if mm else "") if x))
+        if miles:
+            bits.append(f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''}")
+        said = " and ".join(bits)
+        return f"{said[:1].upper() + said[1:]} {when}."
     if g.get("logged_sleep"):
         for at, said in rows:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)

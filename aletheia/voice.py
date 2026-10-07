@@ -6303,13 +6303,28 @@ def _interpret(transcript: str) -> dict:
     # with the time on it; `quick._logged` adds today's or this week's up.
     m = re.fullmatch(r"(?:i )?(?:just )?(?P<log>(?:drank|had) (?:a|an|one|two|three|four|five|\d{1,2}) (?:glass(?:es)?|cups?|bottles?|mugs?|cans?)"
                      r" of [a-z][a-z ]{1,20}?"
-                     r"|(?:ran|walked|jogged|biked|cycled|swam|hiked) (?:\d{1,3}(?:\.\d+)?|a|one|two|three|four|five|six|ten|half a) ?"
+                     r"|(?:ran|walked|jogged|biked|cycled|swam|hiked) (?:for )?(?:\d{1,3}(?:\.\d+)?|a|an|one|two|three|four|five|six|ten|half a|half an) ?"
                      r"(?:miles?|km|kilometers?|kilometres?|k|minutes?|mins?|hours?|laps?)"
                      r"|slept (?:for )?(?:\d{1,2}(?:\.\d+)?|five|six|seven|eight|nine|ten) (?:and a half )?hours?"
-                     r"|(?:worked out|exercised|meditated|stretched|did yoga|went to the gym)(?: for \d{1,3} (?:minutes?|mins?|hours?))?)"
+                     r"|(?:worked out|exercised|meditated|stretched|did yoga|went to the gym)(?: for (?:\d{1,3}|an?|one|two|half an?) (?:minutes?|mins?|hours?))?)"
                      r"(?: today| this morning| last night| tonight| just now)?", low)
     if m:
         return {"command": {"kind": "note", "text": "I " + m.group("log")}, "say": None}
+    # "I went for a 20 minute run" (2026-10-07: to the planner) is "I ran
+    # for 20 minutes", kept in the words `quick._logged` adds up.
+    m = re.fullmatch(r"(?:i )?(?:just )?(?:went for|did|had) (?:a|an) (?P<n>\d{1,3}|half hour|half an hour)[- ]?(?P<u>minutes?|mins?|hours?|miles?|mile|k|km)?"
+                     r"[- ]?(?P<act>run|walk|jog|bike ride|ride|swim|hike|workout)(?: today| this morning| tonight| just now)?", low)
+    if m and (m.group("u") or m.group("n").startswith("half")):
+        past = {"run": "ran", "walk": "walked", "jog": "jogged", "bike ride": "biked", "ride": "biked",
+                "swim": "swam", "hike": "hiked", "workout": "worked out"}[m.group("act")]
+        n, unit = m.group("n"), (m.group("u") or "")
+        if n.startswith("half"):
+            n, unit = "30", "minutes"
+        unit = {"min": "minutes", "mins": "minutes", "minute": "minutes", "hour": "hours", "mile": "miles"}.get(unit, unit)
+        if n == "1":
+            unit = unit.rstrip("s")
+        lead = "" if unit in ("miles", "mile", "k", "km") else "for "
+        return {"command": {"kind": "note", "text": f"I {past} {lead}{n} {unit}"}, "say": None}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.

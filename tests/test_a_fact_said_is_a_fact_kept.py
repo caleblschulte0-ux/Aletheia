@@ -1869,5 +1869,24 @@ class WhoOwesMeCase(unittest.TestCase):
         self.assertEqual(quick.match("does anyone owe me money")[0], "owed")
 
 
+
+class HowMuchDidIRunCase(unittest.TestCase):
+    """2026-10-07: "I went for a 20 minute run" and "how much did I run this
+    week" both went to the planner."""
+
+    def test_said_and_added_up(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("i went for a 20 minute run")["command"],
+                         {"kind": "note", "text": "I ran for 20 minutes"})
+        self.assertEqual(voice._interpret("i went for a 3 mile walk")["command"]["text"], "I walked 3 miles")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I ran for 20 minutes", "ts": now}, {"text": "I ran 3 miles", "ts": now},
+                 {"text": "I worked out for an hour", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how much did i run this week"), "20 minutes and 3 miles this week.")
+            self.assertEqual(quick.answer("how long did i work out today"), "1 hour today.")
+            self.assertIn("any walking", quick.answer("how much did i walk this week"))
+
+
 if __name__ == "__main__":
     unittest.main()
