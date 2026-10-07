@@ -3745,6 +3745,12 @@ def _interpret(transcript: str) -> dict:
                         r"car wash|gym|bar|pizza place|taco place|mechanic|post office|hardware store|vet|dentist|doctor)", low)
     if m:
         return {"command": {"kind": "research", "question": f"{m.group('what').strip()} near me"}, "say": None}
+    # "FIND ME A RECIPE FOR CHICKEN" (2026-10-07: to the planner) - a web
+    # search like any other, named as a recipe.
+    m = re.fullmatch(r"(?:find|get|give|show|look up|search for|pull up) (?:me )?(?:a |some |an )?(?:good |easy |quick |simple )?"
+                     r"recipes? (?:for|with) (?P<what>[a-z][a-z' ,-]{1,50})", low)
+    if m:
+        return {"command": {"kind": "research", "question": f"{m.group('what').strip()} recipe"}, "say": None}
 
     # "What files did I make today", "my recent files", "what did I
     # download this week" (2026-10-07: to a model). His folders, newest

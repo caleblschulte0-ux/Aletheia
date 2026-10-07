@@ -1211,5 +1211,11 @@ class MusicByMood(unittest.TestCase):
         self.assertEqual(voice.interpret("put on some music")["command"], {"kind": "music", "action": "play"})
 
 
+class ARecipeIsASearch(unittest.TestCase):
+    def test_find_me_a_recipe(self):
+        self.assertEqual(voice.interpret("find me a recipe for chicken")["command"],
+                         {"kind": "research", "question": "chicken recipe"})
+
+
 if __name__ == "__main__":
     unittest.main()
