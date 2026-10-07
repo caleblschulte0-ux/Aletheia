@@ -1094,5 +1094,26 @@ class HealthReadingsLiveOnHisPhone(unittest.TestCase):
             self.assertIn("phone or watch", got["say"])
 
 
+class AnAlarmMovedAndSnoozed(unittest.TestCase):
+    def test_change_my_alarm_replaces_the_one_he_named(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        day = dt.datetime.now(tz).date() + dt.timedelta(days=2)
+        two = [(dt.datetime(day.year, day.month, day.day, 6, 30, tzinfo=tz), "wake up"),
+               (dt.datetime(day.year, day.month, day.day, 8, 0, tzinfo=tz), "wake up")]
+        with mock.patch.object(voice, "_running_once", return_value=two):
+            got = voice.interpret("change my 6:30 alarm to 7")["command"]
+            self.assertEqual((got["kind"], got["text"], got["replaces"]), ("remind_at", "wake up", "wake up 06:30"))
+            self.assertTrue(got["at"].startswith(f"{day.isoformat()}T07:00"), got["at"])
+            self.assertIn("say which", voice.interpret("move my alarm to 6:45")["say"])
+            self.assertIn("don't have an alarm at 9", voice.interpret("change my 9 alarm to 10")["say"])
+
+    def test_snooze_names_what_went_off(self):
+        for said, minutes in (("snooze my alarm for 10 minutes", 10), ("snooze that reminder", 15),
+                              ("snooze for 5", 5), ("snooze the alarm", 15)):
+            with self.subTest(said=said):
+                self.assertEqual(voice.interpret(said)["command"], {"kind": "notify_snooze", "minutes": minutes})
+
+
 if __name__ == "__main__":
     unittest.main()

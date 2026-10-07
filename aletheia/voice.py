@@ -1708,8 +1708,9 @@ def _more_on_the_timer(minutes: int, named: str = "") -> dict:
             "say": None}
 
 
-def _moved_alarm(time_words: str) -> dict:
-    """"Change my alarm to 6:30": the one alarm, same day, the new time."""
+def _moved_alarm(time_words: str, was_words: str = "") -> dict:
+    """"Change my alarm to 6:30": the one alarm, same day, the new time.
+    "Change my 6:30 alarm to 7" names which one when there are several."""
     import datetime as dt
     from aletheia import localtime
     running = _running_once("wake up")
@@ -1718,9 +1719,17 @@ def _moved_alarm(time_words: str) -> dict:
         return _to_the_planner(f"change my alarm to {time_words}")
     if not running:
         return {"command": None, "say": f"You don't have an alarm set. Say \"set an alarm for {time_words}\" and I'll set one."}
+    was_hhmm = _spoken_time(was_words) if was_words else None
+    if was_hhmm:
+        h, mi = map(int, was_hhmm.split(":"))
+        wanted = {f"{h:02d}:{mi:02d}"} | ({f"{h + 12:02d}:{mi:02d}"} if _is_bare_hour(was_words) and h < 12 else set())
+        named = [r for r in running if r[0].astimezone(localtime.operator_tz()).strftime("%H:%M") in wanted]
+        if not named:
+            return {"command": None, "say": f"You don't have an alarm at {was_words}."}
+        running = named
     if len(running) > 1:
-        return {"command": None, "say": f"You have {len(running)} alarms - turn off the one you don't want and "
-                                        "set the new time."}
+        return {"command": None, "say": f"You have {len(running)} alarms - say which, like "
+                                        "\"change my 6:30 alarm to 7\"."}
     at, words = running[0]
     was = at.astimezone(localtime.operator_tz())
     hour, minute = map(int, hhmm.split(":"))
@@ -1729,7 +1738,8 @@ def _moved_alarm(time_words: str) -> dict:
     new = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
     if new <= dt.datetime.now(new.tzinfo):
         new += dt.timedelta(days=1)
-    return {"command": {"kind": "remind_at", "at": new.isoformat(), "text": words, "replaces": words},
+    return {"command": {"kind": "remind_at", "at": new.isoformat(), "text": words,
+                        "replaces": f"{words} {was_hhmm}" if was_hhmm else words},
             "say": None}
 
 
@@ -2780,8 +2790,10 @@ def _interpret(transcript: str) -> dict:
 
     # "Snooze that for an hour" — the commonest thing anybody says to a
     # notification, and it had no verb at all.
-    m = re.fullmatch(r"snooze(?: (?:that|it|this|them|(?:your |all |the )?(?:notifications|notices|alerts)|the (?:alert|notification|"
-                     r"reminder)))?\s*(?:for |by )?(.*)", low)
+    # "Snooze my alarm for 10 minutes" (2026-10-07: to the planner): an
+    # alarm that just went off is a notice like any other.
+    m = re.fullmatch(r"snooze(?: (?:(?:my |the |that |this )(?:alarm|reminder|timer|alert|notification)|"
+                     r"(?:your |all |the )?(?:notifications|notices|alerts)|that|it|this|them))?\s*(?:for |by )?(.*)", low)
     if m:
         rest = m.group(1).strip()
         # A bare "snooze that" is the commonest form and names no
@@ -2789,6 +2801,9 @@ def _interpret(transcript: str) -> dict:
         # the same argument as the nine o'clock default for a weekly
         # reminder. Anything it cannot read goes to the planner rather
         # than being rounded to a number nobody said.
+        # "Snooze for 5": a bare number after snooze is minutes.
+        if re.fullmatch(r"\d{1,3}", rest):
+            rest += " minutes"
         minutes = DEFAULT_SNOOZE_MINUTES if not rest else _spoken_minutes(rest)
         if minutes:
             return {"command": {"kind": "notify_snooze", "minutes": minutes},
@@ -3935,9 +3950,11 @@ def _interpret(transcript: str) -> dict:
         if unit.startswith("sec"):
             return {"command": None, "say": "I can add whole minutes to a timer, not seconds."}
         return _more_on_the_timer(count, named=m.group("named") or "")
-    m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?alarm (?:to|for|until) (?P<time>[\w: ]+?)", low)
+    m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?"
+                     r"(?P<was>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?alarm"
+                     r"(?: (?:for|at) (?P<was2>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?))? (?:to|for|until) (?P<time>[\w: ]+?)", low)
     if m:
-        return _moved_alarm(m.group("time"))
+        return _moved_alarm(m.group("time"), (m.group("was") or m.group("was2") or "").strip())
     # HOW FAST SHE TALKS (2026-10-07: "slower" and "talk slower" went to the
     # planner). Bare "slower"/"faster" are about her voice only when nothing
     # else could be meant; music has its own words.
