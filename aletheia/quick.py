@@ -428,6 +428,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
         r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
         r"|how long (?:until|till|before) my birthday)\s*\??$")),
+    # DEADLINES HE SET. "Add a task to renew my license by Friday" stores a
+    # real deadline; "what's due this week" and "what's overdue" told him she
+    # couldn't think (2026-10-07).
+    ("tasks_due", re.compile(
+        r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
+        r"(?: today| tomorrow| this week| soon| next)?)(?: on my list)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$")),
+    ("tasks_done", re.compile(
+        r"^(?:what|which) tasks? (?:did|have) i (?:finish|finished|complete|completed|do|done|tick off|ticked off)"
+        r"(?: today| this week| lately| recently)?\s*\??$"
+        r"|^what (?:have i|did i) (?:finished|finish|completed|complete|ticked off|tick off)(?: today| this week)?\s*\??$"
+        r"|^(?:my )?(?:finished|completed|done) tasks\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
@@ -980,7 +992,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "weeks",
+                                           "until", "until2", "day8", "day9", "weeks", "due", "due2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1225,6 +1237,61 @@ def _date_of(words: str) -> str | None:
     if when.year != today.year:
         said += f" {when.year}"
     return said + "."
+
+
+def _tasks_due(which: str = "") -> str | None:
+    """His open tasks with a deadline inside the window he named."""
+    import datetime as dt
+    from aletheia import intercom, localtime, speech, tasks as tasks_mod
+    try:
+        rows = intercom._open_tasks()
+    except Exception:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    which = " ".join(str(which or "").split())
+    end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
+    overdue_only = which in ("overdue", "late", "past due")
+    limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
+             "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
+             "due soon": now + dt.timedelta(days=3)}.get(which, now + dt.timedelta(days=7))
+    dated = []
+    for task in rows:
+        when = tasks_mod.parse_deadline(task.get("deadline"))
+        if when is None:
+            continue
+        if (when < now) if overdue_only else (when <= limit):
+            dated.append((when, task))
+    dated.sort(key=lambda pair: pair[0])
+    if not dated:
+        undated = len(rows) - sum(1 for t in rows if tasks_mod.parse_deadline(t.get("deadline")))
+        lead = "Nothing's overdue." if overdue_only else "Nothing's due " + (
+            which[4:] if which.startswith("due ") else "in the next week") + "."
+        if rows and undated == len(rows):
+            return lead + f" {speech.count_phrase(len(rows), 'task')} on your list, none with a date."
+        return lead
+    late = [t for w, t in dated if w < now]
+    said = speech.and_list([intercom._task_words(t) for _w, t in dated[:5]])
+    more = f", and {len(dated) - 5} more" if len(dated) > 5 else ""
+    head = (f"{speech.count_phrase(len(dated), 'thing')} overdue" if overdue_only
+            else f"{speech.count_phrase(len(dated), 'thing')} due" + (f", {len(late)} already late" if late else ""))
+    return f"{head}: {said}{more}."
+
+
+def _tasks_done() -> str | None:
+    """What he has ticked off, newest first."""
+    from aletheia import speech, tasks as tasks_mod
+    try:
+        rows = [t for t in tasks_mod.all_tasks()
+                if str(t.get("status", "")).upper() == "COMPLETED" and tasks_mod.is_his(t)]
+    except Exception:
+        return None
+    if not rows:
+        return "You haven't ticked anything off yet."
+    rows.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+    said = speech.and_list([str(t.get("description") or t.get("id"))[:70] for t in rows[:5]])
+    more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
+    return f"{speech.count_phrase(len(rows), 'thing')} done: {said}{more}."
 
 
 def _weeks_until(words: str) -> str | None:
@@ -3864,6 +3931,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "outcomes": _outcomes,
            "until": _until,
            "weeks_until": lambda rest: _weeks_until(rest),
+           "tasks_due": lambda rest: _tasks_due(rest),
+           "tasks_done": lambda rest: _tasks_done(),
            "birthday": lambda rest: _birthday(),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,

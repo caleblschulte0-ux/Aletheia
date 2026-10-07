@@ -2003,6 +2003,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "meet", "person": m.group(1).strip()},
                 "say": None}
 
+    # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
+    # not a lookup: it answered "I don't have anything remembered about 'the
+    # license task tomorrow'" (2026-10-07).
+    m = re.fullmatch(r"remind me (?:about|of) (.+?),? ((?:tomorrow|today|tonight|this (?:morning|afternoon|evening))"
+                     r"(?: (?:morning|afternoon|evening|night))?(?: at [\w: ]+)?|on [a-z]+(?: at [\w: ]+)?|"
+                     r"at [\w: ]+|in (?:\d+|an?|half an) (?:minutes?|mins?|hours?))", low)
+    if m:
+        when = m.group(2).replace("tonight", "today night").replace("this ", "today ")
+        again = _interpret(f"remind me to {m.group(1)} {when}")
+        if (again.get("command") or {}).get("kind") in ("remind_at",):
+            again["command"]["text"] = _as_he_said(text, m.group(1).strip())
+            return again
     m = re.match(r"(?:what do you know about|what have you got on|"
                  r"remind me about|tell me about) (.+)", low)
     # "What do you know about me" is not a lookup under the key "me" (it

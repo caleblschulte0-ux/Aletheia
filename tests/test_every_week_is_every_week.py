@@ -58,3 +58,38 @@ class Sums(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DeadlinesAndDoneTasks(unittest.TestCase):
+    def rows(self):
+        now = dt.datetime.now(dt.timezone.utc)
+        return [{"id": "a", "description": "renew my license", "status": "PENDING",
+                 "deadline": (now + dt.timedelta(days=2)).isoformat()},
+                {"id": "b", "description": "pay the gas bill", "status": "PENDING",
+                 "deadline": (now - dt.timedelta(days=1)).isoformat()},
+                {"id": "c", "description": "clean the garage", "status": "PENDING"}]
+
+    def test_whats_due_and_overdue(self):
+        with mock.patch("aletheia.intercom._open_tasks", return_value=self.rows()):
+            due = quick.answer("what's due")
+            late = quick.answer("what's overdue")
+        self.assertIn("renew my license", due)
+        self.assertIn("already late", due)
+        self.assertNotIn("garage", due)
+        self.assertIn("pay the gas bill", late)
+        self.assertNotIn("license", late)
+
+    def test_what_did_i_finish(self):
+        done = [{"id": "a", "description": "renew my license", "status": "COMPLETED", "updated_at": "2026-10-07"}]
+        with mock.patch("aletheia.tasks.all_tasks", return_value=done), \
+                mock.patch("aletheia.tasks.is_his", return_value=True):
+            self.assertEqual(quick.answer("what tasks did i finish"), "1 thing done: renew my license.")
+
+
+class RemindMeAboutWithAWhen(unittest.TestCase):
+    def test_a_when_makes_it_a_reminder(self):
+        c = cmd("remind me about the license task tomorrow")
+        self.assertEqual((c.get("kind"), c.get("text")), ("remind_at", "the license task"))
+
+    def test_without_a_when_it_is_still_a_lookup(self):
+        self.assertEqual(cmd("remind me about my landlord").get("kind"), "recall")
