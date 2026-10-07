@@ -304,6 +304,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # thing in the room, and "I can't do that yet" was the answer.
     "notify_snooze":   ({"minutes"}, {"which"}),
     "reminder_off":    ({"which"}, set()),
+    "reminder_on":     ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
@@ -534,6 +535,10 @@ KIND_NOTES: dict[str, str] = {
         'which is optional and narrows by the words of the reminder. Use '
         'this rather than answering from context: the store is the only '
         'thing that knows.'),
+    "reminder_on": (
+        'Put back a reminder he stopped. which is the words he used for '
+        'it, or "all reminders" for every one stopped in the last day; a '
+        'one-off whose time has gone by stays off and says so.'),
     "reminder_off": (
         'Stop a reminder he has set. which is the words he used for it '
         '("the bins", "the gym one"); she finds the one reminder that '
@@ -805,7 +810,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
                "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
-               "reminders", "reminder_off", "notify_snooze",
+               "reminders", "reminder_off", "reminder_on", "notify_snooze",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
                "intent", "screen_ask",
@@ -917,7 +922,7 @@ ROUTINE_KINDS = frozenset({
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
-    "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    "reminder_off", "reminder_on", "shopping_off", "notify_snooze", "notify_operator",
     # His own named lists: the same act on the same kind of store.
     "list_new", "list_add", "list_off",
     # His stopwatch: one small record of his own, reset by one word.
@@ -1541,6 +1546,62 @@ def _remembered_matching(about: str, domain: str | None = None):
         except Exception:
             continue
     return found
+
+
+def _reminder_back_on(which: str) -> str:
+    """Re-enable what reminder_off disabled: "put that back" (2026-10-07: the
+    comments promised one command and there was none)."""
+    import datetime as _dt
+    from aletheia import scheduler, speech
+    now = _dt.datetime.now(_dt.timezone.utc)
+    stopped = []
+    for spec in scheduler.all_schedules():
+        if spec.get("enabled", True) or str((spec.get("command") or {}).get("kind")) != "notify_operator":
+            continue
+        stopped.append(spec)
+
+    def changed(spec):
+        try:
+            return _dt.datetime.fromisoformat(str(spec.get("updated_at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+
+    def still_ahead(spec):
+        try:
+            # Asked as if it were on: a stopped schedule has no next time.
+            return scheduler.next_occurrence({**spec, "enabled": True}, now) is not None
+        except Exception:  # noqa: BLE001
+            return False
+
+    needle = " ".join(which.casefold().split())
+    every = {"all alarms": "wake up", "all timers": "timer is up", "all reminders": ""}.get(needle)
+    if every is not None:
+        hits = [r for r in stopped if every in str((r.get("command") or {}).get("text") or "").casefold()
+                and now - changed(r) <= _dt.timedelta(days=1)]
+    else:
+        hits = [r for r in stopped if needle and needle in str((r.get("command") or {}).get("text") or "").casefold()]
+        if not hits:
+            words = [w for w in re.split(r"[^a-z0-9]+", needle) if len(w) > 2 and w not in TASK_STOP and w != "reminder"]
+            hits = [r for r in stopped
+                    if words and all(w in str((r.get("command") or {}).get("text") or "").casefold() for w in words)]
+        hits = sorted(hits, key=changed, reverse=True)[:1]
+    if not hits:
+        raise act.Refused("There's no stopped reminder like that to put back." if every is None
+                          else "Nothing was stopped in the last day to put back.")
+    back, gone = [], []
+    for spec in hits:
+        (back if still_ahead(spec) else gone).append(spec)
+    for spec in back:
+        scheduler.set_enabled(spec["id"], True)
+    said = []
+    if back:
+        said.append("Back on: " + speech.and_list([_reminder_words(r) for r in back[:4]])
+                    + (f", and {len(back) - 4} more" if len(back) > 4 else "") + ".")
+    if gone:
+        said.append("Its time has already gone by, so it stays off." if len(gone) == 1 and not back
+                    else f"{speech.count_phrase(len(gone), 'other')} had already gone by and stayed off." if back
+                    else f"All {len(gone)} had already gone by, so they stay off.")
+    return " ".join(said)
 
 
 def _one_reminder(which: str):
@@ -3476,6 +3537,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 f"{_weekday_words(days)} at {cmd['time']} — {cmd['text'][:80]!r}")
     if kind == "reminders":
         return _reminders_answer(cmd.get("which", ""))
+    if kind == "reminder_on":
+        return _reminder_back_on(str(cmd["which"]))
     if kind == "reminder_off":
         from aletheia import scheduler
         # "TURN OFF ALL MY ALARMS" - every one of that sort, each disabled

@@ -857,5 +857,46 @@ class TimersByName(unittest.TestCase):
             self.assertIn("eggs timer", voice._interpret("what timers do i have")["say"])
 
 
+class PutThatBack(unittest.TestCase):
+    """Every comment beside reminder_off promised "put that back" was one
+    command; it went to the planner (2026-10-07)."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import converse, scheduler
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        names = [n for n in dir(scheduler) if n.isupper() and isinstance(getattr(scheduler, n), Path)]
+        for name in names:
+            p = mock.patch.object(scheduler, name, Path(self.tmp.name) / name.lower())
+            p.start()
+            self.addCleanup(p.stop)
+        self.turns = []
+        p = mock.patch.object(converse, "recent", side_effect=lambda limit=3: self.turns[-limit:])
+        p.start()
+        self.addCleanup(p.stop)
+
+    def say(self, said):
+        from aletheia import intercom, speech
+        cmd = voice._interpret(said)
+        out = cmd.get("say") if not cmd.get("command") else speech.spoken_receipt(
+            cmd["command"]["kind"], intercom.execute_command(cmd["command"], {"repos": {}}, quote=said))
+        self.turns.append({"he_asked": said, "she_answered": out})
+        return out
+
+    def test_stopped_then_put_back(self):
+        self.say("remind me every morning to drink water")
+        self.assertIn("Stopped reminding you", self.say("stop the water reminder"))
+        self.assertTrue(self.say("actually put that back").startswith("Back on: drink water"))
+        self.assertIn("drink water", self.say("what reminders do i have"))
+
+    def test_paused_then_all_back(self):
+        self.say("remind me every morning to drink water")
+        self.say("pause my reminders")
+        self.assertEqual(self.say("what reminders do i have"), "You have no reminders set.")
+        self.assertTrue(self.say("turn my reminders back on").startswith("Back on:"))
+
+
 if __name__ == "__main__":
     unittest.main()

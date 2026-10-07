@@ -2403,6 +2403,28 @@ def _interpret(transcript: str) -> dict:
                      r"(?P<sort>alarms|timers|reminders)", low)
     if m:
         return {"command": {"kind": "reminder_off", "which": "all " + m.group("sort")}, "say": None}
+    # "Pause my reminders" (2026-10-07: to the planner) stops them all, each
+    # one disabled and kept; "turn my reminders back on" is the other half.
+    m = re.fullmatch(r"(?:pause|mute|silence|snooze|hold) (?:all )?(?:of )?(?:my |the )?(?P<sort>reminders|alarms)"
+                     r"(?: for now)?", low)
+    if m:
+        return {"command": {"kind": "reminder_off", "which": "all " + m.group("sort")}, "say": None}
+    m = re.fullmatch(r"(?:unpause|unmute|unsilence|bring back) (?:all )?(?:of )?(?:my |the )?(?P<sort>reminders|alarms|timers)"
+                     r"|turn (?:all )?(?:of )?(?:my |the )?(?P<sort2>reminders|alarms|timers) (?:back on|on again)", low)
+    if m:
+        return {"command": {"kind": "reminder_on", "which": "all " + (m.group("sort") or m.group("sort2"))}, "say": None}
+    # "Put that back" after stopping a reminder (2026-10-07: the planner,
+    # though every comment beside reminder_off promised one command).
+    m = re.fullmatch(r"(?:actually,? |no,? |wait,? )?(?:put|turn|switch) (?:that|it) back(?: on)?|bring (?:that|it) back"
+                     r"|(?:actually,? )?turn (?:that|it) on again", low)
+    if m:
+        previous = _previous_ask()
+        before = (_interpret(previous).get("command") or {}) if previous else {}
+        if before.get("kind") == "reminder_off":
+            return {"command": {"kind": "reminder_on", "which": before["which"]}, "say": None}
+    m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)", low)
+    if m:
+        return {"command": {"kind": "reminder_on", "which": m.group("w")}, "say": None}
     m = re.match(r"^(resume|un-?halt|halt|close|open|shut down|turn off|"
                  r"turn on|go to sleep|wake up)\s+"
                  r"((?:yourself|aletheia|thea|it|everything|all|again|now|"

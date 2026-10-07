@@ -686,6 +686,8 @@ def spoken_receipt(kind: str, detail: str, *,
         if when and what:
             return (f"Put away until {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")
+    if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
+        return text
     if kind == "reminder_off":
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"

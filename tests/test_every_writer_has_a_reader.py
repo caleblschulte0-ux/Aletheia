@@ -56,6 +56,7 @@ READER_FOR = {
     "remind_monthly": "reminders",
     "remind_every": "reminders",
     "reminder_off": "reminders",
+    "reminder_on": "reminders",
     "contact_add": "contacts",
     "contact_remove": "contacts",
     # A place he saved is what "how long to the gym" looks up, and what
