@@ -216,7 +216,7 @@ class TheBriefDoesNotCrashOnAnUnpulsedMachineCase(unittest.TestCase):
         with mock.patch("aletheia.pulse.PULSE_DIR", __import__("pathlib").Path("/nowhere")):
             said = intercom.execute_command({"kind": "brief"}, {"repos": {}},
                                             quote="q")
-        self.assertIn("no brief to give you", said)
+        self.assertIn("fleet reading", said)
         self.assertNotIn("python", said)
         self.assertNotIn("aletheia.pulse", said)
 

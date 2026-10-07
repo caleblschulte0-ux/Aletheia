@@ -3538,7 +3538,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             except Exception:
                 his_day = ""
             if his_day:
-                return his_day + " The fleet hasn't had a reading yet; one comes on its own within a few hours."
+                return his_day + " No fleet reading yet; one comes on its own within a few hours."
             return ("I haven't got a fleet reading yet, so there is no brief to "
                     "give you. One comes on its own within a few hours.")
         return brief.compose(current, brief.previous_pulse(current),
