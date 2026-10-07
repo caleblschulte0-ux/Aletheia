@@ -936,7 +936,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Help" went to the planner (2026-10-07). A few things to say, in his
     # words; "what can you do" is the long answer.
     ("help", re.compile(r"^(?:help|help me|i need help|what can i say|what do i say|how do i use you"
-                        r"|what (?:can|should) i ask(?: you)?|how does this work)$")),
+                        r"|what (?:can|should) i ask(?: you)?|how does this work"
+                        # "What can I say to you" (2026-10-07: to a model).
+                        r"|what (?:can|should|do) i (?:say|ask|tell) (?:to )?(?:you|thea)|what (?:kind of )?(?:things|stuff) can i (?:say|ask)(?: you)?"
+                        r"|how do i talk to you)$")),
     ("date", re.compile(
         r"^what(?:'s| is|s)? (?:the |today'?s? )?date( today)?$"
         r"|^what day is it( today)?$|^what(?:'s| is|s)? today$"

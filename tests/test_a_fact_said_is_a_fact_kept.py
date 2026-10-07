@@ -4485,5 +4485,25 @@ class RemindMeTheDayBefore(unittest.TestCase):
                             "I don't see m")
 
 
+class TheBottomRungKeepsTalking(unittest.TestCase):
+    """2026-10-07, every model off: "what do you mean", "are you smart" and
+    "you're welcome" were "I can't think just now"."""
+
+    def test_said_again_and_small_talk(self):
+        from unittest import mock
+        from aletheia import converse, quick, rule_planner
+        turns = [{"he_asked": "add milk", "she_answered": "Added to the shopping list: milk."},
+                 {"he_asked": "what do you mean", "she_answered": "I said: Added to the shopping list: milk. I can't..."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            said = rule_planner.certain_answer("what do you mean")
+            self.assertTrue(said.startswith("I said: Added to the shopping list: milk."), said)
+            self.assertEqual(said.count("I said"), 1)
+        with mock.patch.object(converse, "recent", return_value=[]):
+            self.assertIsNone(rule_planner.certain_answer("i didn't understand"))
+        self.assertIn("Smart enough", rule_planner.certain_answer("are you smart"))
+        self.assertEqual(rule_planner.certain_answer("you're welcome"), "Thanks.")
+        self.assertIn("Just talk to me", quick.answer("what can i say to you"))
+
+
 if __name__ == "__main__":
     unittest.main()
