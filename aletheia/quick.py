@@ -448,7 +448,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
         r"|^(?:when is|when's|what day is|what day's|what day does|which day is) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
-        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)(?: on| fall on| this year)?\s*\??$")),
+        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day|labou?r day|memorial day|"
+        r"mlk day|martin luther king day|presidents'? day|president's day|mother'?s day|father'?s day|"
+        r"columbus day|indigenous peoples'? day)(?: on| fall on| this year)?\s*\??$")),
+    # "What's the date tomorrow", "what was yesterday's date", "what week is
+    # it", "how many days in February" (2026-10-07, all to a model).
+    ("calendar_fact", re.compile(
+        r"^(?:what(?:'s| is|s)? the date|what date is it) (?P<cal>tomorrow|yesterday)\s*\??$"
+        r"|^what (?:was|is) (?P<cal2>yesterday|tomorrow)(?:'s)? date\s*\??$"
+        r"|^what day (?:was|is|will it be) (?P<cal3>yesterday|tomorrow)\s*\??$"
+        r"|^what (?P<cal4>week) (?:is it|of the year is it|number is it|are we in)\s*\??$"
+        r"|^how many days (?:are )?(?:in|does) (?P<cal5>january|february|march|april|may|june|july|august|september|october|november|december|this month)(?: have)?\s*\??$"
+        r"|^is (?P<cal6>this|it) a leap year\s*\??$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -1025,6 +1036,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "weeks", "due", "due2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1145,6 +1157,39 @@ def _named_date(words: str, today):
             first = dt.date(year, 11, 1)
             thursday = first + dt.timedelta(days=(3 - first.weekday()) % 7)
             when = thursday + dt.timedelta(weeks=3)
+            if when >= today:
+                return when
+    # The other holidays that move (2026-10-07: "when is labor day" went to
+    # a model). (month, weekday, nth; -1 is the last one.)
+    w = w.replace("’", "'")
+    floating = {"labor day": (9, 0, 1), "labour day": (9, 0, 1), "memorial day": (5, 0, -1),
+                "mlk day": (1, 0, 3), "martin luther king day": (1, 0, 3), "presidents day": (2, 0, 3),
+                "presidents' day": (2, 0, 3), "president's day": (2, 0, 3), "mother's day": (5, 6, 2),
+                "mothers day": (5, 6, 2), "father's day": (6, 6, 3), "fathers day": (6, 6, 3),
+                "columbus day": (10, 0, 2), "indigenous peoples day": (10, 0, 2),
+                "indigenous peoples' day": (10, 0, 2)}
+    if w in floating:
+        month, weekday, nth = floating[w]
+        for year in (today.year, today.year + 1):
+            if nth > 0:
+                first = dt.date(year, month, 1)
+                when = first + dt.timedelta(days=(weekday - first.weekday()) % 7 + 7 * (nth - 1))
+            else:
+                last = dt.date(year + (month == 12), month % 12 + 1, 1) - dt.timedelta(days=1)
+                when = last - dt.timedelta(days=(last.weekday() - weekday) % 7)
+            if when >= today:
+                return when
+    if w in ("easter", "easter sunday"):
+        for year in (today.year, today.year + 1):
+            a, b, c = year % 19, year // 100, year % 100
+            d, e = b // 4, b % 4
+            f = (b + 8) // 25
+            g = (b - f + 1) // 3
+            h = (19 * a + b - d - g + 15) % 30
+            i, k = c // 4, c % 4
+            l = (32 + 2 * e + 2 * i - h - k) % 7
+            m = (a + 11 * h + 22 * l) // 451
+            when = dt.date(year, (h + l - 7 * m + 114) // 31, (h + l - 7 * m + 114) % 31 + 1)
             if when >= today:
                 return when
     days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -1391,6 +1436,32 @@ def _birthday() -> str:
         return (f"You're {age}. Your birthday is {when}" +
                 ("." if away == 0 else f", when you turn {turning}."))
     return f"Your birthday is {when}."
+def _calendar_fact(what: str) -> str | None:
+    """A fact about the calendar itself: yesterday's date, the week number,
+    the length of a month, whether this is a leap year."""
+    import calendar
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    what = " ".join(str(what or "").casefold().split())
+
+    def said(day):
+        suffix = "th" if 11 <= day.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day.day % 10, "th")
+        return f"{day.strftime('%A')} the {day.day}{suffix} of {day.strftime('%B')}"
+    if what in ("yesterday", "tomorrow"):
+        day = today + dt.timedelta(days=-1 if what == "yesterday" else 1)
+        return f"{what.capitalize()} {'was' if what == 'yesterday' else 'is'} {said(day)}."
+    if what == "week":
+        return f"It's week {today.isocalendar()[1]} of {today.year}."
+    if what in ("this", "it"):
+        leap = calendar.isleap(today.year)
+        return f"{today.year} is {'' if leap else 'not '}a leap year."
+    month = today.month if what == "this month" else (
+        ["january", "february", "march", "april", "may", "june", "july", "august",
+         "september", "october", "november", "december"].index(what) + 1)
+    days = calendar.monthrange(today.year, month)[1]
+    return f"{calendar.month_name[month]} has {days} days" + (
+        f" this year." if month == 2 else ".")
 
 
 def _until(words: str) -> str | None:
@@ -2936,6 +3007,18 @@ def _mine(what: str) -> str | None:
                 return str(value)
     except Exception:
         return None
+    # "My email is ..." said to her is kept in her memory of him (voice), and
+    # "what's my email" one turn later said she had none (2026-10-07).
+    try:
+        from aletheia import memory
+        identity = (memory.everything() or {}).get("identity") or {}
+        for field in fields:
+            entry = identity.get(field)
+            value = entry.get("value") if isinstance(entry, dict) else entry
+            if value:
+                return str(value)
+    except Exception:
+        pass
     return (f"I don't have your {asked} on file. "
             "Tell me and I'll remember it.")
 
@@ -4052,6 +4135,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tasks_due": lambda rest: _tasks_due(rest),
            "tasks_done": lambda rest: _tasks_done(),
            "birthday": lambda rest: _birthday(),
+           "calendar_fact": lambda rest: _calendar_fact(rest),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
            "date_of": _date_of,

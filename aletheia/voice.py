@@ -570,7 +570,8 @@ def _not_a_file(said: str) -> bool:
     if low in _NOT_A_FILE:
         return True
     # "Find ME a plumber near me": a person or a service, never a file.
-    if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
+    if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low) \
+            or re.match(r"(?:the )?(?:nearest|closest)\b", low):
         return True
     # "Find me customer success jobs in Denver" is a job search, whatever
     # else the sentence says (2026-09-22: it read Desktop and Downloads).
@@ -974,6 +975,16 @@ right well like just really actually thing things please thanks thank
 """.split())
 
 
+#: A nod: "ok", "cool", "got it". Typed, it gets "Okay." back instead of a
+#: planner error; heard by the room, it is the commonest television noise
+#: there is, so `worth_answering` keeps it SILENT.
+_A_NOD = re.compile(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all right|sounds good|"
+                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do|"
+                    # "Wait" and "hold on" went to the planner (2026-10-07).
+                    r"wait|hold on|hang on|one sec(?:ond)?|just a (?:sec|second|minute|moment)|"
+                    r"give me a (?:sec|second|minute|moment))(?: thanks| thea| please)?")
+
+
 def worth_answering(said: str) -> bool:
     """Did a person actually ask her something?
 
@@ -993,7 +1004,8 @@ def worth_answering(said: str) -> bool:
         if (got.get("command") or {}).get("kind") not in (None, "intent"):
             return True
         if got.get("say") and not got.get("command"):
-            return True          # a turn she already knows how to end
+            # A nod is answered when typed and silent in the room.
+            return not _A_NOD.fullmatch(text.lower().strip(" .!,"))
     except Exception:
         return True              # never silent because something broke
     try:
@@ -1175,7 +1187,11 @@ def _interpret(transcript: str) -> dict:
                     r"turn (yourself )?off|turn off (yourself|aletheia|thea)|"
                     r"shut (yourself|aletheia|thea) down|"
                     r"go to sleep|go offline|power (yourself )?down|"
-                    r"close the window|see you later)", low):
+                    # NOT "see you later" (2026-10-07): it shut her down
+                    # until he opened her again, while "goodbye" and "see
+                    # you" said she would keep at it. A farewell is not an
+                    # off switch; `quick`'s farewell answers it.
+                    r"close the window)", low):
         return {"command": {"kind": "close", "reason": f"by voice: {transcript!r}"},
                 "say": None}
     # The mirror, for completeness. He can rarely SAY this one: when she is
@@ -2079,6 +2095,25 @@ def _interpret(transcript: str) -> dict:
                      r"|\d{4}-\d{1,2}-\d{1,2})", low)
     if m:
         return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",
+                            "value": m.group(1).strip()}, "say": None}
+    # "MY ADDRESS IS 123 MAIN ST, HARTFORD, SD": "where do I live" says "tell
+    # me and I'll remember it", and telling her went to the planner
+    # (2026-10-07). `_where_he_lives` reads exactly this line.
+    m = re.fullmatch(r"(?:my (?:home )?address is|my address's|i live at) (\d+[\w .,#'-]{4,120})", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "address",
+                            "value": _as_he_said(text, m.group(1)).strip().rstrip(".")}, "say": None}
+
+    # "MY EMAIL IS ..." / "MY PHONE NUMBER IS ...": "what's my email" says
+    # "tell me and I'll remember it" (2026-10-07: telling her went nowhere).
+    m = re.fullmatch(r"my (?:email|e-mail|email address) is (\S+@\S+\.\S+)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "email",
+                            "value": m.group(1).rstrip(".")}, "say": None}
+    m = re.fullmatch(r"my (?:phone|cell|mobile|cell phone|phone number|cell number|mobile number|number) is "
+                     r"(\+?\d[\d ().-]{5,20}\d)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "phone",
                             "value": m.group(1).strip()}, "say": None}
 
     # private contact: "remember person bob smith bob at gmail dot com"
@@ -3068,6 +3103,20 @@ def _interpret(transcript: str) -> dict:
                     r"thank you very much|ty|cheers|appreciate it|"
                     r"thanks thea|thank you thea)", low):
         return {"command": None, "say": "Any time."}
+    # "OK", "cool", "got it" with nothing waiting went to the planner and came
+    # back "I could not plan that" (2026-10-07): a nod answered with an error.
+    # With an approval pending, the yes/no rules above decide what it means.
+    if _A_NOD.fullmatch(low) \
+            and not any(a.get("state") == "PENDING" for a in policy.all_approvals()):
+        return {"command": None, "say": "Okay."}
+    # Said TO her about her. A line, not a model call; a complaint is the one
+    # worth a question back, because it is a defect report.
+    if re.fullmatch(r"(?:you(?:'re| are) (?:awesome|great|the best|amazing|a lifesaver|smart|good)|good job|"
+                    r"nice work|well done|good girl|love you|i love you)(?: thea)?", low):
+        return {"command": None, "say": "Thanks - that's nice to hear."}
+    if re.fullmatch(r"(?:you suck|you(?:'re| are) (?:useless|stupid|dumb|terrible|bad|annoying|wrong again)|"
+                    r"that(?:'s| is| was) (?:wrong|useless|terrible|not what i (?:asked|meant|wanted)))(?: thea)?", low):
+        return {"command": None, "say": "Sorry. Tell me what I got wrong and I'll fix it."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
