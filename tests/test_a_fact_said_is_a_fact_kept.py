@@ -1265,5 +1265,17 @@ class NextTuesdayOnTheCalendarCase(unittest.TestCase):
         self.assertEqual(told["start"], asked["start"])
 
 
+class RememberThatIsAnInstructionCase(unittest.TestCase):
+    def test_quick_does_not_answer_an_instruction(self):
+        from aletheia import quick, voice
+        for said in ("remember that my car is a 2019 civic", "remember my car is a 2019 civic"):
+            self.assertIsNone(quick.match(said), said)
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_the_question_still_reaches_her_notes(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("do you remember my car")[0], "recall")
+
+
 if __name__ == "__main__":
     unittest.main()
