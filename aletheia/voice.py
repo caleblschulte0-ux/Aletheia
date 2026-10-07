@@ -2046,7 +2046,7 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
-    transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(transcript)))
+    transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(_a_clock_said(transcript))))
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
 
@@ -2060,6 +2060,34 @@ _POLITE_DOING = frozenset({
     "reminders", "reminder_off", "note", "email_check", "stopwatch", "stopwatch_read", "music",
     "travel_time", "free_time", "notify_snooze", "list_add", "list_read", "list_off", "brief", "contacts",
 })
+
+
+_CLOCK_NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                  "nine": 9, "ten": 10, "eleven": 11, "twelve": 12}
+
+
+def _a_clock_said(transcript: str) -> str:
+    """"At quarter to 5" is "at 4:45".
+
+    "Remind me at quarter to 5 to pick up Jo" went to the planner
+    (2026-10-07): the "to" of the clock and the "to" of the errand are the
+    same word, and the pattern reading one took the other. Said as digits
+    once, here, every pattern below reads it.
+    """
+    def said(m):
+        hour = m.group("h")
+        hour = int(hour) if hour.isdigit() else _CLOCK_NUMBERS.get(hour.casefold())
+        if not hour or not 1 <= hour <= 12:
+            return m.group(0)
+        minutes = {"quarter": 15, "half": 30}[m.group("q").casefold()]
+        if minutes == 30 and m.group("way").casefold() == "to":
+            return m.group(0)                     # "half to five" is not a time anybody agrees on
+        if m.group("way").casefold() == "to":
+            hour, minutes = (hour - 1) or 12, 60 - minutes
+        return f"{m.group('at')}{hour}:{minutes:02d}"
+    return re.sub(r"(?i)(?P<at>\b(?:at|by|for|until|till|from) )(?:a )?(?P<q>quarter|half) (?P<way>to|past) "
+                  r"(?P<h>\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b",
+                  said, str(transcript or ""))
 
 
 def _a_follow_on(transcript: str) -> str:

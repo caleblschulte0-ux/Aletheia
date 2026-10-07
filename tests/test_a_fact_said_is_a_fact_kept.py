@@ -1956,5 +1956,18 @@ class ATimerCalledTeaCase(unittest.TestCase):
             self.assertEqual(voice._interpret("how long has it been")["say"], "Your stopwatch is at 2 minutes.")
 
 
+
+class AQuarterToFiveCase(unittest.TestCase):
+    """2026-10-07: "remind me at quarter to 5 to pick up Jo" went to the planner."""
+
+    def test_the_clock_and_the_errand(self):
+        from aletheia import voice
+        cmd = voice.interpret("remind me at quarter to 5 to pick up Jo")["command"]
+        self.assertEqual(cmd["kind"], "remind_at")
+        self.assertEqual(cmd["text"], "pick up Jo")
+        self.assertEqual(dt.datetime.fromisoformat(cmd["at"]).strftime("%H:%M"), "16:45")
+        self.assertEqual(voice._a_clock_said("at a quarter past six"), "at 6:15")
+
+
 if __name__ == "__main__":
     unittest.main()
