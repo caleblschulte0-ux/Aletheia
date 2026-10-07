@@ -2970,12 +2970,27 @@ def _interpret(transcript: str) -> dict:
     # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is
     # sent and no live calendar is written; it is the reversible half.
     _cal_days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
-    m = (re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
+    held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
-                      r"(?: at (?P<time>[\w: ]+?))?", low)
-         or re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
-                         r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low))
-    if m and (m.group("day") or m.group("time")):
+                      r"(?: at (?P<time>[\w: ]+?))?", low),
+               # "Add lunch with Dana Friday at noon to my calendar": the day and
+               # the time said BEFORE the calendar (2026-10-07, fell to the planner).
+               re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?)(?: on| this| for)? (?P<day>" + _cal_days
+                         + r")(?: (?P<part>morning|afternoon|evening|night))?(?: at (?P<time>[\w: ]+?))?"
+                         r" (?:on|in|to|into|onto) my calendar", low),
+         re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) at (?P<time>[\w: ]+?)"
+                         r"(?: (?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
+                         r" (?:on|in|to|into|onto) my calendar", low),
+         re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                         r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low)]
+    # The shape that reads the most of it as a day and a time, and the least
+    # as title: "add lunch Friday at noon to my calendar" also fits the first
+    # pattern with the day inside the title, and "dentist at 3 tomorrow" fits
+    # one with "at 3" inside it.
+    held_by = [h for h in held_by if h and (h.group("day") or h.group("time"))]
+    m = max(held_by, key=lambda h: (bool(h.group("day")) + bool(h.group("time")), -len(h.group("title"))),
+            default=None)
+    if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
             return held
