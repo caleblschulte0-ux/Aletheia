@@ -1647,9 +1647,45 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
-    transcript = _with_the_person_named(transcript)
+    transcript = _a_polite_ask(_with_the_person_named(transcript))
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
+
+
+# What "can you ..." is asking her to DO, when the rest is a concrete ask.
+# A question about ability ("can you text people", "can you buy things")
+# compiles to nothing here and is still answered as one.
+_POLITE_DOING = frozenset({
+    "remind_at", "remind_daily", "remind_every", "remind_weekly", "remind_monthly", "remind_weekdays",
+    "shopping_add", "shopping_off", "shopping_list", "task_new", "task_done", "task_change", "tasks",
+    "reminders", "reminder_off", "note", "email_check", "stopwatch", "stopwatch_read", "music",
+    "travel_time", "free_time", "notify_snooze", "list_add", "list_read", "list_off", "brief", "contacts",
+})
+
+
+def _a_polite_ask(transcript: str) -> str:
+    """"Can you remind me at 5 to call mom" is "remind me at 5 to call mom".
+
+    It was answered "Yes, but it is experimental: place and hold a phone
+    conversation" (2026-10-07) - a polite instruction read as a question
+    about ability, matched to the wrong ability, and nothing done. Only
+    when the rest is an ask she already knows how to do; anything else is
+    handed back untouched and answered as the question it may be.
+    """
+    said = str(transcript or "")
+    bare = strip_wake_word(said)
+    m = re.fullmatch(r"(?:hey |ok |okay )?(?:can|could|would|will) (?:you|u) (?:please |kindly |just )?(?P<rest>.{3,160}?)"
+                     r"(?:,? please)?(?: for me)?\s*\??", " ".join(bare.split()), re.IGNORECASE)
+    if not m:
+        return said
+    rest = m.group("rest")
+    try:
+        cmd = (_interpret(rest) or {}).get("command") or {}
+    except Exception:
+        return said
+    if cmd.get("kind") not in _POLITE_DOING:
+        return said
+    return said[:len(said) - len(bare)] + rest
 
 
 def _no_password_in_a_note(said: dict) -> dict:

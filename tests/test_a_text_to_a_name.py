@@ -1144,5 +1144,27 @@ class DeleteTheXNote(unittest.TestCase):
         self.assertEqual(cmd, {"kind": "forget", "about": "the plumber comes thursday at 10"})
 
 
+
+class APoliteAskIsAnAsk(unittest.TestCase):
+    def test_can_you_with_a_concrete_ask_does_it(self):
+        from aletheia import quick, voice
+        cmd = voice.interpret("can you remind me at 5 to call mom")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "call mom"))
+        self.assertEqual(voice.interpret("could you add milk to the shopping list please")["command"],
+                         {"kind": "shopping_add", "item": "milk"})
+        self.assertIsNone(quick.answer("can you remind me at 5 to call mom"))
+
+    def test_a_question_about_ability_is_still_one(self):
+        from aletheia import quick, voice
+        self.assertIn("can't spend", quick.answer("can you buy me a monitor"))
+        self.assertEqual(voice._a_polite_ask("can you fly a helicopter"), "can you fly a helicopter")
+
+    def test_an_embedded_question_is_the_question(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("do you know what time it is")[0], "clock")
+        self.assertEqual(quick.match("tell me the time")[0], "clock")
+        self.assertEqual(quick.match("can you tell me how long my day is")[0], "day_span")
+
+
 if __name__ == "__main__":
     unittest.main()

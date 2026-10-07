@@ -1532,11 +1532,38 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
 )
 
 
+def _direct(text: str) -> str:
+    """"Tell me the time", "do you know what time it is" -> the question
+    itself. Both went to a model, and "do you know what time it is" was a
+    memory search for "what time it is" (2026-10-07). An embedded question
+    puts the verb last; this puts it back."""
+    m = re.fullmatch(r"(?:do (?:you|u) know|tell me|can (?:you|u) tell me|could (?:you|u) tell me|please tell me)"
+                     r" (?P<wh>what|when|where|who|how (?:much|many|long|far|old|hot|cold)|which \w+|what \w+)"
+                     r" (?P<subj>.+?) (?P<verb>is|are|was|were)(?P<tail> like| at| for| from)?", text)
+    if m:
+        wh, subj = m.group("wh"), m.group("subj")
+        # "What time it is": the noun goes with the question word.
+        pron = re.fullmatch(r"(?P<n>\w+) (?P<p>it|there|this|that)", subj)
+        if pron and wh in ("what", "which"):
+            return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
+        return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    m = re.fullmatch(r"(?:tell me|can (?:you|u) tell me|could (?:you|u) tell me|please tell me|give me) "
+                     r"(?P<what>(?:the|my|today's|tomorrow's) .{2,60})", text)
+    if m and not re.match(r"(?:the|my) (?:news|headlines|story|joke|truth|answer)\b", m.group("what")):
+        return f"what's {m.group('what')}"
+    return text
+
+
 def match(question: str) -> tuple[str, str] | None:
     """(which answer, the captured remainder) — or None to think properly."""
     text = _tidy(question)
     if not text or len(text) > MAX_QUESTION:
         return None
+    direct = _direct(text)
+    if direct != text:
+        found = match(direct)
+        if found:
+            return found
     for name, pattern in PATTERNS:
         found = pattern.match(text)
         if not found:
@@ -2052,9 +2079,6 @@ def _birthday_on_file():
         return None
     return month, int(day), int(m.group(3)) if m.group(3) else None
 
-
-_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
-           "september", "october", "november", "december")
 
 
 def _age_of(who: str) -> str | None:
@@ -3009,6 +3033,18 @@ def _and_the_money_line(asked: str) -> str:
 
 
 def _can_you(what: str) -> str | None:
+    # "Can you remind me at 5 to call mom" is an instruction, not a question
+    # about ability; the voice layer does it (2026-10-07). "Can you tell me
+    # the time" is the time.
+    try:
+        from aletheia import voice
+        if voice._a_polite_ask(f"can you {what}") != f"can you {what}":
+            return None
+        inner = match(what)
+        if inner and inner[0] != "can_you":
+            return answer(what)
+    except Exception:
+        pass
     from aletheia import self_knowledge
     found = self_knowledge.for_question(what)
     matches = list(found.get("matches") or [])
