@@ -807,6 +807,72 @@ def _a_loose_when(low: str, text: str, now=None) -> dict | None:
 #: People named by who they are to him, not by name.
 _RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "sister", "brother", "grandma",
               "grandpa", "son", "daughter", "boss", "girlfriend", "boyfriend", "partner", "roommate"}
+_ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
+                 "eighth": 8, "ninth": 9, "tenth": 10, "fifteenth": 15, "twentieth": 20, "last": 31}
+_SPAN = (r"(?P<span>(?:every|each) (?:month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
+         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|monthly|fortnightly)")
+_MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
+
+
+def _every_minutes(low: str) -> int | None:
+    """"every hour" -> 60, "every 2 hours" -> 120, "every half hour" -> 30,
+    "every 45 minutes" -> 45. None for "every few hours": a guess."""
+    m = re.search(r"every (?:(?P<n>\d+|two|three|four|couple of|other) )?(?P<unit>hours?|minutes?|mins?)\b"
+                  r"|every (?P<half>half an? hour|half hour)", low)
+    if not m:
+        return None
+    if m.group("half"):
+        return 30
+    said = m.group("n")
+    n = (1 if said is None else 2 if said in ("two", "couple of", "other") else 3 if said == "three"
+         else 4 if said == "four" else int(said))
+    return n * 60 if m.group("unit").startswith("hour") else n
+
+
+def _a_repeat(low: str, text: str) -> dict | None:
+    """A reminder that repeats monthly, every N days or every N weeks."""
+    at = r"(?: at (?P<time>[\w: ]+?))?"
+    m = (re.fullmatch(r"remind me (?:" + _MDAY + r" )?" + _SPAN + r"(?: " + _MDAY.replace("mday", "mday2") + r")?"
+                      + at + r",? (?:to|that|about) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:to|that|about) (?P<text>.+?),? (?:" + _MDAY + r" )?" + _SPAN
+                         + r"(?: " + _MDAY.replace("mday", "mday2") + r")?" + at, low))
+    if not m:
+        return None
+    hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+    if not hhmm:
+        return None
+    hour, minute = map(int, hhmm.split(":"))
+    if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+        hour += 12
+    hhmm = f"{hour:02d}:{minute:02d}"
+    what = _as_he_said(text, m.group("text").strip())
+    span = m.group("span")
+    if "month" in span:
+        said = m.group("mday") or m.group("mday2")
+        if said:
+            day = _ORDINAL_DAYS.get(said) or int(re.match(r"\d+", said).group(0))
+        else:
+            import datetime as dt
+            from aletheia import localtime
+            day = dt.datetime.now(localtime.operator_tz()).day      # today's date, each month
+        return {"command": {"kind": "remind_monthly", "day": day, "time": hhmm, "text": what}, "say": None}
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+    if span == "fortnightly" or "couple of weeks" in span:
+        n, unit = 2, "weeks"
+    elif "other day" in span:
+        n, unit = 2, "days"
+    elif "other" in span:
+        n, unit = 2, "weeks"
+    else:
+        n = int(m.group("n")) if m.group("n").isdigit() else words[m.group("n")]
+        unit = m.group("unit")
+    if unit == "days":
+        return {"command": {"kind": "remind_daily", "time": hhmm, "text": what, "every": n}, "say": None}
+    import datetime as dt
+    from aletheia import localtime
+    day = m.group("oday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
+    return {"command": {"kind": "remind_weekly", "days": [day], "time": hhmm, "text": what, "every": n},
+            "say": None}
 
 
 def _as_he_said(transcript: str, fragment: str) -> str:
@@ -1804,6 +1870,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
         return _to_the_planner(text)
+    # MONTHLY, EVERY OTHER DAY, EVERY TWO WEEKS (2026-10-07: "remind me on
+    # the first of every month to pay rent" was refused as SPENDING, the
+    # rest went to the planner). Either word order; nine o'clock when he
+    # names no time, as for the weekly ones, and the receipt says it back.
+    repeat = _a_repeat(low, text)
+    if repeat:
+        return repeat
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.
@@ -2845,11 +2918,14 @@ def _interpret(transcript: str) -> dict:
                       r"(?:hour|hours|minutes?|mins?|half hour)(?: or so)?", low)
          or re.fullmatch(r"remind me every (?:(?:\d+|few|couple of|half an?|other) )?(?:hour|hours|minutes?|mins?|half hour)"
                          r"(?: or so)? (?:to |that )(?P<what>.+)", low))
+    if m and _every_minutes(low):
+        return {"command": {"kind": "remind_every", "minutes": _every_minutes(low),
+                            "text": _as_he_said(transcript, m.group("what").strip())}, "say": None}
     if m:
         what = _as_he_said(transcript, m.group("what"))
         return {"command": None,
-                "say": f"I can't repeat a reminder within the day yet - daily and weekly I can. "
-                       f"Say 'remind me every day at 9 to {what}' and I'll set that."}
+                "say": f"How often - every hour, every two hours? Say it with a number, like "
+                       f"'remind me every 2 hours to {what}', and I'll set it."}
 
     # "DELETE THE LAST TASK" planned for a minute on her own model for want
     # of a verb: the newest open task, cancelled, said back by name.

@@ -564,6 +564,36 @@ def spoken_receipt(kind: str, detail: str, *,
         if when and what:
             return (f"I'll remind you {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")
+    if kind in ("remind_daily", "remind_weekly") and re.search(r"\bset every \d+ (?:days|weeks)\b", text):
+        # "reminder remind-every-9f2 set every 2 days from 2026-10-08T09:00:00-05:00 — 'run'"
+        span = re.search(r"set every (\d+) (days|weeks)(?: on (\w+))?", text)
+        when = ISO_TIME.search(text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if span and when and what:
+            n, unit, day = int(span.group(1)), span.group(2), span.group(3)
+            lead = ("Every other day" if (n, unit) == (2, "days") else
+                    f"Every other {day}" if (n, unit) == (2, "weeks") and day else f"Every {n} {unit}")
+            return (f"{lead}, starting {humanize_time(when.group(0), now)}, I'll remind you: "
+                    f"{_quoted(what.group(1))}.")
+    if kind == "remind_every":
+        # "reminder remind-every-9f2 set every 60 minutes from 2026-10-07T04:00:00+00:00 — 'drink water'"
+        span = re.search(r"set every (\d+) minutes", text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if span and what:
+            n = int(span.group(1))
+            hours, mins = divmod(n, 60)
+            lead = ("Every hour" if n == 60 else "Every half hour" if n == 30
+                    else f"Every {hours} hours" if hours and not mins else f"Every {n} minutes")
+            return f"{lead} from now I'll remind you: {_quoted(what.group(1))}."
+    if kind == "remind_monthly":
+        # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
+        when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if when and what:
+            n = int(when.group(1))
+            nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+            return (f"On the {nth} of every month at {clock_words(when.group(2))} I'll remind you: "
+                    f"{_quoted(what.group(1))}.")
     if kind == "remind_daily":
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
         what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
