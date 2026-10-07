@@ -444,7 +444,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what projects (?:do i|do we|do (?:you|u)) have$"
         r"|^how (?:are|r) (?:the|my|our|your) projects(?: going| doing| coming along| looking)?$")),
     ("project_next", re.compile(
-        r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
+        r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?!(?:the |my )?(?:calendar|schedule|agenda|day|diary)$)(?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -964,7 +964,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how long (?:until|till|before) my next (?:meeting|appointment|event)$"
         r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
         r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
-        r"|^what(?:'s| is|s)? (?:next |coming up )?on my calendar$"
+        r"|^what(?:'s| is|s)? (?:next |coming up )?on my (?:calendar|schedule|agenda)$"
+        r"|^what(?:'s| is|s)? (?:next|coming up) (?:today|in my day|for me today)$"
         r"|^what(?:'s| is|s)? the next thing (?:on|in) my (?:calendar|schedule|day)\s*\??$"
         r"|^what(?:'s| is|s)? next (?:on|in) my (?:schedule|day)\s*\??$"
         r"|^(?:my )?next (?:meeting|appointment)$"

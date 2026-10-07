@@ -2897,9 +2897,20 @@ def _interpret(transcript: str) -> dict:
     if not m:
         # "CANCEL MY ALARM": an alarm is a reminder that says "wake up", and
         # setting one was instant while cancelling it reached the planner.
-        if re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
-                        r"(?:the |my |that |all )?(?:my )?alarms?(?: for (?:tomorrow|the morning|[\w: ]+))?", low):
-            return {"command": {"kind": "reminder_off", "which": "wake up"}, "say": None}
+        alarm = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
+                             r"(?:the |my |that |all )?(?:my )?(?P<before>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?"
+                             r"alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
+        if alarm:
+            # "CANCEL MY 6:30 ALARM" names WHICH alarm; the time travels
+            # with the words, and a bare "6" becomes "6:00" so it reads as
+            # a time and not a number.
+            when = (alarm.group("before") or alarm.group("after") or "").strip()
+            if re.fullmatch(r"\d{1,2}", when):
+                when += ":00"
+            if when and not re.search(r"\d", when):
+                when = ""
+            return {"command": {"kind": "reminder_off", "which": ("wake up " + when).strip()},
+                    "say": None}
     if m:
         # "CANCEL THAT REMINDER", straight after setting it, searched his
         # reminders for the word "that" and answered "None of your reminders

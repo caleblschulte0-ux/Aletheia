@@ -1613,6 +1613,36 @@ def _one_reminder(which: str):
     from aletheia import speech
     needle = " ".join(str(which or "").split()).casefold()
     rows = _reminder_schedules()
+    # "CANCEL MY 6:30 ALARM": with two alarms both saying "wake up", the
+    # words cannot tell them apart and the clock can. Only a time that is
+    # plainly a time - a colon or am/pm - so "the 5 minute timer" keeps its
+    # five as a word.
+    clock = re.search(r"(?:^|\s)(?:at )?(\d{1,2})(?::(\d{2}))?\s*(?:(a|p)\.?m\.?|o'?clock)(?=\s|$)"
+                      r"|(?:^|\s)(?:at )?(\d{1,2}):(\d{2})(?=\s|$)", needle)
+    if clock and rows:
+        hour = int(clock.group(1) or clock.group(4))
+        minute = int(clock.group(2) or clock.group(5) or 0)
+        half = clock.group(3)
+        if half == "p" and hour < 12:
+            hour += 12
+        elif half == "a" and hour == 12:
+            hour = 0
+        wanted = {f"{hour:02d}:{minute:02d}"}
+        if not half and hour < 12:
+            wanted.add(f"{hour + 12:02d}:{minute:02d}")
+        rest = " ".join((needle[:clock.start()] + " " + needle[clock.end():]).split())
+        timed = [r for r in rows if _reminder_clock(r) in wanted]
+        if timed:
+            if rest:
+                worded = [r for r in timed if rest in text_of_reminder(r)]
+                timed = worded or timed
+            if len(timed) == 1:
+                return timed[0], ""
+            rows = timed
+            needle = rest
+        else:
+            return None, (f"You have nothing set for {speech.clock_words(sorted(wanted)[0])}. "
+                          + _reminder_list_words(rows))
 
     def text_of(spec):
         return str((spec.get("command") or {}).get("text", "")).casefold()
@@ -1652,11 +1682,33 @@ def _one_reminder(which: str):
         return None, (f"None of your reminders is about {which}. "
                       + _reminder_list_words(rows))
     if len(hits) > 1:
-        return None, ("Which one — "
-                      + speech.or_list([str((r.get("command") or {}).get("text")
-                                            or r["id"])[:50] for r in hits[:4]])
-                      + "?")
+        labels = [str((r.get("command") or {}).get("text") or r["id"])[:50] for r in hits[:4]]
+        if len(set(labels)) < len(labels):
+            # "Which one - wake up or wake up?" names nothing he can choose
+            # between; when the words are the same, the time is the name.
+            labels = [_reminder_words(r) for r in hits[:4]]
+        return None, "Which one — " + speech.or_list(labels) + "?"
     return hits[0], ""
+
+
+def text_of_reminder(spec: dict) -> str:
+    return str((spec.get("command") or {}).get("text", "")).casefold()
+
+
+def _reminder_clock(spec: dict) -> str | None:
+    """The local "HH:MM" a reminder goes off at, or None for an interval."""
+    from aletheia import speech
+    if spec.get("kind") == "once":
+        try:
+            at = dt.datetime.fromisoformat(str(spec.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if at.tzinfo is not None:
+            at = at.astimezone(speech._operator_zone() or None)
+        return at.strftime("%H:%M")
+    if spec.get("kind") in ("daily", "weekly", "monthly"):
+        return str(spec.get("time") or "")[:5] or None
+    return None
 
 
 def _contact_words(contact: dict) -> str:

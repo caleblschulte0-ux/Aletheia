@@ -5,6 +5,7 @@ is blue", "Jess's birthday is March 3" went to the planner, and the
 questions back went to a model while her journal could have held the
 answer. Also: "help", "stop the timer" and "what's the date tomorrow".
 """
+import datetime as dt
 import unittest
 from unittest import mock
 
@@ -960,6 +961,55 @@ class SendItIsApproveIt(unittest.TestCase):
              mock.patch.object(voice, "_asked_recently", return_value=True), \
              mock.patch.object(voice, "_approve_by_voice", side_effect=lambda a: {"command": {"kind": "approve", "id": a["id"]}}):
             self.assertEqual(voice._interpret("yes send it")["command"], {"kind": "approve", "id": "ap-1"})
+
+
+class AnAlarmNamedByItsTime(unittest.TestCase):
+    """"Cancel my 6:30 alarm" with two alarms set asked "Which one - wake up
+    or wake up?", and the sentence had named it."""
+
+    def setUp(self):
+        from zoneinfo import ZoneInfo
+        from aletheia import intercom, speech
+        zone = ZoneInfo("America/Chicago")
+        day = dt.datetime.now(zone).date() + dt.timedelta(days=1)
+        def at(h, m):
+            return dt.datetime(day.year, day.month, day.day, h, m, tzinfo=zone).astimezone(dt.timezone.utc).isoformat()
+        self.rows = [
+            {"id": "r-a", "kind": "once", "at": at(6, 30), "command": {"kind": "notify_operator", "text": "wake up"}},
+            {"id": "r-b", "kind": "once", "at": at(7, 15), "command": {"kind": "notify_operator", "text": "wake up"}},
+            {"id": "r-c", "kind": "daily", "time": "17:00", "command": {"kind": "notify_operator", "text": "call mom"}},
+        ]
+        for target, name, value in ((intercom, "_reminder_schedules", lambda: list(self.rows)),
+                                    (speech, "_operator_zone", lambda: zone)):
+            patcher = mock.patch.object(target, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.one = intercom._one_reminder
+
+    def test_the_time_picks_the_alarm(self):
+        self.assertEqual(self.one("wake up 6:30")[0]["id"], "r-a")
+        self.assertEqual(self.one("wake up 7:15 am")[0]["id"], "r-b")
+        self.assertEqual(self.one("5 pm")[0]["id"], "r-c")
+        self.assertEqual(self.one("call mom at 5:00")[0]["id"], "r-c")
+
+    def test_two_alike_are_told_apart_by_when(self):
+        found, why = self.one("wake up")
+        self.assertIsNone(found)
+        self.assertNotIn("wake up or wake up", why)
+        self.assertRegex(why, r"6:30")
+
+    def test_a_time_with_nothing_set_says_so(self):
+        found, why = self.one("wake up 9:45")
+        self.assertIsNone(found)
+        self.assertIn("nothing set for", why)
+
+    def test_the_sentence_carries_the_time(self):
+        for said, which in (("cancel my 6:30 alarm", "wake up 6:30"),
+                            ("turn off my alarm for 7 am", "wake up 7 am"),
+                            ("delete my alarm", "wake up")):
+            with self.subTest(said=said):
+                got = (voice.interpret(said) or {}).get("command") or {}
+                self.assertEqual(got, {"kind": "reminder_off", "which": which})
 
 
 if __name__ == "__main__":
