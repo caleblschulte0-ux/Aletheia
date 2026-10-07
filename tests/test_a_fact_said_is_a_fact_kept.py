@@ -1759,5 +1759,21 @@ class WakeMeUpCase(unittest.TestCase):
             self.assertIn("For what time?", voice.interpret(f"thea {said}")["say"], said)
 
 
+class WhatShouldItSayCase(unittest.TestCase):
+    def test_the_answer_is_the_message_and_a_question_is_not(self):
+        from aletheia import voice
+        asked = ("text mom", 'What should it say? Say "text Mom that you\'re running late" and I\'ll draft it.')
+        with mock.patch.object(voice, "_previous_turn", return_value=asked):
+            sent = voice._interpret("that i'll be late")["command"]
+            self.assertEqual((sent["kind"], sent["body"]), ("message_send", "i'll be late"))
+            self.assertEqual(voice._interpret("running ten minutes behind")["command"]["body"],
+                             "running ten minutes behind")
+            got = voice._interpret("what time is it") or {}
+            self.assertNotEqual((got.get("command") or {}).get("kind"), "message_send")
+        asked = ("email dana", 'What should it say? Say "email Dana saying you\'ll be late" and I\'ll draft it.')
+        with mock.patch.object(voice, "_previous_turn", return_value=asked):
+            self.assertEqual(voice._interpret("saying the meeting moved to 3")["command"]["kind"], "email_draft")
+
+
 if __name__ == "__main__":
     unittest.main()

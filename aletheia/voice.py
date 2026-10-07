@@ -2243,13 +2243,17 @@ _HER_QUESTIONS = (
     (r"When should I remind you to (.+?)\? ", "remind me {low} to {0}", "remind_"),
     (r"For how long\? Say \"set a timer", "set a timer for {low}", "remind_at"),
     (r"For what time\? Say \"wake me up", "wake me up at {low}", "remind_"),
+    # "Text Mom" - "What should it say?" - "that I'll be late" (2026-10-07:
+    # the answer went to the planner).
+    (r"What should it say\? Say \"text (.+?) that ", "text {0} that {body}", "message_send"),
+    (r"What should it say\? Say \"email (.+?) saying ", "email {0} saying {body}", "email_draft"),
 )
 
 
 def _answering_her(low: str, answered: str | None = None) -> dict | None:
     """His short answer to the question she just asked, as the whole ask.
     `answered` is what she said before it, when that is not the last turn."""
-    if len(low.split()) > 6:
+    if len(low.split()) > 40:
         return None
     if answered is None:
         _said, answered = _previous_turn()
@@ -2259,8 +2263,22 @@ def _answering_her(low: str, answered: str | None = None) -> dict | None:
             continue
         if low.startswith(template.split("{")[0].strip()):
             continue                    # already the whole ask, not an answer to put back together
-        rebuilt = template.format(*[g for g in m.groups()], low=re.sub(r"^(?:at|for|in) (?=\d)", "", low)
-                                  if "{low} to" not in template else low)
+        if "{body}" not in template and len(low.split()) > 6:
+            continue
+        if "{body}" in template and not re.match(r"(?:that|saying|say|tell)\b", low):
+            # "What time is it" after "What should it say?" is his own
+            # question, not the text (2026-10-07: it was drafted as one).
+            # Only a sentence that is not an ask of hers becomes the words.
+            try:
+                from aletheia import quick
+                if quick.match(low) or re.match(r"(?:what|when|where|who|why|how|which|is|are|do|does|did|can|could|"
+                                                r"will|would|should|stop|cancel|never ?mind|no|nope)\b", low):
+                    continue
+            except Exception:  # noqa: BLE001
+                continue
+        body = re.sub(r"^(?:that|saying|say|tell (?:her|him|them)(?: that)?)\s+", "", low)
+        rebuilt = template.format(*[g for g in m.groups()], body=body,
+                                  low=re.sub(r"^(?:at|for|in) (?=\d)", "", low) if "{low} to" not in template else low)
         got = _interpret(rebuilt)
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith(kind):
             return got
