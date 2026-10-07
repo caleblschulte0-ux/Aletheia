@@ -565,7 +565,8 @@ def _not_a_file(said: str) -> bool:
     if low in _NOT_A_FILE:
         return True
     # "Find ME a plumber near me": a person or a service, never a file.
-    if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low):
+    if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low) \
+            or re.match(r"(?:the )?(?:nearest|closest)\b", low):
         return True
     # "Find me customer success jobs in Denver" is a job search, whatever
     # else the sentence says (2026-09-22: it read Desktop and Downloads).
@@ -1905,6 +1906,14 @@ def _interpret(transcript: str) -> dict:
         # week'" — the fast lane removing an ANSWER rather than latency,
         # which is the one thing it may never do. The planner resolves the
         # date and compiles the same command; it just costs a round trip.
+
+    # "MY ADDRESS IS 123 MAIN ST, HARTFORD, SD": "where do I live" says "tell
+    # me and I'll remember it", and telling her went to the planner
+    # (2026-10-07). `_where_he_lives` reads exactly this line.
+    m = re.fullmatch(r"(?:my (?:home )?address is|my address's|i live at) (\d+[\w .,#'-]{4,120})", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "address",
+                            "value": _as_he_said(text, m.group(1)).strip().rstrip(".")}, "say": None}
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
