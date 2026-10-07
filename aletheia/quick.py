@@ -5260,6 +5260,8 @@ _STORE_QUESTION = {
     "remind_monthly": "what reminders do I have",
     "remind_every": "what reminders do I have",
     "shopping_list": "what's on the shopping list", "shopping_add": "what's on the shopping list",
+    "list_new": "what's on my packing list", "list_add": "what's on my packing list",
+    "list_off": "what's on my packing list", "list_read": "what lists do I have",
     "notes_list": "read me my notes", "note": "read me my notes", "drafts": "what drafts do you have",
     "applied_to": "what did you apply to", "applied_on": "what did you apply to",
     "notify_count": "what's waiting on me", "outcomes": "what did you apply to",

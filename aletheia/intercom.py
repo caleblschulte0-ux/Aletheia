@@ -356,6 +356,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # list: milk" and then said she had no shopping list.
     "shopping_list":   (set(), set()),
     "shopping_off":    ({"item"}, set()),
+    # HIS OWN NAMED LISTS - packing, gift ideas, movies to watch. The
+    # shopping list stays its own store (buying is its own path).
+    "list_new":        ({"list"}, set()),
+    "list_add":        ({"list", "item"}, set()),
+    "list_read":       (set(), {"list"}),
+    "list_off":        ({"list", "item"}, set()),
     "subscriptions":   (set(), set()),
     # `about` says which half of the same store he asked about — balance
     # or spending — so the empty-store answer does not report a balance to
@@ -484,6 +490,18 @@ KIND_NOTES: dict[str, str] = {
     "shopping_list": (
         'What is on his shopping list, read from the store. Use it for '
         '"what do I need from the shop" as well — it is the same list.'),
+    "list_new": (
+        'Start one of his own named lists - "make a list called packing". '
+        'Not for shopping, tasks or reminders: those have their own verbs.'),
+    "list_add": (
+        'Put lines on one of his named lists, starting it if it is new - '
+        '"add socks to my packing list". item may name several things.'),
+    "list_read": (
+        'Read one of his named lists, or with no list name say which lists '
+        'he has.'),
+    "list_off": (
+        'Take a line off one of his named lists, or "everything" to clear '
+        'it. Lines are marked done, not deleted.'),
     "shopping_off": (
         'Take something off the shopping list. item is the words he used; '
         'she finds the one entry that matches and asks him if two do. It '
@@ -763,6 +781,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # every private-state verb below lives on the PC
                "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
+               "list_new", "list_add", "list_read", "list_off",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -796,7 +815,7 @@ READ_ONLY_KINDS = frozenset({
     "chatgpt",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks", "reminders", "shopping_list", "applications",
+    "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
@@ -866,6 +885,8 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    # His own named lists: the same act on the same kind of store.
+    "list_new", "list_add", "list_off",
     # Writes one file inside her own workspace: reversible, reaches
     # nobody, and the workspace keeps the previous version. Same tier as
     # `file_write`, which it sits beside.
@@ -1712,7 +1733,7 @@ def _undo_answer(cmd: dict) -> str:
 
 
 #: What he asks for by voice that can be taken straight back, by kind.
-UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+UNDOES_HIS_ASK = ("task_new", "shopping_add", "list_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
                   "remind_every",
                   "calendar_hold", "file_write", "note")
 
@@ -1757,6 +1778,16 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
             return f"That task ({desc}) is already gone."
         tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
         return f"Undone: cancelled the task {desc}."
+    if kind == "list_add":
+        from aletheia import lists
+        name = str(command.get("list") or "")
+        gone = []
+        for item in shopping_items_of(str(command.get("item") or "")):
+            taken, _why = lists.take_off(name, item)
+            gone.extend(taken)
+        if not gone:
+            return f"I couldn't find that on your {name} list to take it back off."
+        return f"Undone: took {speech.and_list(gone)} back off your {name} list."
     if kind == "shopping_add":
         item = str(command.get("item") or "").strip()
         try:
@@ -1884,6 +1915,46 @@ def _nothing_on_it_at_all(cal, day) -> str:
     return (" Though there is nothing on your calendar at all for weeks "
             "either side, so if that sounds wrong, I may be reading a "
             "different calendar than the one you use.")
+
+
+def _named_list(kind: str, cmd: dict) -> str:
+    """His own named lists, each answer a sentence."""
+    from aletheia import lists
+    name = " ".join(str(cmd.get("list") or "").split())
+    if kind == "list_read" and not name:
+        held = lists.all_lists()
+        if not held:
+            return "You don't have any lists of your own yet. Say \"make a list called packing\" to start one."
+        return ("Your lists: " + speech.and_list(
+            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing')})" for h in held]) + ".")
+    if not lists.is_named_list(name):
+        raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
+                          "each have their own words.")
+    if kind == "list_new":
+        _held, new = lists.create(name)
+        return (f"Started your {name} list." if new else f"You already have a {name} list.") + \
+            f" Say \"add ... to my {name} list\"."
+    if kind == "list_add":
+        added = lists.add(name, shopping_items_of(str(cmd["item"])))
+        if not added:
+            return f"That's already on your {name} list."
+        return f"Added to your {name} list: {speech.and_list(added)}."
+    if kind == "list_off":
+        clearing = str(cmd["item"]).strip().lower() in SHOPPING_EVERYTHING
+        taken, why = lists.take_off(name, str(cmd["item"]))
+        if not taken:
+            return f"Your {name} list is already empty." if clearing and lists.exists(name) else why
+        if clearing:
+            return f"Cleared your {name} list - {speech.count_phrase(len(taken), 'thing')} off it."
+        return f"Took it off your {name} list: {speech.and_list(taken[:6])}" + \
+            (f" and {len(taken) - 6} more." if len(taken) > 6 else ".")
+    rows = lists.items(name)
+    if rows is None:
+        return f"You don't have a {name} list. Say \"make a list called {name}\" to start one."
+    if not rows:
+        return f"Your {name} list is empty."
+    shown = rows[:10] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
+    return f"{speech.count_phrase(len(rows), 'thing')} on your {name} list: {speech.and_list(shown)}."
 
 
 def shopping_answer() -> str:
@@ -3366,6 +3437,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _applications_answer()
     if kind == "shopping_list":
         return shopping_answer()
+    if kind in ("list_new", "list_add", "list_read", "list_off"):
+        return _named_list(kind, cmd)
     if kind == "shopping_off":
         from aletheia import shopping
         if str(cmd["item"]).casefold().strip() in SHOPPING_EVERYTHING:

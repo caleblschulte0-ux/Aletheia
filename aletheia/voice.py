@@ -1151,6 +1151,33 @@ def _names_one_open_task(words: str) -> bool:
         return found is not None
     except Exception:
         return False
+def _named_list_said(low: str, text: str) -> dict | None:
+    """One of his named lists, or None. Never raises."""
+    from aletheia import lists
+    name_ = r"(?P<name>[a-z][a-z' -]{1,30}?)"
+    if re.fullmatch(r"what (?:lists|other lists) do i have|what are my lists|(?:list|read me|show me) my lists", low):
+        return {"command": {"kind": "list_read"}, "say": None}
+    if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
+        return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
+    m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?list (?:called|named|for) " + name_, low)
+         or re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?" + name_ + r" list", low))
+    if m and lists.is_named_list(m.group("name")):
+        return {"command": {"kind": "list_new", "list": _as_he_said(text, m.group("name"))}, "say": None}
+    m = re.fullmatch(r"(?:add|put|stick|throw) (?P<item>.+?) (?:to|on|onto|in) (?:my |the )" + name_ + r" list", low)
+    if m and lists.is_named_list(m.group("name")):
+        return {"command": {"kind": "list_add", "list": _as_he_said(text, m.group("name")),
+                            "item": _as_he_said(text, m.group("item"))}, "say": None}
+    m = (re.fullmatch(r"(?:take|remove|delete|cross|scratch|tick) (?:off )?(?P<item>.+?) (?:off|from) (?:of )?(?:my |the )"
+                      + name_ + r" list", low)
+         or re.fullmatch(r"(?:clear|empty|wipe) (?:out )?(?:my |the )" + name_ + r" list(?P<item>)", low))
+    if m and lists.is_named_list(m.group("name")):
+        return {"command": {"kind": "list_off", "list": _as_he_said(text, m.group("name")),
+                            "item": m.group("item") or "everything"}, "say": None}
+    m = re.fullmatch(r"(?:what(?:'s| is|s)? on |what(?:'s| is|s)? in |read (?:me )?|show (?:me )?|how many things are on )?"
+                     r"(?:my |the )" + name_ + r" list", low)
+    if m and lists.is_named_list(m.group("name")) and m.group("name") not in ("whole", "full", "entire"):
+        return {"command": {"kind": "list_read", "list": _as_he_said(text, m.group("name"))}, "say": None}
+    return None
 
 
 def _known_place(text: str) -> bool:
@@ -1649,6 +1676,13 @@ def _interpret(transcript: str) -> dict:
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
                     r"|(list )?(my )?applications", low):
         return {"command": {"kind": "applications"}, "say": None}
+    # HIS OWN NAMED LISTS (2026-10-07: "make a list called packing", "add
+    # socks to my packing list" and "what's on my packing list" went to the
+    # planner). A list with a name of its own - never shopping, tasks or
+    # reminders, which each have their own store and verbs.
+    named = _named_list_said(low, text)
+    if named:
+        return named
     if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?(shopping|grocery) list"
                     r"|how many (things|items) (are )?on (my |the )?(shopping |grocery )?list"
                     r"|what do i need (to buy|from the (shop|store|grocery store))"
