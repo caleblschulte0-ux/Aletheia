@@ -4621,5 +4621,18 @@ class ASecondTimerSaidAsOne(unittest.TestCase):
                             ["add milk", "set a timer for road for 20 minutes"])
 
 
+class TheWifiPasswordAndShoeSizeAskedOtherWays(unittest.TestCase):
+    """"What's THE wifi password" is still a password; "what size shoe do I wear" is his shoe size."""
+
+    def test_the_wifi_password_is_refused_as_a_password(self):
+        from aletheia import quick, voice
+        self.assertEqual(quick._fact_q("what's the wifi password"), voice._NO_PASSWORDS)
+
+    def test_the_shoe_size_asked_as_what_he_wears(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my shoe size is 11"}]):
+            self.assertIn("11", quick._fact_q("what size shoe do i wear") or "")
+
+
 if __name__ == "__main__":
     unittest.main()

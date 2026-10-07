@@ -1627,7 +1627,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # to a model while the note sat in her journal).
     ("fact_q", re.compile(
         r"^what(?:'s| is|s|are)? my (?P<fact>(?:favou?rite|fave) [a-z][a-z ]{1,25}?)s?\s*\??$"
-        r"|^what(?:'s| is|s)? my (?P<fact2>blood type|shoe size|shirt size|ring size|pants size|dress size"
+        r"|^what size (?P<fact6>shoe|shirt|ring|pants|dress)s? do i (?:wear|take|have)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my|the|our) (?P<fact2>blood type|shoe size|shirt size|ring size|pants size|dress size"
         r"|wifi(?: password| name)?|wi-fi(?: password)?|gate code|door code|garage code|locker (?:number|combination)"
         r"|license plate|plate number|account number|member(?:ship)? number|policy number|anniversary)\s*\??$"
         r"|^when(?:'s| is|s) my (?P<fact5>anniversary|wedding anniversary)\s*\??$"
@@ -7732,6 +7733,8 @@ def _fact_q(text: str) -> str | None:
         return None
     g = found.groupdict()
     key = " ".join(x for x in (g.get("fact") or g.get("fact2") or g.get("fact5") or g.get("fact3"), g.get("factk")) if x)
+    if g.get("fact6"):
+        key = f"{g['fact6']} size"
     if "password" in key:
         from aletheia import voice
         return voice._NO_PASSWORDS
