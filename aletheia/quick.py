@@ -338,6 +338,29 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (searched his contacts for "my ip"), whether the internet is up
     # (94 s of her own model, and "Thinking with no internet: yes"), and
     # what is open ("[Uses look at the desktop]" read out as prose).
+    # "What's using all my memory" went to the planner (2026-10-07); the OS
+    # lists the programs for free. "Why is my pc so slow" is the CPU's.
+    ("memory_users", re.compile(
+        r"^what(?:'s| is|s)? (?:using|eating|hogging|taking(?: up)?) (?:all |so much |up )?(?:of )?(?:my |the )?(?:memory|ram)"
+        r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
+        r"|^what (?:programs|apps) are using (?:the most |all the |all my )?(?:memory|ram)$")),
+    # HIS FINISHED WORK AND HIS TOP TASK (2026-10-07): "what have I done
+    # today", "what tasks did I finish", "what's my most important task" and
+    # "clear my completed tasks" all went to the planner. The task store
+    # holds the answer to every one.
+    ("tasks_done", re.compile(
+        r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off)"
+        r"(?P<what> today| yesterday| this week)?$"
+        r"|^what (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|do|done|get done|tick(?:ed)? off)"
+        r"(?P<what2> today| yesterday| this week)?$"
+        r"|^(?:what(?:'s| is|s)? (?:on )?)?my (?:done|finished|completed) (?:list|tasks)$"
+        r"|^(?:which|what) tasks? (?:did|have) i (?:finish|finished|complete|completed|tick off|ticked off)\s*\??$"
+        r"|^(?:finished|completed|done) tasks\s*\??$")),
+    ("task_top", re.compile(
+        r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
+        r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$")),
+    ("tasks_clear_done", re.compile(
+        r"^(?:clear|delete|remove|get rid of|clean up) (?:all )?(?:my |the )?(?:completed|finished|done|old) tasks$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -446,11 +469,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
         r"(?: today| tomorrow| this week| soon| next)?)(?: on my list)?\s*\??$"
         r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$")),
-    ("tasks_done", re.compile(
-        r"^(?:what|which) tasks? (?:did|have) i (?:finish|finished|complete|completed|do|done|tick off|ticked off)"
-        r"(?: today| this week| lately| recently)?\s*\??$"
-        r"|^what (?:have i|did i) (?:finished|finish|completed|complete|ticked off|tick off)(?: today| this week)?\s*\??$"
-        r"|^(?:my )?(?:finished|completed|done) tasks\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
@@ -1687,22 +1705,6 @@ def _tasks_due(which: str = "") -> str | None:
     return f"{head}: {said}{more}."
 
 
-def _tasks_done() -> str | None:
-    """What he has ticked off, newest first."""
-    from aletheia import speech, tasks as tasks_mod
-    try:
-        rows = [t for t in tasks_mod.all_tasks()
-                if str(t.get("status", "")).upper() == "COMPLETED" and tasks_mod.is_his(t)]
-    except Exception:
-        return None
-    if not rows:
-        return "You haven't ticked anything off yet."
-    rows.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
-    said = speech.and_list([str(t.get("description") or t.get("id"))[:70] for t in rows[:5]])
-    more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
-    return f"{speech.count_phrase(len(rows), 'thing')} done: {said}{more}."
-
-
 def _weeks_until(words: str) -> str | None:
     """"How many weeks until Christmas": the same date, counted in weeks."""
     import datetime as dt
@@ -2652,6 +2654,51 @@ def _tasks() -> str:
     if ready and len(ready) != len(live):
         lead += f", {len(ready)} ready to start"
     return lead + (f". Next: {what[:130].rstrip('.')}." if what else ".")
+
+
+def _tasks_done(when: str = "") -> str:
+    """His tasks finished today, yesterday or this week, by when they closed."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    when = str(when or "today").strip() or "today"
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    first, last = {"yesterday": (today - dt.timedelta(days=1),) * 2,
+                   "this week": (today - dt.timedelta(days=today.weekday()), today)}.get(when, (today, today))
+    done = []
+    for t in tasks.all_tasks():
+        if str(t.get("status") or "").upper() != "COMPLETED" or not tasks.is_his(t):
+            continue
+        try:
+            closed = dt.datetime.fromisoformat(str(t.get("updated_at") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if first <= closed <= last:
+            done.append(str(t.get("description") or "").strip().rstrip("."))
+    if not done:
+        return f"Nothing ticked off your list {when}."
+    return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
+            + (f", and {len(done) - 6} more" if len(done) > 6 else "") + ".")
+
+
+def _task_top() -> str:
+    """The one to do first: the nearest deadline, else the oldest open task.
+    Said with WHY it is first, because "most important" is his to judge."""
+    from aletheia import speech, tasks
+    live = [t for t in tasks.all_tasks()
+            if str(t.get("status") or "").upper() not in _TASK_CLOSED and tasks.is_his(t)]
+    if not live:
+        return "Nothing open on your task list."
+    dated = [(tasks.parse_deadline(t.get("deadline")), t) for t in live]
+    dated = [(d, t) for d, t in dated if d is not None]
+    if dated:
+        deadline, top = sorted(dated, key=lambda dt_t: dt_t[0])[0]
+        what = str(top.get("description") or "").strip().rstrip(".")
+        return f"{what[:1].upper() + what[1:]} - it has the nearest deadline, {speech.humanize_time(deadline.isoformat())}."
+    top = sorted(live, key=lambda t: str(t.get("created_at") or ""))[0]
+    what = str(top.get("description") or "").strip().rstrip(".")
+    return (f"{what[:1].upper() + what[1:]} - nothing has a deadline, so that's the one that's waited longest."
+            if len(live) > 1 else f"{what[:1].upper() + what[1:]} - it's the only thing on your list.")
 
 
 def _approvals() -> str:
@@ -3687,7 +3734,10 @@ def _uptime() -> str | None:
     from aletheia import liveness
     seconds = liveness.uptime_seconds()
     if seconds is None:
-        return None                 # she does not know; do not invent one (test_liveness)
+        # She does not know, and must not invent one (test_liveness). Nor can a
+        # model know better - declining sent this to the planner, which with
+        # nothing thinking said "I can't think just now" about her own clock.
+        return "I don't have a heartbeat record on this machine, so I can't say how long I've been on."
     return f"Up {liveness.spoken_duration(seconds)}."
 
 
@@ -5122,6 +5172,28 @@ def _machine() -> str:
     return said + "."
 
 
+def _memory_users() -> str:
+    """The biggest programs by memory, and how much is free, in one breath."""
+    from aletheia import machine, speech
+    users = machine.memory_users(4)
+    try:
+        found = machine.memory()
+        free, total = int(found.get("available") or 0), int(found.get("total") or 0)
+    except machine.UnknownMachine:
+        free = total = 0
+    if not users:
+        return "I can't see what's running on this computer right now."
+    named = speech.and_list([f"{name} with {machine.gigabytes(size)}" for name, size in users])
+    said = f"The biggest are {named}"
+    if total:
+        said += f". {machine.gigabytes(free)} of {machine.gigabytes(total)} is free"
+        if free < 2 * 1024 ** 3:
+            said += " - that's tight, so closing the top one would help most"
+        elif free > 0.3 * total:
+            said += ", so memory isn't what's slowing it down"
+    return said + ". I don't close programs myself; that could lose your work."
+
+
 def _disk() -> str:
     from aletheia import machine
     try:
@@ -5255,7 +5327,6 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "until": _until,
            "weeks_until": lambda rest: _weeks_until(rest),
            "tasks_due": lambda rest: _tasks_due(rest),
-           "tasks_done": lambda rest: _tasks_done(),
            "birthday": lambda rest: _birthday(),
            "calendar_fact": lambda rest: _calendar_fact(rest),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
@@ -5279,6 +5350,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
+           "tasks_done": lambda rest: _tasks_done(rest),
+           "task_top": lambda rest: _task_top(),
+           "tasks_clear_done": lambda rest: ("Finished tasks are already off your list - I keep them only as a "
+                                             "record of what you did, so there's nothing to clear."),
+           "memory_users": lambda rest: _memory_users(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),

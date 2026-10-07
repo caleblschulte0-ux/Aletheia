@@ -573,8 +573,9 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertTrue(said.startswith("There's no queue to work down"), said)
         self.assertIn("2 sent", said)
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
-            # No heartbeat on record: the fast lane declines rather than invents (test_liveness).
-            self.assertIsNone(quick.answer("how long has the core been running"))
+            # No heartbeat on record: never an invented number (test_liveness),
+            # and no model either - a model knows less about her clock than she does.
+            self.assertIn("can't say", quick.answer("how long has the core been running"))
 
     def test_the_tenth_battery_orders_at_the_bottom_rung(self):
         """Twenty-seven orders with every rung off (2026-09-24). Five had no
