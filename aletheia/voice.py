@@ -773,6 +773,9 @@ _LOOSE_TIMES = {
     "before bed": "21:30", "at bedtime": "21:30", "at bed time": "21:30", "before i go to bed": "21:30",
     "at the end of the day": "17:00", "end of day": "17:00", "at end of day": "17:00", "after work": "17:30",
     "in the morning": "09:00", "first thing in the morning": "08:00", "first thing tomorrow": "08:00",
+    # 2026-10-07: "remind me after lunch to stretch" went to the planner.
+    "after lunch": "13:00", "after dinner": "19:30", "at dinner": "18:30", "at dinnertime": "18:30",
+    "after school": "15:30", "before work": "08:00", "at noon": "12:00", "midday": "12:00",
 }
 _LOOSE_WHEN = (r"(?P<when>" + "|".join(sorted((re.escape(k) for k in _LOOSE_TIMES), key=len, reverse=True))
                + r"|in (?:a|one|\d+|two|three|four|five|six|seven|a couple of|a few) (?:days?|weeks?)"
@@ -2224,7 +2227,9 @@ def _interpret(transcript: str) -> dict:
     # "REMIND ME ABOUT THIS LATER" names neither the thing nor the time,
     # and was read as a memory search for "this later". Asked for whole.
     # (A bare "remind me later" is a snooze of what just fired.)
-    if re.fullmatch(r"remind me (?:about|of) (?:this|that|it)(?: (?:later|in a bit|another time|some other time|soon))?", low):
+    if re.fullmatch(r"remind me (?:about|of) (?:this|that|it)(?: (?:later|in a bit|another time|some other time|soon))?"
+                    # "Remind me in a bit" (2026-10-07: to the planner).
+                    r"|remind me (?:in a (?:bit|while|little bit|little while|few(?: minutes)?)|soon|in a minute)", low):
         return {"command": None,
                 "say": "Remind you of what, and when? Say it whole - like \"remind me at 4 to call Sam\" "
                        "or \"remind me in an hour to check the oven\"."}

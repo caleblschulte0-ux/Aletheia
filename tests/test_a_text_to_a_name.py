@@ -255,5 +255,18 @@ class TheConversationReadBack(unittest.TestCase):
         self.assertEqual(quick.answer("give me a pep talk"), quick.answer("motivate me"))
 
 
+class LooseTimesOfDay(unittest.TestCase):
+    def test_after_lunch_is_one(self):
+        for said in ("remind me after lunch to stretch", "remind me to stretch after lunch"):
+            got = voice._interpret(said)["command"]
+            self.assertEqual((got["kind"], got["text"]), ("remind_at", "stretch"), said)
+            self.assertIn("T13:00", got["at"])
+
+    def test_in_a_bit_with_nothing_to_remind_asks(self):
+        got = voice._interpret("remind me in a bit")
+        self.assertIsNone(got["command"])
+        self.assertIn("Remind you of what", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
