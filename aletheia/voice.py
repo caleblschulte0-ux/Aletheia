@@ -5655,6 +5655,12 @@ def _interpret(transcript: str) -> dict:
                           r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
                           r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                           r"(?: at (?P<time>[\w: ]+?))?", low)
+    # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
+    # errand to approve. A meeting or call with a person, on a day, is his
+    # own diary; "book" stays somebody else's for anything else.
+    m = m or re.fullmatch(r"book (?:a |an )?(?P<title>(?:meeting|call|catch-up|catch up) with [a-z' ]+?)"
+                          r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                          r"(?: at (?P<time>[\w: ]+?))?", low)
     # "BLOCK OFF FRIDAY AFTERNOON" (2026-10-07: to the planner): a hold
     # called Busy for that part of that day, the same reversible hold.
     if not m:

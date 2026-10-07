@@ -2018,8 +2018,11 @@ def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:
     if busy:
         first = busy[0]
         title = str(first.get("title") or "something")
-        return f"No - you have {title} then ({when})."
-    return f"Yes, you're free at {when}." + _nothing_on_it_at_all(cal, day)
+        return f"You have {title} then ({when})."
+    # No "yes" or "no": "am I BUSY at 3" reaches here as the same command
+    # as "am I free at 3", and "Yes, you're free" answered it backwards
+    # (2026-10-07). The fact alone answers both.
+    return f"You're free at {when}." + _nothing_on_it_at_all(cal, day)
 
 
 #: How far either side of the day in question counts as "his calendar has

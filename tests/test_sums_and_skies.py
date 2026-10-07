@@ -82,11 +82,11 @@ class AMomentNotADay(unittest.TestCase):
         event = {"title": "Dentist", "status": "CONFIRMED"}
         with mock.patch.object(cal, "conflicts", return_value=[event]):
             said = intercom.free_time_answer({"day": "2026-10-09", "at": "10:00", "tz": "America/Chicago"})
-        self.assertEqual(said, "No - you have Dentist then (10 am on Friday).")
+        self.assertEqual(said, "You have Dentist then (10 am on Friday).")
         with mock.patch.object(cal, "conflicts", return_value=[]), \
                 mock.patch.object(cal, "all_events", return_value=[{"start": "2026-10-01T09:00:00-05:00"}]):
             said = intercom.free_time_answer({"day": "2026-10-09", "at": "19:30", "tz": "America/Chicago"})
-        self.assertTrue(said.startswith("Yes, you're free at 7:30 pm on Friday."), said)
+        self.assertTrue(said.startswith("You're free at 7:30 pm on Friday."), said)
 
 
 class TheConnectionIsTried(unittest.TestCase):

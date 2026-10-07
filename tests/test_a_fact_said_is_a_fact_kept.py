@@ -693,5 +693,22 @@ class WhatsForDinner(unittest.TestCase):
         self.assertIn("Just an idea", said)
 
 
+class BusyIsNotFree(unittest.TestCase):
+    def test_the_answer_reads_right_either_way(self):
+        from aletheia import calendar as cal, intercom
+        with mock.patch.object(cal, "conflicts", return_value=[]), \
+                mock.patch.object(cal, "all_events", return_value=[{"start": "2026-10-01T09:00:00-05:00"}]):
+            said = intercom.free_time_answer({"day": "2026-10-09", "at": "15:00", "tz": "America/Chicago"})
+        # "Am I busy at 3" and "am I free at 3" are one command.
+        self.assertFalse(said.startswith(("Yes", "No")), said)
+        self.assertEqual(voice._interpret("am i busy at 3")["command"]["kind"], "free_time")
+
+    def test_book_a_meeting_with_a_person_is_his_diary(self):
+        self.assertEqual(voice._interpret("book a meeting with dana tomorrow at 11")["command"]["kind"],
+                         "calendar_hold")
+        self.assertNotEqual((voice._interpret("book a table for two tomorrow at 7")["command"] or {}).get("kind"),
+                            "calendar_hold")
+
+
 if __name__ == "__main__":
     unittest.main()
