@@ -1503,9 +1503,9 @@ def _interpret(transcript: str) -> dict:
         if m.group(2) == "tomorrow" or when <= now:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
-    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
-                     r"|timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
-                     r"|remind me in (\w+) (minutes?|mins?|hours?)", low)
+    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|remind me in (half an|\w+) (minutes?|mins?|hours?)", low)
     if m:
         import datetime as dt
         raw = m.group(1) or m.group(3) or m.group(5)
@@ -1514,8 +1514,15 @@ def _interpret(transcript: str) -> dict:
         if amount:
             seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)
             at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
-            one = unit.rstrip("s") if unit != "mins" else "minute"
-            said = f"{raw if not raw.isdigit() else int(amount)}-{one}"
+            one = "hour" if unit.startswith("hour") else "second" if unit.startswith("sec") else "minute"
+            # "Remind me in an hour" was "your an-hour timer is up" (2026-10-07).
+            # His own number word stays ("your ten-minute timer"); only an
+            # article becomes a number.
+            if amount < 1 and one == "hour":
+                amount, one = amount * 60, "minute"
+            number = (raw if not raw.isdigit() and raw not in ("a", "an", "half an")
+                      else int(amount) if float(amount).is_integer() else amount)
+            said = f"{number}-{one}"
             return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"},
                     "say": None}
     # "remind me in TWENTY minutes to check the oven": the amount is a

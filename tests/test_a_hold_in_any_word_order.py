@@ -40,3 +40,25 @@ class SearchTheWeb(unittest.TestCase):
     def test_a_file_search_is_still_a_file(self):
         c = (voice._interpret("search for my resume") or {}).get("command") or {}
         self.assertEqual(c.get("kind"), "file_find")
+
+
+class TimersSayTheirNumber(unittest.TestCase):
+    def text(self, said):
+        return ((voice._interpret(said) or {}).get("command") or {}).get("text")
+
+    def test_an_hour_is_one_hour(self):
+        self.assertEqual(self.text("remind me in an hour"), "your 1-hour timer is up")
+
+    def test_half_an_hour_is_thirty_minutes(self):
+        self.assertEqual(self.text("remind me in half an hour"), "your 30-minute timer is up")
+        self.assertEqual(self.text("set a timer for half an hour"), "your 30-minute timer is up")
+
+    def test_his_number_word_stays(self):
+        self.assertEqual(self.text("set a timer for ten minutes"), "your ten-minute timer is up")
+
+
+class HowsMyDay(unittest.TestCase):
+    def test_hows_my_day_look_is_the_plan(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how's my day look")[0], "plan_today")
+        self.assertEqual(quick.match("how does today look")[0], "plan_today")
