@@ -40,3 +40,9 @@ class ForgetThatMeansTheNote(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhatDayIsChristmas(unittest.TestCase):
+    def test_what_day_is_a_named_day(self):
+        from aletheia import quick
+        self.assertIn("25 December", quick.answer("what day is christmas") or "")
