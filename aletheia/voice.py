@@ -3955,8 +3955,12 @@ def _interpret(transcript: str) -> dict:
                  r"(spreadsheet|excel(?: file| sheet)?|sheet|"
                  r"deck|presentation|powerpoint|slides|"
                  r"word doc(?:ument)?|doc(?:ument)?|report|memo|write[- ]?up)"
-                 r"\b(?:\s+(?:of|about|for|on|covering)\s+(?P<topic>.+))?$",
+                 r"\b(?:\s+(?:of|about|for|on|covering|called|named|titled)\s+(?P<topic>.+))?$",
                  low)
+    # "...called notes with the text hello there" carries its contents and
+    # is made below; only an empty one is asked about.
+    if m and re.search(r"\b(?:with (?:the )?(?:text|words|line)|saying|that says|containing)\b", low):
+        m = None
     if m:
         noun = m.group(1)
         if re.match(r"spreadsheet|excel|sheet", noun):
@@ -3980,6 +3984,21 @@ def _interpret(transcript: str) -> dict:
                         + f". Tell me what goes in it and I'll save it as "
                         + (f"{stem}{suffix}" if stem else f"a {suffix} file")
                         + ".")}
+
+    # A FILE IN HER WORKSPACE, BY ITS NAME (2026-10-07: "delete the file
+    # test.txt" and "rename notes.txt to ideas.txt" went to the planner).
+    # Both verbs keep the previous version.
+    _fname = r"(?P<path>[\w][\w .-]{0,60}?\.[a-z0-9]{1,5})"
+    m = re.fullmatch(r"(?:delete|remove|trash|get rid of) (?:the |my )?(?:file )?" + _fname, low)
+    if m:
+        return {"command": {"kind": "file_delete", "path": _as_he_said(text, m.group("path"))}, "say": None}
+    m = re.fullmatch(r"(?:rename|move) (?:the |my )?(?:file )?" + _fname + r" (?:to|into|as) "
+                     r"(?:the |my )?(?P<to>[\w][\w ./-]{0,60}?)(?: folder)?", low)
+    # A rename only: "to documents" could be his own Documents folder, which
+    # is not her workspace, so a folder target is left for the planner.
+    if m and "." in m.group("to").rsplit("/", 1)[-1]:
+        return {"command": {"kind": "file_move", "path": _as_he_said(text, m.group("path")),
+                            "to": _as_he_said(text, m.group("to"))}, "say": None}
 
     # THE AGENT RUNTIME, said the way a person would say it. He should
     # never have to type `spawn --agent=research --provider=claude`.

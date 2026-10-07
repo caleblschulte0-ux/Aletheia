@@ -340,5 +340,18 @@ class PlayingAndTheNews(unittest.TestCase):
         self.assertIn("only up, down and mute", voice._interpret("volume 50")["say"])
 
 
+class FilesByName(unittest.TestCase):
+    def test_delete_and_rename_a_file_in_her_workspace(self):
+        self.assertEqual(voice._interpret("delete the file test.txt")["command"], {"kind": "file_delete", "path": "test.txt"})
+        self.assertEqual(voice._interpret("rename notes.txt to ideas.txt")["command"],
+                         {"kind": "file_move", "path": "notes.txt", "to": "ideas.txt"})
+
+    def test_a_folder_that_might_be_his_is_not_guessed(self):
+        self.assertNotEqual((voice._interpret("move report.docx to documents").get("command") or {}).get("kind"), "file_move")
+
+    def test_a_document_called_something_asks_what_goes_in_it(self):
+        self.assertIn("groceries", voice._interpret("make a word document called groceries")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
