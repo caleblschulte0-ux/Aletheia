@@ -217,6 +217,22 @@ def describe(tid: str, description: str) -> dict:
     return task
 
 
+def set_deadline(tid: str, deadline: str) -> dict:
+    """Move a live task to a new day. A terminal task keeps the record of
+    when it was due, for the same reason `describe` keeps its words."""
+    if parse_deadline(deadline) is None:
+        raise ValueError(f"not a deadline: {deadline!r}")
+    task = load(tid)
+    if task["status"] in contracts.TASK_TERMINAL:
+        raise ValueError(f"task {tid!r} is {task['status']} — its deadline is history")
+    before = task.get("deadline") or "none"
+    task["deadline"] = deadline
+    task["updated_at"] = _now()
+    save(task)
+    journal.append("task", f"task:{tid}", f"deadline moved — was: {before}")
+    return task
+
+
 def set_status(tid: str, status: str, note: str = "") -> dict:
     if status not in contracts.TASK_STATES:
         raise ValueError(f"status must be one of {sorted(contracts.TASK_STATES)}")

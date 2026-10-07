@@ -3911,6 +3911,7 @@ _LIST_THEM = re.compile(r"^(?:read|list|show|name)(?: me)? (?:them|those|these)(
 #: A follow-up "read them" after a turn about one of these stores.
 _STORE_QUESTION = {
     "tasks": "what's on my task list", "task_new": "what's on my task list", "task_done": "what's on my task list",
+    "task_change": "what's on my task list",
     "reminders": "what reminders do I have", "remind_at": "what reminders do I have",
     "remind_daily": "what reminders do I have", "remind_weekly": "what reminders do I have",
     "shopping_list": "what's on the shopping list", "shopping_add": "what's on the shopping list",

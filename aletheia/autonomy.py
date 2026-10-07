@@ -340,6 +340,7 @@ SAID_AS = {
     "task_new": "added a task: {description}",
     "task_status": "set the task {id} to {state}",
     "task_done": "ticked off {which}",
+    "task_change": "changed the task {which}",
     "remember": "remembered your {domain}: {key}",
     "file_write": "wrote {path} in my workspace",
     "file_edit": "edited {path} in my workspace",

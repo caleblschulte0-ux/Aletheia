@@ -98,6 +98,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "mark the passport one done" — by what he CALLS it, because he does
     # not know its id and should never have to.
     "task_done":     ({"which"}, set()),
+    # "Move the plumber to Friday", "delete call the plumber", "rename the
+    # plumber one to call Joe": one task found by his words, changed once.
+    # Exactly one of the three.
+    "task_change":   ({"which"}, {"deadline", "description", "drop"}),
     "halt":          (set(), {"reason"}),
     # 2026-09-23: "Restart her", one tap, on the page that says her
     # heartbeat is old. Exits the way a code update does and the
@@ -871,6 +875,9 @@ ROUTINE_KINDS = frozenset({
     # COMPLETED and has always been routine, so the narrower verb was
     # asking for approval while the general one did not.
     "task_done",
+    # Moving, renaming or dropping one of HIS tasks is the same act on the
+    # same store as ticking it off.
+    "task_change",
     # `forget` sits beside `remember` because it is the same act on the
     # same private store, and putting it anywhere else would mean she can
     # be told something without an approval and needs one to be told to
@@ -2272,6 +2279,25 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         tasks_mod.set_status(found["id"], "COMPLETED",
                              note=f"marked done: {quote[:120]}")
         return f"marked done — {found.get('description') or found['id']}"
+    if kind == "task_change":
+        from aletheia import tasks as tasks_mod
+        asked = [k for k in ("deadline", "description", "drop") if cmd.get(k)]
+        if len(asked) != 1:
+            raise act.Refused("Tell me one change at a time: a new day, a new name, or to drop it.")
+        found, why = _one_task(cmd["which"])
+        if found is None:
+            return why
+        what = found.get("description") or found["id"]
+        if cmd.get("drop"):
+            tasks_mod.set_status(found["id"], "CANCELLED", note=f"dropped: {quote[:120]}")
+            return f"dropped — {what}"
+        if cmd.get("description"):
+            tasks_mod.describe(found["id"], str(cmd["description"]))
+            return f"renamed — {what} -> {cmd['description']}"
+        if tasks_mod.parse_deadline(cmd["deadline"]) is None:
+            raise act.Refused(f"I couldn't read {cmd['deadline']!r} as a day.")
+        made = tasks_mod.set_deadline(found["id"], str(cmd["deadline"]))
+        return f"moved — {_task_words(made)}"
     if kind == "task_new":
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
