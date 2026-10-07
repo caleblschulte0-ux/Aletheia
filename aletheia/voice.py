@@ -2253,6 +2253,8 @@ def _answering_her(low: str, answered: str | None = None) -> dict | None:
         m = re.match(question, answered or "")
         if not m:
             continue
+        if low.startswith(template.split("{")[0].strip()):
+            continue                    # already the whole ask, not an answer to put back together
         rebuilt = template.format(*[g for g in m.groups()], low=re.sub(r"^(?:at|for|in) (?=\d)", "", low)
                                   if "{low} to" not in template else low)
         got = _interpret(rebuilt)
@@ -3621,7 +3623,7 @@ def _interpret(transcript: str) -> dict:
     named_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?:timer for (?:the |my )?(?P<a>[a-z][a-z ]{1,24}?) for"
                                r"|(?P<b>[a-z][a-z ]{1,24}?) timer for) (?P<n>\d+) ?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)",
                                low)
-    if named_first:
+    if named_first and "timer" not in (named_first.group("a") or named_first.group("b")):
         name = named_first.group("a") or named_first.group("b")
         # "A new timer", "another timer": no name, just a timer.
         plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", name)

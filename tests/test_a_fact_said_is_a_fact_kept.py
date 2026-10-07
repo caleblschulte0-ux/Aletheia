@@ -1742,5 +1742,15 @@ class TheDayAfterTomorrowIsOneDayCase(unittest.TestCase):
         self.assertIn("T20:00", party["start"])
 
 
+class TheAnswerToForHowLongCase(unittest.TestCase):
+    def test_fifteen_minutes_after_for_how_long_is_a_plain_timer(self):
+        from aletheia import voice
+        asked = ("set a timer", 'For how long? Say "set a timer for ten minutes".')
+        with mock.patch.object(voice, "_previous_turn", return_value=asked):
+            self.assertEqual(voice._interpret("15 minutes")["command"]["text"], "your 15-minute timer is up")
+            self.assertEqual(voice._interpret("set a timer for 5 minutes")["command"]["text"],
+                             "your 5-minute timer is up")
+
+
 if __name__ == "__main__":
     unittest.main()
