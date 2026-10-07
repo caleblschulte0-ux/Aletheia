@@ -833,6 +833,15 @@ def search(role: str, *, where: str = "", limit: int = 10,
     return search_many([role], where=where, limit=limit, fetcher=fetcher)
 
 
+def _one_role(job: dict) -> str:
+    """The job as one employer's one role, or "" when either is unknown."""
+    company, title = str(job.get("company") or "").strip(), str(job.get("title") or "").strip()
+    if not company or not title:
+        return ""
+    from aletheia import apply_run
+    return apply_run.role_key(company, title)
+
+
 def _settled(skip, job: dict) -> bool:
     """Whether the caller's `skip` says this job is already settled. A skip
     that raises settles nothing: the job is offered as it always was."""
@@ -1064,14 +1073,23 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
         i += 1
     beyond = [job for job in beyond if not _settled(skip, job)]
     # Two from the boards, then one found beyond them, so both get tried.
-    matches, b, w = [], 0, 0
+    # ONE ROLE, ONE SLOT. A role posted in five cities is five openings and
+    # one application (`apply_run.role_taken`); live 2026-10-07 the batch
+    # threw away the copies only after the cut, and 50 of 180 slots went on
+    # them. The first copy keeps its place; the rest make room.
+    matches, b, w, in_window = [], 0, 0, set()
     while len(matches) < cap and (b < len(board) or w < len(beyond)):
         if w < len(beyond) and (len(matches) % 3 == 2 or b >= len(board)):
-            matches.append(beyond[w])
+            job = beyond[w]
             w += 1
         else:
-            matches.append(board[b])
+            job = board[b]
             b += 1
+        key = _one_role(job)
+        if key and key in in_window:
+            continue
+        in_window.add(key)
+        matches.append(job)
     discovered = [job for job in matches if job.get("found_by") == "web search"]
     on_their_sites = [job for job in matches if job.get("found_by") == "company site"]
     anywhere = [job for job in matches if job.get("found_by") == "ai web search"]
