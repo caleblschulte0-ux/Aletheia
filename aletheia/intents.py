@@ -826,7 +826,7 @@ _A_QUESTION = re.compile(
 #: a list line. Anchored on the verb, so "buy me stamps and add it to the
 #: list" (an act with a note after it) still stops at the door.
 _RECORDS_NOT_ACTS = re.compile(
-    r"^(?:thea[,:]?\s+)?(?:please\s+)?"
+    r"^(?:thea[,:]?\s+)?(?:(?:oh,? )?(?:and also|and|also|plus|then),?\s+)?(?:please\s+)?"
     r"(?:add|remind me|set (?:a |me a )?reminder|note|remember|write down|jot down|log|put|make a note|"
     r"add a task|create a task|new task)\b")
 

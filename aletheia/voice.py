@@ -2044,7 +2044,7 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
-    transcript = _a_polite_ask(_with_the_person_named(transcript))
+    transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(transcript)))
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
 
@@ -2058,6 +2058,32 @@ _POLITE_DOING = frozenset({
     "reminders", "reminder_off", "note", "email_check", "stopwatch", "stopwatch_read", "music",
     "travel_time", "free_time", "notify_snooze", "list_add", "list_read", "list_off", "brief", "contacts",
 })
+
+
+def _a_follow_on(transcript: str) -> str:
+    """"And add a task to pay rent" is "add a task to pay rent".
+
+    Said straight after another ask (2026-10-07) it went to the planner,
+    whose money door refused it as spending. Only when what follows the
+    "and" is an ask she already handles; anything else is left as he said it.
+    """
+    said = strip_wake_word(transcript)
+    m = re.match(r"(?i)\s*(?:oh,? |ok,? |okay,? )?(?:and also|and then|and|also|plus|then)[, ]+(?P<rest>.{3,})", said)
+    if not m:
+        return transcript
+    rest = m.group("rest")
+
+    def handled(sentence):
+        out = _interpret(sentence) or {}
+        return bool(out.get("say")) or (out.get("command") or {}).get("kind") not in (None, "intent")
+    try:
+        # "And water" after a list is the list's own follow-on: whatever
+        # already reads the whole sentence keeps it.
+        if handled(transcript) or not handled(_a_polite_ask(rest)):
+            return transcript
+    except Exception:  # noqa: BLE001 - as he said it
+        return transcript
+    return _a_polite_ask(rest)
 
 
 def _a_polite_ask(transcript: str) -> str:

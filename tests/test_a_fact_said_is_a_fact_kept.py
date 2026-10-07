@@ -1888,5 +1888,21 @@ class HowMuchDidIRunCase(unittest.TestCase):
             self.assertIn("any walking", quick.answer("how much did i walk this week"))
 
 
+
+class AndAddATaskCase(unittest.TestCase):
+    """2026-10-07: "and add a task to pay rent", said after another ask, was
+    refused at the money door as spending."""
+
+    def test_the_and_is_not_the_ask(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("and add a task to pay rent")["command"]["kind"], "task_new")
+        self.assertEqual(voice.interpret("also remind me at 5 to call mom")["command"]["kind"], "remind_at")
+
+    def test_writing_it_down_is_not_spending_and_buying_still_is(self):
+        from aletheia import intents
+        self.assertFalse(intents._asks_to_spend("and add a task to pay rent"))
+        self.assertTrue(intents._asks_to_spend("and buy me a pizza"))
+
+
 if __name__ == "__main__":
     unittest.main()
