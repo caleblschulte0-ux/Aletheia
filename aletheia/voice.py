@@ -6837,6 +6837,30 @@ def _interpret(transcript: str) -> dict:
         return {"command": None, "say": "Forty-two, if you ask a book. If you ask me: the people you love and the things you build."}
     if re.fullmatch(r"are you (?:busy|free|available)(?: right now| now)?(?: thea)?", low):
         return {"command": None, "say": "Never too busy for you. What do you need?"}
+    # "I'LL BE HOME AT 6" (2026-10-07: to the planner) is a note in his
+    # words, and "when will I be home" reads today's back.
+    if re.fullmatch(r"i(?:'ll| will) be (?:home|back|back home|there|at work|in) (?:at|by|around|about|before|after) "
+                    r"(?:\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon|midnight|lunch|dinner)(?: today| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:when|what time) (?:will|am) i (?:be )?(?:home|back|getting home|getting back)(?: today| tonight)?", low):
+        try:
+            import datetime as dt
+            from aletheia import localtime as _lt, quick as _q, speech as _sp
+            tz = _lt.operator_tz()
+            today = dt.datetime.now(tz).date()
+            for row in _q._notes():
+                said = " ".join(str(row.get("text") or "").split())
+                if not re.match(r"i(?:'ll| will) be (?:home|back)", said.casefold()):
+                    continue
+                at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+                if at.date() == today:
+                    return {"command": None, "say": f"You said {_sp.as_she_says_it(said).rstrip('.')}."}
+        except Exception:  # noqa: BLE001 - unreadable goes on as before
+            pass
+    # "I'M AT THE GYM" (2026-10-07: to a model). A note, which "when did I
+    # last go to the gym" counts as a visit.
+    if re.fullmatch(r"(?:i'?m|i am|just got) (?:at|to) the (?:gym|pool|park|library|office|doctor'?s?|dentist'?s?)(?: now)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS VERDICT ON A JOKE (2026-10-07: "that's not funny" went to the
     # planner). One line; "another one" is how he gets a different one.
     if re.fullmatch(r"(?:that(?:'s| is| was)|not) (?:not )?(?:funny|very funny|that funny)(?: thea)?|(?:bad|terrible|lame|awful) joke"

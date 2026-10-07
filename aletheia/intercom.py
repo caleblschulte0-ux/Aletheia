@@ -4085,6 +4085,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # §104: never invent a duration. An unobserved trip is unknown,
             # but where it is is not, and that is half of what he asked.
             if not home:
+                # "My address is 12 Oak Street" is kept as his address, not
+                # as a place (2026-10-07), and this said there was no home
+                # address one breath after he gave it.
+                try:
+                    from aletheia import memory as _memory
+                    his = _memory.recall("identity", "address")
+                except Exception:  # noqa: BLE001
+                    his = None
+                if his:
+                    return f"{where}. I've never timed the trip from home, so I won't guess how long it takes."
                 return f"{where}. I have no home address to measure from, so I won't guess how long it takes."
             return f"{where}. I've never timed the trip there, so I won't guess how long it takes."
         return (f"{destination['name']}: {observed.get('minutes', '?')} minutes "

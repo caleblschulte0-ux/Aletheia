@@ -5090,6 +5090,18 @@ def _farewell(text: str) -> str:
         return "Goodnight. I'll keep going quietly."
     if re.search(r"\b(?:gym|run|jog|walk)\b", low):
         return "Have a good one. I'll keep at it while you're out."
+    # "I'm heading home" was answered "I'll keep at it while you're out"
+    # (2026-10-07) - he is coming back, and what waits is what he wants.
+    if re.search(r"\b(?:heading|going|on my way|way) home\b|\b(?:leaving work|leaving the office|off work|done for the day)\b", low):
+        try:
+            from aletheia import needs_you
+            from aletheia import speech
+            rows = needs_you.items()
+        except Exception:
+            rows = []
+        if rows:
+            return f"Safe trip home. {speech.count_phrase(len(rows), 'thing')} waiting on you when you're in."
+        return "Safe trip home. Nothing's waiting on you."
     if re.search(r"\b(?:store|shops?|grocery|supermarket)\b", low):
         # Going shopping is the moment the list matters.
         try:
@@ -8719,7 +8731,8 @@ def _went_said(asked: str) -> str:
     m = re.match(r"go to (.+)", a)
     if m:
         place = m.group(1)
-        return rf"\bwent to (?:the )?{re.escape(place)}\b" + (r"|\bworked out at the gym\b" if place == "gym" else "")
+        return (rf"\bwent to (?:the )?{re.escape(place)}\b|\b(?:i'?m|i am|just got) (?:at|to) (?:the )?{re.escape(place)}\b"
+                + (r"|\bworked out at the gym\b" if place == "gym" else ""))
     noun = re.sub(r"^go ", "", a)
     runs = {"run": r"\bran\b|went (?:for a |on a )?run|went running", "running": r"\bran\b|went (?:for a |on a )?run|went running",
             "jog": r"\bjogged\b|went (?:for a )?jog|went jogging", "jogging": r"\bjogged\b|went (?:for a )?jog|went jogging",
@@ -8753,7 +8766,7 @@ def _went(text: str) -> str | None:
     hits = []
     for row in _notes():
         low = " ".join(str(row.get("text") or "").split()).casefold()
-        if not low.startswith("i ") or not re.search(said_re, low):
+        if not low.startswith(("i ", "i'm ", "im ", "just got ")) or not re.search(said_re, low):
             continue
         try:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)

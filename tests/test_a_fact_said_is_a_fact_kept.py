@@ -3956,5 +3956,43 @@ class AServiceHePaysForIsABill(unittest.TestCase):
             self.assertIn("netflix is 15 a month", said)
 
 
+class ComingAndGoing(unittest.TestCase):
+    """2026-10-07: "I'm heading home" was told "I'll keep at it while you're
+    out", "I'll be home at 6" and "I'm at the gym" went to the planner, and
+    the commute said there was no home address beside his address."""
+
+    def _notes(self, *texts):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": now} for t in texts])
+
+    def test_heading_home_is_not_going_out(self):
+        from aletheia import needs_you, quick
+        with mock.patch.object(needs_you, "items", return_value=[]):
+            self.assertEqual(quick.answer("i'm heading home"), "Safe trip home. Nothing's waiting on you.")
+        self.assertIn("while you're out", quick.answer("i'm off to work"))
+
+    def test_home_at_six_is_kept_and_read(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("i'll be home at 6")["command"]["kind"], "note")
+        with self._notes("i'll be home at 6"):
+            self.assertEqual(voice._interpret("when will i be home")["say"], "You said you'll be home at 6.")
+
+    def test_at_the_gym_counts_as_a_visit(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("i'm at the gym")["command"]["kind"], "note")
+        with self._notes("i'm at the gym"):
+            self.assertTrue(quick.answer("did i go to the gym today").startswith("Yes"))
+
+    def test_the_commute_knows_his_address(self):
+        from aletheia import intercom, memory, places
+        work = {"id": "w", "name": "work", "address": "500 Main St"}
+        with mock.patch.object(places, "resolve", side_effect=lambda n: work if n == "work" else (_ for _ in ()).throw(KeyError(n))), \
+                mock.patch.object(memory, "recall", return_value="12 Oak St"):
+            said = intercom.execute_command({"kind": "travel_time", "place": "work"}, None)
+        self.assertIn("never timed the trip from home", said)
+
+
 if __name__ == "__main__":
     unittest.main()
