@@ -510,5 +510,51 @@ class MoreWeatherWords(unittest.TestCase):
             self.assertIn(quick.match(said)[0], ("weather", "weather_more"), said)
 
 
+
+class TickingTheShoppingList(unittest.TestCase):
+    def setUp(self):
+        from aletheia import intercom
+        self.rows = mock.patch.object(intercom, "_shopping_items", return_value=[{"need": "milk"}])
+        self.rows.start()
+        self.addCleanup(self.rows.stop)
+        self.tasks = mock.patch.object(voice, "_names_one_open_task", return_value=False)
+        self.tasks.start()
+        self.addCleanup(self.tasks.stop)
+
+    def test_check_off_milk_is_the_list_not_a_task(self):
+        self.assertEqual(voice._interpret("check off milk")["command"], {"kind": "shopping_off", "item": "milk"})
+        self.assertEqual(voice._interpret("grabbed the milk")["command"], {"kind": "shopping_off", "item": "milk"})
+
+    def test_did_i_add_milk(self):
+        self.assertEqual(voice._interpret("did i add milk")["say"], "Yes - milk is on your shopping list.")
+
+    def test_clear_the_list_with_no_other_list(self):
+        with mock.patch.object(voice, "_other_lists", return_value=False):
+            self.assertEqual(voice._interpret("clear the list")["command"], {"kind": "shopping_off", "item": "everything"})
+        with mock.patch.object(voice, "_other_lists", return_value=True):
+            self.assertNotEqual((voice._interpret("clear the list").get("command") or {}).get("kind"), "shopping_off")
+
+
+
+class DeleteTheNoteAbout(unittest.TestCase):
+    def test_the_one_note_with_those_words(self):
+        from aletheia import quick
+        rows = [{"text": "the wifi is upstairs"}, {"text": "call the bank"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(voice._interpret("delete the note about wifi")["command"],
+                             {"kind": "forget", "about": "the wifi is upstairs"})
+            self.assertIn("don't have a note", voice._interpret("delete the note about pizza")["say"])
+
+    def test_two_are_asked_about(self):
+        from aletheia import quick
+        rows = [{"text": "wifi is upstairs"}, {"text": "new wifi router"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("Which one", voice._interpret("delete the note about wifi")["say"])
+
+    def test_show_my_notes_from_yesterday(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("show my notes from yesterday")[0], "notes_day")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -707,6 +707,16 @@ def _also_item(said: str) -> str:
 _SHOPPING_RUN = 4
 
 
+def _other_lists() -> bool:
+    """Does he keep any named list besides shopping? Unknown counts as yes,
+    so an unreadable store never empties the wrong list."""
+    try:
+        from aletheia import lists
+        return bool(lists.all_lists())
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _on_the_shopping_list(item: str) -> bool:
     """Is that actually on his shopping list right now?
 
@@ -2734,6 +2744,28 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:first|second|third|last|latest|newest|oldest|next|other)\b", m.group("w")) \
             and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_change", "which": m.group("w"), "drop": True}, "say": None}
+
+    # A THING ON THE SHOPPING LIST, TICKED OFF (2026-10-07): "check off
+    # milk" marked a TASK called milk done, and "got the milk" / "bought
+    # eggs" went to the planner. Only when that thing is on the list; a task
+    # by that name is still the task.
+    m = re.fullmatch(r"(?:tick|check|cross|mark) off (?:the |some )?(?P<w>.+?)", low) \
+        or re.fullmatch(r"(?:i )?(?:got|bought|picked up|grabbed) (?:the |some )?(?P<w>[a-z][a-z' ]{1,30}?)"
+                        r"(?: already| now)?", low)
+    if m and _on_the_shopping_list(m.group("w")) and not _names_one_open_task(m.group("w")):
+        return {"command": {"kind": "shopping_off", "item": m.group("w").strip()}, "say": None}
+    # "Did I add milk" is "is milk on the list" (2026-10-07: to the planner).
+    m = re.fullmatch(r"did i (?:already )?(?:add|put) (?:the |some )?(?P<w>[a-z][a-z' ]{1,30}?)"
+                     r"(?: (?:to|on) (?:the|my) (?:shopping |grocery )?list)?", low)
+    if m:
+        from aletheia import quick
+        said = quick._shopping_has(m.group("w"))
+        if said:
+            return {"command": None, "say": said}
+    # "Clear the list" names no list; with nothing but the shopping list
+    # to mean, it is that one - the same cancel-every-row verb.
+    if re.fullmatch(r"(?:clear|empty|wipe) (?:the|my) list", low) and not _other_lists():
+        return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
 
     # "Mark the passport one done" — by what he CALLS it. This went to the
     # planner and came back asking for approval to change a local status,
@@ -4766,6 +4798,21 @@ def _interpret(transcript: str) -> dict:
         if not newest:
             return {"command": None, "say": "You don't have any notes."}
         return {"command": {"kind": "forget", "about": str(newest.get("text") or "").strip()}, "say": None}
+    # "Delete the note about wifi" (2026-10-07: to the planner). The newest
+    # note with those words in it; more than one is asked about, not guessed.
+    m = re.fullmatch(r"(?:delete|remove|forget|scratch|erase) (?:the |my |that )?notes? (?:about|on|with|that says|saying) (?P<w>.+)", low)
+    if m:
+        from aletheia import quick
+        words = [w for w in re.findall(r"[a-z0-9']+", m.group("w")) if w not in ("the", "my", "a", "an")]
+        hits = [str(r.get("text") or "").strip() for r in quick._notes()
+                if words and all(w in str(r.get("text") or "").casefold() for w in words)]
+        if not hits:
+            return {"command": None, "say": f"I don't have a note about {m.group('w')}."}
+        if len(hits) > 1:
+            return {"command": None, "say": f"{speech.count_phrase(len(hits), 'note')} mention {m.group('w')}: "
+                                            + speech.or_list([speech.as_she_says_it(h) for h in hits[:3]])
+                                            + ". Which one?"}
+        return {"command": {"kind": "forget", "about": hits[0]}, "say": None}
 
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".

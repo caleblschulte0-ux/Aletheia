@@ -1231,7 +1231,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s| was)|read(?: me)?|tell me) (?:my |the )?(?:last|latest|newest|most recent) note\s*\??$")),
     ("notes_day", re.compile(
         r"^what (?:did i|notes did i) (?:note|write down|jot down|save|take|make) (?P<notes_day>today|yesterday)\s*\??$"
-        r"|^(?:what are |read(?: me)? )?(?:my )?notes from (?P<notes_day2>today|yesterday)\s*\??$")),
+        r"|^(?:what are |read(?: me)? |show(?: me)? )?(?:my |the )?notes (?:from|for) (?P<notes_day2>today|yesterday)\s*\??$")),
     # "Is milk on my list" went to the planner (2026-10-07). The list is a
     # store; whether a thing is on it is a read.
     ("shopping_has", re.compile(
