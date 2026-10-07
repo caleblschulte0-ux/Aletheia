@@ -950,6 +950,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("currency", re.compile(r"^(?:how much is |what(?:'s| is|s)? |convert )?\$?(?P<what>[\d,]+(?:\.\d+)?) (?P<what2>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))"
                             r" (?:in|to|into) (?P<what3>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))$"
                             r"|^how many (?P<what4>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek)) (?:is|are|in|for|to) (?:a |an |one |(?P<what5>[\d,]+(?:\.\d+)?) )?(?P<what6>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))$")),
+    ("riddle", re.compile(r"^(?:tell me|give me|do you have|got|know) (?:a |another |any )?riddles?$")),
+    ("count_to", re.compile(r"^count (?:to|up to) (?P<what>\d{1,2}|ten|five|three|twenty)$")),
+    ("alarm_q", re.compile(r"^what time (?:did i set|is) my alarm(?: set)?(?: for)?$|^when(?:'s| is) my alarm(?: set for)?$"
+                           r"|^(?:did i set|do i have) an alarm(?: (?:set|for tomorrow))?$")),
     # "HOW DO I TURN YOU OFF": the switch is his, and it is one word.
     ("off_switch", re.compile(r"^how (?:do|can) i (?:turn (?:you|u) off|stop (?:you|u)|shut (?:you|u) (?:off|down|up)|pause (?:you|u)"
                               r"|halt (?:you|u)|make (?:you|u) stop)(?: for (?:a while|now|good))?$")),
@@ -1144,6 +1148,44 @@ def _currency(text: str) -> str | None:
     if not base or not to or base == to:
         return None
     return fx.spoken(float(amount.replace(",", "")), base, to)
+
+
+RIDDLES = (
+    "What has keys but can't open locks? A piano.",
+    "What gets wetter the more it dries? A towel.",
+    "What has a neck but no head? A bottle.",
+    "What can you catch but not throw? A cold.",
+    "What has hands but can't clap? A clock.",
+    "The more of this there is, the less you see. What is it? Darkness.",
+)
+
+
+def _riddle() -> str:
+    import secrets
+    return secrets.choice(RIDDLES)
+
+
+def _count_to(n: str) -> str | None:
+    top = {"ten": 10, "five": 5, "three": 3, "twenty": 20}.get(n) or int(n)
+    if not 1 <= top <= 20:
+        return None
+    return ", ".join(str(i) for i in range(1, top + 1)) + "."
+
+
+def _alarms() -> str | None:
+    """His wake-ups: the reminders whose words are "wake up"."""
+    try:
+        from aletheia import intercom, scheduler
+        rows = [s for s in scheduler.all_schedules()
+                if s.get("enabled") and "wake up" in str((s.get("command") or {}).get("text") or "").casefold()]
+        said = [intercom._reminder_words(s) for s in rows]
+    except Exception:
+        return None
+    said = [re.sub(r"^wake up\s*[—-]\s*", "", s) for s in said if s]
+    if not said:
+        return "No alarm set. Say \"wake me up at 7\" and I'll set one."
+    from aletheia import speech
+    return f"{speech.count_phrase(len(said), 'alarm')}: " + speech.and_list(said) + "."
 
 
 def _his_date(words: str, today):
@@ -3861,6 +3903,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tip": lambda rest: _tip(rest),
            "currency": lambda rest: _currency(rest),
            "off_switch": lambda rest: OFF_SWITCH,
+           "riddle": lambda rest: _riddle(),
+           "count_to": lambda rest: _count_to(rest),
+           "alarm_q": lambda rest: _alarms(),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,

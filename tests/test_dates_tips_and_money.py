@@ -60,3 +60,29 @@ class TheOffSwitch(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AlarmsListsAndSmallThings(unittest.TestCase):
+    def test_an_alarm_every_day_and_on_weekdays(self):
+        self.assertEqual(voice.interpret("set an alarm for 6am every day")["command"],
+                         {"kind": "remind_daily", "time": "06:00", "text": "wake up"})
+        self.assertEqual(voice.interpret("wake me up at 7 every weekday")["command"]["days"], ["weekdays"])
+
+    def test_what_time_is_my_alarm(self):
+        from aletheia import scheduler
+        rows = [{"id": "r1", "kind": "daily", "enabled": True, "time": "06:00", "timezone": "America/Chicago",
+                 "command": {"kind": "notify_operator", "text": "wake up"}}]
+        with mock.patch.object(scheduler, "all_schedules", return_value=rows):
+            self.assertEqual(quick.answer("what time is my alarm set for"), "1 alarm: every day at 6 am.")
+        with mock.patch.object(scheduler, "all_schedules", return_value=[]):
+            self.assertIn("No alarm set", quick.answer("what time is my alarm set for"))
+
+    def test_remove_milk_only_when_milk_is_on_the_list(self):
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=True):
+            self.assertEqual(voice.interpret("remove milk")["command"], {"kind": "shopping_off", "item": "milk"})
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=False):
+            self.assertNotEqual((voice.interpret("remove milk")["command"] or {}).get("kind"), "shopping_off")
+
+    def test_count_and_a_riddle(self):
+        self.assertEqual(quick.answer("count to five"), "1, 2, 3, 4, 5.")
+        self.assertIn("?", quick.answer("tell me a riddle"))
