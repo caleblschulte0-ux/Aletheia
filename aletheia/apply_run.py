@@ -605,6 +605,37 @@ def closed_unfit(company: str, job_title: str, url: str = "") -> dict | None:
     return None
 
 
+def settled_index(unfit_since: str = "") -> tuple[set, set]:
+    """(urls, role keys) of every job already settled: sent, waiting, or
+    closed. Read once per batch so discovery can leave them out BEFORE its
+    window is cut. A FAILED record is not settled (it may be tried again),
+    and a job closed as unfit before `unfit_since` - he has said what work he
+    wants since - is not either, so it can be judged afresh."""
+    urls, roles = set(), set()
+    for record in all_runs():
+        state = record.get("state")
+        if state == "FAILED":
+            continue
+        url = str(record.get("url") or "").strip()
+        role = (_role_key(record.get("company", ""), record.get("job_title", ""))
+                if str(record.get("company") or "").strip()
+                and str(record.get("job_title") or "").strip() else "")
+        if state == CLOSED:
+            kind = closure_kind(record)
+            if kind == "unfit" and str(record.get("closed_at") or "") < str(unfit_since or ""):
+                continue
+            if url:
+                urls.add(url)
+            if kind == "unfit" and role:
+                roles.add(role)
+            continue
+        if url:
+            urls.add(url)
+        if role:
+            roles.add(role)
+    return urls, roles
+
+
 def reopen(run_id: str, why: str) -> dict:
     """Bring a closed application back, on purpose and with the reason kept."""
     record = load_run(run_id)
