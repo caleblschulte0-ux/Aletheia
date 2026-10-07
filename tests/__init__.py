@@ -69,6 +69,12 @@ if not os.environ.get("ALETHEIA_HUNT_FUNNEL"):
 if not os.environ.get("ALETHEIA_RULINGS"):
     os.environ["ALETHEIA_RULINGS"] = str(_suite_root / "rulings.json")
 
+# The Core's beat launches a Shorts mailbox round in his morning slots, as a
+# real detached process that writes to his repository. A runtime test's tick
+# at 07:00 Chicago must never do that; the mailbox's own tests call `kick`
+# with a fake spawner and clear this.
+os.environ.setdefault("ALETHEIA_SHORTS_MAILBOX_OFF", "1")
+
 from aletheia import policy  # noqa: E402  (ordering is the safety mechanism)
 policy.APPROVALS_DIR = _suite_root / "approvals"
 policy.HALT_PATH = _suite_root / "halt.json"

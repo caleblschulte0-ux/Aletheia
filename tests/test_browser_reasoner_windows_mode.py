@@ -90,17 +90,21 @@ class EveryAlwaysOnEntryPointDropsTheLease(unittest.TestCase):
 
     def always_on_modules(self):
         from aletheia import autostart, project_autostart
+        from aletheia import shorts_mailbox
         specs = list(autostart.TASKS.values()) + [project_autostart.SPEC]
         # "aletheia.project_loop once" -> aletheia.project_loop
         # aletheia.supervisor's whole job is starting aletheia.core, so the
         # Core belongs to this surface even though no task names it directly.
-        return sorted({spec.module.split()[0] for spec in specs} | {"aletheia.core"})
+        # The Core itself LAUNCHES the Shorts mailbox round, detached, with the
+        # Core's environment - the same inheritance, one hop further.
+        return sorted({spec.module.split()[0] for spec in specs}
+                      | {"aletheia.core", shorts_mailbox.MODULE})
 
     def test_the_registry_still_names_the_entry_points_we_think_it_does(self):
         self.assertEqual(
             self.always_on_modules(),
             ["aletheia.apply_forever", "aletheia.core", "aletheia.project_loop",
-             "aletheia.supervisor", "aletheia.voice_room"],
+             "aletheia.shorts_mailbox", "aletheia.supervisor", "aletheia.voice_room"],
             "an always-on entry point was added or renamed — check it drops the lease")
 
     # aletheia.apply_forever joined this list on 2026-09-12, when he went AFK

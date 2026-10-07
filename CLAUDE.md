@@ -1457,6 +1457,23 @@ not pretend to one. The funnel (`state/hunt/funnel.json`) is how any of
 this gets judged: "is she doing a good job" is a reply rate, and until it
 reports, nobody can say.
 
+## Shorts' mailboxes are answered in his mornings, through the narrowest door
+
+His ruling, 2026-10-07T01:22Z: *"Alethea may write files into a shorts
+review, rewrite, and ask mailbox. ... That's certified by me. Every 30
+minutes is unnecessary. We only post in the morning, so maybe it needs to
+run two, three times in the morning, and that's it"*. It is a reviewed
+registry edit: `front_door.answers` on `shorts_pipeline` in
+`config/fleet.json`, his words beside it in `answers_ruling`, and the
+validator refuses an answers grant without them. `aletheia.act.check_answer_path`
+lets through an ANSWER FILE under a granted folder and nothing else, before
+any network call. `aletheia.shorts_mailbox` is the one caller: the beat only
+launches a round in its own process, three morning slots on his clock at
+most, and nothing malformed is written - a bad grade is a HOLD that burns
+the request on Shorts' side. Widening it (another folder, another repo, a
+fourth round) is a registry edit with his words, never a code path.
+`docs/SHORTS_MAILBOX.md`.
+
 ## The standing assignment
 
 Every session acts on the playbook rather than re-describing it (§156):

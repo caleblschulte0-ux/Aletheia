@@ -818,7 +818,8 @@ def codex_json(system_prompt: str, text: str, *, context: dict | None = None,
                validator: Callable[[dict], dict] | None = None,
                schema: dict | None = None,
                timeout_s: float = CODEX_TIMEOUT_S,
-               max_context_bytes: int = MAX_CONTEXT_BYTES) -> dict:
+               max_context_bytes: int = MAX_CONTEXT_BYTES,
+               images: list[str] | None = None) -> dict:
     """One JSON answer from Codex on his ChatGPT subscription, headless.
 
     Bounded like the Claude CLI is: an empty directory of its own as the
@@ -827,6 +828,9 @@ def codex_json(system_prompt: str, text: str, *, context: dict | None = None,
     in its environment, no window, and the whole process tree killed when the
     time is up. `schema` becomes `--output-schema`, which Codex holds its
     final message to (strict: every object closes its properties).
+    `images` are files attached to the prompt (`--image`), read by the CLI
+    itself rather than by anything inside the sandbox - the Shorts mailbox's
+    frames (aletheia.shorts_mailbox).
     """
     limit = _bounded_context_limit(max_context_bytes)
     validate_input(system_prompt, text, context, max_context_bytes=limit)
@@ -839,21 +843,29 @@ def codex_json(system_prompt: str, text: str, *, context: dict | None = None,
     path = codex_path()
     if not path:
         raise ReasonerUnavailable("Codex is not installed on this PC")
+    attach = [str(p) for p in (images or [])]
+    missing = [p for p in attach if not os.path.isfile(p)]
+    if missing:
+        raise ValueError(f"Codex was handed {len(missing)} image(s) that are not files")
     prompt = _codex_prompt(system_prompt, text, context, limit)
     root = _workdir()         # the empty directory it is allowed to see
     papers = _workdir()       # its schema and its answer, outside that root
     answer = ""
     try:
         last = os.path.join(papers, "last-message.txt")
-        argv = [path, "exec",
-                "--sandbox", "read-only",
-                "--skip-git-repo-check",
-                "--ephemeral",
-                "--ignore-user-config",
-                "--ignore-rules",
-                "--color", "never",
-                "-C", root,
-                "--output-last-message", last]
+        argv = [path, "exec"]
+        for image in attach:
+            # One flag per file, each followed by another flag, so the
+            # trailing "-" (the prompt on stdin) is never read as an image.
+            argv += ["--image", image]
+        argv += ["--sandbox", "read-only",
+                 "--skip-git-repo-check",
+                 "--ephemeral",
+                 "--ignore-user-config",
+                 "--ignore-rules",
+                 "--color", "never",
+                 "-C", root,
+                 "--output-last-message", last]
         if schema is not None:
             schema_path = os.path.join(papers, "schema.json")
             with open(schema_path, "w", encoding="utf-8") as fh:

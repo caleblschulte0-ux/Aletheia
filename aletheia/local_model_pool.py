@@ -506,16 +506,8 @@ def ollama_binary() -> str | None:
 
 def _spawn_detached(args: list[str]) -> int:
     """A helper that outlives this call and shows no window."""
-    import os
-    import subprocess
     from aletheia import proc
-    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
-                    "stderr": subprocess.DEVNULL}
-    if os.name == "nt":
-        kwargs["creationflags"] = proc.hidden_flags(0x00000008 | 0x00000200)
-    else:
-        kwargs["start_new_session"] = True
-    return subprocess.Popen(args, **kwargs).pid
+    return proc.spawn_detached(args)
 
 
 def ensure(*, now: float | None = None, spawner=None, binary=None,
