@@ -136,6 +136,14 @@ _STATUS = re.compile(
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    # FIRST, before anything else can claim the sentence: a person in
+    # crisis must never be filed as a work item "for when the big models
+    # are back" (2026-10-07: "I'm sad" was).
+    ("crisis", re.compile(
+        r"^(?:i|i'm|im|i am) (?:want to|wanna|going to|gonna|am going to|feel like|thinking about|thinking of|"
+        r"just want to|really want to) (?:die|dying|kill(?:ing)? myself|end(?:ing)? (?:it all|my life)|hurt(?:ing)? myself|be dead)$"
+        r"|^(?:i'm|im|i am|i feel|feeling) (?:suicidal|thinking about suicide)$"
+        r"|^i don'?t want to (?:live|be alive|be here) anymore$")),
     # `down` marks the alternatives that ask whether she is STOPPED, so
     # the answer can agree with the question. Without it "are you
     # running" and "you there" -- the two most natural ways to ask --
@@ -965,6 +973,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("time_units", re.compile(
         r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
+    ("feeling", re.compile(
+        r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
+        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)$"
+        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day)$")),
 )
 
 
@@ -980,7 +992,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "about_her", "arith", "prime", "average", "round_to", "time_units", "fraction_pct"):
+        if name in ("math", "farewell", "feeling", "about_her", "arith", "prime", "average", "round_to", "time_units", "fraction_pct"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2518,6 +2530,44 @@ def _about_her(text: str) -> str:
         "I don't know much about you yet - tell me your name and I'll remember it."
 
 
+CRISIS = ("I'm really sorry you're feeling this way, and I'm glad you said it. Please call or text 988 "
+          "right now - that's the Suicide and Crisis Lifeline in the US, any hour - or 911 if you might act "
+          "on it. Telling someone you trust helps too. I'm here, but a person can help in ways I can't.")
+
+#: Said back to a feeling - short, honest, and only ever offering what she
+#: can really do. Never a work item and never a planner round trip.
+_FEELINGS = {
+    "hungry": "Go eat something. If anything's run out, tell me and I'll put it on the shopping list.",
+    "bored": "Want a joke? Or say \"what's on my list\" and we'll knock something off it.",
+    "tired": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
+    "exhausted": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
+    "sleepy": "Then get some sleep. I'll keep things going quietly.",
+    "stressed": ("Take a breath. Say \"what's waiting on me\" and I'll tell you exactly what's on your "
+                 "plate - it's usually less than it feels."),
+    "stressed out": ("Take a breath. Say \"what's waiting on me\" and I'll tell you exactly what's on your "
+                     "plate - it's usually less than it feels."),
+    "overwhelmed": ("One thing at a time. Say \"what's waiting on me\" and I'll lay it out, and anything "
+                    "I can take off your hands, I will."),
+    "anxious": "Take a slow breath. If it's something on your list, tell me and I'll help you get it handled.",
+    "sad": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
+    "down": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
+    "lonely": "I'm sorry. I'm here - and it might be a good moment to text someone you like. I can send it for you.",
+    "sick": "Rest up. Want me to set a reminder for medicine, or move anything off today?",
+    "i can't sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
+    "i cant sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
+    "i need a break": "Take one. Say \"set a timer for 15 minutes\" and I'll tell you when it's up.",
+    "motivate me": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
+}
+
+
+def _feeling(text: str) -> str | None:
+    g = _match_of("feeling", text)
+    said = (g.get("feel") or g.get("feel2") or "").strip()
+    if said.startswith(("i'm having", "im having")):
+        return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
+    return _FEELINGS.get(said)
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3902,6 +3952,8 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "crisis": lambda rest: CRISIS,
+           "feeling": lambda rest: _feeling(rest),
            "about_her": lambda rest: _about_her(rest),
            "arith": lambda rest: _arith(rest),
            "prime": lambda rest: _prime(rest),

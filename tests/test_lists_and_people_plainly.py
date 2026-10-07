@@ -91,3 +91,25 @@ class TheBrowserSaidPlainly(unittest.TestCase):
         self.assertTrue(said.startswith("I can't read web pages"), said)
         self.assertNotIn("pip", said)
         self.assertNotIn("she ", said)
+
+
+class AFeelingIsNotAWorkItem(unittest.TestCase):
+    """"I'm sad" was answered "I could not plan that ... It's on my list"."""
+
+    def test_feelings_get_a_line(self):
+        for said in ("i'm hungry", "I'm so tired", "i can't sleep", "i feel sad", "i'm having a bad day",
+                     "i need a break", "i'm stressed out"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "feeling")
+                self.assertTrue(quick.answer(said))
+
+    def test_a_crisis_gets_the_lifeline_first(self):
+        for said in ("i want to die", "i want to kill myself", "im suicidal", "i don't want to live anymore"):
+            with self.subTest(said=said):
+                self.assertIn("988", quick.answer(said))
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "intent")   # not the kill switch
+
+    def test_noise_and_ordinary_sentences_are_not_a_crisis(self):
+        for said in ("die", "i want to kill the process", "how do i die my hair"):
+            with self.subTest(said=said):
+                self.assertNotEqual((quick.match(said) or ("",))[0], "crisis")
