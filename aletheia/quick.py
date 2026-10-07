@@ -1092,7 +1092,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("weather_in", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?(?:weather|forecast|temperature)(?: like| going to be like| looking like| doing)?"
         r"|how(?:'s| is) the weather(?: looking)?|weather|is it (?:raining|snowing|cold|hot|warm|nice)"
-        r"|how (?:hot|cold|warm) is it) (?:in|for|at) (?!(?:the )?(?:morning|afternoon|evening|weekend)\b)"
+        r"|how (?:hot|cold|warm) is it) (?:in|for|at) (?!(?:the |this |next )?(?:morning|afternoon|evening|weekend|week|today|tomorrow|tonight"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b)"
         r"(?!(?:my |our |the )?(?:house|home|place|here|apartment|flat)\b)"
         r"(?P<weather_place>[a-z][a-z .,'-]{1,40}?|\d{5})"
         r"(?: (?:for |on )?(?:today|tonight|tomorrow|this weekend|the weekend|right now|now"
@@ -1106,7 +1107,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:for |on )?(?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening|weekend)|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
-        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
+        r"|^weather(?: (?P<weather3>today|tonight|tomorrow|this weekend|this week))?$"
+        # "Will it be nice this weekend" (2026-10-07: to the planner).
+        r"|^(?:will|is) it (?:going to )?be (?:nice|warm|cold|hot|sunny|good)(?: out(?:side)?)? (?P<weather11>today|tonight|tomorrow|this weekend|this week)\s*\??$"
         # "What's the weather this week", "the forecast for the weekend"
         # (2026-10-07: to the planner).
         r"|^what(?:'s| is|s)? the (?:weather|forecast)(?: looking)?(?: like)? (?:for )?(?P<weather9>this week|the week|the rest of the week|the next few days|this weekend|the weekend)\s*\??$"
@@ -1769,7 +1772,7 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",

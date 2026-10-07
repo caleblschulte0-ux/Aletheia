@@ -1132,5 +1132,16 @@ class AReminderSaidAnotherWay(unittest.TestCase):
             self.assertIn("Remind you of what", got["say"])
 
 
+class AForecastByDayIsNotAPlace(unittest.TestCase):
+    """"What's the forecast for Saturday" looked up a town called Saturday."""
+
+    def test_a_day_is_a_when(self):
+        for said in ("what's the forecast for saturday", "what's the weather for tomorrow"):
+            self.assertNotEqual(quick.match(said)[0], "weather_in", said)
+        self.assertEqual(quick.match("what's the weather in denver")[0], "weather_in")
+        self.assertEqual(quick.match("will it be nice this weekend"), ("weather", "this weekend"))
+        self.assertEqual(quick.match("weather this weekend"), ("weather", "this weekend"))
+
+
 if __name__ == "__main__":
     unittest.main()
