@@ -117,5 +117,26 @@ class WhatHeHasIncludesHisReminders(unittest.TestCase):
             self.assertEqual(quick._agenda_and_reminders("tomorrow"), "Tomorrow: dentist at 3 pm.")
 
 
+class WhenIsAHolidayLeadsWithTheDate(unittest.TestCase):
+    def test_which_day_leads_with_the_day(self):
+        from aletheia import quick
+        name, rest = quick.match("what day is thanksgiving")
+        self.assertEqual(name, "until_day")
+        said = quick.answer("what day is thanksgiving")
+        self.assertRegex(said, r"^[A-Z][a-z]+day \d+ November")
+
+    def test_how_many_days_still_leads_with_the_count(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how many days until christmas")[0], "until")
+
+
+class WhereHeParkedIsSaidToHim(unittest.TestCase):
+    def test_his_first_person_becomes_hers(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i parked on level 3 row b"}]):
+            self.assertEqual(quick._parked(), "You parked on level 3 row b.")
+
+
 if __name__ == "__main__":
     unittest.main()

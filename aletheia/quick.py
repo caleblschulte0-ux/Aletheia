@@ -576,8 +576,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
-        r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
-        r"|^(?:when is|when's|what day is|what day's|what day does|which day is) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
+        r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
+    # "What day is Thanksgiving" is asked for the DATE, so it leads with it.
+    ("until_day", re.compile(
+        r"^(?:when is|when's|what day is|what day's|what day does|which day is) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day|labou?r day|memorial day|"
         r"mlk day|martin luther king day|presidents'? day|president's day|mother'?s day|father'?s day|"
         r"columbus day|indigenous peoples'? day)(?: on| fall on| this year)?\s*\??$")),
@@ -2315,8 +2317,10 @@ def _calendar_fact(what: str) -> str | None:
         f" this year." if month == 2 else ".")
 
 
-def _until(words: str) -> str | None:
-    """Days until a date he named, from the calendar and nothing else."""
+def _until(words: str, *, which_day: bool = False) -> str | None:
+    """Days until a date he named, from the calendar and nothing else.
+    `which_day`: he asked WHEN it is, so the date leads ("what day is
+    Thanksgiving" answered "50 days" first, 2026-10-07)."""
     import datetime as dt
     from aletheia import localtime
     # "how long until my next meeting" is the calendar's, not a date's
@@ -2338,6 +2342,8 @@ def _until(words: str) -> str | None:
         return f"That's today, {said}."
     if days == 1:
         return f"Tomorrow, {said}."
+    if which_day:
+        return f"{said}, {days} days from now."
     return f"{days} days, {said}."
 
 
@@ -3841,7 +3847,13 @@ def _parked() -> str:
     for row in _notes():
         said = str(row.get("text") or "")
         if re.search(r"\b(?:parked|my car is|the car is)\b", said, re.IGNORECASE):
-            return f"You told me: {said.rstrip('.')}."
+            # "You told me: i parked on level 3" was his note read back in
+            # his own first person (2026-10-07).
+            from aletheia import speech
+            hers = speech.as_she_says_it(said.strip()).rstrip(".")
+            if re.match(r"(?:you|your car) ", hers):
+                return hers[0].upper() + hers[1:] + "."
+            return f"You told me: {hers}."
     return "You haven't told me where you parked. Say 'I parked on level 3' next time and I'll remember."
 
 
@@ -6878,6 +6890,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "until_day": lambda rest: _until(rest, which_day=True),
            "weeks_until": lambda rest: _weeks_until(rest),
            "tasks_due": lambda rest: _tasks_due(rest),
            "birthday": lambda rest: _birthday(),
