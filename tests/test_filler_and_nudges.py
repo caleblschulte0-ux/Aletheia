@@ -45,7 +45,11 @@ class FillerCase(unittest.TestCase):
             with self.subTest(said=said):
                 self.assertIsNone(quick.match(said), said)
                 got = voice.interpret(f"thea {said}")["command"]
-                self.assertEqual(got["kind"], "intent", said)
+                # No command is invented. "Ok" on its own is now a nod she
+                # answers with "Okay." and no command at all (2026-10-07),
+                # the way "hey" alone became a greeting; the rest still go on
+                # to be understood.
+                self.assertIn((got or {}).get("kind"), (None, "intent"), said)
 
     def test_hey_on_its_own_is_a_greeting_and_not_a_command(self):
         """"Hey" is filler IN FRONT of a sentence and a greeting alone.

@@ -66,7 +66,7 @@ class ANoteIsForgettableToo(unittest.TestCase):
         journal.append("note", "operator", "my sister's name is Dana", actor="operator")
         self.assertIn("Dana", quick.answer("what's my sister's name") or "")
         said = intercom.execute_command({"kind": "forget", "about": "my sister's name"}, {}, quote="forget my sister's name")
-        self.assertTrue(said.startswith("Forgotten: my sister's name is Dana"), said)
+        self.assertTrue(said.startswith("Forgotten: your sister's name is Dana"), said)
         self.assertNotIn("Dana", quick.answer("what's my sister's name") or "")
         self.assertEqual([n for n in quick._notes() if "Dana" in str(n.get("text"))], [])
 

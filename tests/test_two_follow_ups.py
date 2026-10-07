@@ -11,11 +11,13 @@ from aletheia import quick, voice
 
 class SayThatAgainCase(unittest.TestCase):
     def test_her_last_sentence_is_said_again(self):
-        with mock.patch("aletheia.converse.recent", return_value=[{"he_asked": "x", "she_said": "Added a task."}]):
+        # The thread's own keys. This mocked `recent` with a "she_said" key the
+        # thread never had, so it passed while every real "repeat that" failed.
+        with mock.patch("aletheia.converse._thread", return_value=[{"you": "x", "her": "Added a task."}]):
             for sentence in ("say that again", "what did you just say", "repeat that", "pardon"):
                 with self.subTest(sentence=sentence):
                     self.assertEqual(quick.answer(sentence), "I said: Added a task.")
-        with mock.patch("aletheia.converse.recent", return_value=[]):
+        with mock.patch("aletheia.converse._thread", return_value=[]):
             self.assertIn("haven't said anything yet", quick.answer("say that again"))
 
 

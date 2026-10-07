@@ -255,7 +255,10 @@ class NoBrowserIsSaidPlainly(ResearchCase):
             with self.assertRaises(research.ResearchError) as caught:
                 research.run("what is the tallest building in Chicago?", http=None)
         said = str(caught.exception)
-        self.assertIn("playwright", said)
+        # Named, so it gets installed - in words a room can hear: no
+        # terminal command and no third person (2026-10-07).
+        self.assertIn("playwright", said.lower())
+        self.assertNotIn("pip install", said)
         self.assertNotIn("does not answer", said,
                          "the question is not what is broken")
 

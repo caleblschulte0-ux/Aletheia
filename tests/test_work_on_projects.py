@@ -206,6 +206,81 @@ class TheRunners(Isolated):
         self.assertEqual(out["evidence"]["approval"], "handoff-1")
         self.assertEqual(filed.call_args.kwargs["tool"].name, "post.it")
 
+    def writer_catalog(self):
+        made = []
+        task_new = tools.declare("tracker_new", description="Create a task to track something",
+                                 input_schema={"properties": {"id": {"type": "string"},
+                                                              "description": {"type": "string"}},
+                                               "required": ["description", "id"]},
+                                 handler=lambda a, **_: made.append(a) or {"text": "added"}, capability="test.task")
+        filed = tools.declare("file.it", description="Save a document to a path",
+                              input_schema={"properties": {"path": {"type": "string"}, "what": {"type": "string"},
+                                                           "shelf": {"type": "string", "enum": ["a", "b"]}},
+                                            "required": ["path", "what", "shelf"]},
+                              handler=lambda a, **_: made.append(a) or {"text": "saved"}, capability="test.file")
+        return {t.name: t for t in (task_new, filed)}, made
+
+    def run_writer(self, steps, *, model):
+        from aletheia import agent_session, program_compose, tasks
+        it = we.item("task:w", "tasks", "Track the plumber quote", ws.READY,
+                     payload={"task": "w", "description": "Track the plumber quote"})
+        cat, made = self.writer_catalog()
+        with self.frontier(False), mock.patch.object(tools, "catalog", return_value=cat), \
+                mock.patch.object(agent_session.Broker, "_capability", return_value=None), \
+                mock.patch.object(agent_session.Broker, "check",
+                                  return_value=agent_session.Decision(agent_session.RUN, "reversible")), \
+                mock.patch.object(agent_session, "execute", side_effect=lambda t, a, **_: ("ok", t.handler(a))), \
+                mock.patch.object(runners, "_note_unattended", return_value={}), \
+                mock.patch.object(program_compose, "compose",
+                                  return_value={"steps": steps, "gaps": [], "requires": []}), \
+                mock.patch.object(program_compose, "model_args", side_effect=model) as asked, \
+                mock.patch.object(tasks, "set_status"):
+            out = runners.run(it, NOW)
+        return out, made, asked
+
+    def test_a_new_task_gets_an_id_from_its_own_words_without_asking_anyone(self):
+        out, made, asked = self.run_writer([{"tool": "tracker_new", "for": "x"}], model=AssertionError)
+        self.assertEqual(out["state"], ws.DONE, out)
+        self.assertRegex(made[0]["id"], r"^track-the-plumber-quote-[0-9a-f]{6}$")
+        asked.assert_not_called()
+        from aletheia import program_compose
+        status = tools.declare("tracker_status", description="Set a task's state",
+                               input_schema={"properties": {"id": {"type": "string"}}, "required": ["id"]},
+                               handler=lambda a, **_: {}, capability="test.task")
+        self.assertEqual(program_compose.fill_args(status, {"title": "close the plumber task"})[1], ["id"],
+                         "an id that must already exist is never made up")
+
+    def test_what_the_words_cannot_fill_a_model_fills_and_only_the_rest_is_his(self):
+        out, made, _ = self.run_writer([{"tool": "file.it", "for": "x"}],
+                                       model=lambda tool, task, args, missing: {"path": "notes/plumber.md", "shelf": "a"})
+        self.assertEqual(out["state"], ws.DONE, out)
+        self.assertEqual(made[0]["path"], "notes/plumber.md")
+        out, made, _ = self.run_writer([{"tool": "file.it", "for": "x"}],
+                                       model=lambda tool, task, args, missing: {"path": "notes/plumber.md"})
+        self.assertEqual(out["state"], ws.BLOCKED_USER)
+        self.assertIn("shelf", out["reason"])
+        self.assertNotIn("path", out["reason"])
+        self.assertEqual(made, [])
+
+    def test_no_model_to_fill_them_is_a_wait_for_a_model_and_no_step_runs_half_way(self):
+        from aletheia import reasoner
+
+        def out_of_models(*a, **k):
+            raise reasoner.ReasonerUnavailable("Claude is resting")
+        out, made, _ = self.run_writer([{"tool": "tracker_new", "for": "x"}, {"tool": "file.it", "for": "y"}],
+                                       model=out_of_models)
+        self.assertEqual(out["state"], ws.BLOCKED_MODEL)
+        self.assertTrue(out["not_before"])
+        self.assertEqual(made, [], "the first step waits with the second rather than running twice")
+
+    def test_a_model_answer_outside_the_enum_is_still_missing(self):
+        from aletheia import program_compose
+        tool = self.writer_catalog()[0]["file.it"]
+        got = program_compose.model_args(tool, {"title": "t"}, {}, ["shelf", "path"],
+                                         think=lambda s, u, context, validator: validator(
+                                             {"args": {"shelf": "z", "path": "p.md"}}))
+        self.assertEqual(got, {"path": "p.md"})
+
     def fake_view(self, **over):
         view = {"path": self.tmp.name, "scratch": "", "subdir": "barkly", "base_sha": "a" * 40, "branch": "claude/barkly-x",
                 "repo": "caleb/Money_Machine", "files": 3, "python_tests": [], "package_json": ["barkly/package.json"],

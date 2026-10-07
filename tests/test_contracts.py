@@ -108,18 +108,35 @@ class TestCapabilityRegistry(unittest.TestCase):
     def test_registry_gated_capabilities_exist_in_fleet_grants(self):
         """A capability claiming registry_grant must actually be gated by
         something in config/fleet.json's front_door model."""
+        from aletheia.fleet import FRONT_DOOR_CAPABILITIES
         fleet = load_fleet()
         grants = set()
         for repo in fleet["repos"].values():
             fd = repo.get("front_door", {})
-            if fd.get("dispatch"):
-                grants.add("github.workflow.dispatch")
-            if fd.get("issues"):
-                grants.add("github.issue.create")
+            for key, capability in FRONT_DOOR_CAPABILITIES.items():
+                if fd.get(key):
+                    grants.add(capability)
         for c in load_registry()["capabilities"]:
             if c["approval_policy"] == "registry_grant" and c["status"] == "AVAILABLE":
                 self.assertIn(c["id"], grants,
                               f"{c['id']} claims registry_grant but no grant exists")
+
+    def test_a_front_door_capability_that_runs_at_all_has_its_grant(self):
+        """EXPERIMENTAL is live code too: a capability the front-door table
+        names, built and wired, must have a grant in the fleet registry -
+        and every capability the table names must exist in the registry."""
+        from aletheia.fleet import FRONT_DOOR_CAPABILITIES
+        fleet = load_fleet()
+        ids = {c["id"]: c for c in load_registry()["capabilities"]}
+        for key, capability in FRONT_DOOR_CAPABILITIES.items():
+            self.assertIn(capability, ids, f"front_door.{key} gates {capability}, "
+                                           "which the capability registry does not list")
+            entry = ids[capability]
+            self.assertEqual(entry["approval_policy"], "registry_grant", capability)
+            if entry["status"] in ("AVAILABLE", "DEGRADED", "EXPERIMENTAL"):
+                self.assertTrue(any((r.get("front_door") or {}).get(key)
+                                    for r in fleet["repos"].values()),
+                                f"{capability} is {entry['status']} with no front_door.{key} grant")
 
 
 if __name__ == "__main__":

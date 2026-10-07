@@ -111,10 +111,15 @@ class TheFastLaneNeverEndsTheTurn(unittest.TestCase):
             self.assertEqual(got["command"]["kind"], "free_time", said)
 
     def test_a_day_it_cannot_read_goes_to_the_planner(self):
-        for said in ("am I free at 3 on friday", "am I free the week after next"):
+        for said in ("am I free the week after next",):
             got = voice.interpret(said)
             self.assertEqual((got.get("command") or {}).get("kind"), "intent", said)
             self.assertIsNone(got.get("say"), said)
+        # Since 2026-10-07 a moment is read ("free_time" with "at"); the rule
+        # this protects is still that it never ends the turn on a parse error.
+        got = voice.interpret("am I free at 3 on friday")
+        self.assertEqual((got["command"]["kind"], got["command"]["at"]), ("free_time", "15:00"))
+        self.assertIsNone(got.get("say"))
 
     def test_a_week_goes_to_the_command_that_reads_weeks(self):
         # Since 2026-09-16 calendar reasoning reads a window like "next week",

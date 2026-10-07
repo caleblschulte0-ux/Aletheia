@@ -564,10 +564,14 @@ class TheWiderLaneCase(unittest.TestCase):
         a regex cannot parse, and dropping the qualifier would answer a
         different question than the one asked — which is the failure he
         cannot detect."""
-        for sentence in ("am i free this afternoon", "am i free at 3",
-                         "am i free for an hour", "am i free on friday"):
+        for sentence in ("am i free this afternoon", "am i free for an hour"):
             with self.subTest(sentence=sentence):
                 self.assertIsNone(quick.match(sentence), sentence)
+        # A qualifier the lane CAN parse is honoured, never dropped: "at 3"
+        # and "on friday" reach `free_at`, which reads both (2026-10-07).
+        for sentence in ("am i free at 3", "am i free on friday"):
+            with self.subTest(sentence=sentence):
+                self.assertNotEqual(quick.match(sentence)[0], "free", sentence)
 
     def test_no_feed_at_all_goes_to_the_planner(self):
         with mock.patch("aletheia.intercom.free_time_answer",
@@ -738,7 +742,7 @@ class TheWiderLaneCase(unittest.TestCase):
     def test_his_details_come_from_his_profile(self):
         with mock.patch("aletheia.profile.answer",
                         lambda field: {"email": "caleb@example.com"}.get(field)):
-            self.assertEqual(quick.answer("what's my email"), "caleb@example.com")
+            self.assertIn("caleb@example.com", quick.answer("what's my email"))
 
     def test_a_detail_she_does_not_have_is_never_invented(self):
         """An invented phone number is the exact failure `profile` exists

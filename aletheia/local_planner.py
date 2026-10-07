@@ -92,7 +92,8 @@ COMPILED_BY_RULES = "rules, with no model"
 # `tests/test_local_planner.py`, so this cannot drift into naming something
 # that does not exist or something the planner may not emit.
 VERB_HINTS: dict[str, tuple[str, ...]] = {
-    r"\bremind\b|\breminder\b": ("remind_at", "remind_daily", "remind_weekly"),
+    r"\bremind\b|\breminder\b": ("remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+                                     "remind_every"),
     r"\bevery day\b|\bdaily\b": ("remind_daily",),
     r"\bevery (?:mon|tues|wednes|thurs|fri|satur|sun)day\b|\bweekly\b": ("remind_weekly",),
     r"\btask\b|\bto-?do\b": ("task_new", "tasks"),
@@ -113,6 +114,7 @@ VERB_HINTS: dict[str, tuple[str, ...]] = {
         "free_time", "calendar_hold", "calendar_find_free"),
     r"\bmeet\b|\bmeeting\b": ("meet", "free_time"),
     r"\bshopping list\b|\badd .* to the list\b": ("shopping_add", "shopping_list"),
+    r"\b\w+ list\b|\blists\b": ("list_add", "list_read", "list_off", "list_new"),
     r"\bplay\b.*\bmusic\b|\bput on\b.*\bmusic\b": ("music",),
     r"\bjobs?\b|\bappl(?:y|ication)\b": ("jobs", "apply_prepare", "applications"),
     r"\bproject\b|\brepo\b|\brepositor": ("projects", "work_projects", "project_new"),
@@ -390,7 +392,15 @@ def _refusal_for_spending(request: str) -> str | None:
     if not text or text.rstrip().endswith("?"):
         return None
     try:
-        from aletheia import webtask
+        from aletheia import intents, webtask
+        # RECORDING IS NOT SPENDING, the same exemption `intents` holds.
+        # "Remind me on the 15th to pay rent" was refused here as an
+        # instruction to spend (2026-10-07): the door at `intents` let it
+        # through and this one, missing the exemption, stopped it. A
+        # compiled errand that really would spend is still refused by
+        # `planner._classify`.
+        if intents._RECORDS_NOT_ACTS.match(text.casefold()):
+            return None
         return webtask.SPENDING_REFUSAL if webtask.would_spend(text) else None
     except Exception:  # noqa: BLE001
         # FAIL CLOSED, the way `intents._asks_to_spend` does: the only

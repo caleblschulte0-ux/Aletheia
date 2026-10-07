@@ -21,6 +21,18 @@ DEFAULT_PATH = REPO_ROOT / "config" / "fleet.json"
 
 VALID_STATUSES = {"active", "stub", "retired"}
 VALID_AGENT_KINDS = {"claude", "chatgpt", "ci"}
+#: Every key a front door may grant, and the capability it gates. One table:
+#: the validator refuses any other key and tests/test_contracts.py holds each
+#: registry_grant capability to a real grant here.
+FRONT_DOOR_CAPABILITIES = {
+    "dispatch": "github.workflow.dispatch",
+    "issues": "github.issue.create",
+    "answers": "shorts.mailbox.answer",
+}
+#: His words, beside the grant they made. Not a capability; required with it.
+ANSWERS_RULING = "answers_ruling"
+#: The answers door reaches a repo's own mailbox and nowhere else.
+ANSWERS_ROOT = "exchange/"
 
 
 class FleetError(ValueError):
@@ -78,10 +90,13 @@ def validate(fleet: dict) -> None:
             problems.append(f"{where}: a stub has nothing to watch — clear watch or change status")
         fd = repo.get("front_door")
         if fd is not None:
-            if not isinstance(fd, dict) or set(fd) - {"dispatch", "issues"}:
-                problems.append(f"{where}.front_door: only dispatch + issues are grantable")
+            if not isinstance(fd, dict) or set(fd) - set(FRONT_DOOR_CAPABILITIES) - {ANSWERS_RULING}:
+                problems.append(f"{where}.front_door: only {', '.join(FRONT_DOOR_CAPABILITIES)} "
+                                "are grantable")
             elif not isinstance(fd.get("dispatch", []), list) or not isinstance(fd.get("issues", False), bool):
                 problems.append(f"{where}.front_door: dispatch is a list of workflows, issues a bool")
+            else:
+                problems += _answers_problems(where, fd)
         for i, vital in enumerate(repo.get("vitals", [])):
             v_where = f"{where}.vitals[{i}]"
             for key in ("label", "file", "probe"):
@@ -99,6 +114,31 @@ def validate(fleet: dict) -> None:
                 problems.append(f"{v_where}: private is true or false")
     if problems:
         raise FleetError("fleet registry invalid:\n  " + "\n  ".join(problems))
+
+
+def _answers_problems(where: str, fd: dict) -> list[str]:
+    """`answers` is a list of mailbox prefixes under exchange/, and a grant
+    with no words of his beside it is not a grant (as config/rulings.json)."""
+    problems: list[str] = []
+    answers = fd.get("answers", [])
+    if not isinstance(answers, list):
+        return [f"{where}.front_door.answers: a list of path prefixes"]
+    for prefix in answers:
+        parts = prefix.split("/") if isinstance(prefix, str) else []
+        if (not isinstance(prefix, str) or not prefix.startswith(ANSWERS_ROOT)
+                or not prefix.endswith("/") or prefix == ANSWERS_ROOT
+                or ".." in parts or "\\" in prefix or "" in parts[:-1]):
+            problems.append(f"{where}.front_door.answers: {prefix!r} is not a mailbox "
+                            f"folder under {ANSWERS_ROOT} (e.g. exchange/reviews/)")
+    ruling = fd.get(ANSWERS_RULING)
+    if answers:
+        if not isinstance(ruling, dict) or not str(ruling.get("said") or "").strip() \
+                or not str(ruling.get("on") or "").strip():
+            problems.append(f"{where}.front_door: an answers grant needs {ANSWERS_RULING} "
+                            "with his words (said) and when (on)")
+    elif ruling is not None:
+        problems.append(f"{where}.front_door: {ANSWERS_RULING} without an answers grant")
+    return problems
 
 
 def markdown_table(fleet: dict) -> str:

@@ -53,6 +53,32 @@ def popen(cmd: list[str], **kwargs) -> subprocess.Popen:
     return subprocess.Popen(cmd, **kwargs)
 
 
+def spawn_detached(cmd: list[str], *, cwd: str | None = None, log_path=None) -> int:
+    """Start a helper that OUTLIVES its caller and shows no window. Returns its pid.
+
+    For the Core's beat, which must launch long work and come straight back:
+    its own process group (DETACHED on Windows, a new session elsewhere), no
+    stdin, and its output appended to `log_path` or discarded."""
+    kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+                    "stderr": subprocess.DEVNULL}
+    if cwd:
+        kwargs["cwd"] = cwd
+    log = None
+    if log_path is not None:
+        log = open(log_path, "a", encoding="utf-8")
+        kwargs["stdout"], kwargs["stderr"] = log, subprocess.STDOUT
+    if os.name == "nt":
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP; hidden_flags keeps them.
+        kwargs["creationflags"] = hidden_flags(0x00000008 | 0x00000200)
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        return subprocess.Popen(cmd, **kwargs).pid
+    finally:
+        if log is not None:
+            log.close()
+
+
 def run_tree(cmd: list[str], timeout_s: float, *, input: str | None = None,
              **kwargs) -> subprocess.CompletedProcess:
     """Windowless run with a time limit that takes the WHOLE tree down.

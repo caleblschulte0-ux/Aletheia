@@ -508,10 +508,16 @@ def run(question: str, *, reader=browse.read_page, think=None,
     if reader is browse.read_page:
         usable, why = browse.available()
         if not usable:
+            # SAID TO HIM, in the room: "she cannot read web pages right now:
+            # playwright is not installed (pip install playwright)" reached
+            # the room verbatim (2026-10-07) - third person and a terminal
+            # command. The developer's reason stays in `browse.available`.
+            part = ("the browser part I use, Playwright, isn't installed on this PC" if "not installed" in why
+                    else "the browser I use isn't working on this PC")
             raise ResearchError(
-                f"she cannot read web pages right now: {why}. Research really "
-                "opens the pages it cites, so there is nothing honest to "
-                "return until that is fixed — everything else still works.")
+                f"I can't read web pages right now - {part}. I only answer from "
+                "pages I've actually opened, so I won't make one up. Everything "
+                "else still works.")
     # A CLASS of reasoning, not a company (docs/REASONING_CLASSES.md): picking
     # search queries is routine (her own model first); writing the cited
     # report is standard (frontier first, her own model when it is out).

@@ -56,9 +56,14 @@ class ATimerIsAOneShotAlertCase(TimersCase):
         got = self.command("set a timer for 5 minutes to check the oven")
         self.assertEqual(got["text"], "check the oven")
 
-    def test_a_timer_with_no_duration_goes_to_the_planner(self):
-        """"Set a timer" is a question, not an instruction."""
-        self.assertEqual(self.command("set a timer").get("kind"), "intent")
+    def test_a_timer_with_no_duration_asks_how_long(self):
+        """"Set a timer" is a question, not an instruction: nothing is
+        scheduled on a guessed duration. It used to go to the planner, which
+        with nothing thinking FILED it; now she asks the one thing missing."""
+        from aletheia import voice
+        out = voice.interpret("set a timer")
+        self.assertIsNone(out["command"])
+        self.assertIn("how long", out["say"].lower())
 
 
 class AnAlarmIsTheSameThingAtAClockTimeCase(TimersCase):

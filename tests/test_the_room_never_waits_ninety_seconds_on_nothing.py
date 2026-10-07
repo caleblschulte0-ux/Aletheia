@@ -282,7 +282,9 @@ class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):
         said = quick.answer("who are you")
         self.assertTrue(said.startswith("I'm Thea"), said)
         self.assertEqual(speech.strip_ids(said), said)
-        self.assertEqual(quick.match("what's your name")[0], "who_are_you")
+        # A name question gets her name, not the whole introduction.
+        self.assertEqual(quick.match("what's your name")[0], "her_name")
+        self.assertTrue(quick.answer("what's your name").startswith("Thea"))
 
     def test_what_works_offline_is_said_from_what_is_true(self):
         with mock.patch("aletheia.reasoner.local_role_that_fits", return_value=(None, "only 3 GB of memory is free")):
@@ -571,8 +573,9 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         self.assertTrue(said.startswith("There's no queue to work down"), said)
         self.assertIn("2 sent", said)
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
-            # No heartbeat on record: the fast lane declines rather than invents (test_liveness).
-            self.assertIsNone(quick.answer("how long has the core been running"))
+            # No heartbeat on record: never an invented number (test_liveness),
+            # and no model either - a model knows less about her clock than she does.
+            self.assertIn("can't say", quick.answer("how long has the core been running"))
 
     def test_the_tenth_battery_orders_at_the_bottom_rung(self):
         """Twenty-seven orders with every rung off (2026-09-24). Five had no
@@ -806,7 +809,10 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         said = quick.answer("what's using the cpu")
         self.assertTrue(said.startswith(("The processor is at", "I can't read this machine's processor")), said)
         self.assertNotIn("System Idle Process", said)
-        self.assertEqual((voice.interpret("thea what timers do I have").get("command") or {}).get("kind"), "reminders")
+        # Answered from the store, never a model: the timers themselves now,
+        # with what is left on each (2026-10-07), rather than the reminder list.
+        timers = voice.interpret("thea what timers do I have")
+        self.assertTrue(timers.get("say") or (timers.get("command") or {}).get("kind") == "reminders", timers)
         for s in ("shut down the computer", "lock the pc", "restart the computer", "turn off my laptop"):
             out = voice.interpret(f"thea {s}")
             self.assertIsNone(out["command"], s)

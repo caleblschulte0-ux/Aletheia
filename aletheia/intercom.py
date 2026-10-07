@@ -98,6 +98,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "mark the passport one done" — by what he CALLS it, because he does
     # not know its id and should never have to.
     "task_done":     ({"which"}, set()),
+    # "Move the plumber to Friday", "delete call the plumber", "rename the
+    # plumber one to call Joe": one task found by his words, changed once.
+    # Exactly one of the three.
+    "task_change":   ({"which"}, {"deadline", "description", "drop"}),
     "halt":          (set(), {"reason"}),
     # 2026-09-23: "Restart her", one tap, on the page that says her
     # heartbeat is old. Exits the way a code update does and the
@@ -142,7 +146,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # the one directory she owns and `file_read` needs a path he does not
     # have; between them there was no way to answer "what's in my
     # downloads" or "find that lease PDF" at all.
-    "file_find":     (set(), {"query", "place"}),
+    "file_find":     (set(), {"query", "place", "since"}),
     # How much is in one of his folders. Asked out loud she compiled a
     # two-step File Explorer plan and asked for approval to run it, while
     # holding every one of those numbers already.
@@ -213,6 +217,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "screen_record_stop": (set(), set()),
     "recording":     (set(), set()),
     "email_check":   (set(), set()),
+    # his recent texts on the Google Voice number, newest first; who narrows
+    # to one sender. Reads a page, sends nothing (2026-10-07).
+    "texts_read":    (set(), {"who"}),
     # the text of ONE unread message, named by sender or subject; exactly
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
@@ -231,7 +238,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "thread_followup": ({"thread"}, set()),
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
-    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces"}),
+    "hold_release":  ({"title", "start"}, set()),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
@@ -277,13 +285,16 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     # `replaces` is the text of the reminder this one moves ("make that 4").
     "remind_at":       ({"at", "text"}, {"replaces"}),
-    "remind_daily":    ({"time", "text"}, {"tz"}),
+    "remind_daily":    ({"time", "text"}, {"tz", "every"}),
+    "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
+    # "Every hour", "every 30 minutes": within the day, from now.
+    "remind_every":    ({"minutes", "text"}, set()),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
     # so "remind me every monday to take out the trash" compiled to a
     # generic `do_task` under a summary that promised a weekly reminder.
     # A capability nothing can ask for is not a capability.
-    "remind_weekly":   ({"days", "time", "text"}, {"tz"}),
+    "remind_weekly":   ({"days", "time", "text"}, {"tz", "every"}),
     # "What reminders do I have" / "stop reminding me about the bins".
     # `scheduler` has listed and disabled schedules since it was written;
     # asking for either OUT LOUD compiled a gap called `reminder.cancel`
@@ -296,6 +307,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # thing in the room, and "I can't do that yet" was the answer.
     "notify_snooze":   ({"minutes"}, {"which"}),
     "reminder_off":    ({"which"}, set()),
+    "reminder_on":     ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
@@ -316,12 +328,13 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
-    "free_time":       ({"day"}, {"tz", "minutes", "part"}),
+    "free_time":       ({"day"}, {"tz", "minutes", "part", "at"}),
     # Either an email or a phone, and at least one of them - a contact she
     # cannot reach is not a contact. `email` stopped being required when
     # texting needed a number: `contacts.create` had supported phones all
     # along, and the grammar was the only thing that did not.
     "contact_add":     ({"name"}, {"email", "phone", "alias"}),
+    "contact_remove":  ({"name"}, set()),
     # The slot for everything that is not a slot (2026-08-27). `text` is
     # whatever the operator actually said; aletheia.planner compiles it
     # into steps expressed in the kinds ABOVE, and every one of those is
@@ -343,12 +356,25 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "brief":           (set(), set()),
     "handle":          ({"text"}, set()),
     "travel_time":     ({"place"}, set()),
-    "shopping_add":    ({"item"}, {"budget"}),
+    "place_add":       ({"name", "address"}, set()),
+    "shopping_add":    ({"item"}, {"budget", "replaces"}),
     # Reading the list back, and taking something off it. `shopping_add`
     # shipped without either, so she confirmed "Added to the shopping
     # list: milk" and then said she had no shopping list.
     "shopping_list":   (set(), set()),
     "shopping_off":    ({"item"}, set()),
+    # HIS OWN NAMED LISTS - packing, gift ideas, movies to watch. The
+    # shopping list stays its own store (buying is its own path).
+    "list_new":        ({"list"}, set()),
+    "list_add":        ({"list", "item"}, set()),
+    "list_read":       (set(), {"list"}),
+    "list_off":        ({"list", "item"}, set()),
+    # HIS STOPWATCH - counts up until he says stop (a timer counts down).
+    "stopwatch":       ({"action"}, set()),
+    "stopwatch_read":  (set(), set()),
+    # HOW FAST SHE TALKS - his word, read by both of her voices.
+    "speaking_pace":      ({"action"}, set()),
+    "speaking_pace_read": (set(), set()),
     "subscriptions":   (set(), set()),
     # `about` says which half of the same store he asked about — balance
     # or spending — so the empty-store answer does not report a balance to
@@ -467,6 +493,10 @@ KIND_NOTES: dict[str, str] = {
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
         'number". `contact_add` is the writer.'),
+    "contact_remove": (
+        'Take someone out of his contacts. name is who he said; she finds the '
+        'one contact that matches and asks if two do. Hidden, not deleted: '
+        'adding them again brings them back.'),
     "watches": (
         'What she is waiting to tell him about — the watchers '
         '`watch_email_from` creates. Nothing to do with browsing.'),
@@ -477,6 +507,28 @@ KIND_NOTES: dict[str, str] = {
     "shopping_list": (
         'What is on his shopping list, read from the store. Use it for '
         '"what do I need from the shop" as well — it is the same list.'),
+    "list_new": (
+        'Start one of his own named lists - "make a list called packing". '
+        'Not for shopping, tasks or reminders: those have their own verbs.'),
+    "list_add": (
+        'Put lines on one of his named lists, starting it if it is new - '
+        '"add socks to my packing list". item may name several things.'),
+    "list_read": (
+        'Read one of his named lists, or with no list name say which lists '
+        'he has.'),
+    "stopwatch": (
+        'His stopwatch: action is start, stop or reset. "Start a stopwatch", '
+        '"stop the stopwatch". A countdown is a timer (remind_at), not this.'),
+    "stopwatch_read": (
+        'What his stopwatch says right now - "how long has the stopwatch been running".'),
+    "speaking_pace": (
+        'How fast she talks out loud: action is slower, faster or normal. '
+        '"Talk slower", "speak faster", "talk normally".'),
+    "speaking_pace_read": (
+        'How fast she is talking now - "how fast are you talking".'),
+    "list_off": (
+        'Take a line off one of his named lists, or "everything" to clear '
+        'it. Lines are marked done, not deleted.'),
     "shopping_off": (
         'Take something off the shopping list. item is the words he used; '
         'she finds the one entry that matches and asks him if two do. It '
@@ -486,11 +538,23 @@ KIND_NOTES: dict[str, str] = {
         'which is optional and narrows by the words of the reminder. Use '
         'this rather than answering from context: the store is the only '
         'thing that knows.'),
+    "reminder_on": (
+        'Put back a reminder he stopped. which is the words he used for '
+        'it, or "all reminders" for every one stopped in the last day; a '
+        'one-off whose time has gone by stays off and says so.'),
     "reminder_off": (
         'Stop a reminder he has set. which is the words he used for it '
         '("the bins", "the gym one"); she finds the one reminder that '
         'matches and asks him which if two do. It is DISABLED, not '
         'deleted, so it can be put back.'),
+    "remind_every": (
+        'A reminder that repeats within the day - "every hour to drink '
+        'water", "every 30 minutes". minutes is 15 to 720; the first one '
+        'is that long from now.'),
+    "remind_monthly": (
+        'A reminder that repeats once a month - "on the 1st of every month '
+        'to pay rent". day is the day of the month, 1-31 (a short month '
+        'uses its last day), time is 24-hour HH:MM in his timezone.'),
     "remind_weekly": (
         'A reminder that repeats on named days — "every Monday", "every '
         'weekday at 7", "Tuesdays and Thursdays". days is a list of day '
@@ -677,12 +741,23 @@ KIND_NOTES: dict[str, str] = {
     "calendar_hold": (
         'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
         'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
-        'timezone; end or minutes; location; thread links it to a conversation. It refuses when it '
+        'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
+        'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
         'clashes and says with what.'),
+    "place_add": (
+        'Remember where one of his places is: "my work address is 5 Market St", "the gym is at 20 Oak '
+        'Ave". name is what he calls it, address what he said. Saying it again updates it.'),
+    "hold_release": (
+        'Take one of HER OWN tentative holds off his calendar model - one she pencilled in, never an '
+        'event of his live calendar: "cancel my meeting with Sam" after she held it. title and start '
+        'are the hold\'s own. Released, not deleted: its history is kept.'),
     "calendar_propose": (
         'Offer times to the other person in a conversation: "suggest some times to the landlord next '
         'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
         'reply with free times and waits for his approval, because offering his hours commits him.'),
+    "texts_read": (
+        'His recent texts on his Google Voice number: "read my last text", "did Sam text me". '
+        'who is a sender name to narrow to. Reads only; texts on his own phone stay there.'),
     "email_read": (
         "which is a sender name/address or a subject fragment; it must match exactly "
         "one UNREAD message (otherwise she asks which). Use email_check first to see "
@@ -698,6 +773,8 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+               # her browser profile, signed in to Google Voice, is on the PC
+               "texts_read",
                # the job hunt's pause marker lives in the PC's private state
                "apply_pause",
                # her unattended ledger, and the stores an undo reverses, are on the PC
@@ -723,7 +800,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "message_send", "music",
                # her conversations and his calendar model are private state on the PC
                "thread_draft", "thread_status", "thread_send", "thread_followup",
-               "calendar_find_free", "calendar_hold", "calendar_propose",
+               "calendar_find_free", "calendar_hold", "hold_release", "calendar_propose",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -740,14 +817,16 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
-               "remind_at", "remind_daily", "remind_weekly",
-               "reminders", "reminder_off", "notify_snooze",
+               "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
+               "reminders", "reminder_off", "reminder_on", "notify_snooze",
                "watch_email_from", "notify_check",
-               "notify_clear", "free_time", "contact_add", "notify_operator",
+               "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
-               "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
+               "meet", "recall", "forget", "handle", "travel_time", "place_add", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
+               "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
+               "speaking_pace", "speaking_pace_read",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -781,7 +860,8 @@ READ_ONLY_KINDS = frozenset({
     "chatgpt",
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
-    "jobs", "tasks", "reminders", "shopping_list", "applications",
+    "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read", "stopwatch_read",
+    "speaking_pace_read",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
@@ -804,6 +884,8 @@ READ_ONLY_KINDS = frozenset({
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
+    # reading the texts page changes nothing
+    "texts_read",
     # Reading her own conversation records and his free time changes nothing.
     "thread_status", "calendar_find_free",
 })
@@ -829,7 +911,7 @@ ROUTINE_KINDS = frozenset({
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
-    "plan_set", "remind_at", "remind_daily", "remind_weekly",
+    "plan_set", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
     "project_new", "project_step", "project_drop",
@@ -850,7 +932,13 @@ ROUTINE_KINDS = frozenset({
     # Disabling a reminder is reversible by saying the opposite, which is
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
-    "reminder_off", "shopping_off", "notify_snooze", "notify_operator",
+    "reminder_off", "reminder_on", "shopping_off", "notify_snooze", "notify_operator",
+    # His own named lists: the same act on the same kind of store.
+    "list_new", "list_add", "list_off",
+    # His stopwatch: one small record of his own, reset by one word.
+    "stopwatch",
+    # How fast she talks: one number of his, put back by "talk normally".
+    "speaking_pace",
     # Writes one file inside her own workspace: reversible, reaches
     # nobody, and the workspace keeps the previous version. Same tier as
     # `file_write`, which it sits beside.
@@ -871,12 +959,15 @@ ROUTINE_KINDS = frozenset({
     # COMPLETED and has always been routine, so the narrower verb was
     # asking for approval while the general one did not.
     "task_done",
+    # Moving, renaming or dropping one of HIS tasks is the same act on the
+    # same store as ticking it off.
+    "task_change",
     # `forget` sits beside `remember` because it is the same act on the
     # same private store, and putting it anywhere else would mean she can
     # be told something without an approval and needs one to be told to
     # drop it. It is the one act with no undo, though, so the receipt says
     # WHAT went rather than just "forgotten".
-    "notify_clear", "remember", "forget", "contact_add", "shopping_add",
+    "notify_clear", "remember", "forget", "contact_add", "contact_remove", "place_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
     "announce_set",
@@ -894,7 +985,7 @@ ROUTINE_KINDS = frozenset({
     # nobody. Every one of them that would SEND waits on its own hash-bound
     # approval (email.send / email.followup), so this tier authorizes writing
     # it down and nothing past that.
-    "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
+    "thread_draft", "thread_followup", "calendar_hold", "hold_release", "calendar_propose",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -1085,6 +1176,8 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "rule": {"state": _enum("aletheia.suggestions", "VALID_STATES")},
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
     "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
+    "stopwatch": {"action": _enum("aletheia.stopwatch", "ACTIONS")},
+    "speaking_pace": {"action": _enum("aletheia.speaking_pace", "ACTIONS")},
 }
 
 
@@ -1229,6 +1322,10 @@ def _tasks_answer(which: str = "") -> str:
         if not rows:
             return f"Nothing open matching {which!r}."
     if not rows:
+        # "Add milk to my list", then "what's on my list": "Nothing on your
+        # list" - the milk was on the other one.
+        if _shopping_items():
+            return "Nothing on your task list. " + shopping_answer()
         return "Nothing on your list."
     said = speech.and_list([_task_words(t) for t in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
@@ -1257,7 +1354,10 @@ def _task_words(task: dict) -> str:
 
 
 REMINDER_KINDS = {"once": "remind_at", "daily": "remind_daily",
-                  "weekly": "remind_weekly"}
+                  "weekly": "remind_weekly", "monthly": "remind_monthly",
+                  # "every other day" / "every 2 weeks": the interval kind,
+                  # and only when its command tells him something.
+                  "interval": "remind_daily"}
 
 
 def _reminder_schedules() -> list[dict]:
@@ -1278,35 +1378,133 @@ def _reminder_schedules() -> list[dict]:
     return out
 
 
-def _reminder_words(spec: dict) -> str:
+def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     """One reminder, as he would say it."""
     from aletheia import speech
     text = str((spec.get("command") or {}).get("text") or spec["id"])[:70]
     if spec["kind"] == "once":
+        timer = re.fullmatch(r"(your .+? timer) is up", text)
+        if timer and not receipt:
+            # "your 10-minute timer is up — today at 5:10 am" read as if it
+            # had already gone off; it is a timer still running.
+            return f"{timer.group(1)}, going off {speech.humanize_time(str(spec.get('at') or ''))}"
         return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
+    if spec["kind"] == "interval":
+        minutes = int(spec.get("every_minutes") or 0)
+        if minutes < 1440:
+            hours, mins = divmod(minutes, 60)
+            span = ("every hour" if minutes == 60 else f"every {hours} hours" if not mins and hours
+                    else "every half hour" if minutes == 30 else f"every {minutes} minutes")
+            return f"{text} — {span}"
+        weeks, days = divmod(minutes // 1440, 7)
+        span = (f"every {weeks} weeks" if weeks > 1 and not days else "every week" if weeks == 1 and not days
+                else "every other day" if minutes == 2880 else f"every {minutes // 1440} days")
+        return f"{text} — {span} at {speech.clock_words(str(spec.get('anchor') or '')[11:16])}"
     when = speech.clock_words(str(spec.get("time") or ""))
     if spec["kind"] == "daily":
         return f"{text} — every day at {when}"
+    if spec["kind"] == "monthly":
+        return f"{text} — on the {_ordinal(int(spec.get('monthday') or 1))} of every month at {when}"
     days = _weekday_words(sorted(spec.get("weekdays") or []))
     lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
     return f"{text} — {lead} at {when}"
+
+
+def _soonest_first(rows: list) -> list:
+    """Reminders in the order they go off ("call mom at 6 pm and check the
+    oven at 5:33 am" was read in the order they were made, 2026-10-07)."""
+    import datetime as _dt
+    from aletheia import scheduler
+    now = _dt.datetime.now(_dt.timezone.utc)
+    far = now + _dt.timedelta(days=36500)
+
+    def when(spec):
+        try:
+            return scheduler.next_occurrence(spec, now) or far
+        except Exception:
+            return far
+    return sorted(rows, key=when)
 
 
 def _reminders_answer(which: str = "") -> str:
     """"What reminders do I have" — from the store, with no model."""
     from aletheia import speech
     rows = _reminder_schedules()
+    noun = "reminder"
     if which:
         needle = which.casefold()
+        noun = {"wake up": "alarm", "timer is up": "timer"}.get(needle, "reminder")
         rows = [r for r in rows
                 if needle in str((r.get("command") or {}).get("text", "")).casefold()]
         if not rows:
+            if noun != "reminder":
+                return f"You have no {noun}s set."
             return f"No reminder matching {which!r}."
     if not rows:
         return "You have no reminders set."
-    said = speech.and_list([_reminder_words(r) for r in rows[:5]])
+    rows = _soonest_first(rows)
+    said = speech.and_list([_alarm_words(r, alone=noun == "alarm") for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
-    return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
+    return f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+
+
+def _alarm_words(spec: dict, *, alone: bool = True) -> str:
+    """A reminder as he would say it, and an alarm as its time: "tomorrow
+    at 6:30 am" in a list of alarms, "alarm — tomorrow at 6:30 am" among
+    reminders; never "wake up — tomorrow at 6:30 am"."""
+    words = _reminder_words(spec)
+    if str((spec.get("command") or {}).get("text") or "").strip().casefold() == "wake up":
+        words = re.sub(r"^wake up\s*([—-])\s*", "" if alone else r"alarm \1 ", words, flags=re.IGNORECASE)
+    return words
+
+
+def _until_next_reminder(sort: str = "reminder") -> str:
+    """"How long until my alarm": the gap to the soonest one, in words."""
+    import datetime as _dt
+    from aletheia import scheduler
+    needle = {"alarm": "wake up", "timer": "timer is up"}.get(sort, "")
+    rows = [r for r in _reminder_schedules()
+            if needle in str((r.get("command") or {}).get("text", "")).casefold()]
+    if not rows:
+        return f"You have no {sort}s set."
+    first = _soonest_first(rows)[0]
+    now = _dt.datetime.now(_dt.timezone.utc)
+    try:
+        at = scheduler.next_occurrence(first, now)
+    except Exception:  # noqa: BLE001
+        at = None
+    if not at:
+        return _next_reminder_answer(sort)
+    minutes = max(1, int(((at - now).total_seconds() + 30) // 60))
+    hours, mins = divmod(minutes, 60)
+    # "1 day and 29 minutes" is how nobody says tomorrow morning: under two
+    # days it is hours.
+    days, hours = divmod(hours, 24) if hours >= 48 else (0, hours)
+    parts = [f"{n} {unit}{'' if n == 1 else 's'}" for n, unit in ((days, "day"), (hours, "hour"), (mins, "minute")) if n]
+    if days:
+        parts = parts[:2]
+    gap = " and ".join(parts)
+    what = str((first.get("command") or {}).get("text") or "").strip()
+    if sort == "alarm" or what == "wake up":
+        return f"Your next alarm goes off in {gap}."
+    return f"Your next {sort}, {what}, is in {gap}."
+
+
+def _next_reminder_answer(sort: str = "reminder") -> str:
+    """"When's my next alarm" - the soonest one of that sort, not the list."""
+    from aletheia import speech
+    needle = {"alarm": "wake up", "timer": "timer is up"}.get(sort, "")
+    rows = [r for r in _reminder_schedules()
+            if needle in str((r.get("command") or {}).get("text", "")).casefold()]
+    if not rows:
+        return f"You have no {sort}s set."
+    rows = _soonest_first(rows)
+    more = f" You have {len(rows) - 1} more after it." if len(rows) > 1 else ""
+    said = _reminder_words(rows[0])
+    if sort == "alarm" and " — " in said:
+        # Every alarm says "wake up"; the time is the answer.
+        return f"Your next alarm is {said.split(' — ', 1)[1]}.{more}"
+    return f"Your next {sort}: {said}.{more}"
 
 
 def _reminder_list_words(rows: list) -> str:
@@ -1374,6 +1572,62 @@ def _remembered_matching(about: str, domain: str | None = None):
     return found
 
 
+def _reminder_back_on(which: str) -> str:
+    """Re-enable what reminder_off disabled: "put that back" (2026-10-07: the
+    comments promised one command and there was none)."""
+    import datetime as _dt
+    from aletheia import scheduler, speech
+    now = _dt.datetime.now(_dt.timezone.utc)
+    stopped = []
+    for spec in scheduler.all_schedules():
+        if spec.get("enabled", True) or str((spec.get("command") or {}).get("kind")) != "notify_operator":
+            continue
+        stopped.append(spec)
+
+    def changed(spec):
+        try:
+            return _dt.datetime.fromisoformat(str(spec.get("updated_at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            return _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
+
+    def still_ahead(spec):
+        try:
+            # Asked as if it were on: a stopped schedule has no next time.
+            return scheduler.next_occurrence({**spec, "enabled": True}, now) is not None
+        except Exception:  # noqa: BLE001
+            return False
+
+    needle = " ".join(which.casefold().split())
+    every = {"all alarms": "wake up", "all timers": "timer is up", "all reminders": ""}.get(needle)
+    if every is not None:
+        hits = [r for r in stopped if every in str((r.get("command") or {}).get("text") or "").casefold()
+                and now - changed(r) <= _dt.timedelta(days=1)]
+    else:
+        hits = [r for r in stopped if needle and needle in str((r.get("command") or {}).get("text") or "").casefold()]
+        if not hits:
+            words = [w for w in re.split(r"[^a-z0-9]+", needle) if len(w) > 2 and w not in TASK_STOP and w != "reminder"]
+            hits = [r for r in stopped
+                    if words and all(w in str((r.get("command") or {}).get("text") or "").casefold() for w in words)]
+        hits = sorted(hits, key=changed, reverse=True)[:1]
+    if not hits:
+        raise act.Refused("There's no stopped reminder like that to put back." if every is None
+                          else "Nothing was stopped in the last day to put back.")
+    back, gone = [], []
+    for spec in hits:
+        (back if still_ahead(spec) else gone).append(spec)
+    for spec in back:
+        scheduler.set_enabled(spec["id"], True)
+    said = []
+    if back:
+        said.append("Back on: " + speech.and_list([_reminder_words(r) for r in back[:4]])
+                    + (f", and {len(back) - 4} more" if len(back) > 4 else "") + ".")
+    if gone:
+        said.append("Its time has already gone by, so it stays off." if len(gone) == 1 and not back
+                    else f"{speech.count_phrase(len(gone), 'other')} had already gone by and stayed off." if back
+                    else f"All {len(gone)} had already gone by, so they stay off.")
+    return " ".join(said)
+
+
 def _one_reminder(which: str):
     """(schedule, why-not) — exactly one reminder he could mean.
 
@@ -1383,6 +1637,36 @@ def _one_reminder(which: str):
     from aletheia import speech
     needle = " ".join(str(which or "").split()).casefold()
     rows = _reminder_schedules()
+    # "CANCEL MY 6:30 ALARM": with two alarms both saying "wake up", the
+    # words cannot tell them apart and the clock can. Only a time that is
+    # plainly a time - a colon or am/pm - so "the 5 minute timer" keeps its
+    # five as a word.
+    clock = re.search(r"(?:^|\s)(?:at )?(\d{1,2})(?::(\d{2}))?\s*(?:(a|p)\.?m\.?|o'?clock)(?=\s|$)"
+                      r"|(?:^|\s)(?:at )?(\d{1,2}):(\d{2})(?=\s|$)", needle)
+    if clock and rows:
+        hour = int(clock.group(1) or clock.group(4))
+        minute = int(clock.group(2) or clock.group(5) or 0)
+        half = clock.group(3)
+        if half == "p" and hour < 12:
+            hour += 12
+        elif half == "a" and hour == 12:
+            hour = 0
+        wanted = {f"{hour:02d}:{minute:02d}"}
+        if not half and hour < 12:
+            wanted.add(f"{hour + 12:02d}:{minute:02d}")
+        rest = " ".join((needle[:clock.start()] + " " + needle[clock.end():]).split())
+        timed = [r for r in rows if _reminder_clock(r) in wanted]
+        if timed:
+            if rest:
+                worded = [r for r in timed if rest in text_of_reminder(r)]
+                timed = worded or timed
+            if len(timed) == 1:
+                return timed[0], ""
+            rows = timed
+            needle = rest
+        else:
+            return None, (f"You have nothing set for {speech.clock_words(sorted(wanted)[0])}. "
+                          + _reminder_list_words(rows))
 
     def text_of(spec):
         return str((spec.get("command") or {}).get("text", "")).casefold()
@@ -1422,20 +1706,81 @@ def _one_reminder(which: str):
         return None, (f"None of your reminders is about {which}. "
                       + _reminder_list_words(rows))
     if len(hits) > 1:
-        return None, ("Which one — "
-                      + speech.or_list([str((r.get("command") or {}).get("text")
-                                            or r["id"])[:50] for r in hits[:4]])
-                      + "?")
+        # Soonest first, the order a person would list them in - and the
+        # order "the first one" counts in when he answers.
+        hits = _soonest_first(hits)
+        labels = [str((r.get("command") or {}).get("text") or r["id"])[:50] for r in hits[:4]]
+        if len(set(labels)) < len(labels):
+            # "Which one - wake up or wake up?" names nothing he can choose
+            # between; when the words are the same, the time is the name.
+            labels = [_alarm_words(r) for r in hits[:4]]
+        return None, "Which one — " + speech.or_list(labels) + "?"
     return hits[0], ""
+
+
+def _texts_answer(who: str = "") -> str:
+    """His recent texts on the Google Voice number, newest first, in words.
+
+    "I can read texts that reach your Google Voice number" was offered
+    for a month with no sentence that reached the reader, so "read my last
+    text" went to a model that has never seen one.
+    """
+    from aletheia import gvoice, speech
+    state, why = gvoice.check()
+    if state == gvoice.NOT_SIGNED_IN:
+        raise act.Refused("I'm not signed in to Google Voice in my browser yet. Sign in once on the PC "
+                          "(python -m aletheia.browse login https://voice.google.com) and I'll keep it.")
+    if state != gvoice.OK:
+        raise act.Refused("I couldn't open your Google Voice texts just now.")
+    rows = gvoice.recent()
+    name = " ".join(str(who or "").split())
+    if name:
+        rows = [r for r in rows if name.casefold() in str(r.get("from") or "").casefold()]
+    if not rows:
+        # The parser reads the page's visible text; nothing parsed is not
+        # proof nothing came, and saying "no texts" would be a guess.
+        return (f"I don't see a text from {name} on your Google Voice page." if name
+                else "I couldn't find any texts on your Google Voice page.")
+    def one(row):
+        body = str(row.get("text") or "").strip()
+        return (f"{row.get('from')}, {row.get('when')}: {body}"
+                + ("" if body.endswith((".", "?", "!")) else "."))
+    lines = [one(r) for r in rows[:3]]
+    if len(lines) == 1:
+        return "Your last text is from " + lines[0]
+    return (f"Your last {speech.count_phrase(len(lines), 'text')}, newest first. From "
+            + " From ".join(lines))
+
+
+def text_of_reminder(spec: dict) -> str:
+    return str((spec.get("command") or {}).get("text", "")).casefold()
+
+
+def _reminder_clock(spec: dict) -> str | None:
+    """The local "HH:MM" a reminder goes off at, or None for an interval."""
+    from aletheia import speech
+    if spec.get("kind") == "once":
+        try:
+            at = dt.datetime.fromisoformat(str(spec.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if at.tzinfo is not None:
+            at = at.astimezone(speech._operator_zone() or None)
+        return at.strftime("%H:%M")
+    if spec.get("kind") in ("daily", "weekly", "monthly"):
+        return str(spec.get("time") or "")[:5] or None
+    return None
 
 
 def _contact_words(contact: dict) -> str:
     """One contact, with whatever she actually has for them."""
     from aletheia import speech
     name = str(contact.get("display_name") or contact["id"])
-    reach = [str(v) for v in (list(contact.get("phones") or [])
-                              + list(contact.get("emails") or []))[:2] if v]
-    return f"{name} — {speech.and_list(reach)}" if reach else name
+    name = name[:1].upper() + name[1:]
+    # "mia — 6055551234" was read out as a run of digits (2026-10-07).
+    reach = [speech._spoken_number(str(v)) for v in list(contact.get("phones") or [])[:2] if v] \
+        + [str(v) for v in list(contact.get("emails") or [])[:1] if v]
+    return f"{name} — {speech.and_list(reach[:2])}" if reach else name
 
 
 def _contacts_answer(which: str = "") -> str:
@@ -1462,6 +1807,23 @@ def _contacts_answer(which: str = "") -> str:
         rows = hits
         if not rows:
             return f"I have no contact for {which!r}."
+        if len(rows) == 1:
+            # "What's Mia's number" is a question about one person: answered
+            # as a sentence, not as a list of one.
+            one = rows[0]
+            name = str(one.get("display_name") or one["id"])
+            name = name[:1].upper() + name[1:]
+            phones = [speech._spoken_number(str(v)) for v in (one.get("phones") or []) if v]
+            emails = [str(v) for v in (one.get("emails") or []) if v]
+            if phones and emails:
+                return f"{name}'s number is {phones[0]}, and their email is {emails[0]}."
+            if phones:
+                return f"{name}'s number is {phones[0]}."
+            if emails:
+                # "What's Sam's email" was answered "I have an email for
+                # Sam ... but no phone number" - the answer second (2026-10-07).
+                return f"{name}'s email is {emails[0]}. I don't have a number for them."
+            return f"I have {name} saved, but no number or email for them."
     if not rows:
         return "You have no contacts saved with me."
     said = speech.and_list([_contact_words(c) for c in rows[:6]])
@@ -1571,10 +1933,11 @@ def _day_words(stamp: object) -> str:
     """"today", "yesterday", "on 9 September" — never a timestamp out loud."""
     import datetime as _dt
     try:
-        day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).date()
+        day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        day = (day.astimezone(localtime.operator_tz()) if day.tzinfo else day).date()
     except (TypeError, ValueError):
         return ""
-    today = _dt.date.today()
+    today = localtime.today()
     if day == today:
         return "today"
     if (today - day).days == 1:
@@ -1590,6 +1953,13 @@ SHOPPING_EVERYTHING = frozenset({"everything", "all", "all of it", "the whole li
                                  "the lot", "it all", "the list"})
 
 
+#: Things whose NAME has "and" in it. Short on purpose: anything not here
+#: that is two single words ("milk and eggs") is two rows.
+SHOPPING_ONE_THING = ("mac and cheese", "macaroni and cheese", "half and half", "fish and chips",
+                      "salt and vinegar", "sweet and sour", "peanut butter and jelly",
+                      "chips and salsa", "rice and beans", "pb and j", "pb&j")
+
+
 def shopping_items_of(said: str) -> list[str]:
     """The things one sentence adds. "Milk and eggs" is two rows; "salt and
     vinegar chips" is one, because a side with a space in it is a name and
@@ -1597,6 +1967,21 @@ def shopping_items_of(said: str) -> list[str]:
     text = " ".join(str(said or "").split()).strip()
     if not text:
         return [text]
+    # One dish with "and" in its name is one row, wherever it sits in a list:
+    # "add mac and cheese" put "mac" and "cheese" on the list (2026-10-07).
+    keep = {}
+    for i, dish in enumerate(sorted(SHOPPING_ONE_THING, key=len, reverse=True)):
+        hit = re.search(r"\b" + re.escape(dish) + r"\b", text, re.IGNORECASE)
+        if hit:
+            token = f"\x00{i}\x00"
+            keep[token] = hit.group(0)
+            text = text[:hit.start()] + token + text[hit.end():]
+    if keep:
+        def back(part):
+            for token, dish in keep.items():
+                part = part.replace(token, dish)
+            return part
+        return [back(p) for p in shopping_items_of(text)]
     if "," in text:
         parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s*&\s*", text) if p.strip()]
         return parts or [text]
@@ -1655,7 +2040,26 @@ def _undo_answer(cmd: dict) -> str:
 
 
 #: What he asks for by voice that can be taken straight back, by kind.
-UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly",
+_TASK_LEAD = re.compile(
+    r"^(?:call|phone|ring|email|text|message|write|pay|book|fix|send|check|finish|schedule|cancel|renew|"
+    r"return|pick up|drop off|clean|wash|mow|file|submit|apply|follow up|chase|ask|tell|order|buy|get|"
+    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|take|make|do)\b")
+
+
+def task_parts(description: str) -> list[str]:
+    """"call mom, pay rent and buy stamps" -> the three things to do; one
+    item when it is not plainly a list of separate things to do."""
+    text = " ".join(str(description or "").split())
+    if "," not in text and " and " not in text:
+        return [text]
+    parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+", text) if p.strip()]
+    if len(parts) < 2 or not all(_TASK_LEAD.match(p.casefold()) for p in parts):
+        return [text]
+    return parts
+
+
+UNDOES_HIS_ASK = ("task_new", "shopping_add", "list_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+                  "remind_every",
                   "calendar_hold", "file_write", "note")
 
 
@@ -1681,8 +2085,17 @@ def _undo_his_last_ask() -> str | None:
         kind = str(command.get("kind") or "")
         if kind == "undo":
             continue                        # his previous undo; look one further back
+        # A QUESTION in between changes nothing: "put lunch on Friday",
+        # "who is it with", "cancel it" means the lunch (2026-10-07).
+        if voice._only_asked(said, command):
+            continue
         if kind not in UNDOES_HIS_ASK:
             return None
+        if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
+                and "Added to" not in str(turn.get("she_answered") or ""):
+            # "Add milk" with milk already there added nothing; undoing it
+            # must not take off the milk he put there before.
+            return "That added nothing - it was already on your shopping list, so I've left it there."
         return _reverse_his_ask(kind, command)
     return None
 
@@ -1692,13 +2105,30 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
     if kind == "task_new":
         from aletheia import tasks
         desc = str(command.get("description") or "").strip()
-        match = [t for t in tasks.all_tasks()
-                 if str(t.get("description") or "").strip().casefold() == desc.casefold()
-                 and t.get("status") not in ("DONE", "CANCELLED")]
-        if not match:
+        parts = task_parts(desc) if not command.get("deadline") else [desc]
+        gone = []
+        for part in (parts if len(parts) > 1 else [desc]):
+            match = [t for t in tasks.all_tasks()
+                     if str(t.get("description") or "").strip().casefold() == part.casefold()
+                     and t.get("status") not in ("DONE", "CANCELLED")]
+            if match:
+                tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
+                gone.append(part)
+        if not gone:
             return f"That task ({desc}) is already gone."
-        tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
-        return f"Undone: cancelled the task {desc}."
+        if len(gone) > 1:
+            return f"Undone: cancelled the tasks {speech.and_list(gone)}."
+        return f"Undone: cancelled the task {gone[0]}."
+    if kind == "list_add":
+        from aletheia import lists
+        name = str(command.get("list") or "")
+        gone = []
+        for item in shopping_items_of(str(command.get("item") or "")):
+            taken, _why = lists.take_off(name, item)
+            gone.extend(taken)
+        if not gone:
+            return f"I couldn't find that on your {name} list to take it back off."
+        return f"Undone: took {speech.and_list(gone)} back off your {name} list."
     if kind == "shopping_add":
         item = str(command.get("item") or "").strip()
         try:
@@ -1706,7 +2136,7 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         except act.Refused as exc:
             return f"I couldn't take {item} off the list: {speech.plainly(str(exc))}"
         return f"Undone: took {item} back off the shopping list."
-    if kind in ("remind_at", "remind_daily", "remind_weekly"):
+    if kind in ("remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"):
         from aletheia import scheduler
         text = str(command.get("text") or "").strip()
         found, why = _one_reminder(text)
@@ -1745,6 +2175,8 @@ def free_time_answer(cmd: dict) -> str:
     tz = cmd.get("tz") or localtime.operator_timezone()
     minutes = int(cmd.get("minutes", 30))
     day = _dt.date.fromisoformat(cmd["day"])
+    if cmd.get("at"):
+        return _free_at(cal, day, str(cmd["at"]), minutes, tz)
     part = str(cmd.get("part") or "").strip().lower()
     if part in ("evening", "tonight", "night"):
         # "Am I free Friday evening" answered "nothing free - I only look at
@@ -1775,6 +2207,30 @@ def free_time_answer(cmd: dict) -> str:
     return said + _nothing_on_it_at_all(cal, day)
 
 
+def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:
+    """"Am I free Friday at 10": yes or no for THAT time, and what is in it.
+
+    Asked about one moment, it answers about that moment - not with the
+    day's working-hours windows, which say nothing about 7 pm.
+    """
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    hour, minute = map(int, hhmm.split(":"))
+    start = _dt.datetime.combine(day, _dt.time(hour, minute), tzinfo=ZoneInfo(tz))
+    end = start + _dt.timedelta(minutes=minutes)
+    when = (start.strftime("%I:%M %p").lstrip("0").replace(":00", "").replace("AM", "am").replace("PM", "pm")
+            + " on " + start.strftime("%A"))
+    busy = cal.conflicts(start.isoformat(), end.isoformat())
+    if busy:
+        first = busy[0]
+        title = str(first.get("title") or "something")
+        return f"You have {title} then ({when})."
+    # No "yes" or "no": "am I BUSY at 3" reaches here as the same command
+    # as "am I free at 3", and "Yes, you're free" answered it backwards
+    # (2026-10-07). The fact alone answers both.
+    return f"You're free at {when}." + _nothing_on_it_at_all(cal, day)
+
+
 #: How far either side of the day in question counts as "his calendar has
 #: nothing on it at all". Wide enough that a genuinely quiet fortnight
 #: does not trip it.
@@ -1803,6 +2259,57 @@ def _nothing_on_it_at_all(cal, day) -> str:
     return (" Though there is nothing on your calendar at all for weeks "
             "either side, so if that sounds wrong, I may be reading a "
             "different calendar than the one you use.")
+
+
+def _named_list(kind: str, cmd: dict) -> str:
+    """His own named lists, each answer a sentence."""
+    from aletheia import lists
+    name = " ".join(str(cmd.get("list") or "").split())
+    if kind == "list_read" and not name:
+        held = lists.all_lists()
+        shopping = len(_shopping_items())
+        # "What lists do I have" left out the one with the apples on it.
+        also = f" And your shopping list has {speech.count_phrase(shopping, 'thing')}." if shopping else ""
+        if not held:
+            if shopping:
+                return f"Just your shopping list, with {speech.count_phrase(shopping, 'thing')} on it."
+            return "You don't have any lists of your own yet. Say \"make a list called packing\" to start one."
+        return ("Your lists: " + speech.and_list(
+            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing') if h['open'] else 'empty'})" for h in held]) + "." + also)
+    if not lists.is_named_list(name):
+        raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
+                          "each have their own words.")
+    if kind == "list_new":
+        _held, new = lists.create(name)
+        return (f"Started your {name} list." if new else f"You already have a {name} list.") + \
+            f" Say \"add ... to my {name} list\"."
+    if kind == "list_add":
+        added = lists.add(name, shopping_items_of(str(cmd["item"])))
+        if not added:
+            return f"That's already on your {name} list."
+        return f"Added to your {name} list: {speech.and_list(added)}."
+    if kind == "list_off" and str(cmd["item"]).strip().lower() in ("the list", "the whole list", "the list itself"):
+        had = lists.drop(name)
+        if had is None:
+            return f"You don't have a {name} list."
+        return (f"Deleted your {name} list" + (f" and the {speech.count_phrase(had, 'thing')} on it" if had else "")
+                + f". Say \"make a list called {name}\" to start it again.")
+    if kind == "list_off":
+        clearing = str(cmd["item"]).strip().lower() in SHOPPING_EVERYTHING
+        taken, why = lists.take_off(name, str(cmd["item"]))
+        if not taken:
+            return f"Your {name} list is already empty." if clearing and lists.exists(name) else why
+        if clearing:
+            return f"Cleared your {name} list - {speech.count_phrase(len(taken), 'thing')} off it."
+        return f"Took it off your {name} list: {speech.and_list(taken[:6])}" + \
+            (f" and {len(taken) - 6} more." if len(taken) > 6 else ".")
+    rows = lists.items(name)
+    if rows is None:
+        return f"You don't have a {name} list. Say \"make a list called {name}\" to start one."
+    if not rows:
+        return f"Your {name} list is empty."
+    shown = rows[:10] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
+    return f"{speech.count_phrase(len(rows), 'thing')} on your {name} list: {speech.and_list(shown)}."
 
 
 def shopping_answer() -> str:
@@ -1840,6 +2347,14 @@ def _one_shopping_item(which: str):
     if not hits:
         return None, (f"Nothing on your shopping list matching {which!r}."
                       if rows else "Nothing on your shopping list.")
+    # "Add milk" twice, then "I bought milk": "Which one — milk or milk?"
+    # (2026-10-07). The thing named exactly is the one meant, and two
+    # rows saying the same thing are one thing.
+    exact = [w for w in hits if " ".join(str(w.get("need", "")).split()).casefold() == needle]
+    if exact:
+        hits = exact
+    if len({" ".join(str(w.get("need", "")).split()).casefold() for w in hits}) == 1:
+        return hits[0], ""
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str(w.get("need") or w["id"])[:50]
@@ -1868,6 +2383,15 @@ def _one_task(which: str):
             return None, (f"There {'is' if len(rows) == 1 else 'are'} only "
                           + speech.count_phrase(len(rows), "thing")
                           + " on your list.")
+    # "THE OTHER ONE", after one of two was ticked off: with one task left
+    # open, that is the one (2026-10-07: "Nothing open matching 'other'").
+    if re.fullmatch(r"(?:the )?other(?: one)?", needle):
+        if len(rows) == 1:
+            return rows[0], ""
+        if not rows:
+            return None, "Nothing on your list is open."
+        return None, ("Which one — " + speech.or_list([str(t.get("description") or t["id"])[:50]
+                                                      for t in rows[:4]]) + "?")
     hits = [t for t in rows
             if needle and (needle in str(t.get("description", "")).casefold()
                            or needle in str(t.get("id", "")).casefold())]
@@ -2085,6 +2609,24 @@ def _weekday_numbers(days) -> list[int]:
     return unique
 
 
+def _first_at(hhmm: str, tz: str | None = None, *, weekday: int | None = None) -> str:
+    """The next HH:MM in his timezone (on that weekday, if one is given), as
+    an ISO instant: where an every-N reminder starts counting from."""
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    zone = ZoneInfo(tz or localtime.operator_timezone())
+    now = _dt.datetime.now(zone)
+    hour, minute = map(int, str(hhmm).split(":"))
+    at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    while at <= now or (weekday is not None and at.weekday() != weekday):
+        at += _dt.timedelta(days=1)
+    return at.isoformat()
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
 def _weekday_words(days: list[int]) -> str:
     """[0, 2] -> "Monday and Wednesday". Said out loud, so it is a phrase."""
     from aletheia import speech
@@ -2267,11 +2809,59 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "task_done":
         from aletheia import tasks as tasks_mod
         found, why = _one_task(cmd["which"])
+        if found is None and str(why).startswith("Nothing"):
+            # "Mark milk done" with milk on the shopping list and no task
+            # about it (2026-10-07): the thing he means is the one there.
+            item, _not = _one_shopping_item(cmd["which"])
+            if item is not None:
+                execute_command({"kind": "shopping_off", "item": str(item.get("need") or "")}, fleet, quote=quote)
+                return f"Took it off your shopping list: {item.get('need')}."
+            # "I finished the report" with no task about it said "Nothing
+            # open matching 'report'" and kept nothing (2026-10-07). Said as
+            # a fact, it is kept as one, so "when did I finish" can answer.
+            # The quote carries where it was said ("spoken to the wall: ..."):
+            # his sentence is the part from "I" on.
+            said = re.search(r"\b(?:i|i've|i have) (?:just )?(?:finished|done|did|completed|wrapped up)\b.*$",
+                             " ".join(str(quote or "").split()), re.IGNORECASE)
+            if said:
+                execute_command({"kind": "note", "text": said.group(0).strip().strip('"')}, fleet, quote=quote)
+                return "Nice. That wasn't on your task list, so I've noted it."
         if found is None:
             return why
         tasks_mod.set_status(found["id"], "COMPLETED",
                              note=f"marked done: {quote[:120]}")
         return f"marked done — {found.get('description') or found['id']}"
+    if kind == "task_change":
+        from aletheia import tasks as tasks_mod
+        asked = [k for k in ("deadline", "description", "drop") if cmd.get(k)]
+        if len(asked) != 1:
+            raise act.Refused("Tell me one change at a time: a new day, a new name, or to drop it.")
+        found, why = _one_task(cmd["which"])
+        if found is None:
+            return why
+        what = found.get("description") or found["id"]
+        if cmd.get("drop"):
+            tasks_mod.set_status(found["id"], "CANCELLED", note=f"dropped: {quote[:120]}")
+            return f"dropped — {what}"
+        if cmd.get("description"):
+            tasks_mod.describe(found["id"], str(cmd["description"]))
+            return f"renamed — {what} -> {cmd['description']}"
+        if tasks_mod.parse_deadline(cmd["deadline"]) is None:
+            raise act.Refused(f"I couldn't read {cmd['deadline']!r} as a day.")
+        made = tasks_mod.set_deadline(found["id"], str(cmd["deadline"]))
+        return f"moved — {_task_words(made)}"
+    if kind == "task_new" and len(task_parts(cmd["description"])) > 1 and not cmd.get("deadline"):
+        # "Add call mom, pay rent and buy stamps to my to do list" was ONE
+        # task with all three in it (2026-10-07). Each thing to do is its own.
+        made_parts = []
+        for part in task_parts(cmd["description"]):
+            slug = re.sub(r"[^a-z0-9]+", "-", part.lower()).strip("-")[:40] or "task"
+            taken = {t["id"] for t in tasks.all_tasks()}
+            while slug in taken:
+                slug = f"{slug}-2"
+            tasks.create(slug, part, goal=cmd.get("goal"), assigned_worker=cmd.get("worker"))
+            made_parts.append(part)
+        return f"{len(made_parts)} tasks queued — {speech.and_list(made_parts)}"
     if kind == "task_new":
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
@@ -2344,8 +2934,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # (2026-09-24). The journal is append-only, so a forgotten note
             # gets a tombstone line the readers honour.
             gone = _forget_note(about)
+            if not gone:
+                # "Forget the plumber note" (2026-10-07): "note" is what it
+                # is, not what it says.
+                bare = re.sub(r"^(?:the|my|that) |\s+(?:note|reminder|thing)s?$", "", about, flags=re.IGNORECASE).strip()
+                gone = _forget_note(bare) if bare and bare != about else ""
             if gone:
-                return f"Forgotten: {gone}."
+                return f"Forgotten: {speech.as_she_says_it(gone)}."
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.
@@ -2600,16 +3195,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # An empty store still proves the store: "(empty)" out loud is
             # a bare parenthesis, and it reads as "you have no files"
             # rather than "the directory I write into is new".
-            where = cmd.get("subdir") or "her workspace"
-            return (f"nothing in {where} yet - that is the folder she "
-                    f"writes into, not where your own files are")
+            # Said TO him, so first person: "her workspace" read out by her
+            # is somebody else's (2026-10-07).
+            where = cmd.get("subdir") or "my workspace"
+            return (f"Nothing in {where} yet - that's the folder I write into, "
+                    f"not where your own files are.")
         return ", ".join(r["path"] for r in rows[:40])
 
     if kind == "file_find":
         from aletheia import files as files_mod
         try:
             result = files_mod.search(str(cmd.get("query") or ""),
-                                      place=str(cmd.get("place") or ""))
+                                      place=str(cmd.get("place") or ""),
+                                      since=str(cmd.get("since") or ""))
         except files_mod.FilesError as exc:
             # Said in English: this is read out in a room.
             return str(exc)
@@ -2643,6 +3241,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import mail
         _mail_or_refuse(mail)
         return mail.check_unread()
+    if kind == "texts_read":
+        return _texts_answer(str(cmd.get("who") or ""))
     if kind == "email_read":
         from aletheia import mail
         _mail_or_refuse(mail)
@@ -2701,6 +3301,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said += " Pencilled in already: " + speech.and_list(
                 [f"{h['title']} {calendar_reasoning.human(h['start'])}" for h in held[:3]]) + "."
         return said
+    if kind == "hold_release":
+        from aletheia import calendar as _calendar, calendar_reasoning
+        event_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["start"]))
+        try:
+            held = _calendar.load(event_id)
+        except (OSError, ValueError):
+            held = None
+        if not held or held.get("status") == "CANCELLED":
+            return f"hold none released — there's no hold for {cmd['title']} at that time"
+        calendar_reasoning.release_hold(event_id, why="released: he cancelled it")
+        return f"hold {event_id} released — {held.get('title')} {calendar_reasoning.human(held['start'])}"
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
         import datetime as _dt
@@ -2715,11 +3326,30 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             end = end if end.tzinfo else end.replace(tzinfo=localtime.operator_tz())
         else:
             end = start + _dt.timedelta(minutes=int(cmd.get("minutes") or 60))
+        # "Make it 8": the hold he just made, moved. The old one is released
+        # first (so it cannot clash with its own new time) and put back if
+        # the new time is refused - he is never left with neither.
+        old = None
+        if cmd.get("replaces"):
+            try:
+                from aletheia import calendar as _calendar
+                old_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["replaces"]), cmd.get("thread") or "")
+                old = _calendar.load(old_id)
+                if old and old.get("status") != "CANCELLED":
+                    calendar_reasoning.release_hold(old_id, why="moved: he gave it a new time")
+                else:
+                    old = None
+            except Exception:  # noqa: BLE001
+                old = None
         held = calendar_reasoning.hold(cmd["title"], start.isoformat(), end.isoformat(),
                                        location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
         if not held.get("event"):
+            if old:
+                calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
+                                        location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
-        return (f"Pencilled in {held['event']['title']} {calendar_reasoning.human(held['event']['start'])}, "
+        return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
+                f"{'to ' if old else ''}{calendar_reasoning.human(held['event']['start'])}, "
                 "tentative, on your calendar here only.")
     if kind == "calendar_propose":
         from aletheia import conversations
@@ -2962,6 +3592,41 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="once", at=cmd["at"])
         return f"reminder {sid} set for {cmd['at']} — {cmd['text'][:80]!r}{moved}"
+    if kind == "remind_daily" and cmd.get("every") not in (None, 1, "1"):
+        # "EVERY OTHER DAY", "every 3 days": the interval kind, anchored at
+        # the next time it comes round in his timezone.
+        from aletheia import scheduler
+        import uuid as _uuid
+        every = int(cmd["every"])
+        if not 2 <= every <= 90:
+            raise act.Refused("I can repeat a reminder every 2 to 90 days.")
+        sid = "remind-every-" + _uuid.uuid4().hex[:8]
+        anchor = _first_at(cmd["time"], cmd.get("tz"))
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="interval", every_minutes=every * 1440, anchor=anchor)
+        return f"reminder {sid} set every {every} days from {anchor} — {cmd['text'][:80]!r}"
+    if kind == "remind_every":
+        from aletheia import scheduler
+        import datetime as _dt, uuid as _uuid
+        minutes = int(cmd["minutes"])
+        if not 15 <= minutes <= 720:
+            raise act.Refused("I can repeat a reminder every 15 minutes to every 12 hours within the day.")
+        sid = "remind-every-" + _uuid.uuid4().hex[:8]
+        anchor = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="interval", every_minutes=minutes, anchor=anchor.isoformat())
+        return f"reminder {sid} set every {minutes} minutes from {anchor.isoformat()} — {cmd['text'][:80]!r}"
+    if kind == "remind_monthly":
+        from aletheia import scheduler
+        import uuid as _uuid
+        day = int(cmd["day"])
+        if not 1 <= day <= 31:
+            raise act.Refused("a day of the month is 1 to 31.")
+        sid = "remind-monthly-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
+                         time=cmd["time"], monthday=day)
+        return f"monthly reminder {sid} set for day {day} at {cmd['time']} — {cmd['text'][:80]!r}"
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid
@@ -2970,6 +3635,20 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                          kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
         return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
+    if kind == "remind_weekly" and cmd.get("every") not in (None, 1, "1"):
+        # "EVERY OTHER MONDAY", "every 2 weeks": one day, the interval kind.
+        from aletheia import scheduler
+        import uuid as _uuid
+        every = int(cmd["every"])
+        days = _weekday_numbers(cmd["days"])
+        if len(days) != 1 or not 2 <= every <= 12:
+            raise act.Refused("I can repeat a reminder every 2 to 12 weeks on one day.")
+        sid = "remind-every-" + _uuid.uuid4().hex[:8]
+        anchor = _first_at(cmd["time"], cmd.get("tz"), weekday=days[0])
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="interval", every_minutes=every * 10080, anchor=anchor)
+        return (f"reminder {sid} set every {every} weeks on {_weekday_words(days)} "
+                f"from {anchor} — {cmd['text'][:80]!r}")
     if kind == "remind_weekly":
         from aletheia import scheduler
         import uuid as _uuid
@@ -2983,15 +3662,31 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 f"{_weekday_words(days)} at {cmd['time']} — {cmd['text'][:80]!r}")
     if kind == "reminders":
         return _reminders_answer(cmd.get("which", ""))
+    if kind == "reminder_on":
+        return _reminder_back_on(str(cmd["which"]))
     if kind == "reminder_off":
         from aletheia import scheduler
+        # "TURN OFF ALL MY ALARMS" - every one of that sort, each disabled
+        # (never deleted), so each can be put back. Only the three sorts he
+        # can name: alarms, timers, or everything that reminds him.
+        every = {"all alarms": "wake up", "all timers": "timer is up", "all reminders": ""}.get(
+            " ".join(str(cmd["which"]).casefold().split()))
+        if every is not None:
+            rows = [r for r in _reminder_schedules()
+                    if every in str((r.get("command") or {}).get("text") or "").casefold()]
+            if not rows:
+                return f"reminder none off — you have no {cmd['which'][4:]} set"
+            for row in rows:
+                scheduler.set_enabled(row["id"], False)
+            return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), cmd['which'][4:].rstrip('s'))}: "
+                    + speech.and_list([_reminder_words(r) for r in rows[:4]]))
         found, why = _one_reminder(cmd["which"])
         if found is None:
             raise act.Refused(why)
         # DISABLED, never deleted: "actually put that back" has to be one
         # command, and a deleted schedule cannot be put back at all.
         scheduler.set_enabled(found["id"], False)
-        return f"reminder {found['id']} off — {_reminder_words(found)}"
+        return f"reminder {found['id']} off — {_reminder_words(found, receipt=True)}"
     if kind == "notify_snooze":
         from aletheia import notifications, scheduler
         import uuid as _uuid
@@ -3082,11 +3777,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "meet":
         from aletheia import scheduling
         import datetime as _dt, re as _re
-        start = cmd.get("from_day") or _dt.date.today().isoformat()
-        end = cmd.get("to_day") or (_dt.date.today() + _dt.timedelta(days=7)).isoformat()
+        today = localtime.today()
+        start = cmd.get("from_day") or today.isoformat()
+        end = cmd.get("to_day") or (today + _dt.timedelta(days=7)).isoformat()
         slug = _re.sub(r"[^a-z0-9]+", "-", cmd["person"].lower()).strip("-")[:30]
         record = scheduling.start(
-            f"meet-{slug}-{_dt.date.today().isoformat()}"[:60], cmd["person"],
+            f"meet-{slug}-{today.isoformat()}"[:60], cmd["person"],
             start_day=start, end_day=end, timezone=localtime.operator_timezone(),
             duration_minutes=int(cmd.get("minutes", 30)),
             purpose=cmd.get("purpose", ""))
@@ -3113,7 +3809,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for one, key, value in _remembered_matching(loose, cmd.get("domain"))[:4]:
                 found.append(f"{one}: {key} is {value}")
         if not found:
-            return f"I don't have anything remembered about {about!r}."
+            # "My sister's name is Jenna" is a NOTE, and "what do you know
+            # about Jenna" read only the remembered facts and said there was
+            # nothing (2026-10-07) - a store with a writer and no reader.
+            # Her contacts and his notes are asked too.
+            try:
+                from aletheia import quick
+                said = quick._who_named(str(about))
+            except Exception:
+                said = None
+            if said:
+                return said
+            return f"I don't have anything remembered about {str(about).strip()}."
         return "; ".join(found[:4])
     if kind == "brief":
         from aletheia import brief, journal as _j, pulse as _p
@@ -3125,6 +3832,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # bare KeyError, which he heard as "I couldn't: 'generated_at'".
             # No command out loud: the reading comes on its own, every few
             # hours, from the fleet's own workflow.
+            # "Catch me up" with no fleet reading still has HIS day to tell
+            # (2026-10-07: it said there was nothing to give).
+            try:
+                from aletheia import quick
+                his_day = " ".join(x for x in (quick._waiting(), quick._plan_today()) if x)
+            except Exception:
+                his_day = ""
+            if his_day:
+                return his_day + " No fleet reading yet; one comes on its own within a few hours."
             return ("I haven't got a fleet reading yet, so there is no brief to "
                     "give you. One comes on its own within a few hours.")
         return brief.compose(current, brief.previous_pulse(current),
@@ -3135,45 +3851,93 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         request = handler.create(f"handle-{_uuid.uuid4().hex[:8]}", intent=cmd["text"])
         return (f"I'm on it: {request['intent'][:80]}. "
                 f"State is {request['state'].lower().replace('_', ' ')}.")
+    if kind == "place_add":
+        from aletheia import places
+        import re as _re
+        name = " ".join(str(cmd["name"]).split())
+        address = " ".join(str(cmd["address"]).split()).rstrip(".")
+        pid = _re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") or "place"
+        try:
+            places.create(pid, name, address=address, provenance=f"operator via voice/intercom: {quote[:100]}")
+        except FileExistsError:
+            places.update(pid, address=address)
+        return f"place {pid} saved — {name}: {address}"
     if kind == "travel_time":
         from aletheia import places
         try:
-            destination = places.resolve(cmd["place"])
+            try:
+                destination = places.resolve(cmd["place"])
+            except KeyError:
+                # "how long to the gym" asks for "the gym"; he saved "gym".
+                bare = re.sub(r"^(?:the|my|our) ", "", " ".join(str(cmd["place"]).casefold().split()))
+                if bare == " ".join(str(cmd["place"]).casefold().split()):
+                    raise
+                destination = places.resolve(bare)
         except KeyError:
             # `KeyError: "no place matches 'airport'"` reached the room
             # verbatim, quotes and all. He cannot act on that; he can act
             # on being told to name the place once.
+            place = str(cmd["place"])
+            named = f"the {place}" if re.fullmatch(r"[a-z]+", place) and place not in ("work", "home", "school", "church") else place
             raise act.Refused(
-                f"I don't know where {cmd['place']} is. Tell me the address "
-                "once and I'll remember it.") from None
+                f"I don't know where {named} is. Say \"{named} is at\" and the address, "
+                "and I'll remember it.") from None
         except LookupError:
             raise act.Refused(
                 f"More than one place answers to {cmd['place']!r} — which "
                 "one do you mean?") from None
+        said = places.called(destination["name"])
+        where = (f"{said[:1].upper()}{said[1:]} is at {destination['address']}"
+                 if destination.get("address") else f"I know {destination['name']}")
         try:
             home = places.resolve("home")
         except Exception:
-            return (f"I know {destination['name']}, but I have no place called "
-                    "'home' to measure from — add one first.")
-        try:
-            observed = places.travel_time(home["id"], destination["id"])
-        except (ValueError, OSError):
-            # §104: never invent a duration. An unobserved trip is unknown.
-            return (f"I know {destination['name']} but have never observed a "
-                    "journey to it, so any number would be a guess.")
+            home = None
+        observed = None
+        if home:
+            try:
+                observed = places.travel_time(home["id"], destination["id"])
+            except (ValueError, OSError):
+                observed = None
+        if not observed:
+            # §104: never invent a duration. An unobserved trip is unknown,
+            # but where it is is not, and that is half of what he asked.
+            if not home:
+                return f"{where}. I have no home address to measure from, so I won't guess how long it takes."
+            return f"{where}. I've never timed the trip there, so I won't guess how long it takes."
         return (f"{destination['name']}: {observed.get('minutes', '?')} minutes "
                 f"observed {observed.get('observed_at', 'previously')}.")
     if kind == "shopping_add":
         from aletheia import shopping
         import re as _re, uuid as _uuid
         budget = float(cmd["budget"]) if cmd.get("budget") else None
-        added = []
+        # "Add eggs", then "no, I meant milk": the item he just added comes
+        # off, and only when it really is on the list.
+        swapped = ""
+        if cmd.get("replaces"):
+            try:
+                execute_command({"kind": "shopping_off", "item": str(cmd["replaces"])}, fleet, quote=quote)
+                swapped = str(cmd["replaces"])
+            except Exception:  # noqa: BLE001
+                swapped = ""
+        added, already = [], []
+        on_it = {" ".join(str(r.get("need", "")).split()).casefold() for r in _shopping_items()}
         for item in shopping_items_of(cmd["item"]):
+            # "Add milk" with milk already on it made two milks (2026-10-07).
+            if " ".join(item.split()).casefold() in on_it and not swapped:
+                already.append(item)
+                continue
+            on_it.add(" ".join(item.split()).casefold())
             slug = _re.sub(r"[^a-z0-9]+", "-", item.lower()).strip("-")[:30]
             workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
                                        need=item, budget=budget)
             added.append(str(workflow["need"]))
-        return f"Added to the shopping list: {speech.and_list(added)}."
+        if swapped:
+            return f"Swapped {swapped} for {speech.and_list(added)} on the shopping list."
+        if not added:
+            return f"Already on your shopping list: {speech.and_list(already)}."
+        return (f"Added to the shopping list: {speech.and_list(added)}."
+                + (f" Already on it: {speech.and_list(already)}." if already else ""))
     if kind == "contacts":
         return _contacts_answer(cmd.get("which", ""))
     if kind == "watches":
@@ -3182,6 +3946,20 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _applications_answer()
     if kind == "shopping_list":
         return shopping_answer()
+    if kind == "stopwatch":
+        from aletheia import stopwatch
+        return stopwatch.act(str(cmd["action"]))
+    if kind == "stopwatch_read":
+        from aletheia import stopwatch
+        return stopwatch.spoken()
+    if kind == "speaking_pace":
+        from aletheia import speaking_pace
+        return speaking_pace.act(str(cmd["action"]))
+    if kind == "speaking_pace_read":
+        from aletheia import speaking_pace
+        return speaking_pace.spoken()
+    if kind in ("list_new", "list_add", "list_read", "list_off"):
+        return _named_list(kind, cmd)
     if kind == "shopping_off":
         from aletheia import shopping
         if str(cmd["item"]).casefold().strip() in SHOPPING_EVERYTHING:
@@ -3200,6 +3978,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if found is None:
             raise act.Refused(why)
         shopping.cancel(found["id"])
+        same = " ".join(str(found.get("need", "")).split()).casefold()
+        for row in _shopping_items():
+            if row.get("id") != found["id"] and " ".join(str(row.get("need", "")).split()).casefold() == same:
+                shopping.cancel(row["id"])
         return f"shopping item {found['id']} off — {found['need']}"
     if kind == "subscriptions":
         from aletheia import subscriptions
@@ -3331,6 +4113,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _jobs_answer(cmd)
     if kind == "free_time":
         return free_time_answer(cmd)
+    if kind == "contact_remove":
+        from aletheia import contacts
+        rows = contacts.all_contacts()
+        try:
+            person = contacts.resolve(cmd["name"], rows)
+        except (KeyError, ValueError):
+            return f"contact none removed — you have no contact called {cmd['name']}"
+        except LookupError:
+            raise act.Refused(f"More than one contact answers to {cmd['name']} - which one?") from None
+        contacts.update(person["id"], tags=sorted(set(person.get("tags") or []) | {contacts.REMOVED}))
+        return f"contact {person['id']} removed — {person.get('display_name') or person['id']}"
     if kind == "contact_add":
         from aletheia import contacts, mail as mail_mod, messages as _messages
         import re as _re
@@ -3357,7 +4150,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                             aliases=aliases,
                             provenance=f"operator via voice/intercom: {quote[:100]}")
         except FileExistsError:
-            changes = {}
+            # Taken out earlier and said again: back in, as he says it now.
+            changes = {"tags": [t for t in (contacts.load(cid).get("tags") or []) if t != contacts.REMOVED]}
             if addr:
                 changes["emails"] = [addr]
             if phone:

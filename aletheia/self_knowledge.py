@@ -323,7 +323,24 @@ def relevant(question: str, *, limit: int = DEFAULT_LIMIT,
     scored.sort(key=lambda row: (row[0], row[1]["status"] == "AVAILABLE",
                                  _named_by_him(row[1])),
                 reverse=True)
-    return [_shape(entry, with_steps=True) for _value, entry in scored[:limit]]
+    # HALF A CAPABILITY IS NOT THE CAPABILITY. "Can you control my lights"
+    # answered "Yes - validate a room scene" (2026-10-07): `room.scene.plan`
+    # is AVAILABLE, the `room.scene` that actually switches a light needs
+    # setting up. A child that is ready under a parent that is not answers
+    # for the parent, unless he named the child's own part ("plan").
+    by_id = {e.get("id"): e for e in registry.get("capabilities", [])}
+    seen, ranked = set(), []
+    for value, entry in scored:
+        parent = by_id.get(str(entry.get("id", "")).rsplit(".", 1)[0]) if "." in str(entry.get("id", "")) else None
+        if (parent is not None and parent is not entry and entry.get("status") == "AVAILABLE"
+                and parent.get("status") != "AVAILABLE"
+                and not set(_words(str(entry["id"]).rsplit(".", 1)[1])) & set(terms)):
+            entry = parent
+        if entry.get("id") in seen:
+            continue
+        seen.add(entry.get("id"))
+        ranked.append(entry)
+    return [_shape(entry, with_steps=True) for entry in ranked[:limit]]
 
 
 def overview(registry: dict | None = None) -> dict:

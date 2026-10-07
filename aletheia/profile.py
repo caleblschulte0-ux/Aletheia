@@ -455,7 +455,7 @@ def set_answer(field: str, value, *, source: str = "operator") -> dict:
 # Parsed, not pasted. These values are typed into form fields, and
 # "Hartford, SD 57033" in a box labelled City is the same class of wrong
 # as a phone number with two extra digits on the front.
-_FROM_MEMORY = ("full_name", "operator_name", "home_city")
+_FROM_MEMORY = ("full_name", "operator_name", "home_city", "zip_code", "postal_code")
 
 
 def _split_place(value: str) -> dict:
@@ -502,6 +502,10 @@ def from_memory() -> dict:
             held.update(_split_name(value))
         elif key == "operator_name":
             held.setdefault("preferred_name", str(value).strip())
+        elif key in ("zip_code", "postal_code"):
+            # "My zip code is 78701" (2026-10-07): the weather asked for it
+            # and saying it went to the planner. A city's own zip wins.
+            held.setdefault("postal_code", str(value).strip())
     return {k: v for k, v in held.items() if k in FIELDS and v}
 
 

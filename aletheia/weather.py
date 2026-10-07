@@ -30,6 +30,7 @@ is the round trip this file exists to remove.
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 
@@ -41,6 +42,22 @@ AGENT = "Aletheia personal assistant (local, single user)"
 
 POINT_URL = "https://api.zippopotam.us/us/{zip}"
 GRID_URL = "https://api.weather.gov/points/{lat},{lon}"
+# A town by NAME ("what's the weather in Chicago"), same terms as the two
+# above: free, no key, no account. Asked for the United States only,
+# because the forecast behind it covers nowhere else.
+GEOCODE_URL = ("https://geocoding-api.open-meteo.com/v1/search?name={name}"
+               "&count=10&countryCode=US&language=en&format=json")
+
+_STATE_PAIRS = dict(pair.split(":") for pair in (
+    "al:alabama ak:alaska az:arizona ar:arkansas ca:california co:colorado ct:connecticut "
+    "de:delaware fl:florida ga:georgia hi:hawaii id:idaho il:illinois in:indiana ia:iowa "
+    "ks:kansas ky:kentucky la:louisiana me:maine md:maryland ma:massachusetts mi:michigan "
+    "mn:minnesota ms:mississippi mo:missouri mt:montana ne:nebraska nv:nevada nh:new_hampshire "
+    "nj:new_jersey nm:new_mexico ny:new_york nc:north_carolina nd:north_dakota oh:ohio "
+    "ok:oklahoma or:oregon pa:pennsylvania ri:rhode_island sc:south_carolina sd:south_dakota "
+    "tn:tennessee tx:texas ut:utah vt:vermont va:virginia wa:washington wv:west_virginia "
+    "wi:wisconsin wy:wyoming dc:district_of_columbia").split())
+_STATES = {k: v.replace("_", " ") for k, v in _STATE_PAIRS.items()}
 
 # A forecast is issued hourly and does not move in between. Long enough
 # that asking twice costs one call, short enough to still be today's.
@@ -77,6 +94,23 @@ def where_he_is() -> tuple[str, str]:
         state = str(profile.answer("state") or "").strip()
     except Exception:
         code, city, state = "", "", ""
+    if not code:
+        # "My zip code is 80202" by voice is kept in her memory of him.
+        try:
+            from aletheia import memory
+            entry = ((memory.everything() or {}).get("identity") or {}).get("postal_code")
+            code = str((entry.get("value") if isinstance(entry, dict) else entry) or "").strip()
+        except Exception:
+            code = ""
+    if not city:
+        # "I live in Austin" by voice is kept as he said it, which the
+        # profile's "City, ST" parser does not read.
+        try:
+            from aletheia import memory
+            entry = ((memory.everything() or {}).get("identity") or {}).get("home_city")
+            city = str((entry.get("value") if isinstance(entry, dict) else entry) or "").strip()
+        except Exception:
+            city = ""
     name = ", ".join([p for p in (city, state) if p]) or "where you live"
     return code, name
 
@@ -87,11 +121,55 @@ def _point(code: str) -> tuple[float, float, str]:
         place = (data.get("places") or [])[0]
         return (float(place["latitude"]), float(place["longitude"]),
                 f"{place['place name']}, {place['state abbreviation']}")
+    except OSError as exc:
+        # No network is not a wrong postcode, and saying it was sent him to
+        # correct a zip code that was fine (2026-10-07).
+        raise WeatherUnavailable(
+            "I couldn't reach the weather service just now - the internet may be down. "
+            "Everything else still works.") from exc
     except Exception as exc:
         raise WeatherUnavailable(
             f"I couldn't turn {code} into a place ({type(exc).__name__}). "
             "The postal code on file may be wrong — tell me where you live "
             "and I'll remember it.") from None
+
+
+def place_point(place: str) -> tuple[float, float, str]:
+    """A town he names, as (lat, lon, "Town, State").
+
+    The largest town of that name wins unless he names the state, and the
+    answer always SAYS which one it read - "Springfield, Illinois" - so a
+    wrong pick is caught in one syllable rather than believed.
+    """
+    said = " ".join(str(place or "").replace(",", " ").split())
+    if re.fullmatch(r"\d{5}", said):
+        return _point(said)
+    words, state = said.split(), None
+    for n in (3, 2, 1):
+        tail = " ".join(words[-n:]).casefold()
+        if len(words) > n and (tail in _STATES.values() or (n == 1 and tail in _STATES)):
+            state, words = _STATES.get(tail, tail), words[:-n]
+            break
+    city = " ".join(words)
+    try:
+        data = _get(GEOCODE_URL.format(name=urllib.parse.quote(city)))
+    except OSError as exc:
+        raise WeatherUnavailable(
+            "I couldn't reach the weather service just now - the internet may be down. "
+            "Everything else still works.") from exc
+    except Exception:
+        data = {}
+    rows = [r for r in (data.get("results") or []) if isinstance(r, dict) and r.get("country_code") == "US"
+            and r.get("latitude") is not None and r.get("longitude") is not None]
+    if state:
+        rows = [r for r in rows if str(r.get("admin1") or "").casefold() == state]
+    if not rows:
+        raise WeatherUnavailable(
+            f"I couldn't find a place called {said.title()} in the United States - "
+            "the forecast I read covers the US only.")
+    best = max(rows, key=lambda r: r.get("population") or 0)
+    label = ", ".join(x for x in (str(best.get("name") or city.title()), str(best.get("admin1") or "")) if x)
+    return float(best["latitude"]), float(best["longitude"]), label
 
 
 def _periods(lat: float, lon: float) -> list[dict]:
@@ -107,8 +185,13 @@ def _periods(lat: float, lon: float) -> list[dict]:
         ) from None
 
 
-def forecast(*, fresh: bool = False) -> dict:
-    """Today and the next few periods, cached for half an hour."""
+def forecast(*, fresh: bool = False, place: str = "") -> dict:
+    """Today and the next few periods, cached for half an hour. A `place`
+    he names is looked up fresh and never replaces his own cached forecast."""
+    if place:
+        lat, lon, resolved = place_point(place)
+        return {"at": stateio.utcnow(), "place": resolved, "periods": _periods(lat, lon)[:14],
+                "lat": lat, "lon": lon}
     if not fresh:
         try:
             cached = stateio.read_json(_cache_path())
@@ -124,14 +207,10 @@ def forecast(*, fresh: bool = False) -> dict:
             pass
 
     code, name = where_he_is()
-    if not code:
-        raise WeatherUnavailable(
-            "I don't know where you are. Tell me your postcode and I'll "
-            "remember it, and then I can just answer this.")
-    lat, lon, resolved = _point(code)
+    lat, lon, resolved = _home_point(code, name)
     periods = _periods(lat, lon)
     value = {"at": stateio.utcnow(), "place": resolved or name,
-             "periods": periods[:6]}
+             "periods": periods[:14], "lat": lat, "lon": lon}
     try:
         stateio.write_json_atomic(_cache_path(), value)
     except Exception:
@@ -139,7 +218,7 @@ def forecast(*, fresh: bool = False) -> dict:
     return value
 
 
-def spoken(when: str = "") -> str:
+def spoken(when: str = "", place: str = "") -> str:
     """One sentence, out loud. Never raises — it says what went wrong.
 
     `when` is his word: nothing for now, or "tomorrow"/"tonight". A
@@ -148,7 +227,7 @@ def spoken(when: str = "") -> str:
     rather than picking something and sounding certain.
     """
     try:
-        data = forecast()
+        data = forecast(place=place) if place else forecast()
     except WeatherUnavailable as exc:
         return str(exc)
     except Exception as exc:
@@ -160,8 +239,46 @@ def spoken(when: str = "") -> str:
         return "The weather service gave me nothing back just now."
 
     wanted = " ".join(str(when or "").split()).casefold()
-    chosen = periods[0]
-    if wanted:
+    chosen = _periods_for(periods, wanted)
+    if isinstance(chosen, str):
+        return chosen
+    lines = []
+    for i, period in enumerate(chosen):
+        name = str(period.get("name") or "").strip()
+        temp = period.get("temperature")
+        short = str(period.get("shortForecast") or "").strip().rstrip(".")
+        lead = "Right now" if period is periods[0] and not wanted else name
+        lines.append(f"{lead} in {data['place']}: {short}, {temp} degrees." if i == 0
+                     else f"{lead}: {short}, {temp} degrees.")
+    return " ".join(lines)
+
+
+_WEEKEND = ("this weekend", "the weekend", "weekend", "over the weekend")
+_WET = ("rain", "shower", "storm", "drizzle", "snow", "sleet", "thunder")
+
+
+def _periods_for(periods: list, wanted: str):
+    """The period(s) his word names, or a sentence saying the forecast
+    does not reach that far. The weekend is two days, so it is two."""
+    if not wanted:
+        return [periods[0]]
+    if wanted in _WEEKEND:
+        days = [p for p in periods if p.get("isDaytime", True) and
+                str(p.get("name", "")).casefold() in ("saturday", "sunday", "today")]
+        if periods and str(periods[0].get("name", "")).casefold() == "today":
+            # "Today" is only the weekend when today is Saturday or Sunday.
+            import datetime as dt
+            if dt.date.today().weekday() < 5:
+                days = [p for p in days if str(p.get("name", "")).casefold() != "today"]
+        if not days:
+            return "The forecast doesn't reach the weekend yet - ask me again in a day or two."
+        return days[:2]
+    if wanted in ("this week", "the week", "the rest of the week", "week", "the next few days", "next few days"):
+        # "What's the weather this week" (2026-10-07: to the planner) - the
+        # daytime periods ahead, as far as the forecast reaches.
+        days = [p for p in periods if p.get("isDaytime", True)]
+        return days[:5] or [periods[0]]
+    if wanted.startswith("tomorrow"):
         # TOMORROW IS NOT ONE OF THEIR WORDS. The service names
         # periods Today / Tonight / Wednesday / Wednesday Night, so
         # "tomorrow" matched nothing and the fallback answered with
@@ -169,24 +286,198 @@ def spoken(when: str = "") -> str:
         # question than the one he asked, answered confidently,
         # which is the kind he cannot catch. It is the first period
         # after tonight: arithmetic on the list, not a guess.
-        if wanted.startswith("tomorrow"):
-            later = [p for p in periods
-                     if str(p.get("name", "")).casefold()
-                     not in ("today", "tonight", "this afternoon",
-                             "this morning", "overnight")]
-            if not later:
-                return ("I only have today's forecast just now — "
-                        "ask me again later and I'll have tomorrow's.")
-            chosen = later[0]
-        else:
-            for period in periods:
-                if wanted in str(period.get("name", "")).casefold():
-                    chosen = period
-                    break
+        later = [p for p in periods
+                 if str(p.get("name", "")).casefold()
+                 not in ("today", "tonight", "this afternoon",
+                         "this morning", "overnight")]
+        if not later:
+            return ("I only have today's forecast just now — "
+                    "ask me again later and I'll have tomorrow's.")
+        return [later[0]]
+    for period in periods:
+        if wanted in str(period.get("name", "")).casefold():
+            return [period]
+    return [periods[0]]
 
-    name = str(chosen.get("name") or "").strip()
-    temp = chosen.get("temperature")
-    unit = chosen.get("temperatureUnit") or "F"
-    short = str(chosen.get("shortForecast") or "").strip().rstrip(".")
-    lead = "Right now" if chosen is periods[0] and not wanted else name
-    return f"{lead} in {data['place']}: {short}, {temp} degrees."
+
+def rain(when: str = "") -> str:
+    """"Do I need an umbrella", "will it rain this weekend": yes or no
+    first, then the forecast it stands on. Never raises."""
+    try:
+        data = forecast()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    except Exception as exc:
+        return (f"I couldn't check the weather ({type(exc).__name__}). "
+                "Everything else still works.")
+    periods = data.get("periods") or []
+    if not periods:
+        return "The weather service gave me nothing back just now."
+    wanted = " ".join(str(when or "").split()).casefold()
+    chosen = _periods_for(periods, wanted)
+    if isinstance(chosen, str):
+        return chosen
+    if not wanted:
+        # "Today" for an umbrella means the rest of today, tonight included.
+        chosen = periods[:2]
+    wet = []
+    for period in chosen:
+        short = str(period.get("shortForecast") or "").strip().rstrip(".")
+        chance = (period.get("probabilityOfPrecipitation") or {}).get("value")
+        if any(w in short.casefold() for w in _WET) or (isinstance(chance, (int, float)) and chance >= 40):
+            wet.append((period, short, chance))
+    def said(period, short, chance):
+        bit = f"{period.get('name')}: {short}"
+        return bit + (f", {int(chance)}% chance" if isinstance(chance, (int, float)) and chance else "")
+    if wet:
+        return "Looks like it. " + "; ".join(said(*w) for w in wet) + "."
+    first = chosen[0]
+    return (f"Doesn't look like it. {said(first, str(first.get('shortForecast') or '').strip().rstrip('.'), (first.get('probabilityOfPrecipitation') or {}).get('value'))}"
+            f" in {data['place']}.")
+
+
+def _where_on_earth() -> tuple[float, float, str]:
+    """Latitude, longitude and a name: the cached forecast's, else looked up."""
+    try:
+        cached = stateio.read_json(_cache_path())
+        if cached.get("lat") is not None and cached.get("lon") is not None:
+            return float(cached["lat"]), float(cached["lon"]), str(cached.get("place") or "")
+    except Exception:
+        pass
+    code, name = where_he_is()
+    return _home_point(code, name)
+
+
+def _home_point(code: str, name: str) -> tuple[float, float, str]:
+    """Where he lives: his postcode, else the town he told her ("I live in
+    Austin", 2026-10-07: he said it and the weather still asked for a
+    postcode). The town is looked up by name and the answer names the
+    place it found, so a wrong Hartford is heard, not hidden."""
+    if code:
+        return _point(code)
+    if name and name != "where you live":
+        return place_point(name)
+    raise WeatherUnavailable(
+        # He is in the US and "postcode" is not his word; a town works too.
+        "I don't know where you are. Say \"my zip code is\" and the number, or "
+        "\"I live in\" and your town, and I'll remember it.")
+
+
+def sun_times(day=None, *, lat: float | None = None, lon: float | None = None):
+    """(sunrise, sunset) as aware UTC datetimes, computed here - no service.
+
+    The standard sunrise equation, good to a minute or two, which is all
+    "when does the sun set" needs. None for either when the sun does not
+    rise or set that day (far north or south).
+    """
+    import datetime as dt
+    import math
+    if lat is None or lon is None:
+        lat, lon, _ = _where_on_earth()
+    day = day or dt.date.today()
+    n = day.toordinal() - dt.date(2000, 1, 1).toordinal()
+    j_star = n - lon / 360.0
+    m = (357.5291 + 0.98560028 * j_star) % 360
+    mr = math.radians(m)
+    c = 1.9148 * math.sin(mr) + 0.02 * math.sin(2 * mr) + 0.0003 * math.sin(3 * mr)
+    lam = math.radians((m + c + 180 + 102.9372) % 360)
+    transit = 2451545.0 + j_star + 0.0053 * math.sin(mr) - 0.0069 * math.sin(2 * lam)
+    decl = math.asin(math.sin(lam) * math.sin(math.radians(23.4397)))
+    phi = math.radians(lat)
+    cos_w = ((math.sin(math.radians(-0.833)) - math.sin(phi) * math.sin(decl))
+             / (math.cos(phi) * math.cos(decl)))
+    if not -1 <= cos_w <= 1:
+        return None, None
+    w = math.degrees(math.acos(cos_w)) / 360.0
+
+    def when(julian: float):
+        return dt.datetime.fromtimestamp((julian - 2440587.5) * 86400, dt.timezone.utc)
+    return when(transit - w), when(transit + w)
+
+
+def spoken_sun(which: str, when: str = "") -> str:
+    """"Sunset is at 6:52 pm today." - in his timezone, never the process's."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    try:
+        lat, lon, place = _where_on_earth()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    today = dt.datetime.now(tz).date()
+    day = today + dt.timedelta(days=1) if when == "tomorrow" else today
+    rise, set_ = sun_times(day, lat=lat, lon=lon)
+    moment = rise if which == "rise" else set_
+    if moment is None:
+        return f"The sun doesn't {'rise' if which == 'rise' else 'set'} there that day."
+    clock = moment.astimezone(tz).strftime("%I:%M %p").lstrip("0").replace("AM", "am").replace("PM", "pm")
+    name = "Sunrise" if which == "rise" else "Sunset"
+    return f"{name} is at {clock} {'tomorrow' if day != today else 'today'}."
+
+
+_DETAIL_WHEN = ("today", "tonight", "this morning", "this afternoon", "this evening")
+
+
+def detail(what: str, when: str = "") -> str:
+    """Wind or humidity, out loud, from the same cached forecast. Never raises.
+
+    "How humid is it" and "is it windy" went to the planner while the
+    forecast she had already fetched carried both numbers. A period that
+    does not carry the number says so - it is never estimated.
+    """
+    try:
+        data = forecast()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    except Exception as exc:
+        return (f"I couldn't check the weather ({type(exc).__name__}). "
+                "Everything else still works.")
+    periods = data.get("periods") or []
+    if not periods:
+        return "The weather service gave me nothing back just now."
+    wanted = " ".join(str(when or "").split()).casefold()
+    chosen = periods[0]
+    if wanted.startswith("tomorrow"):
+        later = [p for p in periods
+                 if p.get("isDaytime", True)
+                 and str(p.get("name", "")).casefold() not in ("today", "this afternoon")]
+        if later:
+            chosen = later[0]
+    elif wanted == "tonight":
+        night = [p for p in periods if p.get("isDaytime") is False]
+        if night:
+            chosen = night[0]
+    label = str(chosen.get("name") or "")
+    when_said = _for(label)
+    if what == "humidity":
+        rh = chosen.get("relativeHumidity")
+        value = rh.get("value") if isinstance(rh, dict) else rh
+        if value is None:
+            return f"The forecast {when_said} doesn't say how humid it'll be."
+        value = int(round(float(value)))
+        feel = " - that's muggy" if value >= 75 else (" - pretty dry" if value <= 30 else "")
+        return f"Humidity's around {value}% {when_said}{feel}."
+    speed = str(chosen.get("windSpeed") or "").strip()
+    if not speed:
+        return f"The forecast {when_said} doesn't say what the wind is doing."
+    direction = _COMPASS.get(str(chosen.get("windDirection") or "").upper(), "")
+    numbers = [int(n) for n in re.findall(r"\d+", speed)]
+    top = max(numbers) if numbers else 0
+    feel = "It's windy" if top >= 20 else ("It's breezy" if top >= 12 else "Not much wind")
+    return f"{feel} {when_said}: {speed}" + (f" from the {direction}" if direction else "") + "."
+
+
+def _for(label: str) -> str:
+    """"today", "tonight", "this afternoon", "on Thursday" - or "right now"."""
+    low = label.casefold()
+    if not low:
+        return "right now"
+    if low in ("today", "tonight", "overnight") or low.startswith("this "):
+        return low
+    return f"on {label}"
+
+
+_COMPASS = {"N": "north", "NNE": "north", "NE": "northeast", "ENE": "east", "E": "east",
+            "ESE": "east", "SE": "southeast", "SSE": "south", "S": "south", "SSW": "south",
+            "SW": "southwest", "WSW": "west", "W": "west", "WNW": "west", "NW": "northwest",
+            "NNW": "north"}

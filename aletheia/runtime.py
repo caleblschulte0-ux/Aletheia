@@ -1347,6 +1347,11 @@ def run_approved_scripts() -> list[dict]:
     return done
 
 
+def _kick_shorts_mailbox(fleet: dict, now: dt.datetime) -> dict:
+    from aletheia import shorts_mailbox
+    return shorts_mailbox.kick(fleet, now=now)
+
+
 def _heal_local_ai() -> dict:
     from aletheia import local_model_pool
     return local_model_pool.ensure()
@@ -1416,6 +1421,10 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # The hunt's counts, published for the morning brief (which is composed
     # in the cloud and cannot see the records on this PC). Counts only.
     guarded("hunt_funnel", _publish_hunt_funnel)
+    # Shorts-pipeline's mailboxes, in his morning slots (his ruling,
+    # 2026-10-07: "two, three times in the morning, and that's it"). The beat
+    # only LAUNCHES a round in its own process; no model is asked in here.
+    shorts_mailbox_round = guarded("shorts_mailbox", lambda: _kick_shorts_mailbox(fleet, now))
     pulse_events = guarded("pulse", mirror_pulse_events)
     action_records = guarded("receipts", verification.reconcile_durable_receipts)
     reply_transitions = evaluate_replies(now=now)
@@ -1518,4 +1527,5 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "due_tasks": due_tasks,
         "applications_sent": applications_sent,
         "delivered": delivered,
+        "shorts_mailbox": shorts_mailbox_round,
     }

@@ -113,21 +113,35 @@ class TransportNeedsNoKeyCase(MusicCase):
 
 
 class ChoosingIsADifferentPromiseCase(MusicCase):
-    def test_naming_something_says_what_it_would_take(self):
-        for sentence in ("play the rolling stones", "put on some jazz",
-                         "play my discover weekly"):
+    def test_naming_something_opens_its_results_and_never_claims_to_play_it(self):
+        """She cannot choose in his player (media.choose is NOT_BUILT). What
+        she can do is open YouTube's results for it in his browser, and the
+        receipt says that is what happened - never "playing"."""
+        from aletheia import open_it
+        for sentence, words in (("play the rolling stones", "the rolling stones"), ("put on some jazz", "jazz")):
             with self.subTest(sentence=sentence):
-                got = self.said(sentence)
-                self.assertIsNone(got.get("command"), sentence)
-                self.assertIn("can't pick a particular song",
-                              got.get("say", ""), sentence)
+                got = self.said(sentence).get("command") or {}
+                self.assertEqual(got, {"kind": "open_page", "which": "youtube search " + words}, sentence)
+                self.assertEqual(open_it.page_for(got["which"])[1], "YouTube results for " + words)
+
+    def test_naming_his_own_player_still_says_what_it_would_take(self):
+        got = self.said("play the rolling stones on spotify")
+        self.assertIsNone(got.get("command"))
+        self.assertIn("can't pick a particular song", got.get("say", ""))
+
+    def test_his_own_playlist_is_his_player_not_a_search(self):
+        """"Play my Discover Weekly" is a list inside HIS player; YouTube's
+        results for the words "my discover weekly" are not it."""
+        got = self.said("play my discover weekly")
+        self.assertIsNone(got.get("command"))
+        self.assertIn("can't pick a particular song", got.get("say", ""))
 
     def test_the_signal_is_the_noun_not_the_word_some(self):
         """"Play some MUSIC" is transport; "put on some JAZZ" is a choice.
         Written against the word "some" it got this backwards."""
         self.assertEqual((self.said("play some music").get("command") or {})
                          .get("action"), "play")
-        self.assertIsNone(self.said("put on some jazz").get("command"))
+        self.assertNotEqual((self.said("put on some jazz").get("command") or {}).get("kind"), "music")
 
     def test_it_does_not_swallow_its_neighbours(self):
         for sentence in ("play devils advocate", "resume"):

@@ -1,5 +1,5 @@
 {
-  "revision": 117,
+  "revision": 122,
   "providers": [
     {
       "id": "aletheia.local",
@@ -102,7 +102,7 @@
       "approval_policy": "none",
       "caller": "pulse.yml (6-hourly) and CLI",
       "verification": "pulse names every registry repo or records why not",
-      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret â€” today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
+      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret — today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
       "module": "aletheia.pulse"
     },
     {
@@ -218,7 +218,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "CLI (aletheia.tasks); intercom wiring is the next milestone",
+      "caller": "CLI (aletheia.tasks); intercom kinds task_new, tasks, task_done, task_change and task_status, which he reaches by voice, phone or any compiled plan (\"add a task to ...\", \"what's due today\", \"move the plumber one to Friday\", \"delete ...\")",
       "verification": "state/tasks/*.json round-trips through contracts.validate_task",
       "module": "aletheia.tasks",
       "notes": "2026-09-03: a deadline is now READ. tasks.create accepted one, stored it, and no code in the system ever compared one to the clock - 'renew the registration by Friday' was a sentence in a file that would never come back, which is the whole difference between a task list and a graveyard. tasks.due() finds what is overdue or within 24h; runtime.surface_due_tasks() nudges once a DAY per task (once, and a 3am notice has reminded him of nothing; every beat, and it is a notification he turns off) via the local date in the dedupe key. A bare date means the END of that day in HIS timezone, because 'by Friday' is not Friday midnight UTC, which is Thursday evening where he lives. An unparseable deadline is now refused at create() - where the mistake is - instead of stored happily and silently never coming due."
@@ -232,7 +232,7 @@
       "approval_policy": "registry_grant",
       "caller": "aletheia.act CLI and intercom 'dispatch' commands",
       "verification": "next pulse shows the run",
-      "notes": "gated by front_door in config/fleet.json â€” default grants only Aletheia's own workflows"
+      "notes": "gated by front_door in config/fleet.json — default grants only Aletheia's own workflows"
     },
     {
       "id": "github.issue.create",
@@ -260,7 +260,7 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
       "approval_policy": "registry_grant",
-      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) â€” static partition, one executor per command",
+      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) — static partition, one executor per command",
       "verification": "every command gets a committed .result.json receipt",
       "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md",
       "module": "aletheia.intercom"
@@ -283,7 +283,7 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.computer.execute â€” reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
+      "caller": "aletheia.computer.execute — reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
       "module": "aletheia.computer",
       "verification": "run computer-6c7d4dd6357b, 2026-08-26T18:57Z: approval phase7-notepad-live-2 APPROVED by the operator in the Command Center; open_app/wait/focus/set_text all verified, typed text read back through UIA and matched exactly; 33 hermetic tests + tests/test_core_computer.py",
       "notes": "Live-verified on the operator's Windows 11 PC 2026-08-26. Two rounds of real acceptance found and fixed: PowerShell mangling the harness's embedded Python; set_edit_text absent on Win11's Document control (UIA Value pattern fallback with read-back verification); a window match that could reach operator documents (plans now scope to their own scratch file). Approvals remain operator_always, sha256-bound to the exact plan, consumed once even on failure."
@@ -319,7 +319,7 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice; runtime poll each Core beat (>=300s apart) turns new unread into private bus events and exact-match reply correlation — ambiguity refused, never guessed",
+      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL — runs on the PC) and voice; runtime poll each Core beat (>=300s apart) turns new unread into private bus events and exact-match reply correlation — ambiguity refused, never guessed",
       "verification": "live on the operator's PC 2026-08-26: IMAP login as openrangeinteractive@gmail.com succeeded, 185 unread listed via mail.check_unread; credentials in ~/.aletheia/mail.json (never the repo)",
       "notes": "Configured 2026-08-26 with an operator-supplied Gmail app password (revocable at myaccount.google.com/apppasswords).",
       "module": "aletheia.mail"
@@ -331,7 +331,7 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved — the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
       "verification": "live end to end on the operator's PC 2026-08-26: draft mail-a1e1957d0f -> operator_always approval decided with the operator's own word ('Approved', quoted in the decision) -> SMTP delivery -> exactly-once .sent receipt -> the message verified PRESENT in the inbox by independent IMAP read. Plus tests/test_mail.py (15) on the content-bound approval discipline.",
       "notes": "Credentials in ~/.aletheia/mail.json (app password, revocable). Every send remains operator_always, bound to the sha256 of the exact draft.",
       "module": "aletheia.mail"
@@ -458,7 +458,7 @@
     },
     {
       "id": "core.serve",
-      "description": "The local Core V0: persistent service on your PC â€” the internal API every surface shares, the one Thea page it serves at the root, and the ambient fleet wall behind it; loopback unauthenticated, anything remote needs a minted token and TLS",
+      "description": "The local Core V0: persistent service on your PC — the internal API every surface shares, the one Thea page it serves at the root, and the ambient fleet wall behind it; loopback unauthenticated, anything remote needs a minted token and TLS",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -475,7 +475,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "aletheia.core.start_sync_loop â€” on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
+      "caller": "aletheia.core.start_sync_loop — on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
       "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
       "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.sync"
@@ -522,8 +522,8 @@
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "interface/voice.js (Web Speech API, the ambient wall) and interface/thea-app.js via thea.js (the one Thea page, PC and phone alike) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
-      "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
-      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
+      "verification": "tests/test_voice.py: 15 tests — wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
       "module": "aletheia.voice"
     },
     {
@@ -540,14 +540,14 @@
     },
     {
       "id": "browser.interact",
-      "description": "Act on a web page â€” click, type, select, submit â€” inside your own authenticated session",
+      "description": "Act on a web page — click, type, select, submit — inside your own authenticated session",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.browse.interact â€” refuses without an APPROVED approval, before the browser opens",
+      "caller": "aletheia.browse.interact — refuses without an APPROVED approval, before the browser opens",
       "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
-      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (Â§61). 2026-09-03: the primitive checked only that its approval was APPROVED, never that the approval was issued for THIS url and THESE steps — so any approved id authorized any browser action, and an approval to click 'Next' on one site could be handed to a plan that pressed 'Place order' on another. The errand layer did its own hash check and was safe; nothing else was. Authorization now lives in the primitive (browse.approval_action = 'browser.interact:' + sha256 of {url, steps}), where a caller cannot forget it. work_session already minted approvals in exactly this shape; errands now do too.",
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (§61). 2026-09-03: the primitive checked only that its approval was APPROVED, never that the approval was issued for THIS url and THESE steps — so any approved id authorized any browser action, and an approval to click 'Next' on one site could be handed to a plan that pressed 'Place order' on another. The errand layer did its own hash check and was safe; nothing else was. Authorization now lives in the primitive (browse.approval_action = 'browser.interact:' + sha256 of {url, steps}), where a caller cannot forget it. work_session already minted approvals in exactly this shape; errands now do too.",
       "module": "aletheia.browse"
     },
     {
@@ -603,7 +603,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "python -m aletheia.assistant schedule add-once/add-interval/add-daily/add-weekly, python -m aletheia.scheduler list/due, and the remind_at / remind_daily / remind_weekly commands he can say out loud",
+      "caller": "python -m aletheia.assistant schedule add-once/add-interval/add-daily/add-weekly, python -m aletheia.scheduler list/due, and the remind_at / remind_daily / remind_weekly / remind_monthly / remind_every commands (every N days and every N weeks ride remind_daily and remind_weekly) he can say out loud",
       "verification": "exclusive occurrence receipts prevent duplicate claims",
       "module": "aletheia.scheduler"
     },
@@ -1863,10 +1863,43 @@
       "risk_class": "read",
       "approval_policy": "none",
       "provider": "aletheia.local",
-      "description": "What the weather is doing where you are",
-      "caller": "aletheia.quick 'weather' pattern (so voice, the phone and typed input); aletheia.weather.spoken",
-      "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label.",
+      "description": "What the weather is doing where you are, or in a US town you name",
+      "caller": "aletheia.quick 'weather' and 'weather_in' patterns (so voice, the phone and typed input); aletheia.weather.spoken",
+      "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label. || 2026-10-07: a town by NAME ('what's the weather in Chicago' went to the planner) - Open-Meteo's free geocoder, US only, the largest town of that name unless he names the state, and the answer always says which town it read.",
       "module": "aletheia.weather"
+    },
+    {
+      "id": "dictionary.define",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "Say what a word means, from a public dictionary",
+      "caller": "aletheia.quick 'define' pattern (so voice, the phone and typed input); aletheia.dictionary.spoken",
+      "notes": "Built 2026-10-07: 'define serendipity' and 'what does ubiquitous mean' went to the planner. The Free Dictionary API (api.dictionaryapi.dev, Wiktionary-derived), no key and no account; two senses at most, in the dictionary's own words, and a word it lacks is said to be unknown rather than filled in by a model. 'What does that mean' is about what she just said and is not looked up. EXPERIMENTAL until proven on his machine: the build container's proxy refuses the host, so it has only been run against a recorded entry.",
+      "module": "aletheia.dictionary"
+    },
+    {
+      "id": "news.read",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "Read you the headlines from public news feeds",
+      "caller": "aletheia.quick 'news' pattern (so voice, the phone and typed input); aletheia.news.spoken",
+      "notes": "Built 2026-10-07: 'what's the news' and 'tell me the news' went to the planner, which cannot know today's news. Public RSS feeds listed as data in config/news_feeds.json (NPR and the BBC to start), no key and no account. Every headline is read off a feed and named with its source; no model summarises. EXPERIMENTAL until proven on his machine: the build container's proxy refuses both feed hosts, so it has only been run against recorded feed XML.",
+      "module": "aletheia.news"
+    },
+    {
+      "id": "currency.convert",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "What an amount is worth in another currency, at today's published rate",
+      "caller": "aletheia.quick 'currency' pattern (voice, the phone and typed input: 'how much is 50 euros in dollars'); aletheia.fx.spoken",
+      "notes": "Registered and built 2026-10-07 from a no-model sweep: 'how much is 50 euros in dollars' went to a model, which cannot know today's rate and would answer from memory. The European Central Bank's daily reference rates, served by Frankfurter with NO KEY, cached for the day. When the service cannot be reached she says so and never offers a remembered rate. EXPERIMENTAL until it has answered once on his machine: the cloud session that built it could not reach the service through its proxy, so the live call is unproven.",
+      "module": "aletheia.fx"
     },
     {
       "id": "media.choose",
@@ -1876,7 +1909,7 @@
       "provider": "aletheia.local",
       "description": "Play a particular song, album or artist by name",
       "caller": "ticket - needs the Spotify Web API and his account: an OAuth consent like calendar_auth's, then search + play on his active device. He has Premium, which the playback endpoints require",
-      "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play is answered honestly - aletheia.music.cannot_choose."
+      "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play opens YouTube's results for it in his browser (open_page, his tap; the receipt says what opened, never that it is playing), and naming his own player is answered honestly - aletheia.music.cannot_choose."
     },
     {
       "id": "sms.read",
@@ -1885,7 +1918,7 @@
       "status": "EXPERIMENTAL",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.apply_run._texted_code, after the inbox comes up empty on a page asking for a verification code; python -m aletheia.gvoice check/recent/code",
+      "caller": "aletheia.apply_run._texted_code, after the inbox comes up empty on a page asking for a verification code; intercom kind texts_read (LOCAL, read-only) from voice: \"read my last text\", \"did Sam text me\"; python -m aletheia.gvoice check/recent/code",
       "module": "aletheia.gvoice",
       "verification": "tests/test_gvoice.py: every real SMS code shape is read where the email extractor caught one of six, a year or a price is refused, a signed-out page says NOT SIGNED IN rather than reporting no messages, a code older than ten minutes or one she cannot date is refused, and an AST walk holds that she reads and never replies",
       "notes": "Built 2026-09-13. The signup number is a Google Voice line, and half of what she signs up for sends its code by TEXT - so an account got as far as 'we sent you a code' and stopped, with the code in a tab he would have to read himself. Read through the authorized Chrome profile browse already uses, because Google Voice has no public API for a personal account and there are no API keys anywhere. UNPROVEN against the real voice.google.com: the parsing is written from the page's visible text and Google changes that without notice, so a run that finds nothing reports 'nothing readable' rather than 'no messages'. Codes are refused when older than ten minutes, the lesson from 2026-09-12 on the mail path, where an hour-old code was typed in and the form's refusal read like a broken form rather than a stale code. She reads and never sends: replying as him is a different capability with a different risk."
@@ -1925,6 +1958,18 @@
       "module": "aletheia.careers",
       "verification": "tests/test_the_net_is_wider_than_big_tech.py: a page about working somewhere is not a page to apply on, 'no current openings' is an answer rather than a failure, an unreadable page is neither, a relative link becomes a real address, an ATS link is handed back to jobs.job_from_url rather than reimplemented, a mailto is dropped rather than faked into something the form path can use, an aggregator's page about the company is not the company's page, and an AST walk holds that it reads and never presses",
       "notes": "Built 2026-09-13 from his words: 'there are companies all over the country that only have [jobs] on their website. Like, I've never heard of that I probably would like to work at.' jobs.ATS reaches six applicant-tracking systems - thousands of employers, but every one of them an employer who bought an ATS. UNPROVEN against a real careers page: company sites are far more varied than any ATS and the first real sweep is where that shows. Asked LAST and bounded by CAREERS_PAGES_PER_RUN, because a board is one API call for all its jobs and a careers page is a page read per company. Applying by email is NOT built: a mailto row is dropped rather than passed to a stager that cannot use it."
+    },
+    {
+      "id": "shorts.mailbox.answer",
+      "description": "Answer the Shorts pipeline's three mailboxes from your PC - grade a held render from its frames, rewrite a held story's words, answer a text ask - writing only the answer files the pipeline already accepts from me",
+      "provider": "github.api",
+      "status": "UNAVAILABLE",
+      "risk_class": "low",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.runtime tick (guarded 'shorts_mailbox') launches python -m aletheia.shorts_mailbox once in each of his morning slots; python -m aletheia.shorts_mailbox once --force by hand",
+      "module": "aletheia.shorts_mailbox",
+      "verification": "tests/test_shorts_mailbox_answers_only_what_he_granted.py: a path outside the grant or not an answer file is refused with zero API calls, the fleet validator refuses any other answers prefix and a grant without his words, grades are refused for a float, a bool or a missing check, a rewrite is refused over the request's own caps or with a number its data cannot show, three rounds a morning on his clock and none outside it, the beat only launches, main drops the ChatGPT lease first, the Contents API PUT carries the sha on update and never [skip ci], and a whole round against stubbed reads, API and models writes a valid verdict and rewrite answer",
+      "notes": "DOOR SHUT until he says yes in this project (asked 2026-10-07): the grant quoted words said in another project that this one cannot confirm, and a worker's claim of his permission is not a grant, so config/fleet.json carries no answers door for Shorts and kick() says 'no answers grant'. His yes restores the two keys exactly as drafted - answers ['exchange/reviews/', 'exchange/rewrites/', 'exchange/asks/'] and answers_ruling with his words. As drafted: 'Alethea may write files into a shorts review, rewrite, and ask mailbox. ... That's certified by me. Every 30 minutes is unnecessary. We only post in the morning, so maybe it needs to run two, three times in the morning, and that's it'. Shorts' gates still decide everything: grades go through its own assemble_verdict + showrunner_gate.decide, rewrites through its own validate. UNVERIFIED: no live answer has round-tripped through Shorts' claim step yet; the Codex vision route depends on `codex exec --image`, which has not been run on his PC; the detached launch on Windows has not been watched live. No local vision model: when neither Claude nor Codex can look, a review waits for the next round."
     }
   ]
 }

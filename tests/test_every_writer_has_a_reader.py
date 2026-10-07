@@ -42,13 +42,26 @@ READER_FOR = {
     "task_new": "tasks",
     "task_status": "tasks",
     "task_done": "tasks",
+    "task_change": "tasks",
     "shopping_add": "shopping_list",
     "shopping_off": "shopping_list",
+    "list_new": "list_read",
+    "list_add": "list_read",
+    "list_off": "list_read",
+    "stopwatch": "stopwatch_read",
+    "speaking_pace": "speaking_pace_read",
     "remind_at": "reminders",
     "remind_daily": "reminders",
     "remind_weekly": "reminders",
+    "remind_monthly": "reminders",
+    "remind_every": "reminders",
     "reminder_off": "reminders",
+    "reminder_on": "reminders",
     "contact_add": "contacts",
+    "contact_remove": "contacts",
+    # A place he saved is what "how long to the gym" looks up, and what
+    # "what's my work address" reads.
+    "place_add": "travel_time",
     "watch_email_from": "watches",
     "remember": "recall",
     # "Only apply to remote jobs" shows up the moment he asks what she steers by.
@@ -131,6 +144,7 @@ READER_FOR = {
     "calendar_propose": "thread_status",
     # A hold makes that time busy: "when am I free" says so, and names it.
     "calendar_hold": "calendar_find_free",
+    "hold_release": "calendar_find_free",
     # His "handled" on a red project is read back by the brief and by "is
     # anything broken": the fault is said as handled, not as red.
     "fault_ack": "brief",

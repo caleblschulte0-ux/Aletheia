@@ -52,7 +52,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
-from aletheia import contacts, journal, policy, stateio
+from aletheia import contacts, journal, policy, speech, stateio
 
 ACTOR = "messages"
 
@@ -116,7 +116,16 @@ def resolve_number(who: str) -> tuple[str | None, str]:
     try:
         contact = contacts.resolve(text)
     except Exception:
-        return None, text
+        # "Text my sister" when he told her "my sister's name is Jenna" and
+        # gave Jenna's number (2026-10-07: asked him for the number again).
+        try:
+            from aletheia import quick
+            named = quick._name_for_relation(text)
+            contact = contacts.resolve(named) if named else None
+        except Exception:
+            contact = None
+        if contact is None:
+            return None, text
     try:
         return normalize_number(primary_number(contact)), \
             contact.get("display_name") or text
@@ -171,7 +180,7 @@ def draft(to: str, body: str, requested_via: str = "voice") -> dict:
     number, name = resolve_number(to)
     if number is None:
         raise ValueError(
-            f"I don't have a phone number for {name}. Tell me the number "
+            f"I don't have a phone number for {speech.as_she_says_it(name)}. Tell me the number "
             f"and I'll remember it.")
     body = str(body or "").strip()
     if not body:

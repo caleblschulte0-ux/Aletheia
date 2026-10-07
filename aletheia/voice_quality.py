@@ -189,11 +189,13 @@ def piper_speak(text: str, *, voice: str = PIPER_VOICE, runner=proc_run,
     fd, wav_name = tempfile.mkstemp(prefix="aletheia-say-", suffix=".wav")
     os.close(fd)
     wav_path = Path(wav_name)
+    from aletheia import speaking_pace
+    pace = ["--length_scale", str(speaking_pace.piper_length_scale())] if speaking_pace.step() else []
     try:
         proc = runner(
             [sys.executable, "-m", "piper", "--model", voice,
              "--data-dir", str(PIPER_DIR), "--output-file", str(wav_path),
-             "--", str(text)],
+             *pace, "--", str(text)],
             capture_output=True, text=True, timeout=60,
         )
         if proc.returncode != 0 or not wav_path.is_file() or wav_path.stat().st_size < 44:

@@ -21,12 +21,17 @@ class InboxQuestionsLookCase(unittest.TestCase):
 
 class HourlyReminderCase(unittest.TestCase):
     def test_within_the_day_is_said_not_planned(self):
-        for said in ("thea remind me to drink water every hour", "thea remind me every 30 minutes to stretch",
-                     "thea remind me to stand up every 2 hours"):
+        # Said, not planned - and since 2026-10-07 DONE: the interval kind
+        # repeats within the day. A vague "every few hours" still asks.
+        for said, minutes in (("thea remind me to drink water every hour", 60),
+                              ("thea remind me every 30 minutes to stretch", 30),
+                              ("thea remind me to stand up every 2 hours", 120)):
             with self.subTest(said=said):
                 out = voice.interpret(said)
-                self.assertIsNone(out["command"])
-                self.assertIn("daily and weekly I can", out["say"])
+                self.assertEqual((out["command"]["kind"], out["command"]["minutes"]), ("remind_every", minutes))
+        out = voice.interpret("thea remind me every few hours to drink water")
+        self.assertIsNone(out["command"])
+        self.assertIn("with a number", out["say"])
         self.assertEqual(voice.interpret("thea remind me every day at 9 to stretch")["command"]["kind"], "remind_daily")
 
 

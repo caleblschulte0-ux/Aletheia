@@ -88,15 +88,23 @@ def update(contact_id: str, **changes: object) -> dict:
     return save(value)
 
 
-def all_contacts() -> list[dict]:
+#: The tag a contact he took out carries. Hidden, not deleted, so adding
+#: the same person again brings the record back.
+REMOVED = "removed"
+
+
+def all_contacts(*, include_removed: bool = False) -> list[dict]:
     if not CONTACTS_DIR.is_dir():
         return []
     out = []
     for path in sorted(CONTACTS_DIR.glob("*.json")):
         try:
-            out.append(load(path.stem))
+            contact = load(path.stem)
         except ValueError:
             continue
+        if not include_removed and REMOVED in (contact.get("tags") or []):
+            continue
+        out.append(contact)
     return out
 
 

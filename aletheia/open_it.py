@@ -15,8 +15,9 @@ nobody else (`tools.CONSEQUENCE_OF`: visible to him).
 """
 from __future__ import annotations
 
+import re
 import webbrowser
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from aletheia import journal
 
@@ -39,6 +40,22 @@ KNOWN_SITES = {
     "google calendar": ("https://calendar.google.com/", "Google Calendar"),
     "my calendar": ("https://calendar.google.com/", "Google Calendar"),
     "chatgpt": ("https://chatgpt.com/", "ChatGPT"),
+    # The sites people open by name most (2026-10-07: "open spotify" went to
+    # the planner). Each is the site's own front page, nothing more.
+    "spotify": ("https://open.spotify.com/", "Spotify"),
+    "netflix": ("https://www.netflix.com/", "Netflix"),
+    "amazon": ("https://www.amazon.com/", "Amazon"),
+    "facebook": ("https://www.facebook.com/", "Facebook"),
+    "instagram": ("https://www.instagram.com/", "Instagram"),
+    "reddit": ("https://www.reddit.com/", "Reddit"),
+    "twitter": ("https://x.com/", "X"),
+    "outlook": ("https://outlook.live.com/", "Outlook"),
+    "google drive": ("https://drive.google.com/", "Google Drive"),
+    "my drive": ("https://drive.google.com/", "Google Drive"),
+    "google maps": ("https://www.google.com/maps", "Google Maps"),
+    "maps": ("https://www.google.com/maps", "Google Maps"),
+    "google docs": ("https://docs.google.com/", "Google Docs"),
+    "wikipedia": ("https://en.wikipedia.org/", "Wikipedia"),
     "the thea page": ("http://127.0.0.1:8777/", "your Thea page"),
     "thea page": ("http://127.0.0.1:8777/", "your Thea page"),
     "my page": ("http://127.0.0.1:8777/", "your Thea page"),
@@ -56,6 +73,13 @@ def page_for(which: str) -> tuple[str, str]:
     site = KNOWN_SITES.get(key.casefold().removeprefix("the ").strip()) or KNOWN_SITES.get(key.casefold())
     if site:
         return site
+    # "Search YouTube for cat videos" (2026-10-07: to the planner). A search
+    # page on a site in the table, never a guessed URL.
+    searched = re.fullmatch(r"youtube search (.{1,120})", key, re.IGNORECASE)
+    if searched:
+        words = searched.group(1).strip()
+        return (f"https://www.youtube.com/results?search_query={quote_plus(words)}",
+                f"YouTube results for {words}")
     record = None
     try:
         if browser_mission.exists(key):
@@ -105,7 +129,12 @@ def open_for(which: str, *, opener=None) -> dict:
         raise NothingToOpen("I could not open a browser on this machine.")
     from aletheia import speech
     site = speech.say_url(urlparse(url).netloc) if hasattr(speech, "say_url") else urlparse(url).netloc
-    said = f"Opened {site} in your browser. Do your part there; I carry on from where it stopped."
+    if what in {name for _url, name in KNOWN_SITES.values()} or what.startswith("YouTube results for "):
+        # A site he asked for is not a mission she stopped on: "do your part
+        # there; I carry on" told him to finish a task that did not exist.
+        said = f"Opened {what} in your browser."
+    else:
+        said = f"Opened {site} in your browser. Do your part there; I carry on from where it stopped."
     journal.append("action", "open_it", f"opened {urlparse(url).netloc} for {what}", actor=ACTOR)
     return {"url": url, "what": what, "said": said}
 

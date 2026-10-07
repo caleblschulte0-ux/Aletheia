@@ -447,6 +447,10 @@ def _times_to_words(text: str, now: dt.datetime | None = None) -> str:
 #: never "myopic" -> "yourpic". "our" is left alone deliberately - "our
 #: repos" means both of them and "your repos" would be a small lie.
 _HIS_PRONOUNS = (
+    # Contractions first: "I'm allergic" became "you'm allergic" (2026-10-07).
+    (r"(?i)\bi'm\b|^im\b(?= [a-z])", "you're"), (r"(?i)\bi am\b", "you are"),
+    (r"(?i)\bi've\b", "you've"), (r"(?i)\bi'll\b", "you'll"), (r"(?i)\bi'd\b", "you'd"),
+    (r"(?i)\bi was\b", "you were"),
     (r"\bmy\b", "your"), (r"\bmine\b", "yours"),
     (r"\bmyself\b", "yourself"), (r"\bI\b", "you"),
     (r"\bi\b", "you"), (r"\bme\b", "you"),
@@ -532,6 +536,25 @@ def clock_words(hhmm: str) -> str:
     return f"{twelve} {suffix}" if minute == 0 else f"{twelve}:{minute:02d} {suffix}"
 
 
+def _spoken_number(number: str) -> str:
+    """A phone number in the groups a person reads it in: 555 123 4567."""
+    digits = re.sub(r"\D", "", number)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+    return number
+
+
+def _reminder_quote(text: str):
+    """The reminder's words out of its receipt. repr() quotes them with
+    double quotes when they hold an apostrophe ("call Jess's mom"), and the
+    single-quote search missed them, so the raw receipt reached the room
+    (2026-10-07)."""
+    return (re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r'[—-]\s*"(.+?)"\s*$', text)
+            or re.search(r"'(.+?)'", text))
+
+
 def spoken_receipt(kind: str, detail: str, *,
                    now: dt.datetime | None = None) -> str:
     """One subsystem receipt, as a sentence.
@@ -541,15 +564,107 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "place_add":
+        saved = re.match(r"place \S+ saved\s*[—-]\s*(.+?): (.+)$", text)
+        if saved:
+            from aletheia import places
+            return f"Got it - {places.called(saved.group(1))} is at {saved.group(2)}."
+    if kind == "hold_release":
+        gone = re.match(r"hold (\S+) released\s*[—-]\s*(.+)$", text)
+        if gone and gone.group(1) != "none":
+            return f"Took {gone.group(2).strip()} off your calendar."
+        if gone:
+            return gone.group(2)[:1].upper() + gone.group(2)[1:] + "."
+    if kind == "contact_remove":
+        gone = re.match(r"contact (\S+) removed\s*[—-]\s*(.+)$", text)
+        if gone and gone.group(1) != "none":
+            who = gone.group(2).strip()
+            return f"Took {who[:1].upper() + who[1:]} out of your contacts."
+        if gone:
+            return gone.group(2)[:1].upper() + gone.group(2)[1:] + "."
+    if kind == "contact_add":
+        # "remembered mom as 6055550123 — private contacts only, never the
+        # public repo" was read out verbatim: a log line, a run of digits,
+        # and a promise about a repository he never asked about.
+        got = re.match(r"remembered (.+?) as (.+?)\s+[—-]", text)
+        if got:
+            who = got.group(1).strip()
+            who = who[:1].upper() + who[1:]
+            said = []
+            for part in got.group(2).split(" and "):
+                digits = re.sub(r"\D", "", part)
+                if "@" not in part and len(digits) == 10:
+                    part = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+                elif "@" not in part and len(digits) == 11 and digits[0] == "1":
+                    part = f"{digits[1:4]}-{digits[4:7]}-{digits[7:]}"
+                said.append(part.strip())
+            return f"Got it - {who}: {and_list(said)}."
     if kind == "remind_at":
         when = ISO_TIME.search(text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
+        # A timer and an alarm are said as what they are: "I'll remind you
+        # at 12:29 am: your 10-minute timer is up" is a reminder ABOUT a
+        # timer, read back to someone who just started one (2026-10-07).
+        timer = what and re.fullmatch(r"your ((?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve"
+                                      r"|fifteen|twenty|thirty|forty|fifty|sixty|ninety)[\w -]{0,30}?) timer is up",
+                                      what.group(1).strip())
+        if when and timer:
+            span = re.sub(r"(\d+)( and a half)?[- ](minute|hour|second)\b",
+                          lambda g: f"{g.group(1)}{g.group(2) or ''} {g.group(3)}"
+                                    f"{'' if g.group(1) == '1' and not g.group(2) else 's'}", timer.group(1))
+            # "your ten-minute timer" (his own number word kept): "ten minutes".
+            span = re.sub(r"\b([a-z]+)[- ](minute|hour|second)\b",
+                          lambda g: g.group(0) if g.group(1) in ("and", "half", "a") else
+                          f"{g.group(1)} {g.group(2)}{'' if g.group(1) == 'one' else 's'}", span)
+            span = re.sub(r"\b(hours?) (\d)", r"\1 and \2", span)
+            # "your 10 minute eggs timer" is the eggs timer: its name follows.
+            named = re.fullmatch(r"(.*\b(?:minutes?|hours?|seconds?)) (?!and\b)([a-z][a-z ]*)", span)
+            if named:
+                span = f"{named.group(1)} for the {named.group(2)}"
+            if text.rstrip().endswith("(moved)"):
+                # "Add 5 minutes" said "Timer set for 10 minutes" about a
+                # timer that now ran fifteen (2026-10-07). What moved is when.
+                return (f"Done - your timer{' for the ' + named.group(2) if named else ''} now goes off "
+                        f"{humanize_time(when.group(0), now)}.")
+            return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
+        if when and what and what.group(1).strip() == "wake up":
+            return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:
             return (f"I'll remind you {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")
+    if kind in ("remind_daily", "remind_weekly") and re.search(r"\bset every \d+ (?:days|weeks)\b", text):
+        # "reminder remind-every-9f2 set every 2 days from 2026-10-08T09:00:00-05:00 — 'run'"
+        span = re.search(r"set every (\d+) (days|weeks)(?: on (\w+))?", text)
+        when = ISO_TIME.search(text)
+        what = _reminder_quote(text)
+        if span and when and what:
+            n, unit, day = int(span.group(1)), span.group(2), span.group(3)
+            lead = ("Every other day" if (n, unit) == (2, "days") else
+                    f"Every other {day}" if (n, unit) == (2, "weeks") and day else f"Every {n} {unit}")
+            return (f"{lead}, starting {humanize_time(when.group(0), now)}, I'll remind you: "
+                    f"{_quoted(what.group(1))}.")
+    if kind == "remind_every":
+        # "reminder remind-every-9f2 set every 60 minutes from 2026-10-07T04:00:00+00:00 — 'drink water'"
+        span = re.search(r"set every (\d+) minutes", text)
+        what = _reminder_quote(text)
+        if span and what:
+            n = int(span.group(1))
+            hours, mins = divmod(n, 60)
+            lead = ("Every hour" if n == 60 else "Every half hour" if n == 30
+                    else f"Every {hours} hours" if hours and not mins else f"Every {n} minutes")
+            return f"{lead} from now I'll remind you: {_quoted(what.group(1))}."
+    if kind == "remind_monthly":
+        # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
+        when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
+        what = _reminder_quote(text)
+        if when and what:
+            n = int(when.group(1))
+            nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+            return (f"On the {nth} of every month at {clock_words(when.group(2))} I'll remind you: "
+                    f"{_quoted(what.group(1))}.")
     if kind == "remind_daily":
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             return (f"Every day at {clock_words(when.group(1))} I'll remind "
                     f"you: {_quoted(what.group(1))}.")
@@ -557,7 +672,7 @@ def spoken_receipt(kind: str, detail: str, *,
         # "weekly reminder remind-weekly-9f2 set for Monday at 09:00 —
         # 'take out the trash'"
         when = re.search(r"set for (.+?) at (\d{1,2}:\d{2})\b", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             days = when.group(1)
             lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
@@ -567,21 +682,42 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "notify_snooze":
         # "snoozed snooze-9f2 until 2026-09-07T21:00:00+00:00 — 'the boiler'"
         when = ISO_TIME.search(text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             return (f"Put away until {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")
+    if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
+        return text
     if kind == "reminder_off":
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
+        if body and body.group(1).startswith("you have no "):
+            return body.group(1)[0].upper() + body.group(1)[1:] + "."
+        # "Cancel all my reminders": "Stopped reminding you: 1 reminder:
+        # call mom — today at 9 am" (2026-10-07). A count leads it.
+        several = body and re.match(r"(\d+ (?:reminder|alarm|timer)s?): (.+)$", body.group(1))
+        if several:
+            return f"Cancelled {several.group(1)}: {several.group(2)}."
+        # A timer is "your 10-minute timer is up"; "stopped reminding you:
+        # your timer is up" read a cancelled timer as one that went off
+        # (2026-10-07).
+        timer = body and re.match(r"your (?P<what>.+? timer) is up\b", body.group(1))
+        if timer:
+            return f"Cancelled {_quoted('your ' + timer.group('what'))}."
         if body:
+            alarm = re.match(r"wake up\s*[—-]\s*(.+)$", body.group(1).strip(), re.IGNORECASE)
+            if alarm:
+                return f"Alarm off: {alarm.group(1).strip()}."
             return f"Stopped reminding you: {_quoted(body.group(1))}."
     if kind == "shopping_off":
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
         if body:
             return f"Took it off your shopping list: {_quoted(body.group(1))}."
     if kind == "task_new":
+        several = re.match(r"(\d+) tasks queued\s*[—-]\s*(.+)", text)
+        if several:
+            return f"Added {several.group(1)} tasks: {several.group(2).strip()}."
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
         if named:
@@ -602,6 +738,22 @@ def spoken_receipt(kind: str, detail: str, *,
         if noted:
             return (f"Noted: {deslug(noted.group(1))} is "
                     f"{noted.group(2).strip()}.")
+        # The intercom's own receipt names the slot and not the value, so the
+        # value never lands in a committed receipt: "remembered identity.full_name".
+        slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
+        if slot:
+            what = {"full_name": "your name", "operator_name": "what to call you", "postal_code": "your zip code",
+                    "zip_code": "your zip code", "home_city": "where you live",
+                    "timezone": "your time zone"}.get(slot.group(1), "your " + deslug(slot.group(1)).replace("_", " "))
+            return f"Got it - I'll remember {what}."
+    if kind == "task_change":
+        changed = re.match(r"(dropped|renamed|moved)\s*[—-]\s*(.+)", text)
+        if changed:
+            verb, rest = changed.groups()
+            if verb == "renamed" and " -> " in rest:
+                old, new = rest.split(" -> ", 1)
+                return f"Renamed {old.strip()} to {new.strip()}."
+            return f"{'Dropped' if verb == 'dropped' else 'Moved'}: {rest.strip()}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)
         if marked:

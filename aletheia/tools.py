@@ -59,7 +59,7 @@ OPEN_WORLD_KINDS = frozenset({
     "apply_campaign", "apply_answer", "web_task", "web_task_retry",
     "web_task_answer", "subscription_cancel", "dispatch", "issue", "meet",
     "travel_time", "email_check", "email_read", "email_draft", "message_send",
-    "chatgpt_on", "setup_status",
+    "chatgpt_on", "setup_status", "texts_read",
     # A conversation's status quotes what the other person wrote; sending reaches them.
     "thread_status", "thread_send",
 })
@@ -67,7 +67,9 @@ OPEN_WORLD_KINDS = frozenset({
 #: Kinds whose OUTPUT is his mail, which is written by other people.
 #: (`watch_email_from` only creates a watcher and returns nothing from a
 #: mailbox, so it is not here.)
-MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
+MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status",
+                        # his texts are written by other people the same way
+                        "texts_read"})
 
 #: Kinds that remove, stop or switch something off. None of them is
 #: irreversible by design (a delete keeps a version, a reminder is
@@ -75,7 +77,7 @@ MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
 #: an interface can ask before offering them as one-tap buttons.
 DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
-    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop",
+    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off", "contact_remove", "hold_release",
     "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
     "apply_pause",
 })
@@ -84,9 +86,10 @@ DESTRUCTIVE_KINDS = frozenset({
 #: the same world as saying them once. Every read-only kind is idempotent
 #: by construction and is not listed.
 IDEMPOTENT_KINDS = frozenset({
-    "task_status", "task_done", "plan_step", "plan_set", "announce_set",
+    "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
-    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
+    "open", "reminder_off", "reminder_on", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
+    "contact_remove", "hold_release",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -96,7 +99,7 @@ IDEMPOTENT_KINDS = frozenset({
 #: browser, or spends a model call of its own. The planner still sees them.
 LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research",
                                 "browse_read", "browse_shot", "screenshot",
-                                "computer_observe", "email_check", "email_read"})
+                                "computer_observe", "email_check", "email_read", "texts_read"})
 
 #: Kinds that WRITE and are still offered to a local model, because they are
 #: exactly the reversible-local work his brief says must not need asking: a
@@ -110,7 +113,7 @@ LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research
 #: feature"). `tests/test_consequence.py` fails if anything here is not
 #: reversible under the consequence model.
 LOCAL_MODEL_WRITES = frozenset({
-    "task_new", "task_status", "task_done", "remember", "note", "preference_set",
+    "task_new", "task_status", "task_done", "task_change", "remember", "note", "preference_set",
     "file_write", "file_edit", "compose", "doc_make",
     "plan_step", "plan_add_step", "calendar_hold", "thread_draft",
     "notify_operator", "notify_snooze", "work_projects",
@@ -122,12 +125,18 @@ LOCAL_MODEL_WRITES = frozenset({
 #: tuple means "not declared", never "nothing".
 STORE_OF = {
     "tasks": "tasks", "task_new": "tasks", "task_status": "tasks", "task_done": "tasks",
+    "task_change": "tasks",
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
+    "list_new": "lists", "list_add": "lists", "list_read": "lists", "list_off": "lists",
+    "stopwatch": "stopwatch", "stopwatch_read": "stopwatch",
+    "speaking_pace": "speaking_pace", "speaking_pace_read": "speaking_pace",
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
-    "remind_weekly": "schedules", "reminder_off": "schedules",
-    "contacts": "contacts", "contact_add": "contacts",
+    "remind_weekly": "schedules", "remind_monthly": "schedules", "reminder_off": "schedules", "reminder_on": "schedules",
+    "remind_every": "schedules",
+    "contacts": "contacts", "contact_add": "contacts", "contact_remove": "contacts",
+    "place_add": "places", "travel_time": "places",
     "watches": "watches", "watch_email_from": "watches",
     "recall": "memory", "remember": "memory", "forget": "memory",
     "preference_set": "profile", "preferences": "profile",
@@ -160,7 +169,7 @@ STORE_OF = {
     "mission_confirm": "programs", "mission_activity": "programs",
     "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
     "thread_followup": "conversations", "calendar_propose": "conversations",
-    "calendar_find_free": "calendar", "calendar_hold": "calendar",
+    "calendar_find_free": "calendar", "calendar_hold": "calendar", "hold_release": "calendar",
 }
 
 #: Argument shapes the bare grammar cannot say. Everything not listed is
@@ -694,11 +703,11 @@ def for_model(visible_to: str = "local", *, tools: dict[str, Tool] | None = None
 # `tests/test_what_can_you_do.py` fails when a kind is in neither.
 
 SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
-    "your tasks and reminders": ("task_new", "tasks", "task_done",
+    "your tasks and reminders": ("task_new", "tasks", "task_done", "task_change",
                                  "task_status", "remind_at", "remind_daily",
-                                 "remind_weekly", "reminders", "reminder_off",
-                                 "do_task"),
-    "your lists": ("shopping_add", "shopping_list", "shopping_off"),
+                                 "remind_weekly", "remind_monthly", "remind_every", "reminders", "reminder_off", "reminder_on",
+                                 "stopwatch", "stopwatch_read", "do_task"),
+    "your lists": ("shopping_add", "shopping_list", "shopping_off", "list_new", "list_add", "list_read", "list_off"),
     # Third on purpose: dict order is spoken order, only the first six
     # are said, and "can you make me a spreadsheet" is a question he
     # actually asked. A capability nobody hears about is one he will
@@ -706,12 +715,12 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "making Word, Excel and PowerPoint files": ("doc_make",),
     "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
               "thread_status", "thread_followup"),
-    "texting people": ("message_send",),
+    "texting people": ("message_send", "texts_read"),
     "posting to Instagram": ("instagram_post", "instagram_posts"),
     "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
-                                      "calendar_hold", "calendar_propose"),
-    "people you know": ("contacts", "contact_add", "watch_email_from",
+                                      "calendar_hold", "hold_release", "calendar_propose"),
+    "people you know": ("contacts", "contact_add", "contact_remove", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "forget", "note"),
     "music": ("music",),
@@ -735,11 +744,12 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
                          "preference_set", "preferences",
                          "applications", "apply_outcome"),
     "money you spend": ("money", "subscriptions", "subscription_cancel"),
-    "your car and journeys": ("car", "travel_time"),
+    "your car and journeys": ("car", "travel_time", "place_add"),
     "media files": ("media_probe", "media_trim", "media_join", "media_audio",
                     "media_captions", "media_convert"),
     "putting workers on something": ("agents", "agent_new", "agent_stop",
                                      "agents_pause"),
+    "talking slower or faster": ("speaking_pace", "speaking_pace_read"),
 }
 
 #: Reachable, but not things a person asks FOR: switches, plumbing and the
