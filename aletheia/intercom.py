@@ -1542,6 +1542,18 @@ def _forget_note(about: str) -> str:
     return ""
 
 
+def _what_it_is_about(said: str, *, keep_whose: bool = False) -> str:
+    """"What I said about Dana" -> "Dana": every lead, in any order. "What you
+    know about MY landlord" kept the "my", and "what I said about Dana" was a
+    phrase no note holds (2026-10-07). `keep_whose` leaves a leading "my"
+    for a note, which says "my sister's name is Dana" in his words."""
+    lead = (r"what (?:you know|i (?:said|told you)|i've told you) about |everything (?:you know )?about "
+            r"|(?:my |the )?notes? (?:about|on) ")
+    if keep_whose:
+        return re.sub(r"^(?:" + lead + r")", "", said, flags=re.IGNORECASE) or said
+    return re.sub(r"^(?:(?:my|the) |" + lead + r")+", "", said, flags=re.IGNORECASE)
+
+
 def _remembered_matching(about: str, domain: str | None = None):
     """(domain, key, value) for everything she has that he could mean.
 
@@ -1553,9 +1565,10 @@ def _remembered_matching(about: str, domain: str | None = None):
     from aletheia import memory
     needle = " ".join(str(about or "").casefold().split())
     # "My landlord" is how he says it; "landlord" is how it is stored.
-    for lead in ("my ", "the ", "what you know about ", "everything about "):
-        if needle.startswith(lead):
-            needle = needle[len(lead):]
+    # Every lead, in any order: "what you know about MY landlord" kept the
+    # "my", and "what I said about Dana" was a phrase no note holds
+    # (2026-10-07).
+    needle = _what_it_is_about(needle)
     found = []
     for one in memory.DOMAINS if not domain else [domain]:
         try:
@@ -2965,6 +2978,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # among others) then raised UnboundLocalError. Found by the full suite.
         from aletheia import memory
         about = " ".join(str(cmd.get("about") or "").split())
+        about = _what_it_is_about(about, keep_whose=True)
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is

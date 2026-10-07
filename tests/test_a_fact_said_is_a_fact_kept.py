@@ -1438,5 +1438,17 @@ class ANoteToSelfCase(unittest.TestCase):
         self.assertIsNone(voice._interpret("make a note of it")["command"])
 
 
+class WhatISaidAboutDanaCase(unittest.TestCase):
+    def test_the_lead_is_not_the_subject(self):
+        from aletheia import intercom
+        self.assertEqual(intercom._what_it_is_about("what i said about dana"), "dana")
+        self.assertEqual(intercom._what_it_is_about("what you know about my landlord"), "landlord")
+        self.assertEqual(intercom._what_it_is_about("my sister's name", keep_whose=True), "my sister's name")
+
+    def test_find_my_note_is_not_a_file(self):
+        from aletheia import voice
+        self.assertNotEqual((voice._interpret("find my note about dana")["command"] or {}).get("kind"), "file_find")
+
+
 if __name__ == "__main__":
     unittest.main()

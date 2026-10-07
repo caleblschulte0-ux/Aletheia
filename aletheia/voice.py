@@ -667,6 +667,10 @@ def _not_a_file(said: str) -> bool:
     if re.search(r"\b(?:flights?|hotels?|tickets?|deals?|recipes?|restaurants?|reviews?|cheap|cheapest|best|"
                  r"prices?|reservations?|airbnbs?|rentals?|apartments?|how to)\b", low):
         return True
+    # "Find my note about Dana" is a note of hers, not a file (2026-10-07:
+    # a file search for "note about dana").
+    if re.match(r"notes? (?:about|on|for|mentioning)\b", low):
+        return True
     # "Find a time for lunch" is the calendar.
     if re.match(r"(?:a |some )?time (?:for|to)\b", low):
         return True
@@ -2866,7 +2870,7 @@ def _interpret(transcript: str) -> dict:
     # "never mind" and already deny a pending approval, which is a
     # different act and the safer one to keep.
     m = re.fullmatch(r"forget (?:about )?(?!it$|that$|everything$)"
-                     r"((?:what you know about |everything about )?.+?)"
+                     r"((?:what you know about |everything about |what i (?:said|told you) about |(?:my |the )?notes? about )?.+?)"
                      r"\s*\??", low)
     if m:
         return {"command": {"kind": "forget",
@@ -4414,7 +4418,7 @@ def _interpret(transcript: str) -> dict:
     # answered "I don't have anything remembered about 'me'"); the fast
     # lane says the whole of what she holds about him.
     if m and m.group(1).strip() not in ("me", "myself", "me then", "yourself", "you"):
-        return {"command": {"kind": "recall", "about": m.group(1).strip()},
+        return {"command": {"kind": "recall", "about": _as_he_said(text, m.group(1).strip())},
                 "say": None}
 
     # "Read me the DevRev email": the unread message that names them.
