@@ -1492,5 +1492,19 @@ class CallHerThenTextHerCase(unittest.TestCase):
             self.assertEqual(voice._with_the_person_named("text her"), "text Dana")
 
 
+class HisCapitalsAreKeptCase(unittest.TestCase):
+    def test_what_he_wrote_keeps_his_capitals(self):
+        from aletheia import voice
+        for said, key, want in (("Email Dana saying I'll be late", "body", "I'll be late"),
+                                ("Remind me every day at 9 to call Mom", "text", "call Mom"),
+                                ("Remember that Dana likes Earl Grey", "text", "Dana likes Earl Grey"),
+                                ("remind me in 10 minutes to call Sam", "text", "call Sam")):
+            self.assertEqual(voice._interpret(said)["command"][key], want, said)
+
+    def test_mark_it_read_is_his(self):
+        from aletheia import voice
+        self.assertIn("mail app", voice._interpret("mark it as read")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

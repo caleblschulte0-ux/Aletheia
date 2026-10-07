@@ -3015,7 +3015,7 @@ def _interpret(transcript: str) -> dict:
         # reminder Tue/Thu 6pm", which is a calendar entry, not a sentence.
         days = [d for d in re.split(r"\s*(?:,|and|&)\s*", m.group(1)) if d]
         return {"command": {"kind": "remind_weekly", "days": days,
-                            "time": hhmm, "text": m.group(3).strip()},
+                            "time": hhmm, "text": _as_he_said(text, m.group(3).strip())},
                 "say": None}
     # THE OTHER WORD ORDER, RECURRING. "Remind me to take out the trash every
     # tuesday night" was set ONCE, for next Tuesday, as "take out the trash
@@ -3068,7 +3068,7 @@ def _interpret(transcript: str) -> dict:
         hhmm = _spoken_time(m.group(1))
         if hhmm:
             return {"command": {"kind": "remind_daily", "time": hhmm,
-                                "text": m.group(2).strip()}, "say": None}
+                                "text": _as_he_said(text, m.group(2).strip())}, "say": None}
         return _to_the_planner(text)
     # MONTHLY, EVERY OTHER DAY, EVERY TWO WEEKS (2026-10-07: "remind me on
     # the first of every month to pay rent" was refused as SPENDING, the
@@ -3527,7 +3527,7 @@ def _interpret(transcript: str) -> dict:
                 else dt.timedelta(hours=amount)
             at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
         return {"command": {"kind": "remind_at", "at": at,
-                            "text": m.group(1).strip()}, "say": None}
+                            "text": _as_he_said(text, m.group(1).strip())}, "say": None}
 
     # A TIMER IS A ONE-SHOT ALERT, which is what `remind_at` already is.
     # `timer.set` was NOT_BUILT because the sentence reached nothing, not
@@ -3963,7 +3963,9 @@ def _interpret(transcript: str) -> dict:
                        "(or whoever it's from) and I'll read them."}
     # Deleting or marking mail is his: she reads it and drafts it, no more.
     if re.fullmatch(r"(?:delete|trash|archive|mark|flag|star|unsubscribe from) (?:that|this|the|my|the last|my last|all)? ?"
-                    r"(?:e-?mails?|mail)(?: as (?:read|unread|spam|important))?(?: from .+)?", low):
+                    r"(?:e-?mails?|mail)(?: as (?:read|unread|spam|important))?(?: from .+)?"
+                    # "Mark it as read" right after an email (2026-10-07: to the planner).
+                    r"|mark (?:it|that|them|those|everything|all) (?:as )?(?:read|unread|spam|important)", low):
         return {"command": None,
                 "say": "I only read your email and write drafts - I can't delete, archive or mark messages. "
                        "Do that in your mail app."}
@@ -5481,14 +5483,14 @@ def _interpret(transcript: str) -> dict:
                  r"(.+?)\s+(?:that says|that|saying|and say|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
-                            "body": m.group(2).strip()}, "say": None}
+                            "body": _as_he_said(text, m.group(2).strip())}, "say": None}
     # "Send DANA an email saying I'm running late" - the name before the
     # noun, which is how he says it (2026-09-24, offline: to the planner).
     m = re.match(r"(?:send|draft|write)\s+(.+?)\s+(?:an? |the )?e?mail\s+(?:that says|that|saying|and say|"
                  r"telling (?:him|her|them)|:)\s+(.+)", low)
     if m and not re.search(r"\b(?:remind|reminder)\b", low):
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
-                            "body": m.group(2).strip()}, "say": None}
+                            "body": _as_he_said(text, m.group(2).strip())}, "say": None}
 
     # "EMAIL MOM HAPPY BIRTHDAY" (2026-10-07: to the planner): the same
     # split "text mom happy birthday" makes - a person he has, then the
@@ -6363,7 +6365,7 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "preference_set", "field": "notice_period", "value": m.group(1).strip()}, "say": None}
     m = re.match(r"remember(?: that|:)?\s+(?!to\b|me\b)(.+)", low)
     if m and not re.match(r"(?:the |my )?(?:last|previous|earlier)\b", m.group(1)):
-        return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, m.group(1).strip())}, "say": None}
 
     # "REMIND ME TO EMAIL SAM" with no when (2026-10-07: to the planner,
     # which with nothing thinking kept it "for later"). Every reminder
