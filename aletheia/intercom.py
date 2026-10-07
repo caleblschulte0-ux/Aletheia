@@ -1684,6 +1684,13 @@ def _one_reminder(which: str):
             return None, ("You only have "
                           + speech.count_phrase(len(rows), "reminder") + ".")
 
+    # "CANCEL THAT REMINDER" right after setting it (2026-10-07: "None of
+    # your reminders is about that", naming the one he had). "That" is the
+    # newest one he set; the receipt names it, so a wrong pick is heard.
+    if rows and re.fullmatch(r"(?:that|it|this|that one|this one|the last one|the one i just set|the reminder"
+                             r"|that reminder|this reminder|the last reminder)", needle):
+        return max(rows, key=lambda r: str(r.get("created_at") or "")), ""
+
     hits = [r for r in rows if needle and needle in text_of(r)]
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)

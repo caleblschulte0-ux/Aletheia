@@ -1293,5 +1293,27 @@ class ATaskSaidWithItsDayCase(unittest.TestCase):
         self.assertNotEqual(got["kind"], "task_done")
 
 
+class ThatReminderIsTheNewestCase(unittest.TestCase):
+    def test_that_is_the_one_he_set_last(self):
+        from aletheia import intercom
+        rows = [{"id": "a", "kind": "once", "created_at": "2026-10-07T10:00:00Z", "command": {"text": "call mom"}},
+                {"id": "b", "kind": "once", "created_at": "2026-10-07T11:00:00Z", "command": {"text": "pay rent"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows):
+            self.assertEqual(intercom._one_reminder("that")[0]["id"], "b")
+            self.assertEqual(intercom._one_reminder("that reminder")[0]["id"], "b")
+
+
+class TheHoldWhereItIsNowCase(unittest.TestCase):
+    def test_a_moved_hold_is_read_at_its_new_time(self):
+        from aletheia import calendar, voice
+        held = {"title": "dentist appointment", "start": "2026-10-09T14:00:00-05:00"}
+        live = {"title": "dentist appointment", "start": "2026-10-09T15:00:00-05:00", "status": "TENTATIVE"}
+        with mock.patch.object(calendar, "load", return_value={"status": "CANCELLED"}), \
+                mock.patch.object(calendar, "all_events", return_value=[live]):
+            self.assertEqual(voice._hold_as_it_is_now(held)["start"], live["start"])
+        with mock.patch.object(calendar, "load", return_value={"status": "TENTATIVE"}):
+            self.assertEqual(voice._hold_as_it_is_now(held)["start"], held["start"])
+
+
 if __name__ == "__main__":
     unittest.main()

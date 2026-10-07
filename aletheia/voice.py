@@ -1354,6 +1354,27 @@ def _recent_reminder_ask(turns: int = 4) -> dict:
     return _recent_ask_of("remind_at", "text", turns)
 
 
+def _hold_as_it_is_now(held: dict) -> dict:
+    """The hold he asked for, at the time it is NOW. "Dentist Friday at 2",
+    "make it 3", "remind me an hour before" reminded him at 1 (2026-10-07):
+    the move is a follow-up, so the ask found was the first one."""
+    if not held or not held.get("title"):
+        return held
+    try:
+        from aletheia import calendar, calendar_reasoning
+        event = calendar.load(calendar_reasoning.hold_id(held["title"], str(held["start"]), held.get("thread") or ""))
+        if event.get("status") != "CANCELLED":
+            return held
+        title = " ".join(str(held["title"]).split()).casefold()
+        live = [e for e in calendar.all_events()
+                if e.get("status") != "CANCELLED" and " ".join(str(e.get("title") or "").split()).casefold() == title]
+    except Exception:  # noqa: BLE001
+        return held
+    if len(live) != 1:
+        return held
+    return {**held, "start": live[0]["start"]}
+
+
 def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
     """The one-off reminder among his last few asks, newest first, or {}.
 
@@ -3153,7 +3174,7 @@ def _interpret(transcript: str) -> dict:
                      r"(?P<n>\d{1,3}|an|a|one|two|five|ten|fifteen|twenty|thirty|forty-five) (?P<unit>minutes?|mins?|hours?) "
                      r"(?:before|ahead|early|beforehand))(?: it| that)?(?: starts)?", low)
     if m:
-        held = _recent_ask_of("calendar_hold", "start")
+        held = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
         if held:
             import datetime as dt
             from aletheia import localtime
