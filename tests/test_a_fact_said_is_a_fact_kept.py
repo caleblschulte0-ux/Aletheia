@@ -2872,5 +2872,14 @@ class WhatHeIsForgetting(unittest.TestCase):
             self.assertEqual((quick.match(asked) or ("",))[0], "tasks_due", asked)
 
 
+class LengthsOfTime(unittest.TestCase):
+    def test_converted_and_said_with_the_remainder(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 1000 seconds in minutes"), "16 minutes and 40 seconds.")
+        self.assertEqual(quick.answer("convert 90 minutes to hours"), "1 hour and 30 minutes.")
+        self.assertEqual(quick.answer("what's 3 hours in minutes"), "180 minutes.")
+        self.assertEqual(quick.answer("0.5 hours in minutes"), "30 minutes.")
+
+
 if __name__ == "__main__":
     unittest.main()

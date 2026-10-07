@@ -1756,6 +1756,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("round_to", re.compile(r"^round (?P<rn>[\d.]+) to (?:the nearest )?(?P<places>\d|one|two|three|whole number|integer)(?: decimals?)?(?: places?)?(?: points?)?$")),
     ("time_units", re.compile(
         r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
+    # "What's 1000 seconds in minutes", "convert 90 minutes to hours" (2026-10-07: a model).
+    ("dur_convert", re.compile(
+        r"^(?:convert |what(?:'s| is|s) )?(?P<dn>\d[\d,]*(?:\.\d+)?) (?P<du>seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)"
+        r" (?:to|in|into|in to) (?P<dt>seconds|minutes|hours|days|weeks)\s*\??$"
+        r"|^how many (?P<dt2>seconds|minutes|hours|days|weeks) (?:is|are) (?P<dn2>\d[\d,]*(?:\.\d+)?) "
+        r"(?P<du2>seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\s*\??$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
@@ -1870,7 +1876,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5411,6 +5417,27 @@ def _time_units(text: str) -> str | None:
     return f"{_number_said(value)} {g['small']}{note}."
 
 
+def _dur_convert(text: str) -> str | None:
+    """A length of time in another unit, with the remainder said the way a
+    person says it: "1000 seconds" is "16 minutes and 40 seconds"."""
+    g = _match_of("dur_convert", text)
+    unit = {"sec": "second", "min": "minute", "hr": "hour"}
+    src = g.get("du") or g.get("du2") or ""
+    src = unit.get(src.rstrip("s"), src.rstrip("s"))
+    dst = (g.get("dt") or g.get("dt2") or "").rstrip("s")
+    n = float((g.get("dn") or g.get("dn2") or "0").replace(",", ""))
+    if src not in _SECONDS or dst not in _SECONDS:
+        return None
+    value = n * _SECONDS[src] / _SECONDS[dst]
+    said = f"{_number_said(value)} {dst}{'' if value == 1 else 's'}"
+    whole = int(value)
+    if _SECONDS[src] < _SECONDS[dst] and whole >= 1 and abs(value - round(value)) > 1e-9:
+        rest = round((value - whole) * _SECONDS[dst] / _SECONDS[src])
+        if 0 < rest:
+            said = (f"{whole:,} {dst}{'' if whole == 1 else 's'} and {rest:,} {src}{'' if rest == 1 else 's'}")
+    return said[:1].upper() + said[1:] + "."
+
+
 def _fraction_pct(text: str) -> str | None:
     g = _match_of("fraction_pct", text)
     if int(g["den"]) == 0:
@@ -8326,6 +8353,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "average": lambda rest: _average(rest),
            "round_to": lambda rest: _round_to(rest),
            "time_units": lambda rest: _time_units(rest),
+           "dur_convert": _dur_convert,
            "fraction_pct": lambda rest: _fraction_pct(rest),
            "fun_fact": lambda rest: _pick(FUN_FACTS),
            "quote": lambda rest: _pick(QUOTES),
