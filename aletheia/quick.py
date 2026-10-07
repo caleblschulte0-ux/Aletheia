@@ -572,7 +572,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|what holiday is (?:next|coming up)|when(?:'s| is|s) the next (?:holiday|public holiday|federal holiday))\s*\??$"
         r"|^is (?P<holiday_on>today|tomorrow|it) a (?:holiday|public holiday|federal holiday)(?: today)?\s*\??$")),
     ("calendar_fact", re.compile(
-        r"^(?:what(?:'s| is|s)? the date|what date is it) (?P<cal>tomorrow|yesterday)\s*\??$"
+        r"^(?:what(?:'s| is|s| was)? the date|what date is it|what date was it) (?P<cal>tomorrow|yesterday)\s*\??$"
         r"|^what (?:was|is) (?P<cal2>yesterday|tomorrow)(?:'s)? date\s*\??$"
         r"|^what day (?:was|is|will it be) (?P<cal3>yesterday|tomorrow)\s*\??$"
         r"|^what (?P<cal4>week) (?:is it|of the year is it|number is it|are we in)\s*\??$"
@@ -3377,7 +3377,8 @@ def _math(text: str) -> str | None:
         return float(str(s).replace(",", ""))
 
     def said(v: float) -> str:
-        return f"{v:.10g}" if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
+        # "100 divided by 7" was read out as "14.28571429" (2026-10-07).
+        return f"{round(v, 4):,}".rstrip("0").rstrip(".") if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
     try:
         if "pct" in g:
             # "20 percent of 45 dollars" went to a model for the word "dollars".

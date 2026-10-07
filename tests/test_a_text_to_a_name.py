@@ -556,5 +556,16 @@ class DeleteTheNoteAbout(unittest.TestCase):
         self.assertEqual(quick.match("show my notes from yesterday")[0], "notes_day")
 
 
+
+class NumbersAPersonCanSay(unittest.TestCase):
+    def test_a_long_decimal_is_rounded(self):
+        from aletheia import quick
+        self.assertEqual(quick._math("what is 100 divided by 7"), "14.2857.")
+
+    def test_the_date_yesterday(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what was the date yesterday")[0], "calendar_fact")
+
+
 if __name__ == "__main__":
     unittest.main()
