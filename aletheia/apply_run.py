@@ -1796,8 +1796,15 @@ SUBMIT_CEILING_S = 2 * 60 * 60
 
 
 def _worth_another_turn(exc: BaseException) -> bool:
-    """A failure that happened before anything touched the form."""
-    return isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
+    """A failure that happened before anything touched the form - or, for a
+    page that timed out, before Submit was pressed (the caller asks that).
+
+    A timeout joined them 2026-10-07: TimeoutError was 14 of the month's 74
+    failed sends, each a slow page on one attempt, and each was FAILED for
+    good though the button had never been pressed and the next turn would
+    very likely have loaded it."""
+    return (isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
+            or type(exc).__name__ == "TimeoutError")
 
 
 def _back_in_line(record: dict, why: str) -> dict:
