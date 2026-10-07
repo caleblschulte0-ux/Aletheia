@@ -3392,7 +3392,8 @@ def _interpret(transcript: str) -> dict:
     # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
     # "what time is that reminder", "remind me to text dad too" (the same
     # time), and "change call mom to call grandma" (the same time, new words).
-    just = _the_reminder_just_set() if re.search(r"\b(?:reminder|it|that|too|as well|also|change|make)\b", low) else None
+    just = _the_reminder_just_set() if re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
+                                                 r"|\bset for$|\bgo off$", low) else None
     if just:
         at = str(just.get("at") or "")
         words = str((just.get("command") or {}).get("text") or "")
