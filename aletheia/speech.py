@@ -667,6 +667,14 @@ def spoken_receipt(kind: str, detail: str, *,
         if slot:
             what = {"full_name": "name", "operator_name": "name", "postal_code": "zip code"}.get(slot.group(1), deslug(slot.group(1)))
             return f"Got it - I'll remember your {what}."
+    if kind == "task_change":
+        changed = re.match(r"(dropped|renamed|moved)\s*[—-]\s*(.+)", text)
+        if changed:
+            verb, rest = changed.groups()
+            if verb == "renamed" and " -> " in rest:
+                old, new = rest.split(" -> ", 1)
+                return f"Renamed {old.strip()} to {new.strip()}."
+            return f"{'Dropped' if verb == 'dropped' else 'Moved'}: {rest.strip()}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)
         if marked:

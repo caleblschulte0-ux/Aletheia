@@ -1141,6 +1141,18 @@ def _the_only_open_task() -> str:
     return str(rows[0].get("description") or rows[0].get("id") or "")
 
 
+def _names_one_open_task(words: str) -> bool:
+    """Do his words pick out exactly one open task? The gate on reading
+    "delete X" or "move X to friday" as being about a task at all: "delete
+    my last note" and "move my 3pm" are about other stores. Never raises."""
+    try:
+        from aletheia import intercom
+        found, _why = intercom._one_task(words)
+        return found is not None
+    except Exception:
+        return False
+
+
 def _known_place(text: str) -> bool:
     """Is this a place she has actually saved? Never raises.
 
@@ -1676,7 +1688,13 @@ def _interpret(transcript: str) -> dict:
         if said and _on_the_shopping_list(said.group(1)):
             m = said
     if m:
-        return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
+        # "Take the plumber one off my list": "my list" is his task list
+        # too, so a thing that is a task and not a grocery is the task.
+        item = m.group(1).strip()
+        if not re.search(r"shopping|grocery", m.group(0)) and not _on_the_shopping_list(item) \
+                and _names_one_open_task(item):
+            return {"command": {"kind": "task_change", "which": item, "drop": True}, "say": None}
+        return {"command": {"kind": "shopping_off", "item": item},
                 "say": None}
 
     # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
@@ -2184,6 +2202,42 @@ def _interpret(transcript: str) -> dict:
                     r"(?:read|show) (?:me )?my (?:todo|to-do|to do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
+
+    # MOVING, RENAMING AND DROPPING A TASK (2026-10-07: "move call the
+    # plumber to friday", "delete call the plumber", "rename call the
+    # plumber to call joe" all went to the planner). Only when his words
+    # name one open task: the same verbs are about notes, reminders and
+    # meetings everywhere else.
+    _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
+    m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail
+                     + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
+                       r"|wednesday|thursday|friday|saturday|sunday))", low) \
+        or re.fullmatch(r"(?:make|set) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) "
+                        r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+    if m and _names_one_open_task(m.group("w")):
+        said = m.group("day")
+        if said.startswith("next "):
+            asked = _ambiguous_next_weekday(said)
+            if asked:
+                return {"command": None, "say": asked}
+        day = _spoken_day("today" if said == "tonight" else said)
+        if day:
+            return {"command": {"kind": "task_change", "which": m.group("w"), "deadline": day}, "say": None}
+    m = re.fullmatch(r"(?:rename|retitle|reword) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:to|as) (?P<new>.+)", low) \
+        or re.fullmatch(r"change (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" to say (?P<new>.+)", low)
+    if m and _names_one_open_task(m.group("w")):
+        return {"command": {"kind": "task_change", "which": m.group("w"),
+                            "description": _as_he_said(text, m.group("new").strip())}, "say": None}
+    m = re.fullmatch(r"(?:delete|remove|drop|cancel|scrap|forget about|get rid of|take) (?:the )?(?:task )?(?P<w>.+?)"
+                     + _task_tail + r"(?: off(?: my (?:list|tasks|task list|to-?do list))?)?", low)
+    # Not "cancel the first one": counting is about whatever she just read
+    # out, and that is usually approvals.
+    # "Cancel the passport task" has its own branch further down.
+    if m and m.group("w") not in ("it", "that", "this", "everything", "all") \
+            and not re.search(r" (?:task|one|item)(?: from (?:my|the) (?:task )?list)?$", low) \
+            and not re.search(r"\b(?:first|second|third|last|latest|newest|oldest|next|other)\b", m.group("w")) \
+            and _names_one_open_task(m.group("w")):
+        return {"command": {"kind": "task_change", "which": m.group("w"), "drop": True}, "say": None}
 
     # "Mark the passport one done" — by what he CALLS it. This went to the
     # planner and came back asking for approval to change a local status,

@@ -1000,9 +1000,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|has) (?:the )?(?P<ran>[a-z0-9][a-z0-9 .'-]{1,40}?)(?: pipeline| workflow| repo| project)? "
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
-        r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        r"^what notes do (?:you|u|i) have(?: for me)?$|^(?:list|read me|read back|show me|read|show) (?:my |your |the |all my )?notes$"
+        r"|^how many notes (?:do i have|have i got|are there)$|^(?:my|all my) notes$|^what(?:'s| is| are) (?:in )?my notes$"
         # "What are my notes" told him she couldn't think (2026-10-07).
-        r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$|^(?:my|all my) notes$"
+        r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
         r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
@@ -5084,6 +5085,7 @@ _LIST_THEM = re.compile(r"^(?:read|list|show|name)(?: me)? (?:them|those|these)(
 #: A follow-up "read them" after a turn about one of these stores.
 _STORE_QUESTION = {
     "tasks": "what's on my task list", "task_new": "what's on my task list", "task_done": "what's on my task list",
+    "task_change": "what's on my task list",
     "reminders": "what reminders do I have", "remind_at": "what reminders do I have",
     "remind_daily": "what reminders do I have", "remind_weekly": "what reminders do I have",
     "remind_monthly": "what reminders do I have",

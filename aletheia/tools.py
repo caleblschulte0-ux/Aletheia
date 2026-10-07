@@ -84,7 +84,7 @@ DESTRUCTIVE_KINDS = frozenset({
 #: the same world as saying them once. Every read-only kind is idempotent
 #: by construction and is not listed.
 IDEMPOTENT_KINDS = frozenset({
-    "task_status", "task_done", "plan_step", "plan_set", "announce_set",
+    "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
@@ -110,7 +110,7 @@ LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research
 #: feature"). `tests/test_consequence.py` fails if anything here is not
 #: reversible under the consequence model.
 LOCAL_MODEL_WRITES = frozenset({
-    "task_new", "task_status", "task_done", "remember", "note", "preference_set",
+    "task_new", "task_status", "task_done", "task_change", "remember", "note", "preference_set",
     "file_write", "file_edit", "compose", "doc_make",
     "plan_step", "plan_add_step", "calendar_hold", "thread_draft",
     "notify_operator", "notify_snooze", "work_projects",
@@ -122,6 +122,7 @@ LOCAL_MODEL_WRITES = frozenset({
 #: tuple means "not declared", never "nothing".
 STORE_OF = {
     "tasks": "tasks", "task_new": "tasks", "task_status": "tasks", "task_done": "tasks",
+    "task_change": "tasks",
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
@@ -695,7 +696,7 @@ def for_model(visible_to: str = "local", *, tools: dict[str, Tool] | None = None
 # `tests/test_what_can_you_do.py` fails when a kind is in neither.
 
 SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
-    "your tasks and reminders": ("task_new", "tasks", "task_done",
+    "your tasks and reminders": ("task_new", "tasks", "task_done", "task_change",
                                  "task_status", "remind_at", "remind_daily",
                                  "remind_weekly", "remind_monthly", "remind_every", "reminders", "reminder_off",
                                  "do_task"),
