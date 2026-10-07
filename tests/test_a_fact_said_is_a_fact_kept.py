@@ -4995,5 +4995,22 @@ class WhatHeThinksAndWants(unittest.TestCase):
             self.assertIsNone(quick._opinion("what did i think of the sushi bar"))
 
 
+class AfterWorkIsNotBusy(unittest.TestCase):
+    """"Am I busy today" after the working day said "Nothing free today"."""
+
+    def test_the_working_day_being_over_is_said_as_that(self):
+        import datetime as dt
+        from aletheia import calendar as cal, intercom, localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        gone = (dt.datetime.combine(today, dt.time(0, 0), tz).isoformat(),
+                dt.datetime.combine(today, dt.time(0, 15), tz).isoformat())
+        with mock.patch.object(cal, "free_slots", return_value=[gone]), \
+                mock.patch.object(cal, "all_events", return_value=[]), \
+                mock.patch.object(intercom, "_nothing_on_it_at_all", return_value=""):
+            said = intercom.free_time_answer({"kind": "free_time", "day": today.isoformat()})
+        self.assertTrue(said.startswith("Your working hours are over"), said)
+
+
 if __name__ == "__main__":
     unittest.main()

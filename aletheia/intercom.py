@@ -2376,6 +2376,27 @@ def free_time_answer(cmd: dict) -> str:
                 step = step.replace(second=0, microsecond=0) + _dt.timedelta(minutes=(15 - step.minute % 15) % 15)
                 a = step.isoformat()
             kept.append((a, b))
+        # "Am I busy today" at 5 pm with nothing on the calendar said
+        # "Nothing free today" (2026-10-07): the working hours were over,
+        # not filled. Then the rest of the evening is the answer.
+        if ranges and not kept and not part:
+            later = []
+            for event in cal.all_events():
+                if str(event.get("status") or "").upper() == "CANCELLED":
+                    continue
+                try:
+                    start = cal.parse_time(event["start"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                local = start.astimezone(localtime.operator_tz())
+                if start > now and local.date() == day:
+                    later.append((local, str(event.get("title") or "something")))
+            if not later:
+                return ("Your working hours are over and nothing else is on your calendar today - you're free."
+                        + _nothing_on_it_at_all(cal, day))
+            first = min(later)
+            clock = first[0].strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+            return f"Your working hours are over. Still to come today: {first[1]} at {clock}."
         ranges = kept
     except (TypeError, ValueError):
         pass
