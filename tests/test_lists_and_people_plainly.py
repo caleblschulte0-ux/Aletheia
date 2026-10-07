@@ -29,3 +29,23 @@ class Plainly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SumsInWords(unittest.TestCase):
+    def test_precedence_is_ordinary(self):
+        self.assertEqual(quick.answer("what's 2 plus 2 times 3"), "8.")
+        self.assertEqual(quick.answer("what's 15 times 12 plus 4"), "184.")
+        self.assertEqual(quick.answer("what's 10 divided by 0 plus 1"), "You can't divide by zero.")
+        self.assertEqual(quick.answer("what's 1000 divided by 7 times 2"), "About 285.7143.")
+
+    def test_nothing_but_arithmetic_is_evaluated(self):
+        self.assertIsNone(quick._arith("what's __import__('os') plus 1"))
+
+    def test_the_rest(self):
+        self.assertEqual(quick.answer("is 97 a prime number"), "Yes, 97 is prime.")
+        self.assertEqual(quick.answer("is 91 prime"), "No - 91 is 7 times 13.")
+        self.assertEqual(quick.answer("what's the average of 4 8 and 12"), "8.")
+        self.assertEqual(quick.answer("round 3.14159 to 2 places"), "3.14.")
+        self.assertEqual(quick.answer("how many minutes in 3 hours"), "180 minutes.")
+        self.assertEqual(quick.answer("how many days in a year"), "365 days, 366 in a leap year.")
+        self.assertEqual(quick.answer("what is 3/4 as a percent"), "75 percent.")

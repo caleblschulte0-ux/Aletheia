@@ -947,6 +947,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
     ("status_of", _STATUS),
+    # 2026-10-07: sums said in words, each to a model with nothing to think
+    # about. LAST, so every narrower pattern above keeps its sentence.
+    ("arith", re.compile(
+        r"^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){2,6})$")),
+    ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
+    ("average", re.compile(r"^what(?:'s| is) the (?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
+    ("round_to", re.compile(r"^round (?P<rn>[\d.]+) to (?:the nearest )?(?P<places>\d|one|two|three|whole number|integer)(?: decimal)?(?: places?)?$")),
+    ("time_units", re.compile(
+        r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
+    ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
 )
 
 
@@ -962,7 +972,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "arith", "prime", "average", "round_to", "time_units", "fraction_pct"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2387,6 +2397,105 @@ def _math(text: str) -> str | None:
     return None
 
 
+def _match_of(name: str, text: str) -> dict:
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == name), None)
+    return {k: v for k, v in (found.groupdict() if found else {}).items() if v}
+
+
+def _number_said(v: float) -> str:
+    """A result the way it is said: whole numbers with commas, otherwise at
+    most four decimals with "about" when it was rounded."""
+    if abs(v - round(v)) < 1e-9:
+        return f"{int(round(v)):,}"
+    shown = round(v, 4)
+    return ("About " if abs(shown - v) > 1e-12 else "") + f"{shown:,}".rstrip("0").rstrip(".")
+
+
+def _arith(text: str) -> str | None:
+    """Words to an expression, evaluated by walking its AST: numbers and the
+    four operators only, with ordinary precedence. Nothing is exec'd."""
+    import ast
+    import operator
+    expr = _match_of("arith", text).get("expr")
+    if not expr:
+        return None
+    for word, op in (("multiplied by", "*"), ("divided by", "/"), ("plus", "+"), ("minus", "-"),
+                     ("times", "*"), ("over", "/"), (" x ", " * ")):
+        expr = expr.replace(word, op)
+    expr = expr.replace(",", "")
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+    def walk(node):
+        if isinstance(node, ast.Expression):
+            return walk(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return ops[type(node.op)](walk(node.left), walk(node.right))
+        raise ValueError("not arithmetic")
+    try:
+        value = walk(ast.parse(expr, mode="eval"))
+    except ZeroDivisionError:
+        return "You can't divide by zero."
+    except (SyntaxError, ValueError):
+        return None
+    said = _number_said(value)
+    return said[0].upper() + said[1:] + "."
+
+
+def _prime(text: str) -> str | None:
+    n = int(_match_of("prime", text).get("prime") or 0)
+    if n < 2:
+        return f"No - {n} isn't prime."
+    i = 2
+    while i * i <= n:
+        if n % i == 0:
+            return f"No - {n:,} is {i:,} times {n // i:,}."
+        i += 1 if i == 2 else 2
+    return f"Yes, {n:,} is prime."
+
+
+def _average(text: str) -> str | None:
+    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", _match_of("average", text).get("nums", ""))]
+    if len(nums) < 2:
+        return None
+    said = _number_said(sum(nums) / len(nums))
+    return said[0].upper() + said[1:] + "."
+
+
+def _round_to(text: str) -> str | None:
+    g = _match_of("round_to", text)
+    places = {"one": 1, "two": 2, "three": 3, "whole number": 0, "integer": 0}.get(g.get("places"))
+    if places is None:
+        places = int(g.get("places") or 0)
+    value = round(float(g["rn"]), places)
+    return (f"{int(value):,}" if places == 0 else f"{value:.{places}f}") + "."
+
+
+_SECONDS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "year": 31536000}
+
+
+def _time_units(text: str) -> str | None:
+    g = _match_of("time_units", text)
+    small, big = g["small"].rstrip("s"), g["big"].rstrip("s")
+    count = float(g.get("count") or 1)
+    if _SECONDS[small] >= _SECONDS[big]:
+        return None
+    value = count * _SECONDS[big] / _SECONDS[small]
+    if big == "year":
+        note = ", 366 in a leap year" if small == "day" and count == 1 else " in a 365-day year"
+    else:
+        note = ""
+    return f"{_number_said(value)} {g['small']}{note}."
+
+
+def _fraction_pct(text: str) -> str | None:
+    g = _match_of("fraction_pct", text)
+    if int(g["den"]) == 0:
+        return "You can't divide by zero."
+    return f"{_number_said(100 * int(g['num']) / int(g['den']))} percent."
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3771,6 +3880,12 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "arith": lambda rest: _arith(rest),
+           "prime": lambda rest: _prime(rest),
+           "average": lambda rest: _average(rest),
+           "round_to": lambda rest: _round_to(rest),
+           "time_units": lambda rest: _time_units(rest),
+           "fraction_pct": lambda rest: _fraction_pct(rest),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
