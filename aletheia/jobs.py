@@ -34,6 +34,7 @@ of them means try a different search.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -273,9 +274,36 @@ def _page(url: str) -> str:
         return response.read(400_000).decode("utf-8", "replace")
 
 
+def _when(value) -> str:
+    """A posting's date as ISO text, from whatever shape its board writes:
+    an ISO string (Greenhouse, Ashby) or epoch milliseconds (Lever). "" when
+    there is none, which `job_value` reads as "no date", never as old."""
+    if isinstance(value, (int, float)) and value > 0:
+        try:
+            return dt.datetime.fromtimestamp(value / 1000, dt.timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return ""
+    text = str(value or "").strip()
+    try:
+        dt.datetime.fromisoformat(text[:19])
+    except ValueError:
+        return ""
+    return text
+
+
 def _greenhouse(board: dict) -> list[dict]:
     token = board["token"]
-    data = _fetch(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
+    base = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
+    # WITH the posting text, which costs one bigger answer instead of a page
+    # read per opening, so every one is ranked on its pay and requirements.
+    # A board too big to read that way in time is read the old way: an
+    # opening without its text is still an opening.
+    try:
+        data = _fetch(f"{base}?content=true")
+    except BoardGone:
+        raise
+    except Exception:
+        data = _fetch(base)
     # A name he configured is his. A LEARNED name came off a search result -
     # live 2026-09-13 "Neros ..." for Neros Technologies, which then keyed
     # the duplicate check and the verification-code lookup on three dots -
@@ -297,6 +325,12 @@ def _greenhouse(board: dict) -> list[dict]:
             # The public application form. No account, no login.
             "apply_url": ("https://boards.greenhouse.io/embed/job_app"
                           f"?for={urllib.parse.quote(token)}&token={jid}"),
+            # When it went up, so "posted this week" can rank it. Measured
+            # 2026-10-07: no board reader carried a date, so recency never
+            # scored, and Affirm wrote twice that week "we just hired someone
+            # for this role".
+            "posted": _when(job.get("first_published") or job.get("updated_at")),
+            **_text_of(_plain(str(job.get("content") or ""))),
             "provider": "greenhouse", "board": token, "id": str(jid),
         })
     return out
@@ -316,9 +350,50 @@ def _lever(board: dict) -> list[dict]:
             "location": ((job.get("categories") or {}).get("location") or "").strip(),
             "posting_url": job.get("hostedUrl") or "",
             "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
+            "posted": _when(job.get("createdAt")),
+            **_lever_pay(job.get("salaryRange")),
+            **_text_of(job.get("descriptionPlain"),
+                       *[f"{(part or {}).get('text') or ''}\n{_plain(str((part or {}).get('content') or ''))}"
+                         for part in job.get("lists") or [] if isinstance(part, dict)],
+                       job.get("additionalPlain")),
             "provider": "lever", "board": token, "id": str(jid),
         })
     return out
+
+
+#: How much of a posting's own text travels with it from the listing. Enough
+#: for the pay line and the requirements, which is what the ranking reads.
+DESCRIPTION_CHARS = 8000
+
+
+def _text_of(*parts) -> dict:
+    """The posting's text where the listing already carries it (Lever and
+    Ashby do), so EVERY opening is ranked on its pay and requirements - not
+    only the twenty whose pages get read one at a time. Measured 2026-10-07:
+    Notion's Ashby listing states "$100,000 - $115,000 per year" in the text
+    and nothing in its structured compensation."""
+    text = "\n".join(str(p).strip() for p in parts if str(p or "").strip())
+    return {"description": text[:DESCRIPTION_CHARS]} if text else {}
+
+
+#: Lever's pay intervals, as `job_value.annual_pay` names its units.
+_LEVER_UNITS = {"per-year-salary": "YEAR", "per-month-salary": "MONTH",
+                "per-week-salary": "WEEK", "per-day-wage": "DAY", "per-hour-wage": "HOUR"}
+
+
+def _lever_pay(pay) -> dict:
+    """A posting's listed pay range, where Lever carries one in dollars, so
+    the ranking can weigh it against his floor without reading the page."""
+    if not isinstance(pay, dict) or str(pay.get("currency") or "").upper() != "USD":
+        return {}
+    unit = _LEVER_UNITS.get(str(pay.get("interval") or ""))
+    try:
+        low, high = float(pay.get("min")), float(pay.get("max"))
+    except (TypeError, ValueError):
+        return {}
+    if not unit or low <= 0 or high < low:
+        return {}
+    return {"salary": [low, high], "salary_unit": unit}
 
 
 def _published(board: dict, published: str, token: str) -> str:
@@ -349,6 +424,8 @@ def _ashby(board: dict) -> list[dict]:
             "location": "; ".join(p.strip() for p in places if p.strip()),
             "posting_url": job.get("jobUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}",
             "apply_url": job.get("applyUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}/application",
+            "posted": _when(job.get("publishedAt")),
+            **_text_of(job.get("descriptionPlain")),
             "provider": "ashby", "board": token, "id": str(jid),
         })
     return out
@@ -380,6 +457,7 @@ def _workable(board: dict) -> list[dict]:
             # and redirect to these; these are what a board URL looks like.
             "posting_url": f"https://apply.workable.com/{q}/j/{code}/",
             "apply_url": f"https://apply.workable.com/{q}/j/{code}/apply/",
+            "posted": _when(job.get("published_on") or job.get("created_at")),
             "provider": "workable", "board": token, "id": code,
         })
     return out
@@ -421,6 +499,7 @@ def _smartrecruiters(board: dict) -> list[dict]:
                 # button; the application itself is the one-click form, keyed
                 # by the posting's uuid, which only the listing carries.
                 "apply_url": (_sr_form(ident, uuid) if uuid else posting),
+                "posted": _when(job.get("releasedDate")),
                 "provider": "smartrecruiters", "board": token, "id": jid,
             })
         found = int((data or {}).get("totalFound") or 0)
@@ -462,6 +541,7 @@ def _recruitee(board: dict) -> list[dict]:
             # redirected to careers.bunq.com/positions/..., which has no form on it
             # until Apply is pressed. Recruitee's own host serves the form itself.
             "direct": host == "recruitee.com" or host.endswith(".recruitee.com"),
+            "posted": _when(job.get("published_at") or job.get("created_at")),
             "provider": "recruitee", "board": token, "id": str(job.get("id") or slug),
         })
     return out
@@ -540,6 +620,24 @@ def _plain(markup: str) -> str:
     return " ".join(re.sub(r"<[^>]+>", " ", text).split())
 
 
+def _greenhouse_pay(ranges) -> str:
+    """The pay range an employer entered in Greenhouse's own pay fields, as a
+    sentence the pay reader already understands. Many US postings show pay
+    ONLY there - beside the text on the page, never inside it - so without
+    this the ranking saw no pay for them at all."""
+    lines = []
+    for pay in ranges if isinstance(ranges, list) else []:
+        if not isinstance(pay, dict) or str(pay.get("currency_type") or "USD").upper() != "USD":
+            continue
+        try:
+            low, high = int(pay.get("min_cents")) // 100, int(pay.get("max_cents")) // 100
+        except (TypeError, ValueError):
+            continue
+        if 0 < low <= high:
+            lines.append(f"Pay: ${low:,} - ${high:,}")
+    return ("\n" + "\n".join(lines)) if lines else ""
+
+
 def posting_text(job: dict, fetch=None) -> str:
     """What the posting SAYS - requirements included - or "" when it cannot tell.
 
@@ -558,8 +656,9 @@ def posting_text(job: dict, fetch=None) -> str:
             green = form or _GREENHOUSE_JOB.search(address)
             if green:
                 data = get(f"https://boards-api.greenhouse.io/v1/boards/"
-                           f"{green.group(1)}/jobs/{green.group(2)}")
-                return _plain((data or {}).get("content", ""))[:POSTING_CHARS]
+                           f"{green.group(1)}/jobs/{green.group(2)}?pay_transparency=true")
+                return (_plain((data or {}).get("content", ""))[:POSTING_CHARS]
+                        + _greenhouse_pay((data or {}).get("pay_input_ranges")))
             lever = _LEVER_JOB.search(address)
             if lever:
                 data = get(f"https://api.lever.co/v0/postings/{lever.group(1)}/{lever.group(2)}")
