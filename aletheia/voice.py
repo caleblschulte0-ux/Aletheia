@@ -1456,6 +1456,15 @@ def _interpret(transcript: str) -> dict:
                     "say": None}
         return _to_the_planner(text)
 
+    # "Remind me again in 10 minutes" after a reminder fires is a snooze
+    # said the way a person says it (2026-10-07: to the planner).
+    m = re.fullmatch(r"remind me (?:again|later|of (?:that|it) (?:again|later))(?: in (.+))?", low)
+    if m:
+        minutes = DEFAULT_SNOOZE_MINUTES if not m.group(1) else _spoken_minutes(m.group(1))
+        if minutes:
+            return {"command": {"kind": "notify_snooze", "minutes": minutes}, "say": None}
+        return _to_the_planner(text)
+
     # FORGETTING, which she could do all along and could not be asked to.
     # `memory.forget` is a real function with no kind, no registry entry
     # and no phrasing, so "forget my landlord" reached the planner, which
@@ -1486,7 +1495,11 @@ def _interpret(transcript: str) -> dict:
                     r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders"
                     # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
-                    r"|(when|what time) (is|'s) (my|the) next reminder|what(?:'s| is) my next reminder", low):
+                    r"|(when|what time)(?: is|'s) (my|the) next (?:reminder|alarm|timer)"
+                    r"|what(?:'s| is) my next reminder"
+                    # "When's my next reminder", "what are my reminders" (2026-10-07: to a model)
+                    r"|(?:what are|show(?: me)?|read(?: me)?|tell me) (?:all )?(?:my |the )?(?:reminders|alarms|timers)"
+                    r"|what reminders (?:have i (?:got|set)|did i set)", low):
         return {"command": {"kind": "reminders"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
@@ -2338,8 +2351,18 @@ def _interpret(transcript: str) -> dict:
         r"|appointment|appointments|event|events|schedule|agenda"
         # No leading "the": `cancel (?:my |the )?` has already eaten it,
         # so "cancel the last one" arrives here as just "last one".
-        r"|(?:first|second|third|fourth|last)(?: one)?)\b", re.IGNORECASE)
+        r"|(?:first|second|third|fourth|last)(?: one)?"
+        # A TIME OR A DAY IS NOT A SERVICE. "Cancel my 3pm" compiled
+        # subscription_cancel for a service called "3pm" (2026-10-07).
+        r"|\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)|\d{1,2}:\d\d|noon|midnight"
+        r"|today|tonight|tomorrow|this (?:morning|afternoon|evening)|monday|tuesday|wednesday"
+        r"|thursday|friday|saturday|sunday|weekend|lunch|dinner|breakfast|call|plans)\b", re.IGNORECASE)
 
+    if re.fullmatch(r"cancel (?:my |the )?(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?|noon)"
+                    r"(?: (?:today|tomorrow|meeting|appointment|call))?", low):
+        return {"command": None,
+                "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
+                       "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60
@@ -2368,7 +2391,12 @@ def _interpret(transcript: str) -> dict:
                     r"who (?:e?mailed|has e?mailed|wrote to) me(?: today| this morning| overnight)?|"
                     r"(?:did|has) (?:anyone|anybody|somebody) (?:e?mail|e?mailed|written to) me(?: today)?|"
                     r"what(?:'s| is|s)? (?:the |my )?(?:last|latest|newest|most recent) e?mail(?: i got| i received)?|"
-                    r"anything (?:new )?in (?:my|the) inbox)", low):
+                    r"anything (?:new )?in (?:my|the) inbox|"
+                    # "How many unread emails do I have", "read my latest
+                    # email", "check my inbox" (2026-10-07: to a model).
+                    r"how many (?:unread |new )?e?mails?(?: do i have| have i got| are there)?(?: unread)?|"
+                    r"(?:read|read me|show me|open) (?:my |the )?(?:last|latest|newest|most recent|new) e?mails?|"
+                    r"check (?:my |the )?inbox|(?:any|do i have any) unread e?mails?)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
     # AN HOURLY REMINDER is a door she does not have (daily and weekly she

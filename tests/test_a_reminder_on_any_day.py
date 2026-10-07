@@ -86,3 +86,33 @@ class RecordingIsNotSpending(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ATimeIsNotAService(unittest.TestCase):
+    def test_cancel_my_3pm_cancels_no_subscription(self):
+        for said in ("cancel my 3pm", "cancel my 3 pm meeting", "cancel my plans tonight",
+                     "cancel my lunch with dana"):
+            with self.subTest(said=said):
+                cmd = voice._interpret(said)["command"] or {}
+                self.assertNotEqual(cmd.get("kind"), "subscription_cancel")
+
+    def test_a_service_is_still_one(self):
+        self.assertEqual(voice._interpret("cancel my netflix")["command"]["kind"], "subscription_cancel")
+
+
+class TheOtherWaysOfAsking(unittest.TestCase):
+    def test_reminder_questions(self):
+        for said in ("when's my next reminder", "what are my reminders", "show me my alarms",
+                     "what reminders did i set"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "reminders")
+
+    def test_remind_me_again_is_a_snooze(self):
+        self.assertEqual(voice._interpret("remind me again in 10 minutes")["command"],
+                         {"kind": "notify_snooze", "minutes": 10})
+        self.assertEqual(voice._interpret("remind me later")["command"]["kind"], "notify_snooze")
+
+    def test_inbox_questions(self):
+        for said in ("how many unread emails do i have", "check my inbox", "any unread emails"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "email_check")
