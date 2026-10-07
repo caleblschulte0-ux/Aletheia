@@ -565,7 +565,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # couldn't think (2026-10-07).
     ("tasks_due", re.compile(
         r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
-        r"(?: today| tomorrow| this week| soon| next)?)(?: on my list)?\s*\??$"
+        r"(?: today| tomorrow| this week| next week| this month| next month| soon| next)?)(?: on my list)?\s*\??$"
         r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$"
         # "What tasks do I have today" (2026-10-07: to the planner), and
         # "what did I forget", which is the overdue list asked guiltily.
@@ -2472,11 +2472,17 @@ def _tasks_due(which: str = "") -> str | None:
     now = dt.datetime.now(tz)
     which = " ".join(str(which or "").split())
     end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
-    if which in ("today", "tomorrow", "this week"):
+    if which in ("today", "tomorrow", "this week", "next week", "this month", "next month"):
         which = "due " + which
     overdue_only = which in ("overdue", "late", "past due", "")
     limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
              "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
+             # "What's due this month" (2026-10-07: to a model).
+             "due next week": end_of(now.date() + dt.timedelta(days=13 - now.weekday())),
+             "due this month": end_of((now.date().replace(day=1) + dt.timedelta(days=32)).replace(day=1)
+                                      - dt.timedelta(days=1)),
+             "due next month": end_of((now.date().replace(day=1) + dt.timedelta(days=63)).replace(day=1)
+                                      - dt.timedelta(days=1)),
              "due soon": now + dt.timedelta(days=3)}.get(which, now + dt.timedelta(days=7))
     dated = []
     for task in rows:

@@ -2097,5 +2097,21 @@ class EverySundayNightCase(unittest.TestCase):
                 self.assertEqual(cmd["time"], time)
 
 
+
+class NextMonthCase(unittest.TestCase):
+    """2026-10-07: "make sure I renew my license next month" kept "next month"
+    in the task with no date, and "what's due this month" went to a model."""
+
+    def test_a_task_due_next_month(self):
+        from aletheia import voice
+        cmd = voice.interpret("make sure I renew my license next month")["command"]
+        self.assertEqual(cmd["description"], "renew my license")
+        self.assertEqual(dt.date.fromisoformat(cmd["deadline"]).day, 1)
+
+    def test_due_this_month(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's due this month")[0], "tasks_due")
+
+
 if __name__ == "__main__":
     unittest.main()

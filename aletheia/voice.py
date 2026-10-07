@@ -369,8 +369,27 @@ def _split_deadline(text: str) -> tuple[str, str]:
         bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|today|tonight|tomorrow|monday|tuesday|wednesday"
                          r"|thursday|friday|saturday|sunday|(?:over )?(?:this |the )?weekend"
                          r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?"
-                         r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?))$",
+                         r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?)"
+                         # "Renew my license next month" (2026-10-07: "next
+                         # month" stayed in the task and nothing was due).
+                         r"|next week|next month|(?:by )?(?:the )?end of (?:the |this )?(?:week|month))$",
                          text, re.IGNORECASE)
+        if bare and re.fullmatch(r"next week|next month|(?:by )?(?:the )?end of (?:the |this )?(?:week|month)",
+                                 bare.group(2).lower()):
+            import calendar as _cal
+            import datetime as dt
+            from aletheia import localtime
+            today = dt.datetime.now(localtime.operator_tz()).date()
+            said = bare.group(2).lower()
+            if said == "next week":
+                due = today + dt.timedelta(days=7 - today.weekday())             # next Monday
+            elif said == "next month":
+                due = (today.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
+            elif said.endswith("week"):
+                due = today + dt.timedelta(days=4 - today.weekday() if today.weekday() <= 4 else 6 - today.weekday())
+            else:
+                due = today.replace(day=_cal.monthrange(today.year, today.month)[1])
+            return bare.group(1).strip(), due.isoformat()
         if bare:
             said = bare.group(2).lower()
             if said.endswith("weekend"):
