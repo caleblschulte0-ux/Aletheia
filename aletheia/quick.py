@@ -2062,6 +2062,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how much (?P<saved_more>more )?(?:do i|will i) (?:still )?(?:need|have) to save\s*\??$"
         r"|^how (?P<saved_close>close|far) am i (?:from|to) (?:my |the )?(?:savings )?goal\s*\??$"
         r"|^how much is left to save\s*\??$")),
+    # "When should I water the plants next" (2026-10-07: to a model, with a
+    # reminder to water them every 3 days on file).
+    ("next_due", re.compile(
+        r"^when (?:should|do|will|must) i (?:next )?(?P<next_due>(?!be\b|get\b|go\b|leave\b)[a-z][a-z' ]{2,40}?)(?: next| again)\s*\??$"
+        r"|^when (?:should|do|will|must) i next (?P<next_due2>(?!be\b|get\b|go\b|leave\b)[a-z][a-z' ]{2,40}?)\s*\??$")),
     # "Did I miss any reminders" (2026-10-07: to the planner).
     ("missed_reminders", re.compile(
         r"^(?:did i miss|have i missed|did i skip) (?:any )?reminders?(?: today)?\s*\??$"
@@ -2128,7 +2133,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5103,6 +5108,21 @@ def _saved(text: str) -> str | None:
         return f"You've saved {_money(total)} - that's {aim} reached."
     left = amount - total
     return f"You've saved {_money(total)}{span} toward {aim}, so {_money(left)} to go, from what you've told me."
+
+
+def _next_due(text: str) -> str | None:
+    """The next reminder for the thing he names. None when no reminder
+    names it - a model may know how often it should be done."""
+    from aletheia import speech
+    g = _groups("next_due", text)
+    asked = (g.get("next_due") or g.get("next_due2") or "").strip()
+    words = [w for w in re.findall(r"[a-z0-9]+", asked.casefold()) if w not in _STOP_WORDS]
+    if not words:
+        return None
+    for at, said, store in _coming():
+        if store == "reminder" and all(re.search(rf"\b{re.escape(w[:5])}", said.casefold()) for w in words):
+            return f"Your next reminder to {said.rstrip('.')} is {speech.humanize_time(at.isoformat())}."
+    return None
 
 
 def _missed_reminders(text: str = "") -> str | None:
@@ -10113,6 +10133,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "event_detail": _event_detail,
            "missed_reminders": _missed_reminders,
            "saved": _saved,
+           "next_due": _next_due,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

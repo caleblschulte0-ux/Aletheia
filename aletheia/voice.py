@@ -3332,6 +3332,19 @@ def _interpret(transcript: str) -> dict:
             if name in ("shopping", "grocery"):
                 return {"command": {"kind": "shopping_off", "item": item}, "say": None}
             return {"command": {"kind": "list_off", "list": name, "item": item}, "say": None}
+    # "WHAT CHORES DO I HAVE" (2026-10-07: "I have nothing about chores on
+    # file" beside a task list). With no list called chores, his chores are
+    # his tasks.
+    if re.fullmatch(r"what (?:chores|jobs|house ?work|housework) (?:do i have|have i got|are there|need doing)(?: to do)?(?: today| this week)?"
+                    r"|what(?:'s| is| are)? (?:on )?my chores?(?: list)?(?: today| this week)?|what are my chores(?: today| this week)?", low):
+        try:
+            from aletheia import lists as _lists
+            has = [held["name"] for held in _lists.all_lists() if re.fullmatch(r"chores?(?: list)?", str(held.get("name") or "").casefold())]
+        except Exception:  # noqa: BLE001
+            has = []
+        if has:
+            return {"command": {"kind": "list_read", "list": has[0]}, "say": None}
+        return {"command": {"kind": "tasks"}, "say": None}
     named = _named_list_said(low, text)
     if named:
         return named
@@ -5630,6 +5643,35 @@ def _interpret(transcript: str) -> dict:
         if what in ("washed", "serviced", "inspected", "registered"):
             return _new_task(f"get the {m.group('v')} {what}")
         return _new_task(f"get the {m.group('v')} {'an ' if what[0] in 'aeiou' else 'a ' if not what.endswith('s') else ''}{what}")
+    # "THE SMOKE DETECTOR NEEDS A NEW BATTERY", "the gutters need cleaning"
+    # (2026-10-07: to the planner) - a job about the house, on his list in
+    # words he would say back. "The plants need watering every 3 days" is
+    # the reminder he would have asked for.
+    m = re.fullmatch(r"(?:my|the|our) (?P<t>smoke (?:detector|alarm)|carbon monoxide (?:detector|alarm)|furnace|ac|a/c|air conditioner"
+                     r"|dishwasher|washer|washing machine|dryer|fridge|refrigerator|freezer|sink|toilet|faucet|shower|bathtub|tub|gutters?"
+                     r"|lawn|grass|roof|fence|deck|plants?|garden|house|kitchen|bathroom|garage|yard|hedges?|pool|hot tub|water heater"
+                     r"|air filter|filter|oven|stove|microwave|windows?|carpets?|floors?|car seat|printer|bike|lights?|light bulb|doorbell)"
+                     r" needs? (?P<what>.{3,40}?)(?P<when> soon| this week| this weekend| this month| this fall| this spring| today| tomorrow)?"
+                     r"(?: every (?P<n>\d{1,2}|other|two|three|four|five|six|seven) days?)?", low)
+    if m:
+        thing, what = m.group("t"), m.group("what")
+        verbs = {"cleaning": "clean", "cleaned": "clean", "fixing": "fix", "fixed": "fix", "mowing": "mow", "mowed": "mow",
+                 "watering": "water", "watered": "water", "painting": "paint", "painted": "paint", "replacing": "replace",
+                 "replaced": "replace", "repairing": "repair", "repaired": "repair", "servicing": "service",
+                 "serviced": "service", "emptying": "empty", "emptied": "empty", "trimming": "trim", "trimmed": "trim",
+                 "changing": "change", "changed": "change", "descaling": "descale", "defrosting": "defrost",
+                 "weeding": "weed", "vacuuming": "vacuum", "unclogging": "unclog", "sealing": "seal", "staining": "stain"}
+        word = re.sub(r"^to be ", "", what)
+        if m.group("n"):
+            if word in verbs:
+                n = {"other": "2", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7"}.get(m.group("n"), m.group("n"))
+                return _interpret(f"remind me to {verbs[word]} the {thing} every {n} days")
+        elif word in verbs:
+            return _new_task(f"{verbs[word]} the {thing}{m.group('when') or ''}")
+        else:
+            new = re.fullmatch(r"(?:a |an )?new (?P<part>[a-z][a-z ]{1,20})", what)
+            if new:
+                return _new_task(f"replace the {thing} {new.group('part')}{m.group('when') or ''}")
     # "PICK UP LEO AT 3" (2026-10-07: to the planner). An errand with a time
     # on it, said as a note to himself, is the reminder he would have asked for.
     if re.fullmatch(r"(?:pick up|drop off|collect|get) (?!milk\b|groceries\b)[a-z][a-z' ]{1,25} (?:at|by) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?"

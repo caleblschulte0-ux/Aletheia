@@ -4150,5 +4150,41 @@ class TheKitchen(unittest.TestCase):
         self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "party"))
 
 
+class JobsAroundTheHouse(unittest.TestCase):
+    """2026-10-07: "the smoke detector needs a new battery" and "the plants
+    need watering every 3 days" went to the planner, "when should I water
+    the plants next" to a model, and "what chores do I have" said nothing
+    was on file beside his task list."""
+
+    def test_a_house_job_is_a_task_with_its_when(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("the smoke detector needs a new battery")["command"]["description"],
+                         "replace the smoke detector battery")
+        cmd = voice._interpret("the toilet needs fixing this weekend")["command"]
+        self.assertEqual(cmd["description"], "fix the toilet")
+        self.assertIn("deadline", cmd)
+        self.assertIsNone(voice._interpret("the house needs love")["say"])
+
+    def test_every_n_days_is_the_reminder(self):
+        from aletheia import voice
+        cmd = voice._interpret("the plants need watering every 3 days")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"], cmd["every"]), ("remind_daily", "water the plants", 3))
+
+    def test_next_time_reads_the_reminder(self):
+        import datetime as dt
+        from aletheia import quick
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+        with mock.patch.object(quick, "_coming", return_value=[(at, "water the plants", "reminder")]):
+            self.assertIn("Your next reminder to water the plants is", quick.answer("when should i water the plants next"))
+        with mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick.answer("when should i water the plants next"))
+        self.assertEqual(quick.match("when is the next time i see sam")[0], "when_note")
+
+    def test_chores_are_his_tasks(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "all_lists", return_value=[]):
+            self.assertEqual(voice._interpret("what chores do i have")["command"], {"kind": "tasks"})
+
+
 if __name__ == "__main__":
     unittest.main()
