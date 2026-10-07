@@ -4495,6 +4495,20 @@ def _interpret(transcript: str) -> dict:
     if m:
         what = m.group("what") or "places"
         return {"command": {"kind": "research", "question": f"{what} open now near me"}, "say": None}
+    # SPORTS: "did the Cowboys win", "when do the Bulls play" (2026-10-07:
+    # to the planner). A search; the team is whatever he named after "the".
+    m = re.fullmatch(r"did the (?P<t>[a-z][a-z .'&-]{2,30}?) (?:win|lose)(?: last night| yesterday| today| tonight)?"
+                     r"|how did the (?P<t2>[a-z][a-z .'&-]{2,30}?) do(?: last night| yesterday| today| tonight)?"
+                     r"|what(?:'s| is|s| was) the (?P<t3>[a-z][a-z .'&-]{2,30}?) (?:score|game score)(?: last night| today)?"
+                     r"|who won the (?P<t4>[a-z][a-z .'&-]{2,30}?) game(?: last night| yesterday| today)?"
+                     r"|when do (?:the )?(?P<t5>[a-z][a-z .'&-]{2,30}?) play(?: next)?", low)
+    if m and not re.search(r"\b(?:i|you|we|my|it|they|he|she|game)\b", next(g for g in m.groups() if g)):
+        team = next(g for g in m.groups() if g).strip()
+        q = f"when do the {team} play next" if m.group("t5") else f"{team} score last game"
+        return {"command": {"kind": "research", "question": q}, "say": None}
+    if re.fullmatch(r"(?:any |what are the |give me the |the )?(?:sports )?scores(?: today| tonight| last night)?"
+                    r"|any sports (?:scores|news)(?: today)?", low):
+        return {"command": {"kind": "research", "question": "sports scores today"}, "say": None}
     # A PLACE'S HOURS: "when does Target close", "is Costco open on Sunday"
     # (2026-10-07: to the planner). A search, the same as "what's open now".
     m = re.fullmatch(r"(?:when|what time) (?:does|do|is) (?:the )?(?P<p>[a-z0-9][a-z0-9 .'&-]{1,40}?) (?:close|open|closing|opening)"

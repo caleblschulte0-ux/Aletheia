@@ -1414,5 +1414,17 @@ class APlacesHoursCase(unittest.TestCase):
             self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "research", said)
 
 
+class DidTheTeamWinCase(unittest.TestCase):
+    def test_a_team_is_a_search(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("did the cowboys win")["command"]["question"], "cowboys score last game")
+        self.assertEqual(voice._interpret("when do the cubs play next")["command"]["question"], "when do the cubs play next")
+
+    def test_his_own_things_are_not_a_team(self):
+        from aletheia import voice
+        for said in ("did i win", "how did dana do", "did you win"):
+            self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "research", said)
+
+
 if __name__ == "__main__":
     unittest.main()
