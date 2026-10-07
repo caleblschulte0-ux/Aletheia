@@ -43,3 +43,27 @@ class TheWeatherAskedSideways(unittest.TestCase):
                               ("do i need a jacket", ""), ("what's the forecast", "")):
                 with self.subTest(said=said):
                     self.assertEqual(quick.answer(said), f"[{day}]")
+
+
+class ANeedIsAListLine(unittest.TestCase):
+    def test_needs_go_on_the_list_and_buying_stays_his(self):
+        for said, item in (("we're out of coffee", "coffee"), ("we need paper towels", "paper towels"),
+                           ("i need to buy batteries", "batteries"), ("we're running low on dish soap", "dish soap"),
+                           ("add milk", "milk")):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "shopping_add", "item": item})
+
+    def test_a_need_that_is_not_a_thing_to_buy(self):
+        for said in ("i need a break", "i need to call mom", "i need help", "we need to talk",
+                     "i need a doctor", "add a task", "add it"):
+            with self.subTest(said=said):
+                self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "shopping_add")
+
+    def test_a_bare_add_with_a_verb_is_a_task(self):
+        self.assertEqual(voice._interpret("add call the bank")["command"]["kind"], "task_new")
+
+    def test_take_it_off_only_when_it_is_on_the_list(self):
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=True):
+            self.assertEqual(voice._interpret("take eggs off")["command"], {"kind": "shopping_off", "item": "eggs"})
+        with mock.patch.object(voice, "_on_the_shopping_list", return_value=False):
+            self.assertNotEqual(voice._interpret("take eggs off")["command"]["kind"], "shopping_off")

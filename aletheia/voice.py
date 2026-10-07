@@ -1383,8 +1383,41 @@ def _interpret(transcript: str) -> dict:
                             r"(?:the |some |a |an )?(.+?)", low)
         if said and _on_the_shopping_list(said.group(1)):
             m = said
+    if not m:
+        # "TAKE EGGS OFF" with no list named (2026-10-07: to the planner) -
+        # only when that thing is on the list, the same store check.
+        said = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(.+?) off", low)
+        if said and _on_the_shopping_list(said.group(1)):
+            m = said
     if m:
         return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
+                "say": None}
+
+    # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
+    # place a bare thing goes. A verb is a task; anything naming another
+    # store, or with a preposition in it, is left to the patterns for those.
+    m = re.fullmatch(r"add (?:some |more )?(?P<item>[a-z][a-z' -]{1,30})", low)
+    if m and not re.search(r"\b(?:to|on|with|at|for|from|in|into|by|task|tasks|meeting|reminder|note|contact|event|"
+                           r"appointment|calendar|alarm|timer|that|it|this|them|everything|all)\b", m.group("item")):
+        if _TASK_VERB.match(m.group("item")):
+            return _new_task(_as_he_said(text, m.group("item")))
+        if not _might_be_several(m.group("item")):
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
+                    "say": None}
+
+    # "WE'RE OUT OF COFFEE", "we need paper towels", "I need to buy
+    # batteries": a thing to buy, said as a need (2026-10-07: the planner,
+    # and the last one refused as SPENDING). It goes on the list; buying
+    # it stays his. Anything that starts with a verb is not a thing.
+    m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?:the |some )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
+    if m and not _TASK_VERB.match(m.group("item")) \
+            and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
+                             r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
+                             r"idea|ideas|plan|answer|answers|space|quiet|coffee break|drink|win|friend|friends|"
+                             r"date|haircut|change|reminder|timer|alarm|it|that|this|them|him|her)\b", m.group("item")):
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
     # "Snooze that for an hour" — the commonest thing anybody says to a
