@@ -1257,6 +1257,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What's a 20% tip on 45" (2026-10-07, to a model that wasn't there).
         r"|^(?:what(?:'s| is|s)? (?:a )?|how much is (?:a )?)(?P<tip>[\d.]+) ?(?:%|percent) tip (?:on|for) (?:a )?(?:\$)?(?P<bill>[\d.,]+)(?: dollars| bucks)?(?: bill| tab| check)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
+        # "What is 2+2", "5*3" - the symbol with no spaces (2026-10-07: to a model).
+        r"|^(?:what(?:'s| is|s)? |calculate )?(?P<a2>[\d.]+) ?(?P<op2>\+|\*|/|x|×) ?(?P<b2>[\d.]+)\s*\??$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>-?[\d.,]+) (?:degrees? )?(?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)"
         r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
@@ -4512,6 +4514,8 @@ def _math(text: str) -> str | None:
     if not found:
         return None
     g = {k: v for k, v in found.groupdict().items() if v}
+    if "op2" in g:
+        g.update(a=g["a2"], op={"×": "x"}.get(g["op2"], g["op2"]), b=g["b2"])
 
     def num(s: str) -> float:
         return float(str(s).replace(",", ""))

@@ -2507,5 +2507,16 @@ class WhatsAfterThat(unittest.TestCase):
             self.assertIsNone(quick.answer("what's after that"))
 
 
+
+class SumsWithNoSpaces(unittest.TestCase):
+    """2026-10-07: "what is 2+2" and "5*3" went to a model."""
+
+    def test_sums(self):
+        from aletheia import quick
+        for said, answer in (("what is 2+2", "4."), ("what's 5*3", "15."), ("what's 10/4", "2.5."), ("what's 3x4", "12.")):
+            with self.subTest(said=said):
+                self.assertEqual(quick.answer(said), answer)
+
+
 if __name__ == "__main__":
     unittest.main()

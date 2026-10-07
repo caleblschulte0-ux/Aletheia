@@ -67,8 +67,11 @@ class CoreCase(unittest.TestCase):
 
     def test_two_asks_in_one_breath_are_both_done(self):
         # 2026-10-07: one sentence, two asks, and the planner got it whole.
-        res = self._post({"transcript": "add a task to water the ferns and add a task to feed the fish"},
-                         path="/api/voice")
+        # Not left in the conversation thread: a later test's "call it off"
+        # would otherwise mean these tasks rather than its own approval.
+        with mock.patch.object(core, "_remember_out_loud"):
+            res = self._post({"transcript": "add a task to water the ferns and add a task to feed the fish"},
+                             path="/api/voice")
         self.assertIn("water the ferns", res["say"])
         self.assertIn("feed the fish", res["say"])
         described = [str(t.get("description") or "") for t in self._get("/api/tasks")]
