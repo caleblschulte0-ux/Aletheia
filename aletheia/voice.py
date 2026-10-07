@@ -2533,6 +2533,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
                     r"what's new|anything new|notifications?)", low):
         return {"command": {"kind": "notify_check"}, "say": None}
+    # "CLEAR MY SHOPPING LIST" (2026-10-07: to the planner). Every row is
+    # cancelled, never deleted, through the verb that already does it.
+    if re.fullmatch(r"(?:clear|empty|wipe|reset|delete everything on|clear out|empty out) (?:my |the )?"
+                    r"(?:shopping|grocery) list", low):
+        return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):
         return {"command": {"kind": "notify_clear"}, "say": None}
 
@@ -3503,6 +3508,19 @@ def _interpret(transcript: str) -> dict:
             if known:
                 return {"command": {"kind": "message_send", "to": who,
                                     "body": _as_he_said(text, " ".join(words[n:]))}, "say": None}
+    # "SEND A MESSAGE TO DANA" names who and not what (2026-10-07: to the
+    # planner). Asked for whole, the way the bare verbs are.
+    # One word after a bare "text": "text bob happy birthday" is a stranger
+    # and a message, and is not guessed at here.
+    m = (re.fullmatch(r"send (?:a )?(?:text|message|text message) to (?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?)", low)
+         or re.fullmatch(r"(?:send|message|text) (?P<who>[a-z][a-z']{1,20})(?: a (?:text|message))?", low))
+    if m and m.group("who").split()[0] not in ("a", "the", "my", "him", "her", "them", "it", "that", "this", "me", "help",
+                                                "money", "everything", "all", "email", "emails", "mail", "flowers",
+                                                "invites", "invite", "reminders", "now", "back", "again", "off"):
+        who = _as_he_said(text, m.group("who"))
+        who = who.title() if who.islower() else who
+        return {"command": None,
+                "say": f"What should it say? Say \"text {who} that you're running late\" and I'll draft it for you to send."}
 
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two

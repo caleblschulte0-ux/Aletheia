@@ -135,3 +135,27 @@ class MovingACalendarEvent(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheSmallerOnes(unittest.TestCase):
+    """Same pass: each went to the planner with every model off."""
+
+    def test_clear_my_shopping_list(self):
+        for said in ("clear my shopping list", "empty the grocery list"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "shopping_off", "item": "everything"})
+
+    def test_a_message_with_no_words_asks_for_them(self):
+        for said, who in (("send a message to dana", "Dana"), ("text sam", "Sam"), ("send mom a text", "Mom")):
+            with self.subTest(said=said):
+                got = voice._interpret(said)
+                self.assertIsNone(got["command"])
+                self.assertIn(f'"text {who} that', got["say"])
+        for said in ("send it", "send money", "text bob happy birthday"):
+            with self.subTest(said=said):
+                self.assertNotIn("What should it say", voice._interpret(said).get("say") or "")
+
+    def test_how_are_you_today_and_the_next_birthday_and_time_left(self):
+        self.assertEqual(quick.match("how are you doing today")[0], "greeting")
+        self.assertEqual(quick.match("when is my next birthday")[0], "birthday")
+        self.assertEqual(quick.match("how much time is left")[0], "timer_left")

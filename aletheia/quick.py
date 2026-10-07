@@ -478,7 +478,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("birthday", re.compile(
         r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
         r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
-        r"|how long (?:until|till|before) my birthday)\s*\??$")),
+        r"|how long (?:until|till|before) my birthday|when(?:'s| is|s) my next birthday"
+        r"|how many days (?:until|till|to|before) my next birthday)\s*\??$")),
     # DEADLINES HE SET. "Add a task to renew my license by Friday" stores a
     # real deadline; "what's due this week" and "what's overdue" told him she
     # couldn't think (2026-10-07).
@@ -909,7 +910,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
-        r"|^how (?:are|r) (?:you|u)(?: doing| today)?$"
+        r"|^how (?:are|r) (?:you|u)(?: doing)?(?: today| this morning| tonight)?$"
         r"|^how (?:you|u) doing$|^how goes it$")),
     # Coming and going. "I'm home" and "goodnight" went to the PLANNER and,
     # with nothing thinking, came back "I could not plan that".
@@ -1167,7 +1168,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # left is arithmetic on its due time.
     ("timer_left", re.compile(r"^(?:how (?:much (?:time|longer)|long)(?: is)? (?:left|remaining|to go)? ?(?:on|for) (?:my|the) timers?"
                               r"|how much (?:time is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
-                              r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer)$")),
+                              r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer"
+                              # "How much time is left" (2026-10-07: to the planner) is the timer's.
+                              r"|how much (?:time|longer) is (?:left|remaining)|how long is left)$")),
     # "HOW MANY WEEKS UNTIL CHRISTMAS" and "a 20% tip on 45" (2026-10-07:
     # to a model). Arithmetic on a date and on a bill.
     ("until_weeks", re.compile(r"^how many (?P<what2>weeks|months) (?:until|till|to|before) (?:the )?(?P<what>[a-z][a-z' ]{2,30}?)$")),
