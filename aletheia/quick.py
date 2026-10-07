@@ -372,6 +372,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|middle name|last name)(?: name)?\s*\??$"
         r"|^what (?P<tf_key2>school|grade|class|daycare) (?:does|is) (?P<tf_who2>(?:my )?[a-z][a-z']{1,20}) (?:go to|in|at)\s*\??$"
         r"|^what (?:is|are) (?P<tf_who3>(?:my )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?P<tf_allergy>allergic to)\s*\??$")),
+    # "Who's coming for Thanksgiving" (2026-10-07: to a model, with "my
+    # in-laws are coming for Thanksgiving" kept).
+    ("who_coming", re.compile(
+        r"^who(?:'s| is| are) (?:coming|visiting|coming over|coming to visit|staying with us)"
+        r"(?: (?:for|on|over|this|to|at) (?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -2287,7 +2292,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
-                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish")
+                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
+                                           "who_coming")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -5199,8 +5205,12 @@ def _agenda(day: str = "today") -> str | None:
              else "This week" if day == "this week" else "Next week")
     when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend", "Next weekend",
                                            "This month") else label
+    # "We're having people over Friday night" is a note, and "what's
+    # happening Friday" said only "Nothing on your calendar Friday"
+    # (2026-10-07). His own word for the day, said this past week.
+    told = _plans_told(day)
     if not rows:
-        return f"Nothing on your calendar {when_said}."
+        return f"Nothing on your calendar {when_said}." + (f" But you told me: {told}." if told else "")
     rows.sort(key=lambda r: r[0])
     many_days = first != last
     said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month"
@@ -5208,7 +5218,33 @@ def _agenda(day: str = "today") -> str | None:
             + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
             for start, title in rows[:6]]
     return (f"{label}: " + speech.and_list(said)
-            + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+            + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
+            + (f" And you told me: {told}." if told else ""))
+
+
+def _plans_told(day: str) -> str:
+    """His notes from the past six days naming this weekday or the weekend
+    ("we're having people over Friday night"), in his words - "" for any
+    other day word, since "tomorrow" said last week is not this tomorrow."""
+    import datetime as dt
+    from aletheia import speech
+    word = {"this weekend": "weekend", "the weekend": "weekend"}.get(day, day)
+    if word not in _WEEKDAYS and word != "weekend":
+        return ""
+    pattern = (r"\b(?:weekend|saturday|sunday)\b" if word == "weekend" else rf"\b{word}\b")
+    cut = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=6)
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at >= cut and re.search(pattern, said.casefold()) and not re.search(r"\bnext\b|\blast\b|\bevery\b", said.casefold()):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        if len(found) >= 3:
+            break
+    return speech.and_list(found)
 
 
 _PART_HOURS = {"morning": (5, 12), "afternoon": (12, 17), "evening": (17, 22), "night": (17, 24), "tonight": (17, 24)}
@@ -6904,6 +6940,23 @@ def _repos() -> str | None:
         shown.append(f"{len(names) - 4} more")
     return (f"{speech.count_phrase(len(names), 'repo')}: "
             + speech.and_list(shown) + ".")
+
+
+def _who_coming(when: str) -> str | None:
+    """Who he told her is coming or visiting - for the occasion he names,
+    when he names one. None when no note says so."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z0-9']+", str(when or "").casefold()) if w not in ("the", "my", "our", "a")]
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.search(r"\b(?:is|are) (?:visiting|coming|staying with us|in town|flying in)\b", low) \
+                and all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        if len(found) >= 3:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
 
 
 def _opinion(text: str) -> str | None:
@@ -10906,6 +10959,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "who_coming": lambda rest: _who_coming(rest),
            "opinion": lambda rest: _opinion(rest),
            "did_finish": lambda rest: _did_finish(rest),
            "shop_added": lambda rest: _shop_added(rest),

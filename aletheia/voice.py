@@ -2265,6 +2265,25 @@ _AN_ASK_OF_HERS = re.compile(
     r"|note (?:that|:)|make a note|what(?:'s| is| are)? |when(?:'s| is)? |how (?:much|many|long) )")
 
 
+#: "My sister is visiting", "I have a wedding", "we're having people over",
+#: "I'm hosting game night" - something on with other people, said with a
+#: when (2026-10-07: every one to the planner). Kept as a note in his words.
+_SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law)?s?|in-laws|parents|folks|family|kids|friends?(?: [a-z]+)?)|[a-z]+ and [a-z]+"
+                r"|(?!(?:it|that|this|rain|snow|a storm|the storm|storm|weather|winter|summer|spring|fall|the package|package|my package"
+                r"|the delivery|delivery|the bill|the rent|rent|the bus|the train)\b)[a-z]+)"
+                r" (?:is|are) (?:visiting|coming (?:over|to visit|to stay|to town|in|for a visit)|coming|staying with us|in town|flying in)"
+                r"|(?:i|we) (?:have|'ve got|have got|got) (?:a |an |the |my |our )?(?:wedding|party|birthday party|baby shower|bridal shower"
+                r"|funeral|reunion|recital|graduation|game night|book club|date night|date|concert|show|game|tournament|bbq|barbecue"
+                r"|cookout|potluck|housewarming|work party|holiday party|christmas party|dinner party|sleepover|playdate)"
+                r"|(?:i'?m|we'?re|i am|we are) (?:hosting|throwing|having) (?:a |an |the |our |my )?(?:people over|friends over|guests over"
+                r"|company over|family over|the family over|[a-z]+ over|wedding|party|birthday party|game night|book club|dinner party"
+                r"|bbq|barbecue|cookout|potluck|housewarming|sleepover|playdate)"
+                r"|(?:i'?m|we'?re|i am|we are) (?:going to|attending) (?:a |an |the |my |our |[a-z]+'s )?(?:wedding|party|birthday party|funeral"
+                r"|reunion|concert|game|show|recital|graduation|baby shower|housewarming|game night)")
+_HOLIDAYS = (r"thanksgiving|christmas(?: eve)?|new year'?s(?: eve| day)?|easter|halloween|the fourth|fourth of july|july 4th"
+             r"|labor day|memorial day|hanukkah|passover|mother'?s day|father'?s day|valentine'?s(?: day)?")
+
+
 def two_asks(transcript: str) -> list[str] | None:
     """"Add milk to the list and remind me at 5 to go shopping" is two asks.
 
@@ -8246,7 +8265,11 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:for |on )?(?P<day2>" + _wd + r")(?: night)?(?:'s dinner is| dinner is| we'?re having| i'?m (?:having|making)) (?P<what2>[a-z0-9][a-z0-9 ,'&-]{1,50})"
                      # "I'm making tacos tonight" (2026-10-07: to a model) -
                      # the day said after the dish.
-                     r"|(?:i'?m|we'?re|i am|we are) (?:making|having|cooking) (?P<what3>(?!dinner\b|lunch\b|breakfast\b|plans\b|a call\b|time\b)[a-z][a-z0-9 ,'&-]{1,40}?)"
+                     r"|(?:i'?m|we'?re|i am|we are) (?:making|having|cooking) (?P<what3>(?!dinner\b|lunch\b|breakfast\b|plans\b|a call\b|time\b"
+                     # "We're having people over Friday night" is company, not
+                     # a dish (2026-10-07: it went on the meal plan).
+                     r"|people\b|friends\b|guests\b|company\b|family\b|folks\b|the kids\b|a party\b|a baby\b|surgery\b"
+                     r"|a meeting\b|a wedding\b|a test\b|an? [a-z]+ party\b|[a-z' ]+ over\b)[a-z][a-z0-9 ,'&-]{1,40}?)"
                      r"(?: for dinner)? (?P<day3>" + _wd + r")(?: night)?", low)
     if m:
         import datetime as _dt
@@ -8277,7 +8300,10 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:have|got|'ve got|have got) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow"
                             r"|next week|the day|the week) off", low) \
             or re.fullmatch(r"(?:my|our) (?:vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon|flight to [a-z ]{2,20}?)"
-                            r" (?:is|starts|begins) " + _when, low):
+                            r" (?:is|starts|begins) " + _when, low) \
+            or re.fullmatch(r"(?:" + _SOCIAL_PLAN + r")(?: (?:for|on|over) (?:" + _HOLIDAYS + r"))?(?: " + _when + r")?(?: night| morning| afternoon| evening)?", low) \
+            and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
+                          r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I GOT A HAIRCUT", "I need an oil change" (2026-10-07: both to the
     # planner). A service he had is a note "when did I last get a haircut"

@@ -5037,5 +5037,33 @@ class RainAskedSideways(unittest.TestCase):
             self.assertEqual(quick.match(said)[0], "weather", said)
 
 
+class VisitsWeddingsAndPeopleOver(unittest.TestCase):
+    """Plans with other people, said with a when, are kept and read back."""
+
+    def test_kept_as_notes(self):
+        from aletheia import voice
+        for said in ("my sister is visiting this weekend", "i have a wedding on saturday",
+                     "we're having people over friday night", "my in-laws are coming for thanksgiving",
+                     "i'm hosting game night on the 20th"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_people_over_is_not_dinner(self):
+        from aletheia import voice
+        self.assertNotEqual(voice.interpret("we're having people over friday night")["command"]["kind"], "list_add")
+        self.assertEqual(voice.interpret("we're having tacos friday night")["command"]["kind"], "list_add")
+
+    def test_read_back(self):
+        import datetime as dt
+        from aletheia import calendar, quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "my in-laws are coming for thanksgiving", "ts": now},
+                 {"text": "we're having people over friday night", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertEqual(quick.answer("who's coming for thanksgiving"),
+                             "You told me: your in-laws are coming for thanksgiving.")
+            self.assertIn("people over", quick.answer("what's happening friday"))
+
+
 if __name__ == "__main__":
     unittest.main()
