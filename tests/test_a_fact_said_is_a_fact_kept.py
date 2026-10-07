@@ -5030,5 +5030,12 @@ class FreeHoursAndClearingADay(unittest.TestCase):
             self.assertIn("can't cancel things on your calendar", got["say"])
 
 
+class RainAskedSideways(unittest.TestCase):
+    def test_stop_raining_is_the_forecast(self):
+        from aletheia import quick
+        for said in ("when will it stop raining", "is it raining outside"):
+            self.assertEqual(quick.match(said)[0], "weather", said)
+
+
 if __name__ == "__main__":
     unittest.main()

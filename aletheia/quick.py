@@ -1383,6 +1383,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow|this weekend|this week|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow|this weekend|this week))?$"
+        # "When will it stop raining", "is it raining" (2026-10-07: to a model).
+        r"|^(?:when (?:will|does|is) it (?:going to )?(?:stop|start) (?:raining|snowing)|is it (?:raining|snowing|sunny|cloudy|foggy) (?:out(?:side)?|right now|now)?)\s*\??$"
         # "Will it be nice this weekend" (2026-10-07: to the planner).
         r"|^(?:will|is) it (?:going to )?be (?:nice|warm|cold|hot|sunny|good)(?: out(?:side)?)? (?P<weather11>today|tonight|tomorrow|this weekend|this week)\s*\??$"
         # "What's the weather this week", "the forecast for the weekend"
