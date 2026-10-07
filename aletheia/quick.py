@@ -2056,6 +2056,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # made saying so (2026-10-07: all to a model). None when no note does.
     # "How long is my meeting with Sam", "who is my meeting with at 3",
     # "what's my busiest day this week" (2026-10-07: all to a model).
+    # "How much have I saved", "how much more do I need to save" (2026-10-07: to a model).
+    ("saved", re.compile(
+        r"^how much (?:money )?(?:have i|did i) (?:saved?|put away|set aside)(?P<saved_w> so far| this week| this month| in total| total)?\s*\??$"
+        r"|^how much (?P<saved_more>more )?(?:do i|will i) (?:still )?(?:need|have) to save\s*\??$"
+        r"|^how (?P<saved_close>close|far) am i (?:from|to) (?:my |the )?(?:savings )?goal\s*\??$"
+        r"|^how much is left to save\s*\??$")),
     # "Did I miss any reminders" (2026-10-07: to the planner).
     ("missed_reminders", re.compile(
         r"^(?:did i miss|have i missed|did i skip) (?:any )?reminders?(?: today)?\s*\??$"
@@ -2122,7 +2128,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5043,6 +5049,53 @@ def _event_detail(text: str) -> str | None:
         day, n = min(sorted(counts.items()), key=lambda r: r[1])
         return f"{day.strftime('%A')}, with {speech.count_phrase(n, 'thing')} on it."
     return None
+
+
+_SAVED_NOTE = re.compile(r"^i (?:just )?(?:saved|put away|set aside|put|moved|transferred) \$?(?P<amt>\d[\d,]*(?:\.\d\d)?)")
+_SAVE_GOAL = re.compile(r"^(?:i(?:'m| am)? (?:want to|wanna|need to|trying to|going to|gonna|plan to|saving up|saving) (?:save (?:up )?)?"
+                        r"|my savings goal is |my goal is to save )\$?(?P<amt>\d[\d,]*(?:\.\d\d)?)(?P<k>k)?(?: dollars| bucks)?"
+                        r"(?: (?:for|towards?) (?P<for>(?:a |an |my |the )?[a-z][a-z ]{1,30}?))?(?: by .*)?$")
+
+
+def _saved(text: str) -> str | None:
+    """What he told her he saved, against the goal he told her. None when
+    he has said neither."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("saved", text)
+    window = (g.get("saved_w") or "").strip()
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    start = {"this week": now - dt.timedelta(days=now.weekday()), "this month": now.replace(day=1)}.get(window)
+    total, goal = 0.0, None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = _SAVED_NOTE.match(said)
+        if m and (said.startswith("i saved") or re.search(r"savings|fund|\bfor\b", said)):
+            try:
+                at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                at = now
+            if not start or at.date() >= start.date():
+                total += float(m.group("amt").replace(",", ""))
+            continue
+        m = _SAVE_GOAL.match(said)
+        if m and goal is None:
+            amount = float(m.group("amt").replace(",", "")) * (1000 if m.group("k") else 1)
+            goal = (amount, re.sub(r"^my ", "your ", (m.group("for") or "").strip()))
+    if not total and not goal:
+        return None
+    span = f" {window}" if window and window not in ("so far", "in total", "total") else ""
+    if not goal:
+        if g.get("saved_more") or g.get("saved_close") or "left" in text:
+            return f"You've told me you saved {_money(total)}, but not what you're saving towards."
+        return f"{_money(total)}{span}, from what you've told me."
+    amount, for_ = goal
+    aim = f"your {_money(amount)} goal" + (f" for {for_}" if for_ else "")
+    if total >= amount:
+        return f"You've saved {_money(total)} - that's {aim} reached."
+    left = amount - total
+    return f"You've saved {_money(total)}{span} toward {aim}, so {_money(left)} to go, from what you've told me."
 
 
 def _missed_reminders(text: str = "") -> str | None:
@@ -10052,6 +10105,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda_part": _agenda_part,
            "event_detail": _event_detail,
            "missed_reminders": _missed_reminders,
+           "saved": _saved,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

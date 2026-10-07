@@ -6879,6 +6879,16 @@ def _interpret(transcript: str) -> dict:
                                                     f"{_sp.as_she_says_it(said).rstrip('.')}."}
         except Exception:  # noqa: BLE001
             pass
+    # SAVING UP (2026-10-07: "I want to save 5000 for a vacation" and "I
+    # saved 200 this week" went to the planner). Notes in his words, added
+    # up by "how much have I saved".
+    if re.fullmatch(r"i(?:'m| am)? (?:want to|wanna|need to|trying to|going to|gonna|plan to|saving up|saving) (?:save (?:up )?)?\$?\d[\d,]*(?:\.\d\d)?k?"
+                    r"(?: dollars| bucks)?(?: (?:for|towards?) (?:a |an |my |the )?[a-z][a-z ]{1,30})?(?: by [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"i (?:just )?(?:saved|put away|set aside|put|moved|transferred) \$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?"
+                            r"(?: (?:into|in|to) (?:my |the )?(?:savings(?: account)?|[a-z]+ fund))?(?: today| this week| this month| last week)?"
+                            r"(?: for (?:a |an |my |the )?[a-z][a-z ]{1,30})?", low) \
+            and (low.startswith("i saved") or re.search(r"savings|fund|\bfor\b", low)):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS VERDICT ON A JOKE (2026-10-07: "that's not funny" went to the
     # planner). One line; "another one" is how he gets a different one.
     if re.fullmatch(r"(?:that(?:'s| is| was)|not) (?:not )?(?:funny|very funny|that funny)(?: thea)?|(?:bad|terrible|lame|awful) joke"

@@ -4081,5 +4081,26 @@ class WhereAndByWhen(unittest.TestCase):
             self.assertEqual(quick.answer("when do i need to renew my passport"), "By June, you said - there's no exact date on it.")
 
 
+class SavingUp(unittest.TestCase):
+    """2026-10-07: "I want to save 5000 for a vacation", "I saved 200 this
+    week" and "how much have I saved" went to the planner or a model."""
+
+    def test_kept_and_added_up_against_the_goal(self):
+        import datetime as dt
+        from aletheia import quick, voice
+        for said in ("i want to save 5000 for a vacation", "i saved 200 this week", "i put 100 into savings"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual((voice._interpret("i put 5 dollars on the table")["command"] or {}).get("kind"), "note")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": t, "ts": now} for t in ("i put 100 into savings", "i saved 200 this week",
+                                                 "i want to save 5000 for a vacation")]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("how much have i saved")
+        self.assertEqual(said, "You've saved $300 toward your $5,000 goal for a vacation, so $4,700 to go, "
+                               "from what you've told me.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much have i saved"))
+
+
 if __name__ == "__main__":
     unittest.main()
