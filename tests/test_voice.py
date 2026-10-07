@@ -294,12 +294,15 @@ class HisOwnDetailsAreNotAContactCase(unittest.TestCase):
     def test_a_real_person_still_is(self):
         """The pattern earns its place; only the bare possessive is his."""
         for said, who in (("what's dana's email", "dana"),
-                          ("what's my wife's number", "my wife"),
-                          ("what's my sister's address", "my sister")):
+                          ("what's my wife's number", "my wife")):
             with self.subTest(said=said):
                 got = voice.interpret("Thea, " + said)["command"]
                 self.assertEqual(got["kind"], "contacts", said)
                 self.assertEqual(got["which"], who)
+        # A contact holds no address, so the address is read from what he
+        # told her about that person - and is still about her, not him.
+        said = voice.interpret("Thea, what's my sister's address")["say"]
+        self.assertIn("your sister", said)
 
     def test_both_doors_give_the_same_answer(self):
         """The point of the fix. Spoken and typed must reach the same

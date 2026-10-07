@@ -104,6 +104,26 @@ def items(name: str) -> list[str] | None:
     return [i["text"] for i in held["items"] if not i.get("done")]
 
 
+def done_items(name: str) -> list[tuple[str, str]]:
+    """(line, when it came off), newest first - what he has watched off a
+    watch list or read off a reading list. Empty for no such list."""
+    held = _load(name, deleted=False)
+    if held is None:
+        return []
+    rows = [(i["text"], str(i.get("done_at") or "")) for i in held["items"] if i.get("done") and i.get("done_at")]
+    return sorted(rows, key=lambda r: r[1], reverse=True)
+
+
+def kind_of(name: str) -> str | None:
+    """"watch" or "read" when a list's name says which, else None."""
+    low = " ".join(str(name or "").casefold().split())
+    if re.search(r"\b(?:watch|movies?|films?|shows?|tv|series)\b", low):
+        return "watch"
+    if re.search(r"\b(?:read|reading|books?)\b", low):
+        return "read"
+    return None
+
+
 def take_off(name: str, which: str) -> tuple[list[str], str]:
     """(lines taken off, why-not). "everything" clears the list."""
     held = _load(name, deleted=False)

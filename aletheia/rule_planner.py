@@ -290,6 +290,11 @@ def _watch_email(m, request):
 
 def _travel(m, request):
     place = _clean(m.group("what"))
+    # "How far is the moon" came back "I don't know where the moon is" (2026-10-07):
+    # a thing in the sky, or a distance in units, is a question, not a journey.
+    if place and re.search(r"\b(?:moon|sun|mars|venus|mercury|jupiter|saturn|space|stars?|galaxy|horizon|"
+                           r"\d+ ?k|\d+ ?km|marathon|in (?:miles|km|kilometers|kilometres|feet|meters))\b", place, re.I):
+        return None
     return ({"place": place}, f"Work out how long it takes to get to {place}") if place else None
 
 

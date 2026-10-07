@@ -370,9 +370,17 @@ SAID_NOT_DID = ("core:intent", "core:screen_ask", "core:brief",
                 "core:remember") + PLUMBING_SUBJECTS
 
 
+# A receipt that says NOTHING CHANGED is not a thing she did. "Undo that"
+# with nothing to undo journaled its refusal, and "what did you just do"
+# answered "Nothing to undo: ..." as the last thing she did (2026-10-07).
+NOTHING_CHANGED = re.compile(r"(?:^|— )(?:Nothing to undo\b|I have nothing of my own\b|Nothing on your list matches\b"
+                             r"|There's nothing called\b|Nothing (?:is )?waiting\b|Nothing was waiting\b)")
+
+
 def _something_she_did(entry: dict) -> bool:
     subject = str(entry.get("subject", ""))
-    return (entry.get("kind") in HER_DOING
+    return (not NOTHING_CHANGED.search(str(entry.get("text", "")))
+            and entry.get("kind") in HER_DOING
             and subject.split(":")[0] not in NOT_DOING_SUBJECTS
             and subject not in SAID_NOT_DID
             and any(str(entry.get("actor", "")).startswith(a) for a in HERS))

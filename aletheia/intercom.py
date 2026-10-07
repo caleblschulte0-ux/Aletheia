@@ -174,6 +174,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # ASK — `contact_add` and `watch_email_from` are the writers.
     "contacts":      (set(), {"which"}),
     "watches":       (set(), set()),
+    # "What drafts do I have" and "delete the draft" (2026-10-07): the held
+    # drafts read, and one put away unsent.
+    "drafts":        (set(), set()),
+    "draft_discard": (set(), {"which"}),
     # "apply to ten jobs with this resume" — the whole thing, one call.
     "apply_campaign": (set(), {"role", "count", "where", "resume"}),
     "apply_pause":   (set(), {"reason"}),
@@ -305,7 +309,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "Snooze that for an hour." The notice is put away and comes BACK —
     # a notification he has read and cannot act on yet is the commonest
     # thing in the room, and "I can't do that yet" was the answer.
-    "notify_snooze":   ({"minutes"}, {"which"}),
+    "notify_snooze":   ({"minutes"}, {"which", "quiet"}),
     "reminder_off":    ({"which"}, set()),
     "reminder_on":     ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
@@ -488,7 +492,9 @@ KIND_NOTES: dict[str, str] = {
     "notify_snooze": (
         'Put a notification away and bring it BACK. minutes is how long; '
         'which is optional and defaults to the most recent unread one, '
-        'because "snooze that" always means the thing that just spoke.'),
+        'because "snooze that" always means the thing that just spoke. '
+        'quiet=true (do not disturb, "I\'m in a meeting") also keeps her '
+        'from speaking up for those minutes.'),
     "contacts": (
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
@@ -500,6 +506,11 @@ KIND_NOTES: dict[str, str] = {
     "watches": (
         'What she is waiting to tell him about — the watchers '
         '`watch_email_from` creates. Nothing to do with browsing.'),
+    "drafts": (
+        'The email drafts she is holding for him, unsent: who each is to and what about.'),
+    "draft_discard": (
+        'Put one held email draft away unsent: "delete the draft", "scrap the email to Dana". which is any '
+        'words from its subject or who it is to; with none it is the newest. Kept and marked, never sent.'),
     "applications": (
         'What he has applied to through her — sent, and staged waiting on '
         'him. Use it for "what have I applied to"; `jobs` is the opposite '
@@ -824,7 +835,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "forget", "handle", "travel_time", "place_add", "shopping_add",
-               "shopping_list", "shopping_off", "contacts", "watches",
+               "shopping_list", "shopping_off", "contacts", "watches", "drafts", "draft_discard",
                "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
                "speaking_pace", "speaking_pace_read",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
@@ -862,7 +873,7 @@ READ_ONLY_KINDS = frozenset({
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read", "stopwatch_read",
     "speaking_pace_read",
-    "contacts", "watches",
+    "contacts", "watches", "drafts",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
     "missions",
@@ -986,6 +997,8 @@ ROUTINE_KINDS = frozenset({
     # approval (email.send / email.followup), so this tier authorizes writing
     # it down and nothing past that.
     "thread_draft", "thread_followup", "calendar_hold", "hold_release", "calendar_propose",
+    # A held email draft put away unsent: kept and marked, reaching nobody.
+    "draft_discard",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -1320,7 +1333,7 @@ def _tasks_answer(which: str = "") -> str:
                 if needle in str(t.get("description", "")).casefold()
                 or needle in str(t.get("id", "")).casefold()]
         if not rows:
-            return f"Nothing open matching {which!r}."
+            return f"Nothing on your list matches {str(which).strip()}."
     if not rows:
         # "Add milk to my list", then "what's on my list": "Nothing on your
         # list" - the milk was on the other one.
@@ -2496,7 +2509,8 @@ def _one_task(which: str):
         best = max((n for n, _t in scored), default=0)
         hits = [t for n, t in scored if n == best and n > 0]
     if not hits:
-        return None, f"Nothing open matching {which!r}."
+        # "Nothing open matching 'call the vet'" read its quote marks out (2026-10-07).
+        return None, f"Nothing on your list matches {str(which).strip()}."
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str(t.get("description") or t["id"])[:50]
@@ -2904,6 +2918,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if item is not None:
                 execute_command({"kind": "shopping_off", "item": str(item.get("need") or "")}, fleet, quote=quote)
                 return f"Took it off your shopping list: {item.get('need')}."
+            # "I finished Dune" with Dune on his watch list (2026-10-07: it
+            # stayed there, noted as if it were news). Only a line that IS
+            # the thing he named - never a word inside another line.
+            from aletheia import lists as lists_mod
+            wanted = re.sub(r"^(?:a|an|the|my) ", "", " ".join(str(cmd["which"]).casefold().split()))
+            for held in lists_mod.all_lists():
+                lines = lists_mod.items(held["name"]) or []
+                if any(re.sub(r"^(?:a|an|the|my) ", "", " ".join(line.casefold().split())) == wanted for line in lines):
+                    taken, _why = lists_mod.take_off(held["name"], str(cmd["which"]))
+                    if taken:
+                        return f"Nice - took it off your {held['name']} list: {speech.and_list(taken)}."
             # "I finished the report" with no task about it said "Nothing
             # open matching 'report'" and kept nothing (2026-10-07). Said as
             # a fact, it is kept as one, so "when did I finish" can answer.
@@ -3808,6 +3833,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not 1 <= minutes <= 60 * 24 * 7:
             raise act.Refused("snooze it for anything from a minute to a week.")
         found, why = _one_notice(cmd.get("which", ""))
+        hushed = ""
+        if cmd.get("quiet"):
+            from aletheia import announce
+            until = announce.hush(minutes, via="operator")
+            hushed = f"quiet until {until.strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            if not announce.load_config().get("enabled"):
+                hushed += " (speaking first is off anyway)"
+            if found is None:
+                return hushed
         if found is None:
             raise act.Refused(why)
         when = (dt.datetime.now(dt.timezone.utc)
@@ -3820,7 +3854,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # deferred it, and it is coming back to say so.
         notifications.set_state(found["id"], "READ")
         return (f"snoozed {sid} until {when.isoformat()} — "
-                f"{(found.get('body') or found['title'])[:80]!r}")
+                f"{(found.get('body') or found['title'])[:80]!r}") + (f"; {hushed}" if hushed else "")
     if kind == "notify_operator":
         from aletheia import notifications
         notice = notifications.publish("Reminder", cmd["text"], priority="IMPORTANT",
@@ -4056,6 +4090,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _contacts_answer(cmd.get("which", ""))
     if kind == "watches":
         return _watches_answer()
+    if kind == "drafts":
+        from aletheia import mail
+        return mail.held_drafts_words()
+    if kind == "draft_discard":
+        from aletheia import mail
+        gone, why = mail.discard(str(cmd.get("which") or ""), via=ACTOR)
+        if gone is None:
+            raise act.Refused(why)
+        return f"draft {gone['id']} discarded — {gone.get('subject')!r} to {gone.get('to_name') or gone.get('to')}"
     if kind == "applications":
         return _applications_answer()
     if kind == "shopping_list":
