@@ -105,7 +105,7 @@ class PlansWithAPersonAreNotSubscriptions(unittest.TestCase):
     def test_cancel_lunch_is_not_a_cancellation_of_a_service(self):
         for said in ("cancel lunch with sam", "cancel my flight", "cancel dinner tonight",
                      "cancel the interview"):
-            self.assertNotEqual(say(said)[0]["kind"], "subscription_cancel", said)
+            self.assertNotEqual((say(said)[0] or {}).get("kind"), "subscription_cancel", said)
 
     def test_a_service_still_is(self):
         self.assertEqual(say("cancel my gym membership")[0],
