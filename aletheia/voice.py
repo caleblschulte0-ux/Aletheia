@@ -5137,9 +5137,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "travel_time", "place": m.group("place").strip()}, "say": None}
     if re.fullmatch(r"(?:what(?:'s| is|s)|how(?:'s| is|s)) (?:the )?(?:traffic|my commute|the commute)(?: like)?(?: right now| now| today| this morning)?"
                     r"|how bad is (?:the )?traffic(?: right now| now| today)?|when should i leave(?: for work)?"
-                    r"|(?:is there|any) (?:bad )?traffic(?: on the way to work)?(?: right now| now| today)?", low) \
-            and _known_place("work"):
-        return {"command": {"kind": "travel_time", "place": "work"}, "say": None}
+                    r"|(?:is there|any) (?:bad )?traffic(?: on the way to work)?(?: right now| now| today)?"
+                    r"|how long (?:is|will be|'s) (?:my|the) commute(?: today| this morning)?", low):
+        if _known_place("work"):
+            return {"command": {"kind": "travel_time", "place": "work"}, "say": None}
+        # "How long is my commute" with no work on file (2026-10-07: to a
+        # model, which knows no better). The one thing that would let her.
+        return {"command": None, "say": "I don't know where work is. Say \"work is at\" and the address, "
+                                        "and I'll time the drive."}
     # "How far is Chicago" (2026-10-07: to the planner). A place, not a
     # thing in the sky: "how far is the moon" is a question for a model.
     m = re.fullmatch(r"how far (?:away )?is (?:it to )?(.+?)(?: from here| from me| from home)?", low)

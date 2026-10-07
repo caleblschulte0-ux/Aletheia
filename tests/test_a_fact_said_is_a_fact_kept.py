@@ -2697,5 +2697,14 @@ class WhatHisBirthdaySettles(unittest.TestCase):
             self.assertIn("not the year", quick.answer("what day was I born"))
 
 
+
+class HisCommute(unittest.TestCase):
+    def test_commute(self):
+        with mock.patch.object(voice, "_known_place", return_value=True):
+            self.assertEqual(voice._interpret("how long is my commute")["command"], {"kind": "travel_time", "place": "work"})
+        with mock.patch.object(voice, "_known_place", return_value=False):
+            self.assertIn("work is at", voice._interpret("when should I leave for work")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
