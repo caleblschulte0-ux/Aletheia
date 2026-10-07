@@ -251,6 +251,37 @@ def reply_text(*, his_name: str, company: str, chosen: dict | None, offers: list
 
 # ---- the act ---------------------------------------------------------------------
 
+def _availability_page(url: str, event: dict, entry: dict, *, company: str, window: dict, busy,
+                       now: dt.datetime, marker=None, notify=None) -> dict:
+    """An "enter your availability" page: the recruiter books from the hours
+    he paints, so the answer is the page, not an email. No reply is drafted
+    (a written reply to someone who asked for the page is the wrong answer
+    and was what she produced for Via). He is told it NEEDS HIM, with the
+    link and the days in his window he is free, so filling it is one tap
+    and a few clicks. Never raises past `consider`'s guard."""
+    from aletheia import notifications
+    offers = offer_slots(now=now, window=window, busy=busy, count=5)
+    days = [said_when(o["start"], window).split(" at ")[0] for o in offers]
+    if entry.get("id"):
+        try:
+            from aletheia import apply_run
+            (marker or apply_run.mark)(entry["id"], "interview",
+                                       note="asked for his availability on their scheduling page")
+        except Exception:
+            pass
+    sentence = (f"{company} wants to interview you and asked for your availability. Mark "
+                f"{window_words(window)}"
+                + (f" on {', '.join(days)}" if days else " on the weekdays you are free")
+                + f" here: {url}")
+    (notify or notifications.publish)(
+        f"{company} wants to interview you", sentence, priority="URGENT", source="interviews",
+        about=notifications.NEEDS_YOU, dedupe_key=f"interview:{entry.get('id')}:{event.get('id')}",
+        related={"application": entry.get("id"), "url": url})
+    journal.append("event", "interviews", f"{company} asked for his availability on a scheduling page",
+                   actor=ACTOR)
+    return {"state": "availability_page", "url": url, "days": days}
+
+
 def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: dict, busy, now: dt.datetime,
                    known: dict, marker=None, notify=None, booker=None, calendar_writer=None) -> dict:
     """Book the employer's scheduling link in his window; put it on his
@@ -348,6 +379,10 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
             return _book_the_link(links[0], event, entry, company=company, window=window, busy=busy,
                                   now=now, known=known, marker=marker, notify=notify, booker=booker,
                                   calendar_writer=calendar_writer)
+        pages = calendly.find_availability_links(text) if text else []
+        if pages:
+            return _availability_page(pages[0], event, entry, company=company, window=window, busy=busy,
+                                      now=now, marker=marker, notify=notify)
         proposed: list[dict] = []
         if text:
             from aletheia import reply_understanding as ru
