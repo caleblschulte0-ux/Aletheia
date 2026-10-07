@@ -330,5 +330,15 @@ class DoubleBooked(unittest.TestCase):
                              "No - nothing on your calendar overlaps in the next week.")
 
 
+class PlayingAndTheNews(unittest.TestCase):
+    def test_play_the_news_reads_the_headlines(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_news", return_value="Here are the headlines."):
+            self.assertEqual(voice._interpret("play the news"), {"command": None, "say": "Here are the headlines."})
+
+    def test_a_volume_number_is_said_plainly(self):
+        self.assertIn("only up, down and mute", voice._interpret("volume 50")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

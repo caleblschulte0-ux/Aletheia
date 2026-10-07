@@ -1,5 +1,5 @@
 {
-  "revision": 121,
+  "revision": 122,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1909,7 +1909,7 @@
       "provider": "aletheia.local",
       "description": "Play a particular song, album or artist by name",
       "caller": "ticket - needs the Spotify Web API and his account: an OAuth consent like calendar_auth's, then search + play on his active device. He has Premium, which the playback endpoints require",
-      "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play is answered honestly - aletheia.music.cannot_choose."
+      "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play opens YouTube's results for it in his browser (open_page, his tap; the receipt says what opened, never that it is playing), and naming his own player is answered honestly - aletheia.music.cannot_choose."
     },
     {
       "id": "sms.read",

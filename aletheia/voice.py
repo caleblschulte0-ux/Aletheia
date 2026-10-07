@@ -3885,7 +3885,7 @@ def _interpret(transcript: str) -> dict:
     # A VOLUME LEVEL is not a key. "Set the volume to 50" planned for a
     # minute on her own model and was refused with a list of action ids
     # (2026-09-23); up, down and mute are the keys she has.
-    if re.fullmatch(r"(?:set|put|turn|change) (?:the )?(?:volume|sound) (?:to|at) (?:\d+|half|max|maximum|full|low|high)"
+    if re.fullmatch(r"(?:(?:set|put|turn|change) (?:the )?(?:volume|sound) (?:to|at)|volume(?: to)?) (?:\d+|half|max|maximum|full|low|high)"
                     r"(?: ?%| percent)?", low):
         return {"command": None,
                 "say": "I can't set the volume to a level - only up, down and mute, a notch at a time. "
@@ -3896,10 +3896,20 @@ def _interpret(transcript: str) -> dict:
     # calling it what he asked for.
     # The signal is not the word "some", it is what follows it: "play
     # some MUSIC" is transport and "put on some JAZZ" is a choice.
+    if re.fullmatch(r"(?:play|put on) (?:me )?(?:the )?(?:news|headlines)(?: for me)?", low):
+        from aletheia import quick
+        return {"command": None, "say": quick._news() or "I couldn't read the news just now."}
     if re.match(r"(?:play|put on)\s+"
                 r"(?!(?:some |the |my )?(?:music|tunes|spotify|something)\b"
                 r"|it\b|devils?\b|devil's\b)"
                 r"[a-z0-9]", low):
+        # "Play Taylor Swift" (2026-10-07): she cannot choose a song in his
+        # player, but she can open YouTube's results for it in his browser -
+        # his tap, and the receipt says what opened, never "it's playing".
+        m = re.fullmatch(r"(?:play|put on) (?:some )?(?P<q>[a-z0-9][a-z0-9 '&.-]{1,60}?)(?: on youtube| for me| please)?", low)
+        if m and not re.search(r"\b(?:on spotify|on apple music|on pandora|game|games)\b", low):
+            return {"command": {"kind": "open_page", "which": "youtube search " + _as_he_said(text, m.group("q").strip())},
+                    "say": None}
         from aletheia import music as _music
         return {"command": None, "say": _music.cannot_choose()}
     # "What song is this" is the same honest half, asked the other way:
