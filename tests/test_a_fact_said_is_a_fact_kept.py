@@ -2082,5 +2082,20 @@ class WhatsFridayLookLikeCase(unittest.TestCase):
                 self.assertEqual(quick.match(said), ("agenda", day))
 
 
+
+class EverySundayNightCase(unittest.TestCase):
+    """2026-10-07: "remind me every Sunday night to plan the week" went to the planner."""
+
+    def test_the_part_of_the_day(self):
+        from aletheia import voice
+        for said, time in (("remind me every sunday night to plan the week", "21:00"),
+                           ("remind me every monday morning to email sam", "09:00"),
+                           ("remind me every sunday night at 8 to call mom", "20:00")):
+            with self.subTest(said=said):
+                cmd = voice.interpret(said)["command"]
+                self.assertEqual(cmd["kind"], "remind_weekly")
+                self.assertEqual(cmd["time"], time)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2090,9 +2090,23 @@ def _a_clock_said(transcript: str) -> str:
         if m.group("way").casefold() == "to":
             hour, minutes = (hour - 1) or 12, 60 - minutes
         return f"{m.group('at')}{hour}:{minutes:02d}"
-    return re.sub(r"(?i)(?P<at>\b(?:at|by|for|until|till|from) )(?:a )?(?P<q>quarter|half) (?P<way>to|past) "
-                  r"(?P<h>\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b",
-                  said, str(transcript or ""))
+    out = re.sub(r"(?i)(?P<at>\b(?:at|by|for|until|till|from) )(?:a )?(?P<q>quarter|half) (?P<way>to|past) "
+                 r"(?P<h>\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b",
+                 said, str(transcript or ""))
+    # "Remind me every Sunday night to plan the week" (2026-10-07: to the
+    # planner): a part of a named day is the hour every other path uses.
+    # "...every Sunday night at 8": the part says which 8.
+    out = re.sub(r"(?i)\b(every|each|on) (monday|tuesday|wednesday|thursday|friday|saturday|sunday)s? "
+                 r"(morning|afternoon|evening|night) at (\d{1,2}(?::\d{2})?)(?!\s*(?:am|pm|a\.m|p\.m))\b",
+                 lambda m: f"{m.group(1)} {m.group(2)} at {m.group(4)}"
+                           + ("am" if m.group(3).casefold() == "morning" else "pm"), out)
+    if re.search(r"(?i)\bremind me\b", out) and not re.search(r"(?i)\bat \d", out):
+        out = re.sub(r"(?i)\b(every|each|on) (monday|tuesday|wednesday|thursday|friday|saturday|sunday)s? "
+                     r"(morning|afternoon|evening|night)\b",
+                     lambda m: f"{m.group(1)} {m.group(2)} at "
+                               + {"morning": "9am", "afternoon": "2pm", "evening": "6pm", "night": "9pm"}[m.group(3).casefold()],
+                     out)
+    return out
 
 
 def _a_follow_on(transcript: str) -> str:
