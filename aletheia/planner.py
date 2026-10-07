@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import dataclass, field, asdict
 
@@ -443,6 +444,29 @@ def _compile_locally(request: str, context: dict | None, now: str | None,
     return output, named if named.startswith("ollama:") else f"ollama:{named}", kinds
 
 
+#: Sentences that belong to the moment they were said in. "Give me a pep
+#: talk", "I'm bored" and "tell me something interesting" were FILED when
+#: nothing could think (2026-10-07), and the overnight answer read them back
+#: - "kept 'I'm stressed' for later, until a model is back" - as work, to be
+#: planned hours after the moment had passed. A need he states ("I'm out of
+#: milk", "I'm running low on coffee") is not one of these; it is an ask.
+_FOR_RIGHT_NOW = re.compile(
+    r"^(?:thea,? )?(?:"
+    r"(?:i'?m|i am|im|i feel|i'?m feeling|feeling)(?! (?:out of|running (?:low|out)|low on|almost out|nearly out|going to|gonna|meeting|seeing|flying|leaving|moving|starting|applying|interviewing)\b) .{1,40}"
+    r"|(?:tell|give) me (?:a |an |some |something |another )(?:joke|riddle|fun fact|fact|quote|pep talk|compliment|story|interesting|funny|random|nice|good|inspiring|motivat)\w*.{0,30}"
+    r"|(?:entertain|amuse|cheer|motivate|inspire|surprise) me(?: up)?.{0,20}"
+    r"|make me (?:laugh|smile|feel better)"
+    r"|say something(?: nice| funny| interesting)?"
+    r"|(?:i'?m|im) just (?:saying|chatting|talking)|just (?:chatting|talking)"
+    r")[.!?]*$", re.IGNORECASE)
+
+
+def for_right_now(request: str) -> bool:
+    """True for a sentence whose moment passes: a feeling, a request to be
+    entertained. Kept for later it would be planned hours after he said it."""
+    return bool(_FOR_RIGHT_NOW.match(" ".join(str(request or "").split())))
+
+
 def queue_unplanned(request: str, reason: str) -> str:
     """The ask does not evaporate when nobody could plan it (continuity rule 3).
 
@@ -566,7 +590,8 @@ def compile(request: str, fleet: dict | None = None, context: dict | None = None
     # `queue` is the seam a test opts into; the production path (no provider
     # injected) always files, and a hermetic test with its own provider never
     # touches the store unless it asks to.
-    if plan.degraded and not plan.executable and (queue is not None or not provider_supplied):
+    if (plan.degraded and not plan.executable and (queue is not None or not provider_supplied)
+            and not for_right_now(request)):
         plan.queued = (queue or queue_unplanned)(request, plan.degraded)
     return plan
 

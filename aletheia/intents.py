@@ -662,6 +662,11 @@ def spoken(record: dict) -> str:
             said = (said.rstrip(" .,;")
                     + ". It's on my list, and I'll pick it up when the big "
                       "models are back.")
+        elif planner.for_right_now(str(record.get("request") or record.get("text") or "")):
+            # Nothing was kept, and that is right: the moment is now. Saying
+            # nothing about it would leave him wondering if it was filed.
+            said = ("I can't think just now - Claude and ChatGPT are both out and my own "
+                    "model isn't running. That one's for right now, so I haven't kept it for later.")
         return speech.tidy(said)
     if record.get("intent") == "clarify":
         # Through the sieve like everything else she says. A clarifying
