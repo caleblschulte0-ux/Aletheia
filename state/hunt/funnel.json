@@ -194,19 +194,19 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 12,
-      "found": 14,
+      "filled": 13,
+      "found": 15,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-07T15:36:03Z",
+  "generated_at": "2026-10-07T15:55:48Z",
   "sent_all_time": 237,
   "totals": {
-    "filled": 357,
-    "found": 643,
+    "filled": 358,
+    "found": 644,
     "interviews": 2,
     "rejections": 3,
     "replies": 31,
@@ -239,7 +239,7 @@
     },
     "his_ok": {},
     "needs_account": 0,
-    "needs_answer": 10,
+    "needs_answer": 11,
     "oldest_days": 24,
     "to_send": 0
   },
