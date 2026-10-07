@@ -750,8 +750,15 @@ def spoken_receipt(kind: str, detail: str, *,
         noted = re.match(r"set\s+\S*?([\w-]+)\s*=\s*\"?(.+?)\"?\s*(?:\(.*\))?$",
                          text)
         if noted:
-            return (f"Noted: {deslug(noted.group(1))} is "
-                    f"{noted.group(2).strip()}.")
+            # "Noted: home_city is Denver" read back what she did today (2026-10-07).
+            key, value = noted.group(1), noted.group(2).strip()
+            said = {"home_city": "you live in {}", "zip_code": "your zip code is {}",
+                    "postal_code": "your zip code is {}", "operator_name": "I'll call you {}",
+                    "full_name": "your name is {}", "timezone": "your time zone is {}",
+                    "birthday": "your birthday is {}"}.get(key)
+            if said:
+                return f"Noted: {said.format(value)}."
+            return f"Noted: {deslug(key).replace('_', ' ')} is {value}."
         # The intercom's own receipt names the slot and not the value, so the
         # value never lands in a committed receipt: "remembered identity.full_name".
         slot = re.match(r"remembered\s+(\w+)\.([\w-]+)\s*$", text)

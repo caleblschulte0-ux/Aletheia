@@ -2932,5 +2932,14 @@ class AReminderSaidAsANoun(unittest.TestCase):
         self.assertNotEqual(cmd("add a weekly reminder to call grandma").get("kind"), "remind_at")
 
 
+class WhatSheNotedIsSaidPlainly(unittest.TestCase):
+    def test_no_slot_names_in_what_she_did(self):
+        from aletheia import speech
+        self.assertEqual(speech.spoken_receipt("remember", 'set identity.home_city = "Denver" (explicit)'),
+                         "Noted: you live in Denver.")
+        self.assertEqual(speech.spoken_receipt("remember", 'set people.car_color = "red" (explicit)'),
+                         "Noted: car color is red.")
+
+
 if __name__ == "__main__":
     unittest.main()
