@@ -1429,6 +1429,38 @@ def _reminders_answer(which: str = "") -> str:
     return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
 
 
+def _until_next_reminder(sort: str = "reminder") -> str:
+    """"How long until my alarm": the gap to the soonest one, in words."""
+    import datetime as _dt
+    from aletheia import scheduler
+    needle = {"alarm": "wake up", "timer": "timer is up"}.get(sort, "")
+    rows = [r for r in _reminder_schedules()
+            if needle in str((r.get("command") or {}).get("text", "")).casefold()]
+    if not rows:
+        return f"You have no {sort}s set."
+    first = _soonest_first(rows)[0]
+    now = _dt.datetime.now(_dt.timezone.utc)
+    try:
+        at = scheduler.next_occurrence(first, now)
+    except Exception:  # noqa: BLE001
+        at = None
+    if not at:
+        return _next_reminder_answer(sort)
+    minutes = max(1, int(((at - now).total_seconds() + 30) // 60))
+    hours, mins = divmod(minutes, 60)
+    # "1 day and 29 minutes" is how nobody says tomorrow morning: under two
+    # days it is hours.
+    days, hours = divmod(hours, 24) if hours >= 48 else (0, hours)
+    parts = [f"{n} {unit}{'' if n == 1 else 's'}" for n, unit in ((days, "day"), (hours, "hour"), (mins, "minute")) if n]
+    if days:
+        parts = parts[:2]
+    gap = " and ".join(parts)
+    what = str((first.get("command") or {}).get("text") or "").strip()
+    if sort == "alarm" or what == "wake up":
+        return f"Your next alarm goes off in {gap}."
+    return f"Your next {sort}, {what}, is in {gap}."
+
+
 def _next_reminder_answer(sort: str = "reminder") -> str:
     """"When's my next alarm" - the soonest one of that sort, not the list."""
     from aletheia import speech

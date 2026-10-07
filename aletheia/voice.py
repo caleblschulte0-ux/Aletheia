@@ -2758,6 +2758,12 @@ def _interpret(transcript: str) -> dict:
     if m:
         from aletheia import intercom
         return {"command": None, "say": intercom._next_reminder_answer(m.group(1))}
+    # "How long until my reminder" (2026-10-07: to a model).
+    m = re.fullmatch(r"how (?:long|much time) (?:until|till|til|before) (?:my |the )?(?:next )?(reminder|alarm)"
+                     r"(?: goes off| rings)?\??", low)
+    if m:
+        from aletheia import intercom
+        return {"command": None, "say": intercom._until_next_reminder(m.group(1))}
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
     # "Do I have any reminders set" waited two minutes on her own model

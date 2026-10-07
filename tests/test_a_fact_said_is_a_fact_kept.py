@@ -759,5 +759,17 @@ class ARemindBeforeABirthday(unittest.TestCase):
         self.assertIn("call Jess's mom", said)
 
 
+class HowLongUntilIt(unittest.TestCase):
+    def test_in_hours_and_minutes(self):
+        import datetime as dt
+        from aletheia import intercom, scheduler
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"id": "a", "command": {"text": "wake up"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+             mock.patch.object(scheduler, "next_occurrence", return_value=now + dt.timedelta(hours=24, minutes=30, seconds=20)):
+            self.assertEqual(voice._interpret("how long until my alarm")["say"],
+                             "Your next alarm goes off in 24 hours and 30 minutes.")
+
+
 if __name__ == "__main__":
     unittest.main()
