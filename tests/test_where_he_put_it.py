@@ -89,3 +89,19 @@ class HisAlarmAskedEveryWay(unittest.TestCase):
     def test_the_phrasings_reach_the_alarm_reader(self):
         for said in ("when does my alarm go off", "is my alarm set", "what's my alarm set for"):
             self.assertEqual(quick.match(said)[0], "alarm_q", said)
+
+
+class SaidToHerAndAboutHer(unittest.TestCase):
+    def test_shut_up_quiets_her_notices(self):
+        for said in ("shut up", "be quiet", "stop talking"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60}, said)
+        self.assertEqual(voice._interpret("stop talking unless i ask")["command"]["kind"], "announce_set")
+
+    def test_not_what_i_meant(self):
+        self.assertIn("what I got wrong", voice._interpret("no that's not what i meant")["say"])
+
+    def test_she_is_not_chatgpt_and_says_who_she_asks(self):
+        said = quick.answer("are you chatgpt")
+        self.assertTrue(said.startswith("No - I'm Thea"))
+        self.assertIn("Claude or ChatGPT", said)
+        self.assertIsNotNone(quick.answer("how smart are you"))

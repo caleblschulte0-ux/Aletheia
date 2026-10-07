@@ -3611,7 +3611,9 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:turn on|enable|switch on|put me on|set|go|activate) (?:do not disturb|dnd|quiet mode|focus mode|"
                      r"silent mode)(?: mode)?(?: for (?P<n>\d+) (?P<unit>minutes?|mins?|hours?|hrs?))?"
                      r"|(?:don'?t|do not) (?:disturb|bother|interrupt) me(?: for (?P<n2>\d+) (?P<unit2>minutes?|mins?|hours?|hrs?))?"
-                     r"|(?:quiet|hush|shush|mute your notifications)(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
+                     # "Shut up", "be quiet", "stop talking" (2026-10-07: to the planner).
+                     r"|(?:quiet|hush|shush|mute your notifications|be quiet|shut up|stop talking|quiet down|zip it)"
+                     r"(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
                      r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?",
                      low)
     # "Don't bother me for an hour" (2026-10-07: to the planner) - the
@@ -4116,7 +4118,9 @@ def _interpret(transcript: str) -> dict:
                     r"nice work|well done|good girl|love you|i love you)(?: thea)?", low):
         return {"command": None, "say": "Thanks - that's nice to hear."}
     if re.fullmatch(r"(?:you suck|you(?:'re| are) (?:useless|stupid|dumb|terrible|bad|annoying|wrong again)|"
-                    r"that(?:'s| is| was) (?:wrong|useless|terrible|not what i (?:asked|meant|wanted)))(?: thea)?", low):
+                    r"that(?:'s| is| was) (?:wrong|useless|terrible|not what i (?:asked|meant|wanted|said))|"
+                    r"(?:no,? )?(?:that's |that is )?not what i (?:asked|meant|wanted|said)|you misunderstood(?: me)?|"
+                    r"you got (?:it|that) wrong)(?: thea)?", low):
         return {"command": None, "say": "Sorry. Tell me what I got wrong and I'll fix it."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)

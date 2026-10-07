@@ -1184,7 +1184,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("about_her", re.compile(
         r"^(?P<her>how old are (?:you|u)|who (?:made|built|created|programmed) (?:you|u)"
         r"|are (?:you|u) (?:a robot|a bot|an ai|ai|human|a person|real|alive|a real person)"
-        r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me))$")),
+        r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me)"
+        # "Are you ChatGPT", "how smart are you", "do you love me" (2026-10-07).
+        r"|are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)"
+        r"|how smart are (?:you|u)|do (?:you|u) (?:love|like) me)$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -3585,8 +3588,17 @@ def _about_her(text: str) -> str:
     if asked.startswith("who"):
         return ("You did - I'm your own assistant, running on your PC. I think with Claude or ChatGPT "
                 "when they're available, and with a small model of my own when they're not.")
+    if re.match(r"are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)", asked):
+        return ("No - I'm Thea, your own assistant, running on your PC. When I need to think hard I ask Claude "
+                "or ChatGPT on your subscriptions, and I say so when an answer is my own model's instead.")
     if asked.startswith("are"):
         return "I'm an AI - your own assistant, running on your PC. Not a person."
+    if asked.startswith("how smart"):
+        return ("As smart as whoever I'm thinking with: Claude or ChatGPT when they're available, a smaller model "
+                "of my own when they're not. The things I keep for you - lists, reminders, notes - I just know.")
+    if asked.startswith("do"):
+        if re.match(r"do (?:you|u) (?:love|like) me", asked):
+            return "I'm an AI, so not the way a person does - but I'm on your side, and I'll keep your day running."
     known = _about_him()
     return ("Yes. " + known) if known and not known.startswith("Nothing") else \
         "I don't know much about you yet - tell me your name and I'll remember it."
