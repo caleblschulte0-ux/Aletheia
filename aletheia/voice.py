@@ -638,6 +638,14 @@ def _not_a_file(said: str) -> bool:
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low) \
             or re.match(r"(?:the )?(?:nearest|closest)\b", low):
         return True
+    # "Search for cheap flights to Denver" and "look up the best hotels" are
+    # the web, never a file (2026-10-07: both compiled a file search).
+    if re.search(r"\b(?:flights?|hotels?|tickets?|deals?|recipes?|restaurants?|reviews?|cheap|cheapest|best|"
+                 r"prices?|reservations?|airbnbs?|rentals?|apartments?|how to)\b", low):
+        return True
+    # "Find a time for lunch" is the calendar.
+    if re.match(r"(?:a |some )?time (?:for|to)\b", low):
+        return True
     # "Find me customer success jobs in Denver" is a job search, whatever
     # else the sentence says (2026-09-22: it read Desktop and Downloads).
     if re.search(r"\b(?:jobs?|openings|positions|roles|vacancies|careers|hiring)\b", low):
@@ -1967,10 +1975,27 @@ def _interpret(transcript: str) -> dict:
         hhmm = (_spoken_time(m.group("time")) if m.group("time")
                 else {"morning": "09:00", "evening": "19:00", "night": "21:00"}.get(part.group(1) if part else "",
                                                                                     DEFAULT_REMINDER_TIME))
+        # "Remind me to drink water every day at 3" was set for 3 am, and
+        # "every night at 10" for ten in the morning (2026-10-07).
+        if hhmm and m.group("time") and _is_bare_hour(m.group("time")) and int(hhmm[:2]) < 12 \
+                and ((part and part.group(1) in ("evening", "night")) or int(hhmm[:2]) <= EARLIEST_BARE_HOUR):
+            hhmm = f"{int(hhmm[:2]) + 12:02d}{hhmm[2:]}"
         if hhmm:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": _as_he_said(text, m.group("text").strip())}, "say": None}
         return _to_the_planner(text)
+    # "Remind me every morning to stretch": the part of day BEFORE the
+    # thing (2026-10-07: to the planner; only the other order matched).
+    m = re.fullmatch(r"remind me (?:every|each) (?P<part>morning|evening|night|day)(?: at (?P<time>[\w: ]+?))? (?:to|that) (?P<text>.+)", low)
+    if m:
+        hhmm = (_spoken_time(m.group("time")) if m.group("time")
+                else {"morning": "09:00", "evening": "19:00", "night": "21:00"}.get(m.group("part"), DEFAULT_REMINDER_TIME))
+        if hhmm and m.group("time") and _is_bare_hour(m.group("time")) and int(hhmm[:2]) < 12 \
+                and (m.group("part") in ("evening", "night") or int(hhmm[:2]) <= EARLIEST_BARE_HOUR):
+            hhmm = f"{int(hhmm[:2]) + 12:02d}{hhmm[2:]}"      # "every night at 10" is ten at night
+        if hhmm:
+            return {"command": {"kind": "remind_daily", "time": hhmm,
+                                "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
     if m:
         hhmm = _spoken_time(m.group(1))
@@ -2456,6 +2481,15 @@ def _interpret(transcript: str) -> dict:
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
 
+    # "FIND A TIME FOR LUNCH WITH SAM THIS WEEK" compiled a file search for
+    # "time for lunch with sam this week" (2026-10-07). It is when he is free.
+    m = re.fullmatch(r"(?:find|pick|suggest|give me|when(?:'s| is) there) (?:me )?(?:a |some )?(?:good )?time(?:s)? (?:for|to) "
+                     r"(?P<purpose>.+?)(?: (?P<when>today|tomorrow|this week|next week|this weekend|monday|tuesday|wednesday"
+                     r"|thursday|friday|saturday|sunday))?", low)
+    if m:
+        command = {"kind": "calendar_find_free", "when": m.group("when") or "this week",
+                   "purpose": _as_he_said(transcript, m.group("purpose"))}
+        return {"command": command, "say": None}
     # "DO I HAVE ANYTHING TOMORROW" is his calendar, never a file. `quick`
     # answers it when a feed answers, and with no feed it fell through to
     # here: "I could not find anything matching anything tomorrow. I looked

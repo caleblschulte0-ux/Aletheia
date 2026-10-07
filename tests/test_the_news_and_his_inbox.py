@@ -188,3 +188,26 @@ class WhatHeAsksAfter(unittest.TestCase):
         with mock.patch.object(current_state, "repo_words", return_value=None), \
                 mock.patch.object(quick, "_project_next", return_value="Next on Barkly, and it's mine: ship it."):
             self.assertEqual(quick.answer("what's new with barkly"), "Next on Barkly, and it's mine: ship it.")
+
+
+class TheWrongVerbAndTheWrongHour(unittest.TestCase):
+    """Fluent and wrong, the failure he cannot detect (2026-10-07)."""
+
+    def test_flights_and_a_time_for_lunch_are_not_files(self):
+        self.assertNotEqual(voice._interpret("search for cheap flights to denver")["command"]["kind"], "file_find")
+        self.assertEqual(voice._interpret("find a time for lunch with sam this week")["command"],
+                         {"kind": "calendar_find_free", "when": "this week", "purpose": "lunch with sam"})
+        self.assertEqual(voice._interpret("find my resume")["command"]["kind"], "file_find")
+
+    def test_a_bare_hour_every_day_is_not_the_small_hours(self):
+        for said, hhmm in (("remind me to take my pills every night at 10", "22:00"),
+                           ("remind me every night at 10 to take my pills", "22:00"),
+                           ("remind me to drink water every day at 3", "15:00"),
+                           ("remind me every morning to stretch", "09:00"),
+                           ("remind me to stretch every morning at 7", "07:00")):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["time"], hhmm)
+
+    def test_the_high_and_when_it_gets_dark(self):
+        self.assertEqual(quick.match("what's the high today"), ("weather", "today"))
+        self.assertEqual(quick.match("when does it get dark")[0], "sun")

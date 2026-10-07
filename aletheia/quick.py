@@ -893,6 +893,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<weather4>today|tonight|tomorrow))?$"
         r"|^(?:what(?:'s| is|s)? the temperature|how (?:hot|cold|warm|chilly) is it|what temperature is it)"
         r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
+        # "What's the high today" (2026-10-07: to the planner).
+        r"|^what(?:'s| is|s| will be)? the (?:high|low|temperature high|temperature low)(?: (?P<weather7>today|tonight|tomorrow))?$"
         r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|sunny|cold|hot|warm)"
         r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
     # WIND, HUMIDITY AND THE BATTERY. All three went to the planner and,
@@ -1231,7 +1233,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("sun", re.compile(
         r"^(?:what time|when) (?:is|does|will) (?:the )?(?P<sun>sunset|sunrise|sun (?:set|rise|go down|come up))(?: (?P<sunday>today|tonight|tomorrow))?$"
         r"|^when(?:'s| is) (?P<sun2>sunset|sunrise)(?: (?P<sunday2>today|tonight|tomorrow))?$"
-        r"|^what time(?: is it| does it get) (?P<sun3>dark|light)(?: (?P<sunday3>today|tonight|tomorrow))?$")),
+        r"|^what time(?: is it| does it get) (?P<sun3>dark|light)(?: (?P<sunday3>today|tonight|tomorrow))?$"
+        # "When does it get dark" (2026-10-07: to the planner).
+        r"|^when (?:does|will) it get (?P<sun4>dark|light)(?: (?P<sunday4>today|tonight|tomorrow))?$")),
     ("moon", re.compile(
         r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
         r"|^what phase is the moon(?: in)?(?: tonight| today)?$"
@@ -1325,7 +1329,7 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3", "weather4", "weather5", "weather6",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
@@ -3256,9 +3260,9 @@ def _note_search(text: str) -> str | None:
 def _sun(text: str) -> str | None:
     from aletheia import weather
     g = _groups("sun", text)
-    said = g.get("sun") or g.get("sun2") or g.get("sun3") or ""
+    said = g.get("sun") or g.get("sun2") or g.get("sun3") or g.get("sun4") or ""
     which = "rise" if any(w in said for w in ("rise", "come up", "light")) else "set"
-    when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or ""
+    when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or g.get("sunday4") or ""
     return weather.spoken_sun(which, "tomorrow" if when == "tomorrow" else "")
 
 
@@ -4811,15 +4815,15 @@ def _status_of(text: str) -> str | None:
             return _doing()
         else:
             said = current_state.repo_words(subject)
+            if said is None and _no_pulse():
+                # "Is the trader running" with the pulse unwritten went to a
+                # model that knows no trader (2026-09-23 night sweep).
+                return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
             if said is None:
                 # A project she carries for him is not always a repository
                 # the pulse names: "how's Barkly going" answered nothing
                 # while its charter held the next step (2026-10-07).
                 said = _project_next(subject)
-            if said is None and _no_pulse():
-                # "Is the trader running" with the pulse unwritten went to a
-                # model that knows no trader (2026-09-23 night sweep).
-                return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
             return said
     if shape == "going":
         return current_state.job_hunt_words()
