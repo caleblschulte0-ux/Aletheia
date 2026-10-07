@@ -633,6 +633,23 @@ def controls(obs: dict) -> dict[str, list[dict]]:
     return out
 
 
+def page_shape(obs: dict) -> str:
+    """Which questions this page is asking, as a short fingerprint ("" for a
+    page that asks none).
+
+    A whole application on ONE address - Greenhouse, Lever, Ashby, a
+    wizard drawn by script - is a different page at every step, and was
+    counted as the same one: live 2026-10-07, eight filled applications
+    stopped as "going in circles" on the form they were moving through.
+    The same address asking the same questions again is still a circle.
+    """
+    labels = sorted({" ".join(str(t.get("label") or "").casefold().split())[:80]
+                     for t in ps.answerable(obs)} - {""})
+    if not labels:
+        return ""
+    return hashlib.sha256("\n".join(labels).encode("utf-8")).hexdigest()[:12]
+
+
 def tried_key(obs: dict, target: dict) -> str:
     """What "already tried" remembers: the control itself, not its place in
     this observation's numbering. Live 2026-09-17 Workday's Apply opened a
@@ -956,7 +973,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
     # value and the stop never mentioned it.
     unset: dict[str, list[str]] = {}
     relooked: set[str] = set()
-    last_seen = ("", "")
+    last_seen = ("", "", "")
     for step in range(budget):
         policy.ensure_not_halted()
         if on_step is not None:
@@ -971,18 +988,20 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
             return _stop(record, bm.NEEDS_YOU, str(known_stop.get("kind") or "SKILL_STOP"), obs,
                          step=str(known_stop.get("step") or ""), say=str(known_stop.get("say") or ""))
+        shape = page_shape(obs)
         seen_here = sum(1 for c in record.get("checkpoints") or []
-                        if c.get("name") == bm.OBSERVED and str(c.get("url") or "") == obs["url"])
+                        if c.get("name") == bm.OBSERVED and str(c.get("url") or "") == obs["url"]
+                        and str(c.get("shape") or "") == shape)
         if seen_here >= SAME_PAGE_LIMIT:
             return _stop(record, bm.NEEDS_YOU, "GOING_IN_CIRCLES", obs,
                          say=f"I keep coming back to {obs['url'][:90]} without getting closer to the goal, "
                              "so I stopped rather than keep going round. Tell me what to press.")
-        if (obs["url"], state) != last_seen:
-            record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state)
+        if (obs["url"], state, shape) != last_seen:
+            record = bm.checkpoint(record, bm.OBSERVED, url=obs["url"], state=state, shape=shape)
             # The first page after a replay keeps what the replay pressed.
             tried = ({sel for on, sel in replayed_tried if on == obs["url"]}
-                     if last_seen == ("", "") else set())
-            last_seen = (obs["url"], state)
+                     if last_seen == ("", "", "") else set())
+            last_seen = (obs["url"], state, shape)
             site_skills.learn(obs["url"], state=state)
         searched = record.get("searched") or {}
         if searched and obs["url"] != searched.get("from") and state not in (ps.ERROR, ps.CAPTCHA, ps.UNKNOWN):
@@ -1159,7 +1178,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 record, page = live
                 if record.get("state") != bm.RUNNING:
                     return record
-                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "")
+                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "", "")
                 continue
             page = _click(ctx, page, hands, obs["_refs"][press["id"]], route, tracker)
             continue
@@ -1243,7 +1262,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                     return record
                 # AN ACCOUNT WAS MADE IN THIS SESSION: carry straight on from the
                 # page the press landed on, with a fresh route for the next leg.
-                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "")
+                route, attached, written, tried, last_seen = [], [], set(), set(), ("", "", "")
                 continue
             state = ps.CONTENT                      # a form with no way on: look for one
 
