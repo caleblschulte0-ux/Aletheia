@@ -1166,5 +1166,18 @@ class APoliteAskIsAnAsk(unittest.TestCase):
         self.assertEqual(quick.match("can you tell me how long my day is")[0], "day_span")
 
 
+
+class ACorrectionLeadsWithAComma(unittest.TestCase):
+    def test_no_comma_is_filler_and_a_bare_no_is_not(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("no, add eggs")["command"], {"kind": "shopping_add", "item": "eggs"})
+        self.assertEqual(voice._without_preamble("wait, cancel that"), "cancel that")
+        self.assertEqual(voice._without_preamble("no"), "no")
+
+    def test_would_you_remind_me_with_no_time_asks_when(self):
+        from aletheia import voice
+        self.assertIn("When should I remind you to call mom", voice.interpret("would you remind me to call mom")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

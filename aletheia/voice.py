@@ -46,7 +46,10 @@ FILLER = re.compile(
     r"(?:(?:uh+|um+|er+|hmm+|ok|okay|so|well|hey|yo|please|right|"
     # "ACTUALLY cancel that" went to the planner while "cancel that" was
     # instant: the correction words a person leads with carry no request.
-    r"i mean|like|actually|oh|oops|sorry)\b[,\s]*)*",
+    r"i mean|i meant|like|actually|oh|oops|sorry)\b[,\s]*"
+    # "No, add eggs" and "wait, cancel that" (2026-10-07: to the planner).
+    # Only with the comma: a bare "no" or "yes" is an answer, not filler.
+    r"|(?:no|nope|yeah|yep|yes|yup|wait|hold on|hang on|oh wait)\s*,\s*)*",
     re.UNICODE)
 
 
@@ -1683,7 +1686,10 @@ def _a_polite_ask(transcript: str) -> str:
         cmd = (_interpret(rest) or {}).get("command") or {}
     except Exception:
         return said
-    if cmd.get("kind") not in _POLITE_DOING:
+    # "Would you remind me to call mom" has no time yet, and her question
+    # back ("When should I remind you to call mom?") is the right answer.
+    asks_back = cmd.get("kind") is None and re.match(r"remind me\b", rest, re.IGNORECASE)
+    if cmd.get("kind") not in _POLITE_DOING and not asks_back:
         return said
     return said[:len(said) - len(bare)] + rest
 
