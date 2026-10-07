@@ -1325,5 +1325,19 @@ class FourMoreSums(unittest.TestCase):
         self.assertEqual(quick.answer("average of 3 4 and 5"), "4.")
 
 
+
+class APickUpIsAnErrand(unittest.TestCase):
+    def test_a_prescription_tomorrow_is_a_task_not_groceries(self):
+        from aletheia import voice
+        cmd = voice.interpret("i need to pick up my prescription tomorrow")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "pick up my prescription"))
+
+    def test_batteries_tomorrow_go_on_the_list_without_the_day(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("i need to buy batteries tomorrow")["command"],
+                         {"kind": "shopping_add", "item": "batteries"})
+        self.assertEqual(voice.interpret("we need eggs")["command"], {"kind": "shopping_add", "item": "eggs"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2456,6 +2456,20 @@ def _interpret(transcript: str) -> dict:
     m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?:the |some )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
+    # "I need to pick up my prescription tomorrow" was put on the shopping
+    # list as "my prescription tomorrow" (2026-10-07): a pick-up, or anything
+    # with a day or a time in it, is an errand - the task rule below.
+    # "I need to buy batteries tomorrow": the thing still goes on the list,
+    # without the day.
+    if m and re.match(r"(?:we|i) need to (?:buy|get)\b", low):
+        bare_item = re.sub(r"\s+(?:today|tomorrow|tonight|this (?:morning|afternoon|evening|week)|next week|"
+                           r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))$", "", m.group("item"))
+        if bare_item != m.group("item") and not _TASK_VERB.match(bare_item):
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, bare_item.strip())}, "say": None}
+    if m and (re.match(r"(?:we|i) need to pick up\b", low) or re.search(
+            r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+            r"this (?:morning|afternoon|evening|week)|next week|at \d|by \d)\b", m.group("item"))):
+        m = None
     if m and not _TASK_VERB.match(m.group("item")) \
             and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
                              r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
