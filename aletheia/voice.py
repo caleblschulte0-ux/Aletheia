@@ -17,6 +17,7 @@ touching the gates, because the output is only ever a command object.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 
 from aletheia import capabilities, policy, speech, tasks
@@ -749,6 +750,50 @@ def _might_be_several(text: str) -> bool:
     return "," in t or " and " in t or " & " in t or " plus " in t
 
 
+def _timer_left(now=None) -> str:
+    """What is left on each running timer, from the reminder store."""
+    from aletheia import intercom, speech
+    now = now or dt.datetime.now(dt.timezone.utc)
+    left = []
+    for spec in intercom._reminder_schedules():
+        text = str((spec.get("command") or {}).get("text") or "")
+        m = re.fullmatch(r"your (.+?) timer is up", text)
+        if spec.get("kind") != "once" or not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(spec.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=dt.timezone.utc)
+        seconds = (at - now).total_seconds()
+        if seconds <= 0:
+            continue
+        minutes = int(seconds // 60)
+        amount = (speech.count_phrase(int(seconds), "second") if seconds < 60
+                  else speech.count_phrase(minutes, "minute") if minutes < 60
+                  else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))
+        left.append((seconds, f"{amount} left on your {m.group(1)} timer"))
+    if not left:
+        return "No timer is running."
+    left.sort()
+    said = speech.and_list([words for _, words in left])
+    return said[:1].upper() + said[1:] + "."
+
+
+def _a_plain_list(text: str) -> bool:
+    """A list nobody has to guess at: the shopping store splits it into
+    more than one row ("eggs, bread and butter", "milk and eggs"), and no
+    piece of it is a stray filler word."""
+    from aletheia import intercom
+    parts = intercom.shopping_items_of(text)
+    if len(parts) == 1:
+        # One thing whose name has "and" in it: "mac and cheese".
+        return any(re.search(r"\b" + re.escape(d) + r"\b", parts[0], re.IGNORECASE)
+                   for d in intercom.SHOPPING_ONE_THING)
+    return all(p and p not in ("some", "also", "too", "more") for p in parts)
+
+
 #: An item on "my list" that starts like this is a thing to DO, not to buy.
 _TASK_VERB = re.compile(
     r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
@@ -1427,6 +1472,15 @@ def _interpret(transcript: str) -> dict:
                             "about": _as_he_said(transcript, m.group(1))},
                 "say": None}
 
+    # "HOW LONG LEFT ON MY TIMER" told him she couldn't think (2026-10-07,
+    # no model). A timer is a reminder with a time on it; the answer is a
+    # subtraction.
+    if re.fullmatch(r"(?:how (?:long|much time|many minutes)(?: is)? (?:left|remaining)|time left|"
+                    r"how long (?:until|till|before)|when (?:does|will))"
+                    r"(?: on| for| in)? (?:my|the|that) timers?(?: (?:go off|be done|ring|done))?"
+                    r"|how(?:'s| is) (?:my|the) timer(?: doing| going)?", low):
+        return {"command": None, "say": _timer_left()}
+
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
     # "Do I have any reminders set" waited two minutes on her own model
@@ -1694,7 +1748,8 @@ def _interpret(transcript: str) -> dict:
                     # "Read me my tasks" is the same request with the verb
                     # said out loud, and it was the one that missed.
                     r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
-                    r"what(?:'s| is|s)? on my (?:task|todo|to-do) list|"
+                    r"what(?:'s| is|s)? on my (?:task|todo|to-do|to do) list|(?:my )?to(?:-| )?do list|"
+                    r"(?:read|show) (?:me )?my (?:todo|to-do|to do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
 
@@ -1799,6 +1854,29 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
+
+    # "DO I HAVE ANYTHING TOMORROW" is his calendar, never a file. `quick`
+    # answers it when a feed answers, and with no feed it fell through to
+    # here: "I could not find anything matching anything tomorrow. I looked
+    # in Documents." The calendar's own answer says what it knows.
+    m = re.fullmatch(r"(?:do i|have i|do we) (?:have|got) (?:anything|any plans|something|much|"
+                     r"any meetings|any appointments|plans)(?: on| planned| scheduled| going on| booked)?"
+                     r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
+    if m:
+        asked = _ambiguous_next_weekday(m.group(1) or "")
+        if asked:
+            return {"command": None, "say": asked}
+        day, part = _spoken_when(m.group(1) or "today")
+        if day:
+            command = {"kind": "free_time", "day": day}
+            if part:
+                command["part"] = part
+            return {"command": command, "say": None}
+        stretch = re.sub(r"^(?:the |this )", "", str(m.group(1) or ""))
+        if stretch in ("weekend", "week", "next week", "next few days", "next two weeks"):
+            when = {"weekend": "this weekend", "week": "this week"}.get(stretch, stretch)
+            return {"command": {"kind": "calendar_find_free", "when": when}, "say": None}
+        return _to_the_planner(text)
 
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
@@ -2035,12 +2113,25 @@ def _interpret(transcript: str) -> dict:
     # list. `add` was optional, so any sentence ENDING in "to the list"
     # was a write — and a question is never an instruction (the same rule
     # the spending door holds).
+    # "Add call the bank to my to do list" fell to the planner (2026-10-07).
+    m = re.fullmatch(r"(?:add|put|stick) (.+?) (?:on|to) (?:the |my )?(?:to ?do|to-do|task) list", low)
+    if m:
+        return _new_task(_as_he_said(transcript, m.group(1)).strip())
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
     if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
         # "Add call the dentist to my list" went on the SHOPPING list
         # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
         return _new_task(m.group(1).strip())
+    if m and _might_be_several(m.group(1)) and _a_plain_list(m.group(1)):
+        # "Add eggs, bread and butter to my shopping list" asked for an
+        # APPROVAL with no model (2026-10-07) - for the thing one item does
+        # for free. A comma list, or single words joined by "and", is a list
+        # the store itself splits the same way; only the doubtful shapes
+        # ("eggs milk and bread") still go to the planner.
+        return {"command": {"kind": "shopping_add",
+                            "item": _as_he_said(transcript, m.group(1).strip())},
+                "say": None}
     if m and _might_be_several(m.group(1)):
         # "Add eggs milk and bread to the shopping list" put ONE entry on
         # it called "eggs milk and bread". Splitting here would have to
@@ -2066,7 +2157,7 @@ def _interpret(transcript: str) -> dict:
     # exactly the sort of thing that gets improved, and a pattern anchored
     # to it drifts the moment somebody rewrites the sentence.
     item = _also_item(low)
-    if item and not _might_be_several(item) and _just_added_to_the_list():
+    if item and (not _might_be_several(item) or _a_plain_list(item)) and _just_added_to_the_list():
         return {"command": {"kind": "shopping_add",
                             "item": _as_he_said(transcript, item)},
                 "say": None}
@@ -2822,6 +2913,14 @@ def _interpret(transcript: str) -> dict:
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
+            # "Remember that my car is in spot 14" then "forget that" said
+            # "Okay - nothing was waiting" and KEPT the note (2026-10-07).
+            # With nothing pending, "that" is the note he just made.
+            noted = re.match(r"(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
+                             r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
+                             _previous_ask().casefold().rstrip(".!"))
+            if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and noted:
+                return {"command": {"kind": "forget", "about": noted.group(1)}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
             # leaves him believing he just cancelled something, and a bare
             # "Nothing is waiting for approval" answers a question he did
@@ -2833,6 +2932,31 @@ def _interpret(transcript: str) -> dict:
         # is an instruction to go somewhere else, said to someone who is
         # standing in a room talking.
         return {"command": None, "say": _offer_choice(pending, verb="deny")}
+
+    # SMALL THINGS A PERSON SAYS TO A ROOM. "Flip a coin" and "spell
+    # necessary" were kept for a model "when the big models are back"
+    # (2026-10-07). Neither needs one.
+    if re.fullmatch(r"(?:flip|toss) a coin|heads or tails", low):
+        import secrets
+        return {"command": None, "say": secrets.choice(("Heads.", "Tails."))}
+    m = re.fullmatch(r"roll (?:a|one|an?) (?:die|dice|d(\d{1,3}))|roll (?:the )?dice|"
+                     r"roll (two|2) dice|pick a (?:random )?number between (\d+) and (\d+)", low)
+    if m:
+        import secrets
+        if m.group(3):
+            lo, hi = sorted((int(m.group(3)), int(m.group(4))))
+            return {"command": None, "say": f"{lo + secrets.randbelow(hi - lo + 1)}."}
+        if m.group(2):
+            a, b = 1 + secrets.randbelow(6), 1 + secrets.randbelow(6)
+            return {"command": None, "say": f"{a} and {b} - {a + b}."}
+        sides = int(m.group(1) or 6)
+        if sides >= 2:
+            return {"command": None, "say": f"{1 + secrets.randbelow(sides)}."}
+    m = re.fullmatch(r"(?:how do (?:you|u|i) spell|spell|spell out|what(?:'s| is) the spelling of) "
+                     r"(?!my |your |his |her |their )([a-z][a-z'-]{1,30})(?: for me)?\s*\??", low)
+    if m:
+        word = m.group(1)
+        return {"command": None, "say": f"{word.capitalize()}: " + ", ".join(c.upper() for c in word if c.isalpha()) + "."}
 
     # "Thanks" is not a question and has no store behind it, so it does
     # not belong in `quick` — but it went to the PLANNER, which is 25-80

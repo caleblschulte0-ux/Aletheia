@@ -427,8 +427,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$"
-        r"|^(?:when is|when's) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
-        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)$")),
+        r"|^(?:when is|when's|what day is|what day's|what day does|which day is) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
+        r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day)(?: on| fall on| this year)?\s*\??$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -915,6 +915,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        # "What are my notes" told him she couldn't think (2026-10-07).
+        r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$|^(?:my|all my) notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(
