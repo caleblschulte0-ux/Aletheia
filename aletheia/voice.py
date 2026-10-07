@@ -8383,6 +8383,20 @@ def _interpret(transcript: str) -> dict:
                     r"(?:,? (?:it'?s|and it'?s|it is) (?:arriving|coming|due|getting here) [a-z0-9 ]{2,25})?", low) \
             and not re.search(r"\b(?:you|thea)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The doctor said I have the flu" (2026-10-07: to the planner). What
+    # someone he deals with told him, kept in his words; "what did the
+    # doctor say" reads it. Only the roles, never a name: "what did Dana
+    # say" is a question about his messages.
+    if re.fullmatch(r"(?:the|my|our) (?:" + _quick._ROLES_WHO_TELL + r") (?:said|says|told me|told us|thinks|recommended|wants me to)"
+                    r"(?: that)? [a-z0-9].{2,120}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I take lisinopril every morning" (2026-10-07: to the planner) -
+    # what he takes, in his words, read back by "what medications do I take".
+    if re.fullmatch(r"i(?: take| am taking|'m taking|'m on| am on) (?:(?:\d+ ?mg|\d+|one|two|a|an) (?:of )?)?(?:" + _quick._DRUGS
+                    + r"|[a-z]+ pills?|vitamins?|vitamin [a-z0-9]{1,3}|fish oil|[a-z]+ supplements?)(?: \d+ ?mg)?"
+                    r"(?: (?:every|each|once a|twice a|three times a|a) (?:day|morning|night|evening|week)| daily| at night| in the morning"
+                    r"| with (?:breakfast|dinner|food|meals)| for (?:my )?[a-z ]{2,25})*", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "It's my anniversary on May 5" (2026-10-07: to the planner) is "my
     # anniversary is May 5", the shape every date reader already reads.
     m = re.fullmatch(r"(?:it'?s|it is) (?P<whose>my|our|[a-z]+'s|my [a-z]+'s) (?P<what>anniversary|birthday|wedding anniversary)"

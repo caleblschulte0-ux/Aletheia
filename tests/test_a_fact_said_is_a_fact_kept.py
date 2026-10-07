@@ -5346,5 +5346,30 @@ class CorrectionsSaidTheWayPeopleSayThem(unittest.TestCase):
             self.assertEqual(quick._notes(), [])
 
 
+class WhatHeTakesAndWhatTheDoctorSaid(unittest.TestCase):
+    def test_medications_are_kept_and_a_pickup_is_not_one(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("i take lisinopril every morning")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("i'm on metformin")["command"]["kind"], "note")
+        notes = [{"text": "my prescription is ready"}, {"text": "i take lisinopril every morning"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what medications do i take"),
+                             "You told me: you take lisinopril every morning.")
+
+    def test_what_the_doctor_said(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("the doctor said i have the flu")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "the doctor said I have the flu"}]):
+            self.assertEqual(quick.answer("what did the doctor say"), "You told me: the doctor said you have the flu.")
+        self.assertIsNone(quick.match("what did dana say"))
+
+    def test_a_pickup_with_nothing_on_the_calendar_reads_the_task(self):
+        from aletheia import calendar, quick, tasks
+        rows = [{"id": "t1", "description": "pick up my prescription", "status": "OPEN"}]
+        with mock.patch.object(calendar, "all_events", return_value=[]), \
+                mock.patch.object(tasks, "all_tasks", return_value=rows), mock.patch.object(tasks, "is_his", return_value=True):
+            self.assertIn("no due date", quick.answer("when do i need to pick up my prescription"))
+
+
 if __name__ == "__main__":
     unittest.main()

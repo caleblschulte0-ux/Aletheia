@@ -149,6 +149,11 @@ _QTY = (r"(?:\d+ (?:and )?\d+/\d+|\d+/\d+|\d+(?:\.\d+)?(?: and (?:a |one )?(?:ha
         r"|(?:a |one )?(?:half|quarter|third))")
 
 # Medicines he names by name, shared with `voice`'s note for taking one.
+#: People whose word he passes on by their role ("the doctor said ..."),
+#: kept as a note and read back by "what did the doctor say".
+_ROLES_WHO_TELL = (r"doctor|doc|dentist|vet|mechanic|boss|manager|teacher|landlord|lawyer|accountant|plumber|electrician"
+                   r"|contractor|coach|therapist|nurse|pharmacist|surgeon|realtor|agent|recruiter|counselor|principal|trainer")
+
 _DRUGS = (r"ibuprofen|advil|motrin|tylenol|acetaminophen|paracetamol|aspirin|aleve|naproxen|excedrin|benadryl|claritin"
           r"|zyrtec|allegra|melatonin|nyquil|dayquil|sudafed|mucinex|tums|pepto|imodium|prilosec|zantac|pepcid"
           r"|lisinopril|metformin|amoxicillin|prednisone|adderall|zoloft|lexapro|wellbutrin|xanax|levothyroxine"
@@ -516,6 +521,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When did I get to work" (2026-10-07: to a model, after "I'm at work").
     ("arrived", re.compile(
         r"^(?:when|what time) did i (?:get|arrive|make it) (?:to |at )?(?P<arrived>work|the office|home|school|the gym)\s*\??$")),
+    ("role_said", re.compile(
+        r"^what did (?:the|my|our) (?P<role_said>" + _ROLES_WHO_TELL + r") (?:say|tell me|tell us|think|recommend|want me to do)\s*\??$")),
     ("woke_usual", re.compile(
         r"^(?:what time|when) do i (?:usually|normally|typically|tend to) (?:wake up|get up|go to bed|go to sleep|fall asleep)\s*\??$"
         r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$")),
@@ -2326,7 +2333,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -10449,6 +10456,22 @@ def _arrived(text: str) -> str | None:
     return None
 
 
+def _role_said(text: str) -> str | None:
+    """"What did the doctor say": the newest note saying what the doctor
+    said. None when there is none: it may be in his mail."""
+    from aletheia import speech
+    role = (_groups("role_said", text).get("role_said") or "").strip()
+    if not role:
+        return None
+    said_it = re.compile(r"^(?:the|my|our) " + re.escape(role) + r" (?:said|says|told me|told us|thinks|recommended|wants me to)\b", re.I)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if said_it.match(said):
+            when = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"You told me{' ' + when if when else ''}: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _tasks_verb(text: str) -> str | None:
     """His open tasks that start with the verb he asked by, with when
     they're due. None when none do: the thing may be in his notes or mail."""
@@ -10791,8 +10814,12 @@ def _meds(text: str = "") -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if re.match(r"(?:my|our) (?:daily )?(?:prescriptions?|medications?|meds) (?:is|are) ", low) \
-                or re.match(r"i take (?:my )?[a-z]", low) and re.search(_DRUGS + r"|\bmg\b|pills?|tablets?|daily|every (?:day|morning|night)", low):
+        # "My prescription is ready" is about a pickup, not what he takes
+        # (2026-10-07: read back as his medication).
+        if re.match(r"(?:my|our) (?:daily )?(?:prescriptions?|medications?|meds) (?:is|are) "
+                    r"(?!(?:ready|done|in|at|due|expired|running out|out|low|almost|filled|refilled|not|late|waiting)\b)", low) \
+                or re.match(r"i(?: take|'m taking| am taking|'m on| am on) (?:my )?[a-z0-9]", low) \
+                and re.search(_DRUGS + r"|\bmg\b|pills?|tablets?|vitamins?|supplements?|daily|every (?:day|morning|night)", low):
             key = re.sub(r"\W+", " ", low)
             if key not in seen:
                 seen.add(key)
@@ -11197,7 +11224,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_note": _when_note,
            "when_meeting": lambda rest: _when_mine(rest),
            "plural": _plural,
-           "when_do_i": lambda rest: _when_mine(rest),
+           "when_do_i": lambda rest: _when_mine(rest) or _task_due(rest),
            "meds": _meds,
            "work_hours": _work_hours,
            "cost_mine": _cost_mine,
@@ -11277,6 +11304,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "shopping": lambda rest: _shopping(),
            "the_list": lambda text: _the_list(),
            "tasks_verb": lambda text: _tasks_verb(text),
+           "role_said": lambda text: _role_said(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),
