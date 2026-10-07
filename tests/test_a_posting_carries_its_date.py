@@ -49,6 +49,28 @@ class APostingCarriesItsDate(unittest.TestCase):
                                "interval": "per-hour-wage"})
         self.assertEqual(job_value.annual_pay(pay), (41600.0, 52000.0))
 
+    def test_the_listing_text_ranks_every_opening_on_its_pay(self):
+        data = {"jobs": [{"id": "z", "title": "Business Development Representative",
+                          "descriptionPlain": "The base salary range is $100,000 - $115,000 per year."}]}
+        with mock.patch.object(jobs, "_fetch", return_value=data):
+            job = jobs._ashby({"token": "notion"})[0]
+        self.assertEqual(job_value.annual_pay(job, job["description"]), (100000.0, 115000.0))
+
+    def test_lever_lists_and_extra_text_travel_too(self):
+        data = [{"id": "a", "text": "Account Manager", "hostedUrl": "https://x/a",
+                 "descriptionPlain": "About the role.",
+                 "lists": [{"text": "Requirements", "content": "<li>2+ years in B2B</li>"}],
+                 "additionalPlain": "Pay: $70,000 - $80,000"}]
+        with mock.patch.object(jobs, "_fetch", return_value=data):
+            job = jobs._lever({"token": "x"})[0]
+        for words in ("About the role.", "Requirements", "2+ years in B2B", "$70,000"):
+            self.assertIn(words, job["description"])
+        self.assertNotIn("<li>", job["description"])
+
+    def test_a_listing_with_no_text_carries_none(self):
+        with mock.patch.object(jobs, "_fetch", return_value={"jobs": [{"id": "z", "title": "Ops"}]}):
+            self.assertNotIn("description", jobs._ashby({"token": "n"})[0])
+
     def test_no_date_or_a_bad_one_is_no_date(self):
         for value in (None, "", "soon", 0):
             self.assertEqual(jobs._when(value), "")

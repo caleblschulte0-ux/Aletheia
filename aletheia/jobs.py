@@ -341,9 +341,32 @@ def _lever(board: dict) -> list[dict]:
             "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
             "posted": _when(job.get("createdAt")),
             **_lever_pay(job.get("salaryRange")),
+            **_text_of(job.get("descriptionPlain"),
+                       *[f"{(part or {}).get('text') or ''}\n{_bare(str((part or {}).get('content') or ''))}"
+                         for part in job.get("lists") or [] if isinstance(part, dict)],
+                       job.get("additionalPlain")),
             "provider": "lever", "board": token, "id": str(jid),
         })
     return out
+
+
+#: How much of a posting's own text travels with it from the listing. Enough
+#: for the pay line and the requirements, which is what the ranking reads.
+DESCRIPTION_CHARS = 8000
+
+
+def _bare(html: str) -> str:
+    return " ".join(re.sub(r"<[^>]+>", " ", html).split())
+
+
+def _text_of(*parts) -> dict:
+    """The posting's text where the listing already carries it (Lever and
+    Ashby do), so EVERY opening is ranked on its pay and requirements - not
+    only the twenty whose pages get read one at a time. Measured 2026-10-07:
+    Notion's Ashby listing states "$100,000 - $115,000 per year" in the text
+    and nothing in its structured compensation."""
+    text = "\n".join(str(p).strip() for p in parts if str(p or "").strip())
+    return {"description": text[:DESCRIPTION_CHARS]} if text else {}
 
 
 #: Lever's pay intervals, as `job_value.annual_pay` names its units.
@@ -395,6 +418,7 @@ def _ashby(board: dict) -> list[dict]:
             "posting_url": job.get("jobUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}",
             "apply_url": job.get("applyUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}/application",
             "posted": _when(job.get("publishedAt")),
+            **_text_of(job.get("descriptionPlain")),
             "provider": "ashby", "board": token, "id": str(jid),
         })
     return out
