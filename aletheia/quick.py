@@ -552,7 +552,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("time_zone", re.compile(
         r"^what (?:time ?zone|timezone) (?:am i in|are we in|is (?:this|it|set))\s*\??$|^what(?:'s| is) my (?:time ?zone|timezone)\s*\??$"
         r"|^is it (?:daylight sav(?:ing|ings)(?: time)?|dst)(?: (?:right )?now)?\s*\??$"
-        r"|^(?:when|what day) (?:do|does) (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)\s*\??$")),
+        r"|^(?:when|what day) (?:do|does) (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)\s*\??$"
+        # "When is daylight saving" (2026-10-07: to the planner).
+        r"|^when (?:is|does) (?:the )?(?:daylight sav(?:ing|ings)(?: time)?|dst|the time change)(?: start| end| begin| this year)?\s*\??$"
+        r"|^(?:is it|are we (?:on|in)) daylight sav(?:ing|ings)(?: time)?(?: right now| now)?\s*\??$")),
     # WHAT'S AHEAD (2026-10-07): "what's coming up", "what am I doing
     # tonight", "how many meetings do I have tomorrow" went to the planner.
     # Her calendar and reminders, soonest first.
@@ -626,7 +629,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is| date is| day is| will the date be)? (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
         r" (?P<unit>days?|weeks?|months?) (?:from|after) (?:today|now)\s*\??$"
         r"|^what(?:'s| is) the date (?:in )?(?P<n2>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten) (?P<unit2>days?|weeks?|months?)"
-        r"(?: from (?:today|now))?\s*\??$")),
+        r"(?: from (?:today|now))?\s*\??$"
+        # "What was the date 100 days ago" (2026-10-07: to the planner).
+        r"|^what (?:was the date|date was it|day was it|was the day|was it) (?P<n3>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
+        r" (?P<unit3>days?|weeks?|months?) ago\s*\??$")),
     ("date_of", re.compile(
         r"^what(?:'s| is|s)? the date (?:on |for )?(?:next |this |of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>[a-z][a-z ']{2,30}?)\s*\??$"
         r"|^what date is (?:next |this )?(?P<date_of2>[a-z][a-z ']{2,30}?)\s*\??$"
@@ -1463,7 +1469,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # it the weekend", "what's 3 weeks from today", "how old is someone born
     # in 1990". Arithmetic on the calendar, nothing to think about.
     ("days_since", re.compile(
-        r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$")),
+        r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$"
+        # "How long ago was January 1" (2026-10-07: to the planner).
+        r"|^how (?:long|many days) ago (?:was|is|did) (?P<since2>.+?)\s*\??$")),
     ("weekend_q", re.compile(r"^is (?:it|today) (?:a |the )?weekend(?: yet| today)?\s*\??$")),
     # "HOW OLD IS JENNA" (2026-10-07: to the planner) - from the birthday
     # he told her. A name she holds nothing about goes on to a model,
@@ -1585,7 +1593,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born", "age_of",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "since2", "born", "age_of",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3951,10 +3959,13 @@ def _date_after(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime
     g = _groups("date_after", text)
-    raw, unit = g.get("n") or g.get("n2") or "", g.get("unit") or g.get("unit2") or ""
+    raw = g.get("n") or g.get("n2") or g.get("n3") or ""
+    unit = g.get("unit") or g.get("unit2") or g.get("unit3") or ""
     n = int(raw) if raw.isdigit() else _DATE_COUNTS.get(raw)
     if not n:
         return None
+    if g.get("n3"):
+        n = -n
     today = dt.datetime.now(localtime.operator_tz()).date()
     if unit.startswith("month"):
         month = today.month - 1 + n

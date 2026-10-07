@@ -1286,5 +1286,20 @@ class AListCalledCostco(unittest.TestCase):
         self.assertNotEqual((self._with(turns, "add a meeting to friday")["command"] or {}).get("kind"), "list_add")
 
 
+
+class TheCalendarBackwards(unittest.TestCase):
+    def test_a_date_some_days_ago(self):
+        import datetime as dt
+        from aletheia import localtime, quick
+        then = dt.datetime.now(localtime.operator_tz()).date() - dt.timedelta(days=100)
+        self.assertEqual(quick.answer("what was the date 100 days ago"),
+                         f"{then.strftime('%A')} {then.day} {then.strftime('%B')} {then.year}.")
+
+    def test_how_long_ago_and_daylight_saving(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how long ago was january 1"), ("days_since", "january 1"))
+        self.assertEqual(quick.match("when is daylight saving")[0], "time_zone")
+
+
 if __name__ == "__main__":
     unittest.main()
