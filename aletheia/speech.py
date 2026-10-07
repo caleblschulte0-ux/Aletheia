@@ -602,6 +602,11 @@ def spoken_receipt(kind: str, detail: str, *,
         if noted:
             return (f"Noted: {deslug(noted.group(1))} is "
                     f"{noted.group(2).strip()}.")
+        # "remembered identity.zip_code": a store and a key, read out loud.
+        kept = re.match(r"remembered\s+([\w-]+)\.([\w-]+)\s*$", text)
+        if kept:
+            whose = "your " if kept.group(1) in ("identity", "preferences", "people") else ""
+            return f"Got it - I'll remember {whose}{deslug(kept.group(2)).replace("_", " ")}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)
         if marked:

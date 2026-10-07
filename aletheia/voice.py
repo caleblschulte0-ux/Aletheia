@@ -1912,6 +1912,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "MY ZIP CODE IS 78701" (2026-10-07). The weather says "tell me your
+    # postcode and I'll remember it", and telling her went to the planner.
+    m = re.fullmatch(r"(?:my )?(?:zip|zip code|zipcode|postcode|postal code)(?: is|'s|:)? (\d{5}(?:-\d{4})?)"
+                     r"|i live (?:in|at) (?:zip(?: code)? )?(\d{5}(?:-\d{4})?)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "zip_code",
+                            "value": m.group(1) or m.group(2)}, "say": None}
+
     # "what do you still need from me?" - SETUP. Not the bare "what do you
     # need from me": that is the brief's fourth question, about what is
     # waiting on him (approvals, applications stopped on his answers), and
@@ -2975,6 +2983,16 @@ def _interpret(transcript: str) -> dict:
                       r"(?: at (?P<time>[\w: ]+?))?", low)
          or re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                          r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low))
+    # "BLOCK OFF FRIDAY AFTERNOON" (2026-10-07: to the planner): a hold
+    # called Busy for that part of that day, the same reversible hold.
+    if not m:
+        b = re.fullmatch(r"(?:block|block off|block out|keep|hold) (?:my )?(?P<day>" + _cal_days + r")"
+                         r"(?: (?P<part>morning|afternoon|evening|night))?(?: free| clear| open)?", low)
+        if b:
+            held = _calendar_hold(text, "Busy", b.group("day"), b.group("part"), None)
+            if held:
+                held["command"]["minutes"] = 60 if not b.group("part") else (180 if b.group("part") != "night" else 120)
+                return held
     if m and (m.group("day") or m.group("time")):
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
