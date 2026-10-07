@@ -4125,5 +4125,30 @@ class TheWeekTheMonthAndWhatIsLeftOfToday(unittest.TestCase):
         self.assertNotIn("12 am", said)
 
 
+class TheKitchen(unittest.TestCase):
+    """2026-10-07: "what's left on my shopping list" and "I'm cooking dinner"
+    went to a model, "I'm making tacos tonight" was dropped, and "I'm making
+    dinner tonight" became a 9 pm calendar hold."""
+
+    def test_what_is_left_is_the_list(self):
+        from aletheia import voice
+        for said in ("what's left on my shopping list", "what else do i need to buy"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "shopping_list"}, said)
+
+    def test_a_dish_on_a_day_is_the_meal_plan(self):
+        from aletheia import voice
+        for said in ("i'm making tacos tonight", "we're having pasta for dinner tomorrow"):
+            cmd = voice._interpret(said)["command"]
+            self.assertEqual((cmd["kind"], cmd["list"]), ("list_add", "meal plan"), said)
+
+    def test_cooking_is_not_a_diary_entry(self):
+        from aletheia import voice
+        out = voice._interpret("i'm making dinner tonight")
+        self.assertIsNone(out["command"])
+        self.assertIn("timer", out["say"])
+        held = voice._interpret("i'm having a party tonight")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "party"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1274,10 +1274,12 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # appointment" (2026-10-07) and read back "Max has a vet appointment
     # is Friday". Somebody else's appointment is theirs: "Max's vet
     # appointment". His own ("I have a dentist appointment") is just it.
-    own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)", str(title), flags=re.IGNORECASE)
+    own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)"
+                       r"|(?:i'?m|we'?re|i am|we are) (?:having|hosting|throwing|going to|off to) (?:a|an|my|our|the) (.+)",
+                       str(title), flags=re.IGNORECASE)
     theirs = re.fullmatch(r"([a-z][a-z']{1,20}) (?:has|has got|'s got) (?:a|an|his|her|their) (.+)", str(title), flags=re.IGNORECASE)
     if own:
-        title = own.group(1)
+        title = own.group(1) or own.group(2)
     elif theirs and theirs.group(1).casefold() not in ("he", "she", "it", "who", "what", "that", "this", "there", "everyone",
                                                          "somebody", "someone", "nobody"):
         title = f"{theirs.group(1)}'s {theirs.group(2)}"
@@ -3338,7 +3340,10 @@ def _interpret(transcript: str) -> dict:
                     r"|what do i need (to buy|from the (shop|store|grocery store))"
                     r"|read (me )?(my |the )?(shopping|grocery) list"
                     # "What's on the grocery list" (2026-10-07: to a model).
-                    r"|(show me|what'?s in|check) (my |the )?(shopping|grocery) list", low):
+                    r"|(show me|what'?s in|check) (my |the )?(shopping|grocery) list"
+                    # "What's left on my shopping list" (2026-10-07: to a model).
+                    r"|what'?s? ?(is )?(left|still|remaining) on (my |the )?(shopping |grocery )?list"
+                    r"|what (else )?do i (still )?need (to (get|buy)|from the (shop|store|grocery store))", low):
         return {"command": {"kind": "shopping_list"}, "say": None}
     # "Start a grocery list": she keeps one, and it is already there.
     if re.fullmatch(r"(?:start|make|create|begin|open) (?:a |my |the |new )*(?:shopping|grocery) list", low):
@@ -6889,6 +6894,11 @@ def _interpret(transcript: str) -> dict:
                             r"(?: for (?:a |an |my |the )?[a-z][a-z ]{1,30})?", low) \
             and (low.startswith("i saved") or re.search(r"savings|fund|\bfor\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'M COOKING DINNER" (2026-10-07: to a model). One line, and the one
+    # thing she can do for a cook.
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:cooking|making|starting|about to (?:cook|make)) (?:dinner|lunch|breakfast|brunch|supper)"
+                    r"(?: now| tonight| right now)?", low):
+        return {"command": None, "say": "Enjoy it. Say \"set a timer for 10 minutes\" if you need one."}
     # HIS VERDICT ON A JOKE (2026-10-07: "that's not funny" went to the
     # planner). One line; "another one" is how he gets a different one.
     if re.fullmatch(r"(?:that(?:'s| is| was)|not) (?:not )?(?:funny|very funny|that funny)(?: thea)?|(?:bad|terrible|lame|awful) joke"
@@ -7180,6 +7190,12 @@ def _interpret(transcript: str) -> dict:
             # meeting" (2026-10-07). A question is never an instruction.
             r"|who|whom|whose|where|which|why|how|am|are|can|could|will|would|should|does|have|has|whats|wheres|whos"
             r"|tell|show|read|list)\b", low):
+        told = None
+    # "I'm making dinner tonight" became a 9 pm hold called "i'm making
+    # dinner" (2026-10-07). Cooking is not a diary entry.
+    if told and re.match(r"(?:i'?m|we'?re|i am|we are) (?:making|cooking|eating|having) (?:dinner|lunch|breakfast|brunch)\b"
+                         r"|(?:i'?m|we'?re|i am|we are) (?:making|cooking) "
+                         r"|(?:i'?m|we'?re|i am|we are) (?:having|eating) [a-z][a-z ]{1,30} for (?:dinner|lunch|breakfast)\b", low):
         told = None
     m = m or told
     # "I HAVE A MEETING WITH DANA AT 2" names no day (2026-10-07: to the
@@ -7772,7 +7788,7 @@ def _interpret(transcript: str) -> dict:
                      r"|(?P<what2>[a-z0-9][a-z0-9 '-]{1,40}?) (?:would be|is|could be|might be) a (?:good|great|nice|perfect) "
                      r"(?:gift|present)(?: idea)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas))?", low)
     if m and not re.match(r"(?:it|that|this|what)\b", m.group("what") or m.group("what2")):
-        what = _as_he_said(text, m.group("what") or m.group("what2"))
+        what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
         who = _as_he_said(text, m.group("who") or m.group("who2"))
         return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
     # HIS MEAL PLAN (2026-10-07: "add chicken to my meal plan for monday"
@@ -7781,15 +7797,19 @@ def _interpret(transcript: str) -> dict:
     _wd = r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|tomorrow"
     m = re.fullmatch(r"(?:add|put) (?P<what>[a-z0-9][a-z0-9 ,'&-]{1,50}?) (?:to|on|in) (?:my |the |our )?meal plan"
                      r"(?: (?:for|on) (?P<day>" + _wd + r"))?(?: night)?"
-                     r"|(?:for |on )?(?P<day2>" + _wd + r")(?: night)?(?:'s dinner is| dinner is| we'?re having| i'?m (?:having|making)) (?P<what2>[a-z0-9][a-z0-9 ,'&-]{1,50})", low)
+                     r"|(?:for |on )?(?P<day2>" + _wd + r")(?: night)?(?:'s dinner is| dinner is| we'?re having| i'?m (?:having|making)) (?P<what2>[a-z0-9][a-z0-9 ,'&-]{1,50})"
+                     # "I'm making tacos tonight" (2026-10-07: to a model) -
+                     # the day said after the dish.
+                     r"|(?:i'?m|we'?re|i am|we are) (?:making|having|cooking) (?P<what3>(?!dinner\b|lunch\b|breakfast\b|plans\b|a call\b|time\b)[a-z][a-z0-9 ,'&-]{1,40}?)"
+                     r"(?: for dinner)? (?P<day3>" + _wd + r")(?: night)?", low)
     if m:
         import datetime as _dt
         from aletheia import localtime
-        said = m.group("day") or m.group("day2") or ""
+        said = m.group("day") or m.group("day2") or m.group("day3") or ""
         if said in ("today", "tonight", "tomorrow"):
             day = _dt.datetime.now(localtime.operator_tz()).date() + _dt.timedelta(days=1 if said == "tomorrow" else 0)
             said = day.strftime("%A").lower()
-        what = _as_he_said(text, m.group("what") or m.group("what2"))
+        what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
         return {"command": {"kind": "list_add", "list": "meal plan",
                             "item": f"{said.capitalize()}: {what}" if said else what}, "say": None}
     # HIS PLANS WITH A WHEN (2026-10-07: "I'm moving next month", "I start
