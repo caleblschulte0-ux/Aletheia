@@ -36,7 +36,7 @@ class HeCanSayIt(unittest.TestCase):
         self.assertTrue(voice.interpret("take the plumber one off my list")["command"]["drop"])
 
     def test_words_that_name_no_task_are_left_alone(self):
-        for said in ("delete my last note", "move my 3pm to friday", "cancel that"):
+        for said in ("delete my last note", "move my 3pm to friday", "cancel that", "cancel the first one"):
             self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "task_change", said)
 
 

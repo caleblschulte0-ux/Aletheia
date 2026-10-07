@@ -1722,7 +1722,11 @@ def _interpret(transcript: str) -> dict:
                             "description": _as_he_said(text, m.group("new").strip())}, "say": None}
     m = re.fullmatch(r"(?:delete|remove|drop|cancel|scrap|forget about|get rid of|take) (?:the )?(?:task )?(?P<w>.+?)"
                      + _task_tail + r"(?: off(?: my (?:list|tasks|task list|to-?do list))?)?", low)
-    if m and m.group("w") not in ("it", "that", "this", "everything", "all") and _names_one_open_task(m.group("w")):
+    # Not "cancel the first one": counting is about whatever she just read
+    # out, and that is usually approvals.
+    if m and m.group("w") not in ("it", "that", "this", "everything", "all") \
+            and not re.search(r"\b(?:first|second|third|last|latest|newest|oldest|next|other)\b", m.group("w")) \
+            and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_change", "which": m.group("w"), "drop": True}, "say": None}
 
     # "Mark the passport one done" — by what he CALLS it. This went to the
