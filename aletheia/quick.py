@@ -597,7 +597,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # different question - and "how busy am I this week" and "what's my
     # first meeting tomorrow" went to the planner (2026-10-07).
     ("agenda_more", re.compile(
-        r"^(?:do i have|have i got|is there) (?:any |anything )?(?:meetings?|appointments?|events?|plans|calls?|anything)?"
+        r"^(?:do i have|have i got|is there) (?:any |an )?(?:meetings?|appointments?|events?|plans|calls?)"
         r"(?: on)?(?: for)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^how (?:busy|booked|full) (?:am i|is my (?:day|week|calendar|schedule))(?: on)? (?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
     ("first_meeting", re.compile(
