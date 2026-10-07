@@ -1377,5 +1377,34 @@ class TheTalkAboutTheTalkIsSteppedOver(unittest.TestCase):
             self.assertNotIn("thanks", quick.answer("what have we talked about"))
 
 
+
+class TheWeekAhead(unittest.TestCase):
+    PERIODS = [{"name": n, "isDaytime": d, "temperature": 60 + i, "shortForecast": f,
+                "probabilityOfPrecipitation": {"value": 60 if "Rain" in f else 0}}
+               for i, (n, d, f) in enumerate([("Today", True, "Sunny"), ("Tonight", False, "Clear"),
+                                              ("Thursday", True, "Rain Likely"), ("Thursday Night", False, "Rain"),
+                                              ("Friday", True, "Cloudy"), ("Friday Night", False, "Clear"),
+                                              ("Saturday", True, "Sunny")])]
+
+    def test_this_week_reads_the_days_ahead(self):
+        from aletheia import quick, weather
+        with mock.patch.object(weather, "forecast", return_value={"periods": self.PERIODS, "place": "Chicago"}):
+            said = quick.answer("what's the weather this week")
+            self.assertIn("Thursday: Rain Likely", said)
+            self.assertIn("Saturday", said)
+            self.assertTrue(quick.answer("will it rain this week").startswith("Looks like it"))
+
+
+
+class PricesOnAMarketAreLookedUp(unittest.TestCase):
+    def test_market_stock_and_coin(self):
+        from aletheia import voice
+        ask = lambda said: voice.interpret(said)["command"]
+        self.assertEqual(ask("how's the stock market"), {"kind": "research", "question": "stock market today"})
+        self.assertEqual(ask("how's apple stock"), {"kind": "research", "question": "apple stock price today"})
+        self.assertEqual(ask("what's the price of gold"), {"kind": "research", "question": "gold price today"})
+        self.assertNotEqual(ask("what's the price of milk").get("question"), "milk stock price today")
+
+
 if __name__ == "__main__":
     unittest.main()

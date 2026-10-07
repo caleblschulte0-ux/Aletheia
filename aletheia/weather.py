@@ -273,6 +273,11 @@ def _periods_for(periods: list, wanted: str):
         if not days:
             return "The forecast doesn't reach the weekend yet - ask me again in a day or two."
         return days[:2]
+    if wanted in ("this week", "the week", "the rest of the week", "week", "the next few days", "next few days"):
+        # "What's the weather this week" (2026-10-07: to the planner) - the
+        # daytime periods ahead, as far as the forecast reaches.
+        days = [p for p in periods if p.get("isDaytime", True)]
+        return days[:5] or [periods[0]]
     if wanted.startswith("tomorrow"):
         # TOMORROW IS NOT ONE OF THEIR WORDS. The service names
         # periods Today / Tonight / Wednesday / Wednesday Night, so

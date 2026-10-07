@@ -1007,7 +1007,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("rain", re.compile(
         r"^(?:do i|will i|should i) (?:need|take|bring) (?:an |my )?(?:umbrella|raincoat|rain jacket)"
         r"(?: (?P<weather>today|tonight|tomorrow|this weekend|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
-        r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend"
+        r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend|this week"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     # SOMEWHERE ELSE (2026-10-07): "what's the weather like in Chicago"
     # went to the planner. Before the pattern for his own weather, which
@@ -1053,6 +1053,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
+        # "What's the weather this week", "the forecast for the weekend"
+        # (2026-10-07: to the planner).
+        r"|^what(?:'s| is|s)? the (?:weather|forecast)(?: looking)?(?: like)? (?:for )?(?P<weather9>this week|the week|the rest of the week|the next few days|this weekend|the weekend)\s*\??$"
+        r"|^(?:how(?:'s| is) the weather|what(?:'s| is) the weather going to be)(?: like)? (?P<weather10>this week|this weekend|the next few days)\s*\??$"
         # "Should I bring an umbrella" and "what's the temperature" went to
         # a model (2026-10-07). They are the forecast, asked sideways.
         r"|^(?:should i|do i need to|do i need an?|do i need) (?:bring|take|grab|pack|wear)? ?(?:an? |my )?"
@@ -1610,7 +1614,7 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",

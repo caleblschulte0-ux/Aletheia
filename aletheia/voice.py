@@ -3882,6 +3882,26 @@ def _interpret(transcript: str) -> dict:
     if m and _known_place(m.group(1).strip()):
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
+    # PRICES ON A MARKET (2026-10-07: "how's the stock market", "what's
+    # bitcoin at", "how's apple stock" all went to the planner). A search
+    # that cites where the number came from; nothing here buys or sells.
+    m = (re.fullmatch(r"how(?:'s| is|s| are) (?:the )?(?P<mkt>stock market|market|markets|stocks|dow|dow jones|s ?& ?p(?: 500)?|nasdaq)"
+                      r"(?: doing| looking)?(?: today| right now| now)?", low)
+         or re.fullmatch(r"how(?:'s| is|s) (?P<co>[a-z][a-z.& ]{1,25}?) stock(?: doing)?(?: today| right now)?"
+                         r"|what(?:'s| is|s) (?P<co2>[a-z][a-z.& ]{1,25}?) (?:stock|shares?) (?:at|trading at|worth|price)(?: today| right now)?"
+                         r"|what(?:'s| is|s) the (?:stock |share )?price of (?P<co3>[a-z][a-z.& ]{1,25}?) (?:stock|shares)(?: today| right now)?", low)
+         or re.fullmatch(r"what(?:'s| is|s) (?P<coin>bitcoin|btc|ethereum|eth|dogecoin|solana|gold|silver|oil) (?:at|worth|trading at|price)(?: today| right now)?"
+                         r"|how much is (?:a |one )?(?P<coin2>bitcoin|ethereum|ounce of gold|barrel of oil)(?: worth)?(?: today| right now)?"
+                         r"|what(?:'s| is|s) the price of (?:an ounce of |a barrel of )?(?P<coin3>bitcoin|ethereum|gold|silver|oil|gas)(?: today| right now)?", low))
+    if m:
+        g = m.groupdict()
+        if g.get("mkt"):
+            q = "stock market today"
+        elif g.get("coin") or g.get("coin2") or g.get("coin3"):
+            q = f"{g.get('coin') or g.get('coin2') or g.get('coin3')} price today"
+        else:
+            q = f"{(g.get('co') or g.get('co2') or g.get('co3')).strip()} stock price today"
+        return {"command": {"kind": "research", "question": q}, "say": None}
     # "WHAT'S OPEN NOW" (2026-10-07: it read him the PC's windows). Shops
     # and places near him, asked the way a person asks it.
     m = re.fullmatch(r"what(?:'s| is|s)? (?:still )?open (?:right now|now|near me|nearby|around here|late|tonight)"
