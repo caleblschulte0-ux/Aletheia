@@ -1574,5 +1574,25 @@ class AndTheWeekendCase(unittest.TestCase):
             self.assertEqual(quick._follow_up("and the weekend"), "what's the weather the weekend")
 
 
+class NextWeekendCase(unittest.TestCase):
+    def test_next_weekend_is_the_saturday_and_sunday_of_next_week(self):
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        saturday = today + dt.timedelta(days=7 - today.weekday() + 5)
+        this_saturday = today + dt.timedelta(days=(5 - today.weekday()) % 7)
+        events = [{"title": "Lake trip", "start": f"{saturday}T10:00:00"},
+                  {"title": "Not this one", "start": f"{this_saturday}T10:00:00"}]
+        if this_saturday == saturday:
+            events.pop()
+        with mock.patch.object(calendar, "all_events", return_value=events), \
+                mock.patch.object(calendar, "parse_time",
+                                  side_effect=lambda s: dt.datetime.fromisoformat(s).replace(tzinfo=tz)):
+            said = quick.answer("anything on next weekend")
+        self.assertIn("Lake trip", said)
+        self.assertNotIn("Not this one", said)
+        self.assertTrue(said.startswith("Next weekend"), said)
+
+
 if __name__ == "__main__":
     unittest.main()

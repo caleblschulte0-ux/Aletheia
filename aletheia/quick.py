@@ -824,17 +824,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
-        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend)$"
+        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend|next weekend)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
-        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
         # "What's my schedule this week" paid seven seconds of model for a
         # feed the shapes above already read (2026-09-22).
-        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week|this weekend|the weekend)"
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week|this weekend|the weekend|next weekend)"
         r"(?: like| looking like)?$"
         # "What's my schedule look like" (2026-10-07: to the planner) - today
         # unless he names a day.
@@ -845,7 +845,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
         r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
         # "Am I free this weekend" (2026-10-07: to the planner).
-        r"|^am i (?:free|busy) (?P<day11>this weekend|the weekend|this week|next week)$")),
+        r"|^am i (?:free|busy) (?P<day11>this weekend|the weekend|next weekend|this week|next week)$")),
     # "Do I have any meetings today" was answered "nothing coming up" - a
     # different question - and "how busy am I this week" and "what's my
     # first meeting tomorrow" went to the planner (2026-10-07).
@@ -4165,6 +4165,10 @@ def _agenda(day: str = "today") -> str | None:
             # The coming Saturday and Sunday; on a Sunday, what is left of it.
             first = now.date() + dt.timedelta(days=(5 - now.weekday()) % 7 if now.weekday() != 6 else 0)
             last = now.date() + dt.timedelta(days=(6 - now.weekday()) % 7)
+        elif day == "next weekend":
+            # The Saturday and Sunday of next week (2026-10-07: to the planner).
+            first = now.date() + dt.timedelta(days=7 - now.weekday() + 5)
+            last = first + dt.timedelta(days=1)
         elif day in _WEEKDAYS:
             # "What's on my calendar Monday": the coming one (today if it is today).
             ahead = (_WEEKDAYS.index(day) - now.weekday()) % 7
@@ -4188,8 +4192,9 @@ def _agenda(day: str = "today") -> str | None:
              else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
              else first.strftime("%A") if first == last
              else "This weekend" if day in ("this weekend", "the weekend")
+             else "Next weekend" if day == "next weekend"
              else "This week" if day == "this week" else "Next week")
-    when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend") else label
+    when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend", "Next weekend") else label
     if not rows:
         return f"Nothing on your calendar {when_said}."
     rows.sort(key=lambda r: r[0])
