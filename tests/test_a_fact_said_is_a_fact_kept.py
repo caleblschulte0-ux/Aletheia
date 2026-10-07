@@ -1729,5 +1729,18 @@ class RemindMeOnADayHeNamesCase(unittest.TestCase):
         self.assertTrue(tonight.hour == 20 or tonight > dt.datetime.now(tonight.tzinfo), tonight)
 
 
+class TheDayAfterTomorrowIsOneDayCase(unittest.TestCase):
+    def test_tasks_and_holds_keep_the_whole_day(self):
+        from aletheia import localtime, voice
+        later = (localtime.today() + dt.timedelta(days=2)).isoformat()
+        task = voice._interpret("add a task to call mom the day after tomorrow")["command"]
+        self.assertEqual((task["description"], task["deadline"]), ("call mom", later))
+        hold = voice._interpret("put dinner with mom on my calendar the day after tomorrow at 6")["command"]
+        self.assertEqual(hold["title"], "dinner with mom")
+        self.assertTrue(hold["start"].startswith(later + "T18:00"), hold["start"])
+        party = voice._interpret("i have a party tonight at 8")["command"]
+        self.assertIn("T20:00", party["start"])
+
+
 if __name__ == "__main__":
     unittest.main()

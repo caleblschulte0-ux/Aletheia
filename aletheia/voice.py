@@ -366,7 +366,7 @@ def _split_deadline(text: str) -> tuple[str, str]:
         # said last is as much a deadline as "by friday" (2026-10-07).
         # "Call mom this weekend", "pay rent on the 1st" (2026-10-07: the
         # day stayed in the description and no deadline was kept).
-        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?(today|tonight|tomorrow|monday|tuesday|wednesday"
+        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|today|tonight|tomorrow|monday|tuesday|wednesday"
                          r"|thursday|friday|saturday|sunday|(?:over )?(?:this |the )?weekend"
                          r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?"
                          r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?))$",
@@ -1187,6 +1187,8 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     day_iso = _spoken_day(day)
     if not day_iso:
         return None
+    if str(day).strip().casefold() == "tonight":
+        part = part or "night"          # "a party tonight at 8" is eight in the evening
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
@@ -6122,7 +6124,7 @@ def _interpret(transcript: str) -> dict:
     # sent and no live calendar is written; it is the reversible half.
     # A date counts as a day: "a doctor's appointment on the 15th at 10"
     # (2026-10-07) went to the planner, and _spoken_day already reads it.
-    _cal_days = (r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today"
+    _cal_days = (r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:the )?day after tomorrow|tomorrow|today|tonight"
                  r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
                  r" \d{1,2}(?:st|nd|rd|th)?)")
     held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
