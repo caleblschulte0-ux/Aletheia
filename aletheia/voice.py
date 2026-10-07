@@ -5116,6 +5116,15 @@ def _interpret(transcript: str) -> dict:
     # calling it what he asked for.
     # The signal is not the word "some", it is what follows it: "play
     # some MUSIC" is transport and "put on some JAZZ" is a choice.
+    # "PUT ON SOME MUSIC" is "play music"; "play something relaxing" is a
+    # mood, searched as that kind of music (2026-10-07: both to the planner).
+    if re.fullmatch(r"(?:put on|throw on|start) (?:some |the )?(?:music|tunes)(?: please| for me)?", low):
+        return {"command": {"kind": "music", "action": "play"}, "say": None}
+    mood = re.fullmatch(r"(?:play|put on) (?:me )?something (?P<mood>relaxing|chill|calm|upbeat|happy|fun|mellow|soothing"
+                        r"|energetic|quiet|peaceful|sad|romantic|to (?:sleep|study|work|focus|work out) to)(?: please| for me)?", low)
+    if mood:
+        words = re.sub(r"^to (\w+(?: \w+)?) to$", r"\1", mood.group("mood"))
+        return {"command": {"kind": "open_page", "which": f"youtube search {words} music"}, "say": None}
     if re.fullmatch(r"(?:play|put on) (?:me )?(?:the )?(?:news|headlines)(?: for me)?", low):
         from aletheia import quick
         return {"command": None, "say": quick._news() or "I couldn't read the news just now."}

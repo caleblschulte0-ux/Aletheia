@@ -1204,5 +1204,12 @@ class HisListReadAsAList(unittest.TestCase):
                          "Added a task: pay rent, due Friday.")
 
 
+class MusicByMood(unittest.TestCase):
+    def test_a_mood_and_put_on_some_music(self):
+        self.assertEqual(voice.interpret("play something relaxing")["command"],
+                         {"kind": "open_page", "which": "youtube search relaxing music"})
+        self.assertEqual(voice.interpret("put on some music")["command"], {"kind": "music", "action": "play"})
+
+
 if __name__ == "__main__":
     unittest.main()
