@@ -5625,5 +5625,28 @@ class AWhenIsNotAnAmount(unittest.TestCase):
         self.assertIn("tasks_verb", [n for n, p in quick.PATTERNS if p.search("what calls do i need to make")])
 
 
+class HowLongAtHisJob(unittest.TestCase):
+    """2026-10-07: "how many days since I started my new job" was answered
+    "I don't have an application to many days since I started my new", and
+    "I started working at Acme in March" ticked a task or went to the planner."""
+
+    def test_a_how_question_is_not_an_application(self):
+        for said in ("how many days since i started my new job", "how long have i been at my job"):
+            self.assertNotIn("opportunity", [n for n, p in quick.PATTERNS if p.search(said)], said)
+        self.assertIn("opportunity", [n for n, p in quick.PATTERNS if p.search("how is the vanta application going")])
+
+    def test_the_day_he_started_is_kept_and_counted(self):
+        for said in ("I started my new job on September 1", "I started working at Acme in March"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        began = (now - dt.timedelta(days=10)).date()
+        note = f"I started my new job on {began.strftime('%B')} {began.day}"
+        with mock.patch.object(quick, "_notes", return_value=[{"text": note, "ts": now.isoformat()}]):
+            self.assertTrue(quick.answer("how long have I been at my job").startswith("10 days"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick._job_since("how long have i been at my job"))
+
+
 if __name__ == "__main__":
     unittest.main()

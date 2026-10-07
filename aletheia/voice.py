@@ -4765,6 +4765,14 @@ def _interpret(transcript: str) -> dict:
         if which in ("it", "that", "them") and only:
             return {"command": {"kind": "task_done", "which": only}, "say": None}
 
+    # "I started my new job on September 1", "I started working at Acme in
+    # March" (2026-10-07: the planner, and a task tick). The day his job
+    # began is a note in his words; "how long have I been at my job" reads it.
+    if re.fullmatch(r"i (?:just |only )?(?:started|began) (?:my |a |the )?(?:new )?(?:job|work|working|position|role)"
+                    r"(?: (?:at|with|for) [a-z0-9][a-z0-9&.' -]{1,30}?)?"
+                    r" (?:on |in |back in |last |this )?(?:today|yesterday|week|month|year|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                    r"|" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{1,2}(?:st|nd|rd|th)?)?)(?:,? \d{4})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "Done with laundry", "finish the dentist task", "the laundry task is done",
     # "I called the dentist" (2026-10-07: to the planner). Only when the
     # words pick out exactly one open task - "I called the dentist" with no

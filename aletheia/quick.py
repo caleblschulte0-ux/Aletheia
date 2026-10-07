@@ -298,7 +298,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:what(?:'s| is|s)? the )?status of|how(?:'s| is) it going with|tell me about|what do (?:you|u) think (?:of|about)|"
         r"what(?:'s| is|s)? next (?:for|on|with)|what(?:'s| is|s)? the next (?:step|move) (?:for|on|with)|"
         r"what (?:are|r) (?:you|u) doing (?:about|with|on|for))"
-        r" (?:the |my |our )?(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+        # "How many days since I started my new job" was read as an
+        # application called "many days since I started my new" (2026-10-07):
+        # a "how" question about anything else is not one.
+        r" (?:the |my |our )?(?!(?:many|much|long|old|far|often|soon|have|has|had|did|do|does|can|could|should|am|was|were|will|would)\b)"
+        r"(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
     # "What's the latest with DevRev" names the thing without calling it an
     # application; when the words match an opportunity or a record, that is
     # the answer, and when they match nothing the model may still think.
@@ -2074,6 +2078,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # 2026-10-07, each to the planner: "how many days since January 1", "is
     # it the weekend", "what's 3 weeks from today", "how old is someone born
     # in 1990". Arithmetic on the calendar, nothing to think about.
+    # "How long have I been at my job", "how many days since I started my
+    # new job" (2026-10-07: an application called "many days since I
+    # started my new", and a model).
+    ("job_since", re.compile(
+        r"^(?:how long have i (?:been (?:at|with|working at|working for|in) (?:my (?:new )?job|work|my company|my role|[a-z][a-z0-9&.' -]{1,30}?)|had my (?:new )?job|worked (?:at|for) [a-z][a-z0-9&.' -]{1,30}?)"
+        r"|how many (?:days|weeks|months) (?:since i started|have i been at|have i had) (?:my (?:new )?job|work|at [a-z][a-z0-9&.' -]{1,30}?|working at [a-z][a-z0-9&.' -]{1,30}?)"
+        r"|when did i start (?:my (?:new )?job|work at [a-z][a-z0-9&.' -]{1,30}?|working at [a-z][a-z0-9&.' -]{1,30}?|at [a-z][a-z0-9&.' -]{1,30}?))\s*\??$")),
     ("days_since", re.compile(
         r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$"
         # "How long ago was January 1" (2026-10-07: to the planner).
@@ -2356,7 +2367,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11030,6 +11041,61 @@ def _weight() -> str | None:
     return None
 
 
+def _job_since(text: str) -> str | None:
+    """How long he has been at his job, from his note saying when he
+    started. None when he never said: his profile or mail may know."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    said_it = re.compile(r"\bi (?:just |only )?(?:started|began) (?:my |a |the )?(?:new )?(?:job|work|working|position|role)?"
+                         r"(?: ?(?:at|with|for) [a-z0-9][a-z0-9&.' -]{1,30}?)? ?(?:on |in |back in |this |last )?"
+                         r"(?P<when>today|yesterday|(?:the )?\d{1,2}(?:st|nd|rd|th)?(?: of)? [a-z]+(?:,? \d{4})?"
+                         r"|[a-z]+(?: (?:the )?\d{1,2}(?:st|nd|rd|th)?)?(?:,? \d{4})?)\.?$", re.I)
+    for row in _notes():
+        text_ = " ".join(str(row.get("text") or "").split())
+        m = said_it.search(text_)
+        if not m or not re.search(r"\b(?:job|work|working|position|role|at|with|for)\b", text_, re.I):
+            continue
+        try:
+            noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        when = m.group("when").casefold().strip(" .")
+        began = None
+        if when == "today":
+            began = noted
+        elif when == "yesterday":
+            began = noted - dt.timedelta(days=1)
+        else:
+            d = re.fullmatch(r"(?:the )?(?P<a>\d{1,2})?(?:st|nd|rd|th)?(?: of)? ?(?P<mon>[a-z]+)(?: (?:the )?(?P<b>\d{1,2})(?:st|nd|rd|th)?)?(?:,? (?P<y>\d{4}))?", when)
+            mon = next((i + 1 for i, name in enumerate(_MONTHS) if d and d.group("mon") and name.startswith(d.group("mon")[:3])), None)
+            if d and mon:
+                day = int(d.group("a") or d.group("b") or 1)
+                year = int(d.group("y") or noted.year)
+                try:
+                    began = dt.date(year, mon, day)
+                except ValueError:
+                    began = None
+                if began and not d.group("y") and began > noted:
+                    began = began.replace(year=year - 1)
+        if not began:
+            from aletheia import speech
+            return f"You told me: {speech.as_she_says_it(text_).rstrip('.')}."
+        days = (today - began).days
+        on = f"{began.strftime('%A')} {began.day} {began.strftime('%B')}" + ("" if began.year == today.year else f" {began.year}")
+        if days < 0:
+            return f"You start on {on}."
+        if days < 60:
+            span = f"{days} day{'s' if days != 1 else ''}"
+        elif days < 730:
+            span = f"about {round(days / 30.44)} months"
+        else:
+            span = f"about {days // 365} years"
+        return f"{span[:1].upper() + span[1:]} - you started on {on}."
+    return None
+
+
 def _work_at() -> str | None:
     """"Where do I work": the note he made saying so. Nothing kept is left
     to whatever else might know (his profile), never answered "no"."""
@@ -11488,6 +11554,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tasks_verb": lambda text: _tasks_verb(text),
            "role_said": lambda text: _role_said(text),
            "loan_left": lambda text: _loan_left(text),
+           "job_since": lambda text: _job_since(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),
