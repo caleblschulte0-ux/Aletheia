@@ -839,8 +839,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<weather4>today|tonight|tomorrow))?$"
         r"|^(?:what(?:'s| is|s)? the temperature|how (?:hot|cold|warm|chilly) is it|what temperature is it)"
         r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
-        r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|windy|sunny|cold|hot|warm)"
+        r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|sunny|cold|hot|warm)"
         r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
+    # WIND, HUMIDITY AND THE BATTERY. All three went to the planner and,
+    # with nothing thinking, came back "I can't think just now" - while the
+    # forecast she had cached carried both numbers and Windows reports the
+    # battery for free.
+    ("humidity", re.compile(
+        r"^(?:how humid is it|is it (?:humid|muggy)|what(?:'s| is|s) the humidity(?: like)?|humidity)"
+        r"(?: (?:out(?:side)?|today))?(?: (?P<weather2>tonight|tomorrow))?$")),
+    ("wind", re.compile(
+        r"^(?:how windy is it|is it (?:windy|breezy)|what(?:'s| is|s) the wind(?: speed)?(?: (?:like|doing))?"
+        r"|how(?:'s| is) the wind|wind speed)"
+        r"(?: (?:out(?:side)?|today))?(?: (?P<weather3>tonight|tomorrow))?$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -1010,7 +1021,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u|i) have(?: for me)?$|^(?:list|read me|read back|show me|read|show) (?:my |your |the |all my )?notes$"
-        r"|^how many notes (?:do i have|have i got|are there)$|^(?:my|all my) notes$|^what(?:'s| is| are) (?:in )?my notes$"
+        r"|^how many notes (?:do i have|have i got|are there)$|^(?:my|all my) notes$|^(?:do i have )?any notes$|^what(?:'s| is| are) (?:in )?my notes$"
         # "What are my notes" told him she couldn't think (2026-10-07).
         r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
@@ -1050,6 +1061,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
         r"|^(?:find|look up) (?P<note_q2>.{2,40}?) in (?:my |the )?notes$"
         r"|^what did i (?:note|write down|jot down) about (?P<note_q3>.{2,40})$")),
+    # "What car do I drive" (2026-10-07) went to the planner a turn after
+    # "remember that my car is a 2014 civic". A thing of his he OWNS is a
+    # recall; the things she keeps stores of are not, and are excluded by
+    # name so "what reminders do I have" still reaches its own reader.
+    ("recall_owned", re.compile(
+        r"^what (?:kind of |type of |make of |sort of )?(?!(?:notes?|reminders?|tasks?|lists?|meetings?|appointments?"
+        r"|events?|plans?|alarms?|timers?|e?mails?|messages?|drafts?|applications?|interviews?|jobs?|time|bills?"
+        r"|subscriptions?|projects?|calls?|texts?|things?|files?|documents?|approvals?)\b)"
+        r"(?P<recall>[a-z][a-z '-]{1,24}?) do i (?:drive|have|own|use|ride)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -4090,7 +4110,7 @@ def _notes_list() -> str:
     rows = _notes()
     if not rows:
         return "No notes yet. Say \"note that\" or \"remember that\" and I'll keep it."
-    said = [str(r.get("text") or "").strip().rstrip(".") for r in rows[:5]]
+    said = [speech.as_she_says_it(str(r.get("text") or "").strip().rstrip(".")) for r in rows[:5]]
     out = f"{speech.count_phrase(len(rows), 'note')}: " + "; ".join(said)
     if len(rows) > 5:
         out += f"; and {len(rows) - 5} more"
@@ -4138,7 +4158,7 @@ def _recall(words: str) -> str | None:
     found: list[str] = []
     for row in _notes():
         if hit(row.get("text")):
-            found.append(f"you told me: {str(row.get('text')).strip().rstrip('.')}")
+            found.append(f"you told me: {speech.as_she_says_it(str(row.get('text')).strip().rstrip('.'))}")
         if len(found) >= 3:
             break
     try:
@@ -4176,6 +4196,14 @@ def _home() -> str | None:
     # Bare, no full stop: `_mine` returns the value and not a sentence,
     # and "Hartford, SD" already reads as an answer.
     return f"{city}, {state}" if state else str(city)
+
+
+def _weather_detail(what: str, when: str = "") -> str | None:
+    try:
+        from aletheia import weather
+        return weather.detail(what, when)
+    except Exception:
+        return None
 
 
 def _weather(when: str = "") -> str | None:
@@ -4893,6 +4921,19 @@ def _about_him() -> str:
                     facts.append(f"{key.replace('_', ' ')}: {text}")
     except Exception:
         pass
+    # HIS NOTES ABOUT HIMSELF. "Remember that my car is a 2014 civic" is
+    # kept as a note, and "what do you know about me" answered "Nothing
+    # yet" a turn later (2026-10-07). A note in his first person is about
+    # him; said back in hers.
+    try:
+        for row in _notes(60):
+            line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(r"(?i)(?:my|i|i'm|i am|i've)\b", line):
+                facts.append(speech.as_she_says_it(line))
+            if len(facts) >= 12:
+                break
+    except Exception:
+        pass
     if not facts:
         return "Nothing yet. Tell me things and I'll remember them; a resume teaches me a lot at once."
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
@@ -5189,6 +5230,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "mine": _mine,
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
+           "humidity": lambda rest: _weather_detail("humidity", rest),
+           "wind": lambda rest: _weather_detail("wind", rest),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
            "greeting": lambda rest: _greeting(),
@@ -5205,6 +5248,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
+           "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),
            "slow": lambda rest: _slow(),

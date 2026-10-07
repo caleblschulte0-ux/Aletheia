@@ -1272,6 +1272,35 @@ def worth_answering(said: str) -> bool:
     return len([w for w in tokens if w not in _NOT_CONTENT]) >= 2
 
 
+_BARE_VERBS = (
+    (r"(?:set|make|add|create|new) (?:a |me a )?(?:new )?reminder(?: for me)?|remind me(?: of something| about something| later)?",
+     'What should I remind you about, and when? Say "remind me at 3 to call the dentist".'),
+    (r"(?:take|make|add|write|create|new) (?:a |me a )?(?:new )?note(?: for me)?|(?:take|write) (?:this|something) down|note this",
+     'What should the note say? Say "note that the plumber comes Tuesday".'),
+    (r"(?:add|make|create|new) (?:a |me a )?(?:new )?task(?: for me)?",
+     'What\'s the task? Say "add a task to renew my passport".'),
+    (r"(?:set|start) (?:a |me a )?(?:new )?timer",
+     'For how long? Say "set a timer for ten minutes".'),
+    (r"(?:set|make) (?:an |me an )?alarm",
+     'For what time? Say "wake me up at 6".'),
+    (r"(?:did (?:anyone|anybody|someone|somebody) call(?: me)?|any missed calls|who called(?: me)?|missed calls"
+     r"|(?:read|check) (?:me )?my (?:texts|text messages)|any (?:new )?(?:texts|text messages))",
+     "I can't see your phone's calls or texts - they stay on your phone. "
+     "I can read your email, and texts that reach your Google Voice number."),
+)
+
+
+def _bare_verb(low: str) -> str | None:
+    """The one question a verb with nothing after it needs, or None."""
+    said = low.strip().rstrip("?.! ")
+    said = re.sub(r"^(?:can you |could you |please |i (?:want|need) (?:you )?to )", "", said)
+    said = re.sub(r" please$", "", said)
+    for pattern, answer in _BARE_VERBS:
+        if re.fullmatch(pattern, said):
+            return answer
+    return None
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say.
 
@@ -1967,6 +1996,13 @@ def _interpret(transcript: str) -> dict:
                     "say": None}
         return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up"}, "say": None}
 
+    # THE VERB WITH NOTHING AFTER IT. "Set a reminder", "take a note" and
+    # "add a task" went to the planner, which with nothing thinking kept
+    # them for later - an ask with no content, filed. The answer is the
+    # one question that gets the content, with the sentence that works.
+    bare = _bare_verb(low)
+    if bare:
+        return {"command": None, "say": bare}
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.
@@ -3015,6 +3051,11 @@ def _interpret(transcript: str) -> dict:
         r"\b(?:that|it|the pending one|approval|approvals|reminder|reminders"
         r"|alarm|alarms|timer|timers|task|tasks|note|notes|meeting|meetings"
         r"|appointment|appointments|event|events|schedule|agenda"
+        # Plans with a person are not services either. "Cancel lunch with
+        # sam" (2026-10-07) was prepared as a cancellation of a
+        # subscription called "lunch with sam".
+        r"|with|lunch|dinner|breakfast|brunch|coffee|drinks|call|date|party"
+        r"|plans|trip|flight|booking|reservation|order|visit|interview"
         # No leading "the": `cancel (?:my |the )?` has already eaten it,
         # so "cancel the last one" arrives here as just "last one".
         r"|(?:first|second|third|fourth|last)(?: one)?"
