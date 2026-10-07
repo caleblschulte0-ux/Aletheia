@@ -712,9 +712,9 @@ class HerIsThePersonJustNamed(unittest.TestCase):
         with self.turns("what time is it"):
             self.assertEqual(voice._with_the_person_named("what's her number"), "what's her number")
 
-    def test_a_relation_is_not_a_name(self):
+    def test_a_relation_is_who_she_is(self):
         with self.turns("what's my mom's number"):
-            self.assertEqual(voice._with_the_person_named("text her hi"), "text her hi")
+            self.assertEqual(voice._with_the_person_named("text her hi"), "text Mom hi")
 
 
 if __name__ == "__main__":

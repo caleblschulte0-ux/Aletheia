@@ -1606,7 +1606,7 @@ def interpret(transcript: str) -> dict:
 
 
 _NOT_A_NAME = {"my", "your", "his", "her", "its", "it", "that", "this", "what", "who", "today", "tomorrow",
-               "everyone", "nobody", "somebody", "someone", "the", "a", "an", "dad", "mom"} | _RELATIONS
+               "everyone", "nobody", "somebody", "someone", "the", "a", "an"}
 
 
 def _the_person_just_named() -> str:
