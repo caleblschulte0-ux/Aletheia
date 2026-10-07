@@ -3295,6 +3295,13 @@ def _interpret(transcript: str) -> dict:
                        "Do that in your mail app."}
 
     m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)\s*\??", low)
+    # "Note that the wifi code is on the fridge", then "where's the wifi
+    # code" searched his Documents (2026-10-07). A note saying where it is
+    # answers before a file search does.
+    if m:
+        put = _where_he_put(m.group(1))
+        if put:
+            return {"command": None, "say": put}
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group(1))},

@@ -1025,5 +1025,20 @@ class AReminderSetByAnsweringHer(unittest.TestCase):
         self.assertEqual(cmd, {"kind": "reminder_off", "which": "call the bank"})
 
 
+
+class WhereANoteSaysItIs(unittest.TestCase):
+    def test_a_note_answers_before_a_file_search(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "the wifi code is on the fridge"}]):
+            said = voice._interpret("where's the wifi code")
+        self.assertIsNone(said["command"])
+        self.assertIn("fridge", said["say"])
+
+    def test_with_no_note_it_is_still_a_file_search(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(voice._interpret("where's my lease")["command"]["kind"], "file_find")
+
+
 if __name__ == "__main__":
     unittest.main()
