@@ -52,5 +52,37 @@ class WhereTheBrowserGotStuck(unittest.TestCase):
         self.assertEqual(out, {})
 
 
+    def test_a_dead_end_says_what_it_held(self):
+        from aletheia import browser_loop
+        here = "https://acme.example/jobs/1"
+        page = lambda *targets: {"url": here, "targets": list(targets)}
+        link = lambda label, href="": {"role": "link", "label": label, "href": href}
+        self.assertEqual(browser_loop.dead_end(page()), "empty_page")
+        self.assertEqual(browser_loop.dead_end(page({"role": "textbox", "label": "Search"})), "empty_page")
+        self.assertEqual(browser_loop.dead_end(page(link("Benefits"), link("Careers"))), "no_apply")
+        self.assertEqual(browser_loop.dead_end(page(link("Apply on LinkedIn", "https://linkedin.com/x"))),
+                         "apply_elsewhere")
+        self.assertEqual(browser_loop.dead_end(page(link("Apply", here + "/apply"))), "apply_not_taken")
+        self.assertEqual(browser_loop.dead_end(page({"role": "button", "label": "Start application"})),
+                         "apply_not_taken")
+        for word in browser_loop.DEAD_ENDS:
+            boundary = {"kind": "NO_WAY_FORWARD", "page_state": "CONTENT", "dead_end": word}
+            self.assertEqual(hunt_funnel._stuck_cause(boundary), f"nothing_to_press_on_content+{word}")
+        self.assertEqual(hunt_funnel._stuck_cause({"page_state": "CONTENT", "dead_end": "Acme said no"}),
+                         "nothing_to_press_on_content")
+
+    def test_the_stop_records_what_the_dead_end_held(self):
+        from unittest import mock
+        from aletheia import browser_loop
+        record = {"id": "bm-x", "goal": "apply for this job", "start_url": "https://acme.example/jobs/1"}
+        obs = {"url": "https://acme.example/jobs/1", "state": "CONTENT",
+               "targets": [{"role": "link", "label": "Apply", "href": "https://elsewhere.example/a"}]}
+        with mock.patch.object(browser_loop.bm, "stop_at", side_effect=lambda r, s, b: {**r, "boundary": b}), \
+                mock.patch.object(browser_loop.site_skills, "learn"), \
+                mock.patch("aletheia.demand.record_attempt"):
+            out = browser_loop._stop(record, "NEEDS_YOU", "NO_WAY_FORWARD", obs)
+        self.assertEqual(out["boundary"]["dead_end"], "apply_elsewhere")
+
+
 if __name__ == "__main__":
     unittest.main()
