@@ -1450,5 +1450,14 @@ class WhatISaidAboutDanaCase(unittest.TestCase):
         self.assertNotEqual((voice._interpret("find my note about dana")["command"] or {}).get("kind"), "file_find")
 
 
+class PauseEverythingIsTheSwitchCase(unittest.TestCase):
+    def test_pause_everything_halts(self):
+        from aletheia import voice
+        for said in ("pause everything", "stop working", "pause all of it"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "halt", said)
+        self.assertEqual(voice._interpret("pause")["command"]["kind"], "music")
+        self.assertNotEqual((voice._interpret("did the printer stop working")["command"] or {}).get("kind"), "halt")
+
+
 if __name__ == "__main__":
     unittest.main()

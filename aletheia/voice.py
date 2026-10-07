@@ -2360,8 +2360,11 @@ def _interpret(transcript: str) -> dict:
     # asymmetry decides the rest. A halt he did not mean costs him the
     # word "resume"; a halt he meant and did not get costs whatever she
     # was doing.
+    # "Pause everything" (2026-10-07: to the planner, which may not halt).
     if (re.fullmatch(r"(halt|stop|kill switch|emergency stop|shut it down|"
-                     r"stand down|stop (that|it|now)|that(?:'s| is) enough)", low)
+                     r"stand down|stop (that|it|now)|that(?:'s| is) enough|"
+                     r"pause (everything|yourself|all (of )?(it|this|your work))|stop (all )?(your )?work(ing)?|"
+                     r"stop (doing )?everything)", low)
             or re.search(r"\b(stop everything|halt everything|stop all of (it|this)|"
                          r"stop what you.?re doing|stop everything you.?re doing|"
                          r"kill switch|emergency stop|shut (it|everything) down|"
