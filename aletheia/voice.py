@@ -5067,7 +5067,9 @@ def _interpret(transcript: str) -> dict:
                      r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of) .+"
                      r"|(?:my|the|our) (?P<thing2>[a-z][a-z' ]{1,25}?) (?:are|is) (?:in|on|under|behind|next to|inside|on top of) "
                      r"(?:the|my|our|a) .+", low)
-    if m and not re.search(r"\b(?:car|calendar|list|schedule|computer|pc|account|name|password|birthday)\b",
+    # An appointment "is on the 15th" is a date, not a shelf (2026-10-07).
+    if m and not re.search(r"\b(?:car|calendar|list|schedule|computer|pc|account|name|password|birthday"
+                           r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
                            m.group("thing") or m.group("thing2") or ""):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
@@ -5893,7 +5895,11 @@ def _interpret(transcript: str) -> dict:
     # A HOLD ON HIS CALENDAR, in her own model: "put dinner with Sam on my
     # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is
     # sent and no live calendar is written; it is the reversible half.
-    _cal_days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    # A date counts as a day: "a doctor's appointment on the 15th at 10"
+    # (2026-10-07) went to the planner, and _spoken_day already reads it.
+    _cal_days = (r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today"
+                 r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
+                 r" \d{1,2}(?:st|nd|rd|th)?)")
     held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
                       r"(?: at (?P<time>[\w: ]+?))?", low),
@@ -5964,10 +5970,10 @@ def _interpret(transcript: str) -> dict:
         # "MY DENTIST APPOINTMENT IS FRIDAY AT 2" (2026-10-07: to the
         # planner) - the same thing as "I have a dentist appointment friday
         # at 2", said the other way round.
-        mine = re.fullmatch(r"(?:my|the|our) (?P<what>[a-z][a-z' ]{1,30}? (?:appointment|appt|meeting|interview|call|lunch|dinner"
-                            r"|class|game|flight|haircut|checkup|check-up|surgery|exam|test|recital|practice))"
-                            r" (?:is|'s) (?P<when>.{3,40})", low)
-        if mine and re.search(r"\d|" + _cal_days, mine.group("when")):
+        mine = re.fullmatch(r"(?:my|the|our) (?P<what>[a-z][a-z' ]{1,40}?) (?:is|'s) (?P<when>.{3,40})", low)
+        if (mine and re.search(r"\b(?:appointment|appt|meeting|interview|call|lunch|dinner|class|game|flight|haircut"
+                               r"|checkup|check-up|surgery|exam|recital|practice)\b", mine.group("what"))
+                and re.search(r"\d|" + _cal_days, mine.group("when"))):
             again = _interpret(f"i have a {mine.group('what')} {mine.group('when')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
                 return again

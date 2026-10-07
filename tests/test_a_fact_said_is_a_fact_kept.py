@@ -1243,5 +1243,18 @@ class MyAppointmentIsCase(unittest.TestCase):
         self.assertNotEqual((got.get("command") or {}).get("kind"), "calendar_hold")
 
 
+class AnAppointmentOnADateCase(unittest.TestCase):
+    def test_the_15th_is_a_day(self):
+        from aletheia import voice
+        for said in ("i have a doctor's appointment on the 15th at 10", "my doctor's appointment is on the 15th at 10"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"]["kind"], "calendar_hold", said)
+            self.assertIn("-15T10:00", got["command"]["start"], said)
+
+    def test_where_he_put_his_keys_is_still_a_note(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my keys are on the table")["command"]["kind"], "note")
+
+
 if __name__ == "__main__":
     unittest.main()
