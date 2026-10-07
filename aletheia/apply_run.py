@@ -572,7 +572,7 @@ def settle_old_not_a_form() -> int:
         closed += 1
     if closed:
         journal.append("action", "apply",
-                       f"closed {closed} old application record(s) that were never forms - "
+                       f"closed {speech.count_phrase(closed, 'old application record')} that were never forms - "
                        "a job-alert list or a page asking nothing - as not-a-form rather "
                        "than failed", actor=ACTOR)
     return closed
