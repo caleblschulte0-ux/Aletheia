@@ -220,11 +220,11 @@
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 23
+      "sent": 24
     }
   },
-  "generated_at": "2026-10-07T20:20:46Z",
-  "sent_all_time": 257,
+  "generated_at": "2026-10-07T20:32:11Z",
+  "sent_all_time": 258,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -274,14 +274,14 @@
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 257
+    "sent": 258
   },
   "waiting": {
     "asked_about": {
       "demographic": 5,
       "education": 1,
       "on_site": 1,
-      "other": 8,
+      "other": 7,
       "travel": 1
     },
     "closed": {
@@ -311,7 +311,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 12,
+    "needs_answer": 11,
     "oldest_days": 24,
     "to_send": 0
   },
