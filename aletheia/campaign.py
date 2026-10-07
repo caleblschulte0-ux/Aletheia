@@ -85,7 +85,7 @@ CANDIDATE_FACTOR = 3
 # READY. A real form blocks on something she cannot answer often enough that
 # trying exactly N gives fewer than N.
 TRIES_PER_READY = 4
-MAX_ROLES = 5
+MAX_ROLES = 8
 
 #: How many of a form's questions are put in front of the model at once.
 #: Optional questions count now (2026-09-13), which on a long Greenhouse
@@ -483,8 +483,15 @@ ROLES_BRIEF = (
     "Give a realistic RANGE: mostly the most recent title's level, one a step up "
     "(one step up at most) and one a step below. "
     "Never a job managing a team of people, and never Senior, Lead, Principal, "
-    "Director or Head for someone with only a few years in that field. Return "
-    'ONE JSON object: {"roles": [up to 5 short job titles, most fitting first]}.')
+    "Director or Head for someone with only a few years in that field. "
+    "Employers post the SAME work under different titles, and a board is "
+    "searched by the words of each title, so a job posted under a name not on "
+    "your list is never seen: include the other titles employers commonly use "
+    "for the same day-to-day work (Customer Success Associate beside Customer "
+    "Success Manager, Client Success or Account Coordinator beside Account "
+    "Manager, Implementation or Onboarding Specialist where that is the work), "
+    "never a title for work he will not do. Return "
+    'ONE JSON object: {"roles": [up to 8 short job titles, most fitting first]}.')
 
 
 def _roles_validator(value: dict) -> dict:
@@ -505,18 +512,34 @@ def _roles_cache_path():
     return stateio.private_dir("jobs") / "roles_from_resume.json"
 
 
+#: Bumped when ROLES_BRIEF asks for something different, so the roles a
+#: model read under the old brief are read again ONCE rather than kept for
+#: good. 2026-10-07: five titles, read once on 09-23 and kept since, while
+#: what she found a day fell from 40-70 to 8-25 - every board is searched
+#: by those five titles' words and nothing else.
+ROLES_BRIEF_VERSION = "2"
+
+
 def _resume_key(text: str) -> str:
     import hashlib
-    return hashlib.sha256(" ".join(str(text or "").split()).encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha256(" ".join(str(text or "").split()).encode("utf-8")).hexdigest()[:16]
+    return f"v{ROLES_BRIEF_VERSION}:{digest}"
 
 
-def roles_remembered(text: str) -> list[str] | None:
-    """The roles a model already read off THIS resume, or None."""
+def roles_remembered(text: str, *, older: bool = False) -> list[str] | None:
+    """The roles a model already read off THIS resume, or None. `older`
+    asks for what an earlier brief read instead - the floor when nobody can
+    think to read it again."""
     try:
         rows = stateio.read_json(_roles_cache_path())
     except Exception:
         return None
-    found = rows.get(_resume_key(text))
+    key = _resume_key(text)
+    if older:
+        digest = key.split(":", 1)[-1]
+        found = next((v for k, v in rows.items() if k != key and k.split(":", 1)[-1] == digest), None)
+    else:
+        found = rows.get(key)
     return [str(r) for r in found] if isinstance(found, list) and found else None
 
 
@@ -568,6 +591,12 @@ def roles_for(text: str, *, think=None) -> list[str]:
             return _with_his_roles(kept, known)
         raise ValueError("every role was work he will not do")
     except Exception:
+        # Nobody could read it under the new brief: what the old one read is
+        # still better than one title.
+        earlier = [r for r in (roles_remembered(text, older=True) or [])
+                   if not job_fit.unwanted_reason(r, "", known)]
+        if earlier:
+            return _with_his_roles(earlier, known)
         title = profile.known().get("current_title")
         if title and not job_fit.unwanted_reason(str(title), "", known):
             return _with_his_roles([str(title)], known)
