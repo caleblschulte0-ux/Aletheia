@@ -23,7 +23,7 @@ class APersonThenTheWords(unittest.TestCase):
 class QuietForASpanInWords(unittest.TestCase):
     def test_an_hour_in_words(self):
         self.assertEqual(voice._interpret("don't bother me for an hour")["command"],
-                         {"kind": "notify_snooze", "minutes": 60})
+                         {"kind": "notify_snooze", "minutes": 60, "quiet": True})
         self.assertEqual(voice._interpret("quiet for half an hour")["command"]["minutes"], 30)
 
 

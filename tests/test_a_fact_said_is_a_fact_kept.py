@@ -2995,5 +2995,33 @@ class HowDoIUseHer(unittest.TestCase):
             self.assertTrue((voice._interpret(said) or {}).get("command"), said)
 
 
+class DoNotDisturbIsQuiet(unittest.TestCase):
+    def test_a_meeting_keeps_her_quiet_not_just_one_notice(self):
+        import datetime as dt
+        import tempfile
+        from pathlib import Path
+        from aletheia import announce, intercom, notifications, speech, stateio
+        self.assertEqual(voice._interpret("I'm in a meeting")["command"], {"kind": "notify_snooze", "minutes": 60, "quiet": True})
+        self.assertTrue(voice._interpret("do not disturb")["command"]["quiet"])
+        self.assertNotIn("quiet", voice._interpret("snooze that")["command"])
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(announce, "_hush_path", return_value=Path(tmp) / "hush.json"), \
+                mock.patch.object(announce, "CONFIG_FILE", Path(tmp) / "announce.json"), \
+                mock.patch.object(announce.journal, "append"), \
+                mock.patch.object(notifications, "all_notifications", return_value=[]):
+            said = intercom.execute_command({"kind": "notify_snooze", "minutes": 60, "quiet": True}, {}, quote="t")
+            self.assertTrue(said.startswith("quiet until"), said)
+            self.assertIn("Nothing of mine will interrupt you", speech.spoken_receipt("notify_snooze", said))
+            self.assertIsNotNone(announce.hushed_until())
+            config = {**announce.DEFAULT_CONFIG, "enabled": True, "quiet_from": "00:00", "quiet_until": "00:00"}
+            with mock.patch.object(announce.policy, "halted", return_value=False):
+                self.assertEqual(announce.pending(config=config), [])
+            stateio.write_json_atomic(Path(tmp) / "hush.json", {"until": "2000-01-01T00:00:00Z"})
+            self.assertIsNone(announce.hushed_until())
+        both = speech.spoken_receipt("notify_snooze", "snoozed snooze-1 until 2030-01-01T18:00:00+00:00 \u2014 'the boiler'; "
+                                     "quiet until 2030-01-01T18:00:00Z")
+        self.assertTrue(both.startswith("Put away until") and "I'll keep quiet until" in both, both)
+
+
 if __name__ == "__main__":
     unittest.main()

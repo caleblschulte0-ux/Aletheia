@@ -152,6 +152,34 @@ def _already_spoken(notice_id: str) -> bool:
     return any(e.get("id") == notice_id for e in _spoken_state().get("spoken", []))
 
 
+def _hush_path():
+    return stateio.private_dir("announce") / "hush.json"
+
+
+def hush(minutes: int, *, via: str = "operator-cli") -> dt.datetime:
+    """Say nothing out loud for a while: "I'm in a meeting", "don't bother
+    me for an hour" (2026-10-07). Until then those snoozed ONE notice and
+    the next one was spoken in the middle of his meeting. Returns when it
+    ends; anything that arrives meanwhile stays unread on his list."""
+    minutes = max(1, min(int(minutes), 60 * 24 * 7))
+    until = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)).replace(microsecond=0)
+    stateio.write_json_atomic(_hush_path(), {"version": 1, "until": until.strftime("%Y-%m-%dT%H:%M:%SZ")})
+    journal.append("note", "announce", f"quiet until {until.strftime('%Y-%m-%dT%H:%M:%SZ')}", actor=via)
+    return until
+
+
+def hushed_until(now: dt.datetime | None = None) -> dt.datetime | None:
+    """When a hush he asked for ends, or None when there is none running."""
+    try:
+        until = dt.datetime.fromisoformat(str(stateio.read_json(_hush_path()).get("until") or "").replace("Z", "+00:00"))
+    except Exception:  # noqa: BLE001 - no file, or a broken one, is no hush
+        return None
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if now.tzinfo is None:
+        now = now.astimezone(dt.timezone.utc)
+    return until if until > now else None
+
+
 def pending(config: dict | None = None,
             now: dt.datetime | None = None) -> list[dict]:
     """Notifications that should be said out loud right now. Usually none."""
@@ -159,7 +187,7 @@ def pending(config: dict | None = None,
     now = now or dt.datetime.now()
     if not config["enabled"] or policy.halted():
         return []
-    if in_quiet_hours(config, now):
+    if in_quiet_hours(config, now) or hushed_until() is not None:
         return []
     room = config["max_per_hour"] - _recent_count(now)
     if room <= 0:

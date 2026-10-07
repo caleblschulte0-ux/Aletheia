@@ -690,12 +690,23 @@ def spoken_receipt(kind: str, detail: str, *,
                     f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_quoted(what.group(1))}.")
     if kind == "notify_snooze":
+        # "quiet until 2026-10-07T18:05:00Z" - do not disturb (2026-10-07).
+        quiet = re.search(r"quiet until (\S+?)(?: \((speaking first is off anyway)\))?$", text)
+        hush = ""
+        if quiet:
+            until = humanize_time(quiet.group(1), now)
+            hush = ("Nothing of mine will interrupt you - I don't speak up on my own, so anything new just waits on your list."
+                    if quiet.group(2) else
+                    f"I'll keep quiet until {until.replace('today at ', '')}. Anything that comes in waits on your list.")
+            text = text[:quiet.start()].rstrip("; ")
+            if not text:
+                return hush
         # "snoozed snooze-9f2 until 2026-09-07T21:00:00+00:00 — 'the boiler'"
         when = ISO_TIME.search(text)
         what = _reminder_quote(text)
         if when and what:
             return (f"Put away until {humanize_time(when.group(0), now)}: "
-                    f"{_quoted(what.group(1))}.")
+                    f"{_quoted(what.group(1))}." + (f" {hush}" if hush else ""))
     if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
         return text
     if kind == "reminder_off":

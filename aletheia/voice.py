@@ -5862,6 +5862,8 @@ def _interpret(transcript: str) -> dict:
     # on her own model to ask what he meant (2026-09-23).
     m = re.fullmatch(r"(?:turn on|enable|switch on|put me on|set|go|activate) (?:do not disturb|dnd|quiet mode|focus mode|"
                      r"silent mode)(?: mode)?(?: for (?P<n>\d+) (?P<unit>minutes?|mins?|hours?|hrs?))?"
+                     # A bare "do not disturb" (2026-10-07: to the planner).
+                     r"|(?:do not disturb|dnd)(?: mode)?(?: on| please)?"
                      r"|(?:don'?t|do not) (?:disturb|bother|interrupt) me(?: for (?P<n2>\d+) (?P<unit2>minutes?|mins?|hours?|hrs?))?"
                      # "Shut up", "be quiet", "stop talking" (2026-10-07: to the planner).
                      r"|(?:quiet|hush|shush|sh+|mute your notifications|be quiet|shut up|stop talking|quiet down|zip it)"
@@ -5876,13 +5878,16 @@ def _interpret(transcript: str) -> dict:
     span = re.fullmatch(r"(?:(?:don'?t|do not) (?:disturb|bother|interrupt) me|(?:turn on|enable|put me on) "
                         r"(?:do not disturb|dnd|quiet mode|focus mode)|(?:be )?quiet|hush) for (?P<span>.+)", low)
     if span and not m and _spoken_minutes(span.group("span")):
-        return {"command": {"kind": "notify_snooze",
+        return {"command": {"kind": "notify_snooze", "quiet": True,
                             "minutes": max(1, min(_spoken_minutes(span.group("span")), 60 * 24 * 7))}, "say": None}
     if m:
         n = next((m.group(k) for k in ("n", "n2", "n3", "n4") if m.group(k)), "")
         unit = next((m.group(k) for k in ("unit", "unit2", "unit3", "unit4") if m.group(k)), "")
         minutes = int(n) * (60 if unit.startswith(("h",)) else 1) if n else 60
-        return {"command": {"kind": "notify_snooze", "minutes": max(1, min(minutes, 60 * 24 * 7))},
+        # Quiet, not only one notice put away: "I'm in a meeting" snoozed
+        # the latest and she spoke the next one into his meeting (2026-10-07).
+        return {"command": {"kind": "notify_snooze", "minutes": max(1, min(minutes, 60 * 24 * 7)),
+                            **({} if m.group(0).startswith(("snooze", "pause")) else {"quiet": True})},
                 "say": None}
 
     # A LOST OBJECT is not a file. "Find my keys" planned for a minute and
