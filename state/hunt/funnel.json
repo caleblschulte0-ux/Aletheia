@@ -1,5 +1,19 @@
 {
-  "batches": {},
+  "batches": {
+    "2026-10-07": {
+      "duplicate": 36,
+      "employer_full": 0,
+      "needs_account": 0,
+      "needs_answer": 2,
+      "not_realistic": 43,
+      "offered": 90,
+      "ready": 1,
+      "runs": 1,
+      "unjudged": 0,
+      "unreachable": 8,
+      "weak_shot": 0
+    }
+  },
   "days": {
     "2026-09-12": {
       "filled": 26,
@@ -194,23 +208,23 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 13,
-      "found": 15,
+      "filled": 14,
+      "found": 16,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 3
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-07T15:55:48Z",
-  "sent_all_time": 237,
+  "generated_at": "2026-10-07T16:09:22Z",
+  "sent_all_time": 238,
   "totals": {
-    "filled": 358,
-    "found": 644,
+    "filled": 359,
+    "found": 645,
     "interviews": 2,
     "rejections": 3,
     "replies": 31,
-    "sent": 237
+    "sent": 238
   },
   "waiting": {
     "closed": {
