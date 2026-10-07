@@ -428,7 +428,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when(?:'s| is) (?:my|our) (?P<lw3>vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon"
         r"|(?:next )?days? off|time off|pto)\s*\??$"
         # "Am I working from home today" (2026-10-07: to the planner).
-        r"|^(?:am i|are we) (?P<lw4>working from home|wfh|off(?: work)?|on vacation) (?:today|tomorrow)\s*\??$")),
+        r"|^(?:am i|are we) (?P<lw4>working from home|wfh|off(?: work)?|on vacation) (?:today|tomorrow)\s*\??$"
+        # "When is my package coming" (2026-10-07: to a model).
+        r"|^when (?:is|does|will|should) (?:my|the) (?P<lw5>package|parcel|delivery) (?:coming|arriving|arrive|come|get here|be here|due)\s*\??$")),
+    # "What did I promise Sarah" (2026-10-07: to a model).
+    ("promised", re.compile(r"^what did i promise (?P<prom>[a-z][a-z' ]{1,25}?)\s*\??$"
+                            r"|^(?:did i|have i) promise(?:d)? (?P<prom2>anyone|anybody|someone|[a-z][a-z' ]{1,25}?) anything\s*\??$"
+                            r"|^what (?:have i|did i) promise(?:d)?(?: (?:to )?(?P<prom3>anyone|anybody|people))?\s*\??$")),
     # "What's on my calendar tomorrow morning" (2026-10-07: to a model).
     ("agenda_part", re.compile(
         r"^(?:what(?:'s| is)(?: on)?(?: my (?:calendar|schedule))?|what do i have(?: on)?|what have i got(?: on)?|anything(?: on)?"
@@ -2166,7 +2172,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -7743,6 +7749,24 @@ def _married(text: str) -> str | None:
     return None
 
 
+def _promised(text: str) -> str | None:
+    """What he told her he promised somebody, in his words."""
+    from aletheia import speech
+    g = _groups("promised", text)
+    who = " ".join(str(g.get("prom") or g.get("prom2") or g.get("prom3") or "").split())
+    anyone = who in ("", "anyone", "anybody", "someone", "people")
+    words = [w for w in re.findall(r"[a-z0-9']+", who) if w not in ("my", "our", "the")]
+    said = []
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        if re.match(r"i promised\b", low) and (anyone or all(re.search(rf"\b{re.escape(w)}", low) for w in words)):
+            said.append(speech.as_she_says_it(str(row.get("text")).strip()).rstrip("."))
+    if not said:
+        return ("You haven't told me about any promises." if anyone
+                else f"You haven't told me you promised {who} anything.")
+    return "You told me: " + speech.and_list(said[:4]) + "."
+
+
 def _home() -> str | None:
     """Where he lives — the city AND the state, which is how it is said.
 
@@ -9271,6 +9295,8 @@ _LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b",
                "off": r"\b(?:days? off|time off|pto|off work|i'?m off|i am off|have \w+ off|taking \w+(?: \w+)? off|on vacation|on holiday)\b",
                "working from home": r"\b(?:working from home|wfh)\b", "wfh": r"\b(?:working from home|wfh)\b",
                "out of the office": r"\bout of (?:the )?office\b", "out of office": r"\bout of (?:the )?office\b",
+               "package": r"\b(?:package|parcel|delivery)\b", "parcel": r"\b(?:package|parcel|delivery)\b",
+               "delivery": r"\b(?:package|parcel|delivery)\b",
                "pto": r"\b(?:days? off|time off|pto|off work|on vacation)\b"}
 
 
@@ -9281,7 +9307,7 @@ def _life_when(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("life_when", text)
-    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or "").strip()
+    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or "").strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
     place = re.search(r"(?:fly|flying) to (.+)$", asked)
     pattern = (r"\b(?:fly|flying|flight) to " + re.escape(place.group(1))) if place else _LIFE_WORDS.get(key or "")
@@ -10417,6 +10443,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "recall": _recall,
            "dislikes": _dislikes,
            "married": _married,
+           "promised": _promised,
            "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),

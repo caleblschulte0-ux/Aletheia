@@ -4375,5 +4375,42 @@ class YesterdaysCalendarAndCallingInSick(unittest.TestCase):
         self.assertNotEqual((voice._interpret("call in") or {}).get("command"), None)
 
 
+class MeetingsPromisesPackagesAndWhereTheyLive(unittest.TestCase):
+    """2026-10-07: "I'm meeting Sam for coffee at 10 tomorrow", "my mom lives
+    in Denver", "I promised Sarah I'd help her move Saturday", "I have a
+    package coming tomorrow" and "I got a new phone" all went to the planner."""
+
+    def _r(self, said):
+        from aletheia import voice
+        return ((voice._interpret(said) or {}).get("command") or {})
+
+    def test_a_meeting_with_somebody_is_a_hold(self):
+        c = self._r("i'm meeting sam for coffee at 10 tomorrow")
+        self.assertEqual(c.get("kind"), "calendar_hold")
+        self.assertTrue(c["title"].startswith("Coffee with"))
+        c = self._r("i'm having lunch with dana friday at noon")
+        self.assertEqual(c.get("kind"), "calendar_hold")
+        self.assertNotIn("friday", c["title"].casefold())
+        self.assertNotEqual(self._r("i'm seeing a therapist").get("kind"), "calendar_hold")
+
+    def test_notes(self):
+        for said in ("my mom lives in denver", "my sister moved to chicago", "i promised sarah i'd help her move saturday",
+                     "i have a package coming tomorrow", "my package arrives friday", "i got a new phone"):
+            self.assertEqual(self._r(said).get("kind"), "note", said)
+        for said in ("my mom lives in fear", "he lives in denver", "i promised myself i'd stop"):
+            self.assertNotEqual(self._r(said).get("kind"), "note", said)
+
+    def test_readers(self):
+        from unittest import mock
+        from aletheia import quick, voice
+        rows = [{"text": "I promised Sarah I'd help her move Saturday"}, {"text": "I have a package coming tomorrow"},
+                {"text": "My mom lives in Denver"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("help her move", quick.answer("what did i promise sarah"))
+            self.assertIn("promise", quick.answer("what did i promise dana"))
+            self.assertIn("package", quick.answer("when is my package coming"))
+            self.assertIn("Denver", voice._interpret("where does my mom live")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

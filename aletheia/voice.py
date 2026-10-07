@@ -3098,7 +3098,10 @@ def _interpret(transcript: str) -> dict:
     # "mom lives at 12 Oak Street" went to the planner. A contact has no
     # address field; a note in his words does, and is what this reads.
     m = (re.fullmatch(r"(?:my |our )?(?P<who>[a-z][a-z' ]{1,25}?)(?:'s| s|s)? (?:lives at|lives on|address is|new address is)"
-                      r" (?P<addr>\d.{3,80})", low))
+                      r" (?P<addr>\d.{3,80})", low)
+         # "My mom lives in Denver" (2026-10-07: to the planner).
+         or re.fullmatch(r"(?:my |our )?(?P<who>[a-z][a-z' ]{1,25}?) (?:lives|live|is living|moved) (?:in|to) "
+                         r"(?P<addr>(?!(?:fear|denial|hope|sin|the past|a dream|my head|her head|his head)\b)[a-z][a-z .,']{2,40})", low))
     if m and not re.match(r"(?:i|he|she|it|they|who|where|what|this|that|the|my|our|work|home|office)\b", m.group("who")):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = (re.fullmatch(r"what(?:'s| is|s) (?:the )?(?P<who>(?!the\b|this\b|that\b|your\b|its\b|their\b|his\b|her\b)[a-z][a-z' ]{1,30}?)"
@@ -3118,7 +3121,7 @@ def _interpret(transcript: str) -> dict:
                 said = " ".join(str(row.get("text") or "").split())
                 low_said = said.casefold()
                 if words and all(re.search(rf"\b{re.escape(w)}", low_said) for w in words) \
-                        and re.search(r"\b(?:lives (?:at|on|in)|address is)\b", low_said):
+                        and re.search(r"\b(?:lives (?:at|on|in)|address is|moved to|is living in)\b", low_said):
                     return {"command": None, "say": f"You told me: {speech.as_she_says_it(said).rstrip('.')}."}
         his = "your " + bare if who.startswith(("my ", "our ")) or bare in _RELATIONS else bare.title()
         says = re.sub(r"^your ", "my ", his)
@@ -7317,6 +7320,21 @@ def _interpret(transcript: str) -> dict:
                 held["command"]["minutes"] = minutes
                 return held
     if not m:
+        # "I'M MEETING SAM FOR COFFEE AT 10 TOMORROW" (2026-10-07: to the
+        # planner, and "who am I meeting tomorrow" found nothing). The same
+        # hold, called what it is and who with.
+        mt = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:meeting(?: up with)?|seeing|having (?P<what0>coffee|lunch|dinner|drinks"
+                          r"|breakfast|brunch) with) (?P<who>(?!(?:a|an|the|him|her|them|up|you|it|someone|somebody)\b)[a-z][a-z']{1,20}"
+                          r"(?: (?!(?:" + _cal_days + r"|on|this|next|for|at)\b)[a-z][a-z']{1,20})?)(?: for (?P<what>coffee|lunch|dinner|drinks|breakfast|brunch|a drink|a beer|a walk))?"
+                          r"(?: (?:on |this |next )?(?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
+                          r"(?: at (?P<time>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))?(?: (?:on |this |next )?(?P<day2>" + _cal_days + r"))?", low)
+        if mt and (mt.group("day") or mt.group("day2") or mt.group("time")) and not (mt.group("day") and mt.group("day2")):
+            what = re.sub(r"^an? ", "", mt.group("what0") or mt.group("what") or "meeting")
+            held = _calendar_hold(text, f"{what} with {mt.group('who')}", mt.group("day") or mt.group("day2") or "today",
+                                  mt.group("part"), mt.group("time"))
+            if held:
+                held["command"]["title"] = held["command"]["title"][:1].upper() + held["command"]["title"][1:]
+                return held
         # "MY DENTIST APPOINTMENT IS FRIDAY AT 2" (2026-10-07: to the
         # planner) - the same thing as "I have a dentist appointment friday
         # at 2", said the other way round.
@@ -7478,6 +7496,22 @@ def _interpret(transcript: str) -> dict:
     # `quick._married` counts from.
     if re.fullmatch(r"(?:i|we) (?:got|were|was) married (?:in|on|back in) (?:[a-z]+ (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?(?:19|20)\d\d"
                     r"|(?:i've|i have|we've|we have) been married (?:for |since )?(?:\d{1,2} years|(?:19|20)\d\d)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # A PROMISE, A PACKAGE, A NEW THING (2026-10-07: "I promised Sarah I'd
+    # help her move Saturday", "I have a package coming tomorrow" and "I got
+    # a new phone" all went to the planner). Notes in his words.
+    if re.fullmatch(r"i (?:promised|told) (?!(?:you|myself|her|him|them)\b)[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})? "
+                    r"(?:(?:that )?i(?:'d| would| will|'ll) |to |i'd )[a-z][a-z ,'-]{3,80}", low) \
+            and re.match(r"i promised", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i have|i've got|i got|there's|there is) (?:a |an |my )?(?:package|parcel|delivery|order) (?:coming|arriving|due)"
+                    r"(?: (?:on |this |next )?[a-z0-9 ]{3,25})?"
+                    r"|(?:i'?m|i am|we'?re) expecting (?:a |an )?(?:package|parcel|delivery)(?: (?:on |this |next )?[a-z0-9 ]{3,25})?"
+                    r"|(?:my|the|a) (?:package|parcel|delivery|order) (?:is coming|arrives|is arriving|comes|is due|should arrive|will arrive)"
+                    r" (?:on |this |next )?[a-z0-9 ]{3,25}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:got|bought) (?:a |an |my )?new (?:phone|car|truck|laptop|computer|tv|television|bike|watch"
+                    r"|tablet|ipad|iphone|couch|bed|mattress|fridge|washer|dryer|dishwasher|puppy|dog|cat|kitten|house|apartment)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
