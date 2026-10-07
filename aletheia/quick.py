@@ -671,7 +671,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what day (?:was|is|will it be) (?P<cal3>yesterday|tomorrow)\s*\??$"
         r"|^what (?P<cal4>week) (?:is it|of the year is it|number is it|are we in)\s*\??$"
         r"|^how many days (?:are )?(?:in|does) (?P<cal5>january|february|march|april|may|june|july|august|september|october|november|december|this month)(?: have)?\s*\??$"
-        r"|^is (?P<cal6>this|it) a leap year\s*\??$")),
+        r"|^is (?P<cal6>this|it) a leap year\s*\??$"
+        # "Is tomorrow a weekday", "what quarter are we in" (2026-10-07: to a model).
+        r"|^is (?P<cal7>(?:tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday) (?:a |the )?"
+        r"(?:weekday|week day|weekend|weekend day|work ?day|working day))\s*\??$"
+        r"|^what (?P<cal8>quarter) (?:is it|are we in|is this|of the year is it)\s*\??$")),
     # THE FIRST THING HE ASKS IN THE MORNING (2026-09-23): sent overnight
     # and done overnight, from the records.
     # THE MORNING AFTER (2026-09-23 night sweep): "how did the job hunt go
@@ -1856,7 +1860,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2844,6 +2848,18 @@ def _calendar_fact(what: str) -> str | None:
     def said(day):
         suffix = "th" if 11 <= day.day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(day.day % 10, "th")
         return f"{day.strftime('%A')} the {day.day}{suffix} of {day.strftime('%B')}"
+    if what == "quarter":
+        return f"The {('first', 'second', 'third', 'fourth')[(today.month - 1) // 3]} quarter of {today.year}."
+    asked = re.fullmatch(r"(\w+) (?:a |the )?(weekday|week day|weekend|weekend day|work ?day|working day)", what)
+    if asked:
+        names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        word = asked.group(1)
+        day = today if word == "today" else today + dt.timedelta(days=1) if word == "tomorrow" else None
+        weekday = day.weekday() if day else names.index(word)
+        weekend = asked.group(2).startswith("weekend")
+        yes = (weekday >= 5) == weekend
+        name = f"{word} is {day.strftime('%A')}" if day else f"{word.capitalize()} is {'a weekday' if weekday < 5 else 'the weekend'}"
+        return f"{'Yes' if yes else 'No'} - {name}."
     if what in ("yesterday", "tomorrow"):
         day = today + dt.timedelta(days=-1 if what == "yesterday" else 1)
         return f"{what.capitalize()} {'was' if what == 'yesterday' else 'is'} {said(day)}."

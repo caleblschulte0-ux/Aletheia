@@ -2624,5 +2624,16 @@ class TheReminderJustSet(unittest.TestCase):
             self.assertIsNone(voice._interpret("and remind me to text dad too")["command"])
 
 
+
+class WeekdayAndQuarter(unittest.TestCase):
+    """2026-10-07: "is tomorrow a weekday" and "what quarter are we in" went to a model."""
+
+    def test_answers(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("is saturday a work day"), "No - Saturday is the weekend.")
+        self.assertRegex(quick.answer("is tomorrow a weekday"), r"^(?:Yes|No) - tomorrow is [A-Z][a-z]+day\.$")
+        self.assertRegex(quick.answer("what quarter are we in"), r"^The (?:first|second|third|fourth) quarter of \d{4}\.$")
+
+
 if __name__ == "__main__":
     unittest.main()
