@@ -1513,6 +1513,12 @@ def _interpret(transcript: str) -> dict:
         # untouched and still reaches the thing that really cancels.
         m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
+    if not m:
+        # "CANCEL MY ALARM": an alarm is a reminder that says "wake up", and
+        # setting one was instant while cancelling it reached the planner.
+        if re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
+                        r"(?:the |my |that |all )?(?:my )?alarms?(?: for (?:tomorrow|the morning|[\w: ]+))?", low):
+            return {"command": {"kind": "reminder_off", "which": "wake up"}, "say": None}
     if m:
         # "CANCEL THAT REMINDER", straight after setting it, searched his
         # reminders for the word "that" and answered "None of your reminders
@@ -2004,6 +2010,20 @@ def _interpret(transcript: str) -> dict:
         # week'" — the fast lane removing an ANSWER rather than latency,
         # which is the one thing it may never do. The planner resolves the
         # date and compiles the same command; it just costs a round trip.
+
+    # "MOM'S NUMBER IS 605 555 0123": "text mom" says "Tell me the number
+    # once and I'll remember it", and telling her went to the planner
+    # (2026-10-07). Same for an email address.
+    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:phone |cell |mobile |cell phone )?(?:number|phone) is "
+                     r"(\+?[\d][\d ().-]{5,20}\d)", low)
+    if m and m.group(1) not in ("my", "your", "his", "her"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
+                            "phone": m.group(2).strip()}, "say": None}
+    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:email|e-mail|email address) is "
+                     r"(\S+@\S+\.\S+|\S+ at \S+ dot \S+)", low)
+    if m and m.group(1) not in ("my", "your", "his", "her"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
+                            "email": m.group(2).strip().rstrip(".")}, "say": None}
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
@@ -2530,12 +2550,14 @@ def _interpret(transcript: str) -> dict:
     # VOLUME is the same kind of key. "Turn the volume down" waited two
     # minutes on her own model for want of it (2026-09-22).
     m = re.fullmatch(r"(?:turn (?:the |it )?(?:volume |sound )?(?P<dir>up|down)(?: a (?:bit|little|notch))?|"
+                     # "Turn up the volume" fell to the planner (2026-10-07).
+                     r"turn (?P<dir3>up|down) (?:the )?(?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
                      r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
                      r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
                      r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
     if m:
-        direction = m.group("dir") or m.group("dir2")
+        direction = m.group("dir") or m.group("dir2") or m.group("dir3")
         action = ("volume_up" if direction == "up" or m.group("louder")
                   else "volume_down" if direction == "down" or m.group("quieter")
                   else "mute")
