@@ -557,6 +557,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"columbus day|indigenous peoples'? day)(?: on| fall on| this year)?\s*\??$")),
     # "What's the date tomorrow", "what was yesterday's date", "what week is
     # it", "how many days in February" (2026-10-07, all to a model).
+    # THE NEXT HOLIDAY (2026-10-07: "what holiday is next" and "is today a
+    # holiday" went to the planner while every date was computed here).
+    ("holiday_next", re.compile(
+        r"^(?:what(?:'s| is|s) the next (?:holiday|public holiday|federal holiday|big holiday)"
+        r"|what holiday is (?:next|coming up)|when(?:'s| is|s) the next (?:holiday|public holiday|federal holiday))\s*\??$"
+        r"|^is (?P<holiday_on>today|tomorrow|it) a (?:holiday|public holiday|federal holiday)(?: today)?\s*\??$")),
     ("calendar_fact", re.compile(
         r"^(?:what(?:'s| is|s)? the date|what date is it) (?P<cal>tomorrow|yesterday)\s*\??$"
         r"|^what (?:was|is) (?P<cal2>yesterday|tomorrow)(?:'s)? date\s*\??$"
@@ -977,7 +983,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
         # "Should I bring an umbrella" and "what's the temperature" went to
         # a model (2026-10-07). They are the forecast, asked sideways.
-        r"|^(?:should i|do i need to|do i need an?) (?:bring|take|grab|pack)? ?(?:an? )?(?:umbrella|jacket|coat|raincoat|sunscreen)"
+        r"|^(?:should i|do i need to|do i need an?|do i need) (?:bring|take|grab|pack|wear)? ?(?:an? |my )?"
+        r"(?:umbrella|jacket|coat|raincoat|sunscreen|sweater|hoodie|shorts|gloves|hat|layers)"
         r"(?: (?P<weather4>today|tonight|tomorrow))?$"
         r"|^(?:what(?:'s| is|s)? the temperature|how (?:hot|cold|warm|chilly) is it|what temperature is it)"
         r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
@@ -1449,7 +1456,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1557,6 +1564,33 @@ _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "augu
 
 OFF_SWITCH = ("Say \"stop\" or \"halt\" and nothing I do runs until you say \"resume\". "
               "\"Announcements off\" keeps me from speaking up on my own, and \"turn off the microphone\" stops me listening.")
+
+
+_HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's Day", "Easter", "Mother's Day",
+                  "Memorial Day", "Father's Day", "Independence Day", "Labor Day", "Columbus Day", "Halloween",
+                  "Thanksgiving", "Christmas Eve", "Christmas", "New Year's Eve")
+
+
+def _holiday_next(which: str = "") -> str | None:
+    """The next holiday, or whether today or tomorrow is one."""
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    dated = sorted((d, name) for name in _HOLIDAY_NAMES if (d := _named_date(name, today)) is not None)
+    if not dated:
+        return None
+    if which in ("today", "it", "tomorrow"):
+        day = today + dt.timedelta(days=1 if which == "tomorrow" else 0)
+        on = [name for d, name in dated if d == day]
+        said = "today" if day == today else "tomorrow"
+        if on:
+            return f"Yes - {said} is {on[0]}."
+        when, name = next((d, n) for d, n in dated if d > day)
+        return f"No. The next one is {name}, {when.strftime('%A')} {when.day} {when.strftime('%B')}."
+    when, name = dated[0]
+    away = (when - today).days
+    lead = "today" if away == 0 else "tomorrow" if away == 1 else f"in {away} days"
+    return f"{name}, {lead} - {when.strftime('%A')} {when.day} {when.strftime('%B')}."
 
 
 def _until_weeks(text: str) -> str | None:
@@ -6119,6 +6153,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wind": lambda rest: _weather_detail("wind", rest),
            "news": lambda rest: _news(),
            "stopwatch": lambda rest: _stopwatch(),
+           "holiday_next": lambda rest: _holiday_next(rest),
            "speaking_pace": lambda rest: _speaking_pace(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),

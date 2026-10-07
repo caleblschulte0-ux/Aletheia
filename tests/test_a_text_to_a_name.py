@@ -101,5 +101,27 @@ class HerName(unittest.TestCase):
         self.assertEqual(voice.strip_wake_word("tiara"), "tiara")
 
 
+class TheNextHoliday(unittest.TestCase):
+    def test_every_holiday_has_a_date(self):
+        import datetime as dt
+        from aletheia import quick
+        for name in quick._HOLIDAY_NAMES:
+            self.assertIsNotNone(quick._named_date(name, dt.date(2026, 10, 7)), name)
+
+    def test_the_next_one_is_named_and_dated(self):
+        from aletheia import quick
+        said = quick.answer("what holiday is next")
+        self.assertTrue(any(said.startswith(n) for n in quick._HOLIDAY_NAMES), said)
+        self.assertRegex(quick.answer("is today a holiday"), r"^(Yes - today is|No\. The next one is) ")
+
+
+class WhatToWear(unittest.TestCase):
+    def test_clothes_are_the_forecast_asked_sideways(self):
+        from aletheia import quick
+        for said in ("should i wear a jacket", "do i need a coat", "should i wear shorts today"):
+            self.assertEqual(quick.match(said)[0], "weather", said)
+        self.assertNotEqual(quick.match("do i need milk")[0], "weather")
+
+
 if __name__ == "__main__":
     unittest.main()
