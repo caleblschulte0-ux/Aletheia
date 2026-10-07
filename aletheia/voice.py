@@ -1262,6 +1262,10 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     evening, "the call at 10" the morning, noon is noon."""
     import datetime as dt
     from aletheia import localtime
+    # No day said: today, unless the time has already gone by - "I have a
+    # meeting at 1" said at 6 pm was held for 1 pm today (2026-10-07).
+    unsaid = not str(day or "").strip()
+    day = day or "today"
     day_iso = _spoken_day(day)
     if not day_iso:
         return None
@@ -1313,6 +1317,8 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
                             "supper": (18, 30), "drinks": (18, 0), "happy hour": (17, 0)}[meal.group(1)]
     start = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute),
                                 tzinfo=localtime.operator_tz())
+    if unsaid and start < dt.datetime.now(localtime.operator_tz()):
+        start += dt.timedelta(days=1)
     return {"command": {"kind": "calendar_hold", "title": _as_he_said(transcript, title.strip()),
                         "start": start.isoformat(), "minutes": 60}, "say": None}
 
@@ -2803,6 +2809,19 @@ def _interpret(transcript: str) -> dict:
                         r"every \1", low, count=1)
         if plural != low:
             again = _interpret(plural)
+            if (again.get("command") or {}).get("kind") in ("remind_weekly", "remind_daily"):
+                return again
+    # "Remind me at 5 every day to walk the dog", "remind me every other
+    # week on Monday at 2 to pay the sitter" (2026-10-07: both to the
+    # planner). The same schedules in another order; kept only when the
+    # reordered sentence comes back a recurring reminder.
+    if low.startswith("remind me "):
+        _wd = r"(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+        moved = re.sub(r"^remind me at ([\w: ]+?) (every (?:day|morning|evening|night|weekday|" + _wd[1:-3] + r")s?)\b",
+                       r"remind me \2 at \1", low, count=1)
+        moved = re.sub(r"\bevery (?:other|2|two) weeks? on " + _wd, r"every other \1", moved, count=1)
+        if moved != low:
+            again = _interpret(moved)
             if (again.get("command") or {}).get("kind") in ("remind_weekly", "remind_daily"):
                 return again
     # "Change my address to 12 Oak St", "update my email to ..." (2026-10-07:
@@ -7684,7 +7703,7 @@ def _interpret(transcript: str) -> dict:
                              r"(?: (?:for|to) (?P<what>[a-z][a-z' ]{1,30}))?", low))
         if r:
             title = re.sub(r"^(?:the|my|some) ", "", (r.group("what") or "busy").strip())
-            held = _calendar_hold(text, title[:1].upper() + title[1:], r.group("day") or "today", None, r.group("t1"))
+            held = _calendar_hold(text, title[:1].upper() + title[1:], r.group("day") or "", None, r.group("t1"))
             end = _spoken_time(r.group("t2"))
             if held and end:
                 import datetime as dt
@@ -7702,7 +7721,7 @@ def _interpret(transcript: str) -> dict:
             amount = _spoken_amount(b.group("n")) if b.group("n") != "a" and b.group("n") != "an" else 1
             minutes = int(round((amount or 1) * (60 if b.group("unit").startswith("hour") else 1)))
             title = re.sub(r"^(?:the|my|some) ", "", (b.group("what") or "busy").strip())
-            held = _calendar_hold(text, title[:1].upper() + title[1:], b.group("day") or "today", b.group("part"),
+            held = _calendar_hold(text, title[:1].upper() + title[1:], b.group("day") or "", b.group("part"),
                                   b.group("time"))
             if held and 15 <= minutes <= 12 * 60:
                 held["command"]["minutes"] = minutes
@@ -7726,7 +7745,7 @@ def _interpret(transcript: str) -> dict:
                           r"(?: at (?P<time>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))?(?: (?:on |this |next )?(?P<day2>" + _cal_days + r"))?", low)
         if mt and (mt.group("day") or mt.group("day2") or mt.group("time")) and not (mt.group("day") and mt.group("day2")):
             what = re.sub(r"^an? ", "", mt.group("what0") or mt.group("what") or "meeting")
-            held = _calendar_hold(text, f"{what} with {mt.group('who')}", mt.group("day") or mt.group("day2") or "today",
+            held = _calendar_hold(text, f"{what} with {mt.group('who')}", mt.group("day") or mt.group("day2") or "",
                                   mt.group("part"), mt.group("time"))
             if held:
                 held["command"]["title"] = held["command"]["title"][:1].upper() + held["command"]["title"][1:]
@@ -7742,7 +7761,7 @@ def _interpret(transcript: str) -> dict:
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
                 return again
     if m:
-        held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
+        held = _calendar_hold(text, m.group("title"), m.group("day") or "", m.group("part"), m.group("time"))
         if held:
             return held
     # "Add a meeting with the team on Thursday at 3 for an hour" (2026-10-07:

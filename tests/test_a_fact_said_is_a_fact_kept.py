@@ -4019,7 +4019,11 @@ class HisWorkDayKept(unittest.TestCase):
         held = voice._interpret("i have a meeting with dana at 2")["command"]
         self.assertEqual(held["kind"], "calendar_hold")
         self.assertEqual(held["title"], "meeting with dana")
-        self.assertEqual(held["start"][:10], dt.datetime.now(localtime.operator_tz()).date().isoformat())
+        # The next 2 pm: today while it is still ahead, tomorrow once it has gone.
+        now = dt.datetime.now(localtime.operator_tz())
+        start = dt.datetime.fromisoformat(held["start"])
+        self.assertEqual(start.hour, 14)
+        self.assertTrue(now - dt.timedelta(minutes=1) < start <= now + dt.timedelta(days=1), held["start"])
 
     def test_a_new_job_is_kept_and_read(self):
         from aletheia import quick, voice
@@ -5527,6 +5531,32 @@ class AChildsWeekAndAWeeklyThree(unittest.TestCase):
                 mock.patch.object(quick, "_planned_for", return_value="spaghetti") as planned:
             self.assertEqual(quick.answer("what am I making for dinner"), "Spaghetti tonight.")
             planned.assert_called_with("tonight")
+
+
+class SchedulesSaidInAnotherOrder(unittest.TestCase):
+    """2026-10-07: "remind me at 5 every day to walk the dog" and "every
+    other week on Monday" went to the planner, "I have a meeting at 1"
+    said in the evening was held for 1 pm that day, and "who has a
+    birthday this month" went to a model."""
+
+    def test_the_time_before_the_schedule(self):
+        cmd = voice._interpret("remind me at 5 every day to walk the dog")["command"]
+        self.assertEqual((cmd["kind"], cmd["time"], cmd["text"]), ("remind_daily", "17:00", "walk the dog"))
+        cmd = voice._interpret("remind me every other week on monday at 2 to pay the sitter")["command"]
+        self.assertEqual((cmd["kind"], cmd["days"], cmd["time"], cmd.get("every")), ("remind_weekly", ["monday"], "14:00", 2))
+        # A one-off is still a one-off.
+        self.assertEqual(voice._interpret("remind me at 5 to walk the dog")["command"]["kind"], "remind_at")
+
+    def test_a_time_already_gone_with_no_day_is_tomorrow(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        start = dt.datetime.fromisoformat(voice._interpret("I have a meeting at 1")["command"]["start"])
+        self.assertGreater(start, now - dt.timedelta(minutes=1))
+        said_today = dt.datetime.fromisoformat(voice._interpret("I have a meeting today at 1")["command"]["start"])
+        self.assertEqual(said_today.date(), now.date())
+
+    def test_who_has_a_birthday_this_month(self):
+        self.assertIn("birthdays", [n for n, p in quick.PATTERNS if p.search("who has a birthday this month")])
 
 
 if __name__ == "__main__":
