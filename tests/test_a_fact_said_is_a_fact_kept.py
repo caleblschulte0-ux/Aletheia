@@ -1675,5 +1675,12 @@ class APoliteAskIsStillAnAskCase(unittest.TestCase):
         self.assertEqual(voice._a_polite_ask("would you mind"), "would you mind")
 
 
+class WhatDidIAskYouCase(unittest.TestCase):
+    def test_a_person_is_not_a_repository_and_her_reminders_are_a_read(self):
+        from aletheia import quick, voice
+        self.assertEqual(quick.match("what did I ask you to do today")[0], "asked_on")
+        self.assertEqual(voice.interpret("thea did you set any reminders")["command"], {"kind": "reminders"})
+
+
 if __name__ == "__main__":
     unittest.main()

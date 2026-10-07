@@ -877,7 +877,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
-        r"|^what did (?:the |my )?(?P<repo_wrong2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? do (?:today|overnight|last night|this week)\s*\??$")),
+        # "What did I ask you to do today" read the fleet (2026-10-07): a
+        # person is not a repository.
+        r"|^what did (?!(?:i|you|u|we|he|she|they|it)\b)(?:the |my )?(?P<repo_wrong2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? do (?:today|overnight|last night|this week)\s*\??$")),
     ("fleet_read_at", re.compile(
         r"^when (?:was|did) (?:the )?fleet (?:last )?(?:checked|read|looked at|scanned|updated|refreshed)(?: last)?\s*\??$"
         r"|^how (?:old|fresh|stale) is the fleet (?:reading|read|pulse)\s*\??$")),
