@@ -745,6 +745,19 @@ def _might_be_several(text: str) -> bool:
     return "," in t or " and " in t or " & " in t or " plus " in t
 
 
+def _a_plain_list(text: str) -> bool:
+    """A list nobody has to guess at: the shopping store splits it into
+    more than one row ("eggs, bread and butter", "milk and eggs"), and no
+    piece of it is a stray filler word."""
+    from aletheia import intercom
+    parts = intercom.shopping_items_of(text)
+    if len(parts) == 1:
+        # One thing whose name has "and" in it: "mac and cheese".
+        return any(re.search(r"\b" + re.escape(d) + r"\b", parts[0], re.IGNORECASE)
+                   for d in intercom.SHOPPING_ONE_THING)
+    return all(p and p not in ("some", "also", "too", "more") for p in parts)
+
+
 #: An item on "my list" that starts like this is a thing to DO, not to buy.
 _TASK_VERB = re.compile(
     r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
@@ -1779,6 +1792,29 @@ def _interpret(transcript: str) -> dict:
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
 
+    # "DO I HAVE ANYTHING TOMORROW" is his calendar, never a file. `quick`
+    # answers it when a feed answers, and with no feed it fell through to
+    # here: "I could not find anything matching anything tomorrow. I looked
+    # in Documents." The calendar's own answer says what it knows.
+    m = re.fullmatch(r"(?:do i|have i|do we) (?:have|got) (?:anything|any plans|something|much|"
+                     r"any meetings|any appointments|plans)(?: on| planned| scheduled| going on| booked)?"
+                     r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
+    if m:
+        asked = _ambiguous_next_weekday(m.group(1) or "")
+        if asked:
+            return {"command": None, "say": asked}
+        day, part = _spoken_when(m.group(1) or "today")
+        if day:
+            command = {"kind": "free_time", "day": day}
+            if part:
+                command["part"] = part
+            return {"command": command, "say": None}
+        stretch = re.sub(r"^(?:the |this )", "", str(m.group(1) or ""))
+        if stretch in ("weekend", "week", "next week", "next few days", "next two weeks"):
+            when = {"weekend": "this weekend", "week": "this week"}.get(stretch, stretch)
+            return {"command": {"kind": "calendar_find_free", "when": when}, "say": None}
+        return _to_the_planner(text)
+
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
         r"(?:a |an |any |my |the )?(?:files? |documents? )?"
@@ -2020,6 +2056,15 @@ def _interpret(transcript: str) -> dict:
         # "Add call the dentist to my list" went on the SHOPPING list
         # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
         return _new_task(m.group(1).strip())
+    if m and _might_be_several(m.group(1)) and _a_plain_list(m.group(1)):
+        # "Add eggs, bread and butter to my shopping list" asked for an
+        # APPROVAL with no model (2026-10-07) - for the thing one item does
+        # for free. A comma list, or single words joined by "and", is a list
+        # the store itself splits the same way; only the doubtful shapes
+        # ("eggs milk and bread") still go to the planner.
+        return {"command": {"kind": "shopping_add",
+                            "item": _as_he_said(transcript, m.group(1).strip())},
+                "say": None}
     if m and _might_be_several(m.group(1)):
         # "Add eggs milk and bread to the shopping list" put ONE entry on
         # it called "eggs milk and bread". Splitting here would have to
@@ -2045,7 +2090,7 @@ def _interpret(transcript: str) -> dict:
     # exactly the sort of thing that gets improved, and a pattern anchored
     # to it drifts the moment somebody rewrites the sentence.
     item = _also_item(low)
-    if item and not _might_be_several(item) and _just_added_to_the_list():
+    if item and (not _might_be_several(item) or _a_plain_list(item)) and _just_added_to_the_list():
         return {"command": {"kind": "shopping_add",
                             "item": _as_he_said(transcript, item)},
                 "say": None}

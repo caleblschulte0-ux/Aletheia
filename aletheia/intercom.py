@@ -1590,6 +1590,13 @@ SHOPPING_EVERYTHING = frozenset({"everything", "all", "all of it", "the whole li
                                  "the lot", "it all", "the list"})
 
 
+#: Things whose NAME has "and" in it. Short on purpose: anything not here
+#: that is two single words ("milk and eggs") is two rows.
+SHOPPING_ONE_THING = ("mac and cheese", "macaroni and cheese", "half and half", "fish and chips",
+                      "salt and vinegar", "sweet and sour", "peanut butter and jelly",
+                      "chips and salsa", "rice and beans", "pb and j", "pb&j")
+
+
 def shopping_items_of(said: str) -> list[str]:
     """The things one sentence adds. "Milk and eggs" is two rows; "salt and
     vinegar chips" is one, because a side with a space in it is a name and
@@ -1597,6 +1604,21 @@ def shopping_items_of(said: str) -> list[str]:
     text = " ".join(str(said or "").split()).strip()
     if not text:
         return [text]
+    # One dish with "and" in its name is one row, wherever it sits in a list:
+    # "add mac and cheese" put "mac" and "cheese" on the list (2026-10-07).
+    keep = {}
+    for i, dish in enumerate(sorted(SHOPPING_ONE_THING, key=len, reverse=True)):
+        hit = re.search(r"\b" + re.escape(dish) + r"\b", text, re.IGNORECASE)
+        if hit:
+            token = f"\x00{i}\x00"
+            keep[token] = hit.group(0)
+            text = text[:hit.start()] + token + text[hit.end():]
+    if keep:
+        def back(part):
+            for token, dish in keep.items():
+                part = part.replace(token, dish)
+            return part
+        return [back(p) for p in shopping_items_of(text)]
     if "," in text:
         parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s*&\s*", text) if p.strip()]
         return parts or [text]
