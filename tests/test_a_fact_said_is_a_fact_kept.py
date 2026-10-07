@@ -2643,5 +2643,13 @@ class WhatDidIMissToday(unittest.TestCase):
                 self.assertEqual(voice._interpret(said)["command"], {"kind": "brief"})
 
 
+
+class MicCheckAndThePC(unittest.TestCase):
+    def test_said_plainly(self):
+        self.assertEqual(voice._interpret("testing 1 2 3")["say"], "I hear you.")
+        self.assertEqual(voice._interpret("is my computer on")["say"], "Yes - I'm running on it right now.")
+        self.assertIn("only the PC's", voice._interpret("what's my phone's battery")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

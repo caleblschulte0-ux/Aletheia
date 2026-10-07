@@ -2605,6 +2605,17 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
+    # "Test", "mic check", "is my computer on", "what's my phone's battery"
+    # (2026-10-07: all to a model). The first two are him checking she hears;
+    # she runs on the PC, so answering at all says it is on; his phone's
+    # battery is on his phone.
+    if re.fullmatch(r"(?:test|testing|testing,? (?:one,? two(?:,? three)?|1,? 2(?:,? 3)?|123)|mic check|check,? check)", low):
+        return {"command": None, "say": "I hear you."}
+    if re.fullmatch(r"is (?:my |the )?(?:computer|pc|laptop|desktop) (?:on|running|awake|up)(?: right now| now)?", low):
+        return {"command": None, "say": "Yes - I'm running on it right now."}
+    if re.fullmatch(r"(?:what(?:'s| is) |how(?:'s| is) )?(?:my )?phone(?:'s)? battery(?: (?:level|at|like))?"
+                    r"|how much battery (?:does|is left on) my phone(?: have)?", low):
+        return {"command": None, "say": "I can't see your phone's battery - only the PC's. Ask \"what's the battery\" for that."}
     # "Remind me on weekdays at 8 to stand up", "remind me Mondays at 9"
     # (2026-10-07: to the planner). A plural day IS "every" that day.
     if low.startswith("remind me ") and not re.search(r"\bevery\b", low):
