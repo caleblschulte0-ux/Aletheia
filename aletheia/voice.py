@@ -3101,8 +3101,9 @@ def _interpret(transcript: str) -> dict:
                     r"anything (?:new )?in (?:my|the) inbox|"
                     # "How many unread emails do I have", "read my latest
                     # email", "check my inbox" (2026-10-07: to a model).
-                    r"how many (?:unread |new )?e?mails?(?: do i have| have i got| are there)?(?: unread)?|"
+                    r"how many (?:unread |new )?e?mails?(?: do i have| have i got| are there)?(?: unread| today)?|"
                     r"(?:read|read me|show me|open) (?:my |the )?(?:last|latest|newest|most recent|new) e?mails?|"
+                    r"(?:read|show) (?:me )?(?:my )?(?:e?mails?|inbox)|"
                     r"check (?:my |the )?inbox|(?:any|do i have any) unread e?mails?)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
@@ -3135,6 +3136,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "task_status", "id": str(newest["id"]), "state": "CANCELLED",
                             "note": "he asked to remove the last task"},
                 "say": None}
+
+    # "DELETE THAT NOTE" went to the planner (2026-10-07) one turn after he
+    # made it. The newest note, forgotten by its own words, through the
+    # verb that already tombstones notes - said back so he hears which.
+    if re.fullmatch(r"(?:delete|remove|forget|scratch|get rid of|erase) (?:that|the last|my last|the latest|my latest"
+                    r"|the newest|my newest|the most recent|my most recent) note", low):
+        from aletheia import quick as _quick
+        rows = _quick._notes(1)
+        if not rows:
+            return {"command": None, "say": "There's no note to delete."}
+        return {"command": {"kind": "forget", "about": str(rows[0].get("text") or "")}, "say": None}
 
     # SHE CAN BE TOLD TO STOP LISTENING, and cannot be told to start.
     # Turning it on is a button (intercom `mic_on`, and PLANNER_FORBIDDEN
