@@ -5177,7 +5177,8 @@ def _fact_q(text: str) -> str | None:
             said = str(row.get("text") or "")
             low = said.casefold()
             if words and all(w.rstrip("s") in low for w in words):
-                return f"You told me: {said.strip().rstrip('.')}."
+                from aletheia import speech
+                return f"You told me: {speech.as_she_says_it(said.strip()).rstrip('.')}."
     if not whose:
         return f"You haven't told me your {key}. Tell me once and I'll remember it."
     from aletheia import voice

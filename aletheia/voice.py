@@ -5198,7 +5198,11 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "forget", "about": str(newest.get("text") or "").strip()}, "say": None}
     # "Delete the note about wifi" (2026-10-07: to the planner). The newest
     # note with those words in it; more than one is asked about, not guessed.
-    m = re.fullmatch(r"(?:delete|remove|forget|scratch|erase) (?:the |my |that )?notes? (?:about|on|with|that says|saying) (?P<w>.+)", low)
+    m = (re.fullmatch(r"(?:delete|remove|forget|scratch|erase) (?:the |my |that )?notes? (?:about|on|with|that says|saying) (?P<w>.+)", low)
+         # "Delete the plumber note" (2026-10-07: to the planner) - the
+         # same thing, said with the words in front.
+         or re.fullmatch(r"(?:delete|remove|forget|scratch|erase) (?:the |my |that )(?P<w>(?!last\b|latest\b|newest\b|first\b|old\b)"
+                         r"[a-z0-9][a-z0-9' ]{1,30}?) note", low))
     if m:
         from aletheia import quick
         words = [w for w in re.findall(r"[a-z0-9']+", m.group("w")) if w not in ("the", "my", "a", "an")]

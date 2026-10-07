@@ -129,7 +129,7 @@ class ThingsWithNumbers(unittest.TestCase):
         self.assertNotEqual((voice._interpret("what's my locker number").get("command") or {}).get("kind"), "contacts")
         self.assertEqual(voice._interpret("what's my mom's number")["command"], {"kind": "contacts", "which": "my mom"})
         with mock.patch.object(quick, "_notes", return_value=[{"text": "my locker is 42"}]):
-            self.assertEqual(quick.answer("what's my locker number"), "You told me: my locker is 42.")
+            self.assertEqual(quick.answer("what's my locker number"), "You told me: your locker is 42.")
 
     def test_where_the_car_is_reads_where_he_parked(self):
         from aletheia import quick
@@ -1132,6 +1132,16 @@ class HowLongHasItBeen(unittest.TestCase):
             self.assertIn("1 minute and 15 seconds", quick.answer("how long has it been"))
         with mock.patch.object(stopwatch, "elapsed", return_value=(None, False)):
             self.assertIsNone(quick.answer("how long has it been"))
+
+
+
+class DeleteTheXNote(unittest.TestCase):
+    def test_the_words_in_front_name_the_note(self):
+        from aletheia import quick, voice
+        notes = [{"text": "the plumber comes thursday at 10"}, {"text": "my locker is 42"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            cmd = voice._interpret("delete the plumber note")["command"]
+        self.assertEqual(cmd, {"kind": "forget", "about": "the plumber comes thursday at 10"})
 
 
 if __name__ == "__main__":
