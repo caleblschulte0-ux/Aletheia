@@ -70,6 +70,13 @@ class WhereTheyWait(unittest.TestCase):
                          {"left_captcha": 1, "left_no_way_forward": 1, "left_out_of_steps": 1,
                           "left_questions": 1})
 
+    def test_a_failure_the_general_browser_left_unworded_is_counted_by_its_wall(self):
+        rows = [row("FAILED", engine="loop", boundary="MANUAL_ONLY"),
+                row("FAILED", engine="loop", boundary=""),
+                row("FAILED", failure="ApplyError: the Submit button would not take a click - x")]
+        self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["failed_because"],
+                         {"browser_manual_only": 1, "browser_unknown": 1, "submit_would_not_click": 1})
+
     def test_a_failure_is_counted_by_its_shape_never_its_words(self):
         rows = [row("FAILED", failure="TimeoutError: page.goto https://acme.example/jobs/1 timed out"),
                 row("FAILED", failure="BrowserBusy: in use (tried 3 times, nothing was ever pressed)"),

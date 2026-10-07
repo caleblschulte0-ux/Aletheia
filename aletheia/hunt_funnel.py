@@ -98,9 +98,17 @@ def _failed_bucket(record: dict) -> str:
         return "never_pressed"
     if low.startswith("the site refused it"):
         return "site_refused"
+    if "would not take a click" in low:
+        return "submit_would_not_click"
     named = _ERROR_NAME.match(why.strip())
     if named:
         return named.group(1)
+    if not why.strip() and record.get("engine"):
+        # The general browser's REFUSED and MANUAL_ONLY land here with no
+        # failure text at all: the wall it stopped at is the reason. Live
+        # 2026-10-07, 54 of 74 failures read "other".
+        wall = str(record.get("boundary") or "unknown").casefold()
+        return "browser_" + re.sub(r"[^a-z0-9_]+", "_", wall)[:40]
     return "other"
 
 
