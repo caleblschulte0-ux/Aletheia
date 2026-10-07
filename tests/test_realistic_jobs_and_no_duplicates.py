@@ -400,7 +400,7 @@ class ThePostingIsReadCase(unittest.TestCase):
         text = jobs.posting_text(
             {"url": "https://boards.greenhouse.io/embed/job_app?for=brex&token=8802224002"},
             fetch=fetch)
-        self.assertEqual(asked, ["https://boards-api.greenhouse.io/v1/boards/brex/jobs/8802224002"])
+        self.assertEqual(asked, ["https://boards-api.greenhouse.io/v1/boards/brex/jobs/8802224002?pay_transparency=true"])
         self.assertIn("3+ years", text)
 
     def test_nothing_it_can_read_is_empty_not_an_error(self):

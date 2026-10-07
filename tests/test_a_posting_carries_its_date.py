@@ -49,6 +49,77 @@ class APostingCarriesItsDate(unittest.TestCase):
                                "interval": "per-hour-wage"})
         self.assertEqual(job_value.annual_pay(pay), (41600.0, 52000.0))
 
+    def test_the_listing_text_ranks_every_opening_on_its_pay(self):
+        data = {"jobs": [{"id": "z", "title": "Business Development Representative",
+                          "descriptionPlain": "The base salary range is $100,000 - $115,000 per year."}]}
+        with mock.patch.object(jobs, "_fetch", return_value=data):
+            job = jobs._ashby({"token": "notion"})[0]
+        self.assertEqual(job_value.annual_pay(job, job["description"]), (100000.0, 115000.0))
+
+    def test_lever_lists_and_extra_text_travel_too(self):
+        data = [{"id": "a", "text": "Account Manager", "hostedUrl": "https://x/a",
+                 "descriptionPlain": "About the role.",
+                 "lists": [{"text": "Requirements", "content": "<li>2+ years in B2B</li>"}],
+                 "additionalPlain": "Pay: $70,000 - $80,000"}]
+        with mock.patch.object(jobs, "_fetch", return_value=data):
+            job = jobs._lever({"token": "x"})[0]
+        for words in ("About the role.", "Requirements", "2+ years in B2B", "$70,000"):
+            self.assertIn(words, job["description"])
+        self.assertNotIn("<li>", job["description"])
+
+    def test_greenhouse_text_comes_with_the_listing(self):
+        data = {"jobs": [{"id": 1, "title": "Account Manager", "absolute_url": "https://x/1",
+                          "content": "&lt;p&gt;The annual OTE is $160,000 - $210,000 USD.&lt;/p&gt;"}]}
+        asked = []
+        def fetch(url):
+            asked.append(url)
+            return data
+        with mock.patch.object(jobs, "_fetch", side_effect=fetch):
+            job = jobs._greenhouse({"token": "gongio"})[0]
+        self.assertTrue(asked[0].endswith("?content=true"))
+        self.assertEqual(job["description"], "The annual OTE is $160,000 - $210,000 USD.")
+
+    def test_a_board_too_big_for_its_text_is_read_without_it(self):
+        plain = {"jobs": [{"id": 1, "title": "Account Manager", "absolute_url": "https://x/1"}]}
+        def fetch(url):
+            if "content=true" in url:
+                raise TimeoutError("too big")
+            return plain
+        with mock.patch.object(jobs, "_fetch", side_effect=fetch):
+            job = jobs._greenhouse({"token": "big"})[0]
+        self.assertEqual(job["title"], "Account Manager")
+        self.assertNotIn("description", job)
+
+    def test_a_gone_board_is_still_gone(self):
+        with mock.patch.object(jobs, "_fetch", side_effect=jobs.BoardGone("404")):
+            with self.assertRaises(jobs.BoardGone):
+                jobs._greenhouse({"token": "gone"})
+
+    def test_greenhouse_pay_beside_the_text_is_read(self):
+        page = {"content": "&lt;p&gt;Join us.&lt;/p&gt;",
+                "pay_input_ranges": [{"min_cents": 7000000, "max_cents": 9000000,
+                                      "currency_type": "USD", "title": "US"},
+                                     {"min_cents": 5000000, "max_cents": 6000000,
+                                      "currency_type": "EUR"}]}
+        asked = []
+        def fetch(url):
+            asked.append(url)
+            return page
+        text = jobs.posting_text({"url": "https://boards.greenhouse.io/embed/job_app?for=gongio&token=123"},
+                                 fetch=fetch)
+        self.assertIn("pay_transparency=true", asked[0])
+        self.assertIn("Join us.", text)
+        self.assertEqual(job_value.annual_pay({}, text), (70000.0, 90000.0))
+
+    def test_no_pay_fields_adds_nothing(self):
+        self.assertEqual(jobs._greenhouse_pay([]), "")
+        self.assertEqual(jobs._greenhouse_pay(None), "")
+        self.assertEqual(jobs._greenhouse_pay([{"min_cents": "x"}]), "")
+
+    def test_a_listing_with_no_text_carries_none(self):
+        with mock.patch.object(jobs, "_fetch", return_value={"jobs": [{"id": "z", "title": "Ops"}]}):
+            self.assertNotIn("description", jobs._ashby({"token": "n"})[0])
+
     def test_no_date_or_a_bad_one_is_no_date(self):
         for value in (None, "", "soon", 0):
             self.assertEqual(jobs._when(value), "")

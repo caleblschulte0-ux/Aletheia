@@ -293,7 +293,17 @@ def _when(value) -> str:
 
 def _greenhouse(board: dict) -> list[dict]:
     token = board["token"]
-    data = _fetch(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
+    base = f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs"
+    # WITH the posting text, which costs one bigger answer instead of a page
+    # read per opening, so every one is ranked on its pay and requirements.
+    # A board too big to read that way in time is read the old way: an
+    # opening without its text is still an opening.
+    try:
+        data = _fetch(f"{base}?content=true")
+    except BoardGone:
+        raise
+    except Exception:
+        data = _fetch(base)
     # A name he configured is his. A LEARNED name came off a search result -
     # live 2026-09-13 "Neros ..." for Neros Technologies, which then keyed
     # the duplicate check and the verification-code lookup on three dots -
@@ -320,6 +330,7 @@ def _greenhouse(board: dict) -> list[dict]:
             # scored, and Affirm wrote twice that week "we just hired someone
             # for this role".
             "posted": _when(job.get("first_published") or job.get("updated_at")),
+            **_text_of(_plain(str(job.get("content") or ""))),
             "provider": "greenhouse", "board": token, "id": str(jid),
         })
     return out
@@ -341,9 +352,28 @@ def _lever(board: dict) -> list[dict]:
             "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
             "posted": _when(job.get("createdAt")),
             **_lever_pay(job.get("salaryRange")),
+            **_text_of(job.get("descriptionPlain"),
+                       *[f"{(part or {}).get('text') or ''}\n{_plain(str((part or {}).get('content') or ''))}"
+                         for part in job.get("lists") or [] if isinstance(part, dict)],
+                       job.get("additionalPlain")),
             "provider": "lever", "board": token, "id": str(jid),
         })
     return out
+
+
+#: How much of a posting's own text travels with it from the listing. Enough
+#: for the pay line and the requirements, which is what the ranking reads.
+DESCRIPTION_CHARS = 8000
+
+
+def _text_of(*parts) -> dict:
+    """The posting's text where the listing already carries it (Lever and
+    Ashby do), so EVERY opening is ranked on its pay and requirements - not
+    only the twenty whose pages get read one at a time. Measured 2026-10-07:
+    Notion's Ashby listing states "$100,000 - $115,000 per year" in the text
+    and nothing in its structured compensation."""
+    text = "\n".join(str(p).strip() for p in parts if str(p or "").strip())
+    return {"description": text[:DESCRIPTION_CHARS]} if text else {}
 
 
 #: Lever's pay intervals, as `job_value.annual_pay` names its units.
@@ -395,6 +425,7 @@ def _ashby(board: dict) -> list[dict]:
             "posting_url": job.get("jobUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}",
             "apply_url": job.get("applyUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}/application",
             "posted": _when(job.get("publishedAt")),
+            **_text_of(job.get("descriptionPlain")),
             "provider": "ashby", "board": token, "id": str(jid),
         })
     return out
@@ -589,6 +620,24 @@ def _plain(markup: str) -> str:
     return " ".join(re.sub(r"<[^>]+>", " ", text).split())
 
 
+def _greenhouse_pay(ranges) -> str:
+    """The pay range an employer entered in Greenhouse's own pay fields, as a
+    sentence the pay reader already understands. Many US postings show pay
+    ONLY there - beside the text on the page, never inside it - so without
+    this the ranking saw no pay for them at all."""
+    lines = []
+    for pay in ranges if isinstance(ranges, list) else []:
+        if not isinstance(pay, dict) or str(pay.get("currency_type") or "USD").upper() != "USD":
+            continue
+        try:
+            low, high = int(pay.get("min_cents")) // 100, int(pay.get("max_cents")) // 100
+        except (TypeError, ValueError):
+            continue
+        if 0 < low <= high:
+            lines.append(f"Pay: ${low:,} - ${high:,}")
+    return ("\n" + "\n".join(lines)) if lines else ""
+
+
 def posting_text(job: dict, fetch=None) -> str:
     """What the posting SAYS - requirements included - or "" when it cannot tell.
 
@@ -607,8 +656,9 @@ def posting_text(job: dict, fetch=None) -> str:
             green = form or _GREENHOUSE_JOB.search(address)
             if green:
                 data = get(f"https://boards-api.greenhouse.io/v1/boards/"
-                           f"{green.group(1)}/jobs/{green.group(2)}")
-                return _plain((data or {}).get("content", ""))[:POSTING_CHARS]
+                           f"{green.group(1)}/jobs/{green.group(2)}?pay_transparency=true")
+                return (_plain((data or {}).get("content", ""))[:POSTING_CHARS]
+                        + _greenhouse_pay((data or {}).get("pay_input_ranges")))
             lever = _LEVER_JOB.search(address)
             if lever:
                 data = get(f"https://api.lever.co/v0/postings/{lever.group(1)}/{lever.group(2)}")
