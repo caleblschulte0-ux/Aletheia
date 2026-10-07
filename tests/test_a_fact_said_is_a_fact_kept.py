@@ -2765,5 +2765,23 @@ class AlarmAtSeven(unittest.TestCase):
         self.assertEqual(voice._interpret("turn on my alarm")["command"], {"kind": "reminder_on", "which": "all alarms"})
 
 
+
+class CountsHeKeeps(unittest.TestCase):
+    """2026-10-07: "I did 50 pushups" ticked off a task called "50 pushups",
+    and "how many pushups have I done" went to a model."""
+
+    def test_kept_and_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I did 50 pushups")["command"], {"kind": "note", "text": "I did 50 pushups"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I did 50 pushups", "ts": now}, {"text": "I did 30 push-ups", "ts": now},
+                 {"text": "I walked 5000 steps", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how many pushups have I done today"), "80 pushups today.")
+            self.assertEqual(voice._interpret("how many steps did I take today")["say"], "5,000 steps today.")
+            self.assertTrue(quick.answer("how many squats have I done").startswith("You haven't told me about any squats"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3773,6 +3773,14 @@ def _interpret(transcript: str) -> dict:
                     r"(?:steps?|step count|steps goal|heart rate|resting heart rate|sleep score|calories burned)"
                     r"(?: (?:did i (?:take|do|walk|get|burn)|have i (?:taken|done|walked|burned)|today|yesterday|this week|goal))*",
                     said):
+        # Steps he told her ("I walked 5000 steps") are his to have back.
+        try:
+            from aletheia import quick
+            kept = quick._counted(said) if quick.match(said) and quick.match(said)[0] == "counted" else None
+        except Exception:  # noqa: BLE001
+            kept = None
+        if kept and not kept.startswith("You haven't"):
+            return {"command": None, "say": kept}
         return {"command": None,
                 "say": "I can't see your health data - steps, heart rate and sleep stay on your phone or watch."}
     if texts:
@@ -4284,7 +4292,9 @@ def _interpret(transcript: str) -> dict:
                          r"(?: one| task)?", low)
          or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
                          r"(?: one| task)?", low)
-         or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low)
+         # "I did 50 pushups" is a count, not a task (2026-10-07: it ticked
+         # off a task called "50 pushups"); it is kept as a note further on.
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(.+?)(?: one| task)?", low)
          # "The second one is done" after she read the list (2026-10-07: to
          # the planner). Counting only - "the dishwasher is done" is a machine.
          or re.fullmatch(r"(?:the )?(first|second|third|fourth|fifth|last|top|1st|2nd|3rd|4th|5th) (?:one|task|thing)"
@@ -7124,6 +7134,11 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I did 50 pushups", "I walked 5000 steps" (2026-10-07): a count he
+    # keeps, added up by "how many pushups have I done today".
+    if re.fullmatch(r"i (?:did|just did|have done|walked|took|swam|rowed) (?:another )?\d[\d,]* [a-z][a-z -]{1,20}"
+                    r"(?: (?:today|this morning|this afternoon|this evening|tonight|yesterday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).
     # Kept in his words; "what's my weight" reads the newest one back.

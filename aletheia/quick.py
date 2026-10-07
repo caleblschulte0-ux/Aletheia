@@ -363,6 +363,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:give me )?(?:a |some )?synonyms? (?:for|of) (?P<syn2>[a-z][a-z'-]{1,30})\s*\??$")),
     ("antonym", re.compile(
         r"^(?:what(?:'s| is|s| are)? )?(?:the |an |some )?(?:opposite of|antonyms? (?:for|of)) (?P<ant>[a-z][a-z'-]{1,30})\s*\??$")),
+    ("counted", re.compile(
+        r"^how many (?P<counted>(?!tasks|reminders|notes|things|emails|people|contacts|days|hours|minutes|weeks)[a-z][a-z -]{1,20}?) "
+        r"(?:have i done|did i do|have i walked|did i walk|did i take|have i taken)"
+        r"(?P<counted_when> today| this week| yesterday)?\s*\??$")),
     ("weight", re.compile(
         r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
     ("work_at", re.compile(
@@ -1856,7 +1860,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any"):
+        if name in ("owed", "fact_any", "counted"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -7886,6 +7890,43 @@ _REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat
                          r"one more time|i didn'?t (?:catch|hear) that)(?: please)?")
 
 
+def _counted(text: str) -> str | None:
+    """"How many pushups have I done today": his notes saying "I did 50
+    pushups", added up. None when he has kept none, so the question goes on
+    ("how many steps did I take" has its own honest answer)."""
+    import datetime as dt
+    from aletheia import localtime
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "counted"), None)
+    if not found:
+        return None
+    what = found.group("counted").strip()
+    when = (found.group("counted_when") or " today").strip()
+    stem = re.sub(r"(?:es|s)$", "", what.replace("-", ""))
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    start = {"today": today, "yesterday": today - dt.timedelta(days=1),
+             "this week": today - dt.timedelta(days=today.weekday())}[when]
+    end = start if when == "yesterday" else today
+    total, seen = 0, False
+    said = re.compile(r"^i (?:did|just did|have done|walked|took|swam|rowed) (?:another )?(\d[\d,]*) ([a-z][a-z -]{1,20})", re.IGNORECASE)
+    for row in _notes():
+        m = said.match(str(row.get("text") or ""))
+        if not m or re.sub(r"(?:es|s)$", "", m.group(2).strip().casefold().replace("-", "").split()[0]) != stem.split()[0]:
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if start <= day <= end:
+            total += int(m.group(1).replace(",", ""))
+            seen = True
+    if not seen:
+        if stem in ("step", "heart rate", "calorie"):
+            return None                 # those have their own honest answer
+        return f"You haven't told me about any {what} {when}. Say \"I did 20 {what}\" and I'll add them up."
+    return f"{total:,} {what} {when}."
+
+
 def _weight() -> str | None:
     """"What's my weight": the newest weight he told her, with when."""
     said = re.compile(r"\bi(?: weigh| weighed| am|'m) (\d{2,3}(?:\.\d)?)(?: ?(pounds|lbs?|kg|kilos|kilograms))?", re.IGNORECASE)
@@ -8240,6 +8281,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "work_at": lambda rest: _work_at(),
            "born_facts": lambda rest: _born_facts("day" if rest == "day" else "sign"),
            "weight": lambda rest: _weight(),
+           "counted": _counted,
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),
