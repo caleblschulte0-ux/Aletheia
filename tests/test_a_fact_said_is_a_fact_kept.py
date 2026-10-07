@@ -914,5 +914,21 @@ class MoneyBetweenPeople(unittest.TestCase):
             self.assertEqual(quick.answer("does jess owe me money"), "Jess owes you $15.")
 
 
+class TheCalendarBackwards(unittest.TestCase):
+    def test_was_reads_back(self):
+        import datetime as dt
+        from aletheia import localtime
+        today = localtime.today()
+        said = quick.answer("what day was july 4 this year")
+        self.assertTrue(said.startswith(f"July 4, {today.year} "), said)
+        last = quick.answer("what day was christmas last year")
+        self.assertTrue(last.startswith(f"December 25, {today.year - 1} was a "), last)
+        self.assertIn(dt.date(1990, 7, 4).strftime("%A"), quick.answer("what day was july 4 1990"))
+
+    def test_time_ago_and_weekday(self):
+        self.assertRegex(quick.answer("what time was it 3 hours ago"), r"^\d{1,2}(?::\d\d)? [ap]m(?: yesterday)?\.$")
+        self.assertRegex(quick.answer("is today a weekday"), r"^(?:Yes|No)")
+
+
 if __name__ == "__main__":
     unittest.main()

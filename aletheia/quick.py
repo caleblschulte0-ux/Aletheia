@@ -1595,7 +1595,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$"
         # "How long ago was January 1" (2026-10-07: to the planner).
         r"|^how (?:long|many days) ago (?:was|is|did) (?P<since2>.+?)\s*\??$")),
-    ("weekend_q", re.compile(r"^is (?:it|today) (?:a |the )?weekend(?: yet| today)?\s*\??$")),
+    ("weekend_q", re.compile(r"^is (?:it|today) (?:a |the )?weekend(?: yet| today)?\s*\??$"
+                             # "Is today a weekday" (2026-10-07: to the planner).
+                             r"|^is (?:it|today) a (?P<wkday>weekday|work ?day|working day|school day|business day)(?: today)?\s*\??$")),
     # "HOW OLD IS JENNA" (2026-10-07: to the planner) - from the birthday
     # he told her. A name she holds nothing about goes on to a model,
     # which may well know how old a famous person is.
@@ -1694,7 +1696,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?)$"
         # "What's 30 minutes from now" (2026-10-07: to a model)
         r"|^(?:what(?:'s| is|s)? |what time is |whats )(?:an? |one )?(?:[\d.]+|half an?|a couple of"
-        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?) from now$")),
+        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?) from now$"
+        r"|^what time was it (?:an? |one )?(?:[\d.]+|half an?|a couple of"
+        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?) ago$")),
     # A PLACE HE SAVED, read back (2026-10-07: "where is the gym" was a
     # FILE search; "what's my work address" had nowhere to look). LAST, so
     # every other "where is"/"what's my" shape keeps its own answer.
@@ -1758,7 +1762,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -4650,9 +4654,21 @@ def _weekday_of(text: str) -> str | None:
     words = g.get("wd", "")
     if words.strip() in ("it", "today", "it today", "tomorrow", "it tomorrow"):
         return None                       # the "date" pattern's question
-    day = _a_date(words, today)
+    which_year = re.search(r"\s+(this|last|next) year$", words)
+    day = _a_date(re.sub(r"\s+(?:this|last|next) year$", "", words), today)
     if day is None:
         return None
+    # "What day was July 4 this year" said 2027, and "was" with no year
+    # read forward (2026-10-07). The year he names is the year; "was"
+    # alone is the last one.
+    if not re.search(r"\d{4}", words):
+        try:
+            if which_year:
+                day = day.replace(year=today.year + {"this": 0, "last": -1, "next": 1}[which_year.group(1)])
+            elif re.match(r"what day (?:of the week )?(?:was|did)\b", " ".join(str(text).casefold().split())) and day > today:
+                day = day.replace(year=day.year - 1)
+        except ValueError:
+            return None
     tense = "was" if day < today else "is"
     return f"{day.strftime('%B')} {day.day}, {day.year} {tense} a {day.strftime('%A')}."
 
@@ -4694,10 +4710,15 @@ def _days_since(words: str) -> str | None:
     return f"{days:,} day{'s' if days != 1 else ''}, since {day.strftime('%A')} {day.day} {day.strftime('%B')} {day.year}."
 
 
-def _weekend_q() -> str:
+def _weekend_q(weekday: str = "") -> str:
     import datetime as dt
     from aletheia import localtime
     today = dt.datetime.now(localtime.operator_tz()).date()
+    if weekday:
+        # Holidays are not counted here; she says the day and lets him judge.
+        if today.weekday() < 5:
+            return f"Yes - it's {today.strftime('%A')}."
+        return f"No, it's {today.strftime('%A')}. Monday is " + ("tomorrow." if today.weekday() == 6 else "in 2 days.")
     if today.weekday() >= 5:
         return f"Yes - it's {today.strftime('%A')}."
     away = 5 - today.weekday()
@@ -7714,7 +7735,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "last_meeting": lambda rest: _last_meeting(rest or "today"),
            "agenda_on": lambda rest: _agenda_on(rest),
            "days_since": lambda rest: _days_since(rest),
-           "weekend_q": lambda rest: _weekend_q(),
+           "weekend_q": lambda rest: _weekend_q(rest),
            "date_after": lambda rest: _date_after(rest),
            "born_in": lambda rest: _born_in(rest),
            "double_booked": lambda rest: _double_booked(),

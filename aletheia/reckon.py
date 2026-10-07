@@ -202,13 +202,25 @@ def _long(day: dt.date) -> str:
 def weekday_of(text: str, today: dt.date) -> str | None:
     """"What day is christmas this year", "what day of the week was july 4 1990"."""
     t = " ".join(str(text or "").casefold().split()).rstrip("?. ")
-    m = re.fullmatch(r"what day(?: of the week)? (?:is|was|will|does|did|falls|is it on)(?: it)? (.+?)"
+    m = re.fullmatch(r"what day(?: of the week)? (is|was|will|does|did|falls|is it on)(?: it)? (.+?)"
                      r"(?: (?:be|fall|land|fall on|land on|on))?", t)
     if not m:
         return None
-    day = _date(m.group(1), today)
+    words = m.group(2)
+    which_year = re.search(r"\s+(this|last|next) year$", words)
+    day = _date(re.sub(r"\s+(?:this|last|next) year$", "", words), today)
     if day is None:
         return None
+    # "What day was July 4 this year" said Sunday, 2027 (2026-10-07): the
+    # year he named is the year, and "was" with no year is the last one.
+    if not re.search(r"\d{4}", words):
+        try:
+            if which_year:
+                day = day.replace(year=today.year + {"this": 0, "last": -1, "next": 1}[which_year.group(1)])
+            elif m.group(1) in ("was", "did") and day > today:
+                day = day.replace(year=day.year - 1)
+        except ValueError:          # 29 February
+            return None
     if day == today:
         return f"Today - {day.strftime('%A')}, {_long(day)}."
     tense = "was" if day < today else "'s"
@@ -242,6 +254,11 @@ def time_in(text: str, now: dt.datetime) -> str | None:
                       r" ?(hours?|minutes?|mins?)", t)
          or re.fullmatch(r"(?:what(?:'s| is|s)?|what time is) (?:an? |one )?([\d.]+|half an?|a couple of|two|three|four|five|six|ten|twelve)?"
                          r" ?(hours?|minutes?|mins?) from now", t))
+    # "What time was it 3 hours ago" (2026-10-07: to a model).
+    ago = re.fullmatch(r"what time was it (?:an? |one )?([\d.]+|half an?|a couple of|two|three|four|five|six|ten|twelve)?"
+                       r" ?(hours?|minutes?|mins?) ago", t)
+    if ago:
+        m = ago
     if not m:
         return None
     raw = m.group(1)
@@ -249,10 +266,11 @@ def time_in(text: str, now: dt.datetime) -> str | None:
     if n is None or n <= 0 or n > 10_000:
         return None
     delta = dt.timedelta(hours=n) if m.group(2).startswith("hour") else dt.timedelta(minutes=n)
-    later = now + delta
+    later = now - delta if ago else now + delta
     clock = later.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
     day = ("" if later.date() == now.date()
            else " tomorrow" if later.date() == now.date() + dt.timedelta(days=1)
+           else " yesterday" if later.date() == now.date() - dt.timedelta(days=1)
            else f" on {later.strftime('%A')}")
     return f"{clock}{day}."
 
