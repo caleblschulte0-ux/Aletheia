@@ -636,5 +636,30 @@ class RemoteIsWhereNotWhat(unittest.TestCase):
         self.assertEqual(voice._interpret("find me remote sales jobs")["command"]["role"], "sales")
 
 
+
+class ItIsTheTaskJustAdded(unittest.TestCase):
+    def turns(self, answered):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[
+            {"he_asked": "add a task to call the dentist", "she_answered": answered}])
+
+    def test_make_it_due_friday(self):
+        with self.turns("Added a task: call the dentist."):
+            cmd = voice._interpret("make it due friday")["command"]
+        self.assertEqual((cmd["kind"], cmd["which"]), ("task_change", "call the dentist"))
+
+    def test_change_it_after_a_move(self):
+        with self.turns("Moved: call the dentist due Friday."):
+            self.assertEqual(voice._interpret("actually change it to thursday")["command"]["which"], "call the dentist")
+
+    def test_remind_me_about_it(self):
+        with self.turns("Added a task: call the dentist."):
+            self.assertEqual(voice.interpret("remind me about it tomorrow at 9")["command"]["text"], "call the dentist")
+
+    def test_with_no_task_just_added_it_is_not_guessed(self):
+        with self.turns("It's 3 pm."):
+            self.assertNotEqual((voice._interpret("make it due friday").get("command") or {}).get("kind"), "task_change")
+
+
 if __name__ == "__main__":
     unittest.main()

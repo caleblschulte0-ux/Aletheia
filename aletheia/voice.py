@@ -1174,6 +1174,25 @@ def _previous_turn() -> tuple[str, str]:
             " ".join(str(turns[-1].get("she_answered") or "").split()))
 
 
+def _the_task_just_added() -> str:
+    """The task his last exchange added, in its own words, or "". "Make it
+    due Friday" a turn after "add a task to call the dentist" means that
+    task, and nothing else in the conversation does (2026-10-07: both went
+    to the planner, which with nothing thinking kept them for later)."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=3)
+    except Exception:  # noqa: BLE001
+        return ""
+    for turn in reversed(turns or []):
+        answered = " ".join(str(turn.get("she_answered") or "").split())
+        found = re.match(r"Added a task: (.+?)\.(?:\s|$)", answered) \
+            or re.match(r"Moved: (.+?) due ", answered)
+        if found:
+            return found.group(1).strip()
+    return ""
+
+
 def _last_ask_is_undoable() -> bool:
     """Was his last ask a task, a list item, a reminder, a hold or a file -
     the things "cancel it" can take straight back?"""
@@ -1557,6 +1576,10 @@ def _no_reminder_about_a_pronoun(said: dict) -> dict:
     cmd = (said or {}).get("command") or {}
     if str(cmd.get("kind", "")).startswith("remind_") and \
             str(cmd.get("text") or "").strip().lower() in _PRONOUN_ONLY:
+        # "Remind me about it tomorrow" a turn after adding a task: "it" is that task.
+        task = _the_task_just_added()
+        if task:
+            return {**said, "command": {**cmd, "text": task}}
         return {"command": None, "say": "What should I remind you about? Say it with the thing, like "
                                         "\"remind me tomorrow to call the bank\"."}
     return said
@@ -2714,6 +2737,24 @@ def _interpret(transcript: str) -> dict:
     # plumber to call joe" all went to the planner). Only when his words
     # name one open task: the same verbs are about notes, reminders and
     # meetings everywhere else.
+    # "MAKE IT DUE FRIDAY" right after a task was added (2026-10-07: to the
+    # planner): "it" is the task the last turn added, and only that.
+    m = re.fullmatch(r"(?:no,? )?(?:make|set) (?:it|that) (?:due )?(?:on |for |by )?(?P<day>today|tomorrow|tonight|(?:this |next )?"
+                     r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))"
+                     r"|(?:no,? )?(?:change|move|push|switch|bump) (?:it|that)(?: to| till| until| back to)? (?P<day2>today|tomorrow|tonight|"
+                     r"(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))"
+                     r"|(?:it'?s|it is) due (?P<day3>today|tomorrow|tonight|(?:this |next )?"
+                     r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+    task = _the_task_just_added() if m else ""
+    if m and task:
+        said = m.group("day") or m.group("day2") or m.group("day3")
+        if said.startswith("next "):
+            asked = _ambiguous_next_weekday(said)
+            if asked:
+                return {"command": None, "say": asked}
+        day = _spoken_day("today" if said == "tonight" else said)
+        if day:
+            return {"command": {"kind": "task_change", "which": task, "deadline": day}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
     m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
