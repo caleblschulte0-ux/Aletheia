@@ -1808,6 +1808,48 @@ def _more_on_the_timer(minutes: int, named: str = "") -> dict:
             "say": None}
 
 
+def _timer_minutes(words: str) -> float | None:
+    """The length a timer's own words name: "your 10-minute timer is up"."""
+    named = r"(?: [a-z' ]{1,30}?)? timer"
+    m = re.search(r"your (?:(\d+) hour )?(\d+(?:\.\d+)?)(?:-| )minute" + named + r"|your (\d+)-hour" + named
+                  + r"|your (\d+) and a half minute" + named, str(words or ""))
+    if not m:
+        return None
+    if m.group(3):
+        return int(m.group(3)) * 60.0
+    if m.group(4):
+        return int(m.group(4)) + 0.5
+    return int(m.group(1) or 0) * 60 + float(m.group(2))
+
+
+def _restarted_timer() -> dict:
+    """"Restart the timer" (2026-10-07: "I can't pause a timer"): the same
+    length again from now - the one running, or the one that just went off."""
+    import datetime as dt
+    running = _running_once("timer is up")
+    if len(running) > 1:
+        return {"command": None, "say": f"You have {len(running)} timers running - cancel the one you don't "
+                                        "want and set it again."}
+    words = running[0][1] if running else ""
+    if not words:
+        try:
+            from aletheia import scheduler
+            gone = [spec for spec in scheduler.all_schedules()
+                    if spec.get("kind") == "once" and "timer is up" in str((spec.get("command") or {}).get("text") or "")]
+            gone.sort(key=lambda spec: str(spec.get("created_at") or ""))
+            words = str((gone[-1].get("command") or {}).get("text") or "") if gone else ""
+        except Exception:
+            words = ""
+    minutes = _timer_minutes(words)
+    if not minutes:
+        return {"command": None, "say": "I don't have a timer to start again. Say \"set a timer for 5 minutes\"."}
+    at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)).isoformat()
+    command = {"kind": "remind_at", "at": at, "text": words}
+    if running:
+        command["replaces"] = words
+    return {"command": command, "say": None}
+
+
 def _moved_alarm(time_words: str, was_words: str = "") -> dict:
     """"Change my alarm to 6:30": the one alarm, same day, the new time.
     "Change my 6:30 alarm to 7" names which one when there are several."""
@@ -3645,7 +3687,11 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"}, "say": None}
     # "Pause the timer": a timer here is a reminder at a set time, so there
     # is nothing to pause - say so, and what she can do instead.
-    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause|restart) (?:the |my |that )?timers?", low):
+    if re.fullmatch(r"(?:restart|reset|redo|repeat) (?:the |my |that )?timer(?: again)?|start (?:the |my |that )?timer (?:again|over)"
+                    r"|(?:do|set) (?:that|it|the timer) again|same timer again|again", low) \
+            and (low != "again" or "timer" in _previous_turn()[1].casefold()):
+        return _restarted_timer()
+    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause) (?:the |my |that )?timers?", low):
         return {"command": None, "say": "I can't pause a timer - it goes off at a set time. I can cancel it, "
                                          "or add minutes: say \"add 5 minutes\"."}
     # "Remind me in 10" and "a timer for 20" (2026-10-07: to the planner):

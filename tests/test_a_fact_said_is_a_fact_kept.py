@@ -2539,5 +2539,26 @@ class AnotherWordFor(unittest.TestCase):
         self.assertEqual(quick.match("what's the opposite of hot"), ("antonym", "hot"))
 
 
+
+class RestartTheTimer(unittest.TestCase):
+    """2026-10-07: "restart the timer" was told she can't pause a timer."""
+
+    def test_the_length_its_words_name(self):
+        for words, minutes in (("your 10-minute timer is up", 10), ("your 2-hour timer is up", 120),
+                               ("your 1 hour 30 minute timer is up", 90), ("your 90-minute tea timer is up", 90)):
+            with self.subTest(words=words):
+                self.assertEqual(voice._timer_minutes(words), minutes)
+
+    def test_again_from_now(self):
+        import datetime as dt
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=3)
+        with mock.patch.object(voice, "_running_once", return_value=[(soon, "your 10-minute timer is up")]):
+            got = voice._interpret("restart the timer")["command"]
+        self.assertEqual((got["kind"], got["text"], got["replaces"]),
+                         ("remind_at", "your 10-minute timer is up", "your 10-minute timer is up"))
+        left = dt.datetime.fromisoformat(got["at"]) - dt.datetime.now(dt.timezone.utc)
+        self.assertGreater(left.total_seconds(), 9 * 60)
+
+
 if __name__ == "__main__":
     unittest.main()
