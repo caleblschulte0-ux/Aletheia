@@ -1426,5 +1426,14 @@ class DidITakeMyMedicine(unittest.TestCase):
         self.assertEqual(voice.interpret("do i have any alarms")["command"], {"kind": "reminders"})
 
 
+
+class FeelingAndPriorities(unittest.TestCase):
+    def test_im_feeling_and_help_me_prioritize(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("i'm feeling overwhelmed")[0], "feeling")
+        self.assertEqual(quick.match("help me prioritize")[0], "focus")
+        self.assertEqual(quick.match("what can i do in 30 minutes")[0], "focus")
+
+
 if __name__ == "__main__":
     unittest.main()

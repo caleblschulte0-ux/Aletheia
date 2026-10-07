@@ -225,7 +225,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
-        r"|^what do i need to (?:do|get done)(?: today)?$")),
+        r"|^what do i need to (?:do|get done)(?: today)?$"
+        # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
+        r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
+        r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$")),
     # "How many interviews do I have" / "did I get any rejections" (2026-09-23):
     # outcomes are on the application records.
     ("outcomes", re.compile(
@@ -1524,7 +1527,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
-        r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
+        r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)(?: today)?$"
         r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation)$")),
