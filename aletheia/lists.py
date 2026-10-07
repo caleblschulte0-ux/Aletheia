@@ -114,10 +114,16 @@ def take_off(name: str, which: str) -> tuple[list[str], str]:
     if needle in ("everything", "all", "it all", "all of it", "everything on it"):
         hits = live
     else:
+        # "Remove the hat" when he added "a hat" (2026-10-07: "Nothing
+        # matches 'the hat'"). The article is how he said it, not the thing.
+        def bare(words):
+            return re.sub(r"^(?:a|an|the|some|my) ", "", " ".join(str(words).casefold().split()))
         hits = [i for i in live if i["text"].casefold() == needle] or \
-               [i for i in live if needle and needle in i["text"].casefold()]
+               [i for i in live if bare(i["text"]) == bare(needle)] or \
+               [i for i in live if needle and needle in i["text"].casefold()] or \
+               [i for i in live if bare(needle) and bare(needle) in i["text"].casefold()]
     if not hits:
-        return [], f"Nothing on your {held['name']} list matches {which!r}."
+        return [], f"There's nothing called {which} on your {held['name']} list."
     if len(hits) > 1 and needle not in ("everything", "all", "it all", "all of it", "everything on it"):
         from aletheia import speech
         return [], f"Which one - {speech.or_list([h['text'] for h in hits[:4]])}?"

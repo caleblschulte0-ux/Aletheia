@@ -2518,5 +2518,270 @@ class SumsWithNoSpaces(unittest.TestCase):
                 self.assertEqual(quick.answer(said), answer)
 
 
+
+class AnotherWordFor(unittest.TestCase):
+    """2026-10-07: "what's a synonym for happy" and "the opposite of hot" went to a model."""
+
+    DATA = [{"meanings": [{"partOfSpeech": "adjective", "synonyms": ["joyful", "cheerful"], "antonyms": ["sad"],
+                           "definitions": [{"definition": "x", "synonyms": ["content"], "antonyms": ["unhappy"]}]}]}]
+
+    def test_the_dictionary_lists_them(self):
+        from aletheia import dictionary
+        self.assertEqual(dictionary.spoken_related("happy", "synonyms", fetch=lambda w: self.DATA),
+                         "Other words for happy: joyful, cheerful or content.")
+        self.assertEqual(dictionary.spoken_related("happy", "antonyms", fetch=lambda w: self.DATA),
+                         "The opposite of happy: sad or unhappy.")
+        self.assertEqual(dictionary.spoken_related("zz", "synonyms", fetch=lambda w: []), "")
+
+    def test_the_question_reaches_it(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's a synonym for happy"), ("synonym", "happy"))
+        self.assertEqual(quick.match("what's the opposite of hot"), ("antonym", "hot"))
+
+
+
+class RestartTheTimer(unittest.TestCase):
+    """2026-10-07: "restart the timer" was told she can't pause a timer."""
+
+    def test_the_length_its_words_name(self):
+        for words, minutes in (("your 10-minute timer is up", 10), ("your 2-hour timer is up", 120),
+                               ("your 1 hour 30 minute timer is up", 90), ("your 90-minute tea timer is up", 90)):
+            with self.subTest(words=words):
+                self.assertEqual(voice._timer_minutes(words), minutes)
+
+    def test_again_from_now(self):
+        import datetime as dt
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=3)
+        with mock.patch.object(voice, "_running_once", return_value=[(soon, "your 10-minute timer is up")]):
+            got = voice._interpret("restart the timer")["command"]
+        self.assertEqual((got["kind"], got["text"], got["replaces"]),
+                         ("remind_at", "your 10-minute timer is up", "your 10-minute timer is up"))
+        left = dt.datetime.fromisoformat(got["at"]) - dt.datetime.now(dt.timezone.utc)
+        self.assertGreater(left.total_seconds(), 9 * 60)
+
+
+
+class WeightWaterAndSpending(unittest.TestCase):
+    """2026-10-07: "I weigh 180" and "I spent 40 dollars on gas" went to the
+    planner, and "log 8 glasses of water" was not counted."""
+
+    def test_kept(self):
+        for said in ("I weigh 180", "I spent 40 dollars on gas", "i'm 82 kg"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("I'm 30")["command"] or {}).get("kind"), "note")
+
+    def test_read_back(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I weigh 180"}]):
+            self.assertEqual(quick.answer("what's my weight"), "You told me you weigh 180.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much do I weigh"))
+
+
+
+class TheHatIsAHat(unittest.TestCase):
+    """2026-10-07: "remove the hat" from a list holding "a hat" said
+    "Nothing matches 'the hat'"; "how many lists do I have" went to a model."""
+
+    def test_the_article_is_not_the_thing(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import lists
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(lists, "_path", side_effect=lambda n: Path(tmp) / f"{n}.json"):
+            try:
+                lists.create("packing")
+            except Exception:
+                pass
+            lists.add("packing", ["sunscreen", "a hat"])
+            gone, why = lists.take_off("packing", "the hat")
+            self.assertEqual((gone, why), (["a hat"], ""))
+            self.assertEqual(lists.take_off("packing", "the boots")[1], "There's nothing called the boots on your packing list.")
+
+    def test_how_many_lists(self):
+        self.assertEqual(voice._interpret("how many lists do I have")["command"], {"kind": "list_read"})
+
+
+
+class TheReminderJustSet(unittest.TestCase):
+    """2026-10-07: "what time is that reminder", "and remind me to text dad
+    too" and "change call mom to call grandma" all went to the planner."""
+
+    SPEC = {"kind": "once", "at": "2026-10-07T23:00:00+00:00", "command": {"text": "call mom"}}
+
+    def test_asked_about_added_to_and_renamed(self):
+        with mock.patch.object(voice, "_the_reminder_just_set", return_value=self.SPEC):
+            self.assertTrue(voice._interpret("what time is that reminder")["say"].startswith("That's "))
+            self.assertEqual(voice._interpret("and remind me to text dad too")["command"],
+                             {"kind": "remind_at", "at": self.SPEC["at"], "text": "text dad"})
+            self.assertEqual(voice._interpret("change call mom to call grandma")["command"],
+                             {"kind": "remind_at", "at": self.SPEC["at"], "text": "call grandma", "replaces": "call mom"})
+            # A time is a move, not new words.
+            self.assertNotEqual((voice._interpret("change it to 7")["command"] or {}).get("text"), "7")
+
+    def test_nothing_just_set(self):
+        with mock.patch.object(voice, "_the_reminder_just_set", return_value=None):
+            self.assertIsNone(voice._interpret("and remind me to text dad too")["command"])
+
+
+
+class WeekdayAndQuarter(unittest.TestCase):
+    """2026-10-07: "is tomorrow a weekday" and "what quarter are we in" went to a model."""
+
+    def test_answers(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("is saturday a work day"), "No - Saturday is the weekend.")
+        self.assertRegex(quick.answer("is tomorrow a weekday"), r"^(?:Yes|No) - tomorrow is [A-Z][a-z]+day\.$")
+        self.assertRegex(quick.answer("what quarter are we in"), r"^The (?:first|second|third|fourth) quarter of \d{4}\.$")
+
+
+
+class WhatDidIMissToday(unittest.TestCase):
+    def test_brief(self):
+        for said in ("what did I miss today", "what did I miss while I was out", "catch me up on today"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "brief"})
+
+
+
+class MicCheckAndThePC(unittest.TestCase):
+    def test_said_plainly(self):
+        self.assertEqual(voice._interpret("testing 1 2 3")["say"], "I hear you.")
+        self.assertEqual(voice._interpret("is my computer on")["say"], "Yes - I'm running on it right now.")
+        self.assertIn("only the PC's", voice._interpret("what's my phone's battery")["say"])
+
+
+
+class ReplyToTheEmailSheRead(unittest.TestCase):
+    """2026-10-07: "reply saying sounds great" after she read an email went to the planner."""
+
+    READ = ("read the email from sam", "From Sam Lee <sam@x.com> — Dinner Friday?: Are you free Friday at 7?")
+
+    def test_a_draft_to_its_sender(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=self.READ):
+            self.assertEqual(voice._interpret("reply saying sounds great")["command"],
+                             {"kind": "email_draft", "to": "sam@x.com", "subject": "Re: Dinner Friday?",
+                              "body": "sounds great"})
+            self.assertIn("can't forward", voice._interpret("forward it to Dana")["say"])
+            self.assertIn("can't delete, archive", voice._interpret("archive that")["say"])
+
+    def test_not_after_anything_else(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("hi", "Hello.")):
+            self.assertNotEqual((voice._interpret("reply saying sounds great")["command"] or {}).get("kind"), "email_draft")
+
+
+
+class AddABirthday(unittest.TestCase):
+    def test_add_is_the_same_fact(self):
+        self.assertEqual(voice.interpret("save Sam's birthday as May 2")["command"],
+                         {"kind": "note", "text": "Sam's birthday is May 2"})
+        self.assertEqual(voice.interpret("add mom's birthday june 3")["command"]["kind"], "note")
+
+
+
+class WhatHisBirthdaySettles(unittest.TestCase):
+    """2026-10-07: his sign, the weekday he was born, how old he'll be and a
+    reminder on his birthday all went to a model with the date on file."""
+
+    def test_from_the_date_on_file(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(5, 5, 1995)):
+            self.assertEqual(quick.answer("what's my zodiac sign"), "Taurus - your birthday is May 5.")
+            self.assertEqual(quick.answer("what day was I born"), "You were born on a Friday.")
+            self.assertIn("when you turn", quick.answer("how old will I be on my birthday"))
+            got = voice._interpret("remind me on my birthday to celebrate")["command"]
+            self.assertEqual((got["kind"], got["text"]), ("remind_at", "celebrate"))
+            self.assertIn("-05-05T09:00", got["at"])
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(12, 25, None)):
+            self.assertTrue(quick.answer("what's my sign").startswith("Capricorn"))
+            self.assertIn("not the year", quick.answer("what day was I born"))
+
+
+
+class HisCommute(unittest.TestCase):
+    def test_commute(self):
+        with mock.patch.object(voice, "_known_place", return_value=True):
+            self.assertEqual(voice._interpret("how long is my commute")["command"], {"kind": "travel_time", "place": "work"})
+        with mock.patch.object(voice, "_known_place", return_value=False):
+            self.assertIn("work is at", voice._interpret("when should I leave for work")["say"])
+
+
+
+class TheListSheJustRead(unittest.TestCase):
+    """2026-10-07: after "6 things on your shopping list: ...", "how many is
+    that", "is cheese on it" and "take the first one off" went to the planner,
+    and "socks and a hat" was one thing on a list."""
+
+    def _read(self, said):
+        import re
+        return re.match(r"(?P<n>\d+) things? on your (?P<name>[\w' -]+?) list: (?P<items>.+)\.$", said)
+
+    def test_follow_ons(self):
+        read = self._read("3 things on your shopping list: bread, cheese and milk.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("how many things is that")["say"], "3.")
+            self.assertEqual(voice._interpret("is cheese on it")["say"], "Yes - cheese is on it.")
+            self.assertEqual(voice._interpret("is ham on it")["say"], "No, ham isn't on it.")
+            self.assertEqual(voice._interpret("take the first one off")["command"], {"kind": "shopping_off", "item": "bread"})
+        read = self._read("2 things on your packing list: socks and a hat.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("remove the last one")["command"],
+                             {"kind": "list_off", "list": "packing", "item": "a hat"})
+
+    def test_an_article_is_not_part_of_the_name(self):
+        from aletheia import intercom
+        self.assertEqual(intercom.shopping_items_of("socks and a hat"), ["socks", "a hat"])
+        self.assertEqual(intercom.shopping_items_of("salt and vinegar chips"), ["salt and vinegar chips"])
+
+
+
+class ATaskClosedInHisWords(unittest.TestCase):
+    """2026-10-07: "delete the last one" said "Email sam is now cancelled"."""
+
+    def test_his_words(self):
+        from aletheia import speech, tasks
+        with mock.patch.object(tasks, "load", return_value={"description": "email Sam"}):
+            self.assertEqual(speech.spoken_receipt("task_status", "task email-sam -> CANCELLED"),
+                             "Took it off your list: email Sam.")
+
+    def test_how_many_after_his_task_list(self):
+        import re
+        read = re.match(r"(?P<n>\d+) things? on your (?:(?P<name>[\w' -]+?) )?list: (?P<items>.+)\.$",
+                        "2 things on your list: call the plumber and email Sam.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("how many is that")["say"], "2.")
+
+
+
+class AlarmAtSeven(unittest.TestCase):
+    """2026-10-07: "alarm at 7" and "7am alarm" went to the planner."""
+
+    def test_the_noun_with_a_time(self):
+        for said, clock in (("alarm at 7", "T07:00"), ("7am alarm", "T07:00"), ("6:30 alarm tomorrow", "T06:30")):
+            with self.subTest(said=said):
+                got = voice._interpret(said)["command"]
+                self.assertEqual((got["kind"], got["text"]), ("remind_at", "wake up"))
+                self.assertIn(clock, got["at"])
+        self.assertEqual(voice._interpret("turn on my alarm")["command"], {"kind": "reminder_on", "which": "all alarms"})
+
+
+
+class CountsHeKeeps(unittest.TestCase):
+    """2026-10-07: "I did 50 pushups" ticked off a task called "50 pushups",
+    and "how many pushups have I done" went to a model."""
+
+    def test_kept_and_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I did 50 pushups")["command"], {"kind": "note", "text": "I did 50 pushups"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I did 50 pushups", "ts": now}, {"text": "I did 30 push-ups", "ts": now},
+                 {"text": "I walked 5000 steps", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how many pushups have I done today"), "80 pushups today.")
+            self.assertEqual(voice._interpret("how many steps did I take today")["say"], "5,000 steps today.")
+            self.assertTrue(quick.answer("how many squats have I done").startswith("You haven't told me about any squats"))
+
+
 if __name__ == "__main__":
     unittest.main()

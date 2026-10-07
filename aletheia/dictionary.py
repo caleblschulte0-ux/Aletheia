@@ -94,3 +94,56 @@ def spoken(word: str, *, say_unknown: bool = True, **kwargs) -> str:
         lines.append(f"as {'an' if part[:1] in 'aeiou' else 'a'} {part}, {definition[:1].lower() + definition[1:]}"
                      if part else definition)
     return f"{said[:1].upper() + said[1:]}: " + "; or, ".join(lines) + "."
+
+
+def related(word: str, which: str = "synonyms", *, fetch=None) -> list[str]:
+    """Words the dictionary lists as `which` ("synonyms" or "antonyms") of
+    this one, in its own order, each once. Cached beside the senses."""
+    word = " ".join(str(word or "").casefold().split())
+    if which not in ("synonyms", "antonyms") or not re.fullmatch(r"[a-z][a-z' -]{0,40}", word):
+        return []
+    key = f"{which}:{word}"
+    cache = {}
+    if fetch is None:
+        try:
+            cache = stateio.read_json(_cache_path()) or {}
+        except Exception:
+            cache = {}
+        if key in cache:
+            return list(cache[key])
+    data = (fetch or _fetch)(word)
+    found = []
+    for entry in data if isinstance(data, list) else []:
+        for meaning in (entry.get("meanings") or []) if isinstance(entry, dict) else []:
+            pools = [meaning.get(which) or []] + [d.get(which) or [] for d in (meaning.get("definitions") or [])
+                                                   if isinstance(d, dict)]
+            for pool in pools:
+                for w in pool:
+                    w = " ".join(str(w).split())
+                    if w and w.casefold() != word and w not in found:
+                        found.append(w)
+    if fetch is None:
+        try:
+            cache[key] = found[:12]
+            stateio.write_json_atomic(_cache_path(), cache)
+        except Exception:
+            pass
+    return found
+
+
+def spoken_related(word: str, which: str = "synonyms", **kwargs) -> str:
+    """"Another word for happy", out loud. "" when the dictionary lists
+    none, so a model may still answer; never raises."""
+    said = " ".join(str(word or "").split())
+    try:
+        found = related(said, which, **kwargs)
+    except Exception:
+        # Unreachable or not listed, a model may still know a word for it.
+        return ""
+    if not found:
+        return ""
+    words = found[:5]
+    listed = words[0] if len(words) == 1 else ", ".join(words[:-1]) + " or " + words[-1]
+    if which == "antonyms":
+        return f"The opposite of {said}: {listed}."
+    return f"Other words for {said}: {listed}."

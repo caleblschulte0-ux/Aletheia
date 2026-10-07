@@ -2061,7 +2061,9 @@ def shopping_items_of(said: str) -> list[str]:
         parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+|\s*&\s*", text) if p.strip()]
         return parts or [text]
     parts = [p.strip() for p in re.split(r"\s+(?:and|&)\s+", text) if p.strip()]
-    if len(parts) >= 2 and all(" " not in p for p in parts):
+    # "Socks and a hat" is two things: an article is not part of the name
+    # (2026-10-07: one row called "socks and a hat").
+    if len(parts) >= 2 and all(" " not in re.sub(r"^(?:a|an|some|the|my) ", "", p, flags=re.IGNORECASE) for p in parts):
         return parts
     # "MILK EGGS AND BREAD": speech-to-text writes no commas, so a spoken
     # list arrives as words run together before its last "and". Split the
