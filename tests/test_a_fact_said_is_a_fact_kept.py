@@ -2960,5 +2960,14 @@ class AThingToDoOnMyList(unittest.TestCase):
         self.assertEqual(kind("add paper towels to my list"), "shopping_add")
 
 
+class DoneWithIt(unittest.TestCase):
+    def test_done_with_the_dishes_ticks_it_off(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I'm done with the dishes")["command"], {"kind": "task_done", "which": "dishes"})
+        got = voice._interpret("I'm done with you")
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "task_done")
+        self.assertEqual((quick.match("how many tasks did I finish this week") or ("",))[0], "tasks_done")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -4340,6 +4340,9 @@ def _interpret(transcript: str) -> dict:
                          r"(?: one| task)?", low)
          or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
                          r"(?: one| task)?", low)
+         # "I'm done with the dishes" (2026-10-07: to a model).
+         or re.fullmatch(r"(?:i'?m|i am|im) (?:all )?(?:done|finished|through) with (?:the )?(?!it$|that$|this$|you$|work$|today$)(.+?)"
+                         r"(?: one| task)?", low)
          # "I did 50 pushups" is a count, not a task (2026-10-07: it ticked
          # off a task called "50 pushups"); it is kept as a note further on.
          or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(.+?)(?: one| task)?", low)

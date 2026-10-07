@@ -447,7 +447,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:which|what) tasks? (?:did|have) i (?:finish|finished|complete|completed|tick off|ticked off)\s*\??$"
         r"|^(?:finished|completed|done) tasks\s*\??$"
         # "How productive was I today" (2026-10-07: to the planner).
-        r"|^how productive (?:was i|have i been|am i)(?P<what3> today| yesterday| this week)?\s*\??$")),
+        r"|^how productive (?:was i|have i been|am i)(?P<what3> today| yesterday| this week)?\s*\??$"
+        # "How many tasks did I finish this week" (2026-10-07: to a model; today has its own answer).
+        r"|^how many (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|get done|tick(?:ed)? off|do|done)"
+        r"(?P<what4> yesterday| this week)\s*\??$")),
     # "How am I doing on my tasks" (2026-10-07: to the planner, then "the
     # big models can't answer"). What got done today and what is left.
     ("task_progress", re.compile(
