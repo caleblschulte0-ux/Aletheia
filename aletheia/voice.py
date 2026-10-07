@@ -2297,6 +2297,21 @@ def two_asks(transcript: str) -> list[str] | None:
                 return False
         return False
 
+    # "Remind me to take my antibiotics every day at 8am, 2pm and 8pm"
+    # (2026-10-07: ONE daily reminder at 9 am, with the times in its words).
+    # One reminder per time, each through its own door.
+    clock = r"(?:\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?|noon|midnight)"
+    several = re.fullmatch(r"remind me (?:to )?(?P<what>.+?)(?P<d1> (?:every day|daily|each day|every morning))? at "
+                           rf"(?P<times>{clock}(?:(?:,| and|, and) {clock})+)(?P<d2> (?:every day|daily|each day))?",
+                           said, re.IGNORECASE)
+    if several and not re.search(r"\bat \d", several.group("what")):
+        times = re.split(r",? and |, ", several.group("times"))
+        daily = bool(several.group("d1") or several.group("d2"))
+        what = several.group("what").strip()
+        asks = [f"remind me to {what} every day at {t}" if daily else f"remind me at {t} to {what}" for t in times]
+        if 2 <= len(asks) <= 6 and all(handled(a) for a in asks):
+            return asks
+
     # "Set a timer for pasta for 10 minutes and one for the oven for 20"
     # (2026-10-07: to the planner): "one" is another timer, and a bare 20
     # takes the first timer's unit.
@@ -5961,6 +5976,27 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
+    # "Remind me to take my antibiotics 3 times a day" (2026-10-07: asked
+    # "when should I remind you to take my antibiotics 3 times a day").
+    m = re.fullmatch(r"remind me (?:to )?(?P<what>.+?) (?:(?:\d|two|three|four|five|six) times|twice) (?:a|per|each|every) day", low)
+    if m:
+        what = m.group("what")
+        return {"command": None,
+                "say": f'At what times? Say "remind me to {what} every day at 8 am, 2 pm and 8 pm" and I\'ll set one for each.'}
+    # "I'm going to the doctor tomorrow at 10" (2026-10-07: to the planner)
+    # is "I have a doctor appointment tomorrow at 10", which is held.
+    m = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:going to|seeing|off to|headed to|heading to) (?:the |my |our )?"
+                     r"(?P<who>doctor|doctor'?s|dentist|vet|eye doctor|optometrist|dermatologist|therapist|chiropractor"
+                     r"|physical therapist|physio|barber|hairdresser|salon|orthodontist|pediatrician|allergist|cardiologist)"
+                     r"(?P<when> (?:today|tonight|tomorrow|on [a-z0-9 ]+?|this [a-z]+|next [a-z]+|monday|tuesday|wednesday|thursday"
+                     r"|friday|saturday|sunday)(?: morning| afternoon| evening)?(?: at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)"
+                     r"| at \d{1,2}(?::\d\d)?(?: ?[ap]m)?(?: (?:today|tomorrow|on [a-z0-9 ]+?|monday|tuesday|wednesday|thursday"
+                     r"|friday|saturday|sunday))?)", low)
+    if m:
+        who = re.sub(r"'?s$", "", m.group("who"))
+        held = _interpret(f"i have a {who} appointment{m.group('when')}")
+        if (held.get("command") or {}).get("kind") == "calendar_hold":
+            return held
     # "Remind me to renew my registration in March" (2026-10-07: to the
     # planner) is the first of that month, the way "next month" already is.
     months = r"(?P<mon>january|february|march|april|may|june|july|august|september|october|november|december)"

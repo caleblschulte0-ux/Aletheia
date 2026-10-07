@@ -1989,7 +1989,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")(?: today| this morning| tonight| yet| already)?\s*\??$"
         # "When did I last take ibuprofen" (2026-10-07: to a model).
         r"|^when did i (?:last )?(?:take|have) (?:my |an? |some |the )?(?P<took2>medicine|meds|medication|pills?|vitamins?|insulin|" + _DRUGS + r")"
-        r"(?: last)?\s*\??$")),
+        r"(?: last)?\s*\??$"
+        # "When can I take more Tylenol" (2026-10-07: to a model). When he
+        # last took it is hers to say; how long to wait is the label's.
+        r"|^(?:when|how soon) (?:can|should|could) i (?:take|have) (?:more|another(?: dose)?|my next(?: dose)?|some more) (?:of )?(?:my |the )?"
+        r"(?P<took3>medicine|meds|medication|pills?|insulin|" + _DRUGS + r")\s*\??$")),
     ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
         r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
@@ -2066,7 +2070,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|give me a compliment|compliment me|say something nice about me"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
         r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
-        r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great))$")),
+        r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great)"
+        # "I think I'm getting a cold" (2026-10-07: to the planner).
+        r"|i (?:think i'?m|might be|may be|feel like i'?m) (?:getting|coming down with|catching) (?:a |an |the )?(?:cold|flu|fever|something|sick|bug))$")),
     # Good news, a good mood, a birthday, a loss (2026-10-07: every one to a
     # model, and with none "I can't think just now" to "my dog died").
     ("life_news", re.compile(
@@ -3093,6 +3099,11 @@ def _took_asked(text: str) -> str:
     when, with no "Yes" in front of an answer to a question that was not
     a yes-or-no (2026-10-07)."""
     g = _groups("took_today", text)
+    if g.get("took3"):
+        said = re.sub(r"^Yes - you told me", "You told me", _took_today(g["took3"]))
+        said = re.sub(r" Say \".*$", "", said)
+        return (f"{said} How long to wait before the next one is on the label or your prescription - "
+                "I won't guess at a dose.")
     said = _took_today(g.get("took") or g.get("took2") or "")
     if g.get("took2"):
         said = re.sub(r"^Yes - you told me", "You told me", said)
@@ -6612,7 +6623,7 @@ def _feeling(text: str) -> str | None:
         said = "say something nice"
     if re.match(r"(?:frustrated|annoyed|angry|mad|pissed off|fed up|sick of|so done)", said):
         return "That sounds frustrating. Tell me what's going wrong, and if it's something I can fix or take off you, I will."
-    if re.match(r"i(?:'ve| have)|i (?:don'?t|do not) feel", said):
+    if re.match(r"i(?:'ve| have)|i (?:don'?t|do not) feel|i (?:think|might|may|feel like)", said):
         said = "sick"
     if re.match(r"i can'?t concentrate", said):
         said = "i can't focus"

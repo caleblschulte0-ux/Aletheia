@@ -4921,5 +4921,34 @@ class HowOldIsMyMomByEitherName(unittest.TestCase):
         self.assertIn("April 12", said)
 
 
+class HealthAndSeveralTimesADay(unittest.TestCase):
+    def test_several_times_are_several_reminders(self):
+        from aletheia import voice
+        self.assertEqual(voice.two_asks("remind me to take my antibiotics every day at 8am, 2pm and 8pm"),
+                         ["remind me to take my antibiotics every day at 8am",
+                          "remind me to take my antibiotics every day at 2pm",
+                          "remind me to take my antibiotics every day at 8pm"])
+        self.assertEqual(voice.two_asks("remind me to call mom at 3 and 5"),
+                         ["remind me at 3 to call mom", "remind me at 5 to call mom"])
+
+    def test_times_a_day_with_no_times_asks_for_them(self):
+        from aletheia import voice
+        got = voice.interpret("remind me to take my antibiotics 3 times a day")
+        self.assertIsNone(got["command"])
+        self.assertTrue(got["say"].startswith("At what times?"))
+
+    def test_going_to_the_doctor_is_held(self):
+        from aletheia import voice
+        got = voice.interpret("i'm going to the doctor tomorrow at 10")["command"]
+        self.assertEqual((got["kind"], got["title"]), ("calendar_hold", "doctor appointment"))
+
+    def test_getting_a_cold_and_more_medicine(self):
+        from aletheia import quick
+        self.assertTrue(quick.answer("i think i'm getting a cold").startswith("Rest up."))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            said = quick.answer("when can i take more tylenol")
+        self.assertIn("won't guess at a dose", said)
+
+
 if __name__ == "__main__":
     unittest.main()
