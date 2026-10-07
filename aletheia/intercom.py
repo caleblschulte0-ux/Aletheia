@@ -2301,7 +2301,28 @@ def free_time_answer(cmd: dict) -> str:
     # and he has no way to tell that it happened.
     if part:
         slots = cal.in_part(slots, part)
-    said = _free_sentence(cal.merge_slots(slots), day, part)
+    ranges = cal.merge_slots(slots)
+    # "When's my next free hour" at 2:30 pm said "Free today 9 am to 5 pm"
+    # (2026-10-07): the morning was already gone. Today starts now.
+    try:
+        now = _dt.datetime.now(_dt.timezone.utc)
+        if day != now.astimezone(localtime.operator_tz()).date():
+            raise ValueError("not today")
+        kept = []
+        for a, b in ranges:
+            end = _dt.datetime.fromisoformat(b)
+            if end.astimezone(_dt.timezone.utc) <= now + _dt.timedelta(minutes=minutes):
+                continue
+            begin = _dt.datetime.fromisoformat(a)
+            if begin.astimezone(_dt.timezone.utc) < now:
+                step = now.astimezone(begin.tzinfo)
+                step = step.replace(second=0, microsecond=0) + _dt.timedelta(minutes=(15 - step.minute % 15) % 15)
+                a = step.isoformat()
+            kept.append((a, b))
+        ranges = kept
+    except (TypeError, ValueError):
+        pass
+    said = _free_sentence(ranges, day, part)
     # AN EMPTY CALENDAR AND THE WRONG CALENDAR GIVE THE SAME ANSWER.
     # "Free tomorrow afternoon 12 pm to 5 pm", said with no hedge, when
     # the connected feed holds ZERO events for two months in either

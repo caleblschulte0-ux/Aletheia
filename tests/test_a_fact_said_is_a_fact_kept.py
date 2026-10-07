@@ -4102,5 +4102,28 @@ class SavingUp(unittest.TestCase):
             self.assertIsNone(quick.answer("how much have i saved"))
 
 
+class TheWeekTheMonthAndWhatIsLeftOfToday(unittest.TestCase):
+    """2026-10-07: "what's my schedule for the week" and "what's happening
+    this month" went to a model, and "when's my next free hour" at 2:30 pm
+    said "Free today 9 am to 5 pm"."""
+
+    def test_week_and_month_read_the_calendar(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's my schedule for the week")[0], "agenda")
+        self.assertEqual(quick.match("what's happening this month")[0], "agenda")
+
+    def test_today_starts_now(self):
+        import datetime as dt
+        from aletheia import calendar, intercom, localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        start = dt.datetime.combine(today, dt.time(0, 0), tzinfo=tz)
+        end = dt.datetime.combine(today, dt.time(23, 45), tzinfo=tz)
+        with mock.patch.object(calendar, "free_slots", return_value=["x"]), \
+                mock.patch.object(calendar, "merge_slots", return_value=[(start.isoformat(), end.isoformat())]):
+            said = intercom.free_time_answer({"day": today.isoformat()})
+        self.assertNotIn("12 am", said)
+
+
 if __name__ == "__main__":
     unittest.main()
