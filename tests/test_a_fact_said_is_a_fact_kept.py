@@ -2518,5 +2518,26 @@ class SumsWithNoSpaces(unittest.TestCase):
                 self.assertEqual(quick.answer(said), answer)
 
 
+
+class AnotherWordFor(unittest.TestCase):
+    """2026-10-07: "what's a synonym for happy" and "the opposite of hot" went to a model."""
+
+    DATA = [{"meanings": [{"partOfSpeech": "adjective", "synonyms": ["joyful", "cheerful"], "antonyms": ["sad"],
+                           "definitions": [{"definition": "x", "synonyms": ["content"], "antonyms": ["unhappy"]}]}]}]
+
+    def test_the_dictionary_lists_them(self):
+        from aletheia import dictionary
+        self.assertEqual(dictionary.spoken_related("happy", "synonyms", fetch=lambda w: self.DATA),
+                         "Other words for happy: joyful, cheerful or content.")
+        self.assertEqual(dictionary.spoken_related("happy", "antonyms", fetch=lambda w: self.DATA),
+                         "The opposite of happy: sad or unhappy.")
+        self.assertEqual(dictionary.spoken_related("zz", "synonyms", fetch=lambda w: []), "")
+
+    def test_the_question_reaches_it(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's a synonym for happy"), ("synonym", "happy"))
+        self.assertEqual(quick.match("what's the opposite of hot"), ("antonym", "hot"))
+
+
 if __name__ == "__main__":
     unittest.main()

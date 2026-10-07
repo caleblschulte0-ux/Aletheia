@@ -353,6 +353,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:who(?:'s| is| are)(?: in)? my contacts|(?:list|show me|read me|read|show) (?:all )?my contacts"
         r"|what contacts do i have|who do i have (?:saved|in my contacts))\s*\??$")),
     # "Where do I work" after "I work at Acme" (2026-10-07: to a model).
+    # "What's a synonym for happy", "the opposite of hot" (2026-10-07: to a
+    # model). The dictionary lists both; one it lists none for still goes on.
+    ("synonym", re.compile(
+        r"^(?:what(?:'s| is|s| are)? )?(?:a |some )?(?:synonyms? (?:for|of)|other words? for|another word for|a word for|"
+        r"words? that means? the same as) (?P<syn>[a-z][a-z'-]{1,30})\s*\??$"
+        r"|^(?:give me )?(?:a |some )?synonyms? (?:for|of) (?P<syn2>[a-z][a-z'-]{1,30})\s*\??$")),
+    ("antonym", re.compile(
+        r"^(?:what(?:'s| is|s| are)? )?(?:the |an |some )?(?:opposite of|antonyms? (?:for|of)) (?P<ant>[a-z][a-z'-]{1,30})\s*\??$")),
     ("work_at", re.compile(
         r"^(?:where do i (?:work|go to school|study)|who do i work for|where(?:'s| is) my (?:work|job|office|school))\s*\??$")),
     ("after_that", re.compile(
@@ -1845,7 +1853,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -5390,6 +5398,14 @@ def _feeling(text: str) -> str | None:
     return _FEELINGS.get(said)
 
 
+def _related(word: str, which: str) -> str | None:
+    try:
+        from aletheia import dictionary
+        return dictionary.spoken_related(word.strip(), which) or None
+    except Exception:
+        return None
+
+
 def _define(word: str) -> str | None:
     try:
         from aletheia import dictionary
@@ -8151,6 +8167,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "work_at": lambda rest: _work_at(),
+           "synonym": lambda rest: _related(rest, "synonyms"),
+           "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),
            "who_named": lambda rest: _who_named(rest),
            "contacts_count": lambda rest: _contacts_count(),
