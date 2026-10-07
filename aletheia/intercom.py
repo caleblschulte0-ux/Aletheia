@@ -1499,9 +1499,11 @@ def _contact_words(contact: dict) -> str:
     """One contact, with whatever she actually has for them."""
     from aletheia import speech
     name = str(contact.get("display_name") or contact["id"])
-    reach = [str(v) for v in (list(contact.get("phones") or [])
-                              + list(contact.get("emails") or []))[:2] if v]
-    return f"{name} — {speech.and_list(reach)}" if reach else name
+    name = name[:1].upper() + name[1:]
+    # "mia — 6055551234" was read out as a run of digits (2026-10-07).
+    reach = [speech._spoken_number(str(v)) for v in list(contact.get("phones") or [])[:2] if v] \
+        + [str(v) for v in list(contact.get("emails") or [])[:1] if v]
+    return f"{name} — {speech.and_list(reach[:2])}" if reach else name
 
 
 def _contacts_answer(which: str = "") -> str:
@@ -1528,6 +1530,21 @@ def _contacts_answer(which: str = "") -> str:
         rows = hits
         if not rows:
             return f"I have no contact for {which!r}."
+        if len(rows) == 1:
+            # "What's Mia's number" is a question about one person: answered
+            # as a sentence, not as a list of one.
+            one = rows[0]
+            name = str(one.get("display_name") or one["id"])
+            name = name[:1].upper() + name[1:]
+            phones = [speech._spoken_number(str(v)) for v in (one.get("phones") or []) if v]
+            emails = [str(v) for v in (one.get("emails") or []) if v]
+            if phones and emails:
+                return f"{name}'s number is {phones[0]}, and their email is {emails[0]}."
+            if phones:
+                return f"{name}'s number is {phones[0]}."
+            if emails:
+                return f"I have an email for {name}, {emails[0]}, but no phone number."
+            return f"I have {name} saved, but no number or email for them."
     if not rows:
         return "You have no contacts saved with me."
     said = speech.and_list([_contact_words(c) for c in rows[:6]])

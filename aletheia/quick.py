@@ -983,10 +983,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
-        r"|number|city|town|name|first name|last name|full name"
+        r"|number|city|town|name|first name|last name|full name|zip|zip code|postcode|postal code"
         r"|minimum salary|salary(?: floor| requirement| expectation| expectations)?|desired (?:pay|salary)"
         r"|asking (?:pay|salary|price)|pay(?: expectation| expectations)?|notice period|start date)$"
         r"|^who am i$")),
+    # "What should you call me" (2026-10-07: to a model).
+    ("call_me", re.compile(r"^what (?:should|do|will) (?:you|u) call me$|^what do i go by$")),
     # WHAT SHE HUNTS FOR (2026-09-23 night sweep): "what roles are you looking
     # for", "what are you applying to" and "what's my minimum salary" each
     # waited on a model for stores she holds.
@@ -3914,6 +3916,8 @@ _MINE = {"email": ("email",), "email address": ("email",),
          "name": ("preferred_name", "first_name", "legal_name"),
          "first name": ("first_name", "preferred_name"),
          "last name": ("last_name",),
+         "zip": ("postal_code",), "zip code": ("postal_code",), "postcode": ("postal_code",),
+         "postal code": ("postal_code",),
          "full name": ("legal_name", "full_name"),
          "minimum salary": ("desired_pay",), "salary": ("desired_pay",), "salary floor": ("desired_pay",),
          "salary requirement": ("desired_pay",), "salary expectation": ("desired_pay",),
@@ -3996,15 +4000,23 @@ def _mine(what: str) -> str | None:
     city on file" while "Hartford, SD 57033" sat on the same disk.
     """
     from aletheia import profile
+    who_am_i = not " ".join(str(what or "").split())
     asked = " ".join(str(what or "").split()).casefold() or _WHO_AM_I
     fields = _MINE.get(asked)
     if not fields:
         return None
+    if asked == "name":
+        # "What's my name" answered a bare "Caleb" (2026-10-07). Said as a
+        # sentence, with the full name and what she calls him when both
+        # are held and they differ.
+        said = _his_name(who_am_i)
+        if said:
+            return said
     try:
         for field in fields:
             value = profile.answer(field)
             if value:
-                return str(value)
+                return _yours(asked, str(value))
     except Exception:
         return None
     # "My email is ..." said to her is kept in her memory of him (voice), and
@@ -4016,11 +4028,53 @@ def _mine(what: str) -> str | None:
             entry = identity.get(field)
             value = entry.get("value") if isinstance(entry, dict) else entry
             if value:
-                return str(value)
+                return _yours(asked, str(value))
     except Exception:
         pass
     return (f"I don't have your {asked} on file. "
             "Tell me and I'll remember it.")
+
+
+#: The facts of his said back as a sentence; pay and dates keep their own words.
+_SAID_AS_YOURS = {"email": "email", "email address": "email", "phone": "phone number",
+                  "phone number": "phone number", "number": "phone number", "city": "city", "town": "town",
+                  "first name": "first name", "last name": "last name", "full name": "full name",
+                  "zip": "zip code", "zip code": "zip code", "postcode": "zip code", "postal code": "zip code"}
+
+
+def _yours(asked: str, value: str) -> str:
+    label = _SAID_AS_YOURS.get(asked)
+    return f"Your {label} is {value}." if label else value
+
+
+def _call_me() -> str:
+    from aletheia import profile
+    try:
+        called = str(profile.answer("preferred_name") or profile.answer("first_name") or "").strip()
+    except Exception:
+        called = ""
+    if not called:
+        return "You haven't told me what to call you. Say \"call me\" and the name."
+    return f"I call you {called}."
+
+
+def _his_name(who_am_i: bool = False) -> str | None:
+    """His name from the profile and her memory of him, as one sentence."""
+    from aletheia import profile
+    try:
+        full = profile.answer("legal_name") or ""
+        called = profile.answer("preferred_name") or ""
+        first = profile.answer("first_name") or ""
+    except Exception:
+        return None
+    full, called, first = str(full).strip(), str(called).strip(), str(first).strip()
+    name = full or first or called
+    if not name:
+        return None
+    lead = f"You're {name}" if who_am_i else f"Your name is {name}"
+    if called and called.casefold() not in (name.casefold(), first.casefold()):
+        return f"{lead}, and I call you {called}."
+    return lead + "."
 
 
 _STOP_WORDS = {"the", "a", "an", "my", "his", "her", "our", "that", "this", "is", "are", "was", "of",
@@ -5552,6 +5606,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
            "mine": _mine,
+           "call_me": lambda rest: _call_me(),
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
            "humidity": lambda rest: _weather_detail("humidity", rest),

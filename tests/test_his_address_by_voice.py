@@ -32,4 +32,4 @@ class HisEmailAndPhone(unittest.TestCase):
         held = {"identity": {"email": {"value": "caleb@example.com"}}}
         with mock.patch("aletheia.profile.answer", return_value=None), \
                 mock.patch("aletheia.memory.everything", return_value=held):
-            self.assertEqual(quick.answer("what's my email"), "caleb@example.com")
+            self.assertIn("caleb@example.com", quick.answer("what's my email"))

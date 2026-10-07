@@ -232,3 +232,31 @@ class TheItHeJustHeard(unittest.TestCase):
             self.assertEqual(voice._interpret("what's on it")["command"], {"kind": "shopping_list"})
         with self.turn("add socks to my packing list", "Added to your packing list: socks."):
             self.assertEqual(voice._interpret("what's on it")["command"], {"kind": "list_read", "list": "packing"})
+
+
+class HisOwnFactsAsSentences(unittest.TestCase):
+    """"What's my name" answered a bare "Caleb"; "what's my zip code" said it
+    had nothing a turn after he said it; "what's Mia's number" read out a
+    run of digits as a list of one (2026-10-07)."""
+
+    def profile(self, **held):
+        return mock.patch("aletheia.profile.answer", lambda field: held.get(field))
+
+    def test_his_name_with_what_she_calls_him(self):
+        with self.profile(legal_name="Caleb Schulte", first_name="Caleb", preferred_name="Cal"):
+            self.assertEqual(quick.answer("what's my name"), "Your name is Caleb Schulte, and I call you Cal.")
+            self.assertEqual(quick.answer("who am i"), "You're Caleb Schulte, and I call you Cal.")
+            self.assertEqual(quick.answer("what should you call me"), "I call you Cal.")
+        with self.profile(first_name="Caleb", preferred_name="Caleb"):
+            self.assertEqual(quick.answer("what's my name"), "Your name is Caleb.")
+
+    def test_his_zip(self):
+        with self.profile(postal_code="57033"):
+            self.assertEqual(quick.answer("what's my zip code"), "Your zip code is 57033.")
+
+    def test_one_contact_is_a_sentence(self):
+        from aletheia import contacts, intercom
+        mia = {"id": "mia", "display_name": "mia", "aliases": [], "emails": [], "phones": ["6055551234"]}
+        with mock.patch.object(contacts, "all_contacts", return_value=[mia]):
+            self.assertEqual(intercom.execute_command({"kind": "contacts", "which": "mia"}, {}),
+                             "Mia's number is 605 555 1234.")
