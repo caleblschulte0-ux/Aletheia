@@ -3020,18 +3020,32 @@ def _age_of(who: str) -> str | None:
     label = name or re.sub(r"^my ", "", who)
     words = re.findall(r"[a-z0-9]+", label.casefold())
     month_re = "|".join(_MONTHS)
+    # "My mom was born in 1965" gives the year a birthday note may lack.
+    born_in = None
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        y = re.search(r"\bborn in ((?:19|20)\d\d)\b", low)
+        if y and words and all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            born_in = int(y.group(1))
+            break
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
         if not words or not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
             continue
-        if not re.search(r"\b(?:birthday|born|bday)\b", low):
+        if not re.search(r"\b(?:birthday|born|bday)\b", low) or re.search(r"\bborn in (?:19|20)\d\d\b", low):
             continue
         m = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:,? (?P<year>(?:19|20)\d\d))?", low)
              or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? (?:of )?(?P<mon>{month_re})(?:,? (?P<year>(?:19|20)\d\d))?", low))
         if not m:
             continue
         shown = name or (f"Your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
+        if not m.group("year") and born_in:
+            month, day = _MONTHS.index(m.group("mon")) + 1, int(m.group("day"))
+            today = dt.datetime.now(localtime.operator_tz()).date()
+            age = today.year - born_in - ((today.month, today.day) < (month, day))
+            return f"{shown} is {age}" + (f", and turns {age + 1} on {m.group('mon').title()} {day}."
+                                           if (today.month, today.day) != (month, day) else " - and it's today.")
         if not m.group("year"):
             told = shown[:1].lower() + shown[1:] if shown.startswith("Your ") else shown
             return (f"You told me {told}'s birthday is {m.group('mon').title()} {int(m.group('day'))}, "
@@ -3041,6 +3055,11 @@ def _age_of(who: str) -> str | None:
         age = today.year - year - ((today.month, today.day) < (month, day))
         return f"{shown} is {age}" + (f", and turns {age + 1} on {m.group('mon').title()} {day}." if (today.month, today.day) != (month, day)
                                        else " - and it's today.")
+    if born_in:
+        shown = name or (f"Your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
+        year = dt.datetime.now(localtime.operator_tz()).year
+        return (f"{shown} is {year - born_in - 1} or {year - born_in}, depending on whether the birthday has come yet "
+                f"this year. Tell me the birthday and I'll know.")
     return None
 
 

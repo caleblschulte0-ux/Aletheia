@@ -3747,5 +3747,26 @@ class PartsOfDaysAndMeetingDetails(unittest.TestCase):
         self.assertEqual(intercom._free_sentence([], dt.date.today(), "tonight"), "Nothing free tonight.")
 
 
+class AgesFromAYearAndTheEmailAskedFor(unittest.TestCase):
+    def test_a_birth_year_makes_an_age(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("my mom was born in 1965")["command"],
+                         {"kind": "note", "text": "my mom was born in 1965"})
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my mom was born in 1965"},
+                                                              {"text": "my mom's birthday is May 5"}]):
+            self.assertRegex(quick.answer("how old is my mom"), r"^Your mom is \d+, and turns \d+ on May 5\.$|it's today")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my mom was born in 1965"}]):
+            self.assertIn("depending on whether the birthday has come", quick.answer("how old is my mom"))
+
+    def test_the_email_he_asked_for(self):
+        from aletheia import intercom
+        self.assertEqual(voice._interpret("what's my sister's email")["command"],
+                         {"kind": "contacts", "which": "my sister", "asked": "email"})
+        rows = [{"id": "dana", "display_name": "Dana", "phones": ["5553334444"], "emails": []}]
+        with mock.patch("aletheia.contacts.all_contacts", return_value=rows):
+            said = intercom._contacts_answer("dana", "email")
+        self.assertTrue(said.startswith("I don't have an email for Dana - only the number"))
+
+
 if __name__ == "__main__":
     unittest.main()

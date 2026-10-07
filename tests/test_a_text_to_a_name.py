@@ -131,7 +131,7 @@ class ThingsWithNumbers(unittest.TestCase):
     def test_a_locker_is_not_a_contact(self):
         from aletheia import quick
         self.assertNotEqual((voice._interpret("what's my locker number").get("command") or {}).get("kind"), "contacts")
-        self.assertEqual(voice._interpret("what's my mom's number")["command"], {"kind": "contacts", "which": "my mom"})
+        self.assertEqual(voice._interpret("what's my mom's number")["command"], {"kind": "contacts", "which": "my mom", "asked": "number"})
         with mock.patch.object(quick, "_notes", return_value=[{"text": "my locker is 42"}]):
             self.assertEqual(quick.answer("what's my locker number"), "You told me: your locker is 42.")
 

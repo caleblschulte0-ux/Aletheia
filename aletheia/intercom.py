@@ -172,7 +172,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # "What's my mum's number", "what are you watching for". Both stores
     # had a writer, a reader in their own module, and no way for him to
     # ASK — `contact_add` and `watch_email_from` are the writers.
-    "contacts":      (set(), {"which"}),
+    "contacts":      (set(), {"which", "asked"}),
     "watches":       (set(), set()),
     # "What drafts do I have" and "delete the draft" (2026-10-07): the held
     # drafts read, and one put away unsent.
@@ -498,7 +498,8 @@ KIND_NOTES: dict[str, str] = {
     "contacts": (
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
-        'number". `contact_add` is the writer.'),
+        'number". asked is optional, "email" or "number": the one he asked '
+        'for is said first, or said missing. `contact_add` is the writer.'),
     "contact_remove": (
         'Take someone out of his contacts. name is who he said; she finds the '
         'one contact that matches and asks if two do. Hidden, not deleted: '
@@ -1839,7 +1840,7 @@ def _contact_words(contact: dict) -> str:
     return f"{name} — {speech.and_list(reach[:2])}" if reach else name
 
 
-def _contacts_answer(which: str = "") -> str:
+def _contacts_answer(which: str = "", asked: str = "") -> str:
     """"What's my mum's number" / "who have I got saved"."""
     from aletheia import contacts, speech
     rows = contacts.all_contacts()
@@ -1870,7 +1871,7 @@ def _contacts_answer(which: str = "") -> str:
             except Exception:  # noqa: BLE001
                 named = None
             if named:
-                return _contacts_answer(named)
+                return _contacts_answer(named, asked)
         rows = hits
         if not rows:
             # "I have no contact for 'dana'." (2026-10-07): quotes and his
@@ -1890,6 +1891,16 @@ def _contacts_answer(which: str = "") -> str:
             name = name[:1].upper() + name[1:]
             phones = [speech._spoken_number(str(v)) for v in (one.get("phones") or []) if v]
             emails = [str(v) for v in (one.get("emails") or []) if v]
+            # "What's my sister's email" answered with her NUMBER (2026-10-07):
+            # asked for one of the two, that one first, or that it is missing.
+            if asked == "email":
+                return (f"{name}'s email is {emails[0]}." if emails
+                        else f"I don't have an email for {name}" + (f" - only the number, {phones[0]}." if phones else ".")
+                        + f" Say \"{name}'s email is\" and it, and I'll keep it.")
+            if asked == "number":
+                return (f"{name}'s number is {phones[0]}." if phones
+                        else f"I don't have a number for {name}" + (f" - only the email, {emails[0]}." if emails else ".")
+                        + f" Say \"{name}'s number is\" and it, and I'll keep it.")
             if phones and emails:
                 return f"{name}'s number is {phones[0]}, and their email is {emails[0]}."
             if phones:
@@ -4091,7 +4102,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return (f"Added to the shopping list: {speech.and_list(added)}."
                 + (f" Already on it: {speech.and_list(already)}." if already else ""))
     if kind == "contacts":
-        return _contacts_answer(cmd.get("which", ""))
+        return _contacts_answer(cmd.get("which", ""), cmd.get("asked", ""))
     if kind == "watches":
         return _watches_answer()
     if kind == "drafts":
