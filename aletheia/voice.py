@@ -4719,6 +4719,13 @@ def _interpret(transcript: str) -> dict:
                     r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
                     r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
         return {"command": {"kind": "note", "text": "finished work"}, "say": None}
+    # "I'm leaving work" (2026-10-07) was answered "Safe trip home" and not
+    # kept, so "how long was I at work" counted on to midnight. It is the
+    # end of his work day as well as a goodbye.
+    if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:just )?(?:leaving|left|heading out of|out of) (?:work|the office)(?: now| for the day| for today)?"
+                    r"|(?:i'?m |i am )?(?:off work|done for the day)(?: now)?", low):
+        from aletheia import quick
+        return {"command": {"kind": "note", "text": "finished work"}, "say": quick._farewell("leaving work")}
     # "Mark everything on my to do list done" is the whole list - refused
     # further on, never a task called "everything on my to do list".
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(?!everything\b|all\b|every task\b)(.+?)"

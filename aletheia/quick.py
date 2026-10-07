@@ -523,7 +523,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("awake_for", re.compile(r"^how long (?:have i been|am i) (?:awake|up)(?: for| today| now)?\s*\??$")),
     # "When did I get to work" (2026-10-07: to a model, after "I'm at work").
     ("arrived", re.compile(
-        r"^(?:when|what time) did i (?:get|arrive|make it) (?:to |at )?(?P<arrived>work|the office|home|school|the gym)\s*\??$")),
+        r"^(?:when|what time) did i (?:get|arrive|make it) (?:to |at )?(?P<arrived>work|the office|home|school|the gym)\s*\??$"
+        # "What time did I leave work" (2026-10-07: to a model).
+        r"|^(?:when|what time) did i (?P<work_mark>leave|finish|get off|clock out of|clock out|start|clock in|clock in to|begin) work(?: today)?\s*\??$")),
     # "How much do I owe on my car" answered about a person called "On My
     # Car" (2026-10-07). What is left on a loan, from his note.
     ("loan_left", re.compile(
@@ -1523,7 +1525,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:(?:i'?m|im|i am) )?(?:leaving|heading out|heading off|going out|off|out|off to work|going to work|"
         r"heading to work|leaving for work|back later|be back later"
         # "I'm leaving work" (2026-10-07: queued for a model to plan).
-        r"|leaving work|leaving the office|heading home|going home|off work|done for the day|on my way home)"
+        r"|heading home|going home|on my way home)"
         r"(?: now| for work| for the day| for a bit)?$"
         r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$"
         # "I'm going to the gym" (2026-10-07: queued for a model to plan).
@@ -10060,7 +10062,8 @@ def _worked(text: str) -> str | None:
             marks.append((at, said))
     if not any(s == "started work" for _a, s in marks):
         return None if when == "today" and not marks else f"You didn't tell me you started work {when}."
-    marks.sort()
+    # A start and a finish in the same second are a start, then a finish.
+    marks.sort(key=lambda m: (m[0], m[1] != "started work"))
     total, start, still = 0.0, None, False
     for at, said in marks:
         if said == "started work":
@@ -10478,10 +10481,30 @@ def _arrived(text: str) -> str | None:
     from the time on the note. None when he didn't say: a model may know."""
     import datetime as dt
     from aletheia import localtime
-    place = (_groups("arrived", text).get("arrived") or "").strip()
+    g = _groups("arrived", text)
+    place = (g.get("arrived") or "").strip()
     word = re.sub(r"^the ", "", place)
     tz = localtime.operator_tz()
     today = dt.datetime.now(tz).date()
+    # "I'm at work" and "I'm done for the day" are kept as "started work"
+    # and "finished work", the marks "how long did I work" reads.
+    mark = (g.get("work_mark") or "").strip()
+    wanted = ("started work" if mark in ("start", "clock in", "clock in to", "begin") or word == "work"
+              else "finished work" if mark else "")
+    if wanted:
+        for row in _notes():
+            if " ".join(str(row.get("text") or "").split()).casefold() != wanted:
+                continue
+            try:
+                at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                continue
+            if at.date() == today:
+                clock = at.strftime('%I:%M %p').lstrip('0').lower()
+                return (f"At {clock} - that's when you told me you were done with work." if wanted == "finished work"
+                        else f"At {clock} - that's when you told me you were at work.")
+        if mark:
+            return None
     said_it = re.compile(r"^(?:(?:i'?m|i am) (?:just |now |finally )?(?:at |back |back at |here at |in at )?"
                          r"|(?:i'?ve |i have |i )?(?:just |finally )?(?:got|arrived|made it|got back)(?: to| at)? )"
                          r"(?:the )?" + re.escape(word) + r"\b", re.I)

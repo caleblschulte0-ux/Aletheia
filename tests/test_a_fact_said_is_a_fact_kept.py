@@ -2901,7 +2901,10 @@ class AChoiceNamesAnOption(unittest.TestCase):
             self.assertIsNone(voice._answers_which("good night"))
             self.assertEqual(voice._answers_which("the 7 one")["command"],
                              {"kind": "reminder_off", "which": "wake up 7:00"})
-        self.assertEqual((quick.match("I'm leaving work") or ("",))[0], "farewell")
+        # A goodbye, answered as one, and kept as the end of his work day.
+        left = voice._interpret("I'm leaving work")
+        self.assertTrue(left["say"].startswith("Safe trip home"))
+        self.assertEqual(left["command"], {"kind": "note", "text": "finished work"})
 
 
 class TheMoonIsNotAJourney(unittest.TestCase):
@@ -5557,6 +5560,31 @@ class SchedulesSaidInAnotherOrder(unittest.TestCase):
 
     def test_who_has_a_birthday_this_month(self):
         self.assertIn("birthdays", [n for n, p in quick.PATTERNS if p.search("who has a birthday this month")])
+
+
+class WhenHeLeftWork(unittest.TestCase):
+    """2026-10-07: "I'm leaving work" was not kept, so "how long was I at
+    work today" counted on, and "what time did I leave work" went to a model."""
+
+    def _rows(self, *rows):
+        return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": ts} for t, ts in rows])
+
+    def test_the_times_he_said(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).replace(second=0, microsecond=0)
+        start, end = now - dt.timedelta(minutes=50), now - dt.timedelta(minutes=5)
+        with self._rows(("finished work", end.isoformat()), ("started work", start.isoformat())):
+            self.assertIn("done with work", quick.answer("what time did I leave work"))
+            self.assertIn("at work", quick.answer("when did I get to work"))
+            self.assertEqual(quick.answer("how long did I work today"), "45 minutes today.")
+        with self._rows():
+            self.assertIsNone(quick.answer("what time did I leave work"))
+
+    def test_a_start_and_finish_in_one_second(self):
+        from aletheia import localtime
+        same = dt.datetime.now(localtime.operator_tz()).isoformat()
+        with self._rows(("finished work", same), ("started work", same)):
+            self.assertNotIn("still at it", quick.answer("how long did I work today"))
 
 
 if __name__ == "__main__":
