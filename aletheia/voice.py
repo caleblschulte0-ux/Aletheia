@@ -7130,6 +7130,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, item),
                                 "replaces": just.group(1)}, "say": None}
 
+    # "CALL IN SICK FOR ME" (2026-10-07: to the planner). She can't phone
+    # anybody; she can draft the email, which he sees before it goes.
+    if re.fullmatch(r"(?:can you |please )?call (?:in sick|out sick|my (?:work|boss|job)(?: and tell them i'?m sick)?)(?: for me)?(?: today| tomorrow)?(?: please)?", low):
+        return {"command": None,
+                "say": "I can't make phone calls. I can write it - say \"email my boss that I'm out sick today\" "
+                       "and I'll draft it for you to look at before it goes."}
+
     # "REMIND ME WHEN I GET HOME" (2026-10-07: to the planner). She has no
     # idea where he is, so a place cannot set anything off; say so, and
     # offer the clock, which she does have.

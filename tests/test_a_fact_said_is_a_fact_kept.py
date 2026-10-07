@@ -4351,5 +4351,29 @@ class DaysOffAndWorkingFromHome(unittest.TestCase):
             self.assertTrue(quick.answer("what's my next meeting").startswith("Next up"))
 
 
+class YesterdaysCalendarAndCallingInSick(unittest.TestCase):
+    """2026-10-07: "what did I have yesterday" went to a model, and "call in
+    sick for me" to the planner."""
+
+    def test_yesterday(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        y = dt.datetime.now(tz).replace(hour=15, minute=0, second=0, microsecond=0) - dt.timedelta(days=1)
+        events = [{"title": "Dentist", "start": y.isoformat(), "end": (y + dt.timedelta(hours=1)).isoformat()}]
+        with mock.patch.object(calendar, "all_events", return_value=events):
+            self.assertEqual(quick.answer("what did i have yesterday"), "Yesterday: Dentist at 3 pm.")
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertEqual(quick.answer("what was on my calendar yesterday"), "Nothing was on your calendar yesterday.")
+
+    def test_calling_in_sick_is_offered_as_a_draft(self):
+        from aletheia import voice
+        r = voice._interpret("call in sick for me")
+        self.assertIsNone(r["command"])
+        self.assertIn("draft", r["say"])
+        self.assertNotEqual((voice._interpret("call in") or {}).get("command"), None)
+
+
 if __name__ == "__main__":
     unittest.main()

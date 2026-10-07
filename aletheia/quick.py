@@ -1039,8 +1039,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # and "what do I have on October 15" went to the planner).
     ("agenda_on", re.compile(
         r"^(?:what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda)|what (?:do i have|have i got|am i doing)"
-        r"|anything (?:on|happening)|am i (?:free|busy))"
-        r" (?:on |for )?(?P<agenda_on>the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
+        r"|anything (?:on|happening)|am i (?:free|busy)"
+        # "What did I have yesterday" (2026-10-07: to a model).
+        r"|what (?:was|did i have) on (?:my |the )?(?:calendar|schedule|agenda)|what did i have(?: on)?|what meetings did i have"
+        r"|did i have anything(?: on)?|was i busy)"
+        r" (?:on |for )?(?P<agenda_on>yesterday|the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
         r"|september|october|november|december))?|(?:january|february|march|april|may|june|july|august|september|october"
         r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     # "When am I done today", "when's my last meeting" (2026-10-07: to the planner).
@@ -4899,7 +4902,9 @@ def _agenda_on(words: str) -> str | None:
     w = " ".join(str(words or "").split())
     bare = re.fullmatch(r"the (\d{1,2})(?:st|nd|rd|th)?", w)
     try:
-        if bare:
+        if w == "yesterday":
+            when = today - dt.timedelta(days=1)
+        elif bare:
             # "The 15th" is this month's, or next month's once it has passed.
             day, year, month = int(bare.group(1)), today.year, today.month
             when = dt.date(year, month, day)
@@ -4925,6 +4930,10 @@ def _agenda_on(words: str) -> str | None:
     except Exception:
         return None
     label = f"{when.strftime('%A')} {when.day} {when.strftime('%B')}"
+    if w == "yesterday":
+        if not rows:
+            return "Nothing was on your calendar yesterday."
+        label = "Yesterday"
     if not rows:
         return f"Nothing on your calendar on {label}."
     rows.sort()
