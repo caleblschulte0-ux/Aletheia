@@ -2380,6 +2380,12 @@ def _answering_her(low: str, answered: str | None = None) -> dict | None:
                 if quick.match(low) or re.match(r"(?:what|when|where|who|why|how|which|is|are|do|does|did|can|could|"
                                                 r"will|would|should|stop|cancel|never ?mind|no|nope)\b", low):
                     continue
+                # "Call mom" after "What should it say?" became a text that
+                # said "call mom" (2026-10-07): an ask of hers is an ask.
+                if re.match(r"(?:call|phone|ring|text|email|e-mail|message|remind me|set|add|make|delete|remove|turn|play"
+                            r"|open|show me|read me|find|search|wake me|start|schedule|book|pencil|block|note|remember"
+                            r"|forget|undo|halt|resume|approve|deny|what's|whats)\b", low):
+                    continue
             except Exception:  # noqa: BLE001
                 continue
         body = re.sub(r"^(?:that|saying|say|tell (?:her|him|them)(?: that)?)\s+", "", low)

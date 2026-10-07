@@ -2208,5 +2208,17 @@ class TwoAtFiveCase(unittest.TestCase):
         self.assertIn("Which one, or all of them?", why)
 
 
+
+class CallMomIsNotTheTextCase(unittest.TestCase):
+    """2026-10-07: "text mom" - "What should it say?" - "call mom" drafted a
+    text to Mom that said "call mom"."""
+
+    def test_an_ask_is_an_ask(self):
+        from aletheia import voice
+        asked = 'What should it say? Say "text Mom that you\'re running late" and I\'ll draft it for you to send.'
+        self.assertIsNone(voice._answering_her("call mom", asked))
+        self.assertEqual(voice._answering_her("running late", asked)["command"]["kind"], "message_send")
+
+
 if __name__ == "__main__":
     unittest.main()
