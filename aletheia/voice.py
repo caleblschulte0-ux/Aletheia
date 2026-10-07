@@ -2931,7 +2931,7 @@ def _interpret(transcript: str) -> dict:
     # subtraction.
     if re.fullmatch(r"(?:how (?:long|much time|many minutes)(?: is)? (?:left|remaining)|time left|"
                     r"how long (?:until|till|before)|when (?:does|will))"
-                    r"(?: on| for| in)? (?:my|the|that) timers?(?: (?:go off|be done|ring|done))?"
+                    r"(?: on| for| in)? (?:my|the|that) timers?(?: (?:go off|goes off|be done|is done|ring|rings|done))?"
                     r"|how(?:'s| is) (?:my|the) timer(?: doing| going)?"
                     # "What timers do I have" read back "1 reminder: ..." (2026-10-07).
                     r"|(?:what|which) timers (?:do i have|are (?:running|set|going))|(?:any|my) timers(?: running)?", low):
@@ -2940,8 +2940,15 @@ def _interpret(transcript: str) -> dict:
     # to the planner, and once answered about a different timer).
     m = re.fullmatch(r"how (?:long|much time|many minutes)(?: is)?(?: left| remaining)?(?: on| for| until| till) (?:the |my )?"
                      r"(?P<what>[a-z][a-z ]{1,25}?)(?: timer)?(?: (?:go off|is done|be done|ready))?", low)
+    running = _running_once("timer is up") if m else []
+    # "How long until christmas" with a timer running answered "You don't
+    # have a christmas timer" (2026-10-07). "Until" names a timer only when
+    # he says timer, or a running one has that name.
+    names_a_timer = m and (re.search(r"\btimer\b", low) or not re.search(r"\b(?:until|till)\b", low)
+                           or any(re.search(r"\b" + re.escape(re.sub(r"^(?:the|my) ", "", m.group("what"))) + r"\b",
+                                            words.casefold()) for _at, words in running))
     if m and m.group("what") not in ("timer", "timers", "it", "that", "my alarm", "alarm", "reminder", "my reminder",
-                                     "next reminder", "next alarm") and _running_once("timer is up"):
+                                     "next reminder", "next alarm") and running and names_a_timer:
         return {"command": None, "say": _timer_left(named=m.group("what"))}
 
     # "When's my next alarm" read out every alarm he had (2026-10-07).

@@ -2750,7 +2750,7 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if when is None:
         if re.fullmatch(r"(?:my )?birthday", " ".join(str(words or "").casefold().split())):
             return "I don't know your birthday yet. Say \"my birthday is March 3\" and I'll remember it."
-        return None            # a thing, not a date: the model may think
+        return _until_mine(words)  # a thing, not a date: the model may think
     days = (when - today).days
     said = when.strftime("%A %d %B").replace(" 0", " ")
     if days == 0:
@@ -2760,6 +2760,43 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if which_day:
         return f"{said}, {days} days from now."
     return f"{days} days, {said}."
+
+
+def _until_mine(words: str) -> str | None:
+    """"How long until my dentist appointment", "... until my timer goes
+    off", "... until the weekend" (2026-10-07: all to a model, with the hold,
+    the timer and the calendar in her own stores). None when nothing of his
+    is named that, so a model may still know."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    said = " ".join(str(words or "").casefold().split())
+    now = dt.datetime.now(localtime.operator_tz())
+    if re.fullmatch(r"(?:the |this )?weekend", said):
+        if now.weekday() >= 5:
+            return "It's the weekend now."
+        days = 5 - now.weekday()
+        return "Tomorrow is Saturday." if days == 1 else f"{days} days - it starts Saturday."
+    thing = re.sub(r"^(?:my|the) (?:next )?|\s+(?:goes off|go off|is|starts|begins|rings)$", "", said)
+    if not thing or thing == said and not said.startswith(("my ", "the ")):
+        return None
+    timer = re.fullmatch(r"(?:\w+ )?(?:timer|alarm)", thing)
+    for at, text, store in _coming():
+        low = text.casefold()
+        if timer:
+            hit = store == "reminder" and (("timer is up" in low) if "timer" in thing else low == "wake up")
+        else:
+            words_of = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in _STOP_WORDS]
+            named = [w for w in words_of if w.rstrip("s") not in _WHEN_NOUNS] or words_of
+            hit = bool(named) and all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in named)
+        if not hit:
+            continue
+        minutes = max(0, int(round((at - now).total_seconds() / 60)))
+        days, rest = divmod(minutes, 24 * 60)
+        hours, mins = divmod(rest, 60)
+        parts = [speech.count_phrase(n, unit) for n, unit in ((days, "day"), (hours, "hour"), (mins, "minute")) if n]
+        span = " and ".join(parts[:2]) if parts else "less than a minute"
+        return f"{span[:1].upper()}{span[1:]} - {speech.humanize_time(at.isoformat())}."
+    return None
 
 
 _STATE_WORDS = {"SUBMITTED": "it went", "SUBMITTING": "it is going out now",

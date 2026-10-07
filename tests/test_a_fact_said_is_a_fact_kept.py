@@ -1692,5 +1692,28 @@ class WhatSheDidIsInThePastCase(unittest.TestCase):
         self.assertEqual(quick._as_done("Added to the shopping list: milk"), "Added to the shopping list: milk")
 
 
+class HowLongUntilCase(unittest.TestCase):
+    def test_until_names_a_timer_only_when_one_has_that_name(self):
+        from aletheia import voice
+        running = [(dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=10), "your 10 minute pasta timer is up")]
+        with mock.patch.object(voice, "_running_once", return_value=running), \
+                mock.patch.object(voice, "_timer_left", side_effect=lambda named="", **_: f"timer:{named}"):
+            self.assertEqual(voice._interpret("how long until the pasta")["say"], "timer:pasta")
+            self.assertEqual(voice._interpret("how long on the eggs")["say"], "timer:eggs")
+            for said in ("how long until christmas", "how long until the weekend", "how long until my haircut"):
+                got = voice._interpret(said) or {}
+                self.assertFalse(str(got.get("say") or "").startswith("timer:"), said)
+
+    def test_until_his_own_appointment_reads_her_calendar(self):
+        from aletheia import localtime, quick
+        tz = localtime.operator_tz()
+        at = dt.datetime.now(tz) + dt.timedelta(days=2, hours=3, minutes=1)
+        with mock.patch.object(quick, "_coming", return_value=[(at, "dentist appointment", "calendar")]):
+            said = quick._until_mine("my dentist appointment")
+        self.assertTrue(said.startswith("2 days and 3 hours - "), said)
+        with mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick._until_mine("my haircut"))
+
+
 if __name__ == "__main__":
     unittest.main()
