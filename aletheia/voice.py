@@ -5466,8 +5466,20 @@ def _interpret(transcript: str) -> dict:
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
     m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
-                     r"|gate code|door code|garage code|locker (?:number|combination)|license plate|plate number"
+                     r"|gate code|door code|garage code|locker (?:number|combination|code)|license plate|plate number"
+                     # "My doctor is Dr Patel" (2026-10-07: to the planner) -
+                     # who someone IS to him, read back by "who's my doctor".
+                     r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
+                     r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
                      r"|anniversary|account number|member(?:ship)? number|policy number) (?:is|are) (?P<value>.{1,80})", fact_low)
+    if m:
+        if re.fullmatch(r"(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
+                        r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)",
+                        m.group("key")) and re.match(
+                r"(?:a|an|the|so|really|very|such|being|always|never|kind|super|too|out|sick|away|on|in|at|mad|angry|"
+                r"great|awesome|terrible|awful|nice|mean|annoying|late|busy|off|not)\b", m.group("value")):
+            # "My boss is a jerk" is how he feels, not who his boss is.
+            m = None
     if m and not re.search(r"\b(?:what|who|when|where|why|how|not|wrong)\b", m.group("key") + " " + m.group("value")[:12]) \
             and not fact_low.startswith(("what", "who", "when", "where", "how", "why")):
         if re.search(r"pass(?:word|code|phrase)", m.group("key")):

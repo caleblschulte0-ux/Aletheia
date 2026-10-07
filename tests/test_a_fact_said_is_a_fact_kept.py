@@ -200,5 +200,17 @@ class DoINeedMilkIsTheList(unittest.TestCase):
             self.assertIsNone(quick._shopping_need("a visa"))
 
 
+class WhoSomeoneIsToHimIsKept(unittest.TestCase):
+    def test_a_role_and_a_name_is_a_note(self):
+        from aletheia import voice
+        for said in ("my doctor is dr patel", "my boss is sarah", "my locker code is 4412"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_how_he_feels_about_them_is_not(self):
+        from aletheia import voice
+        for said in ("my boss is a jerk", "my vet is out today"):
+            self.assertNotEqual((voice._interpret(said).get("command") or {}).get("kind"), "note", said)
+
+
 if __name__ == "__main__":
     unittest.main()

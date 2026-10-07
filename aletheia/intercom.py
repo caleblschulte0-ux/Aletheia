@@ -2647,6 +2647,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # (2026-09-24). The journal is append-only, so a forgotten note
             # gets a tombstone line the readers honour.
             gone = _forget_note(about)
+            if not gone:
+                # "Forget the plumber note" (2026-10-07): "note" is what it
+                # is, not what it says.
+                bare = re.sub(r"^(?:the|my|that) |\s+(?:note|reminder|thing)s?$", "", about, flags=re.IGNORECASE).strip()
+                gone = _forget_note(bare) if bare and bare != about else ""
             if gone:
                 return f"Forgotten: {speech.as_she_says_it(gone)}."
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
