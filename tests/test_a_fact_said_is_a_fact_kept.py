@@ -4216,5 +4216,25 @@ class AHolidayInAYear(unittest.TestCase):
         self.assertEqual(quick.match("when is easter next year")[0], "holiday_year")
 
 
+class OrderingFoodSpendsMoney(unittest.TestCase):
+    """2026-10-07: "can you order food" was answered a bare "Yes" with no
+    money line, because nothing in the spending words named it."""
+
+    def test_food_orders_spend(self):
+        from aletheia import intents, webtask
+        for said in ("order food", "order takeout", "order in tonight", "order paper towels from amazon"):
+            self.assertTrue(webtask.would_spend(said), said)
+            self.assertTrue(intents._asks_to_spend(said), said)
+        for said in ("in order to win", "put these in order", "order my tasks", "what should i order"):
+            self.assertFalse(webtask.would_spend(said), said)
+        self.assertFalse(intents._asks_to_spend("can you order food"))
+
+    def test_the_question_gets_the_money_line(self):
+        from aletheia import quick
+        said = quick.answer("can you order food")
+        if said:
+            self.assertIn("permanent", said)
+
+
 if __name__ == "__main__":
     unittest.main()
