@@ -232,6 +232,16 @@ def _spoken_day(text: str) -> str | None:
     if t in WEEKDAYS:
         ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
         return (today + dt.timedelta(days=ahead)).isoformat()
+    # "In three days", "in 2 weeks", "the end of the month" have one
+    # meaning each (2026-10-07: "renew my passport in 2 weeks" kept no day).
+    n = re.fullmatch(r"in (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (day|days|week|weeks)", t)
+    if n:
+        count = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                 "eight": 8, "nine": 9, "ten": 10}.get(n.group(1)) or int(n.group(1))
+        return (today + dt.timedelta(days=count * (7 if n.group(2).startswith("week") else 1))).isoformat()
+    if re.fullmatch(r"(?:the )?end of (?:the |this )?month", t):
+        first_next = (today.replace(day=28) + dt.timedelta(days=4)).replace(day=1)
+        return (first_next - dt.timedelta(days=1)).isoformat()
     try:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
@@ -342,7 +352,9 @@ def _split_deadline(text: str) -> tuple[str, str]:
         # "Call the plumber tomorrow", "pay the gas bill on friday": a day
         # said last is as much a deadline as "by friday" (2026-10-07).
         bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?(today|tonight|tomorrow|monday|tuesday|wednesday"
-                         r"|thursday|friday|saturday|sunday)$", text, re.IGNORECASE)
+                         r"|thursday|friday|saturday|sunday"
+                         r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?))$",
+                         text, re.IGNORECASE)
         if bare:
             day = _spoken_day("today" if bare.group(2).lower() == "tonight" else bare.group(2))
             if day:
@@ -1374,6 +1386,16 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     previous = _recent_reminder_ask()
     if not previous:
         return None
+    # "Make it Saturday at 10", then "make it 4", went back to FRIDAY
+    # (2026-10-07): the day came from the first sentence, not from where the
+    # reminder now is. The stored one wins.
+    try:
+        from aletheia import intercom
+        found, _why = intercom._one_reminder(str(previous.get("text") or ""))
+        if found and found.get("kind") == "once" and found.get("at"):
+            previous = {**previous, "at": found["at"]}
+    except Exception:  # noqa: BLE001 - the sentence's own time still stands
+        pass
     # "Set a timer for 10 minutes", "make it 15" moved the timer to THREE
     # IN THE AFTERNOON (2026-10-07). After a timer, a bare number is its
     # new length, counted from now.
@@ -1399,6 +1421,34 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         if n < 1:
             return None
         at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(**{unit + "s": n})
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
+                            "replaces": previous["text"]}, "say": None}
+    # "Actually make it Thursday" (2026-10-07: to the planner): the same
+    # reminder on that day, at its own time unless he names another.
+    said = " ".join(str(time_words).split()).lower()
+    on_day = re.fullmatch(r"(?:on )?(?P<day>[a-z0-9 ]+?)(?: at (?P<t>[\w: ]+))?", said)
+    day_iso = None
+    if on_day and on_day.group("day") not in ("", "today") and not _spoken_time(on_day.group("day")):
+        day_iso = _spoken_day(on_day.group("day"))
+    if day_iso:
+        try:
+            import datetime as dt
+            from aletheia import localtime
+            tz = localtime.operator_tz()
+            was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")).astimezone(tz)
+            hour, minute = was.hour, was.minute
+            if on_day.group("t"):
+                hhmm = _spoken_time(on_day.group("t"))
+                if not hhmm:
+                    return None
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(on_day.group("t")) and 1 <= hour <= 7:
+                    hour += 12
+            at = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+        except (ValueError, TypeError):
+            return None
+        if at <= dt.datetime.now(tz):
+            return None
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
                             "replaces": previous["text"]}, "say": None}
     # "Make it the afternoon" (2026-10-07: to a model): the same day, at
@@ -1434,6 +1484,10 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         tz = localtime.operator_tz()
         was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")).astimezone(tz)
         hour, minute = map(int, hhmm.split(":"))
+        if bare and 1 <= hour <= 7:
+            # "Make it 4" on a 10 am reminder is four in the afternoon,
+            # the way a bare hour is read everywhere else.
+            hour += 12
         same_day = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if same_day > dt.datetime.now(tz):
             at = same_day.isoformat()

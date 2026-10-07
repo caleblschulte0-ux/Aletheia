@@ -499,10 +499,6 @@ class MakeItTheAfternoon(unittest.TestCase):
         self.assertEqual((cmd["text"], at.hour), ("call the bank", 14))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class APlaceSaidIsAPlaceKept(unittest.TestCase):
     """"The gym is at 20 Oak Ave", then "where is the gym" searched his
     Documents for a file called gym, and "how long to the gym" asked him
@@ -616,3 +612,71 @@ class OneMilkNotTwo(unittest.TestCase):
         self.assertIn("eggs", self.say("mark eggs done"))
         from aletheia import intercom
         self.assertEqual(intercom._shopping_items(), [])
+
+
+class DaysThatMeanOneDay(unittest.TestCase):
+    def test_in_n_days_and_the_end_of_the_month(self):
+        import datetime as dt
+        from aletheia import localtime
+        today = localtime.today()
+        self.assertEqual(voice._spoken_day("in 3 days"), (today + dt.timedelta(days=3)).isoformat())
+        self.assertEqual(voice._spoken_day("in two weeks"), (today + dt.timedelta(days=14)).isoformat())
+        self.assertTrue(voice._spoken_day("the end of the month").startswith(today.isoformat()[:8]))
+        self.assertEqual(voice._interpret("add a task to renew my passport in 2 weeks")["command"]["deadline"],
+                         (today + dt.timedelta(days=14)).isoformat())
+        # "Next Friday" is still asked about, never guessed.
+        self.assertIsNone(voice._spoken_day("next friday"))
+
+
+class WhenItIsDue(unittest.TestCase):
+    def test_the_task_he_names(self):
+        from aletheia import tasks
+        rows = [{"id": "t1", "description": "renew my passport", "status": "PENDING", "deadline": "2099-10-21"},
+                {"id": "t2", "description": "clean the garage", "status": "PENDING"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=rows), \
+             mock.patch.object(tasks, "is_his", return_value=True):
+            said = quick.answer("when is my passport task due")
+            self.assertTrue(said.startswith("Renew my passport is due"), said)
+            self.assertNotIn("11:59", said)
+            self.assertIn("no due date", quick.answer("when do i need to clean the garage by"))
+
+
+class MakeItAnotherDay(unittest.TestCase):
+    def setUp(self):
+        from aletheia import converse
+        turns = [{"he_asked": "remind me to call the vet on saturday at 10",
+                  "she_answered": "I'll remind you Saturday at 10 am: call the vet."}]
+        patcher = mock.patch.object(converse, "recent", return_value=turns)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def at(self, said, stored=None):
+        import datetime as dt
+        from aletheia import intercom, localtime
+        found = ({"kind": "once", "at": stored}, "") if stored else (None, "none")
+        with mock.patch.object(intercom, "_one_reminder", return_value=found):
+            cmd = voice._interpret(said)["command"]
+        return dt.datetime.fromisoformat(cmd["at"]).astimezone(localtime.operator_tz())
+
+    def test_a_day_keeps_the_time(self):
+        import datetime as dt
+        from aletheia import localtime
+        # Three days on, whatever today is: a fixed weekday is a date bomb.
+        day = (localtime.today() + dt.timedelta(days=3)).strftime("%A")
+        at = self.at(f"actually make it {day.lower()}")
+        self.assertEqual((at.strftime("%A"), at.hour), (day, 10))
+
+    def test_a_bare_hour_after_a_morning_one_is_the_afternoon(self):
+        at = self.at("make it 4")
+        self.assertEqual(at.hour, 16)
+
+    def test_the_stored_day_wins_over_the_first_sentence(self):
+        import datetime as dt
+        from aletheia import localtime
+        moved = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=20)).replace(hour=10, minute=0)
+        at = self.at("make it 4", stored=moved.isoformat())
+        self.assertEqual((at.date(), at.hour), (moved.date(), 16))
+
+
+if __name__ == "__main__":
+    unittest.main()

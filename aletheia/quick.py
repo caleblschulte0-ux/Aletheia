@@ -1368,6 +1368,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's my work address", "what's my home address" (2026-10-07: a
     # recall of "work" that found nothing). A saved place, his own address,
     # or else exactly the recall it was before.
+    # "When is my passport task due" (2026-10-07: read as a note about
+    # "passport task", and "nothing on file" while the task sat there).
+    ("task_due", re.compile(
+        r"^when(?:'s| is) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<due>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)? due\s*\??$"
+        r"|^when do i (?:need|have) to (?P<due2>[a-z][a-z0-9 '-]{1,40}?)(?: by)?\s*\??$"
+        r"|^what(?:'s| is) the (?:deadline|due date) (?:for|on) (?:my |the )?(?P<due3>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)?\s*\??$")),
     ("place_addr", re.compile(
         r"^what(?:'s| is|s) (?:my |the )(?P<place_a>(?!email\b|e-mail\b|ip\b|web\b|mac\b|mailing\b)[a-z][a-z' ]{0,30}?) address\s*\??$")),
     ("recall", re.compile(
@@ -1710,7 +1716,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3507,6 +3513,32 @@ def _tasks_done(when: str = "") -> str:
         return f"Nothing ticked off your list {when}."
     return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
             + (f", and {len(done) - 6} more" if len(done) > 6 else "") + ".")
+
+
+def _task_due(words: str) -> str | None:
+    """When the one open task his words name is due; a note about it when
+    no task is named, the way the question used to be answered."""
+    from aletheia import speech, tasks
+    asked = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold())
+             if w not in ("my", "the", "a", "an", "task", "to", "do")]
+    if not asked:
+        return None
+    live = [t for t in tasks.all_tasks()
+            if str(t.get("status") or "").upper() not in _TASK_CLOSED and tasks.is_his(t)]
+    hits = [t for t in live if all(re.search(rf"\b{re.escape(w)}", str(t.get("description") or "").casefold())
+                                   for w in asked)]
+    if len(hits) != 1:
+        return _recall(words) if not hits else None
+    task = hits[0]
+    what = str(task.get("description") or task.get("id") or "").strip().rstrip(".")
+    what = what[:1].upper() + what[1:]
+    when = tasks.parse_deadline(task.get("deadline"))
+    if not when:
+        return f"{what} has no due date. Say \"move it to Friday\" and it will have one."
+    # A day said with no time is kept as the end of that day; "at 11:59 pm"
+    # is the store's, not his.
+    said = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat()))
+    return f"{what} is due {said}."
 
 
 def _task_progress() -> str:
@@ -7261,6 +7293,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rps": _rps,
            "place_where": lambda rest: _place_where(rest),
            "place_addr": lambda rest: _place_addr(rest),
+           "task_due": lambda rest: _task_due(rest),
            "arith_more": _arith_more,
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),
