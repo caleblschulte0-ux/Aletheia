@@ -819,8 +819,11 @@ def _ask_with_acknowledgement(command: str, core_url: str, say,
     # about to take minutes — see ACK_AFTER_QUICK_S.
     try:
         from aletheia import asking
+        # An answer from her own stores ("instant") is faster still, so it
+        # gets the same patience: "Let me look." in front of an answer
+        # she already holds is the interruption this exists to prevent.
         ack_after = (ACK_AFTER_QUICK_S
-                     if asking.expectation(command) == "quick"
+                     if asking.expectation(command) in ("instant", "quick")
                      else ACK_AFTER_S)
     except Exception:
         ack_after = ACK_AFTER_S
