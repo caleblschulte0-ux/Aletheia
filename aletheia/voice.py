@@ -42,7 +42,9 @@ def strip_wake_word(text: str) -> str:
 FILLER = re.compile(
     r"^(?:[^\w\s]+\s*)*"                    # leading emoji or punctuation
     r"(?:(?:uh+|um+|er+|hmm+|ok|okay|so|well|hey|yo|please|right|"
-    r"i mean|like)\b[,\s]*)*",
+    # "ACTUALLY cancel that" went to the planner while "cancel that" was
+    # instant: the correction words a person leads with carry no request.
+    r"i mean|like|actually|oh|oops|sorry)\b[,\s]*)*",
     re.UNICODE)
 
 
@@ -812,7 +814,7 @@ def _previous_ask() -> str:
     for turn in reversed(turns or []):
         said = " ".join(str(turn.get("he_asked") or "").split())
         said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
-        if said and not _IS_FOLLOW_UP.match(said.casefold()):
+        if said and not _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
             return said
     return ""
 
@@ -833,16 +835,23 @@ def _interview_hours(a: str, b: str) -> tuple[str, str] | None:
     return (out[0], out[1]) if out[0] < out[1] else None
 
 
+def _last_ask_kind() -> str:
+    """The command kind his last full sentence compiles to, or ""."""
+    prev = _previous_ask()
+    if not prev:
+        return ""
+    try:
+        return str(((interpret(f"thea {prev}") or {}).get("command") or {}).get("kind") or "")
+    except Exception:
+        return ""
+
+
 def _last_ask_is_undoable() -> bool:
     """Was his last ask a task, a list item, a reminder, a hold or a file -
     the things "cancel it" can take straight back?"""
-    prev = _previous_ask()
-    if not prev:
-        return False
     try:
         from aletheia import intercom
-        previous = (interpret(f"thea {prev}") or {}).get("command") or {}
-        return str(previous.get("kind") or "") in intercom.UNDOES_HIS_ASK
+        return _last_ask_kind() in intercom.UNDOES_HIS_ASK
     except Exception:
         return False
 
@@ -1428,6 +1437,9 @@ def _interpret(transcript: str) -> dict:
                     r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
                     r"|any reminders( set| pending| coming up)?"
                     r"|list (my )?reminders|my reminders|reminders"
+                    # "What are my reminders" - the commonest way to ask - went to the
+                    # planner and, with no model, came back prefaced with an apology.
+                    r"|(?:what are|show me|tell me|read me|read) (?:all )?(?:my|the) (?:reminders|timers|alarms)"
                     # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
                     r"|(when|what time) (is|'s) (my|the) next reminder|what(?:'s| is) my next reminder", low):
         return {"command": {"kind": "reminders"}, "say": None}
@@ -1446,6 +1458,13 @@ def _interpret(transcript: str) -> dict:
         m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
     if m:
+        # "CANCEL THAT REMINDER", straight after setting it, searched his
+        # reminders for the word "that" and answered "None of your reminders
+        # is about that. The one you have is email Sam" - naming the very one
+        # he meant. A pronoun is a reference to what he just did.
+        if re.fullmatch(r"(?:that|it|this|the|new|latest)", m.group(1).strip()) \
+                and _last_ask_kind() == "remind_at":
+            return {"command": {"kind": "undo"}, "say": None}
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
 
