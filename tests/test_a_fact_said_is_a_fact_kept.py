@@ -5428,5 +5428,27 @@ class RenamingAndRepeatingHolds(unittest.TestCase):
         self.assertIn("one at a time", got["say"])
 
 
+class MySisterIsSister(unittest.TestCase):
+    """'Text my sister' one breath after her number was saved as 'Sister'
+    said there was no number for her (2026-10-07)."""
+
+    def _c(self, cid, name):
+        return {"version": 1, "id": cid, "display_name": name, "phones": ["555-123-4567"],
+                "created_at": "2026-10-07T00:00:00Z", "updated_at": "2026-10-07T00:00:00Z"}
+
+    def test_a_relation_said_with_my_finds_the_saved_name(self):
+        from aletheia import contacts
+        people = [self._c("sister", "Sister"), self._c("dana", "Dana")]
+        self.assertEqual(contacts.resolve("my sister", people)["id"], "sister")
+        self.assertEqual(contacts.resolve("our sister", people)["id"], "sister")
+
+    def test_an_exact_match_still_wins_and_nobody_is_still_nobody(self):
+        from aletheia import contacts
+        people = [self._c("sister", "Sister"), self._c("my-sister", "My Sister")]
+        self.assertEqual(contacts.resolve("my sister", people)["id"], "my-sister")
+        with self.assertRaises(KeyError):
+            contacts.resolve("my brother", people)
+
+
 if __name__ == "__main__":
     unittest.main()
