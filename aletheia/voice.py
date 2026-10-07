@@ -3028,6 +3028,22 @@ def _interpret(transcript: str) -> dict:
     repeat = _a_repeat(low, text)
     if repeat:
         return repeat
+    # "SET A REMINDER FOR 3 TO CALL BOB" and "remind me to check the oven
+    # in 20" (2026-10-07: both to the planner) are reminders said another
+    # way: the first is "remind me at 3 to", and a bare number after "in"
+    # is minutes.
+    m = re.fullmatch(r"(?:set|make|create|add) (?:a |me a |an? )?reminder (?:for|at) "
+                     r"(?P<t>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?|noon|midnight)"
+                     r"(?P<day> (?:today|tomorrow|tonight))? (?:to|about|that i need to) (?P<what>.+)", low)
+    if m:
+        again = _interpret(f"remind me at {m.group('t')}{m.group('day') or ''} to "
+                           + _as_he_said(text, m.group("what")))
+        if ((again or {}).get("command") or {}).get("kind") == "remind_at":
+            return again
+    if re.fullmatch(r"remind me to .+ in \d{1,3}", low):
+        again = _interpret(text.strip().rstrip(".?! ") + " minutes")
+        if ((again or {}).get("command") or {}).get("kind") == "remind_at":
+            return again
     # "REMIND ME ABOUT THIS LATER" names neither the thing nor the time,
     # and was read as a memory search for "this later". Asked for whole.
     # (A bare "remind me later" is a snooze of what just fired.)
@@ -3041,7 +3057,8 @@ def _interpret(transcript: str) -> dict:
     # planner). Asked for whole, with the day he said in the example.
     m = re.fullmatch(r"remind me (?P<when>tomorrow(?: morning| afternoon| evening| night)?|tonight|later today"
                      r"|this (?:morning|afternoon|evening)|next week|on (?:monday|tuesday|wednesday|thursday|friday"
-                     r"|saturday|sunday)|(?:at|around) \d{1,2}(?::\d\d)?(?: ?[ap]m)?)", low)
+                     r"|saturday|sunday)|(?:at|around) (?:\d{1,2}(?::\d\d)?(?: ?[ap]m)?|noon|midnight)(?: (?:today|tomorrow|tonight))?"
+                     r"|tomorrow (?:at|around) (?:\d{1,2}(?::\d\d)?(?: ?[ap]m)?|noon))", low)
     if m:
         when = m.group("when")
         return {"command": None,

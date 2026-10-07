@@ -1115,5 +1115,22 @@ class AnAlarmMovedAndSnoozed(unittest.TestCase):
                 self.assertEqual(voice.interpret(said)["command"], {"kind": "notify_snooze", "minutes": minutes})
 
 
+class AReminderSaidAnotherWay(unittest.TestCase):
+    def test_set_a_reminder_for_a_time_to(self):
+        got = voice.interpret("set a reminder for 3 to call Bob")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "call Bob"))
+
+    def test_a_bare_number_after_in_is_minutes(self):
+        got = voice.interpret("remind me to check the oven in 20")["command"]
+        at = dt.datetime.fromisoformat(got["at"])
+        self.assertAlmostEqual((at - dt.datetime.now(dt.timezone.utc)).total_seconds(), 1200, delta=10)
+
+    def test_a_when_with_no_what_asks_for_the_what(self):
+        for said in ("remind me at noon tomorrow", "remind me tomorrow at 5"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("Remind you of what", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
