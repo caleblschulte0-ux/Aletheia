@@ -5091,5 +5091,14 @@ class AboutTheMeetingOnADay(unittest.TestCase):
         self.assertNotIn("next tuesday'", got["say"])
 
 
+class ErrandsAreTasks(unittest.TestCase):
+    """"What errands do I have" read a note about errands, next to his list."""
+
+    def test_errands_read_the_task_list(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what errands do i have")[0], "tasks")
+        self.assertEqual(quick.match("what are my errands")[0], "tasks")
+
+
 if __name__ == "__main__":
     unittest.main()

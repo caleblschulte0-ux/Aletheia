@@ -1020,6 +1020,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?:things|items|tasks) (?:are |have i got )?on my (?:task |to.?do )?list(?: left| open)?\s*\??$"
         r"|^what(?:'s| is|s)? left (?:on my list|to do)$|^how many things (?:do i have )?(?:left )?to do$"
         r"|^(?:my )?task list$|^my tasks$"
+        # "What errands do I have" read a note about errands (2026-10-07):
+        # an errand is a task, and his list is where they are.
+        r"|^what errands (?:do i have|have i got|do i (?:need|have) to run)(?: to run)?\s*\??$|^what are my errands$"
         r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
     ("approvals", re.compile(
         r"^how many approvals are pending$|^what needs approving$"
