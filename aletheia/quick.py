@@ -713,9 +713,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:was the date|date was it|day was it|was the day|was it) (?P<n3>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
         r" (?P<unit3>days?|weeks?|months?) ago\s*\??$")),
     ("date_of", re.compile(
-        r"^what(?:'s| is|s)? the date (?:on |for )?(?:next |this |of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>[a-z][a-z ']{2,30}?)\s*\??$"
-        r"|^what date is (?:next |this )?(?P<date_of2>[a-z][a-z ']{2,30}?)\s*\??$"
-        r"|^when(?:'s| is) (?:next |this )(?P<date_of3>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+        r"^what(?:'s| is|s)? the date (?:on |for )?(?:of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>(?:next |this )?[a-z][a-z ']{2,30}?)\s*\??$"
+        r"|^what date is (?P<date_of2>(?:next |this )?[a-z][a-z ']{2,30}?)\s*\??$"
+        r"|^when(?:'s| is) (?P<date_of3>(?:next |this )(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
     ("up_to_date", re.compile(
         r"^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)(?: right now| now)?$"
         r"|^(?:are|is) (?:you|u) (?:behind|running old code|out of date)$")),
@@ -2480,6 +2480,7 @@ def _date_of(words: str) -> str | None:
     import datetime as dt
     from aletheia import localtime
     w = " ".join(str(words or "").casefold().split()).strip(" ?.")
+    said_next = w.startswith("next ")
     for lead in ("next ", "this "):
         if w.startswith(lead):
             w = w[len(lead):]
@@ -2495,6 +2496,13 @@ def _date_of(words: str) -> str | None:
     said = f"{when.strftime('%A')} the {day}{suffix} of {when.strftime('%B')}"
     if when.year != today.year:
         said += f" {when.year}"
+    if said_next and w in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+        # "Next Friday" is the coming one to half the people who say it and
+        # the one after to the rest (2026-10-07: she picked one silently).
+        later = when + dt.timedelta(days=7)
+        late_day = later.day
+        late_suffix = "th" if 11 <= late_day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(late_day % 10, "th")
+        return f"{said} - or the {late_day}{late_suffix}, if you mean the week after."
     return said + "."
 
 

@@ -2413,5 +2413,18 @@ class TellSomebodyIsAText(unittest.TestCase):
                 self.assertNotEqual(((voice._interpret(said) or {}).get("command") or {}).get("kind"), "message_send")
 
 
+
+class NextFridayIsBothFridays(unittest.TestCase):
+    """2026-10-07: "what's the date next friday" picked one silently."""
+
+    def test_both_are_said(self):
+        from aletheia import quick
+        kind, rest = quick.match("what's the date next friday")
+        said = quick._date_of(rest)
+        self.assertTrue(said.startswith("Friday the "))
+        self.assertIn("if you mean the week after", said)
+        self.assertNotIn("week after", quick._date_of("this friday"))
+
+
 if __name__ == "__main__":
     unittest.main()
