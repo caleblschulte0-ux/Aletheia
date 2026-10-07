@@ -4536,8 +4536,9 @@ def _interpret(transcript: str) -> dict:
     # meetings everywhere else.
     # "MAKE IT DUE FRIDAY" right after a task was added (2026-10-07: to the
     # planner): "it" is the task the last turn added, and only that.
-    m = re.fullmatch(r"(?:no,? )?(?:make|set) (?:it|that) (?:due )?(?:on |for |by )?(?P<day>today|tomorrow|tonight|(?:this |next )?"
-                     r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))"
+    # "Actually do it Saturday" (2026-10-07: to the planner) is the same move.
+    m = re.fullmatch(r"(?:no,? )?(?:make|set|do|i'?ll do) (?:it|that) (?:due )?(?:on |for |by )?(?P<day>today|tomorrow|tonight|(?:this |next )?"
+                     r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))(?: instead)?"
                      r"|(?:no,? )?(?:change|move|push|switch|bump) (?:it|that)(?: to| till| until| back to)? (?P<day2>today|tomorrow|tonight|"
                      r"(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))"
                      r"|(?:it'?s|it is) due (?P<day3>today|tomorrow|tonight|(?:this |next )?"
@@ -7410,13 +7411,29 @@ def _interpret(transcript: str) -> dict:
     # "Add eggs", then "no, I meant milk" (2026-10-07: to the planner) -
     # the thing just put on the list, swapped. Only right after an add,
     # and only for a bare thing.
+    # "Remember my locker is 42", then "no, it's 24" (2026-10-07: to the
+    # planner). The fact just kept, said again with the right value - the
+    # newest note is the one every reader reads.
+    m = re.fullmatch(r"(?:(?:no|nope|sorry|oops|actually|wait|i mean|i meant)[, ]+)+(?:it'?s|it is|it was|make (?:it|that)|i meant) "
+                     r"(?P<value>[a-z0-9][a-z0-9 .:/'-]{0,40})", text.lower().strip().rstrip(".!"))
+    if m:
+        said, answered = _previous_turn()
+        kept = re.fullmatch(r"(?:remember (?:that )?|note (?:that )?)?(?P<key>(?:my|our|the) [a-z][a-z0-9' ]{1,30}?) (?:is|are) (?P<old>.+)",
+                            " ".join(str(said or "").lower().split()).rstrip("."))
+        if kept and answered.strip() == "Noted." and m.group("value") != kept.group("old"):
+            return {"command": {"kind": "note", "text": _as_he_said(text, f"{kept.group('key')} is {m.group('value')}")},
+                    "say": None}
+    # "No wait I meant bread" - the lead-in said without a comma (2026-10-07:
+    # to the planner) - is the same correction.
+    fixed = re.sub(r"^(?:(?:no|nope|wait|oh|sorry|oops|actually|i meant|i mean)\s+)+", "", low) \
+        if re.match(r"(?:no|nope|wait|oh|sorry|oops|actually)\s+(?:\w+\s+)?i mean", low) else low
     if re.match(r"(?:\W*)(?:sorry|i meant|no|nope|oops|actually|wait)\b", text.lower().strip()) \
-            and re.fullmatch(r"(?:some |a |an |the )?[a-z][a-z' -]{1,30}", low) and len(low.split()) <= 4 \
-            and not re.search(r"\b(?:it|that|this|them|cancel|stop|never ?mind|yes|no|okay|ok)\b", low):
+            and re.fullmatch(r"(?:some |a |an |the )?[a-z][a-z' -]{1,30}", fixed) and len(fixed.split()) <= 4 \
+            and not re.search(r"\b(?:it|that|this|them|cancel|stop|never ?mind|yes|no|okay|ok)\b", fixed):
         _said, answered = _previous_turn()
         just = re.match(r"Added to the shopping list: ([^,]+?)\.$", answered)
         if just and " and " not in just.group(1):
-            item = re.sub(r"^(?:some|a|an|the) ", "", low)
+            item = re.sub(r"^(?:some|a|an|the) ", "", fixed)
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, item),
                                 "replaces": just.group(1)}, "say": None}
 

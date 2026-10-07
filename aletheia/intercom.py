@@ -2212,7 +2212,10 @@ def _undo_his_last_ask() -> str | None:
             continue                        # his previous undo; look one further back
         # A QUESTION in between changes nothing: "put lunch on Friday",
         # "who is it with", "cancel it" means the lunch (2026-10-07).
-        if voice._only_asked(said, command):
+        # A note is journaled at the read-only tier, so it read as a question
+        # here and "remember my locker is 42", "undo that" found nothing to
+        # undo (2026-10-07). A kind this can reverse was never only asked.
+        if kind not in UNDOES_HIS_ASK and voice._only_asked(said, command):
             continue
         # "Remove everything from the list", then "undo that" (2026-10-07:
         # "nothing to undo"). Taking things off is undone by putting back
@@ -2223,6 +2226,13 @@ def _undo_his_last_ask() -> str | None:
         # removal while milk is on the list, and now it isn't.
         if re.match(r"Took (?:it|\S+ things?) off (?:your|the) shopping list:", str(turn.get("she_answered") or "")):
             return _put_back_on_the_list(str(turn.get("she_answered") or ""))
+        if kind not in UNDOES_HIS_ASK and str(turn.get("she_answered") or "").strip() == "Noted.":
+            # "No, it's 24" was a note only in the light of the turn before
+            # it, and reads as nothing on its own now. "Noted." is said for
+            # a note and nothing else: the newest one is what it kept.
+            newest = next(iter(_quick_notes()), None)
+            if newest:
+                kind, command = "note", {"kind": "note", "text": newest.get("text")}
         if kind not in UNDOES_HIS_ASK:
             return None
         if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
@@ -2328,8 +2338,25 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         workspace.remove(path, why="undone: you took it back")
         return f"Undone: removed {path}; a copy is kept if you want it back."
     if kind == "note":
-        return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
+        # The journal is append-only; a note is taken back with the same
+        # tombstone "forget" writes, which every reader honours.
+        text = " ".join(str(command.get("text") or "").split())
+        newest = next((" ".join(str(r.get("text") or "").split()) for r in _quick_notes()
+                       if " ".join(str(r.get("text") or "").split()).casefold() == text.casefold()), "")
+        if not newest:
+            return "That note is already gone."
+        from aletheia import journal
+        journal.append("note", FORGOTTEN_SUBJECT, newest[:300], actor="operator")
+        return f"Undone: I've forgotten {speech.as_she_says_it(newest).rstrip('.')}."
     return "Nothing to undo."
+
+
+def _quick_notes() -> list:
+    try:
+        from aletheia import quick
+        return quick._notes()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def free_time_answer(cmd: dict) -> str:

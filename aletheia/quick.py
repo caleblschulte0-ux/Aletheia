@@ -7642,12 +7642,19 @@ def _notes(limit: int = 200) -> list[dict]:
         # A note he told her to forget carries a later tombstone
         # (intercom.FORGOTTEN_SUBJECT); the journal is append-only, so this
         # is how "forget my sister's name" takes effect on every reader.
-        forgotten = {str(e.get("text") or "")[:300] for e in entries if e.get("subject") == "operator:forgotten"}
-        rows = [e for e in entries if e.get("kind") == "note" and e.get("subject") == "operator"
+        # A tombstone takes back the notes written BEFORE it: "my locker is
+        # 42", undone, then said again, is a note again (2026-10-07: the
+        # second one stayed hidden behind the first one's tombstone).
+        rows = []
+        for e in entries:
+            if e.get("subject") == "operator:forgotten":
+                gone = str(e.get("text") or "")[:300]
+                rows = [r for r in rows if str(r.get("text") or "")[:300] != gone]
+            elif e.get("kind") == "note" and e.get("subject") == "operator" \
+                    and not str(e.get("text") or "").startswith("(voice"):
                 # the room's unmatched transcripts are journaled as notes;
                 # "(voice, unmatched) north korea" is not a note of his
-                and not str(e.get("text") or "").startswith("(voice")
-                and str(e.get("text") or "")[:300] not in forgotten]
+                rows.append(e)
     except Exception:
         return []
     return list(reversed(rows))[:limit]

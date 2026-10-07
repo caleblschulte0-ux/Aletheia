@@ -5315,5 +5315,36 @@ class BigNumbersAndBareTemperatures(unittest.TestCase):
         self.assertEqual(quick.answer("what's 20 in fahrenheit"), "68 degrees Fahrenheit.")
 
 
+class CorrectionsSaidTheWayPeopleSayThem(unittest.TestCase):
+    def test_do_it_saturday_moves_the_task_just_added(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_the_task_just_added", return_value="clean the garage"):
+            got = voice.interpret("actually do it saturday")["command"]
+        self.assertEqual((got["kind"], got["which"]), ("task_change", "clean the garage"))
+
+    def test_no_wait_i_meant_without_commas(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_previous_turn", return_value=("add eggs", "Added to the shopping list: eggs.")):
+            got = voice.interpret("no wait i meant bread")["command"]
+        self.assertEqual(got, {"kind": "shopping_add", "item": "bread", "replaces": "eggs"})
+
+    def test_no_its_24_corrects_the_fact_just_kept(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_previous_turn", return_value=("remember my locker is 42", "Noted.")):
+            self.assertEqual(voice.interpret("no it's 24")["command"], {"kind": "note", "text": "my locker is 24"})
+        with mock.patch.object(voice, "_previous_turn", return_value=("what time is it", "6 pm.")):
+            self.assertNotEqual((voice.interpret("no it's 24")["command"] or {}).get("kind"), "note")
+
+    def test_a_tombstone_hides_only_what_came_before_it(self):
+        from aletheia import journal, quick
+        entries = [{"kind": "note", "subject": "operator", "text": "my locker is 42"},
+                   {"kind": "note", "subject": "operator:forgotten", "text": "my locker is 42"},
+                   {"kind": "note", "subject": "operator", "text": "my locker is 42"}]
+        with mock.patch.object(journal, "entries", return_value=entries):
+            self.assertEqual([r["text"] for r in quick._notes()], ["my locker is 42"])
+        with mock.patch.object(journal, "entries", return_value=entries[:2]):
+            self.assertEqual(quick._notes(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
