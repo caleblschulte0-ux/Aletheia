@@ -612,6 +612,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? the time (?:in|at) (?P<time_in>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^what time is it (?:in|at|over in) (?P<time_in2>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+    ("date_after", re.compile(
+        r"^what(?:'s| is| date is| day is| will the date be)? (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
+        r" (?P<unit>days?|weeks?|months?) (?:from|after) (?:today|now)\s*\??$"
+        r"|^what(?:'s| is) the date (?:in )?(?P<n2>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten) (?P<unit2>days?|weeks?|months?)"
+        r"(?: from (?:today|now))?\s*\??$")),
     ("date_of", re.compile(
         r"^what(?:'s| is|s)? the date (?:on |for )?(?:next |this |of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>[a-z][a-z ']{2,30}?)\s*\??$"
         r"|^what date is (?:next |this )?(?P<date_of2>[a-z][a-z ']{2,30}?)\s*\??$"
@@ -1397,6 +1402,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many (?P<unit>days|weeks|months) (?:are )?(?:left|remaining) (?:in|of|until the end of) (?:the|this) year$")),
     ("weekday_of", re.compile(
         r"^what day (?:of the week )?(?:was|is|will be|falls on|did) (?!it\b|today\b|tomorrow\b)(?P<wd>.+?)(?: (?:fall on|on|be))?$")),
+    # 2026-10-07, each to the planner: "how many days since January 1", "is
+    # it the weekend", "what's 3 weeks from today", "how old is someone born
+    # in 1990". Arithmetic on the calendar, nothing to think about.
+    ("days_since", re.compile(
+        r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$")),
+    ("weekend_q", re.compile(r"^is (?:it|today) (?:a |the )?weekend(?: yet| today)?\s*\??$")),
+    ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
         r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
     ("time_diff", re.compile(
@@ -1470,7 +1482,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "tip", "currency"):
+        if name in ("until_weeks", "tip", "currency", "date_after"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -1479,7 +1491,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3628,6 +3640,14 @@ def _a_date(words: str, today):
                 return None
     if w in ("today", "now"):
         return today
+    bare = re.fullmatch(r"(\d{1,2})(?:st|nd|rd|th)", w)
+    if bare:
+        # "The 15th": this month's, or next month's once it has passed.
+        try:
+            d = dt.date(today.year, today.month, int(bare.group(1)))
+            return d if d >= today else dt.date(today.year + (today.month == 12), today.month % 12 + 1, int(bare.group(1)))
+        except ValueError:
+            return None
     try:
         return _named_date(w, today)
     except Exception:
@@ -3661,6 +3681,72 @@ def _days_between(text: str) -> str | None:
         b = b.replace(year=b.year + 1) if not (b.month == 2 and b.day == 29) else b
     days = abs((b - a).days)
     return f"{days} day{'s' if days != 1 else ''}."
+
+
+_DATE_COUNTS = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                  "eight": 8, "nine": 9, "ten": 10}
+
+
+def _days_since(words: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    day = _a_date(words, today)
+    if day is None:
+        return None
+    if day > today and not re.search(r"\d{4}", words):
+        # "Since January 1" is the one that has passed.
+        try:
+            day = day.replace(year=day.year - 1)
+        except ValueError:
+            return None
+    days = (today - day).days
+    if days < 0:
+        return None
+    return f"{days:,} day{'s' if days != 1 else ''}, since {day.strftime('%A')} {day.day} {day.strftime('%B')} {day.year}."
+
+
+def _weekend_q() -> str:
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    if today.weekday() >= 5:
+        return f"Yes - it's {today.strftime('%A')}."
+    away = 5 - today.weekday()
+    return f"No, it's {today.strftime('%A')}. The weekend starts " + ("tomorrow." if away == 1 else f"in {away} days.")
+
+
+def _date_after(text: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("date_after", text)
+    raw, unit = g.get("n") or g.get("n2") or "", g.get("unit") or g.get("unit2") or ""
+    n = int(raw) if raw.isdigit() else _DATE_COUNTS.get(raw)
+    if not n:
+        return None
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    if unit.startswith("month"):
+        month = today.month - 1 + n
+        year, month = today.year + month // 12, month % 12 + 1
+        import calendar as _cal
+        when = dt.date(year, month, min(today.day, _cal.monthrange(year, month)[1]))
+    else:
+        when = today + dt.timedelta(days=n * (7 if unit.startswith("week") else 1))
+    return f"{when.strftime('%A')} {when.day} {when.strftime('%B')} {when.year}."
+
+
+def _born_in(year: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    try:
+        born = int(year)
+    except (TypeError, ValueError):
+        return None
+    now = dt.datetime.now(localtime.operator_tz()).year
+    if not 1900 <= born <= now:
+        return None
+    age = now - born
+    return f"{age - 1} or {age}, depending on whether their birthday has come yet this year." if age else "Under a year old."
 
 
 def _time_diff(text: str) -> str | None:
@@ -6258,6 +6344,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
            "agenda_on": lambda rest: _agenda_on(rest),
+           "days_since": lambda rest: _days_since(rest),
+           "weekend_q": lambda rest: _weekend_q(),
+           "date_after": lambda rest: _date_after(rest),
+           "born_in": lambda rest: _born_in(rest),
            "double_booked": lambda rest: _double_booked(),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),

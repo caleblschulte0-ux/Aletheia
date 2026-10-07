@@ -362,5 +362,51 @@ class HisApplicationsAskedOtherWays(unittest.TestCase):
         self.assertEqual(quick.match("which companies did you apply to")[0], "applied_to")
 
 
+class CalendarArithmetic(unittest.TestCase):
+    """Both sides move with the calendar: the expectation is computed from today too."""
+
+    def setUp(self):
+        import datetime as dt
+        from aletheia import localtime
+        self.today = dt.datetime.now(localtime.operator_tz()).date()
+
+    def test_weeks_and_days_from_today(self):
+        import datetime as dt
+        from aletheia import quick
+        when = self.today + dt.timedelta(days=21)
+        self.assertEqual(quick._date_after("what's 3 weeks from today"),
+                         f"{when.strftime('%A')} {when.day} {when.strftime('%B')} {when.year}.")
+        when = self.today + dt.timedelta(days=7)
+        self.assertIn(when.strftime("%A"), quick._date_after("what is a week from today"))
+
+    def test_the_date_in_months_is_not_a_date_lookup(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's the date in two months")[0], "date_after")
+
+    def test_days_since_counts_back_to_the_one_that_passed(self):
+        from aletheia import quick
+        said = quick._days_since("january 1")
+        self.assertIn(f"since {__import__('datetime').date(self.today.year, 1, 1).strftime('%A')} 1 January", said)
+        self.assertIn(f"{(self.today - __import__('datetime').date(self.today.year, 1, 1)).days:,} day", said)
+
+    def test_is_it_the_weekend(self):
+        from aletheia import quick
+        said = quick._weekend_q()
+        self.assertTrue(said.startswith("Yes" if self.today.weekday() >= 5 else "No"))
+        self.assertEqual(quick.match("is it the weekend")[0], "weekend_q")
+
+    def test_a_bare_ordinal_is_this_month_or_next(self):
+        from aletheia import quick
+        d = quick._a_date("the 15th", self.today)
+        self.assertEqual(d.day, 15)
+        self.assertGreaterEqual(d, self.today)
+
+    def test_born_in_a_year(self):
+        from aletheia import quick
+        age = self.today.year - 1990
+        self.assertIn(f"{age - 1} or {age}", quick._born_in("1990"))
+        self.assertIsNone(quick._born_in("1066"))
+
+
 if __name__ == "__main__":
     unittest.main()
