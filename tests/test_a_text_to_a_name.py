@@ -1108,5 +1108,21 @@ class HowOldIsSomebodyHeToldHerAbout(unittest.TestCase):
             self.assertIsNone(quick.answer("how old is taylor swift"))
 
 
+
+class ArithmeticOnHerLastAnswer(unittest.TestCase):
+    def _after(self, answered, said):
+        from aletheia import converse, quick
+        with mock.patch.object(converse, "recent", return_value=[{"he_asked": "x", "she_answered": answered}]):
+            return quick.answer(said)
+
+    def test_the_total_is_split_and_a_number_is_carried_on(self):
+        self.assertEqual(self._after("$9.00 tip, $54.00 total.", "split it three ways"), "$18 each.")
+        self.assertEqual(self._after("12.", "and times 3"), "36.")
+        self.assertEqual(self._after("12.", "half it"), "6.")
+
+    def test_a_sentence_that_is_not_a_sum_is_left_alone(self):
+        self.assertIsNone(self._after("Sunny and 70.", "times 2"))
+
+
 if __name__ == "__main__":
     unittest.main()

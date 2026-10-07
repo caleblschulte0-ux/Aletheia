@@ -1433,6 +1433,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("discount", re.compile(
         r"^what(?:'s| is|s)? (?P<off>[\d.]+) ?(?:%|percent) off (?:of )?\$?(?P<price>[\d.,]+)(?: dollars| bucks)?$"
         r"|^\$?(?P<price2>[\d.,]+)(?: dollars)? (?:with|at|minus) (?P<off2>[\d.]+) ?(?:%|percent) off$")),
+    # ARITHMETIC ON HER LAST ANSWER (2026-10-07): "what's 20% tip on 45",
+    # then "split it three ways" - and "square root of 144", then "and
+    # times 3" - went to the planner. The number is in what she just said.
+    ("on_the_last", re.compile(
+        r"^(?:and |now |then |ok |okay )?(?:(?P<op>times|multiplied by|x|divided by|over|plus|minus|add|subtract|take away|less) "
+        r"(?P<n>\d[\d,]*(?:\.\d+)?)"
+        r"|(?:split|divide) (?:it|that|the total|the bill|that total) (?:(?:between|among|by|for) )?(?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: ways| people)?"
+        r"|(?P<half>half|double|halve|square) (?:it|that))\s*\??$")),
     ("split", re.compile(
         r"^(?:split|divide) \$?(?P<bill>[\d.,]+)(?: dollars| bucks)? (?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
         r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
@@ -1536,7 +1544,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span"):
+        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3711,6 +3719,54 @@ def _discount(text: str) -> str | None:
 
 
 _WAYS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def _on_the_last(text: str) -> str | None:
+    """The sum he asks for, done on the number in her last answer."""
+    g = _groups("on_the_last", text)
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=1) or []
+    except Exception:
+        return None
+    answered = " ".join(str((turns[-1] if turns else {}).get("she_answered") or "").split())
+    total = re.search(r"\$?(-?\d[\d,]*(?:\.\d+)?) total\b", answered)
+    nums = re.findall(r"\$?-?\d[\d,]*(?:\.\d+)?", answered)
+    # Only a SUM she just said: "Sunny and 70" is not a number to multiply.
+    if not total and not re.fullmatch(r"(?:about )?\$?-?\d[\d,]*(?:\.\d+)?(?: [a-z]{1,12}){0,2}\.?", answered, re.I):
+        return None
+    if not (total or nums):
+        return None
+    raw = total.group(0).split()[0] if total else nums[-1]
+    dollars = raw.startswith("$")
+    try:
+        value = float(raw.lstrip("$").replace(",", ""))
+    except ValueError:
+        return None
+    if g.get("ways"):
+        ways = int(g["ways"]) if g["ways"].isdigit() else _WAYS[g["ways"]]
+        if ways < 2:
+            return None
+        each = round(value / ways, 2)
+        return f"{_money(each) if dollars else _plain(each)} each."
+    if g.get("half"):
+        result = {"half": value / 2, "halve": value / 2, "double": value * 2, "square": value * value}[g["half"]]
+    else:
+        try:
+            n = float(g["n"].replace(",", ""))
+        except (KeyError, AttributeError, ValueError):
+            return None
+        op = g["op"]
+        if op in ("divided by", "over") and n == 0:
+            return "You can't divide by zero."
+        result = (value * n if op in ("times", "multiplied by", "x") else value / n if op in ("divided by", "over")
+                  else value + n if op in ("plus", "add") else value - n)
+    return f"{_money(round(result, 2)) if dollars else _plain(result)}."
+
+
+def _plain(v: float) -> str:
+    v = round(v, 4)
+    return f"{int(v):,}" if float(v).is_integer() else f"{v:,}"
 
 
 def _split(text: str) -> str | None:
@@ -6617,6 +6673,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
+           "on_the_last": lambda rest: _on_the_last(rest),
            "age_of": lambda rest: _age_of(rest),
            "day_span": lambda rest: _day_span(rest),
            "running": lambda rest: _running(),
