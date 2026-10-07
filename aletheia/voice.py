@@ -1401,6 +1401,13 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(**{unit + "s": n})
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
                             "replaces": previous["text"]}, "say": None}
+    # "Make it the afternoon" (2026-10-07: to a model): the same day, at
+    # the hour that part of the day starts with her other reminders.
+    part = {"morning": "9:00 am", "the morning": "9:00 am", "afternoon": "2:00 pm", "the afternoon": "2:00 pm",
+            "evening": "6:00 pm", "the evening": "6:00 pm", "tonight": "9:00 pm", "night": "9:00 pm",
+            "the night": "9:00 pm", "lunchtime": "12:00 pm", "lunch": "12:00 pm"}.get(" ".join(str(time_words).split()))
+    if part:
+        time_words = part
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return None

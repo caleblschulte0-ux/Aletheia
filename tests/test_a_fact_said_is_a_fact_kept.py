@@ -487,5 +487,17 @@ class WhatNotesMention(unittest.TestCase):
         self.assertEqual(quick.match("what notes mention wifi")[0], "note_search")
 
 
+class MakeItTheAfternoon(unittest.TestCase):
+    def test_a_part_of_the_day_is_a_time(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import converse, localtime, voice
+        turns = [{"he_asked": "remind me to call the bank tomorrow", "she_answered": "I'll remind you tomorrow at 9 am: call the bank."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            cmd = voice._interpret("make it the afternoon")["command"]
+        at = dt.datetime.fromisoformat(cmd["at"]).astimezone(localtime.operator_tz())
+        self.assertEqual((cmd["text"], at.hour), ("call the bank", 14))
+
+
 if __name__ == "__main__":
     unittest.main()
