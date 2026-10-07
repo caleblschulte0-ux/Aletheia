@@ -131,7 +131,7 @@ def forecast(*, fresh: bool = False) -> dict:
     lat, lon, resolved = _point(code)
     periods = _periods(lat, lon)
     value = {"at": stateio.utcnow(), "place": resolved or name,
-             "periods": periods[:6]}
+             "periods": periods[:14]}
     try:
         stateio.write_json_atomic(_cache_path(), value)
     except Exception:
@@ -160,8 +160,41 @@ def spoken(when: str = "") -> str:
         return "The weather service gave me nothing back just now."
 
     wanted = " ".join(str(when or "").split()).casefold()
-    chosen = periods[0]
-    if wanted:
+    chosen = _periods_for(periods, wanted)
+    if isinstance(chosen, str):
+        return chosen
+    lines = []
+    for i, period in enumerate(chosen):
+        name = str(period.get("name") or "").strip()
+        temp = period.get("temperature")
+        short = str(period.get("shortForecast") or "").strip().rstrip(".")
+        lead = "Right now" if period is periods[0] and not wanted else name
+        lines.append(f"{lead} in {data['place']}: {short}, {temp} degrees." if i == 0
+                     else f"{lead}: {short}, {temp} degrees.")
+    return " ".join(lines)
+
+
+_WEEKEND = ("this weekend", "the weekend", "weekend", "over the weekend")
+_WET = ("rain", "shower", "storm", "drizzle", "snow", "sleet", "thunder")
+
+
+def _periods_for(periods: list, wanted: str):
+    """The period(s) his word names, or a sentence saying the forecast
+    does not reach that far. The weekend is two days, so it is two."""
+    if not wanted:
+        return [periods[0]]
+    if wanted in _WEEKEND:
+        days = [p for p in periods if p.get("isDaytime", True) and
+                str(p.get("name", "")).casefold() in ("saturday", "sunday", "today")]
+        if periods and str(periods[0].get("name", "")).casefold() == "today":
+            # "Today" is only the weekend when today is Saturday or Sunday.
+            import datetime as dt
+            if dt.date.today().weekday() < 5:
+                days = [p for p in days if str(p.get("name", "")).casefold() != "today"]
+        if not days:
+            return "The forecast doesn't reach the weekend yet - ask me again in a day or two."
+        return days[:2]
+    if wanted.startswith("tomorrow"):
         # TOMORROW IS NOT ONE OF THEIR WORDS. The service names
         # periods Today / Tonight / Wednesday / Wednesday Night, so
         # "tomorrow" matched nothing and the fallback answered with
@@ -169,24 +202,51 @@ def spoken(when: str = "") -> str:
         # question than the one he asked, answered confidently,
         # which is the kind he cannot catch. It is the first period
         # after tonight: arithmetic on the list, not a guess.
-        if wanted.startswith("tomorrow"):
-            later = [p for p in periods
-                     if str(p.get("name", "")).casefold()
-                     not in ("today", "tonight", "this afternoon",
-                             "this morning", "overnight")]
-            if not later:
-                return ("I only have today's forecast just now — "
-                        "ask me again later and I'll have tomorrow's.")
-            chosen = later[0]
-        else:
-            for period in periods:
-                if wanted in str(period.get("name", "")).casefold():
-                    chosen = period
-                    break
+        later = [p for p in periods
+                 if str(p.get("name", "")).casefold()
+                 not in ("today", "tonight", "this afternoon",
+                         "this morning", "overnight")]
+        if not later:
+            return ("I only have today's forecast just now — "
+                    "ask me again later and I'll have tomorrow's.")
+        return [later[0]]
+    for period in periods:
+        if wanted in str(period.get("name", "")).casefold():
+            return [period]
+    return [periods[0]]
 
-    name = str(chosen.get("name") or "").strip()
-    temp = chosen.get("temperature")
-    unit = chosen.get("temperatureUnit") or "F"
-    short = str(chosen.get("shortForecast") or "").strip().rstrip(".")
-    lead = "Right now" if chosen is periods[0] and not wanted else name
-    return f"{lead} in {data['place']}: {short}, {temp} degrees."
+
+def rain(when: str = "") -> str:
+    """"Do I need an umbrella", "will it rain this weekend": yes or no
+    first, then the forecast it stands on. Never raises."""
+    try:
+        data = forecast()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    except Exception as exc:
+        return (f"I couldn't check the weather ({type(exc).__name__}). "
+                "Everything else still works.")
+    periods = data.get("periods") or []
+    if not periods:
+        return "The weather service gave me nothing back just now."
+    wanted = " ".join(str(when or "").split()).casefold()
+    chosen = _periods_for(periods, wanted)
+    if isinstance(chosen, str):
+        return chosen
+    if not wanted:
+        # "Today" for an umbrella means the rest of today, tonight included.
+        chosen = periods[:2]
+    wet = []
+    for period in chosen:
+        short = str(period.get("shortForecast") or "").strip().rstrip(".")
+        chance = (period.get("probabilityOfPrecipitation") or {}).get("value")
+        if any(w in short.casefold() for w in _WET) or (isinstance(chance, (int, float)) and chance >= 40):
+            wet.append((period, short, chance))
+    def said(period, short, chance):
+        bit = f"{period.get('name')}: {short}"
+        return bit + (f", {int(chance)}% chance" if isinstance(chance, (int, float)) and chance else "")
+    if wet:
+        return "Looks like it. " + "; ".join(said(*w) for w in wet) + "."
+    first = chosen[0]
+    return (f"Doesn't look like it. {said(first, str(first.get('shortForecast') or '').strip().rstrip('.'), (first.get('probabilityOfPrecipitation') or {}).get('value'))}"
+            f" in {data['place']}.")

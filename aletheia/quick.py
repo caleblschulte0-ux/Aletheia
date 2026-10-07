@@ -742,11 +742,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # read she can do from a cache in a hundredth of a second, which is
     # what this lane is for — and it means the most ordinary question
     # anybody asks never touches a model.
+    # "DO I NEED AN UMBRELLA" (2026-10-07: to the planner): yes or no
+    # first, then the forecast it stands on. Before "weather", which would
+    # answer "will it rain tomorrow" with a forecast and no yes.
+    ("rain", re.compile(
+        r"^(?:do i|will i|should i) (?:need|take|bring) (?:an |my )?(?:umbrella|raincoat|rain jacket)"
+        r"(?: (?P<weather>today|tonight|tomorrow|this weekend|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
+        r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("weather", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?weather(?: like| looking like| doing| going to be like)?(?: out(?:side)?)?"
         r"|how(?:'s| is) the weather(?: looking)?(?: out(?:side)?)?|what(?:'s| is|s)? it like out(?:side)?"
         r"|how(?:'s| is) it (?:looking )?out(?:side)?|is it (?:nice|cold|hot|warm) out(?:side)?)"
-        r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
+        r"(?: (?:for |on )?(?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening|weekend)|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
@@ -937,6 +945,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many times (?:have|did) i (?:have|had) to (?:step in|fix (?:you|things|something)|"
         r"restart (?:you|u)|repeat myself)(?: lately)?$")),
     # THE GROUNDED STATUS FAMILY, last so an exact pattern above wins.
+    # CHANCE, SPELLING AND THE KITCHEN (2026-10-07, all to the planner,
+    # and with nothing thinking "I could not plan that"). A coin, a die and
+    # a number need randomness, not a model; spelling a word he said is its
+    # letters; cups and spoons are a table.
+    ("coin", re.compile(r"^(?:flip|toss) a coin$|^heads or tails$|^coin (?:flip|toss)$")),
+    ("dice", re.compile(r"^roll (?:a |the )?(?P<what>\d+|two|three|four|five|six)? ?(?:dice|die|d6)$")),
+    ("pick_number", re.compile(r"^(?:pick|choose|give me|think of) a (?:random )?number"
+                               r"(?: (?:between|from) (?P<what>\d+ (?:and|to) \d+))?$")),
+    ("spell", re.compile(r"^(?:how (?:do you|do i|to) )?spell (?:the word )?(?P<what>[a-z'-]{2,30})$")),
+    ("volume", re.compile(r"^(?P<what>(?:how many (?:fluid ounces?|fl oz|teaspoons?|tsp|tablespoons?|tbsp|ounces?|oz|cups?"
+                          r"|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) (?:are )?(?:in|make|is|to) "
+                          r"|(?:convert|what(?:'s| is|s)?) (?:[\d.]+|half a|a half) (?:fluid ounces?|fl oz|teaspoons?|tsp"
+                          r"|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) "
+                          r"(?:to|in|into) ).{1,30})$")),
     # Found live 2026-09-14 from his phone: "give me a status update on how
     # applying to jobs is going" went to the PLANNER, and with Claude and
     # ChatGPT out came back "I could not plan that: ReasonerUnavailable".
@@ -3148,6 +3170,105 @@ def _weather(when: str = "") -> str | None:
         return str(exc) if isinstance(exc, WeatherUnavailable) and str(exc) else None
 
 
+def _rain(when: str = "") -> str | None:
+    """Will it rain: yes or no, from the same forecast as `_weather`."""
+    try:
+        from aletheia import weather
+        return weather.rain(when)
+    except Exception:
+        return None
+
+
+def _coin() -> str:
+    import secrets
+    return secrets.choice(("Heads.", "Tails."))
+
+
+_SMALL_NUMBERS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+
+
+def _dice(how_many: str = "") -> str | None:
+    import secrets
+    n = int(how_many) if str(how_many).isdigit() else _SMALL_NUMBERS.get(str(how_many), 1)
+    if not 1 <= n <= 10:
+        return None
+    rolls = [secrets.randbelow(6) + 1 for _ in range(n)]
+    if n == 1:
+        return f"{rolls[0]}."
+    from aletheia import speech
+    return f"{speech.and_list([str(r) for r in rolls])} - {sum(rolls)} in all."
+
+
+def _pick_number(span: str = "") -> str | None:
+    import secrets
+    low, high = 1, 10
+    if span:
+        a, b = (int(x) for x in re.findall(r"\d+", span)[:2])
+        low, high = min(a, b), max(a, b)
+    if high - low > 10**9:
+        return None
+    return f"{low + secrets.randbelow(high - low + 1)}."
+
+
+def _spell(word: str) -> str | None:
+    word = str(word or "").strip("'-")
+    if not word:
+        return None
+    return f"{word.capitalize()}: " + ", ".join(ch.upper() for ch in word if ch.isalpha()) + "."
+
+
+# Kitchen and liquid volumes, in US teaspoons. A US cup is 48 teaspoons and a
+# fluid ounce is 6; a millilitre is 1/4.92892 of a teaspoon.
+_VOLUMES = {"teaspoon": 1.0, "tsp": 1.0, "tablespoon": 3.0, "tbsp": 3.0, "ounce": 6.0, "fluid ounce": 6.0,
+            "fl oz": 6.0, "oz": 6.0, "cup": 48.0, "pint": 96.0, "quart": 192.0, "gallon": 768.0,
+            "milliliter": 1 / 4.92892, "millilitre": 1 / 4.92892, "ml": 1 / 4.92892,
+            "liter": 1000 / 4.92892, "litre": 1000 / 4.92892, "l": 1000 / 4.92892}
+_VOLUME_WORD = (r"(fluid ounces?|fl oz|teaspoons?|tsp|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?"
+                r"|millilit(?:er|re)s?|ml|lit(?:er|re)s?|l)")
+
+
+def _volume_unit(word: str) -> str | None:
+    word = word.strip()
+    if word in _VOLUMES:
+        return word
+    if word.endswith("s") and word[:-1] in _VOLUMES:
+        return word[:-1]
+    return None
+
+
+def _volume(sentence: str) -> str | None:
+    """"How many ounces in a cup", "convert 2 cups to ml". None for any
+    other "how many" so the rest of the lane and the planner still see it."""
+    weight = re.fullmatch(r"how many (?:ounces?|oz) (?:are )?(?:in|is|make) (?:a |an |one |(?P<n>[\d.]+) )?(?:pounds?|lbs?)",
+                          sentence)
+    if weight:
+        # An ounce of weight, not of water: 16 to the pound.
+        pounds = float(weight.group("n") or 1)
+        return f"{pounds * 16:g} ounces."
+    m = (re.fullmatch(r"how many " + _VOLUME_WORD + r" (?:are )?(?:in|make|is|to) (?:a |an |one |(?P<n>[\d.]+|half a|a half) )?"
+                      + _VOLUME_WORD, sentence)
+         or re.fullmatch(r"(?:convert |what(?:'s| is|s)? )(?P<n>[\d.]+|half a|a half) " + _VOLUME_WORD
+                         + r" (?:to|in|into) " + _VOLUME_WORD, sentence))
+    if not m:
+        return None
+    groups = [g for g in m.groups() if g is not None]
+    if sentence.startswith("how many"):
+        dst, src = _volume_unit(m.group(1)), _volume_unit(m.group(3))
+    else:
+        src, dst = _volume_unit(m.group(2)), _volume_unit(m.group(3))
+    if not src or not dst or src == dst:
+        return None
+    said_n = m.group("n")
+    n = 0.5 if said_n in ("half a", "a half") else float(said_n) if said_n else 1.0
+    value = n * _VOLUMES[src] / _VOLUMES[dst]
+    shown = round(value, 2) if value < 10 else round(value, 1)
+    lead = "About " if abs(shown - value) > 1e-6 else ""
+    number = f"{shown:g}"
+    full = {"tsp": "teaspoon", "tbsp": "tablespoon", "oz": "ounce", "fl oz": "fluid ounce", "ml": "milliliter",
+            "l": "liter", "millilitre": "milliliter", "litre": "liter"}.get(dst, dst)
+    return f"{lead}{number} {full if shown == 1 else full + 's'}."
+
+
 def _greeting() -> str | None:
     """Greeted back, plus the one thing he would have asked next.
 
@@ -3771,6 +3892,12 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "rain": lambda rest: _rain(rest),
+           "coin": lambda rest: _coin(),
+           "dice": lambda rest: _dice(rest),
+           "pick_number": lambda rest: _pick_number(rest),
+           "spell": lambda rest: _spell(rest),
+           "volume": lambda rest: _volume(rest),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
