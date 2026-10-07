@@ -48,6 +48,8 @@ the call through the gateway.
 | `script.write_program` | standard | authors sandboxed programs; the script sandbox is frozen for this wave |
 | `web_search_jobs._claude_search`, `_claude_ready`, `_codex_search` | critical | web search is a tool of the Claude/Codex CLIs; her own model cannot search |
 | `eyes._ask_claude_about` | critical | reads a screenshot through the Claude CLI; no gateway vision route yet (gap: qwen3-vl) |
+| `shorts_mailbox._claude_look`, `_codex_look` | critical | grade a Shorts render's frames: the Claude CLI with the Read tool, then Codex with the frames attached (`codex_json(images=)`); no gateway vision route, so with neither the review waits for the next round |
+| `shorts_mailbox._rewrites`, `_asks` | standard | the job-hunt chain `work_json_with_provider` (Claude -> Codex -> her own model), because the answer's `by: aletheia:<route>` names who answered; every rewrite is pre-checked here and re-validated by Shorts' own gate |
 | `setup._claude_cli` | critical | a setup probe OF the Claude CLI itself, not reasoning |
 | `current_state.thinking` | critical | is each frontier CLI even installed, for the brains line; a presence check, no prompt |
 | `planner.compile` (`infer_or_fallback`) | standard | already the gateway: the frontier rung is `reasoning_gateway.frontier_json` with the whole grammar, and the local rung is `local_planner` through `reasoning_gateway.local_json` with a compact prompt (the 28.7 KB one timed out at 300 s) |

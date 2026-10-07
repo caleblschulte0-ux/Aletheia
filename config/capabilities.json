@@ -1,5 +1,5 @@
 {
-  "revision": 117,
+  "revision": 118,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1925,6 +1925,18 @@
       "module": "aletheia.careers",
       "verification": "tests/test_the_net_is_wider_than_big_tech.py: a page about working somewhere is not a page to apply on, 'no current openings' is an answer rather than a failure, an unreadable page is neither, a relative link becomes a real address, an ATS link is handed back to jobs.job_from_url rather than reimplemented, a mailto is dropped rather than faked into something the form path can use, an aggregator's page about the company is not the company's page, and an AST walk holds that it reads and never presses",
       "notes": "Built 2026-09-13 from his words: 'there are companies all over the country that only have [jobs] on their website. Like, I've never heard of that I probably would like to work at.' jobs.ATS reaches six applicant-tracking systems - thousands of employers, but every one of them an employer who bought an ATS. UNPROVEN against a real careers page: company sites are far more varied than any ATS and the first real sweep is where that shows. Asked LAST and bounded by CAREERS_PAGES_PER_RUN, because a board is one API call for all its jobs and a careers page is a page read per company. Applying by email is NOT built: a mailto row is dropped rather than passed to a stager that cannot use it."
+    },
+    {
+      "id": "shorts.mailbox.answer",
+      "description": "Answer the Shorts pipeline's three mailboxes from your PC - grade a held render from its frames, rewrite a held story's words, answer a text ask - writing only the answer files the pipeline already accepts from me",
+      "provider": "github.api",
+      "status": "EXPERIMENTAL",
+      "risk_class": "low",
+      "approval_policy": "registry_grant",
+      "caller": "aletheia.runtime tick (guarded 'shorts_mailbox') launches python -m aletheia.shorts_mailbox once in each of his morning slots; python -m aletheia.shorts_mailbox once --force by hand",
+      "module": "aletheia.shorts_mailbox",
+      "verification": "tests/test_shorts_mailbox_answers_only_what_he_granted.py: a path outside the grant or not an answer file is refused with zero API calls, the fleet validator refuses any other answers prefix and a grant without his words, grades are refused for a float, a bool or a missing check, a rewrite is refused over the request's own caps or with a number its data cannot show, three rounds a morning on his clock and none outside it, the beat only launches, main drops the ChatGPT lease first, the Contents API PUT carries the sha on update and never [skip ci], and a whole round against stubbed reads, API and models writes a valid verdict and rewrite answer",
+      "notes": "Granted 2026-10-07 by his words in config/fleet.json front_door.answers_ruling: 'Alethea may write files into a shorts review, rewrite, and ask mailbox. ... That's certified by me. Every 30 minutes is unnecessary. We only post in the morning, so maybe it needs to run two, three times in the morning, and that's it'. Shorts' gates still decide everything: grades go through its own assemble_verdict + showrunner_gate.decide, rewrites through its own validate. UNVERIFIED: no live answer has round-tripped through Shorts' claim step yet; the Codex vision route depends on `codex exec --image`, which has not been run on his PC; the detached launch on Windows has not been watched live. No local vision model: when neither Claude nor Codex can look, a review waits for the next round."
     }
   ]
 }

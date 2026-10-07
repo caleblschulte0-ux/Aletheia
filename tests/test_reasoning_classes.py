@@ -83,6 +83,18 @@ ALLOWED = {
         ("critical", "web search through the Codex CLI"),
     ("eyes", "_ask_claude_about", "cli_path"):
         ("critical", "reads a screenshot through the Claude CLI; no gateway vision route yet"),
+    ("shorts_mailbox", "_claude_look", "cli_path"):
+        ("critical", "grades a Shorts render's frames through the Claude CLI (Read tool only); "
+                     "no gateway vision route, and a grade is the showrunner's own"),
+    ("shorts_mailbox", "_codex_look", "codex_json"):
+        ("critical", "the same frames attached to Codex; the second and last vision rung"),
+    # -- the Shorts mailbox writes words through the job-hunt chain: its answer
+    #    carries `by: aletheia:<route>`, which needs the provider that answered
+    ("shorts_mailbox", "_rewrites", "work_json_with_provider"):
+        ("standard", "story rewrites; Claude -> Codex -> her own model, pre-checked here and "
+                     "re-validated by Shorts' own gate"),
+    ("shorts_mailbox", "_asks", "work_json_with_provider"):
+        ("standard", "the pipeline's text asks; the answer is parsed by its caller exactly as a model's"),
     # -- probes of a specific worker, not reasoning
     ("setup", "_claude_cli", "cli_path"):
         ("critical", "setup audit: is the Claude CLI itself signed in and answering"),
