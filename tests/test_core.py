@@ -65,6 +65,16 @@ class CoreCase(unittest.TestCase):
         ids = [t["id"] for t in self._get("/api/tasks")]
         self.assertIn("from-core", ids)
 
+    def test_two_asks_in_one_breath_are_both_done(self):
+        # 2026-10-07: one sentence, two asks, and the planner got it whole.
+        res = self._post({"transcript": "add a task to water the ferns and add a task to feed the fish"},
+                         path="/api/voice")
+        self.assertIn("water the ferns", res["say"])
+        self.assertIn("feed the fish", res["say"])
+        described = [str(t.get("description") or "") for t in self._get("/api/tasks")]
+        self.assertIn("water the ferns", described)
+        self.assertIn("feed the fish", described)
+
     def test_unknown_kind_is_invalid_not_crash(self):
         res = self._post({"kind": "shell", "cmd": "rm -rf"})
         self.assertEqual(res["outcome"], "invalid")

@@ -2075,6 +2075,65 @@ def interpret(transcript: str) -> dict:
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
 
 
+#: A second half that is plainly its own ask of hers.
+_AN_ASK_OF_HERS = re.compile(
+    r"(?:remind me|set (?:a|an|the|my) |start (?:a|an|the) |add (?:a task|a reminder|.{1,40} to (?:my|the) )"
+    r"|put .{1,40} on (?:my|the) |text |message |email |turn (?:on|off|up|down) |play |pause\b|cancel |wake me"
+    r"|note (?:that|:)|make a note|what(?:'s| is| are)? |when(?:'s| is)? |how (?:much|many|long) )")
+
+
+def two_asks(transcript: str) -> list[str] | None:
+    """"Add milk to the list and remind me at 5 to go shopping" is two asks.
+
+    Said as one sentence (2026-10-07) it went to the planner whole. Split at
+    an "and" only when the whole is NOT something she reads already and BOTH
+    halves are, each on its own - a question she answers from her stores or
+    a command with its own verb. Each half then goes through the same door a
+    sentence of its own would, gates and all, so a split can never reach
+    anything one of the halves could not. The first split that works wins;
+    none is a guess. Never raises.
+    """
+    said = strip_wake_word(str(transcript or "")).strip()
+    if not said or len(said.split()) > 40:
+        return None
+
+    def handled(half: str) -> bool:
+        if len(half.split()) < 2:
+            return False
+        out = interpret(half) or {}
+        if out.get("say"):
+            return True
+        kind = (out.get("command") or {}).get("kind")
+        if kind and kind != "intent":
+            return True
+        if kind == "intent":
+            try:
+                from aletheia import quick
+                return bool(quick.answer(half))
+            except Exception:  # noqa: BLE001
+                return False
+        return False
+
+    try:
+        whole = interpret(said) or {}
+        # Read whole already - but a greedy capture can swallow a second ask:
+        # "add a task to water the plants and set a timer for 10 minutes"
+        # was ONE task (2026-10-07). Then only a second half that is plainly
+        # an ask of hers, with a verb of its own, is split off; "remind me to
+        # text mom and call dad" stays one reminder.
+        greedy = bool(whole.get("say")) or (whole.get("command") or {}).get("kind") not in (None, "intent")
+        for m in re.finditer(r",? (?:and then|and also|and|then also|then|also|plus) ", said, re.IGNORECASE):
+            left, right = said[:m.start()].strip(" ,"), said[m.end():].strip(" ,")
+            if greedy and not (_AN_ASK_OF_HERS.match(right.casefold())
+                               and ((interpret(right) or {}).get("command") or {}).get("kind") not in (None, "intent")):
+                continue
+            if handled(left) and handled(right):
+                return [left, right]
+    except Exception:  # noqa: BLE001 - one sentence, as he said it
+        return None
+    return None
+
+
 # What "can you ..." is asking her to DO, when the rest is a concrete ask.
 # A question about ability ("can you text people", "can you buy things")
 # compiles to nothing here and is still answered as one.

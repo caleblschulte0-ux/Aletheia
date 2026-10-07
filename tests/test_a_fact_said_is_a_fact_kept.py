@@ -2426,5 +2426,28 @@ class NextFridayIsBothFridays(unittest.TestCase):
         self.assertNotIn("week after", quick._date_of("this friday"))
 
 
+
+class TwoAsksInOneBreath(unittest.TestCase):
+    """2026-10-07: "add milk to the list and remind me at 5 to go shopping"
+    went to the planner whole, and "add a task to water the plants and set
+    a timer for 10 minutes" became one task."""
+
+    def test_split(self):
+        for said, halves in (
+                ("add milk and eggs to the list and remind me at 5 to go shopping",
+                 ["add milk and eggs to the list", "remind me at 5 to go shopping"]),
+                ("add a task to water the plants and set a timer for 10 minutes",
+                 ["add a task to water the plants", "set a timer for 10 minutes"])):
+            with self.subTest(said=said):
+                self.assertEqual(voice.two_asks(said), halves)
+
+    def test_one_ask_with_an_and_in_it(self):
+        for said in ("remind me to text mom and call dad", "remind me at 5 to buy milk and eggs",
+                     "add milk and eggs to the list", "note that Dana called and wants the report",
+                     "order a pizza and set a timer for 20 minutes"):
+            with self.subTest(said=said):
+                self.assertIsNone(voice.two_asks(said))
+
+
 if __name__ == "__main__":
     unittest.main()

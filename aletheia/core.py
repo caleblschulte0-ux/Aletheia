@@ -1205,69 +1205,100 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"outcome": "invalid",
                                    "detail": "transcript must be a non-empty string"},
                                   code=400)
-            intent = voice.interpret(transcript)
-            if intent["command"] is None:
-                _remember_out_loud(transcript, intent["say"])
-                return self._json({"outcome": "answered", "say": intent["say"]})
-            cmd = dict(intent["command"])
-            kind = cmd.get("kind")
-            quote = f"spoken to the wall: {transcript[:200]}"
-            fast = answered_now(cmd)
-            if fast:
-                try:
-                    journal.append("event", "quick", f"answered from her own "
-                                   f"stores: {transcript[:120]}",
-                                   actor="aletheia-core")
-                except Exception:
-                    pass
-                _remember_out_loud(transcript, fast)
-                return self._json({"outcome": "answered", "say": fast})
-            if kind in SLOW_KINDS:
-                # Reasoning takes ten to thirty seconds; a person in a room
-                # waits about two. Answer now, think in the background, and
-                # let the listener collect the real sentence when it exists.
-                fleet = self.fleet
-                def think_it_through() -> str:
-                    detail = run_command(
-                        {**cmd, "operator_quote": quote}, fleet)["detail"]
-                    # THE SLOW TURNS COUNT TOO. Recording only the ones
-                    # answered inline left the same hole one layer down:
-                    # "remind me at 8 tomorrow" was answered through this
-                    # path, and "make that 9 instead" a breath later found
-                    # "no visible prior request".
-                    _remember_out_loud(transcript, detail)
-                    return detail
 
-                try:
-                    slot = followups.start(
-                        think_it_through,
-                        acknowledgement=speech.ack_line(
-                            cmd.get("text") or transcript), durable=True)
-                except Exception as exc:
+            def _reply(obj, code: int = 200):
+                return obj, code
+
+            def one_turn(transcript):
+                intent = voice.interpret(transcript)
+                if intent["command"] is None:
+                    _remember_out_loud(transcript, intent["say"])
+                    return _reply({"outcome": "answered", "say": intent["say"]})
+                cmd = dict(intent["command"])
+                kind = cmd.get("kind")
+                quote = f"spoken to the wall: {transcript[:200]}"
+                fast = answered_now(cmd)
+                if fast:
                     try:
-                        journal.append(
-                            "alert", "followup",
-                            f"could not record voice ask ({type(exc).__name__})",
-                            actor="aletheia-core")
+                        journal.append("event", "quick", f"answered from her own "
+                                       f"stores: {transcript[:120]}",
+                                       actor="aletheia-core")
                     except Exception:
                         pass
-                    return self._json(
-                        {"outcome": "unavailable",
-                         "say": "I could not safely record that request. Please ask again."},
-                        code=503)
-                return self._json({"outcome": "thinking", "say": slot["say"],
-                                   "followup_id": slot["id"]})
-            result = run_command({**cmd, "operator_quote": quote}, self.fleet)
-            if kind in ("approve", "resume"):
-                # Saying yes out loud acts now too — and the room waits a
-                # moment for it, so the next question tells the truth.
-                kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
-            # a fallback intent carries its own words (e.g. "no command for
-            # that, journaled") — those beat the generic receipt phrasing
-            say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
-                                                      result["detail"])
-            _remember_out_loud(transcript, say)
-            return self._json({**result, "say": say})
+                    _remember_out_loud(transcript, fast)
+                    return _reply({"outcome": "answered", "say": fast})
+                if kind in SLOW_KINDS:
+                    # Reasoning takes ten to thirty seconds; a person in a room
+                    # waits about two. Answer now, think in the background, and
+                    # let the listener collect the real sentence when it exists.
+                    fleet = self.fleet
+                    def think_it_through() -> str:
+                        detail = run_command(
+                            {**cmd, "operator_quote": quote}, fleet)["detail"]
+                        # THE SLOW TURNS COUNT TOO. Recording only the ones
+                        # answered inline left the same hole one layer down:
+                        # "remind me at 8 tomorrow" was answered through this
+                        # path, and "make that 9 instead" a breath later found
+                        # "no visible prior request".
+                        _remember_out_loud(transcript, detail)
+                        return detail
+
+                    try:
+                        slot = followups.start(
+                            think_it_through,
+                            acknowledgement=speech.ack_line(
+                                cmd.get("text") or transcript), durable=True)
+                    except Exception as exc:
+                        try:
+                            journal.append(
+                                "alert", "followup",
+                                f"could not record voice ask ({type(exc).__name__})",
+                                actor="aletheia-core")
+                        except Exception:
+                            pass
+                        return _reply(
+                            {"outcome": "unavailable",
+                             "say": "I could not safely record that request. Please ask again."},
+                            code=503)
+                    return _reply({"outcome": "thinking", "say": slot["say"],
+                                       "followup_id": slot["id"]})
+                result = run_command({**cmd, "operator_quote": quote}, self.fleet)
+                if kind in ("approve", "resume"):
+                    # Saying yes out loud acts now too — and the room waits a
+                    # moment for it, so the next question tells the truth.
+                    kick_approved_work(self.fleet, wait_s=KICK_WAIT_S)
+                # a fallback intent carries its own words (e.g. "no command for
+                # that, journaled") — those beat the generic receipt phrasing
+                say = intent["say"] or voice.spoken_reply(kind, result["outcome"],
+                                                          result["detail"])
+                _remember_out_loud(transcript, say)
+                return _reply({**result, "say": say})
+
+            # TWO ASKS IN ONE BREATH (2026-10-07): "add milk to the list and
+            # remind me at 5 to go shopping" went to the planner whole. Each
+            # half goes through this same door on its own, gates and all,
+            # and only when neither half needs the slow path.
+            halves = None
+            try:
+                from aletheia import intents as _intents
+                if not _intents._asks_to_spend(transcript):
+                    halves = voice.two_asks(transcript)
+                for half in halves or ():
+                    cmd = (voice.interpret(half) or {}).get("command") or {}
+                    if cmd.get("kind") in SLOW_KINDS and not answered_now(cmd):
+                        halves = None
+                        break
+            except Exception:
+                halves = None
+            if halves:
+                said, last = [], {}
+                for half in halves:
+                    last, _code = one_turn(half)
+                    if last.get("say"):
+                        said.append(str(last["say"]).strip())
+                return self._json({**last, "say": " ".join(said)})
+            got, code = one_turn(transcript)
+            return self._json(got, code=code)
 
         unknown = set(payload) - {"steps", "approval_id"}
         if unknown:
