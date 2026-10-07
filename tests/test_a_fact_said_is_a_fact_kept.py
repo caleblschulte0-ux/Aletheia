@@ -3884,7 +3884,7 @@ class TheDayAndTheMapSaidPlainly(unittest.TestCase):
     def test_ranking_his_list_is_the_focus_answer(self):
         from aletheia import quick
         for said in ("prioritize my tasks", "i have 30 minutes free what should i do",
-                     "i've got an hour, what should i work on", "what's my most important task"):
+                     "i've got an hour, what should i work on"):
             self.assertEqual(quick.match(said)[0], "focus", said)
 
     def test_a_city_is_a_name(self):

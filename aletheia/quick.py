@@ -249,12 +249,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
         r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$"
-        # "Prioritize my tasks", "I have 30 minutes free what should I do",
-        # "what's my most important task" (2026-10-07: to the planner).
+        # "Prioritize my tasks", "I have 30 minutes free what should I do"
+        # (2026-10-07: to the planner).
         r"|^(?:prioriti[sz]e|rank|order|sort) my (?:tasks|to ?dos?|to-dos?|list|to do list|day)(?: for me)?$"
         r"|^i(?:'ve| have)? (?:got )?(?:\d{1,3}|half an|an|a few) (?:minutes?|mins?|hours?)(?: free| to kill| spare)?,?"
-        r" what should i (?:do|work on|tackle)$"
-        r"|^what(?:'s| is) my (?:most important|top|biggest|first) (?:task|thing|priority|to ?do)(?: today| right now)?$")),
+        r" what should i (?:do|work on|tackle)$")),
     # "How many interviews do I have" / "did I get any rejections" (2026-09-23):
     # outcomes are on the application records.
     ("outcomes", re.compile(
