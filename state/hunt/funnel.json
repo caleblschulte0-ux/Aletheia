@@ -213,16 +213,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 35,
-      "found": 49,
+      "filled": 37,
+      "found": 52,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 19
+      "sent": 21
     }
   },
-  "generated_at": "2026-10-07T19:28:35Z",
-  "sent_all_time": 253,
+  "generated_at": "2026-10-07T19:43:30Z",
+  "sent_all_time": 255,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -267,12 +267,12 @@
     }
   },
   "totals": {
-    "filled": 365,
-    "found": 663,
+    "filled": 367,
+    "found": 666,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 253
+    "sent": 255
   },
   "waiting": {
     "asked_about": {
@@ -295,7 +295,7 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
-      "not_a_form": 45,
+      "not_a_form": 46,
       "not_realistic": 75
     },
     "failed": 59,
