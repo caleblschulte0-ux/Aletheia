@@ -684,6 +684,11 @@ def _just_added_to_the_list() -> bool:
     return False
 
 
+#: People named by who they are to him, not by name.
+_RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "sister", "brother", "grandma",
+              "grandpa", "son", "daughter", "boss", "girlfriend", "boyfriend", "partner", "roommate"}
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -2610,6 +2615,28 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "message_send", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
+    # "TEXT MOM HAPPY BIRTHDAY" - no "that" between them, so the name ran
+    # into the message: "I don't have a phone number for mom happy"
+    # (2026-10-07). The longest leading words that name a contact he has,
+    # or a one-word relation, are the person; the rest is the message.
+    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<rest>.+)", low)
+    if m:
+        words = m.group("rest").split()
+        try:
+            from aletheia import contacts as _contacts
+            people = _contacts.all_contacts()
+        except Exception:
+            people = []
+        for n in range(min(3, len(words) - 1), 0, -1):
+            who = " ".join(words[:n])
+            try:
+                _contacts.resolve(who, people)
+                known = True
+            except Exception:
+                known = n == 1 and who in _RELATIONS
+            if known:
+                return {"command": {"kind": "message_send", "to": who,
+                                    "body": _as_he_said(text, " ".join(words[n:]))}, "say": None}
 
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two

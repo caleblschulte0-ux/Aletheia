@@ -675,7 +675,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:my )?next (?:meeting|appointment)$"
         r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
     ("version", re.compile(
-        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
+        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$|^what version are (?:you|u)$"
+        r"|^which version (?:are (?:you|u)|is this)(?: on| running)?$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
         r"|^which (?:branch|commit) are (?:you|u) on$"
         r"|^are (?:you|u) (?:up to date|current|stale)$"
