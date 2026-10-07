@@ -1432,7 +1432,7 @@ def _list_just_read(turns: int = 5):
     except Exception:  # noqa: BLE001
         return None
     for turn in reversed(recent):
-        m = re.match(r"(?P<n>\d+) things? on your (?P<name>[\w' -]+?) list: (?P<items>.+)\.$",
+        m = re.match(r"(?P<n>\d+) things? on your (?:(?P<name>[\w' -]+?) )?list: (?P<items>.+)\.$",
                      " ".join(str(turn.get("she_answered") or "").split()))
         if m:
             return m
@@ -3167,7 +3167,7 @@ def _interpret(transcript: str) -> dict:
         m = re.fullmatch(r"(?:take|cross|tick|check|knock) (?P<w>(?:the )?\w+(?: one)?) off(?: (?:it|the list|that list))?"
                          r"|(?:remove|delete|drop|scratch) (?P<w2>(?:the )?\w+(?: one)?)(?: from (?:it|the list|that list))?", low)
         where = speech.ordinal_index(m.group("w") or m.group("w2")) if m else None
-        if where is not None and -len(items) <= where < len(items):
+        if where is not None and name and -len(items) <= where < len(items):
             item = items[where]
             if name in ("shopping", "grocery"):
                 return {"command": {"kind": "shopping_off", "item": item}, "say": None}

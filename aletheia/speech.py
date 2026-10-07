@@ -801,8 +801,20 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "task_status":
         moved = re.search(r"task ([a-z0-9-]+) -> ([A-Z_]+)", text)
         if moved:
-            return (f"{deslug(moved.group(1)).capitalize()} is now "
-                    f"{moved.group(2).replace('_', ' ').lower()}.")
+            # The task in his words, not its id: "Email sam is now
+            # cancelled" lost his capital and read like a log (2026-10-07).
+            try:
+                from aletheia import tasks
+                what = str(tasks.load(moved.group(1)).get("description") or "").strip()
+            except Exception:
+                what = ""
+            state = moved.group(2)
+            if what and state == "CANCELLED":
+                return f"Took it off your list: {what}."
+            if what and state == "DONE":
+                return f"Done: {what}."
+            return (f"{(what or deslug(moved.group(1)))[:1].upper()}{(what or deslug(moved.group(1)))[1:]} is now "
+                    f"{state.replace('_', ' ').lower()}.")
     if kind == "email_draft":
         who = re.search(r"draft to ([^—]+?) ready", text)
         subject = re.search(r"'(.+?)'", text)

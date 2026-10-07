@@ -2734,5 +2734,23 @@ class TheListSheJustRead(unittest.TestCase):
         self.assertEqual(intercom.shopping_items_of("salt and vinegar chips"), ["salt and vinegar chips"])
 
 
+
+class ATaskClosedInHisWords(unittest.TestCase):
+    """2026-10-07: "delete the last one" said "Email sam is now cancelled"."""
+
+    def test_his_words(self):
+        from aletheia import speech, tasks
+        with mock.patch.object(tasks, "load", return_value={"description": "email Sam"}):
+            self.assertEqual(speech.spoken_receipt("task_status", "task email-sam -> CANCELLED"),
+                             "Took it off your list: email Sam.")
+
+    def test_how_many_after_his_task_list(self):
+        import re
+        read = re.match(r"(?P<n>\d+) things? on your (?:(?P<name>[\w' -]+?) )?list: (?P<items>.+)\.$",
+                        "2 things on your list: call the plumber and email Sam.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("how many is that")["say"], "2.")
+
+
 if __name__ == "__main__":
     unittest.main()
