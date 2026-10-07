@@ -1142,7 +1142,11 @@ def _a_plain_list(text: str) -> bool:
 _TASK_VERB = re.compile(
     r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
     r"return|pick up|drop off|clean|wash|mow|file|submit|apply|follow up|chase|ask|tell|remind|order|"
-    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|sort|organize|organise|vacuum|take out|bring|replace|feed|prepare|study|research|cook|buy|clear out|tidy)\b")
+    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|sort|organize|organise|vacuum|take out|bring|replace|feed|prepare|study|research|cook|buy|clear out|tidy|"
+    # "Add write the report to my list" went on the SHOPPING list (2026-10-07).
+    r"write|draft|plan|go to|practi[cs]e|prep|start|learn|figure out|find|reply to|respond to|answer|confirm|"
+    r"register|sign up|fill out|complete|repair|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
+    r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) )\b")
 
 
 def _birthday_reminder(m) -> dict:

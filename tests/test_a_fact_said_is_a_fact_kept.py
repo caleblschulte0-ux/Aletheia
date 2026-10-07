@@ -2951,5 +2951,14 @@ class AFactChanged(unittest.TestCase):
         self.assertNotEqual((got.get("command") or {}).get("kind"), "remember")
 
 
+class AThingToDoOnMyList(unittest.TestCase):
+    def test_write_the_report_is_a_task_and_paint_is_shopping(self):
+        kind = lambda said: (voice._interpret(said).get("command") or {}).get("kind")
+        self.assertEqual(kind("add write the report to my list"), "task_new")
+        self.assertEqual(kind("add do the taxes to my list"), "task_new")
+        self.assertEqual(kind("add paint to my list"), "shopping_add")
+        self.assertEqual(kind("add paper towels to my list"), "shopping_add")
+
+
 if __name__ == "__main__":
     unittest.main()
