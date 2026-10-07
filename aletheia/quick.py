@@ -3701,10 +3701,6 @@ def _ledger() -> dict:
     return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
 
 
-def _money(amount: float) -> str:
-    return f"${amount:,.0f}" if float(amount).is_integer() else f"${amount:,.2f}"
-
-
 def _owed(who: str = "") -> str:
     """What he owes and is owed, from what he told her; never a guess."""
     from aletheia import speech
