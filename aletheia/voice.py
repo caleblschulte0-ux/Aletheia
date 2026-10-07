@@ -6037,6 +6037,16 @@ def _interpret(transcript: str) -> dict:
             # keeps, so a note would read back "[redacted]". Said, not faked.
             return {"command": None, "say": _NO_PASSWORDS}
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "MY CAR IS A 2015 HONDA CIVIC" (2026-10-07: to the planner) - what he
+    # drives or carries, kept only when it names a make or a year, so "my
+    # car is a mess" and "my phone is dying" stay how he feels.
+    m = re.fullmatch(r"(?:my |our )(?P<key>car|truck|vehicle|van|suv|motorcycle|bike|phone|laptop|computer|tablet|watch)"
+                     r" is (?:an? )?(?P<value>.{2,60})", fact_low)
+    if m and re.search(r"\b(?:19|20)\d\d\b|\b(?:toyota|honda|ford|chevy|chevrolet|nissan|subaru|tesla|bmw|audi|kia|hyundai"
+                       r"|jeep|dodge|ram|gmc|mazda|volkswagen|vw|lexus|volvo|mercedes|acura|buick|cadillac|infiniti|mitsubishi"
+                       r"|harley|yamaha|trek|iphone|pixel|galaxy|samsung|apple|macbook|dell|lenovo|thinkpad|surface|ipad"
+                       r"|garmin|fitbit)\b", m.group("value")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "Delete my last note" (2026-10-07: to the planner). The newest note,
     # by its own words, through the same `forget` the rest of her memory
     # uses - the journal keeps it and a tombstone hides it.

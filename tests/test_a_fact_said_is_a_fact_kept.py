@@ -1163,5 +1163,13 @@ class TheNameBeforeTheMessage(unittest.TestCase):
         self.assertEqual(voice.interpret("shoot jess a text saying running late")["command"]["to"], "jess")
 
 
+class WhatHeDrives(unittest.TestCase):
+    def test_a_make_or_a_year_is_a_fact_and_a_feeling_is_not(self):
+        self.assertEqual(voice.interpret("my car is a 2015 Honda Civic")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("my phone is an iphone 15")["command"]["kind"], "note")
+        for said in ("my car is a mess", "my phone is dying"):
+            self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "note", said)
+
+
 if __name__ == "__main__":
     unittest.main()
