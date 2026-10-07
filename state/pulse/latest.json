@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-07T06:07:46Z",
+  "generated_at": "2026-10-07T13:33:01Z",
   "fleet_revision": 5,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "67bde5f1f9d7",
-          "date": "2026-10-07T05:58:06Z",
+          "sha": "00a01f612606",
+          "date": "2026-10-07T13:28:14Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "b4da5f18fff3",
-          "date": "2026-10-07T05:27:58Z",
+          "sha": "ca138209646b",
+          "date": "2026-10-07T12:27:54Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "aa688bcb9ed3",
-          "date": "2026-10-07T03:56:55Z",
-          "message": "core: state checkpoint"
+          "sha": "41745bc8c747",
+          "date": "2026-10-07T12:26:13Z",
+          "message": "Merge pull request #268 from caleblschulte0-ux/claude/board-text"
         },
         {
-          "sha": "ff41f59443c3",
-          "date": "2026-10-07T01:53:46Z",
-          "message": "core: state checkpoint"
+          "sha": "5e4e6f29c199",
+          "date": "2026-10-07T12:25:19Z",
+          "message": "Merge pull request #260 from caleblschulte0-ux/claude/posting-dates"
         },
         {
-          "sha": "f726811befd1",
-          "date": "2026-10-07T01:23:28Z",
-          "message": "core: state checkpoint"
+          "sha": "cdfc314d4a30",
+          "date": "2026-10-07T12:25:16Z",
+          "message": "Merge pull request #258 from caleblschulte0-ux/claude/one-company-few-roles"
         }
       ],
       "commit": {
-        "sha": "67bde5f1f9d7",
-        "date": "2026-10-07T05:58:06Z",
+        "sha": "00a01f612606",
+        "date": "2026-10-07T13:28:14Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,20 +46,20 @@
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-07T06:07:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37579835546"
+          "updated_at": "2026-10-07T13:32:58Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37629362705"
         },
         "ci.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-07T06:04:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37579505017"
+          "updated_at": "2026-10-07T13:30:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37629089480"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20819
+          "bytes": 31591
         }
       },
       "health": "unknown"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "3c935da9ead4",
-          "date": "2026-10-07T05:49:19Z",
-          "message": "claim: mailbox verdicts 2026-10-07T05:49Z [skip ci]"
+          "sha": "fec0a4a0fc71",
+          "date": "2026-10-07T13:31:46Z",
+          "message": "watchdog: chatgpt task verdicts 20261007 [skip ci]"
         },
         {
-          "sha": "a4e504e840e8",
-          "date": "2026-10-07T05:44:04Z",
-          "message": "third: drop the replay's whoosh cue when an over-cap EDL drops the replay (doctor 75af24a46374) (#531)"
+          "sha": "83d2fa0993a4",
+          "date": "2026-10-07T13:31:17Z",
+          "message": "credentials: heartbeat [skip ci]"
         },
         {
-          "sha": "ad038b3d3c5b",
-          "date": "2026-10-07T05:31:00Z",
-          "message": "doctor: evidence pack + backlog 2026-10-07 [skip ci]"
+          "sha": "a05a4eaf2b3a",
+          "date": "2026-10-07T13:22:26Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "6d5fb208ec31",
-          "date": "2026-10-07T04:49:06Z",
-          "message": "claim: mailbox verdicts 2026-10-07T04:49Z [skip ci]"
+          "sha": "002899548d03",
+          "date": "2026-10-07T13:22:17Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "19f25c650bc6",
-          "date": "2026-10-07T03:58:44Z",
-          "message": "The new look actually renders: tell the brain what the kit returns, try every beat, draw ahead of posting (#529)"
+          "sha": "3472fea6b7db",
+          "date": "2026-10-07T13:19:20Z",
+          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
         }
       ],
       "commit": {
-        "sha": "3c935da9ead4",
-        "date": "2026-10-07T05:49:19Z",
-        "message": "claim: mailbox verdicts 2026-10-07T05:49Z [skip ci]"
+        "sha": "fec0a4a0fc71",
+        "date": "2026-10-07T13:31:46Z",
+        "message": "watchdog: chatgpt task verdicts 20261007 [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 302
+          "value": 305
         },
         {
           "label": "third posted",
-          "value": 838
+          "value": 858
         },
         {
           "label": "curiosity posted",
@@ -123,39 +123,39 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-10-06T12:16:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37459701289",
-          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
+          "updated_at": "2026-10-07T11:47:34Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616463023",
+          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-ru"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-07T05:44:23Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37577793242"
+          "updated_at": "2026-10-07T12:31:59Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37621593459"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-06T19:37:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37520307733"
+          "updated_at": "2026-10-07T11:47:17Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616361392"
         },
         "story_forge.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-07T05:45:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37577935835"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-07T12:15:52Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616819486"
         },
         "third.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-10-06T17:21:10Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37501213389"
+          "conclusion": "skipped",
+          "updated_at": "2026-10-07T11:47:38Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616497138"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-10-06T22:58:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37535059910"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-10-07T12:48:54Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616080459"
         },
         "retro.yml": {
           "status": "completed",
@@ -166,8 +166,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-07T05:31:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37576676354"
+          "updated_at": "2026-10-07T11:44:58Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616158522"
         }
       },
       "state_files": {
@@ -177,11 +177,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 130143
+          "bytes": 134613
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 466090
+          "bytes": 478534
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,7 +189,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 3237245
+          "bytes": 3358636
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -438,17 +438,25 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-07T05:58:06Z",
+        "last_progress_at": "2026-10-07T13:28:14Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
           {
-            "number": 258,
-            "title": "At most three applications to one employer a month",
-            "head": "claude/one-company-few-roles",
+            "number": 276,
+            "title": "The job-hunt report says why applications were dropped",
+            "head": "claude/closed-reasons",
             "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/258",
-            "created_at": "2026-10-07T06:04:00Z"
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/276",
+            "created_at": "2026-10-07T13:30:50Z"
+          },
+          {
+            "number": 275,
+            "title": "Land sweeps 1 to 38 on live: alarms by time, \"which one?\", texts read back, and everything stacked before",
+            "head": "claude/sweep-thirtyeight",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/275",
+            "created_at": "2026-10-07T12:24:46Z"
           },
           {
             "number": 254,
@@ -457,22 +465,6 @@
             "draft": false,
             "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/254",
             "created_at": "2026-10-07T04:55:05Z"
-          },
-          {
-            "number": 242,
-            "title": "The job hunt reads 79 more company boards",
-            "head": "claude/wider-boards",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/242",
-            "created_at": "2026-10-07T03:03:36Z"
-          },
-          {
-            "number": 255,
-            "title": "She searches for the other titles the same job is posted under",
-            "head": "claude/more-titles",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/255",
-            "created_at": "2026-10-07T05:02:04Z"
           },
           {
             "number": 253,
@@ -619,14 +611,6 @@
             "created_at": "2026-10-07T02:06:18Z"
           },
           {
-            "number": 233,
-            "title": "The job hunt says where unsent applications are waiting",
-            "head": "claude/hunt-throughput",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/233",
-            "created_at": "2026-10-07T02:00:55Z"
-          },
-          {
             "number": 232,
             "title": "\"Repeat that\" works, \"note:\" isn't refused as spending, and a bare \"add a task\" asks what",
             "head": "claude/sweep-six",
@@ -659,14 +643,6 @@
             "created_at": "2026-10-07T01:36:36Z"
           },
           {
-            "number": 227,
-            "title": "Rejections are counted, and she fills a Greenhouse availability page in his window",
-            "head": "claude/job-mail-tracker",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/227",
-            "created_at": "2026-10-07T01:23:42Z"
-          },
-          {
             "number": 228,
             "title": "Shopping lists, timers, to-do list, \"forget that\" and small asks work with no model",
             "head": "claude/shopping-list-by-voice",
@@ -681,6 +657,30 @@
             "draft": false,
             "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/226",
             "created_at": "2026-10-07T01:21:58Z"
+          },
+          {
+            "number": 225,
+            "title": "The capability registry says its dashes right",
+            "head": "claude/registry-says-its-dashes-right",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/225",
+            "created_at": "2026-10-07T00:26:31Z"
+          },
+          {
+            "number": 224,
+            "title": "\"Actually cancel that\" and \"cancel that reminder\" take back what he just did",
+            "head": "claude/cancel-that-means-the-thing-just-done",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/224",
+            "created_at": "2026-10-07T00:26:26Z"
+          },
+          {
+            "number": 223,
+            "title": "\"Tomorrow\" is his tomorrow, not the server's",
+            "head": "claude/his-tomorrow-not-the-servers",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/223",
+            "created_at": "2026-10-07T00:26:18Z"
           }
         ]
       },
@@ -704,7 +704,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 13,
+        "days_quiet": 14,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -764,14 +764,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "aletheia",
-      "github": "Aletheia",
-      "from": "green",
-      "to": "unknown"
-    }
-  ],
+  "transitions": [],
   "alerts": [
     {
       "repo": "shorts_pipeline",
