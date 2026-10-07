@@ -1475,6 +1475,35 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_weekly", "days": days,
                             "time": hhmm, "text": m.group(3).strip()},
                 "say": None}
+    # THE OTHER WORD ORDER, RECURRING. "Remind me to take out the trash every
+    # tuesday night" was set ONCE, for next Tuesday, as "take out the trash
+    # every" (2026-10-07) - wrong data in a fluent sentence, the failure he
+    # cannot hear. The "every" belongs to the schedule.
+    m = re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:every|each|on) "
+                     r"(?P<days>" + _one_day + r"(?:\s*(?:,|and|&)\s*" + _one_day + r")*)"
+                     r"(?: (?P<part>morning|afternoon|evening|night))?(?: at (?P<time>[\w: ]+?))?", low)
+    if m and (low.split(" every ")[-1] != low or m.group("days").endswith("s")):
+        part_time = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(
+            m.group("part") or "")
+        hhmm = _spoken_time(m.group("time")) if m.group("time") else part_time or DEFAULT_REMINDER_TIME
+        if not hhmm:
+            return _to_the_planner(text)
+        if m.group("time") and _is_bare_hour(m.group("time")) and int(hhmm[:2]) <= EARLIEST_BARE_HOUR:
+            hhmm = f"{int(hhmm[:2]) + 12:02d}{hhmm[2:]}"      # "every monday at 6" is the evening
+        days = [d for d in re.split(r"\s*(?:,|and|&)\s*", m.group("days")) if d]
+        return {"command": {"kind": "remind_weekly", "days": days, "time": hhmm,
+                            "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+    m = re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:every (?:day|morning|evening|night)|daily|each day)"
+                     r"(?: at (?P<time>[\w: ]+?))?", low)
+    if m:
+        part = re.search(r"every (morning|evening|night)", low)
+        hhmm = (_spoken_time(m.group("time")) if m.group("time")
+                else {"morning": "09:00", "evening": "19:00", "night": "21:00"}.get(part.group(1) if part else "",
+                                                                                    DEFAULT_REMINDER_TIME))
+        if hhmm:
+            return {"command": {"kind": "remind_daily", "time": hhmm,
+                                "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+        return _to_the_planner(text)
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
     if m:
         hhmm = _spoken_time(m.group(1))
@@ -1537,6 +1566,9 @@ def _interpret(transcript: str) -> dict:
                          r"(?:to|that) (?P<text>.+)", low)
          or re.fullmatch(r"remind me at (?P<time>[\w: ]+?) (?:on |this )?(?P<day>" + _days + r")" + _part + r" "
                          r"(?:to|that) (?P<text>.+)", low))
+    if m and re.search(r"\b(?:every|each)\b", m.group("text")):
+        # A repeat this cannot read is never set as a one-off.
+        return _to_the_planner(text)
     if m:
         import datetime as dt
         from aletheia import localtime
@@ -1593,6 +1625,8 @@ def _interpret(transcript: str) -> dict:
                        f"Give me a time - 'remind me at 6 to {m.group(1).strip()}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
                  r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
+    if m and re.search(r"\b(?:every|each)\b", m.group(1)):
+        return _to_the_planner(text)    # a repeat is never set as a one-off
     if m:
         if m.group(2):
             hhmm = _spoken_time(m.group(2))
@@ -1905,6 +1939,15 @@ def _interpret(transcript: str) -> dict:
         # week'" — the fast lane removing an ANSWER rather than latency,
         # which is the one thing it may never do. The planner resolves the
         # date and compiles the same command; it just costs a round trip.
+
+    # "MY BIRTHDAY IS MARCH 3RD 1995" (2026-10-07: to the planner). One
+    # fact about him, kept in her memory, read by "how old am I".
+    m = re.fullmatch(r"(?:my birthday is|my birthday's|i was born on|i was born|my date of birth is|my dob is) "
+                     r"(?:on )?((?:[a-z]+\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)? (?:of )?[a-z]+)(?:,? \d{4})?"
+                     r"|\d{4}-\d{1,2}-\d{1,2})", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",
+                            "value": m.group(1).strip()}, "say": None}
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
