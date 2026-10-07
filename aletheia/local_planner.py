@@ -399,9 +399,14 @@ def _refusal_for_spending(request: str) -> str | None:
         # through and this one, missing the exemption, stopped it. A
         # compiled errand that really would spend is still refused by
         # `planner._classify`.
-        if intents._RECORDS_NOT_ACTS.match(text.casefold()):
+        #
+        # And A QUESTION IS NOT AN INSTRUCTION: "did i buy milk" was refused
+        # here as spending (2026-10-07) because this door missed the
+        # question test the one at `intents` already had. So it asks that
+        # door's own predicate rather than keeping a second copy to drift.
+        if not intents._asks_to_spend(text):
             return None
-        return webtask.SPENDING_REFUSAL if webtask.would_spend(text) else None
+        return webtask.SPENDING_REFUSAL
     except Exception:  # noqa: BLE001
         # FAIL CLOSED, the way `intents._asks_to_spend` does: the only
         # realistic failure is webtask being unimportable, and if that is

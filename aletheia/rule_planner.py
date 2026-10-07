@@ -419,7 +419,7 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      r"(?:emails?|e-?mails?|mail|inbox|messages)(?: for me| today)?",
      "email_check", _no_args("Check your email")),
     (r"read (?:me )?(?:my )?(?:resume|cv|résumé)(?: to me| out| out loud)?", "file_read", _read_resume),
-    (r"(?:text|message|sms|send a (?:text|message) to) (?P<who>my [a-z]+|[a-z]+(?: (?!that\b|saying\b|and\b|to\b|i\b|i'm\b|im\b|we\b|please\b)[a-z]+)?|[\d() +-]{7,20})"
+    (r"(?:text|message|sms|send a (?:text|message) to) (?P<who>my [a-z]+|[a-z]+(?: (?!that\b|saying\b|and\b|to\b|i\b|i'm\b|im\b|we\b|please\b|happy\b|merry\b|good\b|congrats\b|congratulations\b|miss\b|sorry\b|thanks\b|thank\b|hey\b|hi\b|love\b|see\b|call\b)[a-z]+)?|[\d() +-]{7,20})"
      r"(?:,? (?:that|saying|and say|and tell (?:him|her|them)(?: that)?|to say) |: |, | )(?P<body>.+)",
      "message_send", _message),
     (r"how (?:long|far)(?: is it| does it take| would it take| will it take| away is it)?\s+(?:to (?:get |drive |walk )?to|from here to)\s+(?P<what>.+)"
