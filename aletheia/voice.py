@@ -2740,6 +2740,35 @@ def _interpret(transcript: str) -> dict:
         what = m.group("what") or m.group("what2")
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": _as_he_said(text, what)}, "say": None}
 
+    # ON A DAY HE TOLD HER ABOUT (2026-10-07: "remind me to buy her flowers
+    # on her birthday" went to the planner, with the birthday in a note).
+    m = re.fullmatch(r"remind me (?:to |about )?(?P<what>.+?) on (?P<whose>(?:my|our|her|his|their|[a-z]+'s)(?: [a-z]+'s)? "
+                     r"(?:birthday|anniversary|wedding anniversary))", low)
+    if m:
+        import datetime as dt
+        from aletheia import localtime, quick
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        whose = m.group("whose")
+        pron = re.match(r"(?:her|his|their) (.+)", whose)
+        if pron:
+            # "Call dad on his birthday": the person in the same sentence;
+            # otherwise the one the last turns named.
+            named = re.search(r"\b(" + "|".join(sorted(_RELATIONS, key=len, reverse=True)) + r")\b", m.group("what"))
+            who = named.group(1) if named else _the_person_just_named()
+            whose = f"{who.casefold()}'s {pron.group(1)}" if who else whose
+        try:
+            day = quick._his_date(whose, today)
+        except Exception:
+            day = None
+        if day is None:
+            whose = re.sub(r"^my ", "your ", whose)
+            if whose.split("'")[0] in _RELATIONS:
+                whose = "your " + whose
+            return {"command": None, "say": f"I don't know when {whose} is. Tell me the date once and I'll remember it."}
+        at = dt.datetime.combine(day, dt.time(9, 0), tzinfo=tz)
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": _as_he_said(text, m.group("what"))},
+                "say": None}
     # BEFORE THE THING HE JUST PUT ON THE CALENDAR (2026-10-07): "I have a
     # dentist appointment Tuesday at 2", then "remind me the day before" or
     # "remind me an hour before" went to the planner. The hold he just made

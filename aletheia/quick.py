@@ -1853,13 +1853,42 @@ def _his_date(words: str, today):
     """"My birthday": the date he told her, next time it comes round."""
     w = " ".join(str(words or "").casefold().split()).strip(" ?.")
     if w not in ("my birthday", "birthday"):
-        return None
+        return _date_in_notes(w, today)
     try:
         from aletheia import memory
         said = str(memory.recall("identity", "birthday") or "")
     except Exception:
         return None
     return _named_date(said, today) if said else None
+
+
+def _date_in_notes(words: str, today):
+    """"Our anniversary", "my wife's birthday", "the wedding": the date a
+    note of his gives it, next time it comes round (2026-10-07: "how long
+    until our anniversary" went to a model a turn after he said it)."""
+    w = re.sub(r"^(?:my|our|the) ", "", " ".join(str(words or "").casefold().split()))
+    if not w or len(w) > 40:
+        return None
+    rel = re.match(r"(?P<rel>[a-z]+)'s (?P<what>.+)", w)
+    asks = [w]
+    if rel:
+        name = _name_for_relation(rel.group("rel"))
+        if name:
+            asks.append(f"{name.casefold()}'s {rel.group('what')}")
+    month_re = "|".join(_MONTHS)
+    date_re = (rf"(?P<d>(?:{month_re})\.? \d{{1,2}}(?:st|nd|rd|th)?|\d{{1,2}}(?:st|nd|rd|th)? (?:of )?(?:{month_re}))")
+    for ask in asks:
+        words_ = [x for x in re.findall(r"[a-z0-9]+", ask) if x not in ("s", "is", "the", "a")]
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").casefold().split())
+            if not all(re.search(rf"\b{re.escape(x)}", said) for x in words_):
+                continue
+            m = re.search(date_re, said)
+            if m:
+                found = _named_date(re.sub(r"(?<=\d)(?:st|nd|rd|th)", "", m.group("d")).replace(" of ", " "), today)
+                if found:
+                    return found
+    return None
 
 
 def _named_date(words: str, today):

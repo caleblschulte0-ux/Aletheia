@@ -1435,5 +1435,25 @@ class FeelingAndPriorities(unittest.TestCase):
         self.assertEqual(quick.match("what can i do in 30 minutes")[0], "focus")
 
 
+
+class DaysHeToldHerAbout(unittest.TestCase):
+    NOTES = [{"text": "my anniversary is june 10"}, {"text": "Ana's birthday is may 2"}, {"text": "my wife's name is Ana"}]
+
+    def test_how_long_until_reads_his_notes(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertIn("10 June", quick.answer("how long until our anniversary"))
+            self.assertIn("2 May", quick.answer("how many days until my wife's birthday"))
+            self.assertIsNone(quick.answer("how long until the wedding"))
+
+    def test_remind_me_on_that_day(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            cmd = voice.interpret("remind me to book dinner on our anniversary")["command"]
+            self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "book dinner"))
+            self.assertIn("-06-10T09:00", cmd["at"])
+            self.assertIn("your dad's birthday", voice.interpret("remind me to call dad on his birthday")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
