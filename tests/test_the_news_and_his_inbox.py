@@ -297,3 +297,26 @@ class ATimerIsSaidAsATimer(unittest.TestCase):
         self.assertTrue(speech.spoken_receipt(
             "remind_at", "reminder r1 set for 2030-01-01T12:00:00+00:00 — 'call the vet'")
             .startswith("I'll remind you "))
+
+
+class HalfACapabilityIsNotTheCapability(unittest.TestCase):
+    """"Can you control my lights" answered "Yes - validate a room scene"
+    while the part that switches a light needed setting up (2026-10-07)."""
+
+    REGISTRY = {"capabilities": [
+        {"id": "room.scene", "status": "NEEDS_CONFIGURATION",
+         "description": "Unified device layer: lights, scenes, media"},
+        {"id": "room.scene.plan", "status": "AVAILABLE",
+         "description": "Validate a room scene against verified-online devices"},
+    ]}
+
+    def test_the_parent_answers(self):
+        from aletheia import self_knowledge
+        found = self_knowledge.relevant("can you control my lights", registry=self.REGISTRY)
+        self.assertEqual(found[0]["capability"], "room.scene")
+        self.assertEqual(len([f for f in found if f["capability"] == "room.scene"]), 1)
+
+    def test_naming_the_childs_own_part_keeps_the_child(self):
+        from aletheia import self_knowledge
+        found = self_knowledge.relevant("can you plan a room scene", registry=self.REGISTRY)
+        self.assertEqual(found[0]["capability"], "room.scene.plan")
