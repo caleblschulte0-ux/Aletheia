@@ -2670,5 +2670,13 @@ class ReplyToTheEmailSheRead(unittest.TestCase):
             self.assertNotEqual((voice._interpret("reply saying sounds great")["command"] or {}).get("kind"), "email_draft")
 
 
+
+class AddABirthday(unittest.TestCase):
+    def test_add_is_the_same_fact(self):
+        self.assertEqual(voice.interpret("save Sam's birthday as May 2")["command"],
+                         {"kind": "note", "text": "Sam's birthday is May 2"})
+        self.assertEqual(voice.interpret("add mom's birthday june 3")["command"]["kind"], "note")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3400,6 +3400,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
 
+    # "Add mom's birthday June 3", "save Sam's birthday as May 2" (2026-10-07:
+    # to the planner) - the same fact as "mom's birthday is June 3".
+    m = re.fullmatch(r"(?:add|save|put|remember|note|put down|write down) (?P<who>(?:my )?[a-z][a-z' ]{1,30}?)'s birthday"
+                     r"(?: (?:is|as|on|for|to))? (?P<date>(?:the )?(?:\d|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec).{0,30})", low)
+    if m:
+        got = _interpret(f"{_as_he_said(text, m.group('who'))}'s birthday is {_as_he_said(text, m.group('date'))}")
+        if ((got or {}).get("command") or {}).get("kind") in ("note", "remember"):
+            return got
+
     # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
     # "what time is that reminder", "remind me to text dad too" (the same
     # time), and "change call mom to call grandma" (the same time, new words).
