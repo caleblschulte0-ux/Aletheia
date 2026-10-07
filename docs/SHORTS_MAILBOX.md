@@ -1,5 +1,12 @@
 # The Shorts mailbox worker
 
+**Door shut (2026-10-07).** Built and tested, and not granted: the words the
+grant quoted were said in another project, which this one cannot confirm, so
+`config/fleet.json` carries no `answers` door for Shorts until he says yes here.
+`kick()` reports "no answers grant" and writes nothing. The grant as drafted is
+in `config/capabilities.json` (`shorts.mailbox.answer`, notes) and in the
+test's `GRANT`.
+
 Shorts-pipeline files three kinds of question it cannot answer inside its own
 run, and has accepted Aletheia's answers to all three since 2026-09-30
 (`"by": "aletheia:<route>"`; its own `docs/REVIEW_MAILBOX.md`):
