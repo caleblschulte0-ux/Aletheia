@@ -265,5 +265,16 @@ class GoingSomewhereIsAGoodbye(unittest.TestCase):
         self.assertIsNone(quick.match("i'm going to the store to buy milk"))
 
 
+class WhatEmailsIsTheInbox(unittest.TestCase):
+    def test_the_inbox(self):
+        from aletheia import voice
+        for said in ("what emails do i have", "what's new in my email"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "email_check", said)
+
+    def test_a_persons_email_is_still_a_contact(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("what's sam's email")["command"]["kind"], "contacts")
+
+
 if __name__ == "__main__":
     unittest.main()

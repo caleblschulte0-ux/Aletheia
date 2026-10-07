@@ -2253,6 +2253,7 @@ def _interpret(transcript: str) -> dict:
     # "What's my locker number" looked up a contact called "my locker"
     # (2026-10-07): a thing with a number is not a person.
     if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)) \
+            and not re.match(r"(?:new|up|happening|going on|the latest|latest|good) in\b", m.group(1)) \
             and not re.search(r"\b(?:locker|account|member(?:ship)?|policy|license|licence|plate|wifi|wi-fi|gate|door"
                               r"|garage|room|seat|flight|confirmation|order|tracking|case|ticket|insurance|social security"
                               r"|passport|employee|student|customer|reference|serial|model|pin|bank|routing|card|apartment"
@@ -4389,7 +4390,10 @@ def _interpret(transcript: str) -> dict:
                     r"how many (?:unread |new )?e?mails?(?: do i have| have i got| are there)?(?: unread| today)?|"
                     r"(?:read|read me|show me|open) (?:my |the )?(?:last|latest|newest|most recent|new) e?mails?|"
                     r"(?:read|show) (?:me )?(?:my )?(?:e?mails?|inbox)|"
-                    r"check (?:my |the )?inbox|(?:any|do i have any) unread e?mails?)", low):
+                    r"check (?:my |the )?inbox|(?:any|do i have any) unread e?mails?|"
+                    # "What emails do I have", "what's new in my email" (2026-10-07: to a model)
+                    r"what (?:e?mails?|mail) (?:do i have|have i got|came in|did i get)(?: today| this morning)?|"
+                    r"what(?:'s| is|s)? new in (?:my |the )?(?:e?mail|inbox))", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
     # AN HOURLY REMINDER is a door she does not have (daily and weekly she
