@@ -3376,5 +3376,36 @@ class PluralsAndPercentOff(unittest.TestCase):
         self.assertEqual(quick.answer("how much is 20 percent off 80"), "$64 - you save $16.")
 
 
+class ADraftPutAway(unittest.TestCase):
+    def test_a_held_draft_is_put_away_unsent_and_gone_from_the_list(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import intercom, mail, policy, speech
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(mail, "MAIL_DIR", Path(tmp)), \
+                mock.patch.object(mail, "resolve_address", return_value=("dana@example.com", "Dana")), \
+                mock.patch.object(policy, "all_approvals", return_value=[]):
+            mail.draft("Dana", "Friday off", "Can I take Friday off?", held=True)
+            mail.draft("Dana", "Lunch", "Lunch on Monday?", held=True)
+            self.assertEqual(voice._interpret("cancel the draft")["command"], {"kind": "draft_discard"})
+            self.assertEqual(voice._interpret("delete the draft about lunch")["command"],
+                             {"kind": "draft_discard", "which": "lunch"})
+            said = intercom.execute_command({"kind": "draft_discard", "which": "lunch"}, {}, quote="delete the draft about lunch")
+            self.assertEqual(speech.spoken_receipt("draft_discard", said), "Put it away unsent: Lunch to Dana.")
+            self.assertEqual([d["subject"] for d in mail.held_drafts()], ["Friday off"])
+            self.assertTrue(any(p.name.endswith(".refused.json") for p in Path(tmp).iterdir()))
+            self.assertIn("1 draft held", intercom.execute_command({"kind": "drafts"}, {}))
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(mail, "MAIL_DIR", Path(tmp)), \
+                mock.patch.object(policy, "all_approvals", return_value=[]):
+            self.assertEqual(voice._interpret("delete the draft")["say"], "There's no draft waiting.")
+
+    def test_a_draft_waiting_on_its_approval_is_denied(self):
+        from aletheia import policy
+        pending = [{"id": "mail-1", "state": "PENDING", "capability": "email.send"}]
+        with mock.patch.object(policy, "all_approvals", return_value=pending), \
+                mock.patch("aletheia.mail.held_drafts", return_value=[]):
+            self.assertEqual(voice._interpret("don't send it")["command"],
+                             {"kind": "deny", "id": "mail-1", "because": "draft discarded by voice"})
+
+
 if __name__ == "__main__":
     unittest.main()

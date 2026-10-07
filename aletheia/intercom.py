@@ -174,6 +174,10 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # ASK — `contact_add` and `watch_email_from` are the writers.
     "contacts":      (set(), {"which"}),
     "watches":       (set(), set()),
+    # "What drafts do I have" and "delete the draft" (2026-10-07): the held
+    # drafts read, and one put away unsent.
+    "drafts":        (set(), set()),
+    "draft_discard": (set(), {"which"}),
     # "apply to ten jobs with this resume" — the whole thing, one call.
     "apply_campaign": (set(), {"role", "count", "where", "resume"}),
     "apply_pause":   (set(), {"reason"}),
@@ -502,6 +506,11 @@ KIND_NOTES: dict[str, str] = {
     "watches": (
         'What she is waiting to tell him about — the watchers '
         '`watch_email_from` creates. Nothing to do with browsing.'),
+    "drafts": (
+        'The email drafts she is holding for him, unsent: who each is to and what about.'),
+    "draft_discard": (
+        'Put one held email draft away unsent: "delete the draft", "scrap the email to Dana". which is any '
+        'words from its subject or who it is to; with none it is the newest. Kept and marked, never sent.'),
     "applications": (
         'What he has applied to through her — sent, and staged waiting on '
         'him. Use it for "what have I applied to"; `jobs` is the opposite '
@@ -826,7 +835,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "forget", "handle", "travel_time", "place_add", "shopping_add",
-               "shopping_list", "shopping_off", "contacts", "watches",
+               "shopping_list", "shopping_off", "contacts", "watches", "drafts", "draft_discard",
                "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
                "speaking_pace", "speaking_pace_read",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
@@ -864,7 +873,7 @@ READ_ONLY_KINDS = frozenset({
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read", "stopwatch_read",
     "speaking_pace_read",
-    "contacts", "watches",
+    "contacts", "watches", "drafts",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
     "missions",
@@ -988,6 +997,8 @@ ROUTINE_KINDS = frozenset({
     # approval (email.send / email.followup), so this tier authorizes writing
     # it down and nothing past that.
     "thread_draft", "thread_followup", "calendar_hold", "hold_release", "calendar_propose",
+    # A held email draft put away unsent: kept and marked, reaching nobody.
+    "draft_discard",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -4079,6 +4090,15 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _contacts_answer(cmd.get("which", ""))
     if kind == "watches":
         return _watches_answer()
+    if kind == "drafts":
+        from aletheia import mail
+        return mail.held_drafts_words()
+    if kind == "draft_discard":
+        from aletheia import mail
+        gone, why = mail.discard(str(cmd.get("which") or ""), via=ACTOR)
+        if gone is None:
+            raise act.Refused(why)
+        return f"draft {gone['id']} discarded — {gone.get('subject')!r} to {gone.get('to_name') or gone.get('to')}"
     if kind == "applications":
         return _applications_answer()
     if kind == "shopping_list":

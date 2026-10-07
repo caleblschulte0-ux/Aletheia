@@ -5733,6 +5733,31 @@ def _interpret(transcript: str) -> dict:
                 return {"command": {"kind": "reminder_off", "which": words}, "say": None}
         if _names_one_open_task(one.group("w")):
             return {"command": {"kind": "task_change", "which": one.group("w"), "drop": True}, "say": None}
+    # "DELETE THE DRAFT" went to the planner and "cancel the draft" was
+    # prepared as cancelling a SUBSCRIPTION called draft (2026-10-07). A
+    # draft waiting on an approval is that approval's to deny; a held one
+    # is put away unsent.
+    m = re.fullmatch(r"(?:delete|discard|cancel|scrap|drop|throw away|throw out|trash|bin|get rid of|kill|toss|lose)"
+                     r" (?:the |that |this |my )?(?:last |latest |newest )?(?:e-?mail )?draft(?: e-?mail)?"
+                     r"(?: (?:to|for|about) (?P<w>[a-z0-9][a-z0-9 '.@-]{1,40}))?"
+                     r"|(?:delete|discard|scrap|cancel) (?:the |my )?e-?mail (?:draft )?(?:to|for) (?P<w2>[a-z0-9][a-z0-9 '.@-]{1,40})"
+                     r"|don'?t send (?:it|that|the (?:draft|e-?mail))(?: after all)?", low)
+    if m:
+        which = (m.group("w") or m.group("w2") or "").strip()
+        from aletheia import mail
+        try:
+            held = mail.held_drafts()
+        except Exception:
+            held = []
+        waiting = [a for a in policy.all_approvals() if a["state"] == "PENDING"
+                   and str(a.get("capability") or "") == "email.send"]
+        if not held and len(waiting) == 1 and not which:
+            return {"command": {"kind": "deny", "id": waiting[0]["id"], "because": "draft discarded by voice"}, "say": None}
+        if not held and waiting:
+            return {"command": None, "say": _offer_choice(waiting, verb="deny")}
+        if not held:
+            return {"command": None, "say": "There's no draft waiting."}
+        return {"command": {"kind": "draft_discard", **({"which": which} if which else {})}, "say": None}
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60
@@ -6900,7 +6925,11 @@ def _interpret(transcript: str) -> dict:
     # ...and "book a dentist appointment friday" is somebody else's diary.
     if told and not told.group("lead") and re.match(
             r"(?:book|make|get|cancel|move|reschedule|find|plan|organi[sz]e|arrange|set|call|text|email|confirm"
-            r"|skip|miss|need|want|remind|add|schedule|put|is|was|when|what|did|do)\b", low):
+            r"|skip|miss|need|want|remind|add|schedule|put|is|was|when|what|did|do"
+            # "Who am I meeting tomorrow" became a hold called "who am I
+            # meeting" (2026-10-07). A question is never an instruction.
+            r"|who|whom|whose|where|which|why|how|am|are|can|could|will|would|should|does|have|has|whats|wheres|whos"
+            r"|tell|show|read|list)\b", low):
         told = None
     m = m or told
     # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
