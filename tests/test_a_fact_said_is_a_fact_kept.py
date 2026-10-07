@@ -1185,5 +1185,24 @@ class SmallTalkAnswered(unittest.TestCase):
         self.assertIsNone(voice.interpret("nevermind that")["command"])
 
 
+class HisListReadAsAList(unittest.TestCase):
+    def test_a_short_list_is_read_whole(self):
+        from aletheia import tasks
+        rows = [{"id": "t1", "description": "renew my passport", "status": "QUEUED"},
+                {"id": "t2", "description": "call the plumber", "status": "QUEUED"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=rows), \
+                mock.patch.object(tasks, "is_his", return_value=True), \
+                mock.patch.object(tasks, "is_ready", return_value=True):
+            self.assertEqual(quick.answer("what tasks do i have"),
+                             "2 tasks open: renew my passport and call the plumber.")
+
+    def test_the_next_one_and_a_due_comma(self):
+        from aletheia import speech
+        for said in ("what's next on my list", "what's the most important thing on my list"):
+            self.assertEqual(quick.match(said)[0], "task_top", said)
+        self.assertEqual(speech.spoken_receipt("task_new", "task pay-rent queued — pay rent due Friday"),
+                         "Added a task: pay rent, due Friday.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -184,7 +184,7 @@ class ADeadlineHeSaidIsARealDeadlineCase(unittest.TestCase):
         said = speech.spoken_receipt(
             "task_new", "task renew-my-passport queued — renew my passport "
                         "due Friday")
-        self.assertEqual(said, "Added a task: renew my passport due Friday.")
+        self.assertEqual(said, "Added a task: renew my passport, due Friday.")
 
     def test_the_list_says_it_without_a_comma_collision(self):
         """`and_list` already uses commas: "renew my passport, due Friday

@@ -728,7 +728,11 @@ def spoken_receipt(kind: str, detail: str, *,
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
         if named:
-            return f"Added a task: {named.group(1).strip()}."
+            # "pay rent due Friday" heard as one run; the pause is a comma.
+            said = re.sub(r"(?<=[a-z0-9)])\s+(due (?:today|tonight|tomorrow|on |by |in |next |this |"
+                          r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|[a-z]+ \d))",
+                          r", \1", named.group(1).strip(), flags=re.IGNORECASE)
+            return f"Added a task: {said}."
         slug = re.search(r"task ([a-z0-9-]+) queued", text)
         if slug:
             return f"Added a task: {deslug(slug.group(1))}."

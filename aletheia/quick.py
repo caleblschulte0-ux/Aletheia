@@ -424,7 +424,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_top", re.compile(
         r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
         r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$"
-        r"|^what(?:'s| is|s)? my most (?:urgent|pressing) (?:task|thing)(?: today)?$")),
+        r"|^what(?:'s| is|s)? my most (?:urgent|pressing) (?:task|thing)(?: today)?$"
+        # "What's the most important thing on my list", "what's next on my
+        # to do list" (2026-10-07: a model, and a project called "list").
+        r"|^what(?:'s| is|s)? (?:the )?(?:most important|top|biggest|first|most urgent|main|next) (?:thing|task|item)?"
+        r" ?(?:on|in) my (?:list|to ?do list|to-do list|task list|tasks)$"
+        r"|^what(?:'s| is|s)? next on my (?:list|to ?do list|to-do list|task list)$")),
     ("tasks_clear_done", re.compile(
         r"^(?:clear|delete|remove|get rid of|clean up) (?:all )?(?:my |the )?(?:completed|finished|done|old) tasks$")),
     # HER WORK, ASKED ABOUT (2026-10-07). "Is anything stuck" answers "say
@@ -444,7 +449,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what projects (?:do i|do we|do (?:you|u)) have$"
         r"|^how (?:are|r) (?:the|my|our|your) projects(?: going| doing| coming along| looking)?$")),
     ("project_next", re.compile(
-        r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?!(?:the |my )?(?:calendar|schedule|agenda|day|diary)$)(?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
+        r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?!(?:the |my )?(?:calendar|schedule|agenda|day|diary|list|to ?do list|to-do list|task list)$)(?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -3671,6 +3676,13 @@ def _tasks() -> str:
     lead = f"{speech.count_phrase(len(live), 'task')} open"
     if ready and len(ready) != len(live):
         lead += f", {len(ready)} ready to start"
+    names = [str(t.get("description") or t.get("id") or "").strip().rstrip(".")
+             for t in [first] + [t for t in live if t is not first]]
+    if 1 < len(live) <= 4 and len(ready) == len(live) and all(len(n) <= 70 for n in names):
+        # "What tasks do I have" with two on the list named one of them
+        # (2026-10-07). A short list of short things is read out whole,
+        # next first; a long one still names the next.
+        return f"{lead}: {speech.and_list(names)}."
     return lead + (f". Next: {what[:130].rstrip('.')}." if what else ".")
 
 
