@@ -3072,5 +3072,26 @@ class ThingsHeToldHerOnce(unittest.TestCase):
             self.assertIn("Jo", quick.answer("who do I owe money to"))
 
 
+class TheGymAndARun(unittest.TestCase):
+    def test_kept_dated_and_counted(self):
+        import datetime as dt
+        from aletheia import quick
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False):
+            for said in ("I went for a run", "I went to the gym", "I worked out", "I meditated"):
+                self.assertEqual((voice._interpret(said) or {}).get("command"), {"kind": "note", "text": said}, said)
+        now = dt.datetime.now(dt.timezone.utc)
+        notes = [{"text": "I went to the gym", "ts": now.isoformat()},
+                 {"text": "I went for a run", "ts": (now - dt.timedelta(hours=1)).isoformat()},
+                 {"text": "I went to the gym", "ts": (now - dt.timedelta(days=40)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertTrue(quick.answer("when did I last go to the gym").startswith("The last time you told me was"))
+            self.assertEqual(quick.answer("how many times did I go to the gym this month"), "1 time this month, from what you've told me.")
+            self.assertTrue(quick.answer("did I work out today").startswith("Yes"))
+            self.assertTrue(quick.answer("have I been for a run today").startswith("Yes"))
+            self.assertEqual(quick.answer("did I meditate today"), "Not that you've told me today.")
+            self.assertEqual(quick.answer("when did I last go swimming"),
+                             "You haven't told me. Say \"I went swimming\" when you do and I'll keep track.")
+
+
 if __name__ == "__main__":
     unittest.main()

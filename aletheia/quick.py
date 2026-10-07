@@ -376,6 +376,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("liked_how", re.compile(
         r"^how do i (?:like|take|have|drink) my (?P<liked_how>coffee|tea|steak|burgers?|eggs|toast|latte|martini|whiskey"
         r"|bourbon|pizza|tacos|sandwich|smoothie|oatmeal)\s*\??$")),
+    ("went", re.compile(
+        r"^when did i (?:last )?(?P<went>go to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|go (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|go (?:running|swimming|jogging|hiking|biking|cycling)|work out|exercise|meditate|do yoga|run|jog|swim)(?: last)?\s*\??$"
+        r"|^(?:did|have) i (?:already )?(?P<went2>(?:go|gone|been) to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|(?:go|gone|been) (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|(?:go|gone|been) (?:running|swimming|jogging|hiking|biking|cycling)|work(?:ed)? out|exercised?|meditated?|(?:do|done) yoga|run|ran|jog|jogged|swim|swum)(?P<went_when> today| yet| this week| this morning)?\s*\??$"
+        r"|^how (?:many times|often) (?:did|have) i (?P<went3>(?:go|gone|been) to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|(?:go|gone|been) (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|(?:go|gone|been) (?:running|swimming|jogging|hiking|biking|cycling)|work(?:ed)? out|exercised?|meditate|do yoga|run|jog|swim)(?P<went_when3> today| this week| this month| last week)?\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -1917,7 +1921,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8109,6 +8113,94 @@ def _counted(text: str) -> str | None:
     return f"{total:,} {what} {when}."
 
 
+def _went_said(asked: str) -> str:
+    """The regex a note of his matches when he did what `asked` names."""
+    a = re.sub(r"\b(?:gone|been)\b", "go", asked.casefold())
+    a = re.sub(r"\b(?:the|a|an|on|for)\b", " ", a)
+    a = " ".join(a.split())
+    m = re.match(r"go to (.+)", a)
+    if m:
+        place = m.group(1)
+        return rf"\bwent to (?:the )?{re.escape(place)}\b" + (r"|\bworked out at the gym\b" if place == "gym" else "")
+    noun = re.sub(r"^go ", "", a)
+    runs = {"run": r"\bran\b|went (?:for a |on a )?run|went running", "running": r"\bran\b|went (?:for a |on a )?run|went running",
+            "jog": r"\bjogged\b|went (?:for a )?jog|went jogging", "jogging": r"\bjogged\b|went (?:for a )?jog|went jogging",
+            "ran": r"\bran\b|went (?:for a |on a )?run|went running", "jogged": r"\bjogged\b|went (?:for a )?jog|went jogging",
+            "swim": r"\bswam\b|went (?:for a )?swim|went swimming", "swum": r"\bswam\b|went (?:for a )?swim|went swimming",
+            "swimming": r"\bswam\b|went (?:for a )?swim|went swimming",
+            "work out": r"\bworked out\b|\bexercised\b|went to (?:the )?gym", "worked out": r"\bworked out\b|\bexercised\b|went to (?:the )?gym",
+            "exercise": r"\bworked out\b|\bexercised\b|went to (?:the )?gym", "exercised": r"\bworked out\b|\bexercised\b|went to (?:the )?gym",
+            "meditate": r"\bmeditated\b", "meditated": r"\bmeditated\b",
+            "do yoga": r"\bdid yoga\b|went to yoga", "done yoga": r"\bdid yoga\b|went to yoga"}
+    if noun in runs:
+        return runs[noun]
+    stem = re.sub(r"ing$", "", noun)
+    return rf"\bwent (?:for a |on a )?{re.escape(noun)}\b|\bwent {re.escape(stem)}"
+
+
+def _went(text: str) -> str | None:
+    """"When did I last go to the gym", "did I work out today", "how many
+    times did I go for a run this week": his notes saying he did, counted
+    and dated. Nothing kept is said as nothing kept - never guessed."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("went", text)
+    asked = (g.get("went") or g.get("went2") or g.get("went3") or "").strip()
+    if not asked:
+        return None
+    window = (g.get("went_when") or g.get("went_when3") or "").strip()
+    said_re = _went_said(asked)
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    hits = []
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        if not low.startswith("i ") or not re.search(said_re, low):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        hits.append(at)
+    hits.sort(reverse=True)
+    plain = re.sub(r"\b(?:gone|been)\b", "go", asked)
+    if g.get("went3"):
+        start = {"today": now.replace(hour=0, minute=0, second=0, microsecond=0),
+                 "this month": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0),
+                 "last week": (now - dt.timedelta(days=now.weekday() + 7)).replace(hour=0, minute=0, second=0, microsecond=0)}.get(
+            window, (now - dt.timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0))
+        end = start + dt.timedelta(days=7) if window == "last week" else now + dt.timedelta(days=1)
+        n = sum(1 for at in hits if start <= at < end)
+        span = window or "this week"
+        if not n:
+            return f"None {span} that you've told me."
+        return f"{speech.count_phrase(n, 'time')} {span}, from what you've told me."
+    if g.get("went2"):
+        if not hits:
+            return f"Not that you've told me{' ' + window if window else ''}."
+        last = hits[0]
+        if window in ("today", "yet", "this morning"):
+            if last.date() == now.date():
+                return f"Yes - {speech.humanize_time(last.isoformat())}."
+            return f"Not today that you've told me. The last time was {speech.humanize_time(last.isoformat())}."
+        if window == "this week" and last < now - dt.timedelta(days=now.weekday() + 1):
+            return f"Not this week that you've told me. The last time was {speech.humanize_time(last.isoformat())}."
+        return f"Yes - the last time was {speech.humanize_time(last.isoformat())}."
+    if not hits:
+        return f"You haven't told me. Say \"I {_past_go(plain)}\" when you do and I'll keep track."
+    return f"The last time you told me was {speech.humanize_time(hits[0].isoformat())}."
+
+
+def _past_go(asked: str) -> str:
+    """"go to the gym" said the way he would tell her he did it."""
+    a = asked.casefold()
+    for base, past in (("go ", "went "), ("work out", "worked out"), ("exercise", "exercised"), ("meditate", "meditated"),
+                       ("do yoga", "did yoga"), ("run", "went for a run"), ("jog", "went for a jog"), ("swim", "went for a swim")):
+        if a.startswith(base):
+            return past + a[len(base):]
+    return a
+
+
 def _lent(text: str) -> str | None:
     """"Who has my drill": his note saying he lent it, in his words. Nothing
     kept is said as nothing kept (2026-10-07: to a model, which could only
@@ -8581,6 +8673,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "counted": _counted,
            "ate": _ate,
            "lent": _lent,
+           "went": _went,
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "synonym": lambda rest: _related(rest, "synonyms"),

@@ -1188,6 +1188,11 @@ def _birthday_reminder(m) -> dict:
 #: Past-tense verbs a done thing is said with. Kept to plain chores and
 #: errands: anything with a door of its own (paid a bill to a merchant,
 #: finished a task, took his pills) is matched before this is reached.
+# What he went and did, said in the past - shared with `quick._went`,
+# which reads these notes back.
+_WENT = (r"went (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|went (?:running|swimming|jogging|hiking|biking|cycling)"
+         r"|went to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy"
+         r"|barber|library|park)|worked out|exercised|meditated|did yoga|ran|jogged|swam")
 _DONE_VERBS = ("changed|gave|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
@@ -7237,6 +7242,12 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I WENT FOR A RUN", "I went to the gym" (2026-10-07: to the planner,
+    # and "when did I last go to the gym" had nothing to read). A note in
+    # his words, read back and counted by `quick._went`.
+    if re.fullmatch(r"i (?:just )?(?:" + _WENT + r")(?: (?:today|yesterday|this morning|this afternoon|this evening"
+                    r"|tonight|last night|earlier|again))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I did 50 pushups", "I walked 5000 steps" (2026-10-07): a count he
     # keeps, added up by "how many pushups have I done today".
