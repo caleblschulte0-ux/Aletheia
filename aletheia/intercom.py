@@ -1571,10 +1571,11 @@ def _day_words(stamp: object) -> str:
     """"today", "yesterday", "on 9 September" — never a timestamp out loud."""
     import datetime as _dt
     try:
-        day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00")).date()
+        day = _dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+        day = (day.astimezone(localtime.operator_tz()) if day.tzinfo else day).date()
     except (TypeError, ValueError):
         return ""
-    today = _dt.date.today()
+    today = localtime.today()
     if day == today:
         return "today"
     if (today - day).days == 1:
@@ -3082,11 +3083,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "meet":
         from aletheia import scheduling
         import datetime as _dt, re as _re
-        start = cmd.get("from_day") or _dt.date.today().isoformat()
-        end = cmd.get("to_day") or (_dt.date.today() + _dt.timedelta(days=7)).isoformat()
+        today = localtime.today()
+        start = cmd.get("from_day") or today.isoformat()
+        end = cmd.get("to_day") or (today + _dt.timedelta(days=7)).isoformat()
         slug = _re.sub(r"[^a-z0-9]+", "-", cmd["person"].lower()).strip("-")[:30]
         record = scheduling.start(
-            f"meet-{slug}-{_dt.date.today().isoformat()}"[:60], cmd["person"],
+            f"meet-{slug}-{today.isoformat()}"[:60], cmd["person"],
             start_day=start, end_day=end, timezone=localtime.operator_timezone(),
             duration_minutes=int(cmd.get("minutes", 30)),
             purpose=cmd.get("purpose", ""))

@@ -101,3 +101,38 @@ class PlannerPromptCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HisDayNotTheProcessDay(unittest.TestCase):
+    """2026-10-06 19:08 in Chicago, in a UTC process (a container, an Actions runner):
+    "remind me tomorrow at 9 to email Sam" was confirmed for THURSDAY at 9, because
+    the day came from `date.today()` - the process's day, already the 7th - while
+    the hour was correctly his. The day has to come from his clock too."""
+
+    EVENING = dt.datetime(2026, 10, 6, 19, 8, tzinfo=localtime.operator_tz())
+
+    def setUp(self):
+        for p in (mock.patch.object(localtime, "operator_timezone", return_value="America/Chicago"),
+                  mock.patch.object(localtime, "now", return_value=self.EVENING)):
+            p.start()
+            self.addCleanup(p.stop)
+
+    def test_today_is_his_calendar_day(self):
+        self.assertEqual(localtime.today(), dt.date(2026, 10, 6))
+
+    def test_tomorrow_said_in_his_evening_is_his_tomorrow(self):
+        from aletheia import voice
+        self.assertEqual(voice._spoken_day("tomorrow"), "2026-10-07")
+        self.assertEqual(voice._spoken_day("wednesday"), "2026-10-07")
+        at = voice.interpret("thea remind me tomorrow at 9 to email Sam")["command"]["at"]
+        self.assertEqual(dt.datetime.fromisoformat(at),
+                         dt.datetime(2026, 10, 7, 9, 0, tzinfo=localtime.operator_tz()))
+
+    def test_next_friday_counts_from_his_day(self):
+        from aletheia import voice
+        self.assertIn("the 9th, or the week after on the 16th", voice._ambiguous_next_weekday("next friday"))
+
+    def test_a_journal_line_from_his_evening_is_said_as_today(self):
+        from aletheia import intercom
+        self.assertEqual(intercom._day_words("2026-10-07T00:30:00Z"), "today")
+        self.assertEqual(intercom._day_words("2026-10-06T04:00:00Z"), "yesterday")

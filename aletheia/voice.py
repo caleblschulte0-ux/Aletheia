@@ -214,7 +214,8 @@ def _spoken_day(text: str) -> str | None:
     import datetime as dt
     t = text.strip().lower().rstrip(".?!")
     t = t[5:].strip() if t.startswith("this ") else t
-    today = dt.date.today()
+    from aletheia import localtime
+    today = localtime.today()
     if t in ("today", ""):
         return today.isoformat()
     if t == "tomorrow":
@@ -306,7 +307,8 @@ def _ambiguous_next_weekday(text: str) -> str | None:
     words = str(text or "").strip().lower().rstrip(".?!").split()
     if len(words) < 2 or words[0] != "next" or words[1] not in WEEKDAYS:
         return None
-    today = dt.date.today()
+    from aletheia import localtime
+    today = localtime.today()
     ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7 or 7
     soon = today + dt.timedelta(days=ahead)
     later = soon + dt.timedelta(days=7)

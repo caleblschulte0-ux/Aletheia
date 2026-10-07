@@ -8,7 +8,7 @@ import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import music, voice
+from aletheia import localtime, music, voice
 
 
 class ARemindersDayIsReadCase(unittest.TestCase):
@@ -24,7 +24,7 @@ class ARemindersDayIsReadCase(unittest.TestCase):
         out = voice.interpret("thea remind me tomorrow to take the bins out")
         self.assertEqual(out["command"]["kind"], "remind_at")
         when = dt.datetime.fromisoformat(out["command"]["at"])
-        self.assertEqual(when.date(), dt.date.today() + dt.timedelta(days=1))
+        self.assertEqual(when.date(), localtime.today() + dt.timedelta(days=1))
         self.assertEqual(out["command"]["text"], "take the bins out")
         out = voice.interpret("thea remind me at 9 on friday to send the invoice")
         self.assertEqual(dt.datetime.fromisoformat(out["command"]["at"]).strftime("%A"), "Friday")
