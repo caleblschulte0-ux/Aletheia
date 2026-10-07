@@ -2892,6 +2892,14 @@ def _interpret(transcript: str) -> dict:
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
+            # "Remember that my car is in spot 14" then "forget that" said
+            # "Okay - nothing was waiting" and KEPT the note (2026-10-07).
+            # With nothing pending, "that" is the note he just made.
+            noted = re.match(r"(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
+                             r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
+                             _previous_ask().casefold().rstrip(".!"))
+            if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and noted:
+                return {"command": {"kind": "forget", "about": noted.group(1)}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
             # leaves him believing he just cancelled something, and a bare
             # "Nothing is waiting for approval" answers a question he did
@@ -2903,6 +2911,31 @@ def _interpret(transcript: str) -> dict:
         # is an instruction to go somewhere else, said to someone who is
         # standing in a room talking.
         return {"command": None, "say": _offer_choice(pending, verb="deny")}
+
+    # SMALL THINGS A PERSON SAYS TO A ROOM. "Flip a coin" and "spell
+    # necessary" were kept for a model "when the big models are back"
+    # (2026-10-07). Neither needs one.
+    if re.fullmatch(r"(?:flip|toss) a coin|heads or tails", low):
+        import secrets
+        return {"command": None, "say": secrets.choice(("Heads.", "Tails."))}
+    m = re.fullmatch(r"roll (?:a|one|an?) (?:die|dice|d(\d{1,3}))|roll (?:the )?dice|"
+                     r"roll (two|2) dice|pick a (?:random )?number between (\d+) and (\d+)", low)
+    if m:
+        import secrets
+        if m.group(3):
+            lo, hi = sorted((int(m.group(3)), int(m.group(4))))
+            return {"command": None, "say": f"{lo + secrets.randbelow(hi - lo + 1)}."}
+        if m.group(2):
+            a, b = 1 + secrets.randbelow(6), 1 + secrets.randbelow(6)
+            return {"command": None, "say": f"{a} and {b} - {a + b}."}
+        sides = int(m.group(1) or 6)
+        if sides >= 2:
+            return {"command": None, "say": f"{1 + secrets.randbelow(sides)}."}
+    m = re.fullmatch(r"(?:how do (?:you|u|i) spell|spell|spell out|what(?:'s| is) the spelling of) "
+                     r"(?!my |your |his |her |their )([a-z][a-z'-]{1,30})(?: for me)?\s*\??", low)
+    if m:
+        word = m.group(1)
+        return {"command": None, "say": f"{word.capitalize()}: " + ", ".join(c.upper() for c in word if c.isalpha()) + "."}
 
     # "Thanks" is not a question and has no store behind it, so it does
     # not belong in `quick` — but it went to the PLANNER, which is 25-80
