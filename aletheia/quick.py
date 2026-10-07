@@ -369,7 +369,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:is|are) (?P<tf_who3>(?:my )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?P<tf_allergy>allergic to)\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
-        r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$")),
+        r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
+        # "How do I know Sam" (2026-10-07: to a model) - what he told her.
+        r"|^how do i know (?!(?:that|this|it|if|when|what|which|where|whether|how)\b)(?P<who_named2>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$")),
     ("contacts_count", re.compile(
         r"^how many (?:contacts|people) (?:do i have|have i got|are in my contacts|have i saved|are saved)\s*\??$"
         # "Who are my contacts" (2026-10-07: to a model)
@@ -1235,6 +1237,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
         r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow|this week|next))?\s*\??$")),
+    # "What's my dentist appointment" (2026-10-07: to a model) - only the
+    # words that are always an appointment; "what's my flight" may be a number.
+    ("when_mine_what", re.compile(
+        r"^what(?:'s| is) (?:my|the|our) (?:next )?(?P<when_mine2>(?:[a-z][a-z' ]{0,30}? )?(?:appointment|appt|interview|reservation)"
+        r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow|this week|next))?\s*\??$")),
     # "What time do I pick up Leo" (2026-10-07: to a model) - the reminder
     # he set for it, read like "what time is my dentist".
     ("when_do_i", re.compile(
@@ -1243,7 +1250,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When am I meeting John" (2026-10-07: to a model).
     ("when_meeting", re.compile(
         r"^when (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast|a call) with|have (?:lunch|dinner|coffee|breakfast|a call) with"
-        r"|talking to|calling)(?: with)? (?P<when_meeting>[a-z][a-z' ]{1,25}?)(?: next| again)?\s*\??$")),
+        r"|talking to|calling)(?: with)? (?P<when_meeting>[a-z][a-z' ]{1,25}?)(?: next| again)?\s*\??$"
+        # "What do I have with Sam" (2026-10-07: to a model).
+        r"|^(?:what do i have|do i have anything|have i got anything)(?: (?:on|coming up|scheduled|planned))? with (?P<when_meeting2>[a-z][a-z' ]{1,25}?)\s*\??$")),
     ("reminders_on", re.compile(
         r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
         r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
@@ -1613,10 +1622,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
-        r"|vaccinate|deworm|descale|defrost|call|visit|pay) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
+        r"|hang out with|text|catch up with) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
-        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
+        r"|talk to|talked to|speak to|spoken to|see|seen|text|texted) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -2070,7 +2081,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4279,8 +4290,15 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
+_PAST = {"talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
+         "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
+         "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
+         "catch up with": "caught up with", "get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
          "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
+
+
+#: Ways of being with somebody: asked about one, any of them answers.
+_WITH_SOMEBODY = {"talked to", "saw", "met", "hung out with", "caught up with"}
 
 
 def _past_of(verb: str) -> str:
@@ -4319,7 +4337,7 @@ def _did_last(text: str) -> str | None:
     if not verb or not thing:
         return None
     if re.search(r"\b(?:email|emails|mail|message|messages|text|texts|call|calls|reply|replies|package|parcel)\b", thing) \
-            and verb in ("get", "mail", "mailed"):
+            and verb in ("get", "mail", "mailed", "see", "seen", "text", "texted"):
         return None
     past = _past_of(verb)
     base = re.sub(r"(?:ied)$", "y", past)
@@ -4329,17 +4347,23 @@ def _did_last(text: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if not re.search(r"\bi (?:just )?" + ("(?:got|had|gotten)" if service else re.escape(past)) + r"\b", low) or not all(
+        # talking to somebody is any of the ways he says he did
+        said_as = ("(?:got|had|gotten)" if service else
+                   r"(?:talked (?:to|with)|spoke (?:to|with)|called|texted|saw|met(?: up)?(?: with)?|hung out with|caught up with|visited)"
+                   if past in _WITH_SOMEBODY else re.escape(past))
+        if not re.search(r"\bi (?:just )?" + said_as + r"\b", low) or not all(
                 re.search(r"\b" + re.escape(w), low) for w in words):
             continue
         try:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
         except ValueError:
             at = None
-        told = re.sub(r"\bi\b", "you", re.sub(r"^i (?:just )?", "you ", low))
-        told = re.sub(r"\bmy\b", "your", told)
+        # his words, his capitals: "you saw Sam", not "you saw sam"
+        told = re.sub(r"\bi\b", "you", re.sub(r"^i (?:just )?", "you ", said, flags=re.I), flags=re.I)
+        told = re.sub(r"\bmy\b", "your", told, flags=re.I)
         # "you changed the oil today - that was today at 6:56 am" said it twice.
-        told = re.sub(r" (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier)$", "", told)
+        told = re.sub(r" (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier)\.?$", "", told, flags=re.I)
+        told = told.rstrip(".")
         if at is None:
             return f"You told me {told}."
         when = speech.humanize_time(at.isoformat())
@@ -9675,6 +9699,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather_in": lambda rest: _weather_in(rest),
            "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
+           "when_mine_what": lambda rest: _when_mine(rest),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),
            "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),

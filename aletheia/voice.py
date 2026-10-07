@@ -1203,7 +1203,9 @@ _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuum
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
                # "I called mom" (2026-10-07: to the planner). A call he made is
                # his to tell her; "when did I last call mom" reads it back.
-               "|called|visited")
+               "|called|visited"
+               # "I talked to mom", "I saw Sam today" (2026-10-07: to the planner).
+               "|talked to|talked with|spoke to|spoke with|saw|met with|met up with|hung out with|texted|caught up with")
 
 
 def _new_task(raw: str) -> dict:
@@ -6736,6 +6738,12 @@ def _interpret(transcript: str) -> dict:
         said = _same_ask_again()
         if said:
             return {"command": None, "say": said}
+    # "Call me back in 10 minutes" (2026-10-07: to the planner). She can't
+    # place a call; the nudge is what she can do.
+    m = re.fullmatch(r"(?:call|ring|ping|get back to|check (?:back )?(?:in )?with) me(?: back)? in (\d{1,3}|an?|one|two|five|ten|fifteen|twenty|thirty) "
+                     r"(minutes?|mins?|hours?)", low)
+    if m:
+        return _interpret(f"remind me in {m.group(1)} {m.group(2)} to pick up where we left off")
     # Small talk with one honest line each (2026-10-07: all to the planner).
     if re.fullmatch(r"sing (?:me )?(?:a song|something)(?: thea)?", low):
         return {"command": None, "say": "I'd better not - I can't carry a tune. Say \"play some music\" and I'll put something on."}

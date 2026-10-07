@@ -3615,5 +3615,40 @@ class TaxSavingYearsAndHeights(unittest.TestCase):
         self.assertEqual(quick.answer("how heavy is 10 kg in pounds"), "About 22.05 pounds.")
 
 
+class HisPeopleTalkedToAndSeen(unittest.TestCase):
+    def test_a_greeting_starts_the_text_on_the_bottom_rung(self):
+        # the voice layer still leaves a stranger's name to a model; with
+        # none, the rules split at the greeting rather than ask for "sarah happy"
+        from aletheia import rule_planner
+        with mock.patch("aletheia.messages.resolve_number", return_value=(None, "sarah")):
+            said = rule_planner.match("text sarah happy birthday")[1]["say"]
+        self.assertIn("phone number for sarah.", said.casefold())
+
+    def test_talking_to_somebody_is_kept_and_any_way_answers(self):
+        import datetime as dt
+        from aletheia import quick
+        for said in ("I talked to mom", "I saw Sam today", "I texted Dana"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I called mom", "ts": now},
+                                                              {"text": "I saw Sam today", "ts": now}]):
+            self.assertTrue(quick.answer("when did I last talk to mom").startswith("You told me you called mom"))
+            self.assertTrue(quick.answer("when did I last see Sam").startswith("You told me you saw Sam"))
+            self.assertTrue(quick.answer("did I talk to mom today").startswith("Yes - "))
+            self.assertIsNone(quick.answer("did I see the email from Sam"))
+
+    def test_how_he_knows_somebody_and_what_is_with_them(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "Sam is my coworker"}]):
+            self.assertEqual(quick.answer("how do I know Sam"), "You told me: Sam is your coworker.")
+        self.assertIsNone(quick.match("how do I know if it rains"))
+        self.assertEqual(quick.match("what do I have with Sam"), ("when_meeting", "sam"))
+        self.assertEqual(quick.match("what's my dentist appointment"), ("when_mine_what", "dentist appointment"))
+
+    def test_call_me_back_is_a_nudge(self):
+        got = voice._interpret("call me back in 10 minutes")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "pick up where we left off"))
+
+
 if __name__ == "__main__":
     unittest.main()
