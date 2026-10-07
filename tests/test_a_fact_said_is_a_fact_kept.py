@@ -3228,7 +3228,8 @@ class WatchedAndRead(unittest.TestCase):
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading Dune Messiah", "ts": now}]):
                 self.assertEqual(quick.answer("what am I reading"), "You told me you started Dune Messiah.")
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading The Hobbit", "ts": now}]):
-                self.assertIsNone(quick.answer("what am I reading"))
+                # finished is not "still reading", and not "never told me"
+                self.assertIn("you've finished it", quick.answer("what am I reading"))
 
 
 class SomebodysAddress(unittest.TestCase):
@@ -3468,6 +3469,52 @@ class IdeasGoalsThanksAndAJournal(unittest.TestCase):
     def test_procrastinating_gets_a_way_in(self):
         from aletheia import quick
         self.assertIn("focus session", quick.answer("I'm procrastinating"))
+
+
+class GiftsWatchedWeighedAndTheWeek(unittest.TestCase):
+    def test_a_gift_idea_is_a_line_on_his_gift_list(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("add a gift idea for my sister: a scarf")["command"],
+                         {"kind": "list_add", "list": "gift", "item": "a scarf for my sister"})
+        self.assertEqual(voice._interpret("a cookbook would be a great gift for dad")["command"]["item"], "a cookbook for dad")
+        with mock.patch("aletheia.lists.items", return_value=["a scarf for my sister", "a cookbook for dad"]):
+            self.assertEqual(quick.answer("what gift ideas do I have for my sister"), "Your gift ideas for your sister: a scarf.")
+            self.assertEqual(quick.answer("what should I get dad for his birthday"), "Your gift ideas for dad: a cookbook.")
+            # nothing kept for her is a question a model can think about
+            self.assertIsNone(quick.answer("what should I get my mom"))
+            self.assertIn("haven't saved any gift ideas", quick.answer("what gift ideas do I have for my mom"))
+
+    def test_watched_and_reading_are_read_back(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I watched Oppenheimer")["command"], {"kind": "note", "text": "I watched Oppenheimer"})
+        got = voice._interpret("I watched the kids")
+        self.assertFalse(got and (got.get("command") or {}).get("kind") == "note")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I watched Oppenheimer last night", "ts": now}]), \
+             mock.patch("aletheia.lists.all_lists", return_value=[]):
+            self.assertEqual(quick.answer("what movies have I watched"), "You've watched Oppenheimer.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me what you're reading", quick.answer("what am I reading"))
+
+    def test_what_he_weighed_then(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        notes = [{"text": "I weigh 180", "ts": now.isoformat()},
+                 {"text": "I weigh 185", "ts": (now - dt.timedelta(days=8)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertTrue(quick.answer("what did I weigh last week").startswith("185 pounds, "))
+            self.assertTrue(quick.answer("how much weight have I lost").startswith("Down about 5 pounds"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me your weight", quick.answer("what did I weigh last week"))
+
+    def test_the_week_and_coming_back(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's going on this week"), ("agenda", "this week"))
+        self.assertEqual(quick.match("what does my week look like")[0], "agenda")
+        self.assertEqual(quick.match("I'm back from the gym")[0], "arrival")
+        self.assertEqual(quick.match("what were my notes from yesterday"), ("notes_day", "yesterday"))
 
 
 if __name__ == "__main__":

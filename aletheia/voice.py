@@ -7522,6 +7522,21 @@ def _interpret(transcript: str) -> dict:
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # A GIFT IDEA FOR SOMEBODY (2026-10-07: "add a gift idea for my sister:
+    # a scarf" went to the planner). A line on his gift list naming who it
+    # is for; "what gift ideas do I have for my sister" reads it back.
+    m = re.fullmatch(r"(?:add (?:a )?|save (?:a )?|new )?gift idea for (?P<who>(?:my )?[a-z][a-z' ]{1,25}?)[:,-]? (?P<what>[a-z0-9].{1,60})"
+                     r"|(?P<what2>[a-z0-9][a-z0-9 '-]{1,40}?) (?:would be|is|could be|might be) a (?:good|great|nice|perfect) "
+                     r"(?:gift|present)(?: idea)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas))?", low)
+    if m and not re.match(r"(?:it|that|this|what)\b", m.group("what") or m.group("what2")):
+        what = _as_he_said(text, m.group("what") or m.group("what2"))
+        who = _as_he_said(text, m.group("who") or m.group("who2"))
+        return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
+    # "I watched Oppenheimer" (2026-10-07: to the planner) - "what movies
+    # have I watched" reads it back with his watch list.
+    if re.fullmatch(r"i (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"
+                    r"[a-z0-9][a-z0-9 ,:'&-]{1,60}?(?: (?:last night|tonight|today|yesterday|again))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I START WORK AT 9", "my commute is 30 minutes" (2026-10-07: to the
     # planner). Notes in his words; "what time do I start work" reads the
     # first, and "when should I leave for work" adds the two up when there
