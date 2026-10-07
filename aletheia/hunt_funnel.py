@@ -77,12 +77,40 @@ def _closed_bucket(record: dict) -> str:
     if kind == "left":
         return _left_bucket(why)
     if kind in CLOSED_KINDS:
+        if kind == "not-a-form":
+            return f"not_a_form_{_why_not_a_form(why)}_on_{_system_of(record.get('url'))}"
         return CLOSED_KINDS[kind]
     if named:
         return named
     # `closure_kind` calls everything it cannot place "unfit", and every
     # unfit closure is a judgement that the job was not realistic for him.
     return "not_realistic" if kind == "unfit" else "other"
+
+
+def _why_not_a_form(why: str) -> str:
+    """Which of `apply_run.stage`'s three "not a form" findings it was, from
+    its own fixed sentences. Live 2026-10-07 46 closures read "not_a_form"
+    and nothing said whether those were job-alert lists, bot checks or
+    postings whose form sits behind a button - three different fixes."""
+    if "job-alert" in why or "talent-network" in why:
+        return "signup_list"
+    if "name, email or phone" in why:
+        return "asks_nothing"
+    if "no application form" in why:
+        return "nothing_to_fill"
+    return "other"
+
+
+def _system_of(url) -> str:
+    """The applicant-tracking system an address belongs to, or
+    "employer_site": a system's name, never the employer's."""
+    import urllib.parse
+    host = (urllib.parse.urlparse(str(url or "")).hostname or "").casefold()
+    for system in ("greenhouse", "lever", "ashbyhq", "workable", "smartrecruiters", "recruitee",
+                   "bamboohr", "myworkdayjobs", "icims"):
+        if system in host.split("."):
+            return system
+    return "employer_site"
 
 
 #: A failure's own words name an employer, a url or a question, and this
