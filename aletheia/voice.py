@@ -1222,6 +1222,42 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
                         "replaces": previous["text"]}, "say": None}
 
 
+def _reminder_moved_to(which: str, time_words: str) -> dict | None:
+    """The one-off reminder named by its time ("3pm") or its words ("pill"),
+    moved to `time_words` on the day it was already on. None when the new
+    time does not read; a sentence when nothing, or more than one, matches."""
+    import datetime as dt
+    from aletheia import localtime
+    hhmm = _spoken_time(time_words)
+    if not hhmm:
+        return None
+    tz = localtime.operator_tz()
+    which = which.strip()
+    named_at = _spoken_time(which)
+    found = []
+    for at, words in _running_once(""):
+        local = at.astimezone(tz)
+        if named_at:
+            hour, minute = map(int, named_at.split(":"))
+            # "My 3 reminder" with no am/pm is either 3 o'clock.
+            if local.minute == minute and (local.hour == hour or (_is_bare_hour(which) and local.hour % 12 == hour % 12)):
+                found.append((local, words))
+        elif all(w in words.casefold() for w in re.findall(r"[a-z0-9]+", which.casefold())):
+            found.append((local, words))
+    if not found:
+        return {"command": None, "say": f"I don't see a reminder {'at ' if named_at else 'for '}{which}. "
+                                        "Say \"what reminders do I have\" and I'll read them."}
+    if len(found) > 1:
+        from aletheia import speech
+        return {"command": None, "say": "Which one - " + speech.or_list([w for _, w in found[:4]]) + "?"}
+    was, words = found[0]
+    hour, minute = map(int, hhmm.split(":"))
+    if _is_bare_hour(time_words) and was.hour >= 12 and hour < 12:
+        hour += 12                       # "move my 3pm reminder to 4" means 4 pm
+    at = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words, "replaces": words}, "say": None}
+
+
 def _running_once(marker: str) -> list:
     """[(when, text)] for the one-off reminders still to fire whose words
     carry `marker` ("timer is up", "wake up"), soonest first. Never raises."""
@@ -4330,6 +4366,30 @@ def _interpret(transcript: str) -> dict:
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
     if m:
         moved = _moved_reminder(text, m.group("time"))
+        if moved:
+            return moved
+
+    # "REMIND ME WHEN I GET HOME" (2026-10-07: to the planner). She has no
+    # idea where he is, so a place cannot set anything off; say so, and
+    # offer the clock, which she does have.
+    m = re.fullmatch(r"remind me (?:when|once|as soon as) i (?:get|arrive|am|'m|leave|get back) "
+                     r"(?:home|to (?:work|the office|the store|school)|at (?:home|work|the store)|back|work)"
+                     r"(?:,? to (?P<what>.+))?", low) \
+        or re.fullmatch(r"remind me to (?P<what>.+?) when i (?:get|arrive|am|'m|leave|get back) "
+                        r"(?:home|to (?:work|the office|the store|school)|at (?:home|work|the store)|back)", low)
+    if m:
+        what = (m.group("what") or "").strip() or "do it"
+        return {"command": None,
+                "say": "I can't tell where you are, so I can't remind you when you get somewhere. "
+                       f"I can do it at a time - say \"remind me at 6 to {what}\"."}
+
+    # "CHANGE MY 3PM REMINDER TO 4PM", "move my pill reminder to 9"
+    # (2026-10-07: to the planner). The one-off reminder he names - by its
+    # time or its words - on the same day, at the new time.
+    m = re.fullmatch(r"(?:change|move|switch|reschedule|push) (?:my |the )?(?P<which>.+?) reminder to (?:at )?"
+                     r"(?P<time>[\w: ]+?)(?: instead| please)?", low)
+    if m:
+        moved = _reminder_moved_to(m.group("which"), m.group("time"))
         if moved:
             return moved
 
