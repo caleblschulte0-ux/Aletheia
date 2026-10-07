@@ -6935,7 +6935,17 @@ def _interpret(transcript: str) -> dict:
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
                      r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
-                     r"|anniversary|account number|member(?:ship)? number|policy number) (?:is|are) (?P<value>.{1,80})", fact_low)
+                     r"|anniversary|account number|member(?:ship)? number|policy number"
+                     # "My budget is 2000 a month", "my goal is to run a marathon"
+                     # (2026-10-07: to the planner). Held to a number or an aim
+                     # below, so "my budget is tight" stays how he feels.
+                     r"|(?:monthly |weekly |daily |grocery |food |step |calorie |water |reading |savings )?(?:budget|goal)"
+                     r"|goal weight|target weight|bedtime|employee (?:id|number)|student (?:id|number)"
+                     r"|insurance(?: company| provider)?|pharmacy|gym) (?:is|are) (?P<value>.{1,80})", fact_low)
+    if m and re.search(r"(?:budget|goal|weight|bedtime)$", m.group("key")) \
+            and not (re.search(r"\d", m.group("value")) or m.group("value").startswith(("to ", "a ", "an "))
+                     and m.group("key").endswith("goal")):
+        m = None
     if m:
         if re.fullmatch(r"(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
                         r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)",

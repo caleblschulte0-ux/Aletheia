@@ -2848,5 +2848,18 @@ class WhenHeSlept(unittest.TestCase):
         self.assertNotEqual((quick.match("how many cups of water") or ("",))[0], "logged")
 
 
+class BudgetsAndGoals(unittest.TestCase):
+    def test_an_aim_or_a_number_is_kept_and_a_feeling_is_not(self):
+        from aletheia import quick
+        for kept in ("my budget is 2000 a month", "my goal is to run a marathon", "my step goal is 10000",
+                     "my gym is Planet Fitness"):
+            self.assertEqual(voice._interpret(kept)["command"]["kind"], "note", kept)
+        for felt in ("my budget is tight", "my goal is hard"):
+            got = voice._interpret(felt)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", felt)
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my budget is 2000 a month"}]):
+            self.assertEqual(quick.answer("what's my budget"), "You told me: your budget is 2000 a month.")
+
+
 if __name__ == "__main__":
     unittest.main()
