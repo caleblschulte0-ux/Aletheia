@@ -2005,7 +2005,9 @@ _BARE_VERBS = (
      'For how long? Say "set a timer for ten minutes".'),
     (r"(?:send|write|draft|compose) (?:an |a )?(?:new )?e-?mail(?: for me)?",
      'Who to, and what should it say? Say "email Dana saying I\'ll be late".'),
-    (r"(?:set|make) (?:an |me an )?alarm",
+    # "Wake me up", "set an alarm for tomorrow" (2026-10-07: to the planner).
+    (r"(?:set|make) (?:an |me an )?alarm(?: for (?:tomorrow|the morning|tomorrow morning))?"
+     r"|wake me(?: up)?(?: tomorrow| in the morning| tomorrow morning)?",
      'For what time? Say "wake me up at 6".'),
     (r"(?:did (?:anyone|anybody|someone|somebody) call(?: me)?|any missed calls|who called(?: me)?|missed calls"
      r"|(?:read|check) (?:me )?my (?:texts|text messages)|any (?:new )?(?:texts|text messages)"
@@ -2089,7 +2091,9 @@ def _a_polite_ask(transcript: str) -> str:
         return said
     # "Would you remind me to call mom" has no time yet, and her question
     # back ("When should I remind you to call mom?") is the right answer.
-    asks_back = cmd.get("kind") is None and re.match(r"remind me\b", rest, re.IGNORECASE)
+    # "Can you wake me up" was answered about the room microphone (2026-10-07).
+    asks_back = cmd.get("kind") is None and re.match(r"(?:remind me|wake me|set (?:a|an|me a) (?:alarm|timer))\b",
+                                                     rest, re.IGNORECASE)
     if cmd.get("kind") not in _POLITE_DOING and not asks_back:
         return said
     return said[:len(said) - len(bare)] + rest

@@ -1752,5 +1752,12 @@ class TheAnswerToForHowLongCase(unittest.TestCase):
                              "your 5-minute timer is up")
 
 
+class WakeMeUpCase(unittest.TestCase):
+    def test_wake_me_up_with_no_time_asks_for_one(self):
+        from aletheia import voice
+        for said in ("wake me up", "set an alarm for tomorrow", "can you wake me up"):
+            self.assertIn("For what time?", voice.interpret(f"thea {said}")["say"], said)
+
+
 if __name__ == "__main__":
     unittest.main()
