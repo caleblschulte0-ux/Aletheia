@@ -2941,5 +2941,15 @@ class WhatSheNotedIsSaidPlainly(unittest.TestCase):
                          "Noted: car color is red.")
 
 
+class AFactChanged(unittest.TestCase):
+    def test_change_my_address_is_my_address_is(self):
+        self.assertEqual(voice._interpret("change my address to 12 Oak St")["command"],
+                         {"kind": "remember", "domain": "identity", "key": "address", "value": "12 Oak St"})
+        self.assertEqual(voice._interpret("change my shoe size to 11")["command"],
+                         {"kind": "note", "text": "my shoe size is 11"})
+        got = voice._interpret("change my mind")
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "remember")
+
+
 if __name__ == "__main__":
     unittest.main()

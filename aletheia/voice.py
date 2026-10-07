@@ -2647,6 +2647,17 @@ def _interpret(transcript: str) -> dict:
             again = _interpret(plural)
             if (again.get("command") or {}).get("kind") in ("remind_weekly", "remind_daily"):
                 return again
+    # "Change my address to 12 Oak St", "update my email to ..." (2026-10-07:
+    # to the planner). The same fact as "my address is ...", said as a
+    # change; only kept when that sentence is one she keeps.
+    m = re.fullmatch(r"(?:please )?(?:change|update|set|switch|correct) my (?P<key>[a-z][a-z' ]{1,30}?) to (?P<value>.+)", low)
+    if m and m.group("key") not in ("alarm", "reminder", "timer", "status", "mind", "plans", "plan", "password", "pin"):
+        # In his capitals: the value is read back as he said it ("12 Oak St").
+        his = re.search(r"\bmy (.+?) to (.+?)[.!?]*$", text.strip(), re.IGNORECASE)
+        again = _interpret(f"my {his.group(1)} is {his.group(2)}" if his
+                           else f"my {m.group('key')} is {m.group('value')}")
+        if (again.get("command") or {}).get("kind") in ("remember", "note"):
+            return again
     # "Set a daily reminder to take my pills at 9", "add a monthly reminder
     # to pay rent on the 1st", "create a reminder to call mom at 5"
     # (2026-10-07: to the planner). The same ask as "remind me to ...", said
