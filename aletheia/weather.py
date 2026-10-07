@@ -48,7 +48,7 @@ GRID_URL = "https://api.weather.gov/points/{lat},{lon}"
 GEOCODE_URL = ("https://geocoding-api.open-meteo.com/v1/search?name={name}"
                "&count=10&countryCode=US&language=en&format=json")
 
-_STATES = dict(pair.split(":") for pair in (
+_STATE_PAIRS = dict(pair.split(":") for pair in (
     "al:alabama ak:alaska az:arizona ar:arkansas ca:california co:colorado ct:connecticut "
     "de:delaware fl:florida ga:georgia hi:hawaii id:idaho il:illinois in:indiana ia:iowa "
     "ks:kansas ky:kentucky la:louisiana me:maine md:maryland ma:massachusetts mi:michigan "
@@ -57,7 +57,7 @@ _STATES = dict(pair.split(":") for pair in (
     "ok:oklahoma or:oregon pa:pennsylvania ri:rhode_island sc:south_carolina sd:south_dakota "
     "tn:tennessee tx:texas ut:utah vt:vermont va:virginia wa:washington wv:west_virginia "
     "wi:wisconsin wy:wyoming dc:district_of_columbia").split())
-_STATES = {k: v.replace("_", " ") for k, v in _STATES.items()}
+_STATES = {k: v.replace("_", " ") for k, v in _STATE_PAIRS.items()}
 
 # A forecast is issued hourly and does not move in between. Long enough
 # that asking twice costs one call, short enough to still be today's.

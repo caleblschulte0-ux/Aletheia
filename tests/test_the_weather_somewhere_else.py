@@ -74,8 +74,10 @@ class WhenIsHisThing(unittest.TestCase):
     def test_a_reminder_counts(self):
         self.assertIn("You have a reminder", quick.answer("when is my call with the recruiter"))
 
-    def test_nothing_by_that_name_says_where_it_looked(self):
-        self.assertIn("on your calendar or in your reminders", quick.answer("when is my flight"))
+    def test_nothing_by_that_name_is_left_to_think_about(self):
+        # It may be in his mail, which a model can read: quick only ever
+        # removes latency, never an answer.
+        self.assertIsNone(quick.answer("when is my flight"))
 
     def test_the_older_readers_keep_their_sentences(self):
         self.assertEqual(quick.match("when is my next meeting")[0], "next_meeting")

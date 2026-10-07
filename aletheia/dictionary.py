@@ -73,8 +73,10 @@ def senses(word: str, *, fetch=None) -> list[tuple[str, str]]:
     return found
 
 
-def spoken(word: str, **kwargs) -> str:
-    """What the word means, out loud. Never raises."""
+def spoken(word: str, *, say_unknown: bool = True, **kwargs) -> str:
+    """What the word means, out loud. Never raises. With `say_unknown`
+    False a word the dictionary lacks is "" - slang and names may still be
+    something a model can answer, so the fast lane must not close on them."""
     said = " ".join(str(word or "").split())
     try:
         found = senses(said, **kwargs)
@@ -83,6 +85,8 @@ def spoken(word: str, **kwargs) -> str:
     except Exception as exc:
         return f"I couldn't look that up just now ({type(exc).__name__})."
     if not found:
+        if not say_unknown:
+            return ""
         return f"The dictionary doesn't have \"{said}\". If it's a name or slang, it may not be in there."
     lines = []
     for part, definition in found[:2]:

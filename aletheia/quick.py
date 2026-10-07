@@ -3613,7 +3613,7 @@ def _feeling(text: str) -> str | None:
 def _define(word: str) -> str | None:
     try:
         from aletheia import dictionary
-        return dictionary.spoken(word)
+        return dictionary.spoken(word, say_unknown=False) or None
     except Exception:
         return None
 
@@ -4710,8 +4710,9 @@ def _when_mine(what: str) -> str | None:
             if store == "calendar":
                 return f"{text[:1].upper() + text[1:]} is {when}."
             return f"You have a reminder {when}: {text.rstrip('.')}."
-    return (f"I don't see anything about {what.strip()} on your calendar or in your reminders. "
-            "If it's booked, tell me when and I'll put it on your calendar.")
+    # Nothing by that name in her stores is not "you have none": it may be
+    # in his mail, which a model can read. Only a found answer is quick.
+    return None
 
 
 def _reminders_on(day: str) -> str | None:

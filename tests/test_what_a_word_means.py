@@ -35,6 +35,10 @@ class WhatAWordMeans(unittest.TestCase):
             raise OSError("offline")
         self.assertIn("internet may be down", dictionary.spoken("word", fetch=down))
 
+    def test_an_unknown_word_is_left_to_think_about(self):
+        with mock.patch.object(dictionary, "_fetch", return_value=[]):
+            self.assertIsNone(quick.answer("define rizz"))
+
     def test_through_quick(self):
         with mock.patch.object(dictionary, "_fetch", return_value=ENTRY):
             self.assertIn("happy accident", quick.answer("define serendipity"))
