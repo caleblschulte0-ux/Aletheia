@@ -2284,7 +2284,12 @@ def _interpret(transcript: str) -> dict:
                     r"who (?:e?mailed|has e?mailed|wrote to) me(?: today| this morning| overnight)?|"
                     r"(?:did|has) (?:anyone|anybody|somebody) (?:e?mail|e?mailed|written to) me(?: today)?|"
                     r"what(?:'s| is|s)? (?:the |my )?(?:last|latest|newest|most recent) e?mail(?: i got| i received)?|"
-                    r"anything (?:new )?in (?:my|the) inbox)", low):
+                    r"anything (?:new )?in (?:my|the) inbox|"
+                    # "How many unread emails do I have" and "read me my last
+                    # email" went to the planner (2026-10-07).
+                    r"how many (?:unread |new )?e?mails?(?: do i have| have i got| are there)?(?: today)?|"
+                    r"any unread e?mails?|(?:read|show) (?:me )?(?:my )?(?:e?mails?|inbox)|"
+                    r"(?:read|show) (?:me )?(?:my |the )?(?:last|latest|newest|most recent) e?mail)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
     # AN HOURLY REMINDER is a door she does not have (daily and weekly she
@@ -2313,6 +2318,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "task_status", "id": str(newest["id"]), "state": "CANCELLED",
                             "note": "he asked to remove the last task"},
                 "say": None}
+
+    # "DELETE THAT NOTE" went to the planner (2026-10-07) one turn after he
+    # made it. The newest note, forgotten by its own words, through the
+    # verb that already tombstones notes - said back so he hears which.
+    if re.fullmatch(r"(?:delete|remove|forget|scratch|get rid of|erase) (?:that|the last|my last|the latest|my latest"
+                    r"|the newest|my newest|the most recent|my most recent) note", low):
+        from aletheia import quick as _quick
+        rows = _quick._notes(1)
+        if not rows:
+            return {"command": None, "say": "There's no note to delete."}
+        return {"command": {"kind": "forget", "about": str(rows[0].get("text") or "")}, "say": None}
 
     # SHE CAN BE TOLD TO STOP LISTENING, and cannot be told to start.
     # Turning it on is a button (intercom `mic_on`, and PLANNER_FORBIDDEN

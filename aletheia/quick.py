@@ -583,7 +583,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
-        r"(?: for)? (?P<day5>today|tomorrow|this week|next week)$"
+        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
         # "What's my schedule this week" paid seven seconds of model for a
         # feed the shapes above already read (2026-09-22).
@@ -660,6 +660,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:do i|have i) (?:have|got) (?:anything|any plans|much|something)(?: on| planned| scheduled| going on)?"
         r"(?: (?P<free2>today|tomorrow))?$"
         r"|^is my (?P<free3>today|tomorrow) free$")),
+    # "Am I busy at 3", "am I free tomorrow at 2:30", "do I have anything
+    # at 4" went to the planner (2026-10-07); "am I free friday" and "am I
+    # busy tomorrow" too. The calendar mirror answers all of them.
+    ("free_at", re.compile(
+        r"^(?:am i|will i be) (?:free|busy|available|booked)(?: (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
+        r"(?: (?:at|around) [0-9a-z: ]{1,14}?)?(?: (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
+        r"|^(?:do i|have i) (?:have|got) (?:anything|something|a meeting|plans) (?:on )?(?:at|around) [0-9a-z: ]{1,14}?"
+        r"(?: (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     # Already computed every beat for the wall (`next_appointment`), and
     # it was paying a round trip to be read aloud. Deliberately without a
     # trailing clause: "what's my next meeting ABOUT" and "move my next
@@ -962,7 +970,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "free_at"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2516,6 +2524,70 @@ def _free(when: str = "") -> str | None:
         return None             # no feed, or it could not be read
 
 
+def _free_at(text: str) -> str | None:
+    """Whether he is free on a day, or at a time on it, from the calendar.
+
+    A time with no am or pm follows the room's rule (`voice.EARLIEST_BARE_HOUR`):
+    nobody asking "am I busy at 3" means three in the morning. No time at
+    all is the day's free time, from the same sentence `free_time` says.
+    """
+    import datetime as dt
+    from aletheia import calendar, intercom, localtime, voice
+    low = str(text or "").casefold()
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    day = now.date()
+    named = re.search(r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+    if named and named.group(1) == "tomorrow":
+        day += dt.timedelta(days=1)
+    elif named and named.group(1) in _WEEKDAYS:
+        day += dt.timedelta(days=(_WEEKDAYS.index(named.group(1)) - now.weekday()) % 7)
+    at = re.search(r"\b(?:at|around) ([0-9a-z: ]{1,14}?)(?: (?:today|tomorrow|monday|tuesday|wednesday"
+                   r"|thursday|friday|saturday|sunday))?$", low)
+    if not at:
+        try:
+            return intercom.free_time_answer({"kind": "free_time", "day": day.isoformat()})
+        except Exception:
+            return None
+    phrase = at.group(1).strip()
+    hhmm = voice._spoken_time(phrase)
+    if not hhmm:
+        return None
+    hour, minute = (int(x) for x in hhmm.split(":"))
+    if not re.search(r"\b(?:am|pm)\b|noon|midnight", phrase) and hour < voice.EARLIEST_BARE_HOUR:
+        hour += 12
+    moment = dt.datetime.combine(day, dt.time(hour, minute), tzinfo=tz)
+    try:
+        clash = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+                end = calendar.parse_time(event.get("end") or event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if end <= start:
+                end = start + dt.timedelta(hours=1)
+            if start <= moment < end:
+                clash.append((start, end, str(event.get("title") or "something")[:80]))
+    except Exception:
+        return None                   # no calendar mirror: the model may know more
+
+    def clock(t):
+        return t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    when = clock(moment) + ("" if day == now.date() else
+                            " tomorrow" if day == now.date() + dt.timedelta(days=1)
+                            else f" on {day.strftime('%A')}")
+    # The yes or no answers HIS verb: "am I busy at 3" answered "Yes,
+    # you're free" is a contradiction in one breath.
+    busy_asked = bool(re.search(r"\b(?:busy|booked|anything|something|a meeting|plans)\b", low))
+    if not clash:
+        return f"{'No' if busy_asked else 'Yes'}, you're free at {when}."
+    start, end, title = sorted(clash)[0]
+    return f"{'Yes' if busy_asked else 'No'} - you've got {title} from {clock(start)} to {clock(end)}."
+
+
 def _next_meeting() -> str | None:
     """His next appointment, from the block the wall already renders.
 
@@ -3843,6 +3915,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "free": _free,
+           "free_at": lambda rest: _free_at(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
            "mine": _mine,
