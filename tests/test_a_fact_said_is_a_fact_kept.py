@@ -1346,5 +1346,22 @@ class HisSisterByNameCase(unittest.TestCase):
         self.assertIn("we march on", speech.as_she_says_it("we march on"))
 
 
+class AWeekBeforeTheBirthdayHeJustAskedAboutCase(unittest.TestCase):
+    def test_the_birthday_in_the_last_turn_is_it(self):
+        from aletheia import voice
+        seen = []
+        real = voice._interpret
+
+        def spy(said):
+            seen.append(said)
+            return real(said) if len(seen) == 1 else {"command": {"kind": "remind_at"}, "say": None}
+        for before in ("when is dana's birthday", "dana's birthday is march 3"):
+            seen.clear()
+            with mock.patch.object(voice, "_previous_ask", return_value=before), \
+                    mock.patch.object(voice, "_interpret", side_effect=spy):
+                voice._interpret("remind me a week before")
+            self.assertEqual(seen[-1], "remind me a week before dana's birthday", before)
+
+
 if __name__ == "__main__":
     unittest.main()

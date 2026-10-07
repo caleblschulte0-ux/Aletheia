@@ -4363,6 +4363,18 @@ def _interpret(transcript: str) -> dict:
                      r"(?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday)", low)
     if m:
         return _birthday_reminder(m)
+    # "When is Dana's birthday", then "remind me a week before" (2026-10-07:
+    # to the planner). The birthday he just asked about, or just told her.
+    m = re.fullmatch(r"remind me (?:(?:a|one|two|three|four|five|six|seven|\d{1,2}) (?:days?|weeks?)|the (?:day|morning|night))"
+                     r" before(?: it| that| then)?", low)
+    if m:
+        before = _previous_ask().casefold()
+        whose = (re.search(r"\b(?:when(?:'s| is)|what day is) (?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday)",
+                           before)
+                 or re.match(r"(?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday) is ", before))
+        if whose:
+            return _interpret(f"{m.group(0).removesuffix(' it').removesuffix(' that').removesuffix(' then')} "
+                              f"{whose.group('who')}'s birthday")
     # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
     # not a lookup: it answered "I don't have anything remembered about 'the
     # license task tomorrow'" (2026-10-07).
