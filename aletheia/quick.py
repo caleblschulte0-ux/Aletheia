@@ -494,6 +494,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$")),
     # "What time do I usually wake up" (2026-10-07: to a model, two turns
     # after "I woke up at 6:30").
+    # "What was my blood pressure" (2026-10-07: to a model, a turn after he
+    # said it).
+    ("reading", re.compile(
+        r"^(?:what(?:'s| is| was|s)|what were) my (?:last |latest |most recent )?(?P<reading>blood pressure|bp|heart rate|resting heart rate"
+        r"|pulse|blood sugar|glucose|blood glucose|a1c|temperature|temp|oxygen|o2)(?: reading| readings| numbers)?"
+        r"(?: today| this morning| yesterday| last time)?\s*\??$")),
+    # "How long have I been awake" (2026-10-07: to a model, after "I woke up at 6:30").
+    ("awake_for", re.compile(r"^how long (?:have i been|am i) (?:awake|up)(?: for| today| now)?\s*\??$")),
     ("woke_usual", re.compile(
         r"^(?:what time|when) do i (?:usually|normally|typically|tend to) (?:wake up|get up|go to bed|go to sleep|fall asleep)\s*\??$"
         r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$")),
@@ -839,6 +847,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
         r"(?: for)?(?P<logged_w4> today| this week)?\s*\??$"
         r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
+        # "How much did I sleep this week" (2026-10-07: to a model).
+        r"|^how (?:much|many hours)(?: of sleep)? (?:did i|have i) (?:sleep|slept|get|gotten)(?: sleep)? (?P<logged_sleep3>this week)\s*\??$"
+        r"|^how (?:much|many hours of) sleep (?:did i get|have i had|have i gotten) (?P<logged_sleep4>this week)\s*\??$"
         # "How much sleep did I get" (2026-10-07: to a model).
         r"|^how (?:much|many hours of) (?P<logged_sleep2>sleep) (?:did i get|have i had|have i gotten)(?: last night)?\s*\??$"
         r"|^(?:did|have) i (?P<logged_did>work(?:ed)? out|exercised?|meditated?|stretch(?:ed)?|done yoga|did yoga|gone to the gym|go to the gym)"
@@ -2286,7 +2297,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2528,6 +2539,20 @@ def _logged(text: str) -> str | None:
             bits.append(f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''}")
         said = " and ".join(bits)
         return f"{said[:1].upper() + said[1:]} {when}."
+    if g.get("logged_sleep3") or g.get("logged_sleep4"):
+        monday = start - dt.timedelta(days=now.weekday())
+        nights = {}
+        for at, said in rows:
+            m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
+            if m and at >= monday and amount(m.group(1)) and at.date() not in nights:
+                nights[at.date()] = amount(m.group(1)) + (0.5 if m.group(2) else 0)
+        if not nights:
+            return "You haven't told me how you slept this week. Say \"I slept 7 hours\" in the morning and I'll add it up."
+        total = sum(nights.values())
+        if len(nights) == 1:
+            return f"You've told me about one night this week: {_plain(total)} hours."
+        return (f"{_plain(round(total, 1))} hours over the {len(nights)} nights you told me about - "
+                f"about {_plain(round(total / len(nights), 1))} a night.")
     if g.get("logged_sleep") or g.get("logged_sleep2"):
         for at, said in rows:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
@@ -10270,6 +10295,64 @@ def _ate(text: str) -> str | None:
     return f"You told me you had {speech.and_list(hits)} {named}."
 
 
+_READINGS = {"blood pressure": r"(?:blood pressure|bp)", "bp": r"(?:blood pressure|bp)",
+             "heart rate": r"(?:resting )?(?:heart rate|pulse)", "resting heart rate": r"(?:resting )?(?:heart rate|pulse)",
+             "pulse": r"(?:resting )?(?:heart rate|pulse)", "blood sugar": r"(?:blood sugar|glucose|blood glucose)",
+             "glucose": r"(?:blood sugar|glucose|blood glucose)", "blood glucose": r"(?:blood sugar|glucose|blood glucose)",
+             "a1c": r"a1c", "temperature": r"(?:temperature|temp)", "temp": r"(?:temperature|temp)",
+             "oxygen": r"(?:oxygen|o2)", "o2": r"(?:oxygen|o2)"}
+
+
+def _reading(text: str) -> str:
+    """His newest reading of a number he told her (blood pressure, heart
+    rate, blood sugar), with when. Never a verdict on it: that is his
+    doctor's, and a model's guess at it is worse than none."""
+    from aletheia import speech
+    g = _groups("reading", text)
+    asked = (g.get("reading") or "").strip()
+    pattern = _READINGS.get(asked)
+    if not pattern:
+        return None
+    named = "blood pressure" if asked == "bp" else asked
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"(?:my )?" + pattern + r" (?:was|is|reading was|came out|came out at|was at)? ?(.+?)\.?$", said, re.I)
+        if not m or not re.search(r"\d", m.group(1)):
+            continue
+        value = re.sub(r" ?/ ?", " over ", m.group(1).strip())
+        when = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+        return f"Your {named} was {value}" + (f", you told me {when}." if when else ".")
+    return f"You haven't told me your {named}. Say \"my {named} was\" and the number, and I'll keep it."
+
+
+def _awake_for() -> str:
+    """Since the time he said he woke up today, or how to tell her."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = re.match(r"i (?:woke up|got up) (?:at |around |about )?(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?(?:\W|$)", said)
+        if not m:
+            continue
+        try:
+            noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if noted.date() != now.date():
+            break
+        hour = int(m.group(1)) % 12 + (12 if (m.group(3) or "").startswith("p") else 0)
+        woke = now.replace(hour=hour, minute=int(m.group(2) or 0), second=0, microsecond=0)
+        if woke > now or hour > 23:
+            break
+        h, mm = divmod(int((now - woke).total_seconds() // 60), 60)
+        span = " and ".join(x for x in (speech.count_phrase(h, "hour") if h else "",
+                                         speech.count_phrase(mm, "minute") if mm else "") if x) or "a moment"
+        return f"About {span} - you told me you woke up at {woke.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}."
+    return "You haven't told me when you woke up today. Say \"I woke up at 7\" and I'll work it out."
+
+
 def _woke_usual(text: str) -> str:
     """"What time do I usually wake up": the middle of the times he told her
     in the last month. Once is not "usually", and it says so."""
@@ -10955,6 +11038,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "woke_usual": lambda text: _woke_usual(text),
+           "reading": lambda text: _reading(text),
+           "awake_for": lambda text: _awake_for(),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

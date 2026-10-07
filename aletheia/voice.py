@@ -4046,7 +4046,10 @@ def _interpret(transcript: str) -> dict:
         # Steps he told her ("I walked 5000 steps") are his to have back.
         try:
             from aletheia import quick
-            kept = quick._counted(said) if quick.match(said) and quick.match(said)[0] == "counted" else None
+            found = quick.match(said)
+            kept = (quick._counted(said) if found and found[0] == "counted"
+                    # A heart rate he told her (2026-10-07) is read back too.
+                    else quick._reading(said) if found and found[0] == "reading" else None)
         except Exception:  # noqa: BLE001
             kept = None
         if kept and not kept.startswith("You haven't"):
@@ -7696,6 +7699,15 @@ def _interpret(transcript: str) -> dict:
                     + r"|i (?:lent|loaned) [a-z][a-z ]{0,25}? " + _amt + r"|i borrowed " + _amt + r" from [a-z][a-z ]{0,25}?"
                     + r"|i paid [a-z][a-z ]{0,25}? back(?: " + _amt + r")?|[a-z][a-z ]{0,25}? paid me back(?: " + _amt + r")?)"
                     + r"(?: for [a-z][a-z ]{0,30})?", low) and not low.startswith(("you ", "she ", "thea ")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My blood pressure was 120 over 80" (2026-10-07: to the planner), and
+    # a reading of his heart rate or blood sugar: a note with the time on it,
+    # read back by `quick._reading`. Never a judgement on the number.
+    m = re.fullmatch(r"(?:my )?(?:blood pressure|bp) (?:was|is|reading was|came out|came out at|was at)? ?"
+                     r"(?P<sys>\d{2,3}) ?(?:over|/) ?(?P<dia>\d{2,3})(?: today| this morning| just now| at the doctor'?s?)?", low) \
+        or re.fullmatch(r"(?:my )?(?:heart rate|resting heart rate|pulse|blood sugar|glucose|blood glucose|a1c|temperature|temp|oxygen|o2)"
+                        r" (?:was|is|reading was|was at|came out at) \d{1,3}(?:\.\d)?(?: %| percent| bpm)?(?: today| this morning| just now)?", low)
+    if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS DAY, LOGGED (2026-10-07: "I drank a glass of water", "I ran 3
     # miles", "I slept 7 hours" went to the planner). A note in his words

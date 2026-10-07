@@ -5164,5 +5164,36 @@ class APlanForLaterToday(unittest.TestCase):
         self.assertEqual(quick.match("do i have anything on saturday"), ("agenda", "saturday"))
 
 
+class HisNumbersReadBack(unittest.TestCase):
+    """Blood pressure, a week of sleep and how long he's been up each went to a model."""
+
+    def _now(self, days=0):
+        import datetime as dt
+        return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
+
+    def test_blood_pressure_is_kept_and_read(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("my blood pressure was 120 over 80")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my bp is 130/85", "ts": self._now()}]):
+            self.assertTrue(quick.answer("what was my blood pressure").startswith("Your blood pressure was 130 over 85"))
+
+    def test_a_heart_rate_he_told_her_beats_the_health_data_line(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my heart rate was 62", "ts": self._now()}]):
+            self.assertTrue(voice.interpret("what's my heart rate")["say"].startswith("Your heart rate was 62"))
+
+    def test_sleep_this_week_adds_up_by_night(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i slept 6 hours", "ts": self._now()},
+                                                             {"text": "i slept 8 hours", "ts": self._now()}]):
+            self.assertEqual(quick.answer("how much did i sleep this week"),
+                             "You've told me about one night this week: 6 hours.")
+
+    def test_how_long_awake(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me when you woke up", quick.answer("how long have i been awake"))
+
+
 if __name__ == "__main__":
     unittest.main()
