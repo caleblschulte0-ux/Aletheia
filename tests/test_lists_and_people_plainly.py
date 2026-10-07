@@ -63,3 +63,31 @@ class AboutHer(unittest.TestCase):
         with mock.patch.object(quick, "_about_him", return_value="Your name is Caleb."):
             self.assertEqual(quick.answer("do you remember me"), "Yes. Your name is Caleb.")
         self.assertEqual(quick.match("do you remember the plumber")[0], "recall")
+
+
+class TheBrowserSaidPlainly(unittest.TestCase):
+    def test_youtube_search_opens_youtubes_results(self):
+        from aletheia import open_it
+        for said in ("search youtube for cat videos", "look up cat videos on youtube"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"],
+                                 {"kind": "open_page", "which": "youtube search cat videos"})
+        opened = []
+        from unittest import mock
+        with mock.patch.object(open_it.journal, "append"):
+            said = open_it.open_for("youtube search cat videos", opener=lambda u: opened.append(u) or True)["said"]
+            plain = open_it.open_for("youtube", opener=lambda u: True)["said"]
+        self.assertEqual(opened, ["https://www.youtube.com/results?search_query=cat+videos"])
+        self.assertEqual(said, "Opened YouTube results for cat videos in your browser.")
+        self.assertEqual(plain, "Opened YouTube in your browser.")
+
+    def test_no_browser_is_said_in_english(self):
+        from unittest import mock
+        from aletheia import browse, research
+        with mock.patch.object(browse, "available", return_value=(False, "playwright is not installed (pip install playwright)")):
+            with self.assertRaises(research.ResearchError) as caught:
+                research.run("the weather in chicago")
+        said = str(caught.exception)
+        self.assertTrue(said.startswith("I can't read web pages"), said)
+        self.assertNotIn("pip", said)
+        self.assertNotIn("she ", said)

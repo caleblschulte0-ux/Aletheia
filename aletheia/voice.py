@@ -2659,7 +2659,7 @@ def _interpret(transcript: str) -> dict:
     # complain it heard no web address.
     m = re.match(r"(?:look into|research|find out(?: about)?|dig into|"
                  r"look up|what do you know about|tell me about)\s+(.+)", low)
-    if m:
+    if m and not low.endswith(" on youtube"):
         question = m.group(1).strip(" ?.")
         if len(question) > 2:
             return {"command": {"kind": "research", "question": question},
@@ -2906,6 +2906,14 @@ def _interpret(transcript: str) -> dict:
                 return {"command": {"kind": "open_page", "which": known}, "say": None}
         except Exception:
             pass
+
+    # "SEARCH YOUTUBE FOR CAT VIDEOS" - YouTube's own results page, opened
+    # in his browser (2026-10-07: to the planner).
+    m = (re.fullmatch(r"(?:search|look up|find) (?P<q>.{2,80}?) on youtube", low)
+         or re.fullmatch(r"(?:search youtube for|youtube search(?: for)?|look on youtube for) (?P<q>.{2,80})", low))
+    if m:
+        return {"command": {"kind": "open_page", "which": "youtube search " + _as_he_said(text, m.group("q").strip())},
+                "say": None}
 
     # "CANCEL THE PASSPORT TASK": a task he named, cancelled - the same
     # lookup "mark the passport one done" uses (bottom rung: no verb).
