@@ -3152,8 +3152,12 @@ class HisBillsAndHowOften(unittest.TestCase):
             bills = quick.answer("what are my bills")
             self.assertIn("rent is 1500", bills)
             self.assertIn("car insurance is 120", bills)
-        with mock.patch.object(quick, "_notes", return_value=[]):
-            self.assertIsNone(quick.answer("how much is my rent"))
+        # Nothing told is said as nothing told, never a figure (2026-10-07:
+        # it used to go to a model, which had nothing to read either).
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch.object(quick, "_recall", return_value=None):
+            said = quick.answer("how much is my rent")
+            self.assertIn("haven't told me", said)
+            self.assertFalse(any(c.isdigit() for c in said))
 
     def test_how_many_times_is_counted_from_his_notes(self):
         import datetime as dt
@@ -4579,6 +4583,28 @@ class SleepDrinksAndLastNightsDinner(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=self._rows("I woke up at 7", "I went to bed at midnight")):
             self.assertTrue(quick.answer("how much sleep did i get").startswith("About 7 hours"))
         self.assertTrue(quick.answer("what time should i go to bed if i wake up at 6").startswith("Asleep by 10 pm"))
+
+
+class MoneyHeToldHer(unittest.TestCase):
+    """2026-10-07: "did I pay rent this month" said no one turn after "I paid
+    rent"; "You owe The irs"; "how much is my rent" and "how much do I spend
+    on groceries a month" went to a model."""
+
+    def _rows(self, *texts):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        return [{"text": t, "ts": (now - dt.timedelta(minutes=i)).isoformat()} for i, t in enumerate(texts)]
+
+    def test_readers(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self._rows("I paid rent", "I owe the irs 500",
+                                                                         "I spent 60 on groceries")):
+            self.assertTrue(quick.answer("did i pay rent this month").startswith("Yes"))
+            self.assertIn("the IRS $500", quick.answer("who do i owe money to"))
+            self.assertIn("$60 on groceries", quick.answer("how much do i spend on groceries a month"))
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch.object(quick, "_recall", return_value=None):
+            self.assertIn("haven't told me your rent", quick.answer("how much is my rent"))
 
 
 if __name__ == "__main__":

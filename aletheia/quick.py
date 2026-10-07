@@ -1718,12 +1718,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
         r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
         r"|turn off|turned off) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
-        r"(?P<did_today> today| yet| this morning| this week)?\s*\??$"
+        r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
         r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v4>get|got|gotten|have|had) (?P<did_o4>" + _SERVICES + r")"
-        r"(?P<did_today2> today| yet| this morning| this week)?\s*\??$"
+        r"(?P<did_today2> today| yet| this morning| this week| this month)?\s*\??$"
         # "How long since I talked to mom" (2026-10-07: to a model).
         r"|^how long (?:has it been |is it |'s it been )?since i (?:last )?(?P<did_v5>changed|gave|fed|walked|watered|cleaned|washed"
         r"|mowed|vacuumed|replaced|renewed|called|visited|paid|talked to|talked with|spoke to|spoke with|saw|met with|texted"
@@ -4507,6 +4507,15 @@ def _ledger() -> dict:
     return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
 
 
+def _named(who: str) -> str:
+    """"sam" -> "Sam"; "the irs" -> "the IRS", not "The irs" (2026-10-07)."""
+    words = str(who or "").split()
+    out = [w.upper() if w in ("irs", "dmv", "ups", "usps", "hoa", "va") else
+           w if (i == 0 and w in ("the", "my", "our")) or (i and w in ("the", "of", "and")) else w[:1].upper() + w[1:]
+           for i, w in enumerate(words)]
+    return " ".join(out)
+
+
 def _owed(question: str = "") -> str:
     """What he owes and is owed, from what he told her; never a guess.
 
@@ -4521,15 +4530,15 @@ def _owed(question: str = "") -> str:
     to_me = bool(re.search(r"\bowes? me\b", low)) and not re.search(r"\bdo i owe\b", low)
     by_me = bool(re.search(r"\b(?:do i (?:still )?owe|what do i owe)\b", low)) and not to_me
     if who:
-        name = who[:1].upper() + who[1:]
+        name = _named(who)
         amount = ledger.get(who, 0)
         if amount < 0:
             return f"You owe {name} {_money(-amount)}."
         if amount > 0:
             return f"{name} owes you {_money(amount)}."
         return f"Nothing between you and {name} that you've told me about."
-    owe = [f"{k[:1].upper() + k[1:]} {_money(-v)}" for k, v in ledger.items() if v < 0]
-    owed = [f"{k[:1].upper() + k[1:]} owes you {_money(v)}" for k, v in ledger.items() if v > 0]
+    owe = [f"{_named(k)} {_money(-v)}" for k, v in ledger.items() if v < 0]
+    owed = [f"{_named(k)} owes you {_money(v)}" for k, v in ledger.items() if v > 0]
     owed_line = (speech.and_list(owed)[:1].upper() + speech.and_list(owed)[1:] + ".") if owed else ""
     # When the half he asked about is empty, the other half is still worth
     # a sentence: "nobody - but you owe Jo $5".
@@ -4635,6 +4644,14 @@ def _did_last(text: str) -> str | None:
             if at.date() == dt.datetime.now(tz).date():
                 return f"Yes - you told me {told}, {when}."
             return f"Not today that you've told me. The last time was {when}."
+        # "Did I pay rent this month" (2026-10-07: "not that you've told me"
+        # one turn after "I paid rent").
+        if window in ("this week", "this month"):
+            today = dt.datetime.now(tz).date()
+            first = today.replace(day=1) if window == "this month" else today - dt.timedelta(days=today.weekday())
+            if at.date() >= first:
+                return f"Yes - you told me {told}, {when}."
+            return f"Not {window} that you've told me. The last time was {when}."
         return f"You told me {told} - that was {when}."
     if service:
         # "I got a haircut" ticked off the task "get a haircut" rather than
@@ -9664,12 +9681,25 @@ def _cost_mine(text: str) -> str | None:
             return None
         return f"From what you've told me: your {speech.and_list(bills)}."
     thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or "").casefold().split())
+    # "How much do I spend on groceries a month" (2026-10-07: to a model,
+    # with "I spent 60 on groceries" kept): what he told her he spent.
+    if thing and g.get("cost_mine2") and not re.fullmatch(_BILL_KEYS, thing):
+        return _spent(f"how much did i spend on {thing} this month")
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
         if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|costs?) .*\d", said.casefold()):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
-    return None
+    # "How much is my rent" with nothing told (2026-10-07: to a model, which
+    # has no way to know). Her memory first; then plainly not told.
+    held = _recall(thing)
+    if held and not held.startswith("I have nothing"):
+        return held
+    said = {"hoa": "HOA", "hbo": "HBO", "hbo max": "HBO Max", "icloud": "iCloud", "chatgpt": "ChatGPT", "ps plus": "PS Plus"}.get(
+        thing, thing.title() if re.fullmatch(r"netflix|spotify|hulu|disney plus|youtube premium|youtube tv|amazon prime|apple music"
+                                              r"|apple tv|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus", thing)
+        else thing)
+    return f"You haven't told me your {said}. Say \"my {said} is\" and the amount, and I'll remember it."
 
 
 def _lent(text: str) -> str | None:
