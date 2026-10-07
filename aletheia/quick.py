@@ -1142,13 +1142,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:at|near|by|around|in) (?:my |our )?(?:house|home|place|neighborhood|area)| here| at home)?"
         r"(?: (?:for |on )?(?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening|weekend)|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
-        r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
+        r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow|this weekend|this week|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow|this weekend|this week))?$"
         # "Will it be nice this weekend" (2026-10-07: to the planner).
         r"|^(?:will|is) it (?:going to )?be (?:nice|warm|cold|hot|sunny|good)(?: out(?:side)?)? (?P<weather11>today|tonight|tomorrow|this weekend|this week)\s*\??$"
         # "What's the weather this week", "the forecast for the weekend"
         # (2026-10-07: to the planner).
-        r"|^what(?:'s| is|s)? the (?:weather|forecast)(?: looking)?(?: like)? (?:for )?(?P<weather9>this week|the week|the rest of the week|the next few days|this weekend|the weekend)\s*\??$"
+        r"|^what(?:'s| is|s)? the (?:weather|forecast)(?: looking)?(?: like)? (?:for )?(?P<weather9>this week|the week|the rest of the week|the next few days|this weekend|the weekend|today|tonight|tomorrow|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$"
         r"|^(?:how(?:'s| is) the weather|what(?:'s| is) the weather going to be)(?: like)? (?P<weather10>this week|this weekend|the next few days)\s*\??$"
         # "Should I bring an umbrella" and "what's the temperature" went to
         # a model (2026-10-07). They are the forecast, asked sideways.
@@ -1159,7 +1159,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
         # "What's the high today" (2026-10-07: to the planner).
         r"|^what(?:'s| is|s| will be)? the (?:high|low|temperature high|temperature low)(?: (?P<weather7>today|tonight|tomorrow))?$"
-        r"|^how (?:hot|cold|warm|chilly) (?:will it get|is it going to get|will it be|is it going to be)(?: (?P<weather8>today|tonight|tomorrow))?$"
+        r"|^how (?:hot|cold|warm|chilly) (?:will it get|is it going to get|will it be|is it going to be)(?: (?P<weather8>today|tonight|tomorrow|this weekend|this week|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
         r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|sunny|cold|hot|warm)"
         r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
     # WIND, HUMIDITY AND THE BATTERY. All three went to the planner and,

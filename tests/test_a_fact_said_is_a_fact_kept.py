@@ -2450,5 +2450,29 @@ class TwoAsksInOneBreath(unittest.TestCase):
                 self.assertIsNone(voice.two_asks(said))
 
 
+
+class TheForecastForADay(unittest.TestCase):
+    """2026-10-07: "how hot will it be this weekend" and "what's the
+    forecast for friday" went to a model; a day past the forecast was
+    answered with right now."""
+
+    PERIODS = [{"name": "Today", "isDaytime": True, "temperature": 60, "shortForecast": "Sunny"},
+               {"name": "Tonight", "isDaytime": False, "temperature": 50, "shortForecast": "Clear"},
+               {"name": "Thursday", "isDaytime": True, "temperature": 62, "shortForecast": "Cloudy"},
+               {"name": "Friday", "isDaytime": True, "temperature": 64, "shortForecast": "Rain"}]
+
+    def test_the_question_reaches_the_forecast(self):
+        from aletheia import quick
+        for said, when in (("how hot will it be this weekend", "this weekend"),
+                           ("what's the forecast for friday", "friday")):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said), ("weather", when))
+
+    def test_the_day_named_or_honestly_not(self):
+        from aletheia import weather
+        self.assertEqual(weather._periods_for(self.PERIODS, "on friday")[0]["name"], "Friday")
+        self.assertIn("doesn't reach Sunday", weather._periods_for(self.PERIODS, "sunday"))
+
+
 if __name__ == "__main__":
     unittest.main()
