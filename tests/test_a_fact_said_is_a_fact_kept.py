@@ -248,5 +248,22 @@ class WhatFilesHeMadeToday(unittest.TestCase):
         self.assertNotIn("old plan", said)
 
 
+class GoingSomewhereIsAGoodbye(unittest.TestCase):
+    def test_the_gym(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("i'm going to the gym")[0], "farewell")
+
+    def test_the_store_reads_the_list(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_shopping", return_value="2 things on your shopping list: bread and eggs."):
+            self.assertEqual(quick.answer("i'm going to the store"),
+                             "See you. 2 things on your shopping list: bread and eggs.")
+
+    def test_a_reason_after_it_is_not_swallowed(self):
+        from aletheia import quick
+        self.assertIsNone(quick.match("i'm going to the store to buy milk"))
+
+
 if __name__ == "__main__":
     unittest.main()

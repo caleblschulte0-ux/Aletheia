@@ -1122,7 +1122,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|turning in|see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$"
         r"|^(?:(?:i'?m|im|i am) )?(?:leaving|heading out|heading off|going out|off|out|off to work|going to work|"
         r"heading to work|leaving for work|back later|be back later)(?: now| for work| for the day| for a bit)?$"
-        r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$")),
+        r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$"
+        # "I'm going to the gym" (2026-10-07: queued for a model to plan).
+        r"|^(?:(?:i'?m|im|i am) )?(?:going|off|heading|leaving|popping out) (?:to|for) (?:the |a |my )?"
+        r"(?:gym|store|shops?|grocery store|supermarket|walk|run|jog|class|practice|appointment|doctor'?s?|dentist'?s?|"
+        r"school|church|lunch|dinner|coffee|movies|party|game|meeting|errands?|park|office|airport)(?: now| for a bit)?$")),
     # Replies from employers, from the application records.
     ("replies", re.compile(
         r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
@@ -3738,6 +3742,16 @@ def _farewell(text: str) -> str:
     low = str(text or "").lower()
     if any(w in low for w in ("night", "sleep", "bed")):
         return "Goodnight. I'll keep going quietly."
+    if re.search(r"\b(?:gym|run|jog|walk)\b", low):
+        return "Have a good one. I'll keep at it while you're out."
+    if re.search(r"\b(?:store|shops?|grocery|supermarket)\b", low):
+        # Going shopping is the moment the list matters.
+        try:
+            listed = _shopping()
+        except Exception:
+            listed = None
+        if listed and not listed.startswith("Nothing"):
+            return f"See you. {listed}"
     return "See you. I'll keep at it while you're out."
 
 
