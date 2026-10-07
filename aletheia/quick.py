@@ -330,6 +330,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (searched his contacts for "my ip"), whether the internet is up
     # (94 s of her own model, and "Thinking with no internet: yes"), and
     # what is open ("[Uses look at the desktop]" read out as prose).
+    # HER WORK, ASKED ABOUT (2026-10-07). "Is anything stuck" answers "say
+    # what's blocked and I'll list them" - and "what's blocked" went to the
+    # planner, a promise with no reader. "What's in your queue", "what
+    # projects are you working on" and "what's next for barkly" too.
+    ("work_blocked", re.compile(
+        r"^what(?:'s| is|s)? (?:blocked|stuck|held up)(?: right now)?$"
+        r"|^what are (?:you|u) (?:blocked|stuck) on$|^(?:list|show me|read me) (?:the |your )?blocked (?:work|items|things)$")),
+    ("work_queue", re.compile(
+        r"^what(?:'s| is|s)? (?:in|on) (?:your|the) (?:queue|work queue|plate|to-?do list)$"
+        r"|^what(?:'s| is|s)? queued(?: up)?$|^what(?:'s| is|s)? next (?:for you|in your queue|on your list)$"
+        r"|^what (?:are|will) (?:you|u) (?:going to )?(?:do|work on) next$")),
+    ("projects", re.compile(
+        r"^what projects (?:are (?:you|u)|r u|am i|are we) (?:working on|carrying|running|doing)(?: right now)?$"
+        r"|^what are (?:my|our|your) projects$|^(?:list|name|read me) (?:my|our|your|the) projects$"
+        r"|^what projects (?:do i|do we|do (?:you|u)) have$")),
+    ("project_next", re.compile(
+        r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -1913,6 +1930,75 @@ def _stuck() -> str:
         said.append(f"{speech.count_phrase(blocked, 'piece')} of work {'is' if blocked == 1 else 'are'} blocked - "
                     "say what's blocked and I'll list them")
     return "Not stuck, but " + " and ".join(said) + "."
+
+
+def _work_listed(which: str) -> str | None:
+    """Her blocked work or her queue, by title and why - from the inventory."""
+    from aletheia import speech
+    try:
+        from aletheia import work_engine
+        inv = work_engine.inventory(probe=False, with_availability=False, with_gaps=False)
+    except Exception:
+        return None
+    rows = list(inv.get(which) or [])
+    total = int(inv.get("blocked_total" if which == "blocked" else "executable_total") or len(rows))
+    if not rows:
+        return ("Nothing is blocked." if which == "blocked"
+                else "My queue is empty - nothing is waiting for me to pick it up.")
+    said = []
+    for row in rows[:3]:
+        # Read out loud, so short: the first clause of the title, never a
+        # paragraph, and "this step is Caleb's" is "yours" in her mouth.
+        title = speech.shorten(speech.strip_ids(str(row.get("title") or "").strip()), 80).rstrip(".")
+        why = str(row.get("reason") or "").strip().rstrip(".")
+        why = "yours" if re.search(r"\bcaleb'?s\b|\byours\b", why, re.IGNORECASE) else speech.shorten(why, 50)
+        said.append(f"{title} ({why})" if which == "blocked" and why else title)
+    lead = (f"{speech.count_phrase(total, 'thing')} blocked. The first: " if which == "blocked"
+            else f"{speech.count_phrase(total, 'thing')} in my queue. Next up: ")
+    return lead + "; ".join(said) + (f"; and {total - 3} more" if total > 3 else "") + "."
+
+
+def _projects() -> str | None:
+    """The projects she carries for him, each with its next step and whose it is."""
+    from aletheia import plans, speech
+    try:
+        rows = [p for p in plans.all_plans() if plans.is_charter(p) and p.get("state") == "open"]
+    except Exception:
+        return None
+    if not rows:
+        return "I'm not carrying any projects for you. Say \"new project:\" and what it is, and I'll draft one."
+    said = []
+    for p in rows[:6]:
+        step = plans.next_step(p)
+        title = str(p.get("title") or p.get("slug") or "").strip()
+        if step is None:
+            said.append(f"{title} (every step done)")
+        else:
+            whose = "yours" if plans.owner(step) == plans.CALEB else "mine"
+            said.append(f"{title} (next, {whose}: {speech.shorten(str(step.get('text') or '').strip(), 70).rstrip('.')})")
+    return (f"{speech.count_phrase(len(rows), 'project')}: " + "; ".join(said)
+            + (f"; and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
+
+
+def _project_next(name: str) -> str | None:
+    """The next step of the project he names, and whose it is. A name that
+    is not a project is not this question - it goes on."""
+    from aletheia import plans
+    try:
+        found, _why = plans.find_charter(name)
+    except Exception:
+        return None
+    if found is None:
+        return None
+    title = str(found.get("title") or found.get("slug") or name)
+    step = plans.next_step(found)
+    if step is None:
+        return f"Every step of {title} is done."
+    text = str(step.get("text") or "").strip().rstrip(".")
+    if plans.owner(step) == plans.CALEB:
+        return f"The next step on {title} is yours: {text}."
+    state = str(step.get("state") or "")
+    return f"Next on {title}, and it's mine: {text}" + (" - it's blocked right now." if state == "blocked" else ".")
 
 
 def _yesterday() -> str:
@@ -3805,6 +3891,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
+           "work_blocked": lambda rest: _work_listed("blocked"),
+           "work_queue": lambda rest: _work_listed("executable_now"),
+           "projects": lambda rest: _projects(),
+           "project_next": lambda rest: _project_next(rest),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
