@@ -447,6 +447,10 @@ def _times_to_words(text: str, now: dt.datetime | None = None) -> str:
 #: never "myopic" -> "yourpic". "our" is left alone deliberately - "our
 #: repos" means both of them and "your repos" would be a small lie.
 _HIS_PRONOUNS = (
+    # Contractions first: "I'm allergic" became "you'm allergic" (2026-10-07).
+    (r"(?i)\bi'm\b|^im\b(?= [a-z])", "you're"), (r"(?i)\bi am\b", "you are"),
+    (r"(?i)\bi've\b", "you've"), (r"(?i)\bi'll\b", "you'll"), (r"(?i)\bi'd\b", "you'd"),
+    (r"(?i)\bi was\b", "you were"),
     (r"\bmy\b", "your"), (r"\bmine\b", "yours"),
     (r"\bmyself\b", "yourself"), (r"\bI\b", "you"),
     (r"\bi\b", "you"), (r"\bme\b", "you"),
@@ -574,10 +578,12 @@ def spoken_receipt(kind: str, detail: str, *,
         # A timer and an alarm are said as what they are: "I'll remind you
         # at 12:29 am: your 10-minute timer is up" is a reminder ABOUT a
         # timer, read back to someone who just started one (2026-10-07).
-        timer = what and re.fullmatch(r"your (\S+) timer is up", what.group(1).strip())
+        timer = what and re.fullmatch(r"your (\d[\w -]{0,30}?) timer is up", what.group(1).strip())
         if when and timer:
-            span = re.sub(r"^(\d+)-(minute|hour|second)$",
-                          lambda g: f"{g.group(1)} {g.group(2)}{'' if g.group(1) == '1' else 's'}", timer.group(1))
+            span = re.sub(r"(\d+)( and a half)?[- ](minute|hour|second)\b",
+                          lambda g: f"{g.group(1)}{g.group(2) or ''} {g.group(3)}"
+                                    f"{'' if g.group(1) == '1' and not g.group(2) else 's'}", timer.group(1))
+            span = re.sub(r"\b(hours?) (\d)", r"\1 and \2", span)
             return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."

@@ -1131,7 +1131,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What am I allergic to" (2026-10-07: to the planner, a turn after
         # "remember that I'm allergic to peanuts").
         r"|^what am i (?P<recall7>allergic) to\s*\??$|^what are my (?P<recall8>allergies)\s*\??$"
-        r"|^do i have any (?P<recall9>allergies)\s*\??$")),
+        r"|^do i have any (?P<recall9>allergies)\s*\??$|^am i (?P<recall10>allergic) to [a-z][a-z ,'-]{1,40}\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
     ("note_search", re.compile(
         r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
@@ -1340,7 +1340,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",

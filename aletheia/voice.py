@@ -2157,6 +2157,38 @@ def _interpret(transcript: str) -> dict:
         if m.group(2) == "tomorrow" or when <= now:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
+    # A TIMER OF TWO PARTS (2026-10-07): "set a timer for an hour and a
+    # half", "1 hour and 20 minutes", "two and a half minutes" all went to
+    # the planner - the pattern below reads one number and one unit.
+    m = re.fullmatch(r"(?:(?:set|start) (?:a |me a )?timer(?: for)?|timer(?: for)?|remind me in) "
+                     r"(?:(?P<h>an|a|one|\d{1,2}|two|three) (?:hours?|hrs?)(?: and)? "
+                     r"(?:(?P<half>a half)|(?P<m>\d{1,2}|five|ten|fifteen|twenty|thirty|forty|forty-five|fifty) (?:minutes?|mins?))"
+                     r"|(?P<n>a|one|\d{1,2}|two|three|four|five|ten) and a half (?P<u>minutes?|hours?)"
+                     r"|(?P<n2>a|one|\d{1,2}|two|three|four|five|ten) (?P<u2>minutes?|hours?) and a half)", low)
+    if m:
+        import datetime as dt
+        words = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10,
+                 "fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45, "fifty": 50}
+        num = lambda w: int(w) if w.isdigit() else words[w]
+        if m.group("h"):
+            minutes = num(m.group("h")) * 60 + (30 if m.group("half") else num(m.group("m")))
+        else:
+            n, u = (m.group("n"), m.group("u")) if m.group("n") else (m.group("n2"), m.group("u2"))
+            minutes = (num(n) + 0.5) * (60 if u.startswith("hour") else 1)
+        hours, rest = divmod(minutes, 60)
+        if hours and rest:
+            said = f"{int(hours)} hour {rest:g} minute"
+        elif hours:
+            said = f"{int(hours)}-hour"
+        else:
+            said = f"{rest:g}-minute" if float(rest).is_integer() else f"{int(rest)} and a half minute"
+        at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)).isoformat()
+        return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"}, "say": None}
+    # "Pause the timer": a timer here is a reminder at a set time, so there
+    # is nothing to pause - say so, and what she can do instead.
+    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause|restart) (?:the |my |that )?timers?", low):
+        return {"command": None, "say": "I can't pause a timer - it goes off at a set time. I can cancel it, "
+                                         "or add minutes: say \"add 5 minutes\"."}
     m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|remind me in (half an|\w+) (minutes?|mins?|hours?)", low)
@@ -4165,6 +4197,13 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:i(?:'ve| have)? parked|i'm parked|my car is(?: parked)?|the car is(?: parked)?)"
                      r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
     if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
+    # to the planner, while "what am I allergic to" reads notes. A note in
+    # his words is the writer that reader was missing.
+    if re.fullmatch(r"(?:i'm|i am|im) (?:very |really |severely |slightly |a (?:bit|little) )?allergic to [a-z][a-z ,'-]{1,60}"
+                    r"|i have (?:an? |a severe |a mild )?(?:[a-z]+ )?allerg(?:y|ies) to [a-z][a-z ,'-]{1,60}"
+                    r"|my allerg(?:y is|ies are) [a-z][a-z ,'-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A FACT ABOUT HIM, SAID AS ONE. "My favorite color is blue", "my wifi
     # password is ...", "Jess's birthday is March 3" went to the planner
