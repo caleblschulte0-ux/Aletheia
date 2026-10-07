@@ -10523,7 +10523,14 @@ def _person(rest: str) -> str:
             m = said.search(str(row.get("text") or ""))
             if m:
                 # "My emergency contact is my mom" is "your mom" said back.
-                return f"Your {who} is {re.sub(r'^(?:my|our) ', 'your ', m.group(1).strip().rstrip('.'), flags=re.I)}."
+                value = re.sub(r'^(?:my|our) ', 'your ', m.group(1).strip().rstrip('.'), flags=re.I)
+                # "my doctor is dr patel" came back "dr patel" (2026-10-07):
+                # a title and a name are capitalised the way they are written.
+                titled = re.fullmatch(r"(dr|mr|mrs|ms|miss|prof)(\.?) ([a-z][a-z'-]*)((?: [a-z][a-z'-]*)?)", value)
+                if titled:
+                    value = (titled.group(1).title() + titled.group(2) + " " + titled.group(3).title()
+                             + titled.group(4).title())
+                return f"Your {who} is {value}."
             m = other.search(str(row.get("text") or ""))
             if m:
                 name = m.group(1).strip()

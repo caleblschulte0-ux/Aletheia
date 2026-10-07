@@ -5100,5 +5100,19 @@ class ErrandsAreTasks(unittest.TestCase):
         self.assertEqual(quick.match("what are my errands")[0], "tasks")
 
 
+class ADoctorsNameIsWrittenAsOne(unittest.TestCase):
+    def test_dr_patel(self):
+        from aletheia import memory, quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my doctor is dr patel"}]), \
+                mock.patch.object(memory, "recall", return_value=None):
+            self.assertEqual(quick._person("doctor"), "Your doctor is Dr Patel.")
+
+    def test_a_sentence_is_left_alone(self):
+        from aletheia import memory, quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my boss is a nice guy"}]), \
+                mock.patch.object(memory, "recall", return_value=None):
+            self.assertEqual(quick._person("boss"), "Your boss is a nice guy.")
+
+
 if __name__ == "__main__":
     unittest.main()
