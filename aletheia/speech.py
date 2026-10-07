@@ -754,8 +754,22 @@ def spoken_receipt(kind: str, detail: str, *,
                     f"{noted.group(2).strip()}.")
         # The intercom's own receipt names the slot and not the value, so the
         # value never lands in a committed receipt: "remembered identity.full_name".
-        slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
+        slot = re.match(r"remembered\s+(\w+)\.([\w-]+)\s*$", text)
         if slot:
+            # SAY IT BACK. "Got it - I'll remember where you live" cannot be
+            # caught wrong by ear (2026-10-07); "you live in Austin" can. The
+            # value is read from her store, never from the committed receipt.
+            try:
+                from aletheia import memory
+                value = " ".join(str(memory.recall(slot.group(1), slot.group(2)) or "").split())
+            except Exception:  # noqa: BLE001
+                value = ""
+            said = {"home_city": "you live in {}", "zip_code": "your zip code is {}",
+                    "postal_code": "your zip code is {}", "operator_name": "I'll call you {}",
+                    "full_name": "your name is {}", "timezone": "your time zone is {}"}.get(slot.group(2))
+            if value and said and len(value) <= 60:
+                return f"Got it - {said.format(value)}."
+            slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
             what = {"full_name": "your name", "operator_name": "what to call you", "postal_code": "your zip code",
                     "zip_code": "your zip code", "home_city": "where you live",
                     "timezone": "your time zone"}.get(slot.group(1), "your " + deslug(slot.group(1)).replace("_", " "))

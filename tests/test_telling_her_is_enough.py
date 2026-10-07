@@ -26,7 +26,9 @@ class TellingHerIsEnough(unittest.TestCase):
             self.assertFalse(c and c.get("kind") == "remember", said)
 
     def test_the_confirmation_is_a_sentence(self):
-        line = speech.spoken_receipt("remember", "remembered identity.full_name")
+        from aletheia import memory
+        with mock.patch.object(memory, "recall", return_value=None):
+            line = speech.spoken_receipt("remember", "remembered identity.full_name")
         self.assertEqual(line, "Got it - I'll remember your name.")
 
     def test_who_is_my_landlord_reads_his_note(self):
