@@ -2840,6 +2840,10 @@ class WhenHeSlept(unittest.TestCase):
             self.assertEqual(quick.answer("when did I go to bed last night"), "You told me you went to bed at 11 last night.")
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIn("I went to bed at 11", quick.answer("what time did I go to bed"))
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I woke up at 7", "ts": now}]):
+            self.assertEqual(quick.answer("what time did I wake up"), "You told me you woke up at 7 this morning.")
 
     def test_a_drink_count_needs_no_verb_but_needs_a_day(self):
         from aletheia import quick

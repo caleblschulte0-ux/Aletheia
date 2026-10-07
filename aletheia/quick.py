@@ -8029,9 +8029,18 @@ def _woke(act: str) -> str:
         at, day = re.match(r"(.+?)(?: (today|this morning|last night|yesterday))?$", m.group(2)).groups()
         when = f" {day.casefold()}" if day else ""
         if not day and row.get("ts"):
+            # "You told me you woke up at 7, told me today at 11:40 am" (2026-10-07).
             try:
-                when = ", told me " + speech.humanize_time(str(row["ts"]))
-            except Exception:
+                import datetime as dt
+                from aletheia import localtime
+                tz = localtime.operator_tz()
+                noted = dt.datetime.fromisoformat(str(row["ts"]).replace("Z", "+00:00")).astimezone(tz)
+                ago = (dt.datetime.now(tz).date() - noted.date()).days
+                woke = kin[0] == "woke up"
+                when = (" this morning" if woke else " last night" if noted.hour < 12 else " tonight") if ago == 0 else \
+                       (" yesterday" if woke else " the night before last" if noted.hour < 12 else " last night") if ago == 1 else \
+                       f" on {(noted.date() - dt.timedelta(days=0 if woke or noted.hour >= 12 else 1)).strftime('%A')}"
+            except (ValueError, TypeError):
                 when = ""
         return f"You told me you {m.group(1).casefold()} at {at}{when}."
     return f"You haven't told me. Say \"I {said} at {7 if kin[0] == 'woke up' else 11}\" and I'll remember it."
