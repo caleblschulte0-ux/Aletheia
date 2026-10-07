@@ -3842,5 +3842,34 @@ class HisBudgetAndPayAreKept(unittest.TestCase):
             self.assertIsNone(voice._interpret("how much do i make a year")["say"])
 
 
+class APlaceIsNotATime(unittest.TestCase):
+    """2026-10-07: "remind me to buy milk when I'm at the store" went to the
+    planner, and "good morning" read a question she asked back as a refusal."""
+
+    def test_a_thing_to_buy_at_the_store_goes_on_the_list(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("remind me to buy milk when i'm at the store")["command"],
+                         {"kind": "shopping_add", "item": "milk"})
+
+    def test_other_places_say_so(self):
+        from aletheia import voice
+        for said in ("remind me to grab my charger when i leave", "remind me to stretch when i get to the gym",
+                     "remind me to call mom when i get home"):
+            out = voice._interpret(said)
+            self.assertIsNone(out["command"], said)
+            self.assertIn("can't tell where you are", out["say"])
+
+    def test_a_question_back_is_not_something_that_happened_overnight(self):
+        from aletheia import quick, recollection
+        import datetime as dt
+        ts = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        rows = [{"ts": ts, "kind": "action", "subject": "x", "detail": "refused — Which one — 6 am or 7 am?"}]
+        with mock.patch.object(recollection, "_read_journal", return_value=(rows, None)), \
+                mock.patch.object(recollection, "_something_she_did", return_value=True), \
+                mock.patch.object(recollection, "_row", side_effect=lambda e: {"what": e["detail"]}), \
+                mock.patch.object(quick, "_sent_records", return_value=[]):
+            self.assertNotIn("Which one", quick._overnight())
+
+
 if __name__ == "__main__":
     unittest.main()

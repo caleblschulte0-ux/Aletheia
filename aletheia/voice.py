@@ -4225,11 +4225,22 @@ def _interpret(transcript: str) -> dict:
     # A PLACE IS NOT A TIME. "Remind me to call mom when I get home"
     # waited two minutes on her own model (2026-09-22); she has no way to
     # know where he is, and says so instead of guessing at a time.
-    m = re.match(r"remind me (?:to|that) (.+?) when i(?:'m| am| get| arrive| go| come)? "
-                 r"(?:get |am |arrive |go |come )?(?:back )?(?:home|back|there|at work|to work|at the office|to the office|in)$", low)
+    # "Remind me to buy milk when I'm at the store" (2026-10-07: to the
+    # planner) is what the shopping list is FOR - the list is the reminder
+    # he reads at the store, so the thing goes on it.
+    m = re.fullmatch(r"remind me to (?:buy|get|pick up|grab) (?:some |more |a |an )?(?P<w>[a-z][a-z' ]{1,30}?) "
+                     r"(?:when i(?:'m| am)? (?:at|go to|get to|next go to|am next at|'m next at) |at |next time i(?:'m| am)? at |next time i go to )"
+                     r"the (?:grocery |hardware )?(?:store|shop|supermarket|market)", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("w").strip())}, "say": None}
+    m = re.match(r"remind me (?:to|that) (.+?) when i(?:'m| am| get| arrive| go| come| leave)? "
+                 r"(?:get |am |arrive |go |come )?(?:back )?(?:home|back|there|at work|to work|at the office|to the office|in"
+                 r"|at the (?:store|gym|office|grocery store|doctor'?s?)|to the (?:store|gym|office|grocery store)"
+                 r"|leave(?: work| home| the house| the office)?|out|$)$", low) \
+        or re.match(r"remind me (?:to|that) (.+?) when i leave(?: work| home| the house| the office)?$", low)
     if m:
         return {"command": None,
-                "say": "I can't tell where you are yet, so I can't do it when you get home. "
+                "say": "I can't tell where you are yet, so a place can't set off a reminder. "
                        f"Give me a time - 'remind me at 6 to {_as_he_said(text, m.group(1).strip())}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
                  r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)

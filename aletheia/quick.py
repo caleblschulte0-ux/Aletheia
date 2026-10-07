@@ -8418,7 +8418,9 @@ def _overnight() -> str:
     # "Refused — Nothing is waiting to be snoozed" is not something that
     # happened overnight (2026-10-07): a refusal that had nothing to act on
     # changed nothing, and the morning has three lines to spend.
-    rows = [e for e in rows if not re.match(r"refused\s*[—-]\s*(?:nothing|there(?:'s| is) nothing|no )",
+    # Nor is "refused — Which one — 6 am or 7 am?": a question she asked
+    # him back, read out in the morning as a thing she did.
+    rows = [e for e in rows if not re.match(r"refused\s*[—-]\s*(?:nothing|there(?:'s| is) nothing|no |which\b|.*\?\s*$)",
                                             str(recollection._row(e).get("what") or ""), re.IGNORECASE)]
     lines = [_shortened(str(recollection._row(e).get("what") or "").rstrip(".")) for e in rows[-3:]]
     lines = [l for l in lines if l]
