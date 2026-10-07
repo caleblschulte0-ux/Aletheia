@@ -229,7 +229,14 @@ def set_deadline(tid: str, deadline: str) -> dict:
     task["deadline"] = deadline
     task["updated_at"] = _now()
     save(task)
-    journal.append("task", f"task:{tid}", f"deadline moved — was: {before}")
+    # Read back to him by "what did you do this week": "deadline moved -
+    # was: none" named neither the task nor the day (2026-10-07).
+    what = str(task.get("description") or tid).strip().rstrip(".")
+    def said(value: str) -> str:
+        when = parse_deadline(value)
+        return f"{when:%A} {when.day} {when:%B}" if when is not None else str(value)
+    journal.append("task", f"task:{tid}",
+                   f"Moved {what} to {said(deadline)}" + (f" (it was {said(before)})" if before != "none" else ""))
     return task
 
 

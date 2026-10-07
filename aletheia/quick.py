@@ -299,6 +299,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is) (?:on file|in your memory) about me$|^tell me what (?:you|u) know about me$")),
     # "Say that again" waited two minutes on her own model for her own last
     # sentence, which the conversation thread holds (2026-09-22).
+    # "What did I just ask you" (2026-10-07: to the planner, and from there
+    # "I can't think just now"). The thread holds his words too.
+    ("asked_last", re.compile(
+        r"^what (?:did|was it) i (?:just )?(?:ask|asked|say|said)(?: (?:you|u))?(?: (?:just now|a second ago|before that|earlier))?$"
+        r"|^what was my (?:last )?question$|^what was i (?:just )?(?:asking|saying)$")),
     ("repeat", re.compile(
         r"^(?:say that again|repeat that|come again|what did (?:you|u) just say|what was that|"
         r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say)$")),
@@ -1220,7 +1225,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "WHAT'S DUE TODAY", "what's overdue" (2026-10-07: to the planner).
     # A task carries the deadline he said; `tasks.due` compares it to now.
     ("due", re.compile(r"^(?:what(?:'s| is|s)?|what do i have|anything|is anything|do i have anything) "
-                       r"(?:(?P<what>overdue)|due(?: (?P<what2>today|tomorrow|this week|soon))?)(?: on my (?:list|tasks))?$"
+                       r"(?:(?P<what>overdue)|due(?: (?:on )?(?P<what2>today|tomorrow|this week|soon|monday|tuesday|wednesday"
+                       r"|thursday|friday|saturday|sunday))?)(?: on my (?:list|tasks))?$"
                        r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
     ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
@@ -4801,10 +4807,15 @@ def _due(when: str = "", now=None) -> str | None:
     now = now or dt.datetime.now(dt.timezone.utc)
     local = now.astimezone(localtime.operator_tz())
     end_of_today = local.replace(hour=23, minute=59, second=59)
+    day = None
+    if when in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+        # "What's due Friday" (2026-10-07: to the planner). The coming one.
+        from aletheia import voice
+        day = dt.date.fromisoformat(voice._spoken_day(when))
     horizon = {"": end_of_today, "today": end_of_today, "soon": end_of_today + dt.timedelta(days=2),
                "tomorrow": end_of_today + dt.timedelta(days=1),
                "this week": end_of_today + dt.timedelta(days=6 - local.weekday()),
-               "overdue": now}[when]
+               "overdue": now}.get(when) or end_of_today + dt.timedelta(days=(day - local.date()).days)
     hours = max((horizon - now).total_seconds() / 3600, 0)
     try:
         rows = [r for r in tasks.due(now=now, within_hours=hours) if tasks.is_his(r["task"])]
@@ -4815,6 +4826,9 @@ def _due(when: str = "", now=None) -> str | None:
     if when == "tomorrow":
         start = end_of_today
         rows = [r for r in rows if r["overdue"] or r["when"] > start]
+    if day is not None:
+        rows = [r for r in rows if r["when"].astimezone(local.tzinfo).date() == day]
+        when = "on " + when.capitalize()
     if not rows:
         return {"overdue": "Nothing's overdue."}.get(when, f"Nothing due {when or 'today'}.")
 
@@ -5452,6 +5466,22 @@ def _repeat() -> str:
     return "I haven't said anything yet this conversation."
 
 
+def _asked_last() -> str:
+    """His last sentence before this one, from the thread, in his words."""
+    try:
+        from aletheia import converse
+        turns = converse._thread()
+    except Exception:
+        turns = []
+    for turn in reversed(turns or []):
+        asked = " ".join(str(turn.get("you") or "").split())
+        bare = re.sub(r"^(?:thea|aletheia),? ", "", asked, flags=re.IGNORECASE)
+        if not bare or next((n for n, p in PATTERNS if n == "asked_last" and p.match(_tidy(bare))), None):
+            continue
+        return f"You asked: \u201c{bare.rstrip().rstrip('.')}.\u201d"
+    return "You haven't asked me anything yet this conversation."
+
+
 #: Asking her to say it again, so the thread can step past those turns.
 _REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat|say (?:that|it) again|"
                          r"what did (?:you|u) (?:just )?say|come again|pardon|sorry,? what|what was that|say again|"
@@ -5752,6 +5782,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "repeat": lambda rest: _repeat(),
+           "asked_last": lambda rest: _asked_last(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "computer_ok": lambda rest: _computer_ok(),

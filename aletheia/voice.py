@@ -1118,18 +1118,45 @@ def _last_ask_is_undoable() -> bool:
         return False
 
 
+def _recent_reminder_ask(turns: int = 4) -> dict:
+    """The one-off reminder among his last few asks, newest first, or {}.
+
+    "Remind me at 6", "what are my reminders for today", "actually make
+    that 7" (2026-10-07): a QUESTION in between is not what "that" points
+    at, so it is stepped over; any other writer stops the search, because
+    then "that" is the newer thing."""
+    try:
+        from aletheia import converse, intercom
+        recent = converse.recent(limit=turns) or []
+    except Exception:
+        return {}
+    if not recent:
+        recent = [{"he_asked": _previous_ask()}]
+    for turn in reversed(recent):
+        said = " ".join(str(turn.get("he_asked") or "").split())
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
+        if not said or _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
+            continue
+        try:
+            from aletheia import quick
+            if quick.match(said):
+                continue                          # a question she answered from her stores
+            cmd = (interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            return {}
+        if cmd.get("kind") == "remind_at" and cmd.get("text"):
+            return cmd
+        if cmd.get("kind") not in intercom.READ_ONLY_KINDS:
+            return {}
+    return {}
+
+
 def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     """"Make that 4": the reminder he just set, at the new time, replacing
     the old one. None unless his last ask was a one-off reminder and the
     time reads."""
-    prev = _previous_ask()
-    if not prev:
-        return None
-    try:
-        previous = (interpret(f"thea {prev}") or {}).get("command") or {}
-    except Exception:
-        return None
-    if previous.get("kind") != "remind_at" or not previous.get("text"):
+    previous = _recent_reminder_ask()
+    if not previous:
         return None
     hhmm = _spoken_time(time_words)
     if not hhmm:

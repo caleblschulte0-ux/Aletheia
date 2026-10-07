@@ -38,3 +38,52 @@ class WhatAWordMeans(unittest.TestCase):
     def test_through_quick(self):
         with mock.patch.object(dictionary, "_fetch", return_value=ENTRY):
             self.assertIn("happy accident", quick.answer("define serendipity"))
+
+
+class ThatAfterAQuestion(unittest.TestCase):
+    """"Remind me at 6", "what are my reminders for today", "actually make
+    that 7" - the question in between is not what "that" points at."""
+
+    def _thread(self, *asks):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[{"he_asked": a, "she_answered": ""} for a in asks])
+
+    def test_the_reminder_before_the_question_moves(self):
+        from aletheia import voice
+        with self._thread("remind me to water the plants at 6 pm", "what are my reminders for today"):
+            got = voice._interpret("actually make that 7 pm")["command"]
+        self.assertEqual((got["kind"], got["replaces"]), ("remind_at", "water the plants"))
+        self.assertIn("T19:00", got["at"])
+
+    def test_a_newer_writer_is_what_that_means(self):
+        from aletheia import voice
+        with self._thread("remind me to water the plants at 6 pm", "add milk to my shopping list"):
+            self.assertEqual(voice._recent_reminder_ask(), {})
+
+
+class WhatHeJustAsked(unittest.TestCase):
+    def test_his_words_back(self):
+        from aletheia import converse
+        thread = [{"you": "thea what are my reminders for today", "her": "None."},
+                  {"you": "what did i just ask you", "her": "..."}]
+        with mock.patch.object(converse, "_thread", return_value=thread):
+            self.assertEqual(quick.answer("what did i just ask you"),
+                             "You asked: “what are my reminders for today.”")
+
+
+class DueOnADay(unittest.TestCase):
+    def test_what_is_due_friday(self):
+        self.assertEqual(quick.match("what's due friday"), ("due", "friday"))
+        self.assertEqual(quick.match("anything due on monday"), ("due", "monday"))
+
+
+class AMovedDeadlineIsASentence(unittest.TestCase):
+    def test_the_journal_names_the_task_and_the_day(self):
+        from aletheia import journal, tasks
+        lines = []
+        with mock.patch.object(tasks, "load", return_value={"id": "t1", "description": "call the plumber",
+                                                             "status": "PENDING"}), \
+                mock.patch.object(tasks, "save"), \
+                mock.patch.object(journal, "append", side_effect=lambda *a, **k: lines.append(a)):
+            tasks.set_deadline("t1", "2026-10-09")
+        self.assertEqual(lines[0][2], "Moved call the plumber to Friday 9 October")
