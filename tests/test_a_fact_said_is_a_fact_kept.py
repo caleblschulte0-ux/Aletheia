@@ -1640,5 +1640,13 @@ class APastaTimerCase(unittest.TestCase):
         self.assertEqual(command["text"], "your 5 minute timer is up")
 
 
+class ALowerCaseNameIsStillANameCase(unittest.TestCase):
+    def test_a_contact_said_in_lower_case_is_saved_with_its_capital(self):
+        from aletheia import voice
+        for said in ("dana's email is dana@example.com", "dana's number is 555 123 4567"):
+            self.assertEqual(voice.interpret(f"thea {said}")["command"]["name"], "Dana", said)
+        self.assertEqual(voice.interpret("thea McKenna's number is 555 123 4567")["command"]["name"], "McKenna")
+
+
 if __name__ == "__main__":
     unittest.main()
