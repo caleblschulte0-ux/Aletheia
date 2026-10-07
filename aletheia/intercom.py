@@ -1320,7 +1320,7 @@ def _tasks_answer(which: str = "") -> str:
                 if needle in str(t.get("description", "")).casefold()
                 or needle in str(t.get("id", "")).casefold()]
         if not rows:
-            return f"Nothing open matching {which!r}."
+            return f"Nothing on your list matches {str(which).strip()}."
     if not rows:
         # "Add milk to my list", then "what's on my list": "Nothing on your
         # list" - the milk was on the other one.
