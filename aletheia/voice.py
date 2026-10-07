@@ -1193,6 +1193,11 @@ def _birthday_reminder(m) -> dict:
 _WENT = (r"went (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|went (?:running|swimming|jogging|hiking|biking|cycling)"
          r"|went to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy"
          r"|barber|library|park)|worked out|exercised|meditated|did yoga|ran|jogged|swam")
+# What a bill of his is called, shared with `quick._BILL_KEYS`.
+_BILL_WORDS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )insurance(?: payment| bill)?"
+               r"|insurance (?:payment|bill)|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill"
+               r"|water bill|gas bill|cable bill|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition"
+               r"|gym membership|hoa(?: fees?)?|childcare|car loan|trash bill|sewer bill")
 _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
@@ -7022,7 +7027,12 @@ def _interpret(transcript: str) -> dict:
                      # below, so "my budget is tight" stays how he feels.
                      r"|(?:monthly |weekly |daily |grocery |food |step |calorie |water |reading |savings )?(?:budget|goal)"
                      r"|goal weight|target weight|bedtime|employee (?:id|number)|student (?:id|number)"
-                     r"|insurance(?: company| provider)?|pharmacy|gym) (?:is|are) (?P<value>.{1,80})", fact_low)
+                     r"|insurance(?: company| provider)?|pharmacy|gym"
+                     # "My rent is 1500", "my car insurance is 120 a month"
+                     # (2026-10-07: to the planner) - held to a number below.
+                     r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)
+    if m and m.group("bill") and not re.search(r"\d", m.group("value")):
+        m = None
     # "My locker is 42" (2026-10-07: to the planner) - a locker with no
     # number in it is where he left something, not which one is his.
     if m and re.search(r"(?:budget|goal|weight|bedtime|locker)$", m.group("key")) \

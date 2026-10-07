@@ -382,6 +382,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when did i (?:last )?(?P<went>go to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|go (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|go (?:running|swimming|jogging|hiking|biking|cycling)|work out|exercise|meditate|do yoga|run|jog|swim)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<went2>(?:go|gone|been) to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|(?:go|gone|been) (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|(?:go|gone|been) (?:running|swimming|jogging|hiking|biking|cycling)|work(?:ed)? out|exercised?|meditated?|(?:do|done) yoga|run|ran|jog|jogged|swim|swum)(?P<went_when> today| yet| this week| this morning)?\s*\??$"
         r"|^how (?:many times|often) (?:did|have) i (?P<went3>(?:go|gone|been) to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy|barber|library|park)|(?:go|gone|been) (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|(?:go|gone|been) (?:running|swimming|jogging|hiking|biking|cycling)|work(?:ed)? out|exercised?|meditate|do yoga|run|jog|swim)(?P<went_when3> today| this week| this month| last week)?\s*\??$")),
+    ("did_count", re.compile(
+        r"^how many times (?:did|have) i (?P<dc_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|call|visit|pay"
+        r"|take|charge|empty|fill|refill)(?:ed|d)? (?P<dc_o>[a-z][a-z' ]{1,40}?)(?P<dc_when> today| this week| this month| yesterday)?\s*\??$")),
+    ("cost_mine", re.compile(
+        r"^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
+        r"|^how much do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
+        r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
+        r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -622,6 +630,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What tasks do I have today" (2026-10-07: to the planner), and
         # "what did I forget", which is the overdue list asked guiltily.
         r"|^what tasks (?:do i have|have i got|are there|are on my list)(?: due)? (?P<due3>today|tomorrow|this week)\s*\??$"
+        # "What do I have to do tomorrow" (2026-10-07: to a model).
+        r"|^what (?:do i|have i got to|do i still) (?:have|need|got) to do (?P<due5>tomorrow|this week)\s*\??$"
         # "What am I forgetting" (2026-10-07: to a model).
         r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
         r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
@@ -1166,7 +1176,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # appointment" and "what are my reminders for tomorrow" went to the
     # planner. Her calendar and her reminders hold both answers.
     ("when_mine", re.compile(
-        r"^(?:what time|when|what day)(?:'s| is) my (?:next )?(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
+        r"^(?:what time|when|what day)(?:'s| is) (?:my|the|our) (?:next )?(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
         r"(?:appointment|appt|meeting|call|interview|dinner|lunch|breakfast|class|game|flight|party|reservation|session|visit"
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
@@ -1923,7 +1933,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -1934,7 +1944,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -4207,7 +4217,9 @@ def _task_due(words: str) -> str | None:
     hits = [t for t in live if all(re.search(rf"\b{re.escape(w)}", str(t.get("description") or "").casefold())
                                    for w in asked)]
     if len(hits) != 1:
-        return _recall(words) if not hits else None
+        # "When is rent due" with a monthly reminder to pay it (2026-10-07:
+        # "I have nothing about rent on file").
+        return (_when_mine(words) or _recall(words)) if not hits else None
     task = hits[0]
     what = str(task.get("description") or task.get("id") or "").strip().rstrip(".")
     what = what[:1].upper() + what[1:]
@@ -8258,6 +8270,72 @@ def _spent(question: str) -> str | None:
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
+def _did_count(text: str) -> str | None:
+    """"How many times did I walk the dog today": his notes saying he did,
+    counted for the day, week or month he named. Never a guess."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("did_count", text)
+    verb, thing = (g.get("dc_v") or "").strip(), (g.get("dc_o") or "").strip()
+    if not verb or not thing:
+        return None
+    window = (g.get("dc_when") or "").strip() or "today"
+    past = {"take": "took"}.get(verb) or _past_of(verb)
+    words = [w for w in re.findall(r"[a-z0-9']+", thing.casefold()) if w not in ("the", "my", "our", "a", "an", "some")]
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start, end = {"today": (midnight, midnight + dt.timedelta(days=1)),
+                  "yesterday": (midnight - dt.timedelta(days=1), midnight),
+                  "this week": (midnight - dt.timedelta(days=now.weekday()), midnight + dt.timedelta(days=1)),
+                  "this month": (midnight.replace(day=1), midnight + dt.timedelta(days=1))}[window]
+    n = 0
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        if not re.match(rf"i (?:just )?{re.escape(past)}\b", low) or not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        n += start <= at < end
+    if not n:
+        return f"None {window} that you've told me. Say \"I {past} {thing}\" when you do and I'll keep count."
+    return f"{speech.count_phrase(n, 'time')} {window}, from what you've told me."
+
+
+_BILL_KEYS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )?insurance(?: payment| bill)?"
+              r"|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill|water bill|gas bill|cable bill"
+              r"|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition|gym membership|hoa(?: fees?)?"
+              r"|childcare|car loan|trash bill|sewer bill")
+
+
+def _cost_mine(text: str) -> str | None:
+    """"How much is my rent", "what are my bills": his notes saying so
+    ("my rent is 1500"). None when he never said - a model may know a
+    figure from his mail; nothing here guesses one."""
+    from aletheia import speech
+    g = _groups("cost_mine", text)
+    rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()]
+    if g.get("cost_bills"):
+        bills, seen = [], set()
+        for said in rows:
+            m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
+            if m and m.group("k") not in seen:
+                seen.add(m.group("k"))
+                bills.append(speech.as_she_says_it(said).rstrip(".").removeprefix("your ").removeprefix("Your "))
+        if not bills:
+            return None
+        return f"From what you've told me: your {speech.and_list(bills)}."
+    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or "").casefold().split())
+    if not thing or not re.fullmatch(_BILL_KEYS, thing):
+        return None
+    for said in rows:
+        if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|costs?) .*\d", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _lent(text: str) -> str | None:
     """"Who has my drill": his note saying he lent it, in his words. Nothing
     kept is said as nothing kept (2026-10-07: to a model, which could only
@@ -8731,6 +8809,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "ate": _ate,
            "lent": _lent,
            "went": _went,
+           "did_count": _did_count,
+           "cost_mine": _cost_mine,
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "synonym": lambda rest: _related(rest, "synonyms"),

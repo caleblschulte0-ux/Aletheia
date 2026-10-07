@@ -3134,5 +3134,44 @@ class LaterAndSlower(unittest.TestCase):
         self.assertEqual(quick.match("say that again slower")[0], "repeat")
 
 
+class HisBillsAndHowOften(unittest.TestCase):
+    def test_a_bill_with_a_number_is_kept_and_read(self):
+        import datetime as dt
+        from aletheia import quick
+        for said in ("my rent is 1500", "my car insurance is 120 a month"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        got = voice._interpret("my rent is too high")
+        self.assertFalse(got and (got.get("command") or {}).get("kind") == "note")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": t, "ts": now} for t in ("my rent is 1500", "my car insurance is 120 a month")]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how much is my rent"), "You told me: your rent is 1500.")
+            self.assertIn("120 a month", quick.answer("how much do I pay for car insurance"))
+            bills = quick.answer("what are my bills")
+            self.assertIn("rent is 1500", bills)
+            self.assertIn("car insurance is 120", bills)
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much is my rent"))
+
+    def test_how_many_times_is_counted_from_his_notes(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I walked the dog", "ts": now}] * 2):
+            self.assertEqual(quick.answer("how many times did I walk the dog today"), "2 times today, from what you've told me.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertTrue(quick.answer("how many times did I feed the cat this week").startswith("None this week"))
+
+    def test_rent_due_reads_the_reminder(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_when_mine", return_value="You have a reminder on the 1st: pay rent.") as found:
+            self.assertEqual(quick.answer("when is rent due"), "You have a reminder on the 1st: pay rent.")
+            found.assert_called_with("rent")
+
+    def test_what_to_do_tomorrow_is_the_tasks_due(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what do I have to do tomorrow"), ("tasks_due", "tomorrow"))
+
+
 if __name__ == "__main__":
     unittest.main()
