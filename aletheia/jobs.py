@@ -34,6 +34,7 @@ of them means try a different search.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import sys
@@ -273,6 +274,23 @@ def _page(url: str) -> str:
         return response.read(400_000).decode("utf-8", "replace")
 
 
+def _when(value) -> str:
+    """A posting's date as ISO text, from whatever shape its board writes:
+    an ISO string (Greenhouse, Ashby) or epoch milliseconds (Lever). "" when
+    there is none, which `job_value` reads as "no date", never as old."""
+    if isinstance(value, (int, float)) and value > 0:
+        try:
+            return dt.datetime.fromtimestamp(value / 1000, dt.timezone.utc).isoformat()
+        except (OverflowError, OSError, ValueError):
+            return ""
+    text = str(value or "").strip()
+    try:
+        dt.datetime.fromisoformat(text[:19])
+    except ValueError:
+        return ""
+    return text
+
+
 def _greenhouse(board: dict) -> list[dict]:
     token = board["token"]
     data = _fetch(f"https://boards-api.greenhouse.io/v1/boards/{token}/jobs")
@@ -297,6 +315,11 @@ def _greenhouse(board: dict) -> list[dict]:
             # The public application form. No account, no login.
             "apply_url": ("https://boards.greenhouse.io/embed/job_app"
                           f"?for={urllib.parse.quote(token)}&token={jid}"),
+            # When it went up, so "posted this week" can rank it. Measured
+            # 2026-10-07: no board reader carried a date, so recency never
+            # scored, and Affirm wrote twice that week "we just hired someone
+            # for this role".
+            "posted": _when(job.get("first_published") or job.get("updated_at")),
             "provider": "greenhouse", "board": token, "id": str(jid),
         })
     return out
@@ -316,6 +339,7 @@ def _lever(board: dict) -> list[dict]:
             "location": ((job.get("categories") or {}).get("location") or "").strip(),
             "posting_url": job.get("hostedUrl") or "",
             "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
+            "posted": _when(job.get("createdAt")),
             "provider": "lever", "board": token, "id": str(jid),
         })
     return out
@@ -349,6 +373,7 @@ def _ashby(board: dict) -> list[dict]:
             "location": "; ".join(p.strip() for p in places if p.strip()),
             "posting_url": job.get("jobUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}",
             "apply_url": job.get("applyUrl") or f"https://jobs.ashbyhq.com/{q}/{jid}/application",
+            "posted": _when(job.get("publishedAt")),
             "provider": "ashby", "board": token, "id": str(jid),
         })
     return out
