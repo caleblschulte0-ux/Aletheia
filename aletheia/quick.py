@@ -1536,10 +1536,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
-        r"|vaccinate|deworm|descale|defrost|call|visit) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|vaccinate|deworm|descale|defrost|call|visit|pay) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
-        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week)?\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
@@ -4118,7 +4118,7 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
+_PAST = {"pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
          "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
 
 
@@ -8199,6 +8199,61 @@ def _past_go(asked: str) -> str:
         if a.startswith(base):
             return past + a[len(base):]
     return a
+
+
+_SPENT_NOTE = re.compile(r"^i (?:spent|paid) \$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)? (?:on|for) (?P<on>.+?)"
+                         r"(?: (?P<when>today|yesterday|this week|last night))?\.?$")
+
+
+def _spent(question: str) -> str | None:
+    """"How much did I spend this week", "what did I spend on groceries":
+    added up from what he told her ("I spent 40 dollars on groceries").
+    None when he has told her nothing about spending at all, so the
+    accounts answer still says there is no bank."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    low = _tidy(question or "")
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    rows = []
+    for row in _notes():
+        m = _SPENT_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
+        if not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if m.group("when") in ("yesterday", "last night"):
+            at -= dt.timedelta(days=1)
+        rows.append((at, float(m.group("amt").replace(",", "")), m.group("on").strip()))
+    if not rows:
+        return None
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    window = next((w for w in ("today", "yesterday", "this week", "last week", "this month", "last month")
+                   if re.search(rf"\b{w}\b", low)), "")
+    start, end = {"today": (midnight, midnight + dt.timedelta(days=1)),
+                  "yesterday": (midnight - dt.timedelta(days=1), midnight),
+                  "this week": (midnight - dt.timedelta(days=now.weekday()), midnight + dt.timedelta(days=1)),
+                  "last week": (midnight - dt.timedelta(days=now.weekday() + 7), midnight - dt.timedelta(days=now.weekday())),
+                  "this month": (midnight.replace(day=1), midnight + dt.timedelta(days=1)),
+                  "last month": ((midnight.replace(day=1) - dt.timedelta(days=1)).replace(day=1), midnight.replace(day=1)),
+                  }.get(window, (midnight - dt.timedelta(days=30), midnight + dt.timedelta(days=1)))
+    span = window or "in the last 30 days"
+    on = re.search(r"\bspen[dt] (?:on|for) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
+    hits = [r for r in rows if start <= r[0] < end
+            and (not on or any(w.rstrip("s") in r[2] for w in on.group("on").split() if w not in ("the", "my", "a")))]
+    if not hits:
+        return (f"Nothing on {on.group('on')} {span} that you've told me." if on
+                else f"Nothing {span} that you've told me.")
+    total = sum(r[1] for r in hits)
+    if on:
+        return f"{_money(total)} on {on.group('on')} {span}, from what you've told me."
+    by: dict[str, float] = {}
+    for _, amt, what in hits:
+        by[what] = by.get(what, 0) + amt
+    parts = [f"{_money(v)} on {k}" for k, v in sorted(by.items(), key=lambda kv: -kv[1])[:4]]
+    return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
 def _lent(text: str) -> str | None:

@@ -3093,5 +3093,34 @@ class TheGymAndARun(unittest.TestCase):
                              "You haven't told me. Say \"I went swimming\" when you do and I'll keep track.")
 
 
+class WhatHeSaidHeSpent(unittest.TestCase):
+    def test_spending_he_told_her_is_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I spent 40 dollars on groceries", "ts": now}, {"text": "I paid $12.50 for gas", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(voice._interpret("how much did I spend today")["say"],
+                             "$52.50 today, from what you've told me: $40 on groceries and $12.50 on gas.")
+            self.assertEqual(voice._interpret("how much did I spend on groceries this week")["say"],
+                             "$40 on groceries this week, from what you've told me.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(voice._interpret("how much did I spend this week")["command"],
+                             {"kind": "money", "about": "spending"})
+
+    def test_a_bill_paid_is_kept_and_dated(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I paid the electric bill")["command"],
+                         {"kind": "note", "text": "I paid the electric bill"})
+        two = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I paid the electric bill", "ts": two}]):
+            self.assertIn("you paid the electric bill", quick.answer("when did I pay the electric bill"))
+
+    def test_what_he_asked_to_be_reminded_of_is_the_list(self):
+        for asked in ("what did I ask you to remind me about", "what are you going to remind me about"):
+            self.assertEqual(voice._interpret(asked)["command"], {"kind": "reminders"}, asked)
+
+
 if __name__ == "__main__":
     unittest.main()

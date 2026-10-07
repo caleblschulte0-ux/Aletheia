@@ -1193,7 +1193,7 @@ def _birthday_reminder(m) -> dict:
 _WENT = (r"went (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|went (?:running|swimming|jogging|hiking|biking|cycling)"
          r"|went to (?:the )?(?:gym|pool|yoga|pilates|spin class|class|church|doctor|dentist|chiropractor|therapy|physical therapy"
          r"|barber|library|park)|worked out|exercised|meditated|did yoga|ran|jogged|swam")
-_DONE_VERBS = ("changed|gave|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
+_DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
                # "I called mom" (2026-10-07: to the planner). A call he made is
@@ -3419,6 +3419,9 @@ def _interpret(transcript: str) -> dict:
     # shape of a yes/no is the same question.
     if re.fullmatch(r"(what|which) (?:reminders?|timers?|alarms?) (do i have|are set|have i got|are running)"
                     r"|what am i being reminded (of|about)"
+                    # "What did I ask you to remind me about" (2026-10-07: to a model).
+                    r"|what (?:did|have) i (?:ask|asked|told|tell) you to remind me (?:of|about|to do)"
+                    r"|what (?:are|were) you (?:going to|gonna|supposed to) remind me (?:of|about)"
                     # A timer is a reminder with a countdown (bottom rung 2026-09-24).
                     r"|(?:any|do i have any|list (?:my )?|my )?(?:timers?|alarms?)(?: running| set| going)?"
                     r"|(do i have|have i got|are there|is there) (any |a )?reminders?( set| pending| coming up)?"
@@ -5382,6 +5385,13 @@ def _interpret(transcript: str) -> dict:
                     r"|show me my (?:spending|transactions|expenses)(?: .*)?"
                     r"|where (?:did|is) my money (?:go|going)(?: .*)?)"
                     r"\s*\??", low):
+        # "I spent 40 dollars on groceries" is kept as a note (2026-10-07),
+        # and "how much did I spend this week" answered that there was no
+        # bank - a writer with no reader. What he told her is added up first.
+        from aletheia import quick
+        told = quick._spent(low)
+        if told:
+            return {"command": None, "say": told}
         return {"command": {"kind": "money", "about": "spending"}, "say": None}
 
     if re.fullmatch(r"(?:when is the car due|car service|"
