@@ -750,6 +750,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
+    # WIND, HUMIDITY AND THE BATTERY. All three went to the planner and,
+    # with nothing thinking, came back "I can't think just now" - while the
+    # forecast she had cached carried both numbers and Windows reports the
+    # battery for free.
+    ("humidity", re.compile(
+        r"^(?:how humid is it|is it (?:humid|muggy)|what(?:'s| is|s) the humidity(?: like)?|humidity)"
+        r"(?: (?:out(?:side)?|today))?(?: (?P<weather2>tonight|tomorrow))?$")),
+    ("wind", re.compile(
+        r"^(?:how windy is it|is it (?:windy|breezy)|what(?:'s| is|s) the wind(?: speed)?(?: (?:like|doing))?"
+        r"|how(?:'s| is) the wind|wind speed)"
+        r"(?: (?:out(?:side)?|today))?(?: (?P<weather3>tonight|tomorrow))?$")),
+    ("battery", re.compile(
+        r"^(?:what(?:'s| is|s) (?:my |the )?battery(?: level| at| life)?"
+        r"|how(?:'s| is| much) (?:my |the )?battery(?: left| doing)?"
+        r"|battery(?: level| status)?|am i (?:on battery|plugged in)"
+        r"|is (?:my |the )?(?:laptop|pc|computer) (?:charging|plugged in))$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -3125,6 +3141,29 @@ def _home() -> str | None:
     return f"{city}, {state}" if state else str(city)
 
 
+def _weather_detail(what: str, when: str = "") -> str | None:
+    try:
+        from aletheia import weather
+        return weather.detail(what, when)
+    except Exception:
+        return None
+
+
+def _battery() -> str | None:
+    """The battery, as Windows reports it. Elsewhere it says it cannot see one."""
+    try:
+        from aletheia import power
+        state = power.status()
+    except Exception:
+        return None
+    if not state.get("known"):
+        return ("I can't read a battery on this machine - Windows reports it on "
+                "your PC, and this isn't it.")
+    if state.get("has_battery") is False:
+        return "This PC has no battery - it runs on mains power."
+    return "You're " + power.words(state) + "."
+
+
 def _weather(when: str = "") -> str | None:
     """What it is doing outside, from the free national service.
 
@@ -3848,6 +3887,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "mine": _mine,
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
+           "humidity": lambda rest: _weather_detail("humidity", rest),
+           "wind": lambda rest: _weather_detail("wind", rest),
+           "battery": lambda rest: _battery(),
            "weather": lambda rest: _weather(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),

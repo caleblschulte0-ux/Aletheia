@@ -31,7 +31,7 @@ from __future__ import annotations
 import re
 from typing import Callable
 
-from aletheia import intercom
+from aletheia import intercom, speech
 
 PROVIDER = "aletheia.rules"
 CONFIDENCE = 0.7
@@ -326,7 +326,7 @@ def _message(m, request):
         return None
     number, name = messages.resolve_number(who)
     if number is None:
-        return {"say": f"I don't have a phone number for {name or who}. Tell me the number once and I'll remember it."}
+        return {"say": f"I don't have a phone number for {speech.as_she_says_it(name or who)}. Tell me the number once and I'll remember it."}
     return {"to": who, "body": body}, f"Text {name or who}: {body}"
 
 

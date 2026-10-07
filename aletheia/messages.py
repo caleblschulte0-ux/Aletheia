@@ -52,7 +52,7 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
-from aletheia import contacts, journal, policy, stateio
+from aletheia import contacts, journal, policy, speech, stateio
 
 ACTOR = "messages"
 
@@ -171,7 +171,7 @@ def draft(to: str, body: str, requested_via: str = "voice") -> dict:
     number, name = resolve_number(to)
     if number is None:
         raise ValueError(
-            f"I don't have a phone number for {name}. Tell me the number "
+            f"I don't have a phone number for {speech.as_she_says_it(name)}. Tell me the number "
             f"and I'll remember it.")
     body = str(body or "").strip()
     if not body:

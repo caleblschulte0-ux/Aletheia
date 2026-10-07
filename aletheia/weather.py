@@ -30,6 +30,7 @@ is the round trip this file exists to remove.
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 
@@ -190,3 +191,71 @@ def spoken(when: str = "") -> str:
     short = str(chosen.get("shortForecast") or "").strip().rstrip(".")
     lead = "Right now" if chosen is periods[0] and not wanted else name
     return f"{lead} in {data['place']}: {short}, {temp} degrees."
+
+
+_DETAIL_WHEN = ("today", "tonight", "this morning", "this afternoon", "this evening")
+
+
+def detail(what: str, when: str = "") -> str:
+    """Wind or humidity, out loud, from the same cached forecast. Never raises.
+
+    "How humid is it" and "is it windy" went to the planner while the
+    forecast she had already fetched carried both numbers. A period that
+    does not carry the number says so - it is never estimated.
+    """
+    try:
+        data = forecast()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    except Exception as exc:
+        return (f"I couldn't check the weather ({type(exc).__name__}). "
+                "Everything else still works.")
+    periods = data.get("periods") or []
+    if not periods:
+        return "The weather service gave me nothing back just now."
+    wanted = " ".join(str(when or "").split()).casefold()
+    chosen = periods[0]
+    if wanted.startswith("tomorrow"):
+        later = [p for p in periods
+                 if p.get("isDaytime", True)
+                 and str(p.get("name", "")).casefold() not in ("today", "this afternoon")]
+        if later:
+            chosen = later[0]
+    elif wanted == "tonight":
+        night = [p for p in periods if p.get("isDaytime") is False]
+        if night:
+            chosen = night[0]
+    label = str(chosen.get("name") or "")
+    when_said = _for(label)
+    if what == "humidity":
+        rh = chosen.get("relativeHumidity")
+        value = rh.get("value") if isinstance(rh, dict) else rh
+        if value is None:
+            return f"The forecast {when_said} doesn't say how humid it'll be."
+        value = int(round(float(value)))
+        feel = " - that's muggy" if value >= 75 else (" - pretty dry" if value <= 30 else "")
+        return f"Humidity's around {value}% {when_said}{feel}."
+    speed = str(chosen.get("windSpeed") or "").strip()
+    if not speed:
+        return f"The forecast {when_said} doesn't say what the wind is doing."
+    direction = _COMPASS.get(str(chosen.get("windDirection") or "").upper(), "")
+    numbers = [int(n) for n in re.findall(r"\d+", speed)]
+    top = max(numbers) if numbers else 0
+    feel = "It's windy" if top >= 20 else ("It's breezy" if top >= 12 else "Not much wind")
+    return f"{feel} {when_said}: {speed}" + (f" from the {direction}" if direction else "") + "."
+
+
+def _for(label: str) -> str:
+    """"today", "tonight", "this afternoon", "on Thursday" - or "right now"."""
+    low = label.casefold()
+    if not low:
+        return "right now"
+    if low in ("today", "tonight", "overnight") or low.startswith("this "):
+        return low
+    return f"on {label}"
+
+
+_COMPASS = {"N": "north", "NNE": "north", "NE": "northeast", "ENE": "east", "E": "east",
+            "ESE": "east", "SE": "southeast", "SSE": "south", "S": "south", "SSW": "south",
+            "SW": "southwest", "WSW": "west", "W": "west", "WNW": "west", "NW": "northwest",
+            "NNW": "north"}
