@@ -171,5 +171,25 @@ class HowManyRemindersIsTheReminderList(unittest.TestCase):
             self.assertEqual(voice._interpret(said)["command"]["kind"], "reminders", said)
 
 
+class HowOldWillIBe(unittest.TestCase):
+    def test_in_a_year_he_names(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(6, 4, 1995)):
+            self.assertEqual(quick.answer("how old will i be in 2030"), "You'll turn 35 on June 4 2030, so 34 before that.")
+
+    def test_without_the_year_he_was_born_she_asks_for_it(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(6, 4, None)):
+            self.assertIn("year you were born", quick.answer("how old will i be in 2030"))
+
+
+class MinutesFromNowIsAClock(unittest.TestCase):
+    def test_from_now(self):
+        from aletheia import quick
+        self.assertRegex(quick.answer("what's 30 minutes from now"), r"^\d{1,2}(?::\d\d)? [ap]m")
+
+
 if __name__ == "__main__":
     unittest.main()

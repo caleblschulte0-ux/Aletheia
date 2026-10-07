@@ -526,6 +526,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
     # HIS BIRTHDAY, kept in her memory of him (2026-10-07: "how old am I"
     # and "when is my birthday" told him she couldn't think).
+    # "How old will I be in 2030" / "in 5 years" (2026-10-07: to a model)
+    ("age_in", re.compile(
+        r"^how old (?:will i be|am i going to be|would i be|will i turn) (?:in (?P<age_year>\d{4})|in (?P<age_n>\d{1,2}) years?"
+        r"|(?:on|at) my next birthday)$")),
     ("birthday", re.compile(
         r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
         r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
@@ -1569,7 +1573,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what day(?: of the week)? (?:is|was|will|does|did|falls|is it on)(?: it)? .{3,40}$"
         r"|^how many (?:days|weeks) (?:are there )?(?:between|from) .{3,30} (?:and|to|until|till) .{3,30}$"
         r"|^what time (?:will it be|is it going to be|would it be|is it) in (?:an? |one )?(?:[\d.]+|half an?|a couple of"
-        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?)$")),
+        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?)$"
+        # "What's 30 minutes from now" (2026-10-07: to a model)
+        r"|^(?:what(?:'s| is|s)? |what time is |whats )(?:an? |one )?(?:[\d.]+|half an?|a couple of"
+        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?) from now$")),
 )
 
 
@@ -1617,7 +1624,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -2263,6 +2270,34 @@ def _age_of(who: str) -> str | None:
 def _relation_words() -> set:
     from aletheia import voice
     return set(voice._RELATIONS)
+
+
+def _age_in(year: str = "", years: str = "") -> str:
+    """How old he will be in a year he names, from the birthday he told her."""
+    import datetime as dt
+    from aletheia import localtime
+    held = _birthday_on_file()
+    if not held or not held[2]:
+        return ("I don't know the year you were born. Say \"my birthday is March 3rd, 1995\" "
+                "and I'll remember it.")
+    month, day, born = held
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    try:
+        this_year = dt.date(today.year, month, day)
+    except ValueError:
+        this_year = dt.date(today.year, 3, 1)
+    if not year and not years:                       # "on my next birthday"
+        turning = today.year - born + (0 if this_year >= today else 1)
+        return f"You'll turn {turning} on {this_year.strftime('%B %d').replace(' 0', ' ')}."
+    target = int(year) if year else today.year + int(years)
+    if target < born:
+        return f"You weren't born yet in {target}."
+    turns = target - born
+    when = this_year.strftime("%B %d").replace(" 0", " ")
+    if target == today.year:
+        return (f"You turn {turns} on {when} this year." if this_year >= today
+                else f"You turned {turns} on {when} this year.")
+    return f"You'll turn {turns} on {when} {target}, so {turns - 1} before that."
 
 
 def _birthday() -> str:
@@ -6890,6 +6925,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "age_in": lambda rest: _age_in(_groups("age_in", rest).get("age_year", ""),
+                                          _groups("age_in", rest).get("age_n", "")),
            "until_day": lambda rest: _until(rest, which_day=True),
            "weeks_until": lambda rest: _weeks_until(rest),
            "tasks_due": lambda rest: _tasks_due(rest),

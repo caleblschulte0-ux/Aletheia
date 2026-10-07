@@ -238,8 +238,10 @@ def days_between(text: str, today: dt.date) -> str | None:
 def time_in(text: str, now: dt.datetime) -> str | None:
     """"What time will it be in 3 hours", "what time is it in 45 minutes"."""
     t = " ".join(str(text or "").casefold().split()).rstrip("?. ")
-    m = re.fullmatch(r"what time (?:will it be|is it going to be|would it be|is it) in (?:an? |one )?([\d.]+|half an?|a couple of|two|three|four|five|six|ten|twelve)?"
-                     r" ?(hours?|minutes?|mins?)", t)
+    m = (re.fullmatch(r"what time (?:will it be|is it going to be|would it be|is it) in (?:an? |one )?([\d.]+|half an?|a couple of|two|three|four|five|six|ten|twelve)?"
+                      r" ?(hours?|minutes?|mins?)", t)
+         or re.fullmatch(r"(?:what(?:'s| is|s)?|what time is) (?:an? |one )?([\d.]+|half an?|a couple of|two|three|four|five|six|ten|twelve)?"
+                         r" ?(hours?|minutes?|mins?) from now", t))
     if not m:
         return None
     raw = m.group(1)
