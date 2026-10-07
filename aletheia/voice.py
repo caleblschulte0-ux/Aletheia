@@ -2002,6 +2002,15 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
+    # "Remind me on weekdays at 8 to stand up", "remind me Mondays at 9"
+    # (2026-10-07: to the planner). A plural day IS "every" that day.
+    if low.startswith("remind me ") and not re.search(r"\bevery\b", low):
+        plural = re.sub(r"\b(?:on )?(weekday|weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b",
+                        r"every \1", low, count=1)
+        if plural != low:
+            again = _interpret(plural)
+            if (again.get("command") or {}).get("kind") in ("remind_weekly", "remind_daily"):
+                return again
     # "Every weekday at 8 remind me to stretch" (2026-10-07: to the planner):
     # the when said first. The same sentence with the when after "remind me"
     # is one every reminder branch below already reads.

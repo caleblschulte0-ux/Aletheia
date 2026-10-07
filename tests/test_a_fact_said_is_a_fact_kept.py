@@ -212,5 +212,18 @@ class WhoSomeoneIsToHimIsKept(unittest.TestCase):
             self.assertNotEqual((voice._interpret(said).get("command") or {}).get("kind"), "note", said)
 
 
+class APluralDayIsEvery(unittest.TestCase):
+    def test_on_weekdays(self):
+        from aletheia import voice
+        cmd = voice._interpret("remind me on weekdays at 8 to stand up")["command"]
+        self.assertEqual((cmd["kind"], cmd["days"], cmd["time"], cmd["text"]),
+                         ("remind_weekly", ["weekday"], "08:00", "stand up"))
+
+    def test_on_mondays_at_the_end(self):
+        from aletheia import voice
+        cmd = voice._interpret("remind me to call the twins on mondays")["command"]
+        self.assertEqual((cmd["kind"], cmd["days"]), ("remind_weekly", ["monday"]))
+
+
 if __name__ == "__main__":
     unittest.main()
