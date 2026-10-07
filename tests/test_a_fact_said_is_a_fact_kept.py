@@ -2909,5 +2909,12 @@ class TheMoonIsNotAJourney(unittest.TestCase):
         self.assertIsNotNone(rule_planner.match("how far is chicago"))
 
 
+class ConstantsWithoutAModel(unittest.TestCase):
+    def test_pi_is_said(self):
+        from aletheia import quick
+        self.assertTrue(quick.answer("what's pi").startswith("Pi is about 3.14159"))
+        self.assertTrue(quick.answer("what's the freezing point of water").startswith("0 degrees Celsius"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1768,6 +1768,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:to|in|into|in to) (?P<dt>seconds|minutes|hours|days|weeks)\s*\??$"
         r"|^how many (?P<dt2>seconds|minutes|hours|days|weeks) (?:is|are) (?P<dn2>\d[\d,]*(?:\.\d+)?) "
         r"(?P<du2>seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?)\s*\??$")),
+    # "What's pi" (2026-10-07: a model, and with none "I can't think just now").
+    ("constant", re.compile(
+        r"^(?:what(?:'s| is|s) )?(?:the value of )?(?P<const>pi|the speed of light|the golden ratio|absolute zero|"
+        r"the boiling point of water|the freezing point of water)(?: to (?:\d+|five|ten) (?:digits|decimal places))?\s*\??$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
@@ -1894,7 +1898,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -5423,6 +5427,16 @@ def _time_units(text: str) -> str | None:
     return f"{_number_said(value)} {g['small']}{note}."
 
 
+_CONSTANTS = {
+    "pi": "Pi is about 3.14159 - 3.14159265358979 to fourteen places.",
+    "the speed of light": "About 299,792 kilometers a second - roughly 186,282 miles a second.",
+    "the golden ratio": "About 1.618.",
+    "absolute zero": "Minus 273.15 degrees Celsius - minus 459.67 Fahrenheit.",
+    "the boiling point of water": "100 degrees Celsius, 212 Fahrenheit, at sea level.",
+    "the freezing point of water": "0 degrees Celsius, 32 Fahrenheit.",
+}
+
+
 def _dur_convert(text: str) -> str | None:
     """A length of time in another unit, with the remainder said the way a
     person says it: "1000 seconds" is "16 minutes and 40 seconds"."""
@@ -8364,6 +8378,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "round_to": lambda rest: _round_to(rest),
            "time_units": lambda rest: _time_units(rest),
            "dur_convert": _dur_convert,
+           "constant": lambda rest: _CONSTANTS.get(rest.strip()),
            "fraction_pct": lambda rest: _fraction_pct(rest),
            "fun_fact": lambda rest: _pick(FUN_FACTS),
            "quote": lambda rest: _pick(QUOTES),
