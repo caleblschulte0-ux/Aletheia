@@ -2980,5 +2980,20 @@ class DeleteTheTaskByName(unittest.TestCase):
             self.assertNotIn("'", why)
 
 
+class HowDoIUseHer(unittest.TestCase):
+    def test_how_do_i_is_the_sentence_that_does_it(self):
+        from aletheia import quick
+        self.assertIn("remind me at 3", quick.answer("how do I add a reminder"))
+        self.assertIn("cancel my reminder", quick.answer("how do I cancel a reminder"))
+        self.assertIn("what's on my list", quick.answer("how do I see my tasks"))
+        self.assertIsNone(quick.match("how do I make a cake") and quick.answer("how do I make a cake"))
+        # Every sentence it recommends is one she understands without a model.
+        for said in ("remind me at 3 to call the dentist", "wake me up at 6", "set a timer for 10 minutes",
+                     "add call the vet to my list", "note that the plumber is coming Friday",
+                     "add a dentist appointment next Tuesday at 10", "start a stopwatch", "cancel the timer",
+                     "turn off my 7 am alarm", "take milk off my shopping list", "make a packing list"):
+            self.assertTrue((voice._interpret(said) or {}).get("command"), said)
+
+
 if __name__ == "__main__":
     unittest.main()

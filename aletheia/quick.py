@@ -1775,6 +1775,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("constant", re.compile(
         r"^(?:what(?:'s| is|s) )?(?:the value of )?(?P<const>pi|the speed of light|the golden ratio|absolute zero|"
         r"the boiling point of water|the freezing point of water)(?: to (?:\d+|five|ten) (?:digits|decimal places))?\s*\??$")),
+    # "How do I add a reminder" (2026-10-07: a model, and with none "I can't think just now").
+    ("how_to", re.compile(
+        r"^how (?:do|can|would|should) i (?P<howto>add|set|set up|make|create|start|put|cancel|delete|remove|turn off|stop|"
+        r"check|see|read|hear|find) (?:a |an |my |the |up )?(?:new )?(?P<howto_what>reminders?|alarms?|timers?|tasks?|to ?dos?|"
+        r"notes?|shopping list|lists?|calendar events?|events?|appointments?|holds?|stopwatch)"
+        r"(?: (?:with|using|on|to|from) you| on (?:my|the|your) (?:list|calendar))?\s*\??$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
@@ -1889,7 +1895,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5440,6 +5446,41 @@ _CONSTANTS = {
 }
 
 
+_HOW_TO = {
+    "reminder": ('Just say "remind me at 3 to call the dentist" - or "every Monday at 9" for one that repeats.',
+                 'Say "cancel my reminder to call the dentist". "What reminders do I have" reads them first.',
+                 'Say "what reminders do I have".'),
+    "alarm": ('Say "wake me up at 6" or "set an alarm for 7 tomorrow".',
+              'Say "turn off my 7 am alarm".', 'Say "what alarms do I have".'),
+    "timer": ('Say "set a timer for 10 minutes".', 'Say "cancel the timer".', 'Say "how long is left on my timer".'),
+    "task": ('Say "add call the vet to my list".', 'Say "delete the task call the vet", or "I finished call the vet" to tick it off.',
+             'Say "what\'s on my list".'),
+    "note": ('Say "note that the plumber is coming Friday".', 'Say "delete my note about the plumber".',
+             'Say "what notes do I have", or "what did I tell you about the plumber".'),
+    "list": ('Say "add milk to my shopping list", or "make a packing list" for a new one.',
+             'Say "take milk off my shopping list".', 'Say "what\'s on my shopping list".'),
+    "event": ('Say "add a dentist appointment next Tuesday at 10" and I\'ll put a hold on your calendar.',
+              "I can't take things off your calendar yet - only add holds. Remove it in your calendar itself.",
+              'Say "what\'s on my calendar tomorrow".'),
+    "stopwatch": ('Say "start a stopwatch".', 'Say "stop the stopwatch".', 'Say "how long has the stopwatch been running".'),
+}
+
+
+def _how_to(text: str) -> str | None:
+    """"How do I add a reminder": the sentence that does it, which is the
+    whole of the answer - nothing to install, nothing to open."""
+    g = _match_of("how_to", text)
+    verb, what = g.get("howto") or "", (g.get("howto_what") or "").rstrip("s")
+    what = {"to do": "task", "todo": "task", "shopping list": "list", "calendar event": "event", "appointment": "event",
+            "hold": "event"}.get(what, what)
+    said = _HOW_TO.get(what)
+    if not said:
+        return None
+    which = 1 if verb in ("cancel", "delete", "remove", "turn off", "stop") else \
+        2 if verb in ("check", "see", "read", "hear", "find") else 0
+    return said[which]
+
+
 def _dur_convert(text: str) -> str | None:
     """A length of time in another unit, with the remainder said the way a
     person says it: "1000 seconds" is "16 minutes and 40 seconds"."""
@@ -8381,6 +8422,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "round_to": lambda rest: _round_to(rest),
            "time_units": lambda rest: _time_units(rest),
            "dur_convert": _dur_convert,
+           "how_to": _how_to,
            "constant": lambda rest: _CONSTANTS.get(rest.strip()),
            "fraction_pct": lambda rest: _fraction_pct(rest),
            "fun_fact": lambda rest: _pick(FUN_FACTS),
