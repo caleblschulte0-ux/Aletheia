@@ -1387,7 +1387,7 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
         if timer and not receipt:
             # "your 10-minute timer is up — today at 5:10 am" read as if it
             # had already gone off; it is a timer still running.
-            return f"{timer.group(1)}, going off {speech.humanize_time(str(spec.get('at') or ''))}"
+            return f"{timer.group(1)} — going off {speech.humanize_time(str(spec.get('at') or ''))}"
         return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
     if spec["kind"] == "interval":
         minutes = int(spec.get("every_minutes") or 0)

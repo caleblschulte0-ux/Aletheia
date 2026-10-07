@@ -98,7 +98,8 @@ class ATimerJustSetIsStillItsLength(unittest.TestCase):
         from aletheia import intercom
         spec = {"id": "r1", "kind": "once", "at": "2026-10-07T10:10:00+00:00",
                 "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"}}
-        self.assertTrue(intercom._reminder_words(spec).startswith("your 10-minute timer, going off"))
+        self.assertTrue(intercom._reminder_words(spec).startswith("your 10-minute timer — going off"))
+        # A comma would collide with the list joining it to the others.
         self.assertIn("timer is up", intercom._reminder_words(spec, receipt=True))
 
 
