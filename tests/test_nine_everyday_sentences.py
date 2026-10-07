@@ -76,7 +76,7 @@ class MachineReadingsCase(unittest.TestCase):
             said = quick.answer("what apps are open")
         self.assertEqual(said, "Open right now: Notepad, Google Chrome, Microsoft Edge and Settings.")
         with mock.patch("aletheia.machine.open_windows", return_value=[]):
-            self.assertIn("can't see", quick.answer("what's open right now"))
+            self.assertIn("can't see", quick.answer("what apps are open right now"))
 
     def test_the_readings_never_raise(self):
         # Off Windows these come back empty rather than wrong.
