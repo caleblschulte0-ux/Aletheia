@@ -1075,6 +1075,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("stopwatch", re.compile(
         r"^how long (?:has|is) (?:the |my )?stopwatch(?: been)?(?: running| going| on)?$"
         r"|^what(?:'s| is|s)? (?:on )?(?:the |my )?stopwatch(?: at| say| showing)?$|^(?:check )?(?:the |my )?stopwatch$")),
+    # "Start a stopwatch", then "how long has it been" (2026-10-07: to a
+    # model). Only while a stopwatch is running; otherwise it goes on.
+    ("stopwatch_it", re.compile(
+        r"^how long (?:has it been|has that been|is it at|so far)(?: running| going)?(?: now| so far)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?:the time|it) (?:on it|at)(?: now)?\s*\??$|^time (?:check|so far)$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -5252,6 +5257,16 @@ def _speaking_pace() -> str:
     return speaking_pace.spoken()
 
 
+def _stopwatch_running() -> str | None:
+    """The stopwatch, when "it" can only be the stopwatch - one is running."""
+    from aletheia import stopwatch
+    try:
+        seconds, running = stopwatch.elapsed()
+    except Exception:
+        return None
+    return stopwatch.spoken() if running else None
+
+
 def _stopwatch() -> str | None:
     from aletheia import stopwatch
     return stopwatch.spoken()
@@ -6685,6 +6700,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wind": lambda rest: _weather_detail("wind", rest),
            "news": lambda rest: _news(),
            "stopwatch": lambda rest: _stopwatch(),
+           "stopwatch_it": lambda rest: _stopwatch_running(),
            "holiday_next": lambda rest: _holiday_next(rest),
            "speaking_pace": lambda rest: _speaking_pace(),
            "weather": lambda rest: _weather(rest),

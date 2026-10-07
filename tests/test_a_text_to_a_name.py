@@ -1124,5 +1124,15 @@ class ArithmeticOnHerLastAnswer(unittest.TestCase):
         self.assertIsNone(self._after("Sunny and 70.", "times 2"))
 
 
+
+class HowLongHasItBeen(unittest.TestCase):
+    def test_a_running_stopwatch_is_it(self):
+        from aletheia import quick, stopwatch
+        with mock.patch.object(stopwatch, "elapsed", return_value=(75.0, True)):
+            self.assertIn("1 minute and 15 seconds", quick.answer("how long has it been"))
+        with mock.patch.object(stopwatch, "elapsed", return_value=(None, False)):
+            self.assertIsNone(quick.answer("how long has it been"))
+
+
 if __name__ == "__main__":
     unittest.main()
