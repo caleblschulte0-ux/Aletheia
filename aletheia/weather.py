@@ -139,7 +139,7 @@ def forecast(*, fresh: bool = False) -> dict:
     lat, lon, resolved = _point(code)
     periods = _periods(lat, lon)
     value = {"at": stateio.utcnow(), "place": resolved or name,
-             "periods": periods[:6]}
+             "periods": periods[:6], "lat": lat, "lon": lon}
     try:
         stateio.write_json_atomic(_cache_path(), value)
     except Exception:
@@ -198,3 +198,71 @@ def spoken(when: str = "") -> str:
     short = str(chosen.get("shortForecast") or "").strip().rstrip(".")
     lead = "Right now" if chosen is periods[0] and not wanted else name
     return f"{lead} in {data['place']}: {short}, {temp} degrees."
+
+
+def _where_on_earth() -> tuple[float, float, str]:
+    """Latitude, longitude and a name: the cached forecast's, else looked up."""
+    try:
+        cached = stateio.read_json(_cache_path())
+        if cached.get("lat") is not None and cached.get("lon") is not None:
+            return float(cached["lat"]), float(cached["lon"]), str(cached.get("place") or "")
+    except Exception:
+        pass
+    code, name = where_he_is()
+    if not code:
+        raise WeatherUnavailable(
+            "I don't know where you are. Tell me your postcode and I'll "
+            "remember it, and then I can just answer this.")
+    return _point(code)
+
+
+def sun_times(day=None, *, lat: float | None = None, lon: float | None = None):
+    """(sunrise, sunset) as aware UTC datetimes, computed here - no service.
+
+    The standard sunrise equation, good to a minute or two, which is all
+    "when does the sun set" needs. None for either when the sun does not
+    rise or set that day (far north or south).
+    """
+    import datetime as dt
+    import math
+    if lat is None or lon is None:
+        lat, lon, _ = _where_on_earth()
+    day = day or dt.date.today()
+    n = day.toordinal() - dt.date(2000, 1, 1).toordinal()
+    j_star = n - lon / 360.0
+    m = (357.5291 + 0.98560028 * j_star) % 360
+    mr = math.radians(m)
+    c = 1.9148 * math.sin(mr) + 0.02 * math.sin(2 * mr) + 0.0003 * math.sin(3 * mr)
+    lam = math.radians((m + c + 180 + 102.9372) % 360)
+    transit = 2451545.0 + j_star + 0.0053 * math.sin(mr) - 0.0069 * math.sin(2 * lam)
+    decl = math.asin(math.sin(lam) * math.sin(math.radians(23.4397)))
+    phi = math.radians(lat)
+    cos_w = ((math.sin(math.radians(-0.833)) - math.sin(phi) * math.sin(decl))
+             / (math.cos(phi) * math.cos(decl)))
+    if not -1 <= cos_w <= 1:
+        return None, None
+    w = math.degrees(math.acos(cos_w)) / 360.0
+
+    def when(julian: float):
+        return dt.datetime.fromtimestamp((julian - 2440587.5) * 86400, dt.timezone.utc)
+    return when(transit - w), when(transit + w)
+
+
+def spoken_sun(which: str, when: str = "") -> str:
+    """"Sunset is at 6:52 pm today." - in his timezone, never the process's."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    try:
+        lat, lon, place = _where_on_earth()
+    except WeatherUnavailable as exc:
+        return str(exc)
+    today = dt.datetime.now(tz).date()
+    day = today + dt.timedelta(days=1) if when == "tomorrow" else today
+    rise, set_ = sun_times(day, lat=lat, lon=lon)
+    moment = rise if which == "rise" else set_
+    if moment is None:
+        return f"The sun doesn't {'rise' if which == 'rise' else 'set'} there that day."
+    clock = moment.astimezone(tz).strftime("%I:%M %p").lstrip("0").replace("AM", "am").replace("PM", "pm")
+    name = "Sunrise" if which == "rise" else "Sunset"
+    return f"{name} is at {clock} {'tomorrow' if day != today else 'today'}."

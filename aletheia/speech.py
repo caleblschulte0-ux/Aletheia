@@ -592,6 +592,8 @@ def spoken_receipt(kind: str, detail: str, *,
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
+        if body and body.group(1).startswith("you have no "):
+            return body.group(1)[0].upper() + body.group(1)[1:] + "."
         if body:
             return f"Stopped reminding you: {_quoted(body.group(1))}."
     if kind == "shopping_off":
