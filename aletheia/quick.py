@@ -900,6 +900,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # was instant and TYPING it paid a full planner round trip for the
     # same answer out of the same store. Every door should give the same
     # one — that is the whole point of there being one answer.
+    # "Are you listening", "is the mic on" (2026-10-07: to the planner, and
+    # the second read as the health line). The room microphone's own answer.
+    ("ears", re.compile(
+        r"^(?:are (?:you|u)|r u) listening(?: to me| right now)?$"
+        r"|^is (?:the |your |my )?(?:microphone|mic)(?: on| off| listening| working)?$"
+        r"|^(?:is|are) (?:the )?(?:room )?(?:microphone|mic)s? (?:on|off)$")),
     ("running", re.compile(
         r"^what(?:'s| is|s)? running(?: right now)?$"
         r"|^which parts are running$|^what parts (?:of you )?are running$"
@@ -5096,6 +5102,14 @@ def _fraction_pct(text: str) -> str | None:
     return f"{_number_said(100 * int(g['num']) / int(g['den']))} percent."
 
 
+def _ears() -> str | None:
+    try:
+        from aletheia import ears
+        return ears.spoken()
+    except Exception:  # noqa: BLE001 - unknown is the model's to say, not a guess
+        return None
+
+
 def _about_her(text: str) -> str:
     asked = _match_of("about_her", text).get("her", "")
     if asked.startswith("how old"):
@@ -7901,6 +7915,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "on_the_last": lambda rest: _on_the_last(rest),
            "age_of": lambda rest: _age_of(rest),
            "day_span": lambda rest: _day_span(rest),
+           "ears": lambda rest: _ears(),
            "running": lambda rest: _running(),
            "mine": _mine,
            "call_me": lambda rest: _call_me(),
