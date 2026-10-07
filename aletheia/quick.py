@@ -1803,7 +1803,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
         r"|^what(?:'s| is) for (?P<meal2>breakfast|lunch|dinner|supper)(?: tonight| today)?$"
         r"|^(?:give me |any )?(?P<meal3>breakfast|lunch|dinner|supper) ideas?$")),
-    ("parked", re.compile(r"^where (?:did i|have i) park(?:ed)?(?: the car| my car)?$"
+    ("parked", re.compile(r"^where (?:did i|have i) park(?:ed)?(?: the car| my car)?(?: (?:at|in) (?:the )?(?P<parked_at>[a-z][a-z ]{1,25}))?$"
                           r"|^where(?:'s| is) (?:my|the) car(?: parked)?$")),
     # 2026-10-07, every one to a model with nothing to think about:
     ("sun", re.compile(
@@ -2123,7 +2123,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -4551,6 +4551,11 @@ def _task_due(words: str) -> str | None:
     what = what[:1].upper() + what[1:]
     when = tasks.parse_deadline(task.get("deadline"))
     if not when:
+        # "Renew my passport by June" has its when in its own words
+        # (2026-10-07: "has no due date", with "by June" right there).
+        said = re.search(r"\b(by|before) ((?:the )?(?:end of )?[a-z0-9][a-z0-9 ]{1,25})$", what, re.IGNORECASE)
+        if said:
+            return f"By {said.group(2)[:1].upper() + said.group(2)[1:]}, you said - there's no exact date on it."
         return f"{what} has no due date. Say \"move it to Friday\" and it will have one."
     # A day said with no time is kept as the end of that day; "at 11:59 pm"
     # is the store's, not his.
@@ -5409,10 +5414,14 @@ def _meal_idea(meal: str) -> str:
     return f"How about {secrets.choice(_MEALS.get(meal, _MEALS['dinner']))}? Just an idea - I don't know what's in the fridge."
 
 
-def _parked() -> str:
-    """The newest note that says where the car is."""
+def _parked(at: str = "") -> str:
+    """The newest note that says where the car is - at the place he names,
+    when he names one ("where did I park at the airport")."""
+    at = " ".join(str(at or "").casefold().split())
     for row in _notes():
         said = str(row.get("text") or "")
+        if at and not re.search(rf"\b{re.escape(at)}\b", said.casefold()):
+            continue
         if re.search(r"\b(?:parked|my car is|the car is)\b", said, re.IGNORECASE):
             # "You told me: i parked on level 3" was his note read back in
             # his own first person (2026-10-07).
@@ -5421,6 +5430,8 @@ def _parked() -> str:
             if re.match(r"(?:you|your car) ", hers):
                 return hers[0].upper() + hers[1:] + "."
             return f"You told me: {hers}."
+    if at:
+        return f"You haven't told me where you parked at the {at}."
     return "You haven't told me where you parked. Say 'I parked on level 3' next time and I'll remember."
 
 
@@ -9927,7 +9938,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "power": lambda rest: _power(rest),
            "joke": lambda rest: _joke(),
            "meal_idea": lambda rest: _meal_idea(rest),
-           "parked": lambda rest: _parked(),
+           "parked": lambda rest: _parked(_groups("parked", rest).get("parked_at") or ""),
            "fact_q": lambda rest: _fact_q(rest),
            "fact_any": lambda rest: _fact_any(_groups("fact_any", rest).get("fact_any", ""),
                                               _groups("fact_any", rest).get("fact_whose", "my")),

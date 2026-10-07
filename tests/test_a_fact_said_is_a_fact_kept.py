@@ -4062,5 +4062,24 @@ class RemindersHeMissed(unittest.TestCase):
         self.assertIsNone(quick.match("any reminders"))
 
 
+class WhereAndByWhen(unittest.TestCase):
+    """2026-10-07: "where did I park at the airport" went to a model, and a
+    task "renew my passport by June" was said to have no due date."""
+
+    def test_parked_at_a_place(self):
+        from aletheia import quick
+        rows = [{"text": "i parked on level 3", "ts": ""}, {"text": "i parked at the airport in lot c row 4", "ts": ""}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("where did i park at the airport"), "You parked at the airport in lot c row 4.")
+            self.assertEqual(quick.answer("where did i park"), "You parked on level 3.")
+            self.assertIn("at the mall", quick.answer("where did i park at the mall"))
+
+    def test_a_by_when_in_the_words_is_the_when(self):
+        from aletheia import quick, tasks
+        task = {"id": "t", "description": "renew my passport by june", "status": "OPEN"}
+        with mock.patch.object(tasks, "all_tasks", return_value=[task]), mock.patch.object(tasks, "is_his", return_value=True):
+            self.assertEqual(quick.answer("when do i need to renew my passport"), "By June, you said - there's no exact date on it.")
+
+
 if __name__ == "__main__":
     unittest.main()
