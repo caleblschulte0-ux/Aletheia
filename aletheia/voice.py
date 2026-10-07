@@ -1724,7 +1724,9 @@ def _interpret(transcript: str) -> dict:
                      + _task_tail + r"(?: off(?: my (?:list|tasks|task list|to-?do list))?)?", low)
     # Not "cancel the first one": counting is about whatever she just read
     # out, and that is usually approvals.
+    # "Cancel the passport task" has its own branch further down.
     if m and m.group("w") not in ("it", "that", "this", "everything", "all") \
+            and not re.search(r" (?:task|one|item)(?: from (?:my|the) (?:task )?list)?$", low) \
             and not re.search(r"\b(?:first|second|third|last|latest|newest|oldest|next|other)\b", m.group("w")) \
             and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_change", "which": m.group("w"), "drop": True}, "say": None}
