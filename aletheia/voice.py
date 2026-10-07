@@ -2647,6 +2647,30 @@ def _interpret(transcript: str) -> dict:
             again = _interpret(plural)
             if (again.get("command") or {}).get("kind") in ("remind_weekly", "remind_daily"):
                 return again
+    # "Set a daily reminder to take my pills at 9", "add a monthly reminder
+    # to pay rent on the 1st", "create a reminder to call mom at 5"
+    # (2026-10-07: to the planner). The same ask as "remind me to ...", said
+    # as a noun; only kept when it comes back the kind of reminder he named.
+    m = re.fullmatch(r"(?:please )?(?:set|add|create|make|put in|schedule|set up) (?:me )?(?:a |an )?(?:new )?"
+                     r"(?:(?P<freq>daily|weekly|monthly|recurring|repeating) )?reminder (?P<how>to|for|about) (?P<rest>.+)", low)
+    if m and not (m.group("how") == "for" and re.match(
+            r"(?:\d|tomorrow|today|tonight|noon|midnight|this|next|in |at |on |monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
+            m.group("rest"))):
+        freq, rest = m.group("freq") or "", m.group("rest")
+        lead = "remind me to " if m.group("how") == "to" else "remind me about "
+        tail = ""
+        if freq == "daily" and not re.search(r"\bevery\b", rest):
+            tail = " every day"
+        elif freq in ("monthly", "recurring", "repeating") and re.search(r"\bon the \d{1,2}(?:st|nd|rd|th)\b", rest) \
+                and "every month" not in rest:
+            tail = " every month"
+        want = {"daily": ("remind_daily",), "weekly": ("remind_weekly",), "monthly": ("remind_monthly",)}.get(
+            freq, ("remind_daily", "remind_weekly", "remind_monthly", "remind_every") if freq else
+            ("remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"))
+        again = _interpret(lead + rest + tail)
+        if (again.get("command") or {}).get("kind") in want \
+                or not freq and not again.get("command") and str(again.get("say") or "").startswith("When should I remind you"):
+            return again
     # "Every weekday at 8 remind me to stretch" (2026-10-07: to the planner):
     # the when said first. The same sentence with the when after "remind me"
     # is one every reminder branch below already reads.
