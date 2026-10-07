@@ -32,6 +32,23 @@ class APostingCarriesItsDate(unittest.TestCase):
             job = jobs._ashby({"token": "notion"})[0]
         self.assertTrue(job["posted"].startswith("2026-08-24"))
 
+    def test_lever_says_what_it_pays(self):
+        data = [{"id": "a", "text": "Account Manager", "hostedUrl": "https://x/a",
+                 "salaryRange": {"min": 95000, "max": 100000, "currency": "USD",
+                                 "interval": "per-year-salary"}},
+                {"id": "b", "text": "Account Manager", "hostedUrl": "https://x/b",
+                 "salaryRange": {"min": 50000, "max": 60000, "currency": "EUR",
+                                 "interval": "per-year-salary"}}]
+        with mock.patch.object(jobs, "_fetch", return_value=data):
+            paid, euros = jobs._lever({"token": "aledade"})
+        self.assertEqual(job_value.annual_pay(paid), (95000.0, 100000.0))
+        self.assertNotIn("salary", euros)
+
+    def test_hourly_pay_is_a_year_of_hours(self):
+        pay = jobs._lever_pay({"min": 20, "max": 25, "currency": "USD",
+                               "interval": "per-hour-wage"})
+        self.assertEqual(job_value.annual_pay(pay), (41600.0, 52000.0))
+
     def test_no_date_or_a_bad_one_is_no_date(self):
         for value in (None, "", "soon", 0):
             self.assertEqual(jobs._when(value), "")

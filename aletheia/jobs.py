@@ -340,9 +340,30 @@ def _lever(board: dict) -> list[dict]:
             "posting_url": job.get("hostedUrl") or "",
             "apply_url": f"https://jobs.lever.co/{urllib.parse.quote(token)}/{jid}/apply",
             "posted": _when(job.get("createdAt")),
+            **_lever_pay(job.get("salaryRange")),
             "provider": "lever", "board": token, "id": str(jid),
         })
     return out
+
+
+#: Lever's pay intervals, as `job_value.annual_pay` names its units.
+_LEVER_UNITS = {"per-year-salary": "YEAR", "per-month-salary": "MONTH",
+                "per-week-salary": "WEEK", "per-day-wage": "DAY", "per-hour-wage": "HOUR"}
+
+
+def _lever_pay(pay) -> dict:
+    """A posting's listed pay range, where Lever carries one in dollars, so
+    the ranking can weigh it against his floor without reading the page."""
+    if not isinstance(pay, dict) or str(pay.get("currency") or "").upper() != "USD":
+        return {}
+    unit = _LEVER_UNITS.get(str(pay.get("interval") or ""))
+    try:
+        low, high = float(pay.get("min")), float(pay.get("max"))
+    except (TypeError, ValueError):
+        return {}
+    if not unit or low <= 0 or high < low:
+        return {}
+    return {"salary": [low, high], "salary_unit": unit}
 
 
 def _published(board: dict, published: str, token: str) -> str:
@@ -405,6 +426,7 @@ def _workable(board: dict) -> list[dict]:
             # and redirect to these; these are what a board URL looks like.
             "posting_url": f"https://apply.workable.com/{q}/j/{code}/",
             "apply_url": f"https://apply.workable.com/{q}/j/{code}/apply/",
+            "posted": _when(job.get("published_on") or job.get("created_at")),
             "provider": "workable", "board": token, "id": code,
         })
     return out
@@ -446,6 +468,7 @@ def _smartrecruiters(board: dict) -> list[dict]:
                 # button; the application itself is the one-click form, keyed
                 # by the posting's uuid, which only the listing carries.
                 "apply_url": (_sr_form(ident, uuid) if uuid else posting),
+                "posted": _when(job.get("releasedDate")),
                 "provider": "smartrecruiters", "board": token, "id": jid,
             })
         found = int((data or {}).get("totalFound") or 0)
@@ -487,6 +510,7 @@ def _recruitee(board: dict) -> list[dict]:
             # redirected to careers.bunq.com/positions/..., which has no form on it
             # until Apply is pressed. Recruitee's own host serves the form itself.
             "direct": host == "recruitee.com" or host.endswith(".recruitee.com"),
+            "posted": _when(job.get("published_at") or job.get("created_at")),
             "provider": "recruitee", "board": token, "id": str(job.get("id") or slug),
         })
     return out
