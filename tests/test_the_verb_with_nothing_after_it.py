@@ -35,10 +35,13 @@ class TheOneQuestionItNeeds(unittest.TestCase):
         self.assertIsNotNone(say("note that the roof leaks")[0])
 
     def test_calls_and_texts_are_honest_about_where_they_live(self):
-        for said in ("did anyone call", "any missed calls", "read my texts"):
+        for said in ("did anyone call", "any missed calls", "any voicemails"):
             cmd, line = say(said)
             self.assertIsNone(cmd, said)
             self.assertIn("stay on your phone", line)
+        # Texts that reach the Google Voice number have a reader, and the
+        # answer above offers it, so asking for them reaches it.
+        self.assertEqual(say("read my texts")[0], {"kind": "texts_read"})
 
 
 PERIODS = [{"name": "This Afternoon", "isDaytime": True, "windSpeed": "15 to 25 mph",

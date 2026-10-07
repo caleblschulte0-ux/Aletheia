@@ -1927,8 +1927,8 @@ _BARE_VERBS = (
      r"|(?:read|check) (?:me )?my (?:messages|voicemails?)|any (?:new )?(?:messages|voicemails?)"
      r"|do i have (?:any )?(?:new )?(?:voicemails?|messages|texts)"
      r"|what did [a-z]+(?: [a-z]+)? (?:text|message) me(?: about)?)",
-     "I can't see your phone's calls or texts - they stay on your phone. "
-     "I can read your email, and texts that reach your Google Voice number."),
+     "I can't see your phone's calls or the texts on it - those stay on your phone. "
+     "I can read your email, and texts that reach your Google Voice number: say \"read my texts\"."),
 )
 
 
@@ -3157,6 +3157,25 @@ def _interpret(transcript: str) -> dict:
     # "add a task" went to the planner, which with nothing thinking kept
     # them for later - an ask with no content, filed. The answer is the
     # one question that gets the content, with the sentence that works.
+    # "READ MY LAST TEXT": the texts on his Google Voice number have had a
+    # reader since September and no sentence reached it, while the answer
+    # beside it offered exactly that. Texts on his own phone still stay
+    # there, and that answer still says so.
+    said = low.strip().rstrip("?.! ")
+    texts = re.fullmatch(
+        r"(?:(?:can you |could you |please )?(?:read|check|show) (?:me )?(?:my )?"
+        r"(?:last|latest|newest|most recent|new|recent)? ?(?:texts?|text messages?|sms)"
+        r"(?: from (?P<from1>[a-z][a-z' ]{0,30}))?"
+        r"|(?:any|do i have any|have i got any|did i get any) (?:new )?(?:texts?|text messages?)"
+        r"(?: from (?P<from2>[a-z][a-z' ]{0,30}))?"
+        r"|(?:did|has) (?P<from3>[a-z][a-z' ]{0,30}?) (?:text|texted) me(?: back)?"
+        r"|what did (?P<from4>[a-z][a-z' ]{0,30}?) (?:text|say in (?:his|her|their) text)(?: me)?(?: about)?)",
+        said)
+    if texts:
+        who = next((g for g in texts.group("from1", "from2", "from3", "from4") if g), "")
+        who = re.sub(r"^(?:my|the) ", "", who.strip())
+        return {"command": {"kind": "texts_read", **({"who": _as_he_said(text, who)} if who else {})},
+                "say": None}
     bare = _bare_verb(low)
     if bare:
         return {"command": None, "say": bare}

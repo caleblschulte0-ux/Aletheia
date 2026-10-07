@@ -469,8 +469,11 @@ class SixAmIsMorning(unittest.TestCase):
 
 class MessagesAndFacetime(unittest.TestCase):
     def test_phone_only_things_say_so(self):
-        for said in ("read my messages", "do i have voicemail", "what did dana text me"):
+        for said in ("read my messages", "do i have voicemail"):
             self.assertIn("stay on your phone", voice._interpret(said)["say"], said)
+        # A text to his Google Voice number is one she can read.
+        self.assertEqual(voice._interpret("what did dana text me")["command"],
+                         {"kind": "texts_read", "who": "dana"})
         self.assertIn("can't place phone calls", voice._interpret("facetime sam")["say"])
 
 

@@ -1012,5 +1012,41 @@ class AnAlarmNamedByItsTime(unittest.TestCase):
                 self.assertEqual(got, {"kind": "reminder_off", "which": which})
 
 
+class HisTextsReadBack(unittest.TestCase):
+    """"Read my last text" went to a model that had never seen a text, while
+    the answer to "who called me" offered to read them."""
+
+    ROWS = [{"from": "Sam", "text": "running 10 min late", "when": "10:42 AM", "code": ""},
+            {"from": "Mom", "text": "Call me when you can?", "when": "Yesterday", "code": ""}]
+
+    def run_it(self, state="ok", rows=None, **args):
+        from aletheia import gvoice, intercom
+        with mock.patch.object(gvoice, "check", return_value=(state, "why")), \
+                mock.patch.object(gvoice, "recent", return_value=list(self.ROWS if rows is None else rows)):
+            return intercom.execute_command({"kind": "texts_read", **args}, {}, quote="test")
+
+    def test_newest_first_and_by_sender(self):
+        said = self.run_it()
+        self.assertIn("Sam, 10:42 AM: running 10 min late.", said)
+        self.assertLess(said.index("Sam"), said.index("Mom"))
+        self.assertNotIn("?.", said)
+        self.assertEqual(self.run_it(who="mom"), "Your last text is from Mom, Yesterday: Call me when you can?")
+        self.assertIn("from Dana", self.run_it(who="Dana"))
+
+    def test_signed_out_says_so_and_never_says_no_texts(self):
+        from aletheia import act, gvoice
+        with self.assertRaisesRegex(act.Refused, "not signed in to Google Voice"):
+            self.run_it(state=gvoice.NOT_SIGNED_IN)
+        self.assertNotIn("No texts", self.run_it(rows=[]))
+
+    def test_the_sentences(self):
+        for said, cmd in (("read my last text", {"kind": "texts_read"}),
+                          ("any new texts", {"kind": "texts_read"}),
+                          ("did Sam text me", {"kind": "texts_read", "who": "Sam"}),
+                          ("what did my mom text me about", {"kind": "texts_read", "who": "mom"})):
+            with self.subTest(said=said):
+                self.assertEqual((voice.interpret(said) or {}).get("command"), cmd)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -59,7 +59,7 @@ OPEN_WORLD_KINDS = frozenset({
     "apply_campaign", "apply_answer", "web_task", "web_task_retry",
     "web_task_answer", "subscription_cancel", "dispatch", "issue", "meet",
     "travel_time", "email_check", "email_read", "email_draft", "message_send",
-    "chatgpt_on", "setup_status",
+    "chatgpt_on", "setup_status", "texts_read",
     # A conversation's status quotes what the other person wrote; sending reaches them.
     "thread_status", "thread_send",
 })
@@ -67,7 +67,9 @@ OPEN_WORLD_KINDS = frozenset({
 #: Kinds whose OUTPUT is his mail, which is written by other people.
 #: (`watch_email_from` only creates a watcher and returns nothing from a
 #: mailbox, so it is not here.)
-MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
+MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status",
+                        # his texts are written by other people the same way
+                        "texts_read"})
 
 #: Kinds that remove, stop or switch something off. None of them is
 #: irreversible by design (a delete keeps a version, a reminder is
@@ -97,7 +99,7 @@ IDEMPOTENT_KINDS = frozenset({
 #: browser, or spends a model call of its own. The planner still sees them.
 LOCAL_MODEL_HIDDEN = frozenset({"setup_status", "screen_ask", "brief", "research",
                                 "browse_read", "browse_shot", "screenshot",
-                                "computer_observe", "email_check", "email_read"})
+                                "computer_observe", "email_check", "email_read", "texts_read"})
 
 #: Kinds that WRITE and are still offered to a local model, because they are
 #: exactly the reversible-local work his brief says must not need asking: a
@@ -713,7 +715,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "making Word, Excel and PowerPoint files": ("doc_make",),
     "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
               "thread_status", "thread_followup"),
-    "texting people": ("message_send",),
+    "texting people": ("message_send", "texts_read"),
     "posting to Instagram": ("instagram_post", "instagram_posts"),
     "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",

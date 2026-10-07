@@ -217,6 +217,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "screen_record_stop": (set(), set()),
     "recording":     (set(), set()),
     "email_check":   (set(), set()),
+    # his recent texts on the Google Voice number, newest first; who narrows
+    # to one sender. Reads a page, sends nothing (2026-10-07).
+    "texts_read":    (set(), {"who"}),
     # the text of ONE unread message, named by sender or subject; exactly
     # one match or a question back, never a guess (2026-09-02)
     "email_read":    ({"which"}, set()),
@@ -752,6 +755,9 @@ KIND_NOTES: dict[str, str] = {
         'Offer times to the other person in a conversation: "suggest some times to the landlord next '
         'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
         'reply with free times and waits for his approval, because offering his hours commits him.'),
+    "texts_read": (
+        'His recent texts on his Google Voice number: "read my last text", "did Sam text me". '
+        'who is a sender name to narrow to. Reads only; texts on his own phone stay there.'),
     "email_read": (
         "which is a sender name/address or a subject fragment; it must match exactly "
         "one UNREAD message (otherwise she asks which). Use email_check first to see "
@@ -767,6 +773,8 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+               # her browser profile, signed in to Google Voice, is on the PC
+               "texts_read",
                # the job hunt's pause marker lives in the PC's private state
                "apply_pause",
                # her unattended ledger, and the stores an undo reverses, are on the PC
@@ -876,6 +884,8 @@ READ_ONLY_KINDS = frozenset({
     # reading what a media file IS changes nothing
     "media_probe",
     "email_check", "email_read", "screen_ask", "authority_status", "setup_status",
+    # reading the texts page changes nothing
+    "texts_read",
     # Reading her own conversation records and his free time changes nothing.
     "thread_status", "calendar_find_free",
 })
@@ -1689,6 +1699,40 @@ def _one_reminder(which: str):
             labels = [_reminder_words(r) for r in hits[:4]]
         return None, "Which one — " + speech.or_list(labels) + "?"
     return hits[0], ""
+
+
+def _texts_answer(who: str = "") -> str:
+    """His recent texts on the Google Voice number, newest first, in words.
+
+    "I can read texts that reach your Google Voice number" was offered
+    for a month with no sentence that reached the reader, so "read my last
+    text" went to a model that has never seen one.
+    """
+    from aletheia import gvoice, speech
+    state, why = gvoice.check()
+    if state == gvoice.NOT_SIGNED_IN:
+        raise act.Refused("I'm not signed in to Google Voice in my browser yet. Sign in once on the PC "
+                          "(python -m aletheia.browse login https://voice.google.com) and I'll keep it.")
+    if state != gvoice.OK:
+        raise act.Refused("I couldn't open your Google Voice texts just now.")
+    rows = gvoice.recent()
+    name = " ".join(str(who or "").split())
+    if name:
+        rows = [r for r in rows if name.casefold() in str(r.get("from") or "").casefold()]
+    if not rows:
+        # The parser reads the page's visible text; nothing parsed is not
+        # proof nothing came, and saying "no texts" would be a guess.
+        return (f"I don't see a text from {name} on your Google Voice page." if name
+                else "I couldn't find any texts on your Google Voice page.")
+    def one(row):
+        body = str(row.get("text") or "").strip()
+        return (f"{row.get('from')}, {row.get('when')}: {body}"
+                + ("" if body.endswith((".", "?", "!")) else "."))
+    lines = [one(r) for r in rows[:3]]
+    if len(lines) == 1:
+        return "Your last text is from " + lines[0]
+    return (f"Your last {speech.count_phrase(len(lines), 'text')}, newest first. From "
+            + " From ".join(lines))
 
 
 def text_of_reminder(spec: dict) -> str:
@@ -3180,6 +3224,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import mail
         _mail_or_refuse(mail)
         return mail.check_unread()
+    if kind == "texts_read":
+        return _texts_answer(str(cmd.get("who") or ""))
     if kind == "email_read":
         from aletheia import mail
         _mail_or_refuse(mail)
