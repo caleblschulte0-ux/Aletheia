@@ -154,6 +154,20 @@ def _unfit_bucket(why: str) -> str:
     return "model"
 
 
+def _unreachable_bucket(why: str) -> str:
+    """Why an opening could not be reached, as a word that names nothing: a
+    form that was not there, a page left until tomorrow, or the kind of
+    error - its class name only, since the message can carry an address."""
+    why = str(why or "")
+    lowered = why.casefold()
+    if "no application form" in lowered:
+        return "no_form"
+    if "until tomorrow" in lowered:
+        return "left_till_tomorrow"
+    kind = re.match(r"([A-Z][A-Za-z]*(?:Error|Exception|Timeout|Unavailable|Refused))\b", why)
+    return kind.group(1) if kind else "other"
+
+
 def _batch_tally(result: dict) -> dict:
     """One batch's answer as counts. A weak shot and a full employer are
     told apart from the plain not-realistic and same-job, because each is
@@ -168,6 +182,10 @@ def _batch_tally(result: dict) -> dict:
             elif part == "passed_over":
                 tally[name] += 1
                 bucket = "unfit_" + _unfit_bucket(why)
+                tally[bucket] = tally.get(bucket, 0) + 1
+            elif part == "failed":
+                tally[name] += 1
+                bucket = "unreachable_" + _unreachable_bucket(row.get("why") if isinstance(row, dict) else "")
                 tally[bucket] = tally.get(bucket, 0) + 1
             elif part == "duplicates" and "this month" in why:
                 tally["employer_full"] += 1

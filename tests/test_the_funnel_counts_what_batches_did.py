@@ -112,3 +112,25 @@ class HowLongABatchTook(unittest.TestCase):
             rows = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual([r["minutes"] for r in rows], [95, 12])
             self.assertEqual(hunt_funnel.batches(rows, now=NOW)["2026-10-07"]["minutes"], 107)
+
+
+class WhyAnOpeningWasUnreachable(unittest.TestCase):
+    """Fifteen openings a day could not be reached, and the count alone does
+    not say whether to fix the form finder, a site, or a timeout."""
+
+    def test_unreachable_is_counted_by_a_word_that_names_nothing(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "tallies.json"
+            hunt_funnel.note_batch(result(failed=[
+                {"url": "https://acme.example/1", "why": "no application form found on it"},
+                {"url": "u2", "why": "TimeoutError: Page.goto: Timeout 20000ms exceeded at https://acme.example/2"},
+                {"url": "u3", "why": "WebTaskError: could not open https://acme.example/3"},
+                {"url": "u4", "why": "could not reach a form on it twice today; leaving it until tomorrow"},
+                {"url": "u5", "why": "the page at acme said no"}]), now=NOW, path=path)
+            tally = json.loads(path.read_text(encoding="utf-8"))[0]
+            self.assertEqual(tally["unreachable"], 5)
+            self.assertEqual({k: v for k, v in tally.items() if k.startswith("unreachable_")},
+                             {"unreachable_no_form": 1, "unreachable_TimeoutError": 1,
+                              "unreachable_WebTaskError": 1, "unreachable_left_till_tomorrow": 1,
+                              "unreachable_other": 1})
+            self.assertNotIn("acme", json.dumps(tally).casefold())
