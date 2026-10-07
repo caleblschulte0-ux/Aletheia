@@ -4447,6 +4447,28 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't track parcels, but shipping emails come to your inbox. Say \"any emails from Amazon\" "
                        "(or whoever it's from) and I'll read them."}
+    # "Reply saying thanks" right after she read him an email (2026-10-07:
+    # to the planner). The reply is a draft to its sender, waiting on his tap
+    # like every other email. "Forward it" has no door, and says so.
+    _said, answered = _previous_turn()
+    read = re.match(r"From (?P<who>.+?) — (?P<subject>.+?): ", answered or "")
+    if read:
+        m = re.fullmatch(r"(?:reply|respond|write back|answer)(?: to (?:it|that|him|her|them))?(?: and)?"
+                         r"(?: saying| say| that|:|,)? (?P<body>.+)", low)
+        if m and not re.fullmatch(r"(?:to )?(?:it|that|him|her|them)", m.group("body")):
+            who = read.group("who")
+            address = re.search(r"<([^<>@\s]+@[^<>\s]+)>", who)
+            subject = read.group("subject").strip()
+            return {"command": {"kind": "email_draft", "to": address.group(1) if address else who.strip(),
+                                "subject": subject if subject.lower().startswith("re:") else f"Re: {subject}",
+                                "body": _as_he_said(text, m.group("body"))}, "say": None}
+        if re.fullmatch(r"forward (?:it|that|this|the email)(?: to .+)?", low):
+            return {"command": None, "say": "I can't forward mail. I can write a new email: say \"email Dana saying\" "
+                                            "and what it should say."}
+        if re.fullmatch(r"(?:archive|delete|trash|bin) (?:it|that|this|that one|this one)", low):
+            return {"command": None,
+                    "say": "I only read your email and write drafts - I can't delete, archive or mark messages. "
+                           "Do that in your mail app."}
     # Deleting or marking mail is his: she reads it and drafts it, no more.
     if re.fullmatch(r"(?:delete|trash|archive|mark|flag|star|unsubscribe from) (?:that|this|the|my|the last|my last|all)? ?"
                     r"(?:e-?mails?|mail)(?: as (?:read|unread|spam|important))?(?: from .+)?"

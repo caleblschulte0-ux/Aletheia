@@ -2651,5 +2651,24 @@ class MicCheckAndThePC(unittest.TestCase):
         self.assertIn("only the PC's", voice._interpret("what's my phone's battery")["say"])
 
 
+
+class ReplyToTheEmailSheRead(unittest.TestCase):
+    """2026-10-07: "reply saying sounds great" after she read an email went to the planner."""
+
+    READ = ("read the email from sam", "From Sam Lee <sam@x.com> — Dinner Friday?: Are you free Friday at 7?")
+
+    def test_a_draft_to_its_sender(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=self.READ):
+            self.assertEqual(voice._interpret("reply saying sounds great")["command"],
+                             {"kind": "email_draft", "to": "sam@x.com", "subject": "Re: Dinner Friday?",
+                              "body": "sounds great"})
+            self.assertIn("can't forward", voice._interpret("forward it to Dana")["say"])
+            self.assertIn("can't delete, archive", voice._interpret("archive that")["say"])
+
+    def test_not_after_anything_else(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("hi", "Hello.")):
+            self.assertNotEqual((voice._interpret("reply saying sounds great")["command"] or {}).get("kind"), "email_draft")
+
+
 if __name__ == "__main__":
     unittest.main()
