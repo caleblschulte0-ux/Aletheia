@@ -488,8 +488,15 @@ class TheLoopEngineIsHisSwitch(Isolated):
         self.assertFalse(apply_run.uses_loop("https://job-boards.greenhouse.io/acme/jobs/1"),
                          "a site with a specialised adapter keeps it")
         self.assertFalse(apply_run.uses_loop("https://x.example.com/a", provider="lever"))
+        # A form drawn behind the posting's own Apply button is the loop's:
+        # the form filler can only read the page before the button is pressed.
+        self.assertTrue(apply_run.uses_loop("https://acme.bamboohr.com/careers/12", provider="bamboohr"))
+        self.assertTrue(apply_run.uses_loop("https://acme.bamboohr.com/careers/12"))
+        self.assertFalse(apply_run.uses_loop("https://notbamboohr.com.example/x", provider="lever"))
         with mock.patch("sys.stdout"):
             apply_run.main(["engine", "off"])
+        self.assertFalse(apply_run.uses_loop("https://acme.bamboohr.com/careers/12", provider="bamboohr"),
+                         "with his switch off nothing goes to the loop")
         self.assertFalse(apply_run.loop_engine_on())
 
     def fake_pursue(self, state=bm.AWAITING_APPROVAL, boundary=None):

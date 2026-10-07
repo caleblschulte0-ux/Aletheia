@@ -594,6 +594,14 @@ def _bamboohr(board: dict) -> list[dict]:
     return out
 
 
+#: Systems whose application form is drawn ON the posting, behind its own
+#: Apply button, with no address of its own. The form filler reads the page as
+#: it loads and finds nothing that asks who he is; only something that presses
+#: the button can reach the form. Live 2026-10-07: eight BambooHR postings in a
+#: month were closed as "asks nothing about who he is" for exactly this.
+FORM_BEHIND_THE_BUTTON = ("bamboohr",)
+
+
 #: Every system whose boards she can LIST. A system in `ATS` and not here was
 #: a system she could apply on when something else handed her the link and
 #: never searched herself - which, until 2026-09-13, was every one of them

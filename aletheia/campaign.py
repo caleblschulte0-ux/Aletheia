@@ -183,6 +183,43 @@ def remember_passed(rows: list[dict], *, now: dt.datetime | None = None) -> None
         pass
 
 
+#: A system that has closed this many applications in the window as asking
+#: nothing about him - and has never once let one through - is left out of
+#: the batch before the cut. Live 2026-10-07: 24 SmartRecruiters forms in a
+#: month answered with a bot wall, and not one confirmation from that system
+#: had ever reached his inbox. Each was a batch slot spent on a page load.
+WALLED_AFTER = 5
+WALLED_DAYS = 30
+
+
+def walled_systems(rows: list[dict], *, now: dt.datetime | None = None,
+                   days: int = WALLED_DAYS) -> dict[str, int]:
+    """{system: closures} for each applicant-tracking system that keeps
+    turning the form filler away and has let nothing through. Only systems
+    the form filler is still the engine for count (`apply_run.has_adapter`):
+    one that now goes to the general browser is a different attempt. The
+    window lets a system back in once its closures age out."""
+    from aletheia import employers
+    now = now or dt.datetime.now(dt.timezone.utc)
+    first = (now - dt.timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    sent: set[str] = set()
+    walled: dict[str, int] = {}
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        url = str(row.get("url") or "")
+        system = employers.ats_of(url)
+        if not system:
+            continue
+        if row.get("state") in apply_run.PRESSED_STATES:
+            sent.add(system)
+        elif (row.get("state") == apply_run.CLOSED and row.get("closed_kind") == apply_run.NOT_A_FORM
+              and "name, email or phone" in str(row.get("closed_because") or "")
+              and str(row.get("closed_at") or "") >= first and apply_run.has_adapter(url)):
+            walled[system] = walled.get(system, 0) + 1
+    return {system: n for system, n in walled.items() if n >= WALLED_AFTER and system not in sent}
+
+
 def settled_already(*, since: str = "", now: dt.datetime | None = None):
     """A `skip(job)` for the search: True for a job already sent, waiting or
     closed, one a batch judged not realistic since he last said what work he
@@ -198,10 +235,23 @@ def settled_already(*, since: str = "", now: dt.datetime | None = None):
         known = profile.known()
     except Exception:
         known = {}
+    try:
+        walled = walled_systems(apply_run.all_runs(), now=now)
+    except Exception:
+        walled = {}
+    if walled:
+        journal.append("decision", "campaign",
+                       "leaving out openings on " + speech.and_list(
+                           [f"{system} ({n} turned away, none let through)" for system, n in sorted(walled.items())])
+                       + " this batch - those systems have not let a single application through",
+                       actor=ACTOR)
+    from aletheia import employers
 
     def skip(job: dict) -> bool:
         url = str(job.get("apply_url") or job.get("url") or "").strip()
         if url and (url in urls or url in passed or unreachable_today(url, store=unreachable, now=now)):
+            return True
+        if url and walled and employers.ats_of(url) in walled:
             return True
         company, title = str(job.get("company") or ""), str(job.get("title") or "")
         # WORK HE SAID HE WILL NOT DO, BY ITS TITLE. Live 2026-10-07 the second

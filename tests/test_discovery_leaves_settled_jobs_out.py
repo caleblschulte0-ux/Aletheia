@@ -148,3 +148,42 @@ class WorkHeWillNotDoIsLeftOutByItsTitle(_Stores):
     def test_his_own_words_decide_it(self):
         skip = self.skip_with("")
         self.assertFalse(skip({"apply_url": "u1", "company": "A", "title": "Account Executive"}))
+
+
+class ASystemThatNeverLetsHerIn(_Stores):
+    """Live 2026-10-07: 24 SmartRecruiters forms in a month closed as asking
+    nothing about him - a bot wall - and no confirmation from that system had
+    ever reached his inbox. Each one was a batch slot spent on a page load."""
+
+    WALL = ("nothing on this page asks for his name, email or phone, so it is not an "
+            "application form - a bot check or a contact page looks like this")
+
+    def walled(self, n, host="jobs.smartrecruiters.com", days_ago=2):
+        at = (NOW - dt.timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return [{"id": f"w{host}{i}", "state": "CLOSED", "url": f"https://{host}/oneclick-ui/x/{i}",
+                 "closed_kind": apply_run.NOT_A_FORM, "closed_because": self.WALL, "closed_at": at}
+                for i in range(n)]
+
+    def test_a_walled_system_is_left_out_before_the_cut(self):
+        self.runs(self.walled(campaign.WALLED_AFTER))
+        skip = campaign.settled_already(now=NOW)
+        self.assertTrue(skip({"apply_url": "https://jobs.smartrecruiters.com/oneclick-ui/y/9",
+                              "title": "Operations Analyst", "company": "Acme"}))
+        self.assertFalse(skip({"apply_url": "https://boards.greenhouse.io/embed/job_app?for=a&token=1",
+                               "title": "Operations Analyst", "company": "Acme"}))
+
+    def test_one_that_ever_let_one_through_is_not_walled(self):
+        rows = self.walled(campaign.WALLED_AFTER + 3) + [
+            {"id": "s", "state": "SUBMITTED", "url": "https://jobs.smartrecruiters.com/oneclick-ui/z/1"}]
+        self.assertEqual(campaign.walled_systems(rows, now=NOW), {})
+
+    def test_too_few_or_too_old_is_not_a_wall(self):
+        self.assertEqual(campaign.walled_systems(self.walled(campaign.WALLED_AFTER - 1), now=NOW), {})
+        old = self.walled(campaign.WALLED_AFTER, days_ago=campaign.WALLED_DAYS + 1)
+        self.assertEqual(campaign.walled_systems(old, now=NOW), {})
+
+    def test_a_system_now_sent_to_the_browser_is_a_different_attempt(self):
+        rows = self.walled(campaign.WALLED_AFTER + 3, host="acme.bamboohr.com")
+        self.assertEqual(campaign.walled_systems(rows, now=NOW), {})
+        self.assertEqual(campaign.walled_systems(self.walled(campaign.WALLED_AFTER), now=NOW),
+                         {"smartrecruiters": campaign.WALLED_AFTER})
