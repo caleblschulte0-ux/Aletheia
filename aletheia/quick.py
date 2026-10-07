@@ -719,7 +719,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:isn'?t|is not) (?:built|working|set up)(?: yet)?$")),
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
-        r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
+        r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
         r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend)$"

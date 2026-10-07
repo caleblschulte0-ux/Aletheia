@@ -2587,7 +2587,7 @@ def _interpret(transcript: str) -> dict:
     # through the planner, coming back as markdown bullets. She could
     # CREATE a task by voice and had no verb for reading the list.
     if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
-                    r"my tasks|list (?:my )?tasks|what do i have to do|"
+                    r"my tasks|list (?:my )?tasks|what do i (?:have|need|still have) to do(?: today| now| still)?|"
                     r"what(?:'s| is|s)? left to do|todo list|"
                     # "task list" and a bare "tasks" made a TASK called
                     # "list", because `task <words>` is the create verb.
@@ -2662,6 +2662,19 @@ def _interpret(transcript: str) -> dict:
         only = _the_only_open_task()
         if which in ("it", "that", "them") and only:
             return {"command": {"kind": "task_done", "which": only}, "say": None}
+
+    # "Done with laundry", "finish the dentist task", "the laundry task is done",
+    # "I called the dentist" (2026-10-07: to the planner). Only when the
+    # words pick out exactly one open task - "I called the dentist" with no
+    # such task is news, not a tick.
+    m = (re.fullmatch(r"(?:i'?m )?done with (?:the |my )?(?P<w>.+?)(?: one| task)?", low)
+         or re.fullmatch(r"(?:finish|complete|close) (?:the |my )?(?P<w>.+?) (?:task|one)", low)
+         # "The dishwasher is done" is the machine, not his task to unload it.
+         or re.fullmatch(r"(?:the |my )?(?P<w>.+?) task is (?:done|finished|complete|taken care of)", low)
+         or re.fullmatch(r"i (?:just |already )?(?P<w>[a-z]+ed (?:the |my |a )?.+)", low))
+    if m and m.group("w") not in ("it", "that", "this", "everything", "all", "work", "today") \
+            and _names_one_open_task(m.group("w")):
+        return {"command": {"kind": "task_done", "which": m.group("w")}, "say": None}
 
     # "what files do you have" reached the planner, which sometimes
     # compiled `file_list` and sometimes let `converse` answer — and
@@ -3861,6 +3874,16 @@ def _interpret(transcript: str) -> dict:
     if split:
         return {"command": {"kind": "message_send", "to": split[0],
                             "body": _as_he_said(text, split[1])}, "say": None}
+    # "TEXT DANA I'M RUNNING LATE" with no Dana on file (2026-10-07: to the
+    # planner). One word, then a word only a sentence starts with, is a
+    # name and a message - "text bob happy birthday" is still not guessed
+    # at. With no number for Dana the send says so, by name.
+    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<who>[a-z][a-z']{1,20}) "
+                     r"(?P<body>(?:i'm|im|i|i'll|i've|we're|we|we'll|can you|could you|are you|did you|do you|don't|dont"
+                     r"|where|what|when|call me|hey|hi|thanks|thank you|on my way|running late|see you|love you)\b.*)", low)
+    if m and m.group("who") not in ("a", "the", "my", "him", "her", "them", "it", "that", "this", "me", "back", "again"):
+        return {"command": {"kind": "message_send", "to": m.group("who"),
+                            "body": _as_he_said(text, m.group("body"))}, "say": None}
     # "SEND A MESSAGE TO DANA" names who and not what (2026-10-07: to the
     # planner). Asked for whole, the way the bare verbs are.
     # One word after a bare "text": "text bob happy birthday" is a stranger
