@@ -351,12 +351,18 @@ def _split_deadline(text: str) -> tuple[str, str]:
     if not m:
         # "Call the plumber tomorrow", "pay the gas bill on friday": a day
         # said last is as much a deadline as "by friday" (2026-10-07).
+        # "Call mom this weekend", "pay rent on the 1st" (2026-10-07: the
+        # day stayed in the description and no deadline was kept).
         bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?(today|tonight|tomorrow|monday|tuesday|wednesday"
-                         r"|thursday|friday|saturday|sunday"
+                         r"|thursday|friday|saturday|sunday|(?:over )?(?:this |the )?weekend"
+                         r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?"
                          r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?))$",
                          text, re.IGNORECASE)
         if bare:
-            day = _spoken_day("today" if bare.group(2).lower() == "tonight" else bare.group(2))
+            said = bare.group(2).lower()
+            if said.endswith("weekend"):
+                said = "sunday"  # the weekend is over when Sunday is
+            day = _spoken_day("today" if said == "tonight" else said)
             if day:
                 return bare.group(1).strip(), day
         return text, ""
@@ -1071,7 +1077,7 @@ def _a_plain_list(text: str) -> bool:
 _TASK_VERB = re.compile(
     r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
     r"return|pick up|drop off|clean|wash|mow|file|submit|apply|follow up|chase|ask|tell|remind|order|"
-    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water)\b")
+    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|sort|organize|organise|vacuum|take out|bring|replace|feed|prepare|study|research|cook|buy|clear out|tidy)\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -3700,7 +3706,9 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:finish|complete|close) (?:the |my )?(?P<w>.+?) (?:task|one)", low)
          # "The dishwasher is done" is the machine, not his task to unload it.
          or re.fullmatch(r"(?:the |my )?(?P<w>.+?) task is (?:done|finished|complete|taken care of)", low)
-         or re.fullmatch(r"i (?:just |already )?(?P<w>[a-z]+ed (?:the |my |a )?.+)", low))
+         # "I need to sort the photos" is not a past tense (2026-10-07: it
+         # ticked a task off).
+         or re.fullmatch(r"i (?:just |already )?(?P<w>(?![a-z]*eed\b|used\b)[a-z]+ed (?:the |my |a )?.+)", low))
     if m and m.group("w") not in ("it", "that", "this", "everything", "all", "work", "today") \
             and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_done", "which": m.group("w")}, "say": None}

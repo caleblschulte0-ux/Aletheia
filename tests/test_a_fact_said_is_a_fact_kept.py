@@ -1277,5 +1277,21 @@ class RememberThatIsAnInstructionCase(unittest.TestCase):
         self.assertEqual(quick.match("do you remember my car")[0], "recall")
 
 
+class ATaskSaidWithItsDayCase(unittest.TestCase):
+    def test_the_weekend_and_a_date_are_deadlines(self):
+        from aletheia import voice
+        for said in ("i should call mom this weekend", "i have to pay rent on the 1st"):
+            cmd = voice._interpret(said)["command"]
+            self.assertEqual(cmd["kind"], "task_new", said)
+            self.assertTrue(cmd.get("deadline"), said)
+            self.assertNotIn("weekend", cmd["description"])
+            self.assertNotIn("1st", cmd["description"])
+
+    def test_need_is_not_a_past_tense(self):
+        from aletheia import voice
+        got = voice._interpret("i need to sort the photos by date")["command"]
+        self.assertNotEqual(got["kind"], "task_done")
+
+
 if __name__ == "__main__":
     unittest.main()
