@@ -1495,7 +1495,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("arith", re.compile(
         r"^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){2,6})$")),
     ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
-    ("average", re.compile(r"^what(?:'s| is) the (?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
+    ("average", re.compile(r"^(?:what(?:'s| is) )?(?:the )?(?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
+    # 2026-10-07, each to the planner: "what percent is 30 of 120", "what's
+    # 3/4 as a decimal", "what's 1000 in roman numerals", "5 feet 10 in cm".
+    ("pct_of", re.compile(
+        r"^what (?:percent|percentage|%) (?:is|of) (?P<pa>[\d.,]+) (?:of|out of) (?P<pb>[\d.,]+)\s*\??$"
+        r"|^(?P<pa2>[\d.,]+) is what (?:percent|percentage|%) of (?P<pb2>[\d.,]+)\s*\??$"
+        r"|^what(?:'s| is) (?P<pa3>[\d.,]+) out of (?P<pb3>[\d.,]+)(?: as a percent(?:age)?)?\s*\??$")),
+    ("fraction_dec", re.compile(r"^what(?:'s| is) (?P<fnum>\d+)/(?P<fden>\d+) (?:as a |in )?decimals?\s*\??$")),
+    ("roman", re.compile(
+        r"^(?:what(?:'s| is) )?(?P<arabic>\d{1,4}) in roman(?: numerals?)?\s*\??$"
+        r"|^(?:what(?:'s| is) |what number is )?(?P<numeral>[mdclxvi]{1,15})(?: in roman numerals)?(?: in numbers| as a number)\s*\??$")),
+    ("height_cm", re.compile(
+        r"^(?:convert |what(?:'s| is) |how (?:many|much) (?:cm|centimeters|centimetres) is )?(?P<ft>\d) (?:feet|foot|ft)"
+        r"(?: (?:and )?(?P<inch>\d{1,2}(?:\.\d)?) (?:inches|inch|in))?(?: (?:to|in|into) (?:cm|centimeters|centimetres|meters|metres))?\s*\??$")),
     ("round_to", re.compile(r"^round (?P<rn>[\d.]+) to (?:the nearest )?(?P<places>\d|one|two|three|whole number|integer)(?: decimals?)?(?: places?)?(?: points?)?$")),
     ("time_units", re.compile(
         r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
@@ -1590,7 +1603,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "weather_in"):
             return name, text
         if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3873,6 +3886,63 @@ def _on_the_last(text: str) -> str | None:
 def _plain(v: float) -> str:
     v = round(v, 4)
     return f"{int(v):,}" if float(v).is_integer() else f"{v:,}"
+
+
+def _pct_of(text: str) -> str | None:
+    g = _groups("pct_of", text)
+    try:
+        a = float((g.get("pa") or g.get("pa2") or g.get("pa3")).replace(",", ""))
+        b = float((g.get("pb") or g.get("pb2") or g.get("pb3")).replace(",", ""))
+    except (AttributeError, ValueError):
+        return None
+    if b == 0:
+        return "You can't divide by zero."
+    return f"{_plain(round(100 * a / b, 2))} percent."
+
+
+def _fraction_dec(text: str) -> str | None:
+    g = _groups("fraction_dec", text)
+    num, den = int(g["fnum"]), int(g["fden"])
+    if den == 0:
+        return "You can't divide by zero."
+    return f"{_plain(num / den)}."
+
+
+_ROMAN = ((1000, "M"), (900, "CM"), (500, "D"), (400, "CD"), (100, "C"), (90, "XC"),
+          (50, "L"), (40, "XL"), (10, "X"), (9, "IX"), (5, "V"), (4, "IV"), (1, "I"))
+
+
+def _roman(text: str) -> str | None:
+    g = _groups("roman", text)
+    if g.get("arabic"):
+        n = int(g["arabic"])
+        if not 1 <= n <= 3999:
+            return "Roman numerals only go from 1 to 3,999."
+        out = ""
+        for value, letters in _ROMAN:
+            while n >= value:
+                out, n = out + letters, n - value
+        return f"{int(g['arabic']):,} is {out}."
+    numeral = (g.get("numeral") or "").upper()
+    total, i = 0, 0
+    for value, letters in _ROMAN:
+        while numeral[i:i + len(letters)] == letters:
+            total, i = total + value, i + len(letters)
+    if i != len(numeral) or not total:
+        return None                     # not a well-formed numeral
+    return f"{numeral} is {total:,}."
+
+
+def _height_cm(text: str) -> str | None:
+    g = _groups("height_cm", text)
+    try:
+        inches = int(g["ft"]) * 12 + float(g.get("inch") or 0)
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not re.search(r"\b(?:cm|centimet|met|to|in|into|convert|how)\b", text):
+        return None
+    cm = inches * 2.54
+    return f"About {round(cm):,} centimeters ({round(cm / 100, 2)} meters)."
 
 
 def _split(text: str) -> str | None:
@@ -6793,6 +6863,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
+           "pct_of": lambda rest: _pct_of(rest),
+           "fraction_dec": lambda rest: _fraction_dec(rest),
+           "roman": lambda rest: _roman(rest),
+           "height_cm": lambda rest: _height_cm(rest),
            "time_convert": lambda rest: _time_convert(rest),
            "on_the_last": lambda rest: _on_the_last(rest),
            "age_of": lambda rest: _age_of(rest),

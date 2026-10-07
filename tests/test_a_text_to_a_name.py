@@ -1313,5 +1313,17 @@ class AClockTimeInAnotherZone(unittest.TestCase):
         self.assertIsNone(quick.answer("convert 3pm to narnia"))
 
 
+
+class FourMoreSums(unittest.TestCase):
+    def test_each_is_worked_out(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what percent is 30 of 120"), "25 percent.")
+        self.assertEqual(quick.answer("what's 3/4 as a decimal"), "0.75.")
+        self.assertEqual(quick.answer("what's 1994 in roman numerals"), "1,994 is MCMXCIV.")
+        self.assertEqual(quick.answer("what's xiv in numbers"), "XIV is 14.")
+        self.assertIn("178 centimeters", quick.answer("convert 5 feet 10 inches to cm"))
+        self.assertEqual(quick.answer("average of 3 4 and 5"), "4.")
+
+
 if __name__ == "__main__":
     unittest.main()
