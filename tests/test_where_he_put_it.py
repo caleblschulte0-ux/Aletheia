@@ -156,3 +156,41 @@ class WhatIsAhead(unittest.TestCase):
     def test_his_whole_list_is_not_one_sentence(self):
         for said in ("delete all my tasks", "mark everything done", "clear my to do list"):
             self.assertIn("one at a time", voice._interpret(said)["say"], said)
+
+
+class PeopleHeKnows(unittest.TestCase):
+    CARD = {"version": 1, "id": "dana", "display_name": "Dana", "phones": ["6055551234"], "emails": [],
+            "aliases": [], "organizations": [], "tags": [], "provenance": "x",
+            "created_at": "2026-10-01T00:00:00Z", "updated_at": "2026-10-01T00:00:00Z"}
+
+    def test_who_someone_is_is_a_note(self):
+        self.assertEqual(voice._interpret("dana is my sister")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("this is my house")["command"]["kind"], "intent")
+
+    def test_who_is_dana_reads_the_card_and_the_note(self):
+        from aletheia import contacts
+        with mock.patch.object(contacts, "all_contacts", return_value=[self.CARD]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "Dana is my sister"}]):
+            self.assertEqual(quick.answer("who is dana"),
+                             "In your contacts: Dana — 605 555 1234. You told me: Dana is your sister.")
+            self.assertEqual(quick.answer("who is my sister"), "Your sister is Dana.")
+
+    def test_someone_she_does_not_know_goes_on(self):
+        from aletheia import contacts
+        with mock.patch.object(contacts, "all_contacts", return_value=[]), \
+                mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("who is taylor swift"))
+
+    def test_a_changed_number_updates_the_card(self):
+        self.assertEqual(voice._interpret("change dana's number to 605 555 9999")["command"],
+                         {"kind": "contact_add", "name": "Dana", "phone": "605 555 9999"})
+
+    def test_email_with_nothing_to_say_asks(self):
+        self.assertIn("What should it say?", voice._interpret("email dana")["say"])
+
+    def test_mail_from_someone(self):
+        self.assertEqual(voice._interpret("any new emails from stripe")["command"], {"kind": "email_read", "which": "stripe"})
+        self.assertEqual(voice._interpret("did anyone email me")["command"], {"kind": "email_check"})
+
+    def test_weather_at_his_house_is_his_weather(self):
+        self.assertEqual(quick.match("what's the weather at my house")[0], "weather")

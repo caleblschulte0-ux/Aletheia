@@ -312,6 +312,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who is my landlord" came back from her own model as "no lease or
     # rental info connected here" - a capability she has, denied. The
     # person is remembered or he is asked, in words, never a model's guess.
+    # "Who is Dana" (2026-10-07: to the planner) - her contact card and his
+    # notes about them. Neither found is NOT "nobody": it may be someone
+    # famous, so it goes on to a model.
+    ("who_named", re.compile(
+        r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
+        r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$")),
+    ("contacts_count", re.compile(
+        r"^how many (?:contacts|people) (?:do i have|have i got|are in my contacts|have i saved|are saved)\s*\??$")),
     ("person", re.compile(
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
@@ -951,6 +959,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? (?:the )?(?:weather|forecast|temperature)(?: like| going to be like| looking like| doing)?"
         r"|how(?:'s| is) the weather(?: looking)?|weather|is it (?:raining|snowing|cold|hot|warm|nice)"
         r"|how (?:hot|cold|warm) is it) (?:in|for|at) (?!(?:the )?(?:morning|afternoon|evening|weekend)\b)"
+        r"(?!(?:my |our |the )?(?:house|home|place|here|apartment|flat)\b)"
         r"(?P<weather_place>[a-z][a-z .,'-]{1,40}?|\d{5})"
         r"(?: (?:for |on )?(?:today|tonight|tomorrow|this weekend|the weekend|right now|now"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
@@ -958,6 +967,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? (?:the )?weather(?: like| looking like| doing| going to be like)?(?: out(?:side)?)?"
         r"|how(?:'s| is) the weather(?: looking)?(?: out(?:side)?)?|what(?:'s| is|s)? it like out(?:side)?"
         r"|how(?:'s| is) it (?:looking )?out(?:side)?|is it (?:nice|cold|hot|warm) out(?:side)?)"
+        # "What's the weather at my house" is his own (2026-10-07).
+        r"(?: (?:at|near|by|around|in) (?:my |our )?(?:house|home|place|neighborhood|area)| here| at home)?"
         r"(?: (?:for |on )?(?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening|weekend)|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
@@ -1435,7 +1446,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4870,6 +4881,40 @@ def _coming_up(when: str = "", calendar_only: bool = False) -> str:
     return f"{lead}: " + "; ".join(line(r) for r in rows[:5]) + (f"; and {len(rows) - 5} more" if len(rows) > 5 else "") + "."
 
 
+def _contacts_count() -> str | None:
+    from aletheia import speech
+    try:
+        from aletheia import contacts
+        rows = contacts.all_contacts()
+    except Exception:
+        return None
+    if not rows:
+        return "No contacts saved yet. Say \"Sam's number is\" and the number, and I'll keep it."
+    names = sorted(str(r.get("display_name") or r.get("id")) for r in rows)
+    return (f"{speech.count_phrase(len(rows), 'contact')}: " + speech.and_list(names[:8])
+            + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
+
+
+def _who_named(name: str) -> str | None:
+    """A person he knows, by name: the contact card and his notes about them."""
+    from aletheia import speech
+    said = []
+    try:
+        from aletheia import contacts
+        person = contacts.resolve(name, contacts.all_contacts())
+    except Exception:
+        person = None
+    if person:
+        from aletheia import intercom
+        said.append(f"In your contacts: {intercom._contact_words(person)}.")
+    words = [w for w in name.casefold().split() if len(w) > 2]
+    notes = [str(r.get("text") or "").strip().rstrip(".") for r in _notes()
+             if words and all(re.search(rf"\b{re.escape(w)}\b", str(r.get("text") or "").casefold()) for w in words)]
+    if notes:
+        said.append("You told me: " + "; ".join(speech.as_she_says_it(n) for n in notes[:3]) + ".")
+    return " ".join(said) or None
+
+
 def _alarm_left() -> str:
     """His next alarm and how long until it, from the reminder store."""
     import datetime as dt
@@ -5698,10 +5743,17 @@ def _person(rest: str) -> str:
     # it in his own words; read it the way he said it.
     if who:
         said = re.compile(r"\bmy " + re.escape(who.casefold()) + r"(?:'s name)? (?:is|was|=) (.+)", re.IGNORECASE)
+        # "Dana is my sister" - the other order (2026-10-07).
+        other = re.compile(r"^\s*([A-Za-z][\w'-]*(?: [A-Za-z][\w'-]*)?) is my (?:new |old |best |younger |older |little |big )?"
+                           + re.escape(who.casefold()) + r"\b", re.IGNORECASE)
         for row in _notes():
             m = said.search(str(row.get("text") or ""))
             if m:
                 return f"Your {who} is {m.group(1).strip().rstrip('.')}."
+            m = other.search(str(row.get("text") or ""))
+            if m:
+                name = m.group(1).strip()
+                return f"Your {who} is {name[:1].upper() + name[1:]}."
     return f"I don't have anyone remembered as your {who}. Tell me and I'll remember it."
 
 
@@ -5975,6 +6027,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_when": _applied_when,
            "about_him": lambda rest: _about_him(),
            "person": _person,
+           "who_named": lambda rest: _who_named(rest),
+           "contacts_count": lambda rest: _contacts_count(),
            "repeat": lambda rest: _repeat(),
            "asked_last": lambda rest: _asked_last(),
            "sent_today": lambda rest: _sent_today(),

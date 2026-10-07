@@ -3000,14 +3000,17 @@ def _interpret(transcript: str) -> dict:
     m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? (?:phone )?(?:number|phone|cell|mobile)"
                       r"(?: number)?(?: as| is| to|:)? " + _num, low)
          or re.fullmatch(_who + r"'s (?:phone )?(?:number|phone|cell|mobile)(?: number)? is " + _num, low)
-         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?(?:phone )?(?:number|phone))? " + _num, low))
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?(?:phone )?(?:number|phone))? " + _num, low)
+         # "Change Dana's number to ..." (2026-10-07): the same contact, updated.
+         or re.fullmatch(r"(?:change|update|set|correct) " + _who + r"'s (?:phone )?(?:number|phone|cell|mobile)(?: number)? to " + _num, low))
     if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
         return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
                             if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
                             "phone": m.group("phone")}, "say": None}
     m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? email(?: address)?(?: as| is| to|:)? " + _mail, low)
          or re.fullmatch(_who + r"'s email(?: address)? is " + _mail, low)
-         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?email(?: address)?)? " + _mail, low))
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?email(?: address)?)? " + _mail, low)
+         or re.fullmatch(r"(?:change|update|set|correct) " + _who + r"'s email(?: address)? to " + _mail, low))
     if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
         return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
                             if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
@@ -3098,10 +3101,15 @@ def _interpret(transcript: str) -> dict:
                       r"(?:email|e-mail|mail|message from them)", low)
          # "Read me the email FROM Stripe" (bottom rung 2026-09-24: to nobody).
          or re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?:email|e-mail|mail|message) from "
-                         r"(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?)", low))
+                         r"(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?)", low)
+         # "Any new emails from Stripe", "did Stripe email me" (2026-10-07: to the planner).
+         or re.fullmatch(r"(?:any|are there any|do i have any|did i get any|is there an?) (?:new |unread )?(?:emails?|e-mails?|mail|messages?) "
+                         r"from (?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?)", low)
+         or re.fullmatch(r"(?:did|has) (?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?) (?:email|e-mail|write to|reply to|get back to) me(?: yet)?", low))
     # "Read my email" is not an email from somebody called "my" (2026-10-07):
     # a word that names no sender is the inbox, and `email_check` reads it.
-    if m and m.group("which") in ("my", "me", "the", "your", "all", "all my", "all the", "any", "some", "an", "new"):
+    if m and m.group("which") in ("my", "me", "the", "your", "all", "all my", "all the", "any", "some", "an", "new",
+                                  "anyone", "anybody", "someone", "somebody", "everyone", "nobody", "no one"):
         return {"command": {"kind": "email_check"}, "say": None}
     if m and m.group("which") not in ("latest", "last", "newest", "first", "new", "unread"):
         return {"command": {"kind": "email_read", "which": _as_he_said(transcript, m.group("which"))},
@@ -3849,6 +3857,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": f"What should it say? Say \"text {who} that you're running late\" and I'll draft it for you to send."}
 
+    # "EMAIL DANA", "SEND AN EMAIL TO MOM" (2026-10-07: to the planner) name
+    # who and not what - asked for whole, the way a bare "text sam" is.
+    m = re.fullmatch(r"(?:send (?:an? )?e?mail to|e?mail|write (?:an? )?e?mail to|draft (?:an? )?e?mail to)"
+                     r" (?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?)", low)
+    if m and m.group("who").split()[0] not in ("a", "the", "my", "me", "it", "that", "this", "him", "her", "them",
+                                                "back", "everyone", "everybody", "all", "now", "address", "addresses",
+                                                "check", "inbox", "list", "account", "password"):
+        who = _as_he_said(text, m.group("who"))
+        who = who.title() if who.islower() else who
+        return {"command": None,
+                "say": f"What should it say? Say \"email {who} saying you'll be late\" and I'll draft it for you to check."}
+
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two
     # minutes - because only "email X saying Y" was a shape (2026-09-22).
@@ -4358,6 +4378,17 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:i(?:'ve| have)? parked|i'm parked|my car is(?: parked)?|the car is(?: parked)?)"
                      r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
     if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHO SOMEBODY IS TO HIM (2026-10-07): "Dana is my sister" went to the
+    # planner; "who is Dana" reads the note back.
+    m = re.fullmatch(r"(?P<who>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?) is my (?:new |old |best |younger |older |little |big )?"
+                     r"(?P<rel>[a-z][a-z ]{1,25})", low)
+    if m and (m.group("rel") in _RELATIONS or re.fullmatch(
+            r"(?:friend|coworker|co-worker|colleague|neighbou?r|landlord|landlady|manager|doctor|dentist|lawyer|"
+            r"accountant|cousin|aunt|uncle|niece|nephew|fiancee?|grandmother|grandfather|stepmom|stepdad|"
+            r"mother-in-law|father-in-law|sister-in-law|brother-in-law|ex|kid|child|pet|dog|cat|recruiter|"
+            r"mechanic|barber|therapist|trainer|coach|teacher|tutor|realtor|agent|plumber|electrician)", m.group("rel"))) \
+            and m.group("who").split()[0] not in ("this", "that", "it", "he", "she", "they", "who", "what", "there", "here"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
