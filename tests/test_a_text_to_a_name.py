@@ -169,5 +169,22 @@ class HisMoneyAskedOtherWays(unittest.TestCase):
         self.assertEqual(voice._interpret("what's my credit card balance")["command"], {"kind": "money"})
 
 
+class MailAndParcels(unittest.TestCase):
+    def test_a_shops_order_is_read_from_his_inbox(self):
+        self.assertEqual(voice._interpret("where is my amazon order")["command"], {"kind": "email_read", "which": "amazon"})
+
+    def test_a_parcel_she_cannot_track_says_where_to_look(self):
+        got = voice._interpret("track my package")
+        self.assertIsNone(got["command"])
+        self.assertIn("any emails from Amazon", got["say"])
+
+    def test_mail_she_cannot_change_is_said_plainly(self):
+        self.assertIn("can't delete", voice._interpret("delete that email")["say"])
+
+    def test_a_bare_send_an_email_asks_who_and_what(self):
+        self.assertIn("Who to", voice._interpret("send an email")["say"])
+        self.assertEqual(voice._interpret("what's my most recent email about")["command"], {"kind": "email_check"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1488,6 +1488,8 @@ _BARE_VERBS = (
      'What\'s the task? Say "add a task to renew my passport".'),
     (r"(?:set|start) (?:a |me a )?(?:new )?timer",
      'For how long? Say "set a timer for ten minutes".'),
+    (r"(?:send|write|draft|compose) (?:an |a )?(?:new )?e-?mail(?: for me)?",
+     'Who to, and what should it say? Say "email Dana saying I\'ll be late".'),
     (r"(?:set|make) (?:an |me an )?alarm",
      'For what time? Say "wake me up at 6".'),
     (r"(?:did (?:anyone|anybody|someone|somebody) call(?: me)?|any missed calls|who called(?: me)?|missed calls"
@@ -2861,6 +2863,29 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:spell|how do (?:you|u) spell) my (?P<which>first|last|full|sur)?\s*name(?: for me)?", low)
     if m:
         return {"command": None, "say": _spell_his_name(m.group("which") or "full")}
+
+    if re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(?:most recent|latest|newest|last) e-?mail(?: about| say| saying)?", low):
+        return {"command": {"kind": "email_check"}, "say": None}
+    # HIS PACKAGES (2026-10-07: "where is my amazon order" searched his
+    # FILES for "amazon order"; "track my package" went to the planner).
+    # She cannot track a parcel; the shipping email is the one place she
+    # can look, so a named shop is read from his inbox.
+    m = re.fullmatch(r"where(?:'s| is| are) my (?P<shop>[a-z][a-z0-9 &'.-]{1,25}?) (?:order|package|delivery|parcel|shipment)s?"
+                     r"|(?:track|check on) my (?P<shop2>[a-z][a-z0-9 &'.-]{1,25}?) (?:order|package|delivery|parcel)s?", low)
+    if m:
+        return {"command": {"kind": "email_read", "which": (m.group("shop") or m.group("shop2")).strip()}, "say": None}
+    if re.fullmatch(r"(?:track|check on|where(?:'s| is| are)) (?:my |the )?(?:package|packages|order|orders|delivery|deliveries|parcel|shipment)"
+                    r"|did (?:i get|my) (?:a |the |my )?(?:package|order|delivery|parcel)(?: come| arrive)?(?: yet| today)?"
+                    r"|(?:has|did) my (?:package|order|delivery|parcel) (?:come|arrive|ship|shipped)(?: yet)?", low):
+        return {"command": None,
+                "say": "I can't track parcels, but shipping emails come to your inbox. Say \"any emails from Amazon\" "
+                       "(or whoever it's from) and I'll read them."}
+    # Deleting or marking mail is his: she reads it and drafts it, no more.
+    if re.fullmatch(r"(?:delete|trash|archive|mark|flag|star|unsubscribe from) (?:that|this|the|my|the last|my last|all)? ?"
+                    r"(?:e-?mails?|mail)(?: as (?:read|unread|spam|important))?(?: from .+)?", low):
+        return {"command": None,
+                "say": "I only read your email and write drafts - I can't delete, archive or mark messages. "
+                       "Do that in your mail app."}
 
     m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)\s*\??", low)
     if m and not _not_a_file(m.group(1)):
