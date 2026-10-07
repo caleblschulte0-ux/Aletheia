@@ -2902,5 +2902,12 @@ class AChoiceNamesAnOption(unittest.TestCase):
         self.assertEqual((quick.match("I'm leaving work") or ("",))[0], "farewell")
 
 
+class TheMoonIsNotAJourney(unittest.TestCase):
+    def test_the_rule_rung_does_not_time_a_drive_to_the_moon(self):
+        from aletheia import rule_planner
+        self.assertIsNone(rule_planner.match("how far is the moon"))
+        self.assertIsNotNone(rule_planner.match("how far is chicago"))
+
+
 if __name__ == "__main__":
     unittest.main()
