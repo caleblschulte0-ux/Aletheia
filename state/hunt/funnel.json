@@ -1,23 +1,24 @@
 {
   "batches": {
     "2026-10-07": {
-      "duplicate": 67,
+      "duplicate": 83,
       "employer_full": 0,
-      "minutes": 0,
+      "minutes": 14,
       "needs_account": 0,
       "needs_answer": 6,
-      "not_realistic": 146,
-      "offered": 270,
+      "not_realistic": 208,
+      "offered": 360,
       "ready": 13,
-      "runs": 3,
+      "runs": 4,
       "unfit_clearance": 2,
       "unfit_language": 1,
       "unfit_license": 1,
-      "unfit_model": 13,
-      "unfit_sales": 81,
-      "unfit_years": 5,
-      "unjudged": 21,
-      "unreachable": 17,
+      "unfit_model": 14,
+      "unfit_sales": 140,
+      "unfit_years": 7,
+      "unjudged": 31,
+      "unreachable": 19,
+      "unreachable_ApplyError": 2,
       "weak_shot": 0
     }
   },
@@ -223,7 +224,7 @@
       "sent": 24
     }
   },
-  "generated_at": "2026-10-07T21:11:29Z",
+  "generated_at": "2026-10-07T21:23:48Z",
   "sent_all_time": 258,
   "stuck_at": {
     "approval_denied": {
