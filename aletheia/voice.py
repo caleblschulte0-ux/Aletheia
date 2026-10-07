@@ -2994,6 +2994,19 @@ def _interpret(transcript: str) -> dict:
     # matches, so "note" won and the note read "that Dana called".
     # "Make a note that the roof leaks" waited two minutes on her own model
     # with every frontier off (2026-09-22); it is the same note.
+    # "MY NAME IS CALEB": she answered "what's my name" with "Tell me and
+    # I'll remember it", and telling her went to the planner - which, with
+    # no model, kept the sentence "for later". A name is one line in her
+    # memory of him; two to four words is a full name, one is what he goes by.
+    m = re.fullmatch(r"(?:my name is|my name's|you can call me|please call me|call me) "
+                     r"([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,3})", low)
+    if m and not re.match(r"(?:not|what|who|wrong|spelled|spelt)\b", m.group(1)) \
+            and not re.fullmatch(r"(?:back|later|tomorrow|tonight|now|soon|when .+|if .+|at .+|in .+)", m.group(1)) \
+            and not (low.startswith("call me") and len(m.group(1).split()) > 1):
+        name = _as_he_said(text, m.group(1)).strip()
+        name = " ".join(w[:1].upper() + w[1:] if w.islower() else w for w in name.split())
+        key = "full_name" if len(name.split()) >= 2 else "operator_name"
+        return {"command": {"kind": "remember", "domain": "identity", "key": key, "value": name}, "say": None}
     m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
                  r"note that|note|write down that|write down|log)\s+(.+)", low)
     if m:
