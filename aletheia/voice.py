@@ -4495,6 +4495,19 @@ def _interpret(transcript: str) -> dict:
     if m:
         what = m.group("what") or "places"
         return {"command": {"kind": "research", "question": f"{what} open now near me"}, "say": None}
+    # A PLACE'S HOURS: "when does Target close", "is Costco open on Sunday"
+    # (2026-10-07: to the planner). A search, the same as "what's open now".
+    m = re.fullmatch(r"(?:when|what time) (?:does|do|is) (?:the )?(?P<p>[a-z0-9][a-z0-9 .'&-]{1,40}?) (?:close|open|closing|opening)"
+                     r"(?P<when> today| tonight| tomorrow|(?: on)? [a-z]+days?| on the weekend|(?: this)? weekend)?"
+                     r"|is (?:the )?(?P<p2>[a-z0-9][a-z0-9 .'&-]{1,40}?) (?:open|closed|still open)"
+                     r"(?P<when2> today| tonight| right now| now| tomorrow|(?: on)? [a-z]+days?| on the weekend|(?: this)? weekend| late)?"
+                     r"|what are (?:the )?(?P<p3>[a-z0-9][a-z0-9 .'&-]{1,40}?)(?:'s|s')? (?:hours|opening hours)(?: today)?", low)
+    if m and not re.search(r"\b(?:it|that|this|my|your|door|window|app|file|tab|browser|calendar|spotify|chrome"
+                           r"|garage|fridge|microphone|mic|ticket|application|position|job|pr|pull request)\b",
+                           m.group("p") or m.group("p2") or m.group("p3") or ""):
+        place = (m.group("p") or m.group("p2") or m.group("p3")).strip()
+        when = (m.group("when") or m.group("when2") or "").strip()
+        return {"command": {"kind": "research", "question": f"{place} hours {when}".strip()}, "say": None}
     # DIRECTIONS, TRAFFIC AND THE COMMUTE (2026-10-07: all to the planner).
     # "How do I get to work", "directions to the airport", "take me home"
     # and "what's the traffic to work" are the trip, asked another way; the

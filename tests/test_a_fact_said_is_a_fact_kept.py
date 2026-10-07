@@ -1401,5 +1401,18 @@ class AreYouSentientCase(unittest.TestCase):
         self.assertIn("AI", quick.answer("are you sentient"))
 
 
+class APlacesHoursCase(unittest.TestCase):
+    def test_hours_are_a_search(self):
+        from aletheia import voice
+        for said, q in (("when does target close", "target hours"), ("is costco open on sunday", "costco hours on sunday"),
+                        ("is the dmv open saturday", "dmv hours saturday")):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "research", "question": q}, said)
+
+    def test_her_own_things_are_not_shops(self):
+        from aletheia import voice
+        for said in ("is the window open", "is my calendar open", "is it open"):
+            self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "research", said)
+
+
 if __name__ == "__main__":
     unittest.main()
