@@ -190,18 +190,18 @@
       "interviews": 2,
       "rejections": 2,
       "replies": 8,
-      "sent": 3
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-07T00:21:48Z",
-  "sent_all_time": 232,
+  "generated_at": "2026-10-07T00:52:16Z",
+  "sent_all_time": 233,
   "totals": {
     "filled": 353,
     "found": 633,
     "interviews": 2,
     "rejections": 3,
     "replies": 31,
-    "sent": 232
+    "sent": 233
   },
   "window_days": 30
 }
