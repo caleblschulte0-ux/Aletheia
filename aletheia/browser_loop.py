@@ -931,6 +931,13 @@ def rejected_words(refused: dict) -> str:
             + ". Nothing was accepted. Tell me what to change and I will bring it back to you.")
 
 
+def this_leg(record: dict) -> list[dict]:
+    """The checkpoints of the pass she is on: a leg started over (a replay
+    that would not go back) has not "been" anywhere yet."""
+    since = str(record.get("leg_since") or "")
+    return [c for c in record.get("checkpoints") or [] if str(c.get("at") or "") >= since]
+
+
 def _replay_from(record: dict) -> str:
     return record.get("resume_url") or record.get("start_url") or ""
 
@@ -957,8 +964,25 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             # its Next only after an upload): let it, before the first look.
             webtask.settle(page)
     except Exception as exc:                                  # noqa: BLE001
-        return _stop(record, bm.NEEDS_YOU, "ERROR", {"url": _replay_from(record)},
-                     why=f"the page could not be put back ({browse.say_reason(str(exc))[:160]})")
+        why = f"the page could not be put back ({browse.say_reason(str(exc))[:160]})"
+        if not (route or attached) or bm.reached(record, bm.SUBMIT_CLICKED) or not _replay_from(record):
+            return _stop(record, bm.NEEDS_YOU, "ERROR", {"url": _replay_from(record)}, why=why)
+        # A REPLAY THAT WILL NOT GO BACK STARTS THIS LEG OVER. Live 2026-10-07, eight
+        # filled applications ended here: a site redrew its form with new
+        # element ids between visits and the old route had nothing to type
+        # into. His answers are not in the route - they are in his profile and
+        # this mission's inputs - so a fresh start fills the form again. Never
+        # once anything was pressed to send: that is the duplicate rule's.
+        _note(record, why + "; starting again from the beginning")
+        route, attached = [], []
+        record["route"], record["attached"] = [], []
+        record["leg_since"] = stateio.utcnow()      # what she saw before is not "been there"
+        try:
+            _load(page, _replay_from(record))
+        except Exception as again:                            # noqa: BLE001
+            return _stop(record, bm.NEEDS_YOU, "ERROR", {"url": _replay_from(record)},
+                         why=f"the page could not be put back or opened again "
+                             f"({browse.say_reason(str(again))[:160]})")
     errors = unknowns = 0
     # WHAT THE REPLAY ALREADY PRESSED is already tried: live 2026-09-17 a resumed
     # Workday mission replayed its Apply click and then clicked Apply again.
@@ -989,7 +1013,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             return _stop(record, bm.NEEDS_YOU, str(known_stop.get("kind") or "SKILL_STOP"), obs,
                          step=str(known_stop.get("step") or ""), say=str(known_stop.get("say") or ""))
         shape = page_shape(obs)
-        seen_here = sum(1 for c in record.get("checkpoints") or []
+        seen_here = sum(1 for c in this_leg(record)
                         if c.get("name") == bm.OBSERVED and str(c.get("url") or "") == obs["url"]
                         and str(c.get("shape") or "") == shape)
         if seen_here >= SAME_PAGE_LIMIT:
@@ -1267,7 +1291,7 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
             state = ps.CONTENT                      # a form with no way on: look for one
 
         if state == ps.CONTENT:
-            visited = {str(c.get("url") or "").split("#")[0] for c in record.get("checkpoints") or []
+            visited = {str(c.get("url") or "").split("#")[0] for c in this_leg(record)
                        if c.get("name") == bm.OBSERVED}
             # READ THE PAGE SHE IS ON BEFORE SHE LEAVES IT. Live 2026-09-18,
             # with her own model choosing: standing on the product page, asked a
