@@ -5960,7 +5960,8 @@ def _interpret(transcript: str) -> dict:
     # reminder, moved. The previous ask is read back from the thread and
     # re-interpreted; only a reminder is moved this way (bottom rung
     # 2026-09-24: it went to nobody).
-    m = re.fullmatch(r"(?:make (?:that|it)|change (?:that|it) to|move (?:that|it) to|actually,? make (?:that|it)|"
+    # "Push it to 6" (2026-10-07: to the planner) is the same move.
+    m = re.fullmatch(r"(?:make (?:that|it)|(?:change|move|push|bump|shift|switch|reschedule) (?:that|it) to|actually,? make (?:that|it)|"
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
     if m:
         moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))

@@ -1619,5 +1619,16 @@ class AnythingFromTheStoreCase(unittest.TestCase):
         self.assertNotEqual((quick.match("what do I need to pick up") or ("",))[0], "shopping")
 
 
+class PushItToSixCase(unittest.TestCase):
+    def test_push_bump_and_shift_move_the_reminder_just_set(self):
+        from aletheia import voice
+        moved = {"command": {"kind": "remind_at", "at": "x", "text": "call Dana", "replaces": "call Dana"},
+                 "say": None}
+        for said in ("push it to 6", "bump that to 6pm", "shift it to 6", "reschedule it to 6"):
+            with mock.patch.object(voice, "_moved_reminder", return_value=moved) as got:
+                self.assertEqual(voice.interpret(f"thea {said}"), moved, said)
+                self.assertTrue(got.called, said)
+
+
 if __name__ == "__main__":
     unittest.main()
