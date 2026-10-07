@@ -2680,7 +2680,9 @@ def _interpret(transcript: str) -> dict:
     # trade one silent substitution for another.
     # "TURN OFF ALL MY ALARMS" is about her alarms, not her switch
     # (2026-10-07: it got the kill-switch speech). Every one of that sort.
-    m = re.fullmatch(r"(?:turn off|cancel|delete|clear|stop|remove|disable|kill) (?:all|every one of) (?:of )?(?:my |the )?"
+    # "Cancel my reminders", "clear my alarms" - plural, so every one of
+    # them (2026-10-07: "cancel my reminders" looked for a reminder called "my").
+    m = re.fullmatch(r"(?:turn off|cancel|delete|clear|stop|remove|disable|kill) (?:(?:all|every one of) (?:of )?(?:my |the )?|my |the )"
                      r"(?P<sort>alarms|timers|reminders)", low)
     if m:
         return {"command": {"kind": "reminder_off", "which": "all " + m.group("sort")}, "say": None}

@@ -1716,6 +1716,17 @@ def _one_reminder(which: str):
                              r"|that reminder|this reminder|the last reminder)", needle):
         return max(rows, key=lambda r: str(r.get("created_at") or "")), ""
 
+    # "DELETE MY REMINDER" (2026-10-07: searched for a reminder about "my").
+    # With one set, that is the one; with several, she asks which.
+    if needle in ("my", "the", "my reminder", "a reminder", "one"):
+        if len(rows) == 1:
+            return rows[0], ""
+        if rows:
+            from aletheia import speech
+            said = [_reminder_words(r) for r in _soonest_first(rows)[:4]]
+            more = "" if len(rows) <= 4 else f" - or one of {len(rows) - 4} more"
+            return None, f"You have {speech.count_phrase(len(rows), 'reminder')}. Which one: {speech.or_list(said)}{more}?"
+
     hits = [r for r in rows if needle and needle in text_of(r)]
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)

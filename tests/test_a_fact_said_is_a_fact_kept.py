@@ -2280,5 +2280,30 @@ class AnythingWaitingOnMeCase(unittest.TestCase):
                 self.assertEqual(quick.match(said)[0], "waiting")
 
 
+
+class MyRemindersAreAllOfThem(unittest.TestCase):
+    """2026-10-07: "cancel my reminders" looked for one called "my"."""
+
+    def test_plural_is_every_one(self):
+        for said, sort in (("cancel my reminders", "reminders"), ("clear my alarms", "alarms"),
+                           ("stop the timers", "timers")):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "reminder_off", "which": "all " + sort})
+
+    def test_my_reminder_is_the_one_or_a_question(self):
+        from aletheia import intercom
+        rows = [{"id": "a", "command": {"text": "call mom"}}, {"id": "b", "command": {"text": "feed the cat"}}]
+        words = {"a": "call mom — today at 5 pm", "b": "feed the cat — today at 6 pm"}
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows[:1]):
+            self.assertEqual(intercom._one_reminder("my")[0]["id"], "a")
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+             mock.patch.object(intercom, "_soonest_first", side_effect=lambda r: list(r)), \
+             mock.patch.object(intercom, "_reminder_words", side_effect=lambda r, **_: words[r["id"]]):
+            found, why = intercom._one_reminder("my")
+            self.assertIsNone(found)
+            self.assertIn(" or ", why)
+            self.assertTrue(why.startswith("You have 2 reminders. Which one: "))
+
+
 if __name__ == "__main__":
     unittest.main()
