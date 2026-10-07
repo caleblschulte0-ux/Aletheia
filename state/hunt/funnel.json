@@ -1,21 +1,22 @@
 {
   "batches": {
     "2026-10-07": {
-      "duplicate": 107,
+      "duplicate": 155,
       "employer_full": 0,
-      "minutes": 37,
+      "minutes": 64,
       "needs_account": 0,
       "needs_answer": 7,
-      "not_realistic": 267,
-      "offered": 450,
-      "ready": 14,
-      "runs": 5,
+      "not_realistic": 306,
+      "offered": 540,
+      "ready": 17,
+      "runs": 6,
       "unfit_clearance": 2,
-      "unfit_language": 3,
-      "unfit_license": 2,
-      "unfit_model": 17,
-      "unfit_sales": 190,
-      "unfit_years": 10,
+      "unfit_hands_on": 1,
+      "unfit_language": 5,
+      "unfit_license": 3,
+      "unfit_model": 18,
+      "unfit_sales": 223,
+      "unfit_years": 11,
       "unjudged": 33,
       "unreachable": 22,
       "unreachable_ApplyError": 4,
@@ -217,16 +218,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 41,
-      "found": 63,
+      "filled": 43,
+      "found": 65,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 26
+      "sent": 27
     }
   },
-  "generated_at": "2026-10-07T22:47:26Z",
-  "sent_all_time": 260,
+  "generated_at": "2026-10-07T23:07:00Z",
+  "sent_all_time": 261,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -271,12 +272,12 @@
     }
   },
   "totals": {
-    "filled": 371,
-    "found": 677,
+    "filled": 373,
+    "found": 679,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 260
+    "sent": 261
   },
   "waiting": {
     "asked_about": {
