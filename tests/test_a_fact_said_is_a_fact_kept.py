@@ -2002,5 +2002,16 @@ class HisBirthdaySaidBackCase(unittest.TestCase):
         self.assertEqual(voice._interpret("my birthday is the 3rd of march")["command"]["key"], "birthday")
 
 
+
+class TwoPlacesCase(unittest.TestCase):
+    """2026-10-07: "1000 divided by 7" was read out as "142.8571"."""
+
+    def test_two_places(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what is 1000 divided by 7"), "142.86.")
+        self.assertEqual(quick.answer("what is 2 divided by 3"), "0.6667.")
+        self.assertEqual(quick.answer("what is 7.5 times 2"), "15.")
+
+
 if __name__ == "__main__":
     unittest.main()

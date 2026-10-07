@@ -4457,7 +4457,13 @@ def _math(text: str) -> str | None:
 
     def said(v: float) -> str:
         # "100 divided by 7" was read out as "14.28571429" (2026-10-07).
-        return f"{round(v, 4):,}".rstrip("0").rstrip(".") if abs(v - round(v)) > 1e-9 else f"{int(round(v)):,}"
+        if abs(v - round(v)) <= 1e-9:
+            return f"{int(round(v)):,}"
+        # "142.8571" is four digits nobody wanted out loud (2026-10-07):
+        # past the point, two places is what a person says.
+        if abs(v) >= 1:
+            return f"{round(v, 2):,.2f}".rstrip("0").rstrip(".")
+        return f"{round(v, 4):,}".rstrip("0").rstrip(".")
     try:
         if "pct" in g:
             # "20 percent of 45 dollars" went to a model for the word "dollars".
