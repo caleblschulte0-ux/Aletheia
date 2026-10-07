@@ -2635,5 +2635,13 @@ class WeekdayAndQuarter(unittest.TestCase):
         self.assertRegex(quick.answer("what quarter are we in"), r"^The (?:first|second|third|fourth) quarter of \d{4}\.$")
 
 
+
+class WhatDidIMissToday(unittest.TestCase):
+    def test_brief(self):
+        for said in ("what did I miss today", "what did I miss while I was out", "catch me up on today"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "brief"})
+
+
 if __name__ == "__main__":
     unittest.main()

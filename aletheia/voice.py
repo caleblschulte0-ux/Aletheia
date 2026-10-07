@@ -4972,7 +4972,10 @@ def _interpret(transcript: str) -> dict:
                     # The phrasings a person actually uses. "Give me the
                     # brief" and "brief me" both went to the planner.
                     r"(?:give me|read me|run) (?:the |my |a )?(?:morning |daily )?brief(?:ing)?|"
-                    r"brief me|catch me up|what did i miss|give me (?:a |the )?(?:summary|rundown|run-down)"
+                    r"brief me|catch me up(?: on (?:today|everything|things))?"
+                    # "What did I miss today" (2026-10-07: to the planner).
+                    r"|what did i miss(?: today| this morning| while i was (?:out|gone|away|asleep)| overnight)?"
+                    r"|give me (?:a |the )?(?:summary|rundown|run-down)"
                     r"|(?:sum (?:it|things) up|summari[sz]e (?:my day|today|things))(?: for me)?", low):
         return {"command": {"kind": "brief"}, "say": None}
 
