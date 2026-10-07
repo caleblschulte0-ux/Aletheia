@@ -2585,15 +2585,23 @@ def set_loop_engine(on: bool, *, by: str) -> dict:
 
 
 def has_adapter(url: str, provider: str = "") -> bool:
-    """Is `stage` the proven engine for this url?"""
-    if provider:
-        try:
-            from aletheia import jobs
-            if provider in jobs.PROVIDERS:
-                return True
-        except Exception:
-            pass
+    """Is `stage` the proven engine for this url?
+
+    Not where the form is behind the posting's own Apply button
+    (`jobs.FORM_BEHIND_THE_BUTTON`): `stage` reads the page as it loads, so
+    it can only ever close those as asking nothing, and the general loop is
+    the engine that presses the button."""
     host = (urllib.parse.urlparse(str(url or "")).hostname or "").casefold()
+    try:
+        from aletheia import jobs
+        behind = tuple(jobs.FORM_BEHIND_THE_BUTTON)
+        listed = jobs.PROVIDERS
+    except Exception:
+        behind, listed = (), {}
+    if provider in behind or any(host == f"{b}.com" or host.endswith(f".{b}.com") for b in behind):
+        return False
+    if provider and provider in listed:
+        return True
     return any(host == h or host.endswith("." + h) for h in ADAPTER_HOSTS)
 
 
