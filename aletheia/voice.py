@@ -6861,6 +6861,24 @@ def _interpret(transcript: str) -> dict:
     # last go to the gym" counts as a visit.
     if re.fullmatch(r"(?:i'?m|i am|just got) (?:at|to) the (?:gym|pool|park|library|office|doctor'?s?|dentist'?s?)(?: now)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I STARTED A NEW JOB TODAY" (2026-10-07: to the planner). A note, so
+    # "where do I work" and "when did I start my job" have it.
+    if re.fullmatch(r"i (?:just )?(?:started|start|began) (?:a |my )?(?:new )?(?:job|work|position|role)(?: at [a-z0-9][a-z0-9 .&'-]{1,40})?"
+                    r"(?: today| yesterday| this week| last week| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
+                    r"|i (?:just )?(?:started|start) (?:working )?at [a-z0-9][a-z0-9 .&'-]{1,40}?(?: today| yesterday| this week)?"
+                    r"|i (?:just )?got (?:a|the) (?:new )?job at [a-z0-9][a-z0-9 .&'-]{1,40}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"when did i (?:start|begin) (?:my |the |this )?(?:new )?(?:job|work|position|role)(?: at [a-z0-9 .&'-]{1,40})?", low):
+        try:
+            from aletheia import quick as _q, speech as _sp
+            for row in _q._notes():
+                said = " ".join(str(row.get("text") or "").split())
+                if re.match(r"i (?:just )?(?:started|began|got (?:a|the) (?:new )?job)", said.casefold()) \
+                        and re.search(r"\b(?:job|work|position|role|at)\b", said.casefold()):
+                    return {"command": None, "say": f"You told me {_sp.humanize_time(str(row.get('ts') or ''))}: "
+                                                    f"{_sp.as_she_says_it(said).rstrip('.')}."}
+        except Exception:  # noqa: BLE001
+            pass
     # HIS VERDICT ON A JOKE (2026-10-07: "that's not funny" went to the
     # planner). One line; "another one" is how he gets a different one.
     if re.fullmatch(r"(?:that(?:'s| is| was)|not) (?:not )?(?:funny|very funny|that funny)(?: thea)?|(?:bad|terrible|lame|awful) joke"
@@ -7154,6 +7172,12 @@ def _interpret(transcript: str) -> dict:
             r"|tell|show|read|list)\b", low):
         told = None
     m = m or told
+    # "I HAVE A MEETING WITH DANA AT 2" names no day (2026-10-07: to the
+    # planner): told about with a time, it is today's.
+    m = m or re.fullmatch(r"(?P<lead>i have|i've got|i got|i have got) (?:a |an |my )?"
+                          r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
+                          r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
+                          r" at (?P<time>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)(?P<day>)(?: (?:this )?(?P<part>morning|afternoon|evening|tonight))?", low)
     # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
     # errand to approve. A meeting or call with a person, on a day, is his
     # own diary; "book" stays somebody else's for anything else.

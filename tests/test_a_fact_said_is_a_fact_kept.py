@@ -3994,5 +3994,41 @@ class ComingAndGoing(unittest.TestCase):
         self.assertIn("never timed the trip from home", said)
 
 
+class HisWorkDayKept(unittest.TestCase):
+    """2026-10-07: "I have a meeting with Dana at 2", "I started a new job at
+    Acme today" and "what's after my 2pm" went to the planner or a model, and
+    "what did I do today" said nothing beside "I finished the report"."""
+
+    def _notes(self, *texts):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": now} for t in texts])
+
+    def test_a_meeting_told_with_a_time_is_held_today(self):
+        import datetime as dt
+        from aletheia import localtime, voice
+        held = voice._interpret("i have a meeting with dana at 2")["command"]
+        self.assertEqual(held["kind"], "calendar_hold")
+        self.assertEqual(held["title"], "meeting with dana")
+        self.assertEqual(held["start"][:10], dt.datetime.now(localtime.operator_tz()).date().isoformat())
+
+    def test_a_new_job_is_kept_and_read(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("i started a new job at acme today")["command"]["kind"], "note")
+        with self._notes("i started a new job at acme today"):
+            self.assertEqual(quick._work_at(), "You told me you work at acme.")
+            self.assertIn("started a new job", voice._interpret("when did i start my job")["say"])
+
+    def test_a_noted_finish_is_something_he_did(self):
+        from aletheia import quick, tasks
+        with self._notes("i finished the report"), mock.patch.object(tasks, "all_tasks", return_value=[]):
+            self.assertIn("you finished the report", quick._tasks_done())
+
+    def test_whats_after_a_time(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's after my 2pm")[0], "event_detail")
+
+
 if __name__ == "__main__":
     unittest.main()

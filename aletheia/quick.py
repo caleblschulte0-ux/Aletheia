@@ -2055,7 +2055,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:is|will be) (?:my|the) (?:next )?(?P<ed_long>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner)"
         r"(?: with [a-z][a-z' ]{1,25}?)?)(?: today| tomorrow)?\s*\??$"
         r"|^who(?:'s| is) my (?:meeting|call|appointment|lunch|dinner) (?:with )?(?:at|for) (?P<ed_at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)(?: (?P<ed_day>today|tomorrow))?\s*\??$"
-        r"|^(?:what(?:'s| is)|which (?:day|is)) my (?P<ed_busy>busiest|quietest|least busy|freest) day(?: (?:this|next) week)?\s*\??$")),
+        r"|^(?:what(?:'s| is)|which (?:day|is)) my (?P<ed_busy>busiest|quietest|least busy|freest) day(?: (?:this|next) week)?\s*\??$"
+        # "What's after my 2pm", "what do I have after 3" (2026-10-07: to a model).
+        r"|^what(?:'s| is| do i have| have i got)(?: on)? after (?:my |the )?(?P<ed_after>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
+        r"(?: (?:meeting|call|appointment|one))?(?: (?P<ed_after_day>today|tomorrow))?\s*\??$")),
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         # the calendar's own words belong to the calendar's readers
@@ -4291,6 +4294,27 @@ def _tasks_done(when: str = "") -> str:
             done.append(str(t.get("description") or "").strip().rstrip("."))
         elif closed < first:
             earlier.append((closed, str(t.get("description") or "").strip().rstrip(".")))
+    # "I finished the report" with no task for it is kept as a note
+    # (2026-10-07), and "what did I do today" then said nothing was done.
+    noted = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"i(?:'ve| have)? (?:just )?(finished|completed|wrapped up|did|done) (.+)", said, re.IGNORECASE)
+        if not m:
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if first <= day <= last:
+            verb = m.group(1).casefold()
+            noted.append(f"{'did' if verb == 'done' else verb} {speech.as_she_says_it(m.group(2)).rstrip('.')}")
+    if noted:
+        also = f"you told me you {speech.and_list(noted[:4])}"
+        if not done:
+            return f"Nothing ticked off your list {when}, but {also}."
+        return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
+                + f". And {also}.")
     if not done and not asked and earlier:
         # "What tasks did I finish" names no day: today first, and when
         # today is empty, the last thing he did finish rather than nothing.
@@ -4974,6 +4998,15 @@ def _event_detail(text: str) -> str | None:
                 if start.date() == day and start.hour == hour and (not m.group(2) or start.minute == int(m.group(2))):
                     return f"{title[:1].upper() + title[1:]}, {speech.humanize_time(start.isoformat())}."
         return f"Nothing on your calendar at {g['ed_at']}."
+    if g.get("ed_after"):
+        m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", g["ed_after"])
+        hour = int(m.group(1)) % 12 + (12 if (m.group(3) == "pm" or (not m.group(3) and int(m.group(1)) < 8)) else 0)
+        day = now.date() + dt.timedelta(days=1 if g.get("ed_after_day") == "tomorrow" else 0)
+        after = [e for e in events if e[0].date() == day and (e[0].hour, e[0].minute) > (hour, int(m.group(2) or 0))]
+        if not after:
+            return f"Nothing on your calendar after {g['ed_after']}{' tomorrow' if day != now.date() else ''}."
+        start, _end, title = after[0]
+        return f"{title[:1].upper() + title[1:]}, {speech.humanize_time(start.isoformat())}."
     if g.get("ed_busy"):
         nxt = "next week" in text.casefold()
         monday = now.date() - dt.timedelta(days=now.weekday())
@@ -9622,9 +9655,13 @@ def _weight() -> str | None:
 def _work_at() -> str | None:
     """"Where do I work": the note he made saying so. Nothing kept is left
     to whatever else might know (his profile), never answered "no"."""
-    said = re.compile(r"\bi (work|am working|started working|go to school|study) (at|for) (.+)", re.IGNORECASE)
+    said = re.compile(r"\bi (work|am working|started working|go to school|study) (at|for) (.+)"
+                      r"|\bi (?:just )?(?:started|got) (?:a |my |the )?(?:new )?(?:job )?(at) (.+?)(?: today| yesterday| this week)?$",
+                      re.IGNORECASE)
     for row in _notes():
         m = said.search(str(row.get("text") or ""))
+        if m and m.group(3) is None:
+            return f"You told me you work at {m.group(5).strip().rstrip('.')}."
         if m:
             school = m.group(1).casefold() in ("go to school", "study")
             verb = f"{m.group(1).casefold()} {m.group(2).casefold()}" if school else f"work {m.group(2).casefold()}"
