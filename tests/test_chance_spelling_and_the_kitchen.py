@@ -119,3 +119,13 @@ class TimersVolumeAndAppointments(unittest.TestCase):
         self.assertIn("T14:00", got["start"])
         self.assertNotEqual(voice.interpret("book a dentist appointment friday at 2")["command"]["kind"],
                             "calendar_hold")
+
+
+class TheCalendarItself(unittest.TestCase):
+    def test_leap_years(self):
+        self.assertEqual(quick.answer("is 2028 a leap year"), "Yes, 2028 is a leap year.")
+        self.assertIn("wasn't", quick.answer("is 1900 a leap year"))
+        self.assertRegex(quick.answer("when is the next leap year"), r"^\d{4}\.$")
+
+    def test_week_number(self):
+        self.assertRegex(quick.answer("what week is it"), r"^Week \d{1,2} of \d{4}\.$")

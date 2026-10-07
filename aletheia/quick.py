@@ -959,6 +959,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                           r"|(?:convert|what(?:'s| is|s)?) (?:[\d.]+|half a|a half) (?:fluid ounces?|fl oz|teaspoons?|tsp"
                           r"|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) "
                           r"(?:to|in|into) ).{1,30})$")),
+    # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
+    ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
+                                r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
+    ("leap_year", re.compile(r"^is (?:it a leap year|this a leap year|this year a leap year|(?P<what>\d{4}) a leap year)$"
+                             r"|^when(?:'s| is) the (?P<what2>next) leap year$")),
     # "HOW MUCH TIME IS LEFT ON MY TIMER" (2026-10-07: to the planner). A
     # timer is a one-off reminder whose words end "timer is up"; the time
     # left is arithmetic on its due time.
@@ -3228,6 +3233,31 @@ def _timer_left(now=None) -> str | None:
     return lines[0][0].upper() + "; ".join(lines)[1:] + "."
 
 
+def _week_of_year() -> str:
+    from aletheia import localtime
+    import datetime as dt
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    week = today.isocalendar()[1]
+    return f"Week {week} of {today.isocalendar()[0]}."
+
+
+def _leap_year(year: str = "") -> str:
+    import calendar
+    import datetime as dt
+    from aletheia import localtime
+    this = dt.datetime.now(localtime.operator_tz()).year
+    if year == "next":
+        return f"{next(y for y in range(this + 1, this + 9) if calendar.isleap(y))}."
+    if year:
+        n = int(year)
+        verb = "is" if n >= this else "was"
+        return f"Yes, {n} {verb} a leap year." if calendar.isleap(n) else f"No, {n} {verb}n't a leap year."
+    if calendar.isleap(this):
+        return f"Yes, {this} is a leap year."
+    nxt = next(y for y in range(this + 1, this + 9) if calendar.isleap(y))
+    return f"No, {this} isn't. The next leap year is {nxt}."
+
+
 def _coin() -> str:
     import secrets
     return secrets.choice(("Heads.", "Tails."))
@@ -3943,6 +3973,8 @@ def _good_morning() -> str:
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rain": lambda rest: _rain(rest),
            "timer_left": lambda rest: _timer_left(),
+           "week_of_year": lambda rest: _week_of_year(),
+           "leap_year": lambda rest: _leap_year(rest),
            "coin": lambda rest: _coin(),
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),
