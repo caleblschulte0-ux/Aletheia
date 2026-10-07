@@ -2291,6 +2291,19 @@ def two_asks(transcript: str) -> list[str] | None:
                 return False
         return False
 
+    # "Set a timer for pasta for 10 minutes and one for the oven for 20"
+    # (2026-10-07: to the planner): "one" is another timer, and a bare 20
+    # takes the first timer's unit.
+    second = re.fullmatch(r"(?P<left>.*\btimer\b.*?(?P<u>seconds?|minutes?|mins?|hours?|hrs?)\b.*?)"
+                          r",? and (?:one|another(?: one)?) for (?:the |my )?(?P<what>[a-z][a-z ]{0,24}?)"
+                          r" for (?P<n>\d{1,3})(?: (?P<u2>seconds?|minutes?|mins?|hours?|hrs?))?",
+                          said, re.IGNORECASE)
+    if second:
+        right = (f"set a timer for {second.group('what')} for {second.group('n')} "
+                 f"{second.group('u2') or second.group('u')}")
+        if handled(second.group("left")) and handled(right):
+            return [second.group("left"), right]
+
     try:
         whole = interpret(said) or {}
         # Read whole already - but a greedy capture can swallow a second ask:

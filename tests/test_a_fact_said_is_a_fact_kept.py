@@ -4607,5 +4607,19 @@ class MoneyHeToldHer(unittest.TestCase):
             self.assertIn("haven't told me your rent", quick.answer("how much is my rent"))
 
 
+class ASecondTimerSaidAsOne(unittest.TestCase):
+    """"And one for the oven for 20" is another timer, in the first one's unit."""
+
+    def test_one_for_the_oven_is_a_second_timer(self):
+        from aletheia import voice
+        self.assertEqual(voice.two_asks("set a timer for pasta for 10 minutes and one for the oven for 20"),
+                         ["set a timer for pasta for 10 minutes", "set a timer for oven for 20 minutes"])
+
+    def test_a_sentence_with_no_timer_is_not_split_this_way(self):
+        from aletheia import voice
+        self.assertNotEqual(voice.two_asks("add milk and one for the road for 20"),
+                            ["add milk", "set a timer for road for 20 minutes"])
+
+
 if __name__ == "__main__":
     unittest.main()
