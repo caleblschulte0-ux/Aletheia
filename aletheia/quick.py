@@ -602,7 +602,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
     # "How long until my alarm" (2026-10-07: to the planner).
     ("alarm_left", re.compile(
-        r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$")),
+        r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$"
+        # "How much sleep will I get" (2026-10-07: to a model) is the same sum.
+        r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
@@ -7498,6 +7500,11 @@ def _overnight() -> str:
     cutoff = since.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     rows = [e for e in recollection._read_journal(hours)[0]
             if recollection._something_she_did(e) and str(e.get("ts", "")) >= cutoff]
+    # "Refused — Nothing is waiting to be snoozed" is not something that
+    # happened overnight (2026-10-07): a refusal that had nothing to act on
+    # changed nothing, and the morning has three lines to spend.
+    rows = [e for e in rows if not re.match(r"refused\s*[—-]\s*(?:nothing|there(?:'s| is) nothing|no )",
+                                            str(recollection._row(e).get("what") or ""), re.IGNORECASE)]
     lines = [_shortened(str(recollection._row(e).get("what") or "").rstrip(".")) for e in rows[-3:]]
     lines = [l for l in lines if l]
     if lines:

@@ -2113,5 +2113,29 @@ class NextMonthCase(unittest.TestCase):
         self.assertEqual(quick.match("what's due this month")[0], "tasks_due")
 
 
+
+class HowMuchSleepCase(unittest.TestCase):
+    """2026-10-07: "how much sleep will I get" went to a model with an alarm set."""
+
+    def test_the_alarm_sum(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how much sleep will i get")[0], "alarm_left")
+
+
+class AQuietRefusalIsNotOvernightCase(unittest.TestCase):
+    """2026-10-07: "Good morning. Overnight: ...; refused — Nothing is waiting
+    to be snoozed"."""
+
+    def test_dropped(self):
+        from aletheia import quick, recollection
+        rows = [{"ts": "2099-01-01T00:00:00Z", "kind": "action", "actor": "operator-local-core",
+                 "subject": "core:notify_snooze", "text": "refused — Nothing is waiting to be snoozed"}]
+        with mock.patch.object(recollection, "_read_journal", return_value=(rows, True)), \
+                mock.patch.object(recollection, "_something_she_did", return_value=True), \
+                mock.patch.object(recollection, "_row", return_value={"what": "refused — Nothing is waiting to be snoozed"}), \
+                mock.patch.object(quick, "_sent_records", return_value=[]):
+            self.assertNotIn("snoozed", quick._overnight())
+
+
 if __name__ == "__main__":
     unittest.main()
