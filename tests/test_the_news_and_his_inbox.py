@@ -284,3 +284,16 @@ class MoreTimeAndAMovedAlarm(unittest.TestCase):
             got = voice._interpret("change my alarm to 6:30")["command"]
         self.assertEqual((got["kind"], got["replaces"]), ("remind_at", "wake up"))
         self.assertTrue(got["at"].startswith("2030-01-02T06:30"), got["at"])
+
+
+class ATimerIsSaidAsATimer(unittest.TestCase):
+    def test_the_receipts(self):
+        from aletheia import speech
+        self.assertTrue(speech.spoken_receipt(
+            "remind_at", "reminder r1 set for 2030-01-01T12:00:00+00:00 — 'your 10-minute timer is up'")
+            .startswith("Timer set for 10 minutes - it goes off "))
+        self.assertTrue(speech.spoken_receipt(
+            "remind_at", "reminder r1 set for 2030-01-01T12:00:00+00:00 — 'wake up'").startswith("Alarm set for "))
+        self.assertTrue(speech.spoken_receipt(
+            "remind_at", "reminder r1 set for 2030-01-01T12:00:00+00:00 — 'call the vet'")
+            .startswith("I'll remind you "))

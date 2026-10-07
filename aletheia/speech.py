@@ -571,6 +571,16 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "remind_at":
         when = ISO_TIME.search(text)
         what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        # A timer and an alarm are said as what they are: "I'll remind you
+        # at 12:29 am: your 10-minute timer is up" is a reminder ABOUT a
+        # timer, read back to someone who just started one (2026-10-07).
+        timer = what and re.fullmatch(r"your (\S+) timer is up", what.group(1).strip())
+        if when and timer:
+            span = re.sub(r"^(\d+)-(minute|hour|second)$",
+                          lambda g: f"{g.group(1)} {g.group(2)}{'' if g.group(1) == '1' else 's'}", timer.group(1))
+            return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
+        if when and what and what.group(1).strip() == "wake up":
+            return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:
             return (f"I'll remind you {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")
