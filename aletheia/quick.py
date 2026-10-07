@@ -421,10 +421,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
     ("life_when", re.compile(
         r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
-        r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?)\s*\??$"
+        r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?"
+        r"|off(?: work)?(?: next)?|next off|on vacation|working from home|out of (?:the )?office)\s*\??$"
         r"|^when do (?:i|we) (?P<lw2>start (?:my |the |our )?(?:new job|school|college|classes)|move|leave for (?:my |our |the )?(?:vacation|trip|holiday)"
         r"|fly to [a-z][a-z ]{1,25}?)\s*\??$"
-        r"|^when(?:'s| is) (?:my|our) (?P<lw3>vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon)\s*\??$")),
+        r"|^when(?:'s| is) (?:my|our) (?P<lw3>vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon"
+        r"|(?:next )?days? off|time off|pto)\s*\??$"
+        # "Am I working from home today" (2026-10-07: to the planner).
+        r"|^(?:am i|are we) (?P<lw4>working from home|wfh|off(?: work)?|on vacation) (?:today|tomorrow)\s*\??$")),
     # "What's on my calendar tomorrow morning" (2026-10-07: to a model).
     ("agenda_part", re.compile(
         r"^(?:what(?:'s| is)(?: on)?(?: my (?:calendar|schedule))?|what do i have(?: on)?|what have i got(?: on)?|anything(?: on)?"
@@ -2159,7 +2163,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3290,7 +3294,7 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     # "how long until my next meeting" is the calendar's, not a date's
     # (2026-09-23 night sweep: it fell through here to a model).
     if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
-        return _next_meeting()
+        return _next_meeting(until=True)
     # "How many days until the end of the month" (2026-10-07: no answer).
     end = re.fullmatch(r"(?:the )?end of (?:the |this )?(month|year)", " ".join(str(words or "").casefold().split()))
     if end:
@@ -6768,7 +6772,7 @@ def _day_span(text: str) -> str | None:
             f"from {clock(first)} to {clock(last_end)}.")
 
 
-def _next_meeting() -> str | None:
+def _next_meeting(until: bool = False) -> str | None:
     """His next appointment, from the block the wall already renders.
 
     `presence._next_appointment` is the one definition of "next"; reading
@@ -6790,6 +6794,21 @@ def _next_meeting() -> str | None:
     when = str(appointment.get("when") or "").strip()
     if not when:
         return None
+    # "How long until my next meeting" was answered with when it is and
+    # never how long (2026-10-07).
+    if until:
+        try:
+            left = int((dt.datetime.fromisoformat(str(appointment.get("start"))) - now).total_seconds() // 60)
+        except (TypeError, ValueError):
+            left = None
+        if left is not None and left >= 0:
+            from aletheia import speech
+            d, h, m = left // 1440, (left % 1440) // 60, left % 60
+            span = (speech.count_phrase(m, "minute") if left < 60
+                    else speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(m, 'minute')}" if m and h < 3 else "")
+                    if left < 1440
+                    else speech.count_phrase(d, "day") + (f" and {speech.count_phrase(h, 'hour')}" if h and d < 3 else ""))
+            return f"{span[:1].upper()}{span[1:]} - {title + ', ' if title else ''}{when}."
     # "lunch with Sam Friday at 12 pm." began in lower case (2026-10-07).
     return f"Next up: {title}, {when}." if title else f"You've got something {when}."
 
@@ -9239,7 +9258,11 @@ _LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b",
                "holiday": r"\b(?:vacation|holiday)\b", "trip": r"\btrip\b", "new job": r"\bnew job\b", "school": r"\bschool\b",
                "college": r"\bcollege\b", "classes": r"\bclasses\b", "surgery": r"\bsurgery\b", "first day": r"\bfirst day\b",
                "graduation": r"\bgraduat", "graduating": r"\bgraduat", "retiring": r"\bretir", "honeymoon": r"\bhoneymoon\b",
-               "moving day": r"\b(?:moving|move)\b"}
+               "moving day": r"\b(?:moving|move)\b",
+               "off": r"\b(?:days? off|time off|pto|off work|i'?m off|i am off|have \w+ off|taking \w+(?: \w+)? off|on vacation|on holiday)\b",
+               "working from home": r"\b(?:working from home|wfh)\b", "wfh": r"\b(?:working from home|wfh)\b",
+               "out of the office": r"\bout of (?:the )?office\b", "out of office": r"\bout of (?:the )?office\b",
+               "pto": r"\b(?:days? off|time off|pto|off work|on vacation)\b"}
 
 
 def _life_when(text: str) -> str | None:
@@ -9249,7 +9272,7 @@ def _life_when(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("life_when", text)
-    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or "").strip()
+    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or "").strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
     place = re.search(r"(?:fly|flying) to (.+)$", asked)
     pattern = (r"\b(?:fly|flying|flight) to " + re.escape(place.group(1))) if place else _LIFE_WORDS.get(key or "")
@@ -10331,7 +10354,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "free_at": lambda rest: _free_at(rest),
            "reckon": lambda rest: _reckon(rest),
            "days_left": lambda rest: _days_left(rest),
-           "next_meeting": lambda rest: _next_meeting(),
+           "next_meeting": lambda rest: _next_meeting(until=str(rest).casefold().startswith("how long")),
            "next_detail": lambda rest: _next_detail(rest),
            "took_today": lambda text: _took_asked(text),
            "pct_of": lambda rest: _pct_of(rest),

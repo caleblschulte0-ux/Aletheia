@@ -4320,5 +4320,36 @@ class MarriedFlightNumbersAndTheWayHome(unittest.TestCase):
             self.assertIsNone(quick.answer("how long have i been married"))
 
 
+class DaysOffAndWorkingFromHome(unittest.TestCase):
+    """2026-10-07: "I have a day off Friday", "I'm on vacation next week", "I'm
+    working from home today" and "I'll be late tonight" went to the planner;
+    "how long until my next meeting" said when, never how long."""
+
+    def test_writers(self):
+        from aletheia import voice
+        for said in ("i have a day off friday", "i'm on vacation next week", "i'm working from home today",
+                     "i'll be late tonight", "i'm taking friday off", "i have monday off"):
+            self.assertEqual(((voice._interpret(said) or {}).get("command") or {}).get("kind"), "note", said)
+
+    def test_readers(self):
+        from unittest import mock
+        from aletheia import quick
+        rows = [{"text": "I'm working from home today"}, {"text": "I have a day off Friday"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("Friday", quick.answer("when is my next day off"))
+            self.assertIn("working from home", quick.answer("am i working from home today"))
+
+    def test_how_long_until_the_next_meeting(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import localtime, presence, quick
+        now = dt.datetime.now(localtime.operator_tz())
+        appt = {"title": "Standup", "when": "today at 3 pm", "start": (now + dt.timedelta(minutes=95)).isoformat()}
+        with mock.patch.object(presence, "_next_appointment", return_value=appt):
+            said = quick.answer("how long until my next meeting")
+            self.assertTrue(said.startswith("1 hour and 3") or said.startswith("1 hour and 34"), said)
+            self.assertTrue(quick.answer("what's my next meeting").startswith("Next up"))
+
+
 if __name__ == "__main__":
     unittest.main()

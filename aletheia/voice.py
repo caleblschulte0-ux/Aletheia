@@ -3594,9 +3594,11 @@ def _interpret(transcript: str) -> dict:
     # "help me focus" and "end the focus session" all reached the planner).
     m = re.fullmatch(r"(?:start|begin|do|let'?s do|set up) (?:a |an |my )?(?:focus|pomodoro|deep work|work) "
                      r"(?:session|block|timer|sprint)(?: for (\d{1,3}) (?:minutes?|mins?))?"
-                     r"|(?:help me focus|i need to focus|pomodoro)(?: for (\d{1,3}) (?:minutes?|mins?))?", low)
+                     r"|(?:help me focus|i need to focus|i want to focus|pomodoro)(?: for (\d{1,3}) (?:minutes?|mins?))?"
+                     r"|(?:i need to focus|i want to focus|help me focus|start a focus session) for (?:(\d) hours?|an? (hour)|(half) an hour)", low)
     if m:
-        n = m.group(1) or m.group(2) or "25"
+        n = (m.group(1) or m.group(2) or (str(int(m.group(3)) * 60) if m.group(3) else None)
+             or ("60" if m.group(4) else None) or ("30" if m.group(5) else None) or "25")
         return _interpret(f"set a timer for focus for {n} minutes")
     if re.fullmatch(r"(?:end|stop|cancel|finish|quit|kill) (?:the |my |this )?(?:focus|pomodoro|deep work) "
                     r"(?:session|block|timer|sprint)|i'?m done focusing", low):
@@ -7914,6 +7916,13 @@ def _interpret(transcript: str) -> dict:
                     r"|flying to [a-z][a-z ]{1,25}?|driving to [a-z][a-z ]{1,25}?|having surgery"
                     r"|starting (?:my |a )?(?:new job|school|college|classes|work)|retiring|graduating)(?: to [a-z][a-z ]{1,25}?)? " + _when, low) \
             or re.fullmatch(r"(?:i|we) (?:start|begin) (?:my |our |a )?(?:new job|school|college|classes|work|the new job) " + _when, low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are|i'?ll be|i will be) (?:on vacation|on holiday|off(?: work)?|out of (?:the )?office"
+                            r"|working from home|wfh|working late|late|home late|out of town|away) " + _when, low) \
+            or re.fullmatch(r"(?:i'?m|i am) taking (?:the day |a day |time |pto |a few days )?off " + _when, low) \
+            or re.fullmatch(r"(?:i'?m|i am) taking (?:" + _when + r") off", low) \
+            or re.fullmatch(r"i (?:have|got|'ve got|have got) (?:a |the )?(?:day off|days off|time off|pto) " + _when, low) \
+            or re.fullmatch(r"i (?:have|got|'ve got|have got) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow"
+                            r"|next week|the day|the week) off", low) \
             or re.fullmatch(r"(?:my|our) (?:vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon|flight to [a-z ]{2,20}?)"
                             r" (?:is|starts|begins) " + _when, low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
