@@ -4909,5 +4909,17 @@ class WhatWentOnTheListToday(unittest.TestCase):
             self.assertEqual(quick.answer("what did i add to the list today"), "Added today and still on the list: milk.")
 
 
+class HowOldIsMyMomByEitherName(unittest.TestCase):
+    def test_the_relation_finds_the_notes_when_she_has_a_name(self):
+        from aletheia import quick
+        notes = [{"text": "my mom was born in 1962"}, {"text": "my mom's birthday is april 12"},
+                 {"text": "my mom's name is linda"}]
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(quick, "_name_for_relation", return_value="linda"):
+            said = quick.answer("how old is my mom") or ""
+        self.assertTrue(said.startswith("Linda is "), said)
+        self.assertIn("April 12", said)
+
+
 if __name__ == "__main__":
     unittest.main()
