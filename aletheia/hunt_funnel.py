@@ -19,6 +19,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -64,6 +65,25 @@ def _closed_bucket(record: dict) -> str:
     # `closure_kind` calls everything it cannot place "unfit", and every
     # unfit closure is a judgement that the job was not realistic for him.
     return "not_realistic" if kind == "unfit" else "other"
+
+
+#: A failure's own words name an employer, a url or a question, and this
+#: repo is public, so only its SHAPE is published: never pressed, refused
+#: by the site, or the name of the error that stopped it.
+_ERROR_NAME = re.compile(r"^([A-Za-z_][A-Za-z0-9_]{2,60}(?:Error|Exception|Timeout|Busy|Refused|Closed))\s*:")
+
+
+def _failed_bucket(record: dict) -> str:
+    why = str(record.get("failure") or "")
+    low = why.casefold()
+    if "nothing was ever pressed" in low:
+        return "never_pressed"
+    if low.startswith("the site refused it"):
+        return "site_refused"
+    named = _ERROR_NAME.match(why.strip())
+    if named:
+        return named.group(1)
+    return "other"
 
 
 WORKED = ("AWAITING_YOU", "NEEDS_YOU", "NEEDS_ACCOUNT", "SUBMITTED", "SUBMITTING", "FAILED", "REJECTED", "APPROVED")
@@ -142,7 +162,7 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
     zone = localtime.operator_tz()
     now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(zone)
     out = {"to_send": 0, "his_ok": {}, "needs_answer": 0, "needs_account": 0, "failed": 0,
-           "closed": {}, "oldest_days": 0}
+           "closed": {}, "failed_because": {}, "oldest_days": 0}
     for r in rows:
         if not isinstance(r, dict):
             continue
@@ -159,6 +179,8 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
             out["needs_account"] += 1
         elif state == "FAILED":
             out["failed"] += 1
+            kind = _failed_bucket(r)
+            out["failed_because"][kind] = out["failed_because"].get(kind, 0) + 1
         elif state == "CLOSED":
             if first and _day(r.get("closed_at") or r.get("staged_at"), zone) < first:
                 continue
@@ -174,6 +196,7 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
             pass
     out["his_ok"] = dict(sorted(out["his_ok"].items()))
     out["closed"] = dict(sorted(out["closed"].items()))
+    out["failed_because"] = dict(sorted(out["failed_because"].items()))
     return out
 
 

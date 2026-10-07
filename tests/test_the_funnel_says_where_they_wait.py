@@ -56,6 +56,18 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
                          {"gone": 1, "left": 1, "not_a_form": 2, "stale": 1})
 
+    def test_a_failure_is_counted_by_its_shape_never_its_words(self):
+        rows = [row("FAILED", failure="TimeoutError: page.goto https://acme.example/jobs/1 timed out"),
+                row("FAILED", failure="BrowserBusy: in use (tried 3 times, nothing was ever pressed)"),
+                row("FAILED", failure="the site refused it: Acme needs a cover letter"),
+                row("FAILED", failure="ApplyError: Acme's form wants a phone extension"),
+                row("FAILED", failure="Acme Robotics broke something")]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]
+        self.assertEqual(held["failed"], 5)
+        self.assertEqual(held["failed_because"], {"ApplyError": 1, "TimeoutError": 1, "never_pressed": 1,
+                                                  "other": 1, "site_refused": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
+
     def test_nothing_that_names_an_employer_is_published(self):
         rows = [row("CLOSED", closed_because="Acme Robotics said no", company="Acme Robotics",
                     closed_at="2026-10-06T10:00:00Z"),
