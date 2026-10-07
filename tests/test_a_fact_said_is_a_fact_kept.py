@@ -3768,5 +3768,20 @@ class AgesFromAYearAndTheEmailAskedFor(unittest.TestCase):
         self.assertTrue(said.startswith("I don't have an email for Dana - only the number"))
 
 
+class HisAgeAheadAndHisNickname(unittest.TestCase):
+    def test_from_the_birthday_on_file(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(8, 4, 1995)):
+            self.assertRegex(quick.answer("how old will I be next year"), r"^\d+")
+            self.assertRegex(quick.answer("how many days old am I"), r"^[\d,]+ days\.$")
+            self.assertTrue(quick.answer("what's my zodiac sign").startswith("Leo"))
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(8, 4, None)):
+            self.assertIn("not the year", quick.answer("how many days old am I"))
+
+    def test_nickname_is_what_she_calls_him(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's my nickname")[0], "call_me")
+
+
 if __name__ == "__main__":
     unittest.main()

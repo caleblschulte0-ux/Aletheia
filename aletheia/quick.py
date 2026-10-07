@@ -674,7 +674,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's my zodiac sign", "what day was I born" (2026-10-07: to a model).
     ("born_facts", re.compile(
         r"^(?:what(?:'s| is|s) my (?P<born_q>zodiac sign|star sign|sign|astrological sign|zodiac)"
-        r"|what (?P<born_q2>day)(?: of the week)? was i born(?: on)?)\s*\??$")),
+        r"|what (?P<born_q2>day)(?: of the week)? was i born(?: on)?"
+        # "How old will I be next year", "how many days old am I" (2026-10-07: to a model)
+        r"|how old (?:will|would) i be (?P<born_q3>next year)"
+        r"|how many (?P<born_q4>days|weeks|months) (?:old am i|have i been alive))\s*\??$")),
     # DEADLINES HE SET. "Add a task to renew my license by Friday" stores a
     # real deadline; "what's due this week" and "what's overdue" told him she
     # couldn't think (2026-10-07).
@@ -1428,7 +1431,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|asking (?:pay|salary|price)|pay(?: expectation| expectations)?|notice period|start date)$"
         r"|^who am i$")),
     # "What should you call me" (2026-10-07: to a model).
-    ("call_me", re.compile(r"^what (?:should|do|will) (?:you|u) call me$|^what do i go by$")),
+    ("call_me", re.compile(r"^what (?:should|do|will) (?:you|u) call me$|^what do i go by$"
+                           # "What's my nickname" (2026-10-07: to a model)
+                           r"|^what(?:'s| is) my (?:nickname|nick name|preferred name)\s*\??$")),
     # WHAT SHE HUNTS FOR (2026-09-23 night sweep): "what roles are you looking
     # for", "what are you applying to" and "what's my minimum salary" each
     # waited on a model for stores she holds.
@@ -2101,7 +2106,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3134,6 +3139,25 @@ def _born_facts(which: str) -> str:
     if not held:
         return "I don't have your birthday. Say \"my birthday is March 3rd, 1995\" and I'll remember it."
     month, day, year = held
+    asked = str(which or "")
+    if asked == "next year" or asked in ("days", "weeks", "months"):
+        if not year:
+            return "I have your birthday but not the year. Say \"my birthday is\" with the year and I'll know."
+        from aletheia import localtime
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        age = today.year - year - ((today.month, today.day) < (month, day))
+        if asked in ("days", "weeks", "months"):
+            try:
+                lived = (today - dt.date(year, month, day)).days
+            except ValueError:
+                return "I couldn't work that out from the birthday I have."
+            n = {"days": lived, "weeks": lived // 7, "months": age * 12 + (today.month - month) % 12 - (today.day < day)}[asked]
+            return f"About {n:,} {asked}." if asked != "days" else f"{n:,} days."
+        # the birthday he turns next is this year's when it has not come yet
+        upcoming = (today.month, today.day) < (month, day)
+        return (f"{age + 2} - you turn {age + 1} on {dt.date(2000, month, day).strftime('%B')} {day} this year, "
+                f"and {age + 2} on it next year." if upcoming
+                else f"{age + 1}, on {dt.date(2000, month, day).strftime('%B')} {day} next year.")
     if which == "day":
         if not year:
             return "I have your birthday but not the year. Say \"my birthday is\" with the year and I'll know."
@@ -9792,7 +9816,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "work_at": lambda rest: _work_at(),
-           "born_facts": lambda rest: _born_facts("day" if rest == "day" else "sign"),
+           "born_facts": lambda rest: _born_facts(rest if rest in ("day", "next year", "days", "weeks", "months") else "sign"),
            "weight": lambda rest: _weight(),
            "counted": _counted,
            "ate": _ate,
