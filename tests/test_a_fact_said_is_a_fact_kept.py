@@ -5587,5 +5587,43 @@ class WhenHeLeftWork(unittest.TestCase):
             self.assertNotIn("still at it", quick.answer("how long did I work today"))
 
 
+class AWhenIsNotAnAmount(unittest.TestCase):
+    """2026-10-07: "when is rent due" answered "your rent is 1500"; "how
+    much is rent", "what calls do I need to make", "did I sleep enough" and
+    "I usually go to bed at 11" went to a model or the planner."""
+
+    def _rows(self, *texts):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": now} for t in texts])
+
+    def test_when_is_due_needs_a_when(self):
+        with self._rows("my rent is 1500"), mock.patch.object(quick, "_coming", return_value=[]):
+            said = quick._task_due("rent")
+            self.assertNotIn("1500", said)
+            self.assertIn("haven't told me when", said)
+        with self._rows("my rent is 1500", "my rent is due on the 1st"), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertEqual(quick._task_due("rent"), "You told me: your rent is due on the 1st.")
+
+    def test_how_much_is_rent(self):
+        with self._rows("my rent is 1500"):
+            self.assertIn("1500", quick.answer("how much is rent"))
+
+    def test_did_i_sleep_enough(self):
+        with self._rows("I slept 6 hours last night"):
+            self.assertIn("seven to nine", quick.answer("did I sleep enough"))
+        with self._rows():
+            self.assertIn("haven't told me", quick.answer("did I get enough sleep"))
+
+    def test_a_habit_he_states(self):
+        for said in ("I usually go to bed at 11", "I go to bed at 11 usually", "I usually wake up at 6:30"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        with self._rows("I go to bed at 11 usually"):
+            self.assertIn("11", quick.answer("what time do I usually go to bed"))
+
+    def test_what_calls_do_i_need_to_make(self):
+        self.assertIn("tasks_verb", [n for n, p in quick.PATTERNS if p.search("what calls do i need to make")])
+
+
 if __name__ == "__main__":
     unittest.main()

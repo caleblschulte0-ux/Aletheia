@@ -4719,6 +4719,14 @@ def _interpret(transcript: str) -> dict:
                     r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
                     r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
         return {"command": {"kind": "note", "text": "finished work"}, "say": None}
+    # "I usually go to bed at 11", "I go to bed at 11 usually" (2026-10-07:
+    # to the planner). His habit, in his words; "what time do I usually go
+    # to bed" reads it until there are nights enough to work it out.
+    if re.fullmatch(r"(?:i (?:usually|normally|always|tend to) (?:go to bed|go to sleep|wake up|get up)"
+                    r" (?:at |around |by )?\d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:most nights|every night|on weekdays))?"
+                    r"|i (?:go to bed|go to sleep|wake up|get up) (?:at |around |by )?\d{1,2}(?::\d\d)? ?(?:am|pm)?"
+                    r" (?:usually|normally|most nights|most mornings|every night|every morning|on weekdays))", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm leaving work" (2026-10-07) was answered "Safe trip home" and not
     # kept, so "how long was I at work" counted on to midnight. It is the
     # end of his work day as well as a goodbye.

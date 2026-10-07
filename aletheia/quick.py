@@ -450,6 +450,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how much (?:do (?:i|we) (?:spend|pay) (?:on|for) (?:my |our )?|are my |is my )(?:monthly )?(?P<cost_bills2>bills|expenses)"
         r"(?: (?:in total|altogether|total))?(?: (?:a|each|per|every) month| monthly)?\s*\??$"
         r"|^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
+        # "How much is rent" (2026-10-07: to a model, beside "my rent is 1500").
+        r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage)(?: (?:a|per|each) month)?\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
@@ -883,6 +885,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:much|many hours of) sleep (?:did i get|have i had|have i gotten) (?P<logged_sleep4>this week)\s*\??$"
         # "How much sleep did I get" (2026-10-07: to a model).
         r"|^how (?:much|many hours of) (?P<logged_sleep2>sleep) (?:did i get|have i had|have i gotten)(?: last night)?\s*\??$"
+        # "Did I sleep enough" (2026-10-07: to the planner).
+        r"|^(?:did i|have i been) (?:get(?:ting)? enough sleep|sleep(?:ing)? enough|(?P<logged_enough>sleep(?:ing)? well))(?: last night)?\s*\??$"
+        r"|^(?:did i|have i) (?:get|gotten|got) enough sleep(?: last night)?\s*\??$"
         r"|^(?:did|have) i (?P<logged_did>work(?:ed)? out|exercised?|meditated?|stretch(?:ed)?|done yoga|did yoga|gone to the gym|go to the gym)"
         r"(?P<logged_w3> today| this week)?\s*\??$")),
     ("holiday_next", re.compile(
@@ -1197,7 +1202,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("tasks_verb", re.compile(
         r"^what (?:do i|else do i|have i got to|do i still) (?:need|have|got) to (?P<tv>return|call|pay|pick up|drop off|fix|mail|send|email|text"
         r"|schedule|book|cancel|renew|clean|wash|finish|sign|file|read|write|print|ship|sell|clean up|book|look into|follow up on)\s*\??$"
-        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with)\s*\??$")),
+        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with)\s*\??$"
+        # "What calls do I need to make" (2026-10-07: to a model).
+        r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
     ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?the list$")),
     ("shopping", re.compile(
         r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
@@ -2605,6 +2612,18 @@ def _logged(text: str) -> str | None:
             return f"You've told me about one night this week: {_plain(total)} hours."
         return (f"{_plain(round(total, 1))} hours over the {len(nights)} nights you told me about - "
                 f"about {_plain(round(total / len(nights), 1))} a night.")
+    if re.search(r"\benough\b|\bsleep(?:ing)? well\b", text.casefold()) and "how " not in text.casefold():
+        # "Did I sleep enough": last night's hours against the usual
+        # seven to nine, from his own words; nothing told, nothing judged.
+        heard = _logged("how much did i sleep last night")
+        hours = re.match(r"(?:About )?(\d+(?:\.\d+)?)(?: hours?| hour)?(?: and (\d+) minutes?)?", heard or "")
+        if not hours:
+            return heard
+        h = float(hours.group(1)) + (int(hours.group(2)) / 60 if hours.group(2) else 0)
+        verdict = ("Not quite - most adults need seven to nine hours." if h < 7
+                   else "Yes - that's in the seven to nine hours most adults need." if h <= 9
+                   else "Plenty - more than the seven to nine most adults need.")
+        return f"{heard} {verdict}"
     if g.get("logged_sleep") or g.get("logged_sleep2"):
         for at, said in rows:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
@@ -4917,7 +4936,7 @@ def _task_due(words: str) -> str | None:
     if len(hits) != 1:
         # "When is rent due" with a monthly reminder to pay it (2026-10-07:
         # "I have nothing about rent on file").
-        return (_when_mine(words) or _recall(words)) if not hits else None
+        return (_when_mine(words) or _due_note(words)) if not hits else None
     task = hits[0]
     what = str(task.get("description") or task.get("id") or "").strip().rstrip(".")
     what = what[:1].upper() + what[1:]
@@ -4933,6 +4952,32 @@ def _task_due(words: str) -> str | None:
     # is the store's, not his.
     said = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat()))
     return f"{what} is due {said}."
+
+
+def _due_note(words: str) -> str | None:
+    """A note of his saying WHEN the thing is due. "When is rent due"
+    answered "your rent is 1500" (2026-10-07): a note that names it but no
+    day answers a different question, so it is not read back as this one."""
+    from aletheia import speech
+    asked = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in ("my", "the", "a", "an", "our")]
+    if not asked:
+        return None
+    dated = re.compile(r"\b(?:due|every|each|on the|by|before|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                       r"|january|february|march|april|may|june|july|august|september|october|november|december"
+                       r"|\d{1,2}(?:st|nd|rd|th)|first|last day|end of)\b", re.I)
+    named = False
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not all(re.search(rf"\b{re.escape(w)}", said, re.I) for w in asked):
+            continue
+        named = True
+        if dated.search(said):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    if named:
+        thing = " ".join(asked)
+        verb = "are" if thing.endswith("s") and not thing.endswith("ss") else "is"
+        return f"You haven't told me when your {thing} {verb} due. Say \"my {thing} {verb} due on the 1st\" and I'll remember."
+    return _recall(words)
 
 
 def _task_progress() -> str:
@@ -8634,7 +8679,10 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     for row in ([] if until else _notes()):
         said = " ".join(str(row.get("text") or "").split())
         if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", said.casefold()) for w in words) \
-                and re.search(r"\d|day\b|tomorrow|tonight|noon", said.casefold()):
+                and re.search(r"\b\d{1,2}(?:st|nd|rd|th|:\d\d| ?[ap]\.?m\b)|\b(?:at|on|the|by) \d{1,2}\b|\b\d{1,2}/\d{1,2}\b"
+                              r"|day\b|tomorrow|tonight|noon", said.casefold()):
+            # A when, not just a number: "my rent is 1500" answered "when
+            # is rent due" (2026-10-07).
             return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
     # Nothing by that name in her stores is not "you have none": it may be
     # in his mail, which a model can read. Only a found answer is quick.
@@ -10247,7 +10295,7 @@ def _cost_mine(text: str) -> str | None:
         if g.get("cost_bills2") and whole:
             return f"About {_money(round(total))} a month. {listed}"
         return listed
-    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or "").casefold().split())
+    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or "").casefold().split())
     # "How much do I spend on groceries a month" (2026-10-07: to a model,
     # with "I spent 60 on groceries" kept): what he told her he spent.
     if thing and g.get("cost_mine2") and not re.fullmatch(_BILL_KEYS, thing):
@@ -10585,7 +10633,10 @@ def _tasks_verb(text: str) -> str | None:
     they're due. None when none do: the thing may be in his notes or mail."""
     from aletheia import speech, tasks
     g = _groups("tasks_verb", text)
-    verb = (g.get("tv") or g.get("tv2") or "").strip()
+    verb = (g.get("tv") or g.get("tv2") or {"calls": "call", "emails": "email", "returns": "return", "payments": "pay",
+                                              "errands": ""}.get(g.get("tv3") or "", "") or "").strip()
+    if g.get("tv3") == "errands":
+        return _tasks()
     if not verb:
         return None
     live = [t for t in tasks.all_tasks()
@@ -10703,6 +10754,14 @@ def _woke_usual(text: str) -> str:
             at += 24 * 60       # after midnight is later the same night
         minutes.append(at)
     if len(minutes) < 2:
+        # "I usually go to bed at 11" (2026-10-07) is the answer itself.
+        habit = re.compile(r"\bi (?:usually |normally |always |tend to )?(?:" + ("go to bed|go to sleep" if bed else "wake up|get up")
+                           + r") (?:at |around |by )?\d", re.I)
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            if habit.search(said) and re.search(r"\b(?:usually|normally|always|tend to|most (?:nights|days|mornings)|every (?:night|day|morning)|on weekdays)\b", said, re.I):
+                from aletheia import speech
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
         return _woke("go to bed" if bed else "wake up") + (
             " That's the only time you've told me, so I can't say what's usual yet." if minutes else "")
     minutes.sort()
