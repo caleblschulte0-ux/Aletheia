@@ -3321,5 +3321,45 @@ class HisBodyAndHisMedicine(unittest.TestCase):
             self.assertEqual(quick.answer("who's my emergency contact"), "Your emergency contact is your mom.")
 
 
+class HisFamilyAndHisHouse(unittest.TestCase):
+    def test_said_is_kept(self):
+        for said in ("Leo's teacher is Mrs. Brown", "Leo's school is Lincoln Elementary", "my daughter is allergic to nuts",
+                     "Leo was born on May 3 2018", "the trash goes out on Tuesdays", "recycling is every other Wednesday",
+                     "the kids have soccer on Saturdays at 9", "the babysitter is coming at 6", "my car's mileage is 45000"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        for not_a_fact in ("the trash is full", "it is coming at 6"):
+            got = voice._interpret(not_a_fact)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", not_a_fact)
+
+    def test_read_back_by_what_he_asks(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": t, "ts": now} for t in (
+            "the trash goes out on Tuesdays", "the babysitter is coming at 6", "the kids have soccer on Saturdays at 9",
+            "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln Elementary", "my daughter is allergic to nuts",
+            "Leo was born on May 3 2018", "my son's name is Leo", "my car's mileage is 45000")]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("when does the trash go out"), "You told me: the trash goes out on Tuesdays.")
+            self.assertEqual(quick.answer("when is the babysitter coming"), "You told me: the babysitter is coming at 6.")
+            self.assertEqual(quick.answer("when is soccer"), "You told me: the kids have soccer on Saturdays at 9.")
+            self.assertEqual(quick.answer("who is my son's teacher"), "You told me: Leo's teacher is Mrs. Brown.")
+            self.assertEqual(quick.answer("what school does Leo go to"), "You told me: Leo's school is Lincoln Elementary.")
+            self.assertEqual(quick.answer("what is my daughter allergic to"), "You told me: your daughter is allergic to nuts.")
+            self.assertTrue(quick.answer("how old is my son").startswith("Leo is "))
+            self.assertEqual(voice._interpret("what's my car's mileage")["say"], "You told me: your car's mileage is 45000.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("when is soccer"))
+
+    def test_a_car_job_is_a_task_and_a_pickup_time_is_a_reminder(self):
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]):
+            self.assertEqual(voice._interpret("my car needs an oil change")["command"]["description"], "get the car an oil change")
+            self.assertEqual(voice._interpret("my car needs new tires")["command"]["description"], "get the car new tires")
+        got = voice._interpret("pick up Leo at 3")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "pick up Leo"))
+        from aletheia import quick
+        self.assertEqual(quick.match("what time do I pick up Leo"), ("when_do_i", "pick up leo"))
+
+
 if __name__ == "__main__":
     unittest.main()

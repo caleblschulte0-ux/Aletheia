@@ -5445,7 +5445,33 @@ def _interpret(transcript: str) -> dict:
                     r"(?:mileage|milage)|"
                     r"how many miles (?:are )?on (?:my|the) car|"
                     r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
+        # "My car's mileage is 45000" is a note (2026-10-07); with no
+        # vehicle on record, what he told her is the answer.
+        from aletheia import quick
+        for row in quick._notes():
+            said = " ".join(str(row.get("text") or "").split())
+            if re.match(r"(?:my|the|our) (?:car|truck|van|suv)(?:'s|s)? (?:mileage|milage|odometer|miles?) (?:is|are|reads?|says?) .*\d"
+                        r"|(?:my|the|our) (?:car|truck|van|suv) has \d[\d,]* miles", said.casefold()):
+                return {"command": None, "say": f"You told me: {speech.as_she_says_it(said).rstrip('.')}."}
         return {"command": {"kind": "car"}, "say": None}
+    # "MY CAR NEEDS AN OIL CHANGE" (2026-10-07: to the planner) - a thing to
+    # do, on his list, in words he would say back.
+    m = re.fullmatch(r"(?:my|the|our) (?P<v>car|truck|van|suv|bike|motorcycle) needs (?:an? |its |some |to get (?:an? )?)?"
+                     r"(?P<what>oil change|tune[- ]up|new tires|tires|brakes|new brakes|inspection|smog check|emissions test|alignment"
+                     r"|wash|car wash|service|servicing|tire rotation|battery|new battery|wipers|new wipers|registration|detailing"
+                     r"|to be (?:washed|serviced|inspected|registered))(?: soon| this week| this month)?", low)
+    if m:
+        what = re.sub(r"^to be ", "", m.group("what"))
+        if what in ("washed", "serviced", "inspected", "registered"):
+            return _new_task(f"get the {m.group('v')} {what}")
+        return _new_task(f"get the {m.group('v')} {'an ' if what[0] in 'aeiou' else 'a ' if not what.endswith('s') else ''}{what}")
+    # "PICK UP LEO AT 3" (2026-10-07: to the planner). An errand with a time
+    # on it, said as a note to himself, is the reminder he would have asked for.
+    if re.fullmatch(r"(?:pick up|drop off|collect|get) (?!milk\b|groceries\b)[a-z][a-z' ]{1,25} (?:at|by) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?"
+                    r"(?: today| tomorrow)?", low):
+        got = _interpret("remind me to " + text.strip())
+        if got and (got.get("command") or {}).get("kind") == "remind_at":
+            return got
 
     # HIS LONG MISSIONS, BY SAYING SO (aletheia.programs). An objective that
     # runs for weeks is a sentence; so is adding to it, confirming its draft,
@@ -7049,6 +7075,36 @@ def _interpret(transcript: str) -> dict:
                     r"|i have (?:an? |a severe |a mild )?(?:[a-z]+ )?allerg(?:y|ies) to [a-z][a-z ,'-]{1,60}"
                     r"|my allerg(?:y is|ies are) [a-z][a-z ,'-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHEN SOMETHING HAPPENS AT HIS HOUSE (2026-10-07: "the trash goes out
+    # on Tuesdays", "recycling is every other Wednesday", "the kids have
+    # soccer on Saturdays at 9", "the babysitter is coming at 6" - all to
+    # the planner). A note in his words, read back by "when is soccer".
+    _days = r"(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)"
+    _at = r"(?: (?:at|around|by) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?"
+    m = (re.fullmatch(r"(?:the )?(?P<thing>trash|garbage|recycling|rubbish|bins?|compost|yard waste|cleaner|cleaners|cleaning lady"
+                      r"|gardener|lawn guy|mail|newspaper|street cleaning|piano lessons?|[a-z]+ practice|[a-z]+ lessons?|[a-z]+ class)"
+                      r" (?:goes out|go out|is|are|comes|come|happens|gets picked up|is picked up|is collected|day is)"
+                      r" (?:on |every |each )?(?:other )?(?:" + _days + r"|day)" + _at, low)
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|[a-z]{2,15}) (?:have|has|go to|goes to) "
+                         r"(?P<thing2>[a-z][a-z ]{1,20}?) (?:on |every |each )(?:other )?" + _days + _at, low)
+         or re.fullmatch(r"(?:the |my |our )?(?P<thing3>babysitter|sitter|nanny|cleaner|cleaners|plumber|electrician|handyman"
+                         r"|contractor|delivery|repair ?man|technician|movers|guests|in-laws|my parents|[a-z]{2,15}) (?:is|are) "
+                         r"(?:coming|arriving|coming over|getting here) (?:at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|tonight|tomorrow"
+                         r"(?: at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                         + _at + r")", low))
+    if m and not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
+    # daughter is allergic to nuts" and "Leo was born on May 3 2018" went
+    # to the planner, and "how old is Leo" had nothing to read).
+    m = re.fullmatch(r"(?:my |our )?(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:is|are) (?:very |severely |really )?allergic to "
+                     r"[a-z][a-z ,'-]{1,60}"
+                     r"|(?:my |our )?(?P<who2>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:was|were) born (?:on |in )?"
+                     r"(?:" + _MONTH + r"\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)? (?:of )?" + _MONTH + r")(?:,? (?:19|20)\d\d)?", low)
+    if m and (m.group("who") or m.group("who2")).split()[0] not in (
+            "i", "he", "she", "it", "they", "who", "what", "which", "that", "this", "everyone", "everybody", "nobody", "someone",
+            "you", "we"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A FACT ABOUT HIM, SAID AS ONE. "My favorite color is blue", "my wifi
     # password is ...", "Jess's birthday is March 3" went to the planner
     # (2026-10-07). Kept as a note in his words, which is what `quick`
@@ -7059,7 +7115,11 @@ def _interpret(transcript: str) -> dict:
     # "Remember Dana's birthday is March 3" kept "remember" inside the note
     # and inside the name (2026-10-07). The verb is not the fact.
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
-    m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary)"
+    m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary"
+                     # "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln
+                     # Elementary" (2026-10-07: to the planner).
+                     r"|teacher|school|coach|pediatrician|doctor|dentist|class|grade|team|best friend|nickname|shoe size"
+                     r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
                      r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
@@ -7076,6 +7136,7 @@ def _interpret(transcript: str) -> dict:
                      # "My emergency contact is my mom", "my prescription is
                      # lisinopril 10mg" (2026-10-07: to the planner).
                      r"|emergency contact|prescriptions?|medications?|meds|daily medication"
+                     r"|(?:car|truck|van|suv)(?:'s|s)? (?:mileage|milage|odometer)"
                      # "My rent is 1500", "my car insurance is 120 a month"
                      # (2026-10-07: to the planner) - held to a number below.
                      r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)

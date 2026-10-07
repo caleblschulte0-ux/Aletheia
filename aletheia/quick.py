@@ -354,6 +354,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who is Dana" (2026-10-07: to the planner) - her contact card and his
     # notes about them. Neither found is NOT "nobody": it may be someone
     # famous, so it goes on to a model.
+    ("their_fact", re.compile(
+        r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
+        r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
+        r"|middle name|last name)(?: name)?\s*\??$"
+        r"|^what (?P<tf_key2>school|grade|class|daycare) (?:does|is) (?P<tf_who2>(?:my )?[a-z][a-z']{1,20}) (?:go to|in|at)\s*\??$"
+        r"|^what (?:is|are) (?P<tf_who3>(?:my )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?P<tf_allergy>allergic to)\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$")),
@@ -1211,6 +1217,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
         r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow|this week|next))?\s*\??$")),
+    # "What time do I pick up Leo" (2026-10-07: to a model) - the reminder
+    # he set for it, read like "what time is my dentist".
+    ("when_do_i", re.compile(
+        r"^(?:what time|when) do i (?:have to |need to |got to )?(?P<when_do_i>(?:pick up|drop off|collect|get) [a-z][a-z' ]{1,25}?)"
+        r"(?: today| tomorrow)?\s*\??$")),
     ("reminders_on", re.compile(
         r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
         r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
@@ -1920,6 +1931,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # locker combo" paid a model to find "my locker combo is 12 34 56").
     # LAST, and silent when no note says "my X is": the model still answers.
     ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
+    # LAST, so every specific door wins: "when does the trash go out",
+    # "when is soccer", "when is the babysitter coming" read the note he
+    # made saying so (2026-10-07: all to a model). None when no note does.
+    ("when_note", re.compile(
+        r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
+        r"(?P<when_note>[a-z][a-z' ]{1,25}?)"
+        r"(?: go out| come| happen| start| get picked up| picked up| collected| coming| coming over| arriving| here| day)?\s*\??$")),
 )
 
 
@@ -1967,7 +1985,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -1984,7 +2002,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -2797,7 +2815,9 @@ def _birthday_notes() -> list[tuple[str, int, int]]:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        m = re.search(r"^(?:that )?(?P<who>(?:my )?[a-z][a-z' ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday) is ", low)
+        m = (re.search(r"^(?:that )?(?P<who>(?:my )?[a-z][a-z' ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday) is ", low)
+             # "Leo was born on May 3 2018" is a birthday too (2026-10-07).
+             or re.search(r"^(?P<who>(?:my )?[a-z][a-z' ]{0,30}?) (?:was|were) born (?:on )?", low))
         if not m or m.group("who") in ("my", "your"):
             continue
         d = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?", low[m.end():])
@@ -8705,6 +8725,47 @@ def _body(text: str) -> str | None:
     return f"{'Down' if pounds > 0 else 'Up'} about {abs(pounds):.0f} pounds since {first}, from what you've told me."
 
 
+def _when_note(text: str) -> str | None:
+    """The newest note naming the thing with a day or a time in it."""
+    from aletheia import speech
+    thing = " ".join(str(_groups("when_note", text).get("when_note") or "").casefold().split())
+    words = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in _STOP_WORDS and w not in ("s",)]
+    if not words:
+        return None
+    stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in words]
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) and re.search(
+                r"\d|\b(?:mon|tues|wednes|thurs|fri|satur|sun|week)days?\b|\b(?:today|tonight|tomorrow|weekends?)\b", low):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
+def _their_fact(text: str) -> str | None:
+    """"Who is Leo's teacher", "what school does Leo go to", "what is my
+    daughter allergic to": his note naming it. Also asked by the name he
+    told her for a relation ("my son" is Leo). None when no note says."""
+    from aletheia import speech
+    g = _groups("their_fact", text)
+    who = " ".join(str(g.get("tf_who") or g.get("tf_who2") or g.get("tf_who3") or "").casefold().split())
+    key = (g.get("tf_key") or g.get("tf_key2") or ("allergic" if g.get("tf_allergy") else "")).casefold()
+    if not who or not key or who in ("my", "your", "his", "her", "their", "the", "it", "this", "that"):
+        return None
+    names = [re.sub(r"^my ", "", who)]
+    named = _name_for_relation(who) if who.startswith("my ") or who in _relation_words() else None
+    if named:
+        names.append(named.casefold())
+    for name in names:
+        words = re.findall(r"[a-z0-9]+", name)
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            low = said.casefold()
+            if all(re.search(rf"\b{re.escape(w)}", low) for w in words) and re.search(rf"\b{re.escape(key)}", low):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _meds(text: str = "") -> str | None:
     """What he told her he takes: "my prescription is ...", "I take ..."."""
     from aletheia import speech
@@ -9090,6 +9151,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "did_count": _did_count,
            "off_lists": _off_lists,
            "body": _body,
+           "their_fact": _their_fact,
+           "when_note": _when_note,
+           "when_do_i": lambda rest: _when_mine(rest),
            "meds": _meds,
            "work_hours": _work_hours,
            "cost_mine": _cost_mine,
