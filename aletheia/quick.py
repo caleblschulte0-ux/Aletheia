@@ -1383,7 +1383,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when(?:'s| is) (?P<sun2>sunset|sunrise)(?: (?P<sunday2>today|tonight|tomorrow))?$"
         r"|^what time(?: is it| does it get) (?P<sun3>dark|light)(?: (?P<sunday3>today|tonight|tomorrow))?$"
         # "When does it get dark" (2026-10-07: to the planner).
-        r"|^when (?:does|will) it get (?P<sun4>dark|light)(?: (?P<sunday4>today|tonight|tomorrow))?$")),
+        r"|^when (?:does|will) it get (?P<sun4>dark|light)(?: (?P<sunday4>today|tonight|tomorrow))?$"
+        # "Sunrise tomorrow", "what time is sunrise tomorrow" (2026-10-07: to the planner).
+        r"|^(?:what time is |what time's )?(?P<sun5>sunset|sunrise)(?: (?:time )?(?P<sunday5>today|tonight|tomorrow))?$")),
     ("moon", re.compile(
         r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
         r"|^what phase is the moon(?: in)?(?: tonight| today)?$"
@@ -1440,7 +1442,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:is|will) it (?:going to )?(?:rain|snow|storm)(?: later)?$"
         r"|^how (?:hot|cold|warm) (?:will it be|is it going to be|is it)(?: outside)?(?: (?P<wm3>today|tonight|tomorrow))?$"
         r"|^what should i wear(?: (?P<wm4>today|tonight|tomorrow))?$"
-        r"|^do i need (?:a jacket|a coat|sunscreen|boots)(?: (?P<wm5>today|tonight|tomorrow))?$")),
+        r"|^do i need (?:a jacket|a coat|sunscreen|boots)(?: (?P<wm5>today|tonight|tomorrow))?$"
+        # 2026-10-07, each to the planner.
+        r"|^how much rain (?:is there going to be |will there be |are we getting |is coming )?(?:(?P<wm6>today|tonight|tomorrow))?$"
+        r"|^what(?:'s| is|s) the chance of (?:rain|snow)(?: (?P<wm7>today|tonight|tomorrow))?$"
+        r"|^(?:is|will) it (?:be |going to be )?(?:windy|sunny|cloudy|humid|nice out|nice outside)(?: (?P<wm8>today|tonight|tomorrow))?$")),
     ("fun_fact", re.compile(r"^(?:tell me|give me|got|know) (?:a |another |any )?(?:fun |random |cool |interesting )?facts?$"
                             r"|^tell me something (?:interesting|cool)$")),
     ("quote", re.compile(r"^(?:give me|tell me|say|read me) (?:a |another )?(?:quote|motivational quote|inspiring quote)$"
@@ -3528,9 +3534,9 @@ def _note_search(text: str) -> str | None:
 def _sun(text: str) -> str | None:
     from aletheia import weather
     g = _groups("sun", text)
-    said = g.get("sun") or g.get("sun2") or g.get("sun3") or g.get("sun4") or ""
+    said = g.get("sun") or g.get("sun2") or g.get("sun3") or g.get("sun4") or g.get("sun5") or ""
     which = "rise" if any(w in said for w in ("rise", "come up", "light")) else "set"
-    when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or g.get("sunday4") or ""
+    when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or g.get("sunday4") or g.get("sunday5") or ""
     return weather.spoken_sun(which, "tomorrow" if when == "tomorrow" else "")
 
 

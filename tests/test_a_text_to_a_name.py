@@ -487,5 +487,28 @@ class RememberIsNotTheFact(unittest.TestCase):
                          {"kind": "note", "text": "Dana's birthday is March 3"})
 
 
+
+class APlaceNearHimIsNotAFile(unittest.TestCase):
+    def test_nearby_places_are_a_web_search(self):
+        self.assertEqual(voice._interpret("find a gas station")["command"],
+                         {"kind": "research", "question": "gas station near me"})
+        self.assertEqual(voice._interpret("where's the nearest starbucks")["command"]["question"], "starbucks near me")
+
+    def test_his_own_things_are_still_files(self):
+        self.assertEqual(voice._interpret("find the report")["command"]["kind"], "file_find")
+
+    def test_how_far_is_a_place_and_not_the_moon(self):
+        self.assertEqual(voice._interpret("how far is chicago")["command"], {"kind": "travel_time", "place": "chicago"})
+        self.assertNotEqual((voice._interpret("how far is the moon").get("command") or {}).get("kind"), "travel_time")
+
+
+class MoreWeatherWords(unittest.TestCase):
+    def test_sunrise_and_rain_reach_the_weather(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("sunrise tomorrow")[0], "sun")
+        for said in ("how much rain today", "what's the chance of rain tomorrow", "will it be sunny tomorrow"):
+            self.assertEqual(quick.match(said)[0], "weather_more", said)
+
+
 if __name__ == "__main__":
     unittest.main()

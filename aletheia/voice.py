@@ -2807,6 +2807,19 @@ def _interpret(transcript: str) -> dict:
                             "path": _as_he_said(transcript, m.group(1)),
                             "anywhere": True}, "say": None}
 
+    # A PLACE NEAR HIM is not a file (2026-10-07): "find a gas station" was
+    # a search of his disk and "where's the nearest starbucks" went to the
+    # planner. The same web search "pizza near me" already runs.
+    m = re.fullmatch(r"(?:find|show me|search for|look for|where(?:'s| is| are)) (?:me )?(?:a |an |the )?"
+                     r"(?:nearest|closest|nearby) (?P<what>[a-z][a-z' ]{1,30}?)(?: near me| nearby| around here)?", low) \
+        or re.fullmatch(r"(?:find|show me|search for|look for) (?:me )?(?:a |an |some )?(?P<what>[a-z][a-z' ]{1,30}?)"
+                        r" (?:near me|nearby|around here|close by|near here)", low) \
+        or re.fullmatch(r"find (?:me )?(?:a |an )(?P<what>gas station|petrol station|pharmacy|drugstore|grocery store|"
+                        r"supermarket|restaurant|coffee shop|cafe|atm|bank|hospital|urgent care|hotel|parking(?: spot| garage)?|"
+                        r"car wash|gym|bar|pizza place|taco place|mechanic|post office|hardware store|vet|dentist|doctor)", low)
+    if m:
+        return {"command": {"kind": "research", "question": f"{m.group('what').strip()} near me"}, "say": None}
+
     m = re.fullmatch(
         r"(?:what(?:'s| is|s)?|show me what(?:'s| is)?) (?:in|inside) "
         r"(?:my |the )?([a-z][a-z ]{2,20}?)(?: folder| directory)?\s*\??", low)
@@ -3351,6 +3364,12 @@ def _interpret(transcript: str) -> dict:
                 "say": None}
     m = re.match(r"how (?:long|far) (?:is it )?to (.+)", low)
     if m and _known_place(m.group(1).strip()):
+        return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
+                "say": None}
+    # "How far is Chicago" (2026-10-07: to the planner). A place, not a
+    # thing in the sky: "how far is the moon" is a question for a model.
+    m = re.fullmatch(r"how far (?:away )?is (?:it to )?(.+?)(?: from here| from me| from home)?", low)
+    if m and not re.search(r"\b(?:moon|sun|mars|venus|jupiter|space|star|stars|galaxy|horizon|that|it|this)\b", m.group(1)):
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
 
