@@ -4908,6 +4908,20 @@ def _interpret(transcript: str) -> dict:
         if asked:
             return {"command": None, "say": asked}
         day, part = _spoken_when(m.group(1) or "today")
+        # "Do I have anything on Tuesday" with a doctor's appointment on it
+        # answered "Free Tuesday 9 am to 2 pm and 3 pm to 5 pm" (2026-10-07):
+        # what IS on the day is the answer, and the free time only when
+        # nothing is.
+        said_day = (m.group(1) or "today").strip()
+        if day and not part and said_day in ("today", "tomorrow", "monday", "tuesday", "wednesday", "thursday",
+                                             "friday", "saturday", "sunday"):
+            from aletheia import quick
+            try:
+                on = quick._agenda_and_reminders(said_day)
+            except Exception:
+                on = None
+            if on and (not on.startswith("Nothing on your calendar") or ", but " in on):
+                return {"command": None, "say": on}
         if day:
             command = {"kind": "free_time", "day": day}
             if part:

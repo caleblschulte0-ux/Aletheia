@@ -5477,5 +5477,21 @@ class TripsAndPlansSaidAhead(unittest.TestCase):
             self.assertIsNone(quick._life_when("when am i visiting paris"))
 
 
+class DoIHaveAnythingNamesIt(unittest.TestCase):
+    """2026-10-07: "do I have anything on Tuesday" with a doctor's
+    appointment on it listed only the free time around it."""
+
+    def test_what_is_on_the_day_is_the_answer(self):
+        with mock.patch.object(quick, "_agenda_and_reminders", return_value="Tuesday: doctor's appointment at 2 pm."):
+            self.assertEqual(voice._interpret("do I have anything on tuesday")["say"], "Tuesday: doctor's appointment at 2 pm.")
+        with mock.patch.object(quick, "_agenda_and_reminders",
+                               return_value="Nothing on your calendar tomorrow, but 1 reminder tomorrow: 12 pm, call Sam."):
+            self.assertIn("call Sam", voice._interpret("do I have anything tomorrow")["say"])
+
+    def test_an_empty_day_still_gets_its_free_time(self):
+        with mock.patch.object(quick, "_agenda_and_reminders", return_value="Nothing on your calendar Tuesday."):
+            self.assertEqual(voice._interpret("do I have anything on tuesday")["command"]["kind"], "free_time")
+
+
 if __name__ == "__main__":
     unittest.main()
