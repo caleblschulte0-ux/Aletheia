@@ -1012,7 +1012,7 @@ def _timer_left(now=None) -> str:
         seconds = (at - now).total_seconds()
         if seconds <= 0:
             continue
-        minutes = int(seconds // 60)
+        minutes = int((seconds + 30) // 60)  # 9:59 left is "10 minutes", not "9"
         amount = (speech.count_phrase(int(seconds), "second") if seconds < 60
                   else speech.count_phrase(minutes, "minute") if minutes < 60
                   else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))

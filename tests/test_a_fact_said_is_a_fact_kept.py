@@ -79,5 +79,26 @@ class SeveralThingsToDoAreSeveralTasks(unittest.TestCase):
         self.assertEqual(said, "Added 3 tasks: call mom, pay rent and buy stamps.")
 
 
+
+
+class ATimerJustSetIsStillItsLength(unittest.TestCase):
+    def test_nine_fifty_nine_left_is_ten_minutes(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import intercom, voice
+        now = dt.datetime(2026, 10, 7, 10, 0, 1, tzinfo=dt.timezone.utc)
+        spec = {"kind": "once", "at": "2026-10-07T10:10:00+00:00",
+                "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"}}
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[spec]):
+            self.assertEqual(voice._timer_left(now), "10 minutes left on your 10-minute timer.")
+
+    def test_a_running_timer_is_not_listed_as_gone_off(self):
+        from aletheia import intercom
+        spec = {"id": "r1", "kind": "once", "at": "2026-10-07T10:10:00+00:00",
+                "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"}}
+        self.assertTrue(intercom._reminder_words(spec).startswith("your 10-minute timer, going off"))
+        self.assertIn("timer is up", intercom._reminder_words(spec, receipt=True))
+
+
 if __name__ == "__main__":
     unittest.main()

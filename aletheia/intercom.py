@@ -1345,11 +1345,16 @@ def _reminder_schedules() -> list[dict]:
     return out
 
 
-def _reminder_words(spec: dict) -> str:
+def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     """One reminder, as he would say it."""
     from aletheia import speech
     text = str((spec.get("command") or {}).get("text") or spec["id"])[:70]
     if spec["kind"] == "once":
+        timer = re.fullmatch(r"(your .+? timer) is up", text)
+        if timer and not receipt:
+            # "your 10-minute timer is up — today at 5:10 am" read as if it
+            # had already gone off; it is a timer still running.
+            return f"{timer.group(1)}, going off {speech.humanize_time(str(spec.get('at') or ''))}"
         return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
     if spec["kind"] == "interval":
         minutes = int(spec.get("every_minutes") or 0)
@@ -3356,7 +3361,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # DISABLED, never deleted: "actually put that back" has to be one
         # command, and a deleted schedule cannot be put back at all.
         scheduler.set_enabled(found["id"], False)
-        return f"reminder {found['id']} off — {_reminder_words(found)}"
+        return f"reminder {found['id']} off — {_reminder_words(found, receipt=True)}"
     if kind == "notify_snooze":
         from aletheia import notifications, scheduler
         import uuid as _uuid

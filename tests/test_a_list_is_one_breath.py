@@ -49,7 +49,7 @@ class HowLongLeftOnTheTimer(unittest.TestCase):
     def test_it_is_a_subtraction(self):
         import datetime as dt
         now = dt.datetime(2026, 10, 7, 1, 0, tzinfo=dt.timezone.utc)
-        rows = [{"kind": "once", "at": "2026-10-07T01:09:30+00:00",
+        rows = [{"kind": "once", "at": "2026-10-07T01:09:00+00:00",
                  "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"}},
                 {"kind": "once", "at": "2026-10-07T02:30:00+00:00",
                  "command": {"kind": "notify_operator", "text": "your 2-hour timer is up"}},
