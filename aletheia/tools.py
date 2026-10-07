@@ -75,7 +75,7 @@ MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
 #: an interface can ask before offering them as one-tap buttons.
 DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
-    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop",
+    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off",
     "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
     "apply_pause",
 })
@@ -86,7 +86,7 @@ DESTRUCTIVE_KINDS = frozenset({
 IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
-    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve",
+    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -123,6 +123,7 @@ LOCAL_MODEL_WRITES = frozenset({
 STORE_OF = {
     "tasks": "tasks", "task_new": "tasks", "task_status": "tasks", "task_done": "tasks",
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
+    "list_new": "lists", "list_add": "lists", "list_read": "lists", "list_off": "lists",
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
@@ -698,7 +699,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
                                  "task_status", "remind_at", "remind_daily",
                                  "remind_weekly", "reminders", "reminder_off",
                                  "do_task"),
-    "your lists": ("shopping_add", "shopping_list", "shopping_off"),
+    "your lists": ("shopping_add", "shopping_list", "shopping_off", "list_new", "list_add", "list_read", "list_off"),
     # Third on purpose: dict order is spoken order, only the first six
     # are said, and "can you make me a spreadsheet" is a question he
     # actually asked. A capability nobody hears about is one he will

@@ -348,6 +348,7 @@ SAID_AS = {
     "thread_draft": "drafted a message to {to} (nothing sent)",
     "calendar_hold": "pencilled in {title} (a tentative hold in my own calendar, nothing sent)",
     "shopping_add": "put {item} on your list",
+    "list_add": "put {item} on your {list} list",
     "plan_step": "moved a step of {slug}",
     "notify_operator": "raised a notice: {text}",
     "remind_at": "set a reminder: {text}",

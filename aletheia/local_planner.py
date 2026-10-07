@@ -113,6 +113,7 @@ VERB_HINTS: dict[str, tuple[str, ...]] = {
         "free_time", "calendar_hold", "calendar_find_free"),
     r"\bmeet\b|\bmeeting\b": ("meet", "free_time"),
     r"\bshopping list\b|\badd .* to the list\b": ("shopping_add", "shopping_list"),
+    r"\b\w+ list\b|\blists\b": ("list_add", "list_read", "list_off", "list_new"),
     r"\bplay\b.*\bmusic\b|\bput on\b.*\bmusic\b": ("music",),
     r"\bjobs?\b|\bappl(?:y|ication)\b": ("jobs", "apply_prepare", "applications"),
     r"\bproject\b|\brepo\b|\brepositor": ("projects", "work_projects", "project_new"),
