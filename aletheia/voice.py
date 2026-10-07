@@ -1691,6 +1691,50 @@ def _with_the_person_named(transcript: str) -> str:
 _PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing"}
 
 
+def _the_named_list_just_used(turns: int = 3) -> tuple[str, bool]:
+    """(the named list his last few exchanges were about, whether it was the
+    very last one) - ("", False) when it was the shopping list or none."""
+    try:
+        from aletheia import converse
+        rows = converse.recent(limit=turns) or []
+    except Exception:  # noqa: BLE001
+        return "", False
+    for depth, turn in enumerate(reversed(rows)):
+        both = f"{turn.get('he_asked') or ''} {turn.get('she_answered') or ''}".casefold()
+        if re.search(r"\b(?:shopping|grocery) list\b", both):
+            return "", False
+        name_ = r"([a-z][a-z'-]*(?: [a-z][a-z'-]*){0,2}?)"
+        found = re.search(r"\byour " + name_ + r" list\b", str(turn.get("she_answered") or "").casefold()) \
+            or re.search(r"\b(?:to|on|from|off|of|read|in) (?:my|the) " + name_ + r" list\b", both) \
+            or re.search(r"\blist called " + name_ + r"\b", both)
+        if found and found.group(1).strip() not in ("to-do", "to do", "todo", "task", "this", "that", "a"):
+            return found.group(1).strip(), depth == 0
+    return "", False
+
+
+def _onto_the_named_list(low: str) -> dict | None:
+    if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list", low):
+        return None                               # he named a list himself
+    name, last = _the_named_list_just_used()
+    if not name:
+        return None
+    m = re.fullmatch(r"(?:and |also )?add (?:the |some )?(?P<w>[a-z][a-z0-9' ,-]{1,60}?)(?: back| too| as well| again)?", low) \
+        or re.fullmatch(r"(?:and|also) (?P<w>[a-z][a-z0-9' ,-]{1,60}?)(?: too| as well)?", low)
+    if m and last and not _TASK_VERB.match(m.group("w")):
+        return _interpret(f"add {m.group('w')} to my {name} list")
+    m = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(?P<w>[a-z][a-z0-9' -]{1,40}?) off"
+                     r"|(?:remove|cross off|take off|delete) (?:the |my )?(?P<w2>[a-z][a-z0-9' -]{1,40}?)", low)
+    if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all"):
+        return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
+    if re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
+                    r"|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
+        return {"command": {"kind": "list_read", "list": name}, "say": None}
+    # Emptying it needs it to be the very last thing said.
+    if last and re.fullmatch(r"(?:delete|clear|empty|scrap|wipe) (?:it|the list|this list|that list)(?: out)?", low):
+        return {"command": {"kind": "list_off", "list": name, "item": "everything"}, "say": None}
+    return None
+
+
 _HER_QUESTIONS = (
     (r"When should I remind you to (.+?)\? ", "remind me {low} to {0}", "remind_"),
     (r"For how long\? Say \"set a timer", "set a timer for {low}", "remind_at"),
@@ -1799,6 +1843,14 @@ def _interpret(transcript: str) -> dict:
     answered = _answering_her(low)
     if answered:
         return answered
+    # HIS NAMED LIST, SPOKEN TO AS "IT" (2026-10-07): after "make a list
+    # called packing", "add sunscreen, towels and a hat" went to the
+    # planner, "add the hat back" went on the SHOPPING list, and "what's on
+    # it" and "delete the list" found nothing. The list he is working on is
+    # the one he just named.
+    on_list = _onto_the_named_list(low)
+    if on_list:
+        return on_list
     # "And remind me to email Sam too" (2026-10-07: to the planner).
     also = re.fullmatch(r"(?:and|also|oh and|and also) (remind me .+?)(?: too| as well| also)?", low)
     if also:

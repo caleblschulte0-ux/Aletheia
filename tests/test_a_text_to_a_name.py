@@ -826,5 +826,30 @@ class MakeItTenKeepsTheDay(unittest.TestCase):
         self.assertEqual(dt.datetime.fromisoformat(cmd["at"]).date(), tomorrow.date())
 
 
+
+class HisNamedListAsIt(unittest.TestCase):
+    def turns(self, *pairs):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[{"he_asked": a, "she_answered": b} for a, b in pairs])
+
+    def test_add_read_take_off_and_clear(self):
+        with self.turns(("make a list called packing", 'Started your packing list. Say "add ... to my packing list".')):
+            self.assertEqual(voice._interpret("add sunscreen and a hat")["command"],
+                             {"kind": "list_add", "list": "packing", "item": "sunscreen and a hat"})
+            self.assertEqual(voice._interpret("what's on it")["command"], {"kind": "list_read", "list": "packing"})
+            self.assertEqual(voice._interpret("take the hat off")["command"]["kind"], "list_off")
+            self.assertEqual(voice._interpret("delete the list")["command"],
+                             {"kind": "list_off", "list": "packing", "item": "everything"})
+
+    def test_the_name_is_the_lists_not_the_sentence(self):
+        with self.turns(("add the hat back", "Added to your packing list: hat.")):
+            self.assertEqual(voice._the_named_list_just_used(), ("packing", True))
+
+    def test_after_the_shopping_list_it_is_the_shopping_list(self):
+        with self.turns(("make a list called packing", "Started your packing list."),
+                        ("add milk to the shopping list", "Added to the shopping list: milk.")):
+            self.assertEqual(voice._the_named_list_just_used(), ("", False))
+
+
 if __name__ == "__main__":
     unittest.main()
