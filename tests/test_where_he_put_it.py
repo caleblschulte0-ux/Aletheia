@@ -105,3 +105,19 @@ class SaidToHerAndAboutHer(unittest.TestCase):
         self.assertTrue(said.startswith("No - I'm Thea"))
         self.assertIn("Claude or ChatGPT", said)
         self.assertIsNotNone(quick.answer("how smart are you"))
+
+
+class ClockArithmetic(unittest.TestCase):
+    def test_until_a_clock_time(self):
+        self.assertEqual(quick.match("how long until 5pm")[0], "clock_until")
+        self.assertEqual(quick.match("how many hours until midnight")[0], "clock_until")
+        self.assertEqual(quick.match("how long until christmas")[0], "until")
+        self.assertRegex(quick.answer("how long until midnight"), r"until midnight\.$")
+
+    def test_his_zone_and_the_clock_change(self):
+        said = quick.answer("what time zone am i in")
+        self.assertRegex(said, r"^You're on \w+ time")
+        self.assertEqual(quick.match("is it daylight saving time")[0], "time_zone")
+
+    def test_clearing_his_calendar_is_said_plainly(self):
+        self.assertIn("can't cancel things on your calendar", voice._interpret("clear my calendar tomorrow")["say"])

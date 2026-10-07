@@ -3396,7 +3396,10 @@ def _interpret(transcript: str) -> dict:
         r"|thursday|friday|saturday|sunday|weekend|lunch|dinner|breakfast|call|plans)\b", re.IGNORECASE)
 
     if re.fullmatch(r"cancel (?:my |the )?(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?|noon)"
-                    r"(?: (?:today|tomorrow|meeting|appointment|call))?", low):
+                    r"(?: (?:today|tomorrow|meeting|appointment|call))?", low) \
+            or re.fullmatch(r"(?:clear|empty|wipe|cancel everything on) (?:my |the )?(?:calendar|schedule|day)"
+                            r"(?: for)?(?: (?:today|tomorrow|this week|monday|tuesday|wednesday|thursday|friday"
+                            r"|saturday|sunday))?|cancel (?:all )?(?:my )?(?:meetings|appointments)(?: (?:today|tomorrow))?", low):
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}

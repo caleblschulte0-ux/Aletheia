@@ -514,6 +514,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
     # calendar (2026-09-23). Weekdays, named days and a month-and-day.
+    # A CLOCK TIME, NOT A DAY (2026-10-07): "how long until 5pm", "how many
+    # hours until midnight" went to the planner - "until" reads days only.
+    ("clock_until", re.compile(
+        r"^(?:how long|how much (?:longer|time)|how many (?:hours|minutes|hours and minutes))(?: is (?:it|there|left))?"
+        r" (?:until|till|til|before|to) (?P<clock_until>midnight|noon|midday|\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?"
+        r"(?: o'?clock)?)(?: tonight| today| this (?:afternoon|evening))?\s*\??$")),
+    # "What time zone am I in", "is it daylight saving time" (2026-10-07).
+    ("time_zone", re.compile(
+        r"^what (?:time ?zone|timezone) (?:am i in|are we in|is (?:this|it|set))\s*\??$|^what(?:'s| is) my (?:time ?zone|timezone)\s*\??$"
+        r"|^is it (?:daylight sav(?:ing|ings)(?: time)?|dst)(?: (?:right )?now)?\s*\??$"
+        r"|^(?:when|what day) (?:do|does) (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)\s*\??$")),
     # "How long until my alarm" (2026-10-07: to the planner).
     ("alarm_left", re.compile(
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$")),
@@ -1411,7 +1422,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4756,6 +4767,62 @@ _WHEN_NOUNS = frozenset({"appointment", "appt", "meeting", "call", "interview", 
                          "class", "game", "flight", "party", "reservation", "session", "visit"})
 
 
+def _clock_until(said: str) -> str | None:
+    """Hours and minutes from now until a clock time, on his clock."""
+    import datetime as dt
+    from aletheia import localtime, voice
+    word = str(said or "").strip().replace(".", "")
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    if word in ("midnight",):
+        target = (now + dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        name = "midnight"
+    else:
+        hhmm = "12:00" if word in ("noon", "midday") else voice._spoken_time(re.sub(r" ?o'?clock", "", word))
+        if not hhmm:
+            return None
+        bare = word not in ("noon", "midday") and voice._is_bare_hour(re.sub(r" ?o'?clock", "", word))
+        try:
+            target = dt.datetime.fromisoformat(voice._next_occurrence_iso(hhmm, bare_hour=bare)).astimezone(tz)
+        except Exception:
+            return None
+        name = "noon" if word in ("noon", "midday") else \
+            target.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    minutes = int((target - now).total_seconds() // 60)
+    hours, mins = divmod(max(minutes, 0), 60)
+    span = " and ".join(p for p in (f"{hours} hour{'s' if hours != 1 else ''}" if hours else "",
+                                    f"{mins} minute{'s' if mins != 1 else ''}" if mins or not hours else "") if p)
+    day = "" if target.date() == now.date() else " tomorrow" if name != "midnight" else ""
+    return f"{span[:1].upper() + span[1:]} until {name}{day}."
+
+
+def _time_zone() -> str:
+    """His zone, whether it is on daylight time, and when the clocks next change."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    name = getattr(tz, "key", None) or str(tz)
+    dst = bool(now.dst())
+    change = None
+    noon = now.replace(hour=12, minute=0, second=0, microsecond=0)   # the clocks change at 2 am
+    for days in range(1, 370):
+        later = noon + dt.timedelta(days=days)
+        if bool(later.dst()) != dst:
+            change = later.date()
+            break
+    plain = {"America/New_York": "Eastern", "America/Detroit": "Eastern", "America/Chicago": "Central",
+             "America/Denver": "Mountain", "America/Boise": "Mountain", "America/Phoenix": "Arizona",
+             "America/Los_Angeles": "Pacific", "America/Anchorage": "Alaska", "Pacific/Honolulu": "Hawaii"}
+    name = plain.get(name, name.rsplit("/", 1)[-1].replace("_", " "))
+    said = (f"You're on {name} time, {now.strftime('%Z')} right now - "
+            + ("daylight saving time is on." if dst else "standard time, not daylight saving."))
+    if change:
+        said += (f" The clocks go {'back' if dst else 'forward'} an hour on "
+                 f"{change.strftime('%A')} the {_ordinal(change.day)} of {change.strftime('%B')}.")
+    return said
+
+
 def _alarm_left() -> str:
     """His next alarm and how long until it, from the reminder store."""
     import datetime as dt
@@ -5939,6 +6006,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
            "alarm_left": lambda rest: _alarm_left(),
+           "clock_until": lambda rest: _clock_until(rest),
+           "time_zone": lambda rest: _time_zone(),
            "reminders_on": lambda rest: _reminders_on(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
