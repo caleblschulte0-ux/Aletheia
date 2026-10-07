@@ -207,7 +207,9 @@ class ATimerWithAName(unittest.TestCase):
         self.assertEqual(text, "your 10 minute eggs timer is up")
 
     def test_a_named_timer_is_still_read_back_as_a_timer(self):
-        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=9, seconds=30)).isoformat()
+        # 9:10 left, well clear of the 9:30 rounding line: on Windows the
+        # clock does not move between building the spec and reading it.
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=9, seconds=10)).isoformat()
         spec = {"kind": "once", "at": soon, "command": {"text": "your 10 minute eggs timer is up"}}
         with mock.patch.object(intercom, "_reminder_schedules", return_value=[spec]):
             self.assertEqual(voice._timer_left(), "9 minutes left on your 10 minute eggs timer.")
