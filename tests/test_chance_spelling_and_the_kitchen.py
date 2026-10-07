@@ -142,3 +142,29 @@ class AskedForWhole(unittest.TestCase):
     def test_a_briefing_with_an_a(self):
         from aletheia import voice
         self.assertEqual(voice.interpret("give me a briefing")["command"]["kind"], "brief")
+
+
+class WhatIsDue(unittest.TestCase):
+    def test_a_day_said_last_is_a_deadline(self):
+        from aletheia import voice
+        self.assertEqual(voice._split_deadline("pay the gas bill on friday")[0], "pay the gas bill")
+        self.assertTrue(voice._split_deadline("call the plumber tomorrow")[1])
+        self.assertEqual(voice._split_deadline("sort the photos by date"), ("sort the photos by date", ""))
+        self.assertEqual(voice._split_deadline("monday"), ("monday", ""))
+
+    def test_due_today_this_week_and_overdue(self):
+        import datetime as dt
+        from aletheia import localtime, tasks
+        here = localtime.operator_tz()
+        now = dt.datetime(2026, 10, 7, 12, tzinfo=here)       # a Wednesday
+        rows = [{"id": "a", "description": "pay rent", "status": "PENDING", "deadline": "2026-10-07"},
+                {"id": "b", "description": "call the plumber", "status": "PENDING", "deadline": "2026-10-09"},
+                {"id": "c", "description": "renew passport", "status": "PENDING", "deadline": "2026-10-01"},
+                {"id": "d", "description": "her ticket", "status": "PENDING", "deadline": "2026-10-07",
+                 "assigned_worker": "claude"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=rows):
+            self.assertEqual(quick._due("", now), "2 tasks due today: renew passport (overdue) and pay rent.")
+            self.assertEqual(quick._due("overdue", now), "1 task overdue: renew passport.")
+            self.assertIn("call the plumber", quick._due("this week", now))
+        self.assertEqual(quick.match("what's due today")[0], "due")
+        self.assertEqual(quick.match("what's overdue")[0], "due")

@@ -272,6 +272,14 @@ def _split_deadline(text: str) -> tuple[str, str]:
     """
     m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
     if not m:
+        # "Call the plumber tomorrow", "pay the gas bill on friday": a day
+        # said last is as much a deadline as "by friday" (2026-10-07).
+        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?(today|tonight|tomorrow|monday|tuesday|wednesday"
+                         r"|thursday|friday|saturday|sunday)$", text, re.IGNORECASE)
+        if bare:
+            day = _spoken_day("today" if bare.group(2).lower() == "tonight" else bare.group(2))
+            if day:
+                return bare.group(1).strip(), day
         return text, ""
     rest, when = m.group(1).strip(), m.group(2).strip()
     if not rest:

@@ -959,6 +959,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                           r"|(?:convert|what(?:'s| is|s)?) (?:[\d.]+|half a|a half) (?:fluid ounces?|fl oz|teaspoons?|tsp"
                           r"|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) "
                           r"(?:to|in|into) ).{1,30})$")),
+    # "WHAT'S DUE TODAY", "what's overdue" (2026-10-07: to the planner).
+    # A task carries the deadline he said; `tasks.due` compares it to now.
+    ("due", re.compile(r"^(?:what(?:'s| is|s)?|what do i have|anything|is anything|do i have anything) "
+                       r"(?:(?P<what>overdue)|due(?: (?P<what2>today|tomorrow|this week|soon))?)(?: on my (?:list|tasks))?$"
+                       r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
     ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
                                 r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
@@ -3258,6 +3263,37 @@ def _leap_year(year: str = "") -> str:
     return f"No, {this} isn't. The next leap year is {nxt}."
 
 
+def _due(when: str = "", now=None) -> str | None:
+    """His tasks with a deadline inside the window he named, overdue first."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    now = now or dt.datetime.now(dt.timezone.utc)
+    local = now.astimezone(localtime.operator_tz())
+    end_of_today = local.replace(hour=23, minute=59, second=59)
+    horizon = {"": end_of_today, "today": end_of_today, "soon": end_of_today + dt.timedelta(days=2),
+               "tomorrow": end_of_today + dt.timedelta(days=1),
+               "this week": end_of_today + dt.timedelta(days=6 - local.weekday()),
+               "overdue": now}[when]
+    hours = max((horizon - now).total_seconds() / 3600, 0)
+    try:
+        rows = [r for r in tasks.due(now=now, within_hours=hours) if tasks.is_his(r["task"])]
+    except Exception:
+        return None
+    if when == "overdue":
+        rows = [r for r in rows if r["overdue"]]
+    if when == "tomorrow":
+        start = end_of_today
+        rows = [r for r in rows if r["overdue"] or r["when"] > start]
+    if not rows:
+        return {"overdue": "Nothing's overdue."}.get(when, f"Nothing due {when or 'today'}.")
+
+    def line(row) -> str:
+        what = str(row["task"].get("description") or row["task"].get("id")).strip().rstrip(".")
+        return f"{what} (overdue)" if row["overdue"] and when != "overdue" else what
+    lead = "overdue" if when == "overdue" else f"due {when or 'today'}"
+    return f"{speech.count_phrase(len(rows), 'task')} {lead}: {speech.and_list([line(r) for r in rows[:5]])}."
+
+
 def _coin() -> str:
     import secrets
     return secrets.choice(("Heads.", "Tails."))
@@ -3974,6 +4010,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rain": lambda rest: _rain(rest),
            "timer_left": lambda rest: _timer_left(),
            "week_of_year": lambda rest: _week_of_year(),
+           "due": lambda rest: _due(rest),
            "leap_year": lambda rest: _leap_year(rest),
            "coin": lambda rest: _coin(),
            "dice": lambda rest: _dice(rest),
