@@ -1840,7 +1840,15 @@ def _contacts_answer(which: str = "") -> str:
                 return _contacts_answer(named)
         rows = hits
         if not rows:
-            return f"I have no contact for {which!r}."
+            # "I have no contact for 'dana'." (2026-10-07): quotes and his
+            # lower case read out, and nothing said how to fix it.
+            who = " ".join(str(which).split())
+            his = re.sub(r"^(?:my|our)\s+", "your ", who, flags=re.I)
+            if who.islower() and not his.startswith("your ") and not re.match(r"the\s", who):
+                his = who.title()
+            says = re.sub(r"^your ", "my ", his)
+            return (f"I don't have a number or email for {his} yet. "
+                    f"Say \"{says}'s number is\" and the number, and I'll keep it.")
         if len(rows) == 1:
             # "What's Mia's number" is a question about one person: answered
             # as a sentence, not as a list of one.

@@ -3608,7 +3608,7 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": None,
                 "say": "I can't tell where you are yet, so I can't do it when you get home. "
-                       f"Give me a time - 'remind me at 6 to {m.group(1).strip()}' - and I'll do that."}
+                       f"Give me a time - 'remind me at 6 to {_as_he_said(text, m.group(1).strip())}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
                  r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
     if m and re.search(r"\b(?:every|each)\b", m.group(1)):
@@ -6210,6 +6210,30 @@ def _interpret(transcript: str) -> dict:
                          r"(?P<n>an?|one|two|three|four|\d{1,3}|half an) (?P<unit>hours?|minutes?)"
                          r"(?: (?:on |this )?(?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
                          r"(?: at (?P<time>[\w: ]+?))?(?: (?:for|to) (?P<what>[a-z][a-z' ]{1,30}))?", low)
+        # "BLOCK OFF 2 TO 4 TOMORROW FOR DEEP WORK" (2026-10-07: to the
+        # planner): a hold between two times he names.
+        r = (re.fullmatch(r"(?:block|block off|block out|hold|reserve|set aside|keep)(?: my)? (?:from )?(?P<t1>[\d:]+(?: ?[ap]\.?m\.?)?)"
+                          r" (?:to|till|until|-) (?P<t2>[\d:]+(?: ?[ap]\.?m\.?)?)(?: (?:on |this )?(?P<day>" + _cal_days + r"))?"
+                          r"(?: (?:for|to) (?P<what>[a-z][a-z' ]{1,30}))?", low)
+             or re.fullmatch(r"(?:block|block off|block out|hold|reserve|set aside|keep)(?: my)? (?:on |this )?(?P<day>" + _cal_days
+                             + r") (?:from )?(?P<t1>[\d:]+(?: ?[ap]\.?m\.?)?) (?:to|till|until|-) (?P<t2>[\d:]+(?: ?[ap]\.?m\.?)?)"
+                             r"(?: (?:for|to) (?P<what>[a-z][a-z' ]{1,30}))?", low))
+        if r:
+            title = re.sub(r"^(?:the|my|some) ", "", (r.group("what") or "busy").strip())
+            held = _calendar_hold(text, title[:1].upper() + title[1:], r.group("day") or "today", None, r.group("t1"))
+            end = _spoken_time(r.group("t2"))
+            if held and end:
+                import datetime as dt
+                start = dt.datetime.fromisoformat(held["command"]["start"])
+                eh, em = map(int, end.split(":"))
+                stop = start.replace(hour=eh, minute=em)
+                if _is_bare_hour(r.group("t2")):
+                    while stop <= start and stop.hour < 12:
+                        stop = stop.replace(hour=stop.hour + 12)
+                minutes = int((stop - start).total_seconds() // 60)
+                if 15 <= minutes <= 12 * 60:
+                    held["command"]["minutes"] = minutes
+                    return held
         if b and (b.group("day") or b.group("part") or b.group("time")):
             amount = _spoken_amount(b.group("n")) if b.group("n") != "a" and b.group("n") != "an" else 1
             minutes = int(round((amount or 1) * (60 if b.group("unit").startswith("hour") else 1)))

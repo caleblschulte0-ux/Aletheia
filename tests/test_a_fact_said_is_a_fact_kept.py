@@ -1806,5 +1806,34 @@ class AnOutgrownTimerCase(unittest.TestCase):
             self.assertEqual(quick._timer_left(now), "4 minutes left on your 10-minute timer.")
 
 
+
+class BlockTwoToFourCase(unittest.TestCase):
+    """2026-10-07: "block off 2 to 4 tomorrow for deep work" went to the planner."""
+
+    def test_a_hold_between_two_times(self):
+        from aletheia import voice
+        for said, hour, minutes, title in (("block off 2 to 4 tomorrow for deep work", 14, 120, "Deep work"),
+                                           ("block tomorrow from 11 to 1", 11, 120, "Busy"),
+                                           ("block off 9am to 11:30am friday", 9, 150, "Busy")):
+            with self.subTest(said=said):
+                cmd = voice.interpret(said)["command"]
+                self.assertEqual(cmd["kind"], "calendar_hold")
+                self.assertEqual(dt.datetime.fromisoformat(cmd["start"]).hour, hour)
+                self.assertEqual(cmd["minutes"], minutes)
+                self.assertEqual(cmd["title"], title)
+
+
+class NoContactYetCase(unittest.TestCase):
+    """2026-10-07: "what's Dana's number" said "I have no contact for 'dana'."."""
+
+    def test_says_how_to_give_it(self):
+        from aletheia import intercom, contacts
+        with mock.patch.object(contacts, "all_contacts", return_value=[]):
+            said = intercom._contacts_answer("dana")
+        self.assertNotIn("'dana'", said)
+        self.assertIn("Dana", said)
+        self.assertIn("Dana's number is", said)
+
+
 if __name__ == "__main__":
     unittest.main()
