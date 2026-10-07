@@ -2220,5 +2220,30 @@ class CallMomIsNotTheTextCase(unittest.TestCase):
         self.assertEqual(voice._answering_her("running late", asked)["command"]["kind"], "message_send")
 
 
+
+class RemindMeAboutTheDentistCase(unittest.TestCase):
+    """2026-10-07: "remind me about the dentist" with nothing kept said "I
+    don't have anything remembered"; "remind me tomorrow at 9 about the car"
+    went to the planner."""
+
+    def test_asks_when(self):
+        from aletheia import voice, quick
+        with mock.patch.object(quick, "_recall", return_value="I have nothing about the dentist on file."):
+            said = voice._interpret("remind me about the dentist")["say"]
+        self.assertIn("When should I remind you about the dentist?", said)
+        got = voice._answering_her("tomorrow at 2", said)
+        self.assertEqual(got["command"]["text"], "the dentist")
+
+    def test_what_she_knows_is_still_read(self):
+        from aletheia import voice, quick
+        with mock.patch.object(quick, "_recall", return_value="You told me: the dentist is Dr. Lee."):
+            self.assertEqual(voice._interpret("remind me about the dentist")["command"]["kind"], "recall")
+
+    def test_a_when_then_about(self):
+        from aletheia import voice
+        cmd = voice._interpret("remind me tomorrow at 9 about the car")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "the car"))
+
+
 if __name__ == "__main__":
     unittest.main()

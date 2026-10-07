@@ -2340,6 +2340,7 @@ def _onto_the_named_list(low: str) -> dict | None:
 
 _HER_QUESTIONS = (
     (r"When should I remind you to (.+?)\? ", "remind me {low} to {0}", "remind_"),
+    (r"When should I remind you about (.+?)\? ", "remind me {low} to {0}", "remind_"),
     (r"For how long\? Say \"set a timer", "set a timer for {low}", "remind_at"),
     (r"For what time\? Say \"wake me up", "wake me up at {low}", "remind_"),
     # "Add a reminder" - "What should I remind you about, and when?" - "for
@@ -4714,6 +4715,27 @@ def _interpret(transcript: str) -> dict:
         if (again.get("command") or {}).get("kind") in ("remind_at",):
             again["command"]["text"] = _as_he_said(text, m.group(1).strip())
             return again
+    # "Remind me tomorrow at 2 about the dentist" (2026-10-07: to the
+    # planner) is "remind me tomorrow at 2 to" the same thing.
+    m = re.fullmatch(r"remind me ((?:today|tonight|tomorrow|on |at |in |this |next |every |each )[a-z0-9: ]{1,40}?) about (.+)", low)
+    if m:
+        again = _interpret(f"remind me {m.group(1)} to {m.group(2)}")
+        if str(((again or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return again
+    # "Remind me about the dentist" with nothing kept about the dentist
+    # answered "I don't have anything remembered" (2026-10-07): he wanted a
+    # reminder, and she asks when rather than look up nothing.
+    m = re.fullmatch(r"remind me (?:later |sometime )?about (?P<what>[a-z][a-z0-9' ,-]{1,60})", low)
+    if m and m.group("what").strip() not in ("me", "myself", "it", "that", "this", "you"):
+        try:
+            from aletheia import quick
+            known = quick._recall(m.group("what").strip())
+        except Exception:  # noqa: BLE001
+            known = None
+        if not known or re.match(r"(?:I have nothing|I don't have|Nothing|You haven't)", known):
+            what = _as_he_said(text, m.group("what").strip())
+            return {"command": None,
+                    "say": f"When should I remind you about {what}? Say a time, like \"at 3\" or \"tomorrow morning\"."}
     m = re.match(r"(?:what do you know about|what have you got on|"
                  r"remind me about|tell me about) (.+)", low)
     # "What do you know about me" is not a lookup under the key "me" (it
@@ -6731,7 +6753,7 @@ def _interpret(transcript: str) -> dict:
     # "REMIND ME TO EMAIL SAM" with no when (2026-10-07: to the planner,
     # which with nothing thinking kept it "for later"). Every reminder
     # branch above needs a time; asked for, not guessed.
-    m = re.fullmatch(r"remind me (?:to|about) (?P<what>[a-z][a-z0-9' ,-]{1,80}?)(?: later| sometime| at some point)?", low)
+    m = re.fullmatch(r"remind me (?:later |sometime )?(?:to|about) (?P<what>[a-z][a-z0-9' ,-]{1,80}?)(?: later| sometime| at some point)?", low)
     if m and not re.search(r"\b(?:today|tomorrow|tonight|morning|afternoon|evening|noon|midnight|at|in|on|every|each|"
                            r"next|when|if|after|before|once|until|by|monday|tuesday|wednesday|thursday|friday|"
                            r"saturday|sunday|weekend|week|month|daily|weekly|hourly)\b", m.group("what")):
