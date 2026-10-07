@@ -1419,6 +1419,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
         r"|^how much (?:do i owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: owe me)?\s*\??$"
         r"|^(?:do i owe|does) (?P<owe_who>(?!anyone\b|anybody\b)[a-z][a-z ]{0,25}?)(?: owe me)?(?: (?:any )?money| anything)?\s*\??$")),
+    # "When did I last change the oil", "did I give the dog his medicine"
+    # (2026-10-07: to a model and the planner, a turn after he said so).
+    ("did_last", re.compile(
+        r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
+        r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
+        r"|vaccinate|deworm|descale|defrost) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
+        r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
+        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"(?P<did_today> today| yet| this morning| this week)?\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
@@ -1752,7 +1762,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "fractions", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -1762,7 +1772,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3716,6 +3726,59 @@ def _owed(who: str = "") -> str:
     if owed:
         said.append(speech.and_list(owed)[:1].upper() + speech.and_list(owed)[1:] + ".")
     return " ".join(said)
+
+
+_PAST = {"give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
+         "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
+
+
+def _did_last(text: str) -> str | None:
+    """When he last said he did a thing, from his notes. Never a guess: no
+    note is "not that you've told me", and how to tell her."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("did_last", text)
+    verb = (g.get("did_v") or g.get("did_v2") or "").strip()
+    thing = (g.get("did_o") or g.get("did_o2") or "").strip()
+    window = (g.get("did_today") or "").strip()
+    if not verb or not thing:
+        return None
+    if re.search(r"\b(?:email|emails|mail|message|messages|text|texts|call|calls|reply|replies|package|parcel)\b", thing) \
+            and verb in ("get", "mail", "mailed"):
+        return None
+    past = _PAST.get(verb) or (verb if verb.endswith("ed") else
+                              verb + "d" if verb.endswith("e") else
+                              verb[:-1] + "ied" if verb.endswith("y") and verb[-2:-1] not in "aeiou" else verb + "ed")
+    base = re.sub(r"(?:ied)$", "y", past)
+    words = [w for w in re.findall(r"[a-z0-9']+", thing.casefold())
+             if w not in ("the", "my", "our", "his", "her", "a", "an", "some", "its")]
+    tz = localtime.operator_tz()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not re.search(r"\bi (?:just )?" + re.escape(past) + r"\b", low) or not all(
+                re.search(r"\b" + re.escape(w), low) for w in words):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            at = None
+        told = re.sub(r"\bi\b", "you", re.sub(r"^i (?:just )?", "you ", low))
+        told = re.sub(r"\bmy\b", "your", told)
+        # "you changed the oil today - that was today at 6:56 am" said it twice.
+        told = re.sub(r" (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier)$", "", told)
+        if at is None:
+            return f"You told me {told}."
+        when = speech.humanize_time(at.isoformat())
+        if window in ("today", "yet", "this morning"):
+            if at.date() == dt.datetime.now(tz).date():
+                return f"Yes - you told me {told}, {when}."
+            return f"Not today that you've told me. The last time was {when}."
+        return f"You told me {told} - that was {when}."
+    say = f"I {past} {thing}"
+    return (f"Not that you've told me. Say \"{say}\" when you do and I'll keep track."
+            if g.get("did_v2") else
+            f"You haven't told me. Say \"{say}\" when you do and I'll keep track.")
 
 
 def _task_due(words: str) -> str | None:
@@ -7624,6 +7687,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rps": _rps,
            "place_where": lambda rest: _place_where(rest),
            "place_addr": lambda rest: _place_addr(rest),
+           "did_last": _did_last,
            "owed": lambda rest: _owed(rest),
            "birthdays": lambda rest: _birthdays_coming(rest),
            "birthday_when": lambda rest: _birthday_when(rest),

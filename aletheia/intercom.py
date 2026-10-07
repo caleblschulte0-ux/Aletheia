@@ -2703,6 +2703,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if item is not None:
                 execute_command({"kind": "shopping_off", "item": str(item.get("need") or "")}, fleet, quote=quote)
                 return f"Took it off your shopping list: {item.get('need')}."
+            # "I finished the report" with no task about it said "Nothing
+            # open matching 'report'" and kept nothing (2026-10-07). Said as
+            # a fact, it is kept as one, so "when did I finish" can answer.
+            # The quote carries where it was said ("spoken to the wall: ..."):
+            # his sentence is the part from "I" on.
+            said = re.search(r"\b(?:i|i've|i have) (?:just )?(?:finished|done|did|completed|wrapped up)\b.*$",
+                             " ".join(str(quote or "").split()), re.IGNORECASE)
+            if said:
+                execute_command({"kind": "note", "text": said.group(0).strip().strip('"')}, fleet, quote=quote)
+                return "Nice. That wasn't on your task list, so I've noted it."
         if found is None:
             return why
         tasks_mod.set_status(found["id"], "COMPLETED",

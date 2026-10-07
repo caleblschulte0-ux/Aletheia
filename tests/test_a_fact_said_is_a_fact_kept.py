@@ -930,5 +930,24 @@ class TheCalendarBackwards(unittest.TestCase):
         self.assertRegex(quick.answer("is today a weekday"), r"^(?:Yes|No)")
 
 
+class ThingsHeDid(unittest.TestCase):
+    def test_said_is_noted(self):
+        for said in ("i changed the oil today", "i gave the dog his medicine", "my license expires june 2027",
+                     "i watered the plants"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("did i get any emails")["command"]["kind"], "email_check")
+
+    def test_asked_back(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i changed the oil today", "ts": now}]):
+            said = quick.answer("when did i last change the oil")
+            self.assertTrue(said.startswith("You told me you changed the oil - that was today"), said)
+            self.assertTrue(quick.answer("did i change the oil today").startswith("Yes"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn('Say "I watered the plants"', quick.answer("have i watered the plants"))
+
+
 if __name__ == "__main__":
     unittest.main()

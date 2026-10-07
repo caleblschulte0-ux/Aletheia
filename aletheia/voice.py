@@ -1106,6 +1106,14 @@ def _birthday_reminder(m) -> dict:
                    "and then I can."}
 
 
+#: Past-tense verbs a done thing is said with. Kept to plain chores and
+#: errands: anything with a door of its own (paid a bill to a merchant,
+#: finished a task, took his pills) is matched before this is reached.
+_DONE_VERBS = ("changed|gave|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
+               "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
+               "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted")
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -4757,7 +4765,10 @@ def _interpret(transcript: str) -> dict:
                     r"check (?:my |the )?inbox|(?:any|do i have any) unread e?mails?|"
                     # "What emails do I have", "what's new in my email" (2026-10-07: to a model)
                     r"what (?:e?mails?|mail) (?:do i have|have i got|came in|did i get)(?: today| this morning)?|"
-                    r"what(?:'s| is|s)? new in (?:my |the )?(?:e?mail|inbox))", low):
+                    r"what(?:'s| is|s)? new in (?:my |the )?(?:e?mail|inbox)|"
+                    # "Did I get any emails" (2026-10-07: to the planner).
+                    r"(?:did i get|have i got|have i gotten|did i receive|have i received) (?:any )?(?:new )?(?:e?mails?|mail)"
+                    r"(?: today| this morning| yet)?)", low):
         return {"command": {"kind": "email_check"}, "say": None}
 
     # AN HOURLY REMINDER is a door she does not have (daily and weekly she
@@ -6093,6 +6104,17 @@ def _interpret(transcript: str) -> dict:
                            r"saturday|sunday|weekend|week|month|daily|weekly|hourly)\b", m.group("what")):
         what = _as_he_said(text, m.group("what").strip())
         return {"command": None, "say": f"When should I remind you to {what}? Say a time, like \"at 3\" or \"tomorrow morning\"."}
+
+    # A THING HE DID, OR A DATE ON SOMETHING OF HIS (2026-10-07: "I changed
+    # the oil today", "I gave the dog his medicine", "my license expires
+    # June 2027" each went to the planner). Last before the planner, so
+    # every verb with its own door keeps it: said as a fact, it is a note in
+    # his words, and "when did I last change the oil" reads it back.
+    if re.fullmatch(r"i (?:just )?(?:" + _DONE_VERBS + r") (?:the |my |our |his |her |a |an |some )?[a-z][a-z' ]{1,50}"
+                    r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
+            or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs out|is due|renews|ends) (?:on |in )?"
+                            r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
 
     # Unrecognized by the patterns above — which is not the same as
     # unrecognizable. Until 2026-08-27 this branch journaled the sentence
