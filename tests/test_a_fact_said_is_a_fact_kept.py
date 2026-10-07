@@ -2881,5 +2881,14 @@ class LengthsOfTime(unittest.TestCase):
         self.assertEqual(quick.answer("0.5 hours in minutes"), "30 minutes.")
 
 
+class RainThisAfternoon(unittest.TestCase):
+    def test_part_of_a_day_is_the_forecasts_half_of_it(self):
+        from aletheia import quick, weather
+        with mock.patch.object(weather, "rain", side_effect=lambda when: f"rain|{when}"):
+            self.assertEqual(quick.answer("will it rain this afternoon"), "rain|today")
+            self.assertEqual(quick.answer("is it going to rain this evening"), "rain|tonight")
+            self.assertEqual(quick.answer("do I need an umbrella later"), "rain|")
+
+
 if __name__ == "__main__":
     unittest.main()

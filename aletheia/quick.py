@@ -1136,8 +1136,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # answer "will it rain tomorrow" with a forecast and no yes.
     ("rain", re.compile(
         r"^(?:do i|will i|should i) (?:need|take|bring) (?:an |my )?(?:umbrella|raincoat|rain jacket)"
-        r"(?: (?P<weather>today|tonight|tomorrow|this weekend|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
+        r"(?: (?P<weather>today|tonight|tomorrow|this weekend|this afternoon|this evening|this morning|later(?: today)?"
+        r"|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
+        # "Will it rain this afternoon" (2026-10-07: a model).
         r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend|this week"
+        r"|this afternoon|this evening|this morning|later(?: today)?"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     # SOMEWHERE ELSE (2026-10-07): "what's the weather like in Chicago"
     # went to the planner. Before the pattern for his own weather, which
@@ -6830,6 +6833,10 @@ def _rain(when: str = "") -> str | None:
     """Will it rain: yes or no, from the same forecast as `_weather`."""
     try:
         from aletheia import weather
+        # The forecast speaks in halves of a day: an afternoon is "today",
+        # an evening "tonight", and "later" the rest of today.
+        when = {"this afternoon": "today", "this morning": "today", "this evening": "tonight",
+                "later": "", "later today": ""}.get(str(when or "").strip(), when)
         return weather.rain(when)
     except Exception:
         return None
