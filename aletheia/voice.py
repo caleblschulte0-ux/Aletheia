@@ -1992,6 +1992,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "Remind you of what, and when? Say it whole - like \"remind me at 4 to call Sam\" "
                        "or \"remind me in an hour to check the oven\"."}
+    # "REMIND ME TOMORROW" names a when and no what (2026-10-07: to the
+    # planner). Asked for whole, with the day he said in the example.
+    m = re.fullmatch(r"remind me (?P<when>tomorrow(?: morning| afternoon| evening| night)?|tonight|later today"
+                     r"|this (?:morning|afternoon|evening)|next week|on (?:monday|tuesday|wednesday|thursday|friday"
+                     r"|saturday|sunday)|(?:at|around) \d{1,2}(?::\d\d)?(?: ?[ap]m)?)", low)
+    if m:
+        when = m.group("when")
+        return {"command": None,
+                "say": f"Remind you of what? Say it whole - like \"remind me {when} to call Sam\"."}
     # "SET AN ALARM FOR 6AM EVERY DAY", "wake me up at 7 every weekday"
     # (2026-10-07: to the planner). The repeating kinds, a wake-up's words.
     m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) (?:at )?(?P<time>[\w: ]+?) "
@@ -2774,6 +2783,10 @@ def _interpret(transcript: str) -> dict:
          # "Read me the email FROM Stripe" (bottom rung 2026-09-24: to nobody).
          or re.fullmatch(r"(?:read me|read|open|show me) (?:the |that |my )?(?:email|e-mail|mail|message) from "
                          r"(?P<which>[a-z0-9][a-z0-9 .&'-]{1,40}?)", low))
+    # "Read my email" is not an email from somebody called "my" (2026-10-07):
+    # a word that names no sender is the inbox, and `email_check` reads it.
+    if m and m.group("which") in ("my", "me", "the", "your", "all", "all my", "all the", "any", "some", "an", "new"):
+        return {"command": {"kind": "email_check"}, "say": None}
     if m and m.group("which") not in ("latest", "last", "newest", "first", "new", "unread"):
         return {"command": {"kind": "email_read", "which": _as_he_said(transcript, m.group("which"))},
                 "say": None}
@@ -3083,6 +3096,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
+    # "MOVE MY DENTIST APPOINTMENT TO FRIDAY" (2026-10-07: to the planner,
+    # which has no door to his calendar's events). Said plainly, unless the
+    # words pick out one of his tasks, which can be moved.
+    m = re.fullmatch(r"(?:move|reschedule|push|shift|bump) (?:my |the )?(?P<what>.*?(?:appointment|meeting|call|lunch|dinner"
+                     r"|breakfast|interview|\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock))(?: with [a-z' ]+?)?)(?: back)? (?:to|till|until|for) .+", low)
+    if m and not _names_one_open_task(m.group("what")):
+        return {"command": None,
+                "say": "I can't move things on your calendar yet - I can only add holds to it. "
+                       "Move it in your calendar, and if you want a hold at the new time, tell me when."}
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60

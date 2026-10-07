@@ -673,6 +673,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # feed the shapes above already read (2026-09-22).
         r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week)"
         r"(?: like| looking like)?$"
+        # "What's my schedule look like" (2026-10-07: to the planner) - today
+        # unless he names a day.
+        r"|^what(?:'s| is|s| does)? (?:my |the )?(?:schedule|calendar|agenda) (?:look|looking|looks) like"
+        r"(?: (?:for )?(?P<day10>today|tomorrow|this week|next week))?$"
         # "Show me my calendar for next week" planned for 73 s and died on a
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
@@ -895,6 +899,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how windy is it|is it (?:windy|breezy)|what(?:'s| is|s) the wind(?: speed)?(?: (?:like|doing))?"
         r"|how(?:'s| is) the wind|wind speed)"
         r"(?: (?:out(?:side)?|today))?(?: (?P<weather3>tonight|tomorrow))?$")),
+    # "WHAT'S THE NEWS" went to the planner (2026-10-07), which cannot know
+    # today's news. The headlines off the feeds in config/news_feeds.json.
+    ("news", re.compile(
+        r"^(?:what(?:'s| is|s) (?:in )?the news|what(?:'s| is|s) (?:the )?(?:latest )?news(?: today)?|tell me the news"
+        r"|(?:read|give|tell) (?:me )?(?:the )?(?:headlines|news)(?: today)?|(?:the |today's )?(?:headlines|news)(?: today)?"
+        r"|what(?:'s| is|s) happening in the world(?: today)?|what(?:'s| are) the (?:top )?headlines(?: today)?"
+        r"|any news(?: today)?|anything in the news)$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -1297,7 +1308,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "weeks", "due", "due2",
+                                           "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -4445,6 +4456,14 @@ def _weather_detail(what: str, when: str = "") -> str | None:
         return None
 
 
+def _news() -> str | None:
+    try:
+        from aletheia import news
+        return news.spoken()
+    except Exception:
+        return None
+
+
 def _weather(when: str = "") -> str | None:
     """What it is doing outside, from the free national service.
 
@@ -5503,6 +5522,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "work_wants": lambda rest: _work_wants(),
            "humidity": lambda rest: _weather_detail("humidity", rest),
            "wind": lambda rest: _weather_detail("wind", rest),
+           "news": lambda rest: _news(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
            "greeting": lambda rest: _greeting(),

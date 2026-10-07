@@ -123,6 +123,7 @@ SANDBOX_READ_ONLY_HOME = {
 SANDBOX_READ_ONLY = {
     ("aletheia.jobs", "BOARDS_PATH"),
     ("aletheia.study_observe", "SOURCES_CONFIG"),
+    ("aletheia.news", "FEEDS_PATH"),
     ("aletheia.fleet", "DEFAULT_PATH"),
     ("aletheia.capabilities", "DEFAULT_PATH"),
     ("aletheia.rulings", "DEFAULT_PATH"),

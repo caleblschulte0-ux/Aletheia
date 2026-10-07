@@ -1,0 +1,7 @@
+{
+  "_note": "The public feeds 'what's the news' reads, in order. A source is changed here, by a reviewed edit, never in code. https only; 'take' is how many headlines from each.",
+  "feeds": [
+    {"name": "NPR", "url": "https://feeds.npr.org/1001/rss.xml", "take": 3},
+    {"name": "the BBC", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "take": 3}
+  ]
+}
