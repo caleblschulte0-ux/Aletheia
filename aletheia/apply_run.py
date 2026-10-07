@@ -1802,9 +1802,12 @@ def _worth_another_turn(exc: BaseException) -> bool:
     A timeout joined them 2026-10-07: TimeoutError was 14 of the month's 74
     failed sends, each a slow page on one attempt, and each was FAILED for
     good though the button had never been pressed and the next turn would
-    very likely have loaded it."""
+    very likely have loaded it. So did a dropped connection: the browser
+    library raises a bare `Error` carrying a network code (net::ERR_...)
+    when a page will not load at all, which is the network, not the form."""
+    name = type(exc).__name__
     return (isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
-            or type(exc).__name__ == "TimeoutError")
+            or name == "TimeoutError" or (name == "Error" and "net::ERR_" in str(exc)))
 
 
 def _back_in_line(record: dict, why: str) -> dict:
