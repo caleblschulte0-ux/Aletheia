@@ -1508,7 +1508,7 @@ _BARE_VERBS = (
      'What should the note say? Say "note that the plumber comes Tuesday".'),
     (r"(?:add|make|create|new) (?:a |me a )?(?:new )?task(?: for me)?",
      'What\'s the task? Say "add a task to renew my passport".'),
-    (r"(?:set|start) (?:a |me a )?(?:new )?timer",
+    (r"(?:set|start) (?:a |me a )?(?:new )?(?:nap |power nap |cooking |kitchen )?timer",
      'For how long? Say "set a timer for ten minutes".'),
     (r"(?:send|write|draft|compose) (?:an |a )?(?:new )?e-?mail(?: for me)?",
      'Who to, and what should it say? Say "email Dana saying I\'ll be late".'),
@@ -3911,7 +3911,10 @@ def _interpret(transcript: str) -> dict:
                      # "Shut up", "be quiet", "stop talking" (2026-10-07: to the planner).
                      r"|(?:quiet|hush|shush|mute your notifications|be quiet|shut up|stop talking|quiet down|zip it)"
                      r"(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
-                     r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?",
+                     r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?"
+                     # "I'm in a meeting", "I'm driving" (2026-10-07: to the planner):
+                     # the same hour of quiet, said as the reason for it.
+                     r"|(?:i'?m|i am) (?:in a meeting|on a call|on the phone|driving|in an interview|at the doctor'?s?|busy right now|in class)",
                      low)
     # "Don't bother me for an hour" (2026-10-07: to the planner) - the
     # span in words, the way the snooze reads it.

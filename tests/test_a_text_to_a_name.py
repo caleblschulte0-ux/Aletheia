@@ -567,5 +567,23 @@ class NumbersAPersonCanSay(unittest.TestCase):
         self.assertEqual(quick.match("what was the date yesterday")[0], "calendar_fact")
 
 
+
+class HowHeIs(unittest.TestCase):
+    def test_busy_is_an_hour_of_quiet(self):
+        for said in ("i'm in a meeting", "i'm driving"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "notify_snooze", "minutes": 60}, said)
+
+    def test_a_nap_timer_asks_how_long(self):
+        self.assertIn("For how long", voice._interpret("set a nap timer")["say"])
+
+    def test_feelings_and_mornings(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("i had a bad day")[0], "feeling")
+        self.assertEqual(quick.match("i'm sick today")[0], "feeling")
+        self.assertEqual(quick.match("i'm awake")[0], "good_morning")
+        self.assertEqual(quick.match("how productive was i today")[0], "tasks_done")
+        self.assertEqual(quick.match("what did i accomplish this week")[0], "tasks_done")
+
+
 if __name__ == "__main__":
     unittest.main()

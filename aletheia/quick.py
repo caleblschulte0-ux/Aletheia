@@ -389,13 +389,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "clear my completed tasks" all went to the planner. The task store
     # holds the answer to every one.
     ("tasks_done", re.compile(
-        r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off)"
+        r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off|accomplish(?:ed)?|achieve(?:d)?)"
         r"(?P<what> today| yesterday| this week)?$"
         r"|^what (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|do|done|get done|tick(?:ed)? off)"
         r"(?P<what2> today| yesterday| this week)?$"
         r"|^(?:what(?:'s| is|s)? (?:on )?)?my (?:done|finished|completed) (?:list|tasks)$"
         r"|^(?:which|what) tasks? (?:did|have) i (?:finish|finished|complete|completed|tick off|ticked off)\s*\??$"
-        r"|^(?:finished|completed|done) tasks\s*\??$")),
+        r"|^(?:finished|completed|done) tasks\s*\??$"
+        # "How productive was I today" (2026-10-07: to the planner).
+        r"|^how productive (?:was i|have i been|am i)(?P<what3> today| yesterday| this week)?\s*\??$")),
     ("task_top", re.compile(
         r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
         r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$")),
@@ -632,7 +634,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # planned as steps ("I will let you know when you're ready to go").
     ("good_morning", re.compile(
         r"^(?:good morning|morning|mornin'?|good morning thea|morning thea|hey good morning|"
-        r"top of the morning|rise and shine)(?:,? thea)?(?: !)?$")),
+        r"top of the morning|rise and shine|i'?m awake|i'?m up|i just woke up)(?:,? thea)?(?: !)?$")),
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
@@ -1430,8 +1432,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
-        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)$"
-        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day"
+        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)(?: today)?$"
+        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation)$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
@@ -1509,7 +1511,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
-                                           "applied_on", "applied_on2", "applied_on3",
+                                           "applied_on", "applied_on2", "applied_on3", "what3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
@@ -3915,9 +3917,11 @@ def _feeling(text: str) -> str | None:
     said = (g.get("feel") or g.get("feel2") or "").strip()
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
-    if said.startswith(("i'm having", "im having")):
+    if said.startswith(("i'm having", "im having", "i had a")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
+
+
 def _define(word: str) -> str | None:
     try:
         from aletheia import dictionary
