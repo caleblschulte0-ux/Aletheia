@@ -4898,5 +4898,16 @@ class PaydayAndBillsAddedUp(unittest.TestCase):
             self.assertTrue(quick.answer("what are my bills this month").startswith("From what you've told me"))
 
 
+class WhatWentOnTheListToday(unittest.TestCase):
+    def test_today_reads_the_stores_own_times(self):
+        import datetime as dt
+        from aletheia import intercom, quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        old = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=9)).isoformat()
+        rows = [{"id": "a", "need": "milk", "created_at": now}, {"id": "b", "need": "rice", "created_at": old}]
+        with mock.patch.object(intercom, "_shopping_items", return_value=rows):
+            self.assertEqual(quick.answer("what did i add to the list today"), "Added today and still on the list: milk.")
+
+
 if __name__ == "__main__":
     unittest.main()

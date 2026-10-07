@@ -411,6 +411,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_count", re.compile(
         r"^how many times (?:did|have) i (?P<dc_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|call|visit|pay"
         r"|take|charge|empty|fill|refill)(?:ed|d)? (?P<dc_o>[a-z][a-z' ]{1,40}?)(?P<dc_when> today| this week| this month| yesterday)?\s*\??$")),
+    # "What did I add to the list today" (2026-10-07: to the planner).
+    ("shop_added", re.compile(
+        r"^what (?:did i|have i|did we|have we) (?:add|added|put)(?: on| to)? (?:to |on )?(?:my |the |our )?(?:shopping |grocery )?list"
+        r"(?: (?P<shop_added>today|yesterday|this week))?\s*\??$")),
     ("cost_mine", re.compile(
         # "How much do I spend on bills a month" (2026-10-07: to a model) -
         # first, so "bills" is never read as one bill called that.
@@ -2238,7 +2242,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6829,6 +6833,34 @@ def _repos() -> str | None:
             + speech.and_list(shown) + ".")
 
 
+def _shop_added(text: str) -> str | None:
+    """What went on his shopping list today (or yesterday, this week), still
+    on it, newest last. From the store's own times; nothing is guessed."""
+    import datetime as dt
+    from aletheia import intercom, localtime, speech
+    when = _groups("shop_added", text).get("shop_added") or "today"
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    start = {"today": today, "yesterday": today - dt.timedelta(days=1),
+             "this week": today - dt.timedelta(days=today.weekday())}[when]
+    end = today if when == "yesterday" else None
+    try:
+        rows = intercom._shopping_items()
+    except Exception:
+        return None
+    added = []
+    for w in rows:
+        try:
+            at = dt.datetime.fromisoformat(str(w.get("created_at") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if at >= start and (end is None or at < end):
+            added.append(str(w.get("need") or w["id"])[:60])
+    if not added:
+        return f"Nothing still on your shopping list was added {when}."
+    return f"Added {when} and still on the list: {speech.and_list(added)}."
+
+
 def _shopping() -> str | None:
     """The same sentence the `shopping_list` command gives, written once."""
     from aletheia import intercom
@@ -10774,6 +10806,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "shop_added": lambda rest: _shop_added(rest),
            "cook_temp": lambda rest: _cook_temp(rest),
            "reminder_when": lambda rest: _reminder_when(rest),
            "until_mine": lambda rest: _when_mine(rest, until=True),
