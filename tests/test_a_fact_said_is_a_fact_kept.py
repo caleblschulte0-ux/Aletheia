@@ -2706,5 +2706,33 @@ class HisCommute(unittest.TestCase):
             self.assertIn("work is at", voice._interpret("when should I leave for work")["say"])
 
 
+
+class TheListSheJustRead(unittest.TestCase):
+    """2026-10-07: after "6 things on your shopping list: ...", "how many is
+    that", "is cheese on it" and "take the first one off" went to the planner,
+    and "socks and a hat" was one thing on a list."""
+
+    def _read(self, said):
+        import re
+        return re.match(r"(?P<n>\d+) things? on your (?P<name>[\w' -]+?) list: (?P<items>.+)\.$", said)
+
+    def test_follow_ons(self):
+        read = self._read("3 things on your shopping list: bread, cheese and milk.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("how many things is that")["say"], "3.")
+            self.assertEqual(voice._interpret("is cheese on it")["say"], "Yes - cheese is on it.")
+            self.assertEqual(voice._interpret("is ham on it")["say"], "No, ham isn't on it.")
+            self.assertEqual(voice._interpret("take the first one off")["command"], {"kind": "shopping_off", "item": "bread"})
+        read = self._read("2 things on your packing list: socks and a hat.")
+        with mock.patch.object(voice, "_list_just_read", return_value=read):
+            self.assertEqual(voice._interpret("remove the last one")["command"],
+                             {"kind": "list_off", "list": "packing", "item": "a hat"})
+
+    def test_an_article_is_not_part_of_the_name(self):
+        from aletheia import intercom
+        self.assertEqual(intercom.shopping_items_of("socks and a hat"), ["socks", "a hat"])
+        self.assertEqual(intercom.shopping_items_of("salt and vinegar chips"), ["salt and vinegar chips"])
+
+
 if __name__ == "__main__":
     unittest.main()

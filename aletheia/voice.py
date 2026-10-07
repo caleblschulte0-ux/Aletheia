@@ -1423,6 +1423,22 @@ def _last_ask_is_undoable() -> bool:
 _LOOKING_BACK = threading.local()
 
 
+def _list_just_read(turns: int = 5):
+    """The match for the list she read out in the last few turns, or None:
+    "6 things on your shopping list: bread, butter, ..." """
+    try:
+        from aletheia import converse
+        recent = converse.recent(limit=turns) or []
+    except Exception:  # noqa: BLE001
+        return None
+    for turn in reversed(recent):
+        m = re.match(r"(?P<n>\d+) things? on your (?P<name>[\w' -]+?) list: (?P<items>.+)\.$",
+                     " ".join(str(turn.get("she_answered") or "").split()))
+        if m:
+            return m
+    return None
+
+
 def _the_reminder_just_set() -> dict | None:
     """The reminder his last few asks set, as it stands now, or None.
 
@@ -2458,7 +2474,10 @@ def _onto_the_named_list(low: str) -> dict | None:
         return _interpret(f"add {m.group('w')} to my {name} list")
     m = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(?P<w>[a-z][a-z0-9' -]{1,40}?) off"
                      r"|(?:remove|cross off|take off|delete) (?:the |my )?(?P<w2>[a-z][a-z0-9' -]{1,40}?)", low)
-    if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all"):
+    # "Remove the last one" counts down the list she read (2026-10-07: it
+    # looked for a thing called "last one"); that is read further on.
+    if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
+            and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
         return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
     if re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
                     r"|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
@@ -3131,6 +3150,28 @@ def _interpret(transcript: str) -> dict:
     # socks to my packing list" and "what's on my packing list" went to the
     # planner). A list with a name of its own - never shopping, tasks or
     # reminders, which each have their own store and verbs.
+    # RIGHT AFTER SHE READ A LIST (2026-10-07: "how many things is that",
+    # "is cheese on it" and "take the first one off" all went to the
+    # planner). The list she just read is what "it" and "that" mean.
+    read_list = _list_just_read() if re.search(r"\b(?:it|that|there|one|ones|how many)\b", low) else None
+    if read_list:
+        items = [i.strip() for i in re.split(r", | and ", read_list.group("items")) if i.strip()]
+        name = read_list.group("name")
+        if re.fullmatch(r"how many (?:things |items )?(?:is that|was that|are there|are on (?:it|there|that)|is it)", low):
+            return {"command": None, "say": f"{read_list.group('n')}."}
+        m = re.fullmatch(r"(?:is|are) (?:there )?(?:any |some )?(?P<x>[a-z0-9][a-z0-9 '&-]{1,40}?) on (?:it|there|that(?: list)?)", low)
+        if m:
+            x = m.group("x")
+            hit = next((i for i in items if i.casefold() == x or re.sub(r"^(?:a|an|the|some) ", "", i.casefold()) == x), None)
+            return {"command": None, "say": f"Yes - {hit} is on it." if hit else f"No, {x} isn't on it."}
+        m = re.fullmatch(r"(?:take|cross|tick|check|knock) (?P<w>(?:the )?\w+(?: one)?) off(?: (?:it|the list|that list))?"
+                         r"|(?:remove|delete|drop|scratch) (?P<w2>(?:the )?\w+(?: one)?)(?: from (?:it|the list|that list))?", low)
+        where = speech.ordinal_index(m.group("w") or m.group("w2")) if m else None
+        if where is not None and -len(items) <= where < len(items):
+            item = items[where]
+            if name in ("shopping", "grocery"):
+                return {"command": {"kind": "shopping_off", "item": item}, "say": None}
+            return {"command": {"kind": "list_off", "list": name, "item": item}, "say": None}
     named = _named_list_said(low, text)
     if named:
         return named
