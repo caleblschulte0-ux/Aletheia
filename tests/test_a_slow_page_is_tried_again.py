@@ -14,6 +14,10 @@ class TimeoutError(Exception):       # Playwright's is matched by its name
     pass
 
 
+class Error(Exception):              # the browser library's bare error, by name
+    pass
+
+
 class ASlowPageIsTriedAgain(apply_base.ApplyCase):
     def ready_and_confirmed(self):
         out = self.staged(extra={"#felony": "No", "#cert": True})
@@ -31,6 +35,20 @@ class ASlowPageIsTriedAgain(apply_base.ApplyCase):
         self.assertEqual(record["state"], "AWAITING_YOU")
         self.assertEqual(record["submit_tries"], 1)
         self.assertIsNone(apply_run.was_sent(record["url"]))
+
+    def test_a_dropped_connection_before_the_press_goes_back_in_line(self):
+        out = self.ready_and_confirmed()
+        with self.assertRaises(Error):
+            apply_run.submit(out["id"], submitter=lambda r: (_ for _ in ()).throw(
+                Error("page.goto: net::ERR_CONNECTION_RESET at https://acme.example/apply")))
+        self.assertEqual(apply_run.load_run(out["id"])["state"], "AWAITING_YOU")
+
+    def test_a_bare_error_that_is_not_the_network_still_fails(self):
+        out = self.ready_and_confirmed()
+        with self.assertRaises(Error):
+            apply_run.submit(out["id"], submitter=lambda r: (_ for _ in ()).throw(
+                Error("Element is not attached to the DOM")))
+        self.assertEqual(apply_run.load_run(out["id"])["state"], "FAILED")
 
     def test_a_page_slow_every_time_fails_after_a_few_turns(self):
         out = self.ready_and_confirmed()
@@ -58,6 +76,12 @@ class AnOldSlowFailureIsReadAgain(apply_base.ApplyCase):
     def test_a_failed_timeout_with_fillings_left_is_read_again(self):
         self.assertTrue(campaign.refused_submit(
             {"state": "FAILED", "failure": "TimeoutError: Timeout 30000ms exceeded", "stagings": 1}))
+
+    def test_a_failed_dropped_connection_is_read_again(self):
+        self.assertTrue(campaign.refused_submit(
+            {"state": "FAILED", "failure": "Error: page.goto: net::ERR_CONNECTION_RESET at x", "stagings": 0}))
+        self.assertFalse(campaign.refused_submit(
+            {"state": "FAILED", "failure": "Error: Element is not attached", "stagings": 0}))
 
     def test_one_with_no_fillings_left_or_pressed_is_not(self):
         self.assertFalse(campaign.refused_submit(

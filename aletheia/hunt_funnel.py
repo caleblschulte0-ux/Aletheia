@@ -332,6 +332,7 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     rows = apply_run.all_runs()
     fresh = counts(rows, now=now)
     fresh["batches"] = batches(_tallies(), now=now)
+    fresh["stuck_at"] = stuck_at(_left_missions(), now=now)
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
@@ -343,6 +344,63 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     target.parent.mkdir(parents=True, exist_ok=True)
     stateio.write_json_atomic(target, fresh)
     return {"written": str(target), "sent_in_window": fresh["totals"]["sent"]}
+
+
+def _stuck_cause(boundary: dict) -> str:
+    """Which of the general browser's own stops this was, from the words it
+    left - never the page's address."""
+    state = str(boundary.get("page_state") or "").casefold() or "unread"
+    step = str(boundary.get("step") or "").casefold()
+    if state == "unknown":
+        return "unreadable_page"
+    if step.startswith("find the box"):
+        return "no_code_box"
+    if step.startswith("tell me what to press"):
+        return "unclear_button"
+    return "nothing_to_press_on_" + state
+
+
+def _furthest(mission: dict) -> str:
+    from aletheia import browser_mission as bm
+    names = {row.get("name") for row in mission.get("checkpoints") or []}
+    return next((name for name in reversed(bm.CHECKPOINTS) if name in names), "nothing")
+
+
+def stuck_at(missions: list[dict], *, now: dt.datetime | None = None, days: int = DAYS) -> dict:
+    """Where the general browser stopped on the job applications it left in
+    the window: which stop and how far she had got, as counts. Live
+    2026-10-07 "no way forward on the page" was 71 of the month's closed
+    applications and nothing said whether that was a posting with no Apply
+    button, a form she had filled, or a button she could not read."""
+    from collections import Counter
+    from aletheia import browser_mission as bm
+    now = now or dt.datetime.now(dt.timezone.utc)
+    first = now - dt.timedelta(days=days)
+    out: dict = {}
+    for mission in missions:
+        try:
+            if mission.get("state") != bm.LEFT or not bm._is_job(mission):
+                continue
+            when = dt.datetime.fromisoformat(str(mission.get("left_at") or "").replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=dt.timezone.utc)
+            if when < first:
+                continue
+            boundary = mission.get("boundary") or {}
+            kind = str(boundary.get("kind") or "unknown").casefold()
+            where = f"{_stuck_cause(boundary)}/{_furthest(mission)}"
+            out.setdefault(kind, Counter())[where] += 1
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return {kind: dict(sorted(c.items())) for kind, c in sorted(out.items())}
+
+
+def _left_missions() -> list[dict]:
+    try:
+        from aletheia import browser_mission as bm
+        return bm.all_missions(bm.LEFT)
+    except Exception:
+        return []
 
 
 def read(path=None) -> dict | None:

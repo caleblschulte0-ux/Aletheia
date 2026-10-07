@@ -605,6 +605,37 @@ def closed_unfit(company: str, job_title: str, url: str = "") -> dict | None:
     return None
 
 
+def settled_index(unfit_since: str = "") -> tuple[set, set]:
+    """(urls, role keys) of every job already settled: sent, waiting, or
+    closed. Read once per batch so discovery can leave them out BEFORE its
+    window is cut. A FAILED record is not settled (it may be tried again),
+    and a job closed as unfit before `unfit_since` - he has said what work he
+    wants since - is not either, so it can be judged afresh."""
+    urls, roles = set(), set()
+    for record in all_runs():
+        state = record.get("state")
+        if state == "FAILED":
+            continue
+        url = str(record.get("url") or "").strip()
+        role = (_role_key(record.get("company", ""), record.get("job_title", ""))
+                if str(record.get("company") or "").strip()
+                and str(record.get("job_title") or "").strip() else "")
+        if state == CLOSED:
+            kind = closure_kind(record)
+            if kind == "unfit" and str(record.get("closed_at") or "") < str(unfit_since or ""):
+                continue
+            if url:
+                urls.add(url)
+            if kind == "unfit" and role:
+                roles.add(role)
+            continue
+        if url:
+            urls.add(url)
+        if role:
+            roles.add(role)
+    return urls, roles
+
+
 def reopen(run_id: str, why: str) -> dict:
     """Bring a closed application back, on purpose and with the reason kept."""
     record = load_run(run_id)
@@ -1826,9 +1857,12 @@ def _worth_another_turn(exc: BaseException) -> bool:
     A timeout joined them 2026-10-07: TimeoutError was 14 of the month's 74
     failed sends, each a slow page on one attempt, and each was FAILED for
     good though the button had never been pressed and the next turn would
-    very likely have loaded it."""
+    very likely have loaded it. So did a dropped connection: the browser
+    library raises a bare `Error` carrying a network code (net::ERR_...)
+    when a page will not load at all, which is the network, not the form."""
+    name = type(exc).__name__
     return (isinstance(exc, browse.BrowserBusy) or browse._closed_browser_error(exc)
-            or type(exc).__name__ == "TimeoutError")
+            or name == "TimeoutError" or (name == "Error" and "net::ERR_" in str(exc)))
 
 
 def _back_in_line(record: dict, why: str) -> dict:
