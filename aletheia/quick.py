@@ -3208,20 +3208,28 @@ def _age_of(who: str) -> str | None:
         return None
     name = _name_for_relation(who) if who.startswith("my ") or who in _relation_words() else None
     label = name or re.sub(r"^my ", "", who)
-    words = re.findall(r"[a-z0-9]+", label.casefold())
+    # "My mom's birthday is April 12" names her by the relation, not by
+    # "Linda" (2026-10-07: "how old is my mom" found neither) - either will do.
+    either = [re.findall(r"[a-z0-9]+", label.casefold())]
+    if name:
+        either.append(re.findall(r"[a-z0-9]+", re.sub(r"^my ", "", who)))
     month_re = "|".join(_MONTHS)
+
+    def names_them(low: str) -> bool:
+        return any(ws and all(re.search(rf"\b{re.escape(w)}", low) for w in ws) for ws in either)
+    words = either[0]
     # "My mom was born in 1965" gives the year a birthday note may lack.
     born_in = None
     for row in _notes():
         low = " ".join(str(row.get("text") or "").split()).casefold()
         y = re.search(r"\bborn in ((?:19|20)\d\d)\b", low)
-        if y and words and all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+        if y and names_them(low):
             born_in = int(y.group(1))
             break
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if not words or not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+        if not names_them(low):
             continue
         if not re.search(r"\b(?:birthday|born|bday)\b", low) or re.search(r"\bborn in (?:19|20)\d\d\b", low):
             continue
