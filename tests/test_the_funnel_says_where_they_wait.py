@@ -77,6 +77,23 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["failed_because"],
                          {"browser_manual_only": 1, "browser_unknown": 1, "submit_would_not_click": 1})
 
+    def test_a_stopped_form_is_counted_by_what_its_questions_ask(self):
+        rows = [row("NEEDS_YOU", questions=[{"label": "Will you now or in the future require visa sponsorship?"},
+                                            {"label": "Why do you want to work at Acme?"}]),
+                row("NEEDS_YOU", questions=[{"label": "Do you require sponsorship to work here?"},
+                                            {"label": "What is your favourite colour at Acme?"}]),
+                row("NEEDS_YOU", questions=["What are your salary expectations?"])]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]
+        self.assertEqual(held["needs_answer"], 3)
+        self.assertEqual(held["asked_about"],
+                         {"other": 1, "pay": 1, "sponsorship": 2, "why_this_job": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
+
+    def test_a_word_inside_another_word_does_not_mislabel_a_question(self):
+        self.assertEqual(hunt_funnel._question_topic("What is your ethnicity?"), "demographic")
+        self.assertEqual(hunt_funnel._question_topic("Preferred first name"), "other")
+        self.assertEqual(hunt_funnel._question_topic("Were you referred by an employee?"), "referral")
+
     def test_the_browser_librarys_bare_error_is_named_by_its_network_code(self):
         rows = [row("FAILED", failure="Error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://acme.example/jobs"),
                 row("FAILED", failure="Error: Target crashed"),
