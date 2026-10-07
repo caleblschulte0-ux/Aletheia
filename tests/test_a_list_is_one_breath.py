@@ -21,8 +21,13 @@ class AListIsOneBreath(unittest.TestCase):
         self.assertEqual(self.cmd("add mac and cheese to the list").get("kind"), "shopping_add")
 
     def test_a_doubtful_shape_still_goes_to_the_planner(self):
-        self.assertNotEqual(self.cmd("add eggs milk and bread to the shopping list").get("kind"),
+        # A run of words that might be one long name is still a doubt...
+        self.assertNotEqual(self.cmd("add peanut butter eggs and bread to the shopping list").get("kind"),
                             "shopping_add")
+        # ...and a run of things that are each a thing on their own is how a
+        # spoken list arrives, with no commas.
+        c = self.cmd("add eggs milk and bread to the shopping list")
+        self.assertEqual(intercom.shopping_items_of(c["item"]), ["eggs", "milk", "bread"])
 
 
 class AnythingTomorrowIsHisCalendar(unittest.TestCase):

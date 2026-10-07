@@ -20,11 +20,13 @@ class ARefusalInWordsCase(unittest.TestCase):
         self.assertNotIn("close_window", said)
 
     def test_a_volume_level_is_answered_by_voice(self):
-        for said in ("thea set the volume to 50", "thea turn the volume to 20%", "thea put the sound at half"):
+        # Answered by voice, never planned - and since 2026-10-07 done, with
+        # the volume keys pressed to the level.
+        for said, level in (("thea set the volume to 50", 50), ("thea turn the volume to 20%", 20),
+                            ("thea put the sound at half", 50)):
             with self.subTest(said=said):
                 out = voice.interpret(said)
-                self.assertIsNone(out["command"])
-                self.assertIn("only up, down and mute", out["say"])
+                self.assertEqual(out["command"], {"kind": "music", "action": "volume_set", "level": level})
         self.assertEqual(voice.interpret("thea volume up")["command"]["action"], "volume_up")
 
 

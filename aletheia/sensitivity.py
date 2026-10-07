@@ -37,13 +37,20 @@ import re
 # Each rule is (name, pattern, how many groups to keep). The pattern must
 # match the SECRET, not the sentence around it, because what replaces it
 # is a marker and everything else stays readable.
+#: "The wifi password is ON THE FRIDGE" says where it is, not what it is
+#: (2026-10-07: refused as a password and blanked). Only after "is", and
+#: only these words, so a value that merely starts with one ("in2deep!")
+#: is still a password.
+WHERE_IT_IS = (r"(?:on|in|under|underneath|taped|written|stuck|behind|inside|beside|next to|by|kept|saved|"
+               r"stored|at the|at my)\b")
+
 RULES: tuple[tuple[str, re.Pattern, str], ...] = (
     # "password: hunter2", "api key = sk-abc123", "token is xyz"
     # TO THE END OF THE LINE. "passphrase: correct horse battery staple"
     # is four words and the first version took one of them, leaving three
     # quarters of it sitting in a public repository.
     ("a password", re.compile(
-        r"\b(pass(?:word|phrase|code)|pwd)\b\s*(?:is|=|:)\s*\S.*", re.I),
+        r"\b(pass(?:word|phrase|code)|pwd)\b\s*(?:=|:|is(?!\s+" + WHERE_IT_IS + r"))\s*\S.*", re.I),
      r"\1 [redacted]"),
     # "log in with password hunter2 and click submit" — no colon, no
     # "is", which is how a person actually says it. Only when the next

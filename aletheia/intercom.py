@@ -252,7 +252,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # ever reduces, so it is routine and never waits.
     # Transport for whatever is playing. LOCAL: it presses keys on
     # his own machine.
-    "music":         ({"action"}, set()),
+    "music":         ({"action"}, {"level"}),
     "chatgpt":       (set(), set()),
     "chatgpt_on":    (set(), {"hours"}),
     "chatgpt_off":   (set(), set()),
@@ -1528,7 +1528,10 @@ def _forget_note(about: str) -> str:
     try:
         from aletheia import journal, quick
         words = [w for w in re.findall(r"[a-z0-9']+", str(about or "").casefold())
-                 if w not in ("my", "the", "about", "what", "you", "know", "everything")]
+                 # "Forget where I parked" names the note by its question
+                 # (2026-10-07: "nothing remembered about where I parked").
+                 if w not in ("my", "the", "about", "what", "you", "know", "everything",
+                              "where", "when", "which", "who", "how", "that")]
         if not words:
             return ""
         for row in quick._notes():
@@ -1542,6 +1545,18 @@ def _forget_note(about: str) -> str:
     return ""
 
 
+def _what_it_is_about(said: str, *, keep_whose: bool = False) -> str:
+    """"What I said about Dana" -> "Dana": every lead, in any order. "What you
+    know about MY landlord" kept the "my", and "what I said about Dana" was a
+    phrase no note holds (2026-10-07). `keep_whose` leaves a leading "my"
+    for a note, which says "my sister's name is Dana" in his words."""
+    lead = (r"what (?:you know|i (?:said|told you)|i've told you) about |everything (?:you know )?about "
+            r"|(?:my |the )?notes? (?:about|on) ")
+    if keep_whose:
+        return re.sub(r"^(?:" + lead + r")", "", said, flags=re.IGNORECASE) or said
+    return re.sub(r"^(?:(?:my|the) |" + lead + r")+", "", said, flags=re.IGNORECASE)
+
+
 def _remembered_matching(about: str, domain: str | None = None):
     """(domain, key, value) for everything she has that he could mean.
 
@@ -1553,9 +1568,10 @@ def _remembered_matching(about: str, domain: str | None = None):
     from aletheia import memory
     needle = " ".join(str(about or "").casefold().split())
     # "My landlord" is how he says it; "landlord" is how it is stored.
-    for lead in ("my ", "the ", "what you know about ", "everything about "):
-        if needle.startswith(lead):
-            needle = needle[len(lead):]
+    # Every lead, in any order: "what you know about MY landlord" kept the
+    # "my", and "what I said about Dana" was a phrase no note holds
+    # (2026-10-07).
+    needle = _what_it_is_about(needle)
     found = []
     for one in memory.DOMAINS if not domain else [domain]:
         try:
@@ -1681,8 +1697,15 @@ def _one_reminder(which: str):
         try:
             return rows[where], ""
         except IndexError:
-            return None, ("You only have "
+            return None, ("You have no reminders set." if not rows else "You only have "
                           + speech.count_phrase(len(rows), "reminder") + ".")
+
+    # "CANCEL THAT REMINDER" right after setting it (2026-10-07: "None of
+    # your reminders is about that", naming the one he had). "That" is the
+    # newest one he set; the receipt names it, so a wrong pick is heard.
+    if rows and re.fullmatch(r"(?:that|it|this|that one|this one|the last one|the one i just set|the reminder"
+                             r"|that reminder|this reminder|the last reminder)", needle):
+        return max(rows, key=lambda r: str(r.get("created_at") or "")), ""
 
     hits = [r for r in rows if needle and needle in text_of(r)]
     if not hits:
@@ -1804,9 +1827,28 @@ def _contacts_answer(which: str = "") -> str:
                      if len(w) > 2 and w not in TASK_STOP]
             hits = [c for c in rows
                     if any(w in n for w in words for n in names(c) if n)]
+        if not hits and re.match(r"(?:my|our)\s", which.casefold().strip()):
+            # "What's my sister's number" with Dana saved and "my sister's
+            # name is Dana" in his notes (2026-10-07: "no contact for 'my
+            # sister'").
+            try:
+                from aletheia import quick
+                named = quick._name_for_relation(which)
+            except Exception:  # noqa: BLE001
+                named = None
+            if named:
+                return _contacts_answer(named)
         rows = hits
         if not rows:
-            return f"I have no contact for {which!r}."
+            # "I have no contact for 'dana'." (2026-10-07): quotes and his
+            # lower case read out, and nothing said how to fix it.
+            who = " ".join(str(which).split())
+            his = re.sub(r"^(?:my|our)\s+", "your ", who, flags=re.I)
+            if who.islower() and not his.startswith("your ") and not re.match(r"the\s", who):
+                his = who.title()
+            says = re.sub(r"^your ", "my ", his)
+            return (f"I don't have a number or email for {his} yet. "
+                    f"Say \"{says}'s number is\" and the number, and I'll keep it.")
         if len(rows) == 1:
             # "What's Mia's number" is a question about one person: answered
             # as a sentence, not as a list of one.
@@ -1955,6 +1997,19 @@ SHOPPING_EVERYTHING = frozenset({"everything", "all", "all of it", "the whole li
 
 #: Things whose NAME has "and" in it. Short on purpose: anything not here
 #: that is two single words ("milk and eggs") is two rows.
+#: Things that are a whole item said as one word, for telling a spoken run
+#: of them ("milk eggs and bread") from one thing with a long name.
+GROCERY_WORDS = frozenset("""
+milk eggs bread butter cheese yogurt cream coffee tea sugar flour salt pepper rice pasta
+beans cereal oatmeal apples bananas oranges lemons limes grapes berries strawberries
+blueberries avocados tomatoes potatoes onions garlic carrots lettuce spinach broccoli
+celery cucumbers peppers mushrooms corn chicken beef pork bacon ham turkey sausage fish
+salmon tuna shrimp tofu juice water soda beer wine chips crackers cookies honey jam
+ketchup mustard mayo mayonnaise oil vinegar soap shampoo toothpaste deodorant detergent
+napkins batteries foil diapers wipes razors lightbulbs nuts almonds peanuts popcorn
+salsa hummus tortillas bagels muffins granola ice candy chocolate gum bleach sponges
+""".split())
+
 SHOPPING_ONE_THING = ("mac and cheese", "macaroni and cheese", "half and half", "fish and chips",
                       "salt and vinegar", "sweet and sour", "peanut butter and jelly",
                       "chips and salsa", "rice and beans", "pb and j", "pb&j")
@@ -1988,6 +2043,14 @@ def shopping_items_of(said: str) -> list[str]:
     parts = [p.strip() for p in re.split(r"\s+(?:and|&)\s+", text) if p.strip()]
     if len(parts) >= 2 and all(" " not in p for p in parts):
         return parts
+    # "MILK EGGS AND BREAD": speech-to-text writes no commas, so a spoken
+    # list arrives as words run together before its last "and". Split the
+    # run only when every word in it is a thing on its own, and only before
+    # the last "and" - "salt and vinegar chips" keeps its name.
+    if len(parts) == 2 and " " not in parts[1] and parts[1].casefold() in GROCERY_WORDS:
+        run = parts[0].split()
+        if len(run) >= 2 and all(w.casefold() in GROCERY_WORDS for w in run):
+            return run + [parts[1]]
     return [text]
 
 
@@ -2380,6 +2443,9 @@ def _one_task(which: str):
         try:
             return rows[where], ""
         except IndexError:
+            # "There are only 0 things on your list" (2026-10-07).
+            if not rows:
+                return None, "Your list is empty."
             return None, (f"There {'is' if len(rows) == 1 else 'are'} only "
                           + speech.count_phrase(len(rows), "thing")
                           + " on your list.")
@@ -2926,6 +2992,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # among others) then raised UnboundLocalError. Found by the full suite.
         from aletheia import memory
         about = " ".join(str(cmd.get("about") or "").split())
+        about = _what_it_is_about(about, keep_whose=True)
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is
@@ -3348,8 +3415,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
                                         location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
+        # "Block off 2 to 4" was confirmed as "at 2 pm" alone (2026-10-07):
+        # a length he named is said back, so a wrong one is caught by ear.
+        until = ""
+        if cmd.get("minutes") and int(cmd["minutes"]) != 60:
+            ends = calendar_reasoning.human(held["event"].get("end") or end.isoformat())
+            until = f" until {ends.split(' at ', 1)[1]}" if " at " in ends else ""
+        when = calendar_reasoning.human(held['event']['start'])
+        if until and " at " in when:
+            when = when.replace(" at ", " from ", 1)
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
-                f"{'to ' if old else ''}{calendar_reasoning.human(held['event']['start'])}, "
+                f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only.")
     if kind == "calendar_propose":
         from aletheia import conversations
@@ -3365,6 +3441,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 "It's waiting for your okay.")
     if kind == "music":
         from aletheia import music
+        if cmd["action"] == "volume_set":
+            try:
+                return music.set_volume(int(cmd.get("level")))
+            except (TypeError, ValueError):
+                raise act.Refused("I need a number for the volume, nought to a hundred.") from None
         return music.control(cmd["action"])
     if kind == "chatgpt":
         from aletheia import second_opinion

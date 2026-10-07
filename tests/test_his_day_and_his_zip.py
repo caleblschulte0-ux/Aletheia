@@ -46,8 +46,14 @@ class HisZip(unittest.TestCase):
             self.assertEqual(weather.where_he_is()[0], "78701")
 
     def test_the_receipt_is_a_sentence(self):
-        self.assertEqual(speech.spoken_receipt("remember", "remembered identity.zip_code"),
-                         "Got it - I'll remember your zip code.")
+        from aletheia import memory
+        with mock.patch.object(memory, "recall", return_value=None):
+            self.assertEqual(speech.spoken_receipt("remember", "remembered identity.zip_code"),
+                             "Got it - I'll remember your zip code.")
+        # With the value in her store, she says it back so a wrong one is caught.
+        with mock.patch.object(memory, "recall", return_value="78701"):
+            self.assertEqual(speech.spoken_receipt("remember", "remembered identity.zip_code"),
+                             "Got it - your zip code is 78701.")
 
     def test_no_network_is_not_a_wrong_zip(self):
         import urllib.error
@@ -84,5 +90,7 @@ class HisName(unittest.TestCase):
             self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "remember", said)
 
     def test_the_receipt(self):
-        self.assertEqual(speech.spoken_receipt("remember", "remembered identity.operator_name"),
-                         "Got it - I'll remember what to call you.")
+        from aletheia import memory
+        with mock.patch.object(memory, "recall", return_value=None):
+            self.assertEqual(speech.spoken_receipt("remember", "remembered identity.operator_name"),
+                             "Got it - I'll remember what to call you.")

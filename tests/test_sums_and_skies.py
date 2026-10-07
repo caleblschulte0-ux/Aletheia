@@ -104,7 +104,7 @@ class HisNotes(unittest.TestCase):
         from aletheia import voice
         rows = [{"text": "milk is out"}, {"text": "the plumber comes friday"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
-            self.assertIn("plumber comes friday", quick.answer("search my notes for the plumber"))
+            self.assertIn("plumber comes Friday", quick.answer("search my notes for the plumber"))
             self.assertEqual(voice._interpret("delete my last note")["command"],
                              {"kind": "forget", "about": "milk is out"})
         with mock.patch.object(quick, "_notes", return_value=[]):

@@ -467,7 +467,17 @@ def as_she_says_it(phrase: str) -> str:
     said = str(phrase or "")
     for pattern, replacement in _HIS_PRONOUNS:
         said = re.sub(pattern, replacement, said)
-    return said
+    # "The plumber comes tuesday": speech-to-text and a lowercased match
+    # both lose a day's capital. Days, and the months that are never also
+    # an ordinary word ("may" and "march" are), get theirs back.
+    return _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+
+
+# March and May are words too, so only beside a day of the month: "march
+# 3", "the 3rd of may" ("Dana's birthday is march 3", 2026-10-07).
+_NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
+                         r"|june|july|august|september|october|november|december)\b"
+                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b")
 
 
 #: Words that should not start a file name: they describe whose it is,
@@ -721,7 +731,11 @@ def spoken_receipt(kind: str, detail: str, *,
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
         if named:
-            return f"Added a task: {named.group(1).strip()}."
+            # "pay rent due Friday" heard as one run; the pause is a comma.
+            said = re.sub(r"(?<=[a-z0-9)])\s+(due (?:today|tonight|tomorrow|on |by |in |next |this |"
+                          r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|[a-z]+ \d|\d))",
+                          r", \1", named.group(1).strip(), flags=re.IGNORECASE)
+            return f"Added a task: {said}."
         slug = re.search(r"task ([a-z0-9-]+) queued", text)
         if slug:
             return f"Added a task: {deslug(slug.group(1))}."
@@ -740,8 +754,22 @@ def spoken_receipt(kind: str, detail: str, *,
                     f"{noted.group(2).strip()}.")
         # The intercom's own receipt names the slot and not the value, so the
         # value never lands in a committed receipt: "remembered identity.full_name".
-        slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
+        slot = re.match(r"remembered\s+(\w+)\.([\w-]+)\s*$", text)
         if slot:
+            # SAY IT BACK. "Got it - I'll remember where you live" cannot be
+            # caught wrong by ear (2026-10-07); "you live in Austin" can. The
+            # value is read from her store, never from the committed receipt.
+            try:
+                from aletheia import memory
+                value = " ".join(str(memory.recall(slot.group(1), slot.group(2)) or "").split())
+            except Exception:  # noqa: BLE001
+                value = ""
+            said = {"home_city": "you live in {}", "zip_code": "your zip code is {}",
+                    "postal_code": "your zip code is {}", "operator_name": "I'll call you {}",
+                    "full_name": "your name is {}", "timezone": "your time zone is {}"}.get(slot.group(2))
+            if value and said and len(value) <= 60:
+                return f"Got it - {said.format(value)}."
+            slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
             what = {"full_name": "your name", "operator_name": "what to call you", "postal_code": "your zip code",
                     "zip_code": "your zip code", "home_city": "where you live",
                     "timezone": "your time zone"}.get(slot.group(1), "your " + deslug(slot.group(1)).replace("_", " "))
@@ -753,6 +781,11 @@ def spoken_receipt(kind: str, detail: str, *,
             if verb == "renamed" and " -> " in rest:
                 old, new = rest.split(" -> ", 1)
                 return f"Renamed {old.strip()} to {new.strip()}."
+            # "Moved: call the bank due Friday." read as a log line
+            # (2026-10-07); said, it is when the thing is due now.
+            due = re.fullmatch(r"(.+?) due (.+)", rest.strip()) if verb == "moved" else None
+            if due:
+                return f"{due.group(1)[:1].upper()}{due.group(1)[1:]} is due {due.group(2).rstrip('.')} now."
             return f"{'Dropped' if verb == 'dropped' else 'Moved'}: {rest.strip()}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)
