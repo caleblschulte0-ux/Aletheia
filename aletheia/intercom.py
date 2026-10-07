@@ -1377,6 +1377,22 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     return f"{text} — {lead} at {when}"
 
 
+def _soonest_first(rows: list) -> list:
+    """Reminders in the order they go off ("call mom at 6 pm and check the
+    oven at 5:33 am" was read in the order they were made, 2026-10-07)."""
+    import datetime as _dt
+    from aletheia import scheduler
+    now = _dt.datetime.now(_dt.timezone.utc)
+    far = now + _dt.timedelta(days=36500)
+
+    def when(spec):
+        try:
+            return scheduler.next_occurrence(spec, now) or far
+        except Exception:
+            return far
+    return sorted(rows, key=when)
+
+
 def _reminders_answer(which: str = "") -> str:
     """"What reminders do I have" — from the store, with no model."""
     from aletheia import speech
@@ -1389,6 +1405,7 @@ def _reminders_answer(which: str = "") -> str:
             return f"No reminder matching {which!r}."
     if not rows:
         return "You have no reminders set."
+    rows = _soonest_first(rows)
     said = speech.and_list([_reminder_words(r) for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
     return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."

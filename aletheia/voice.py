@@ -1317,6 +1317,23 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
     return {}
 
 
+def _relative_length_asked(previous: dict) -> str | None:
+    """"minute" or "hour" when the reminder he just set was asked for as a
+    length ("remind me in 20 minutes to ..."), else None."""
+    try:
+        from aletheia import converse
+        recent = converse.recent(limit=4) or []
+    except Exception:
+        return None
+    what = str(previous.get("text") or "").casefold()
+    for turn in reversed(recent):
+        said = " ".join(str(turn.get("he_asked") or "").casefold().split())
+        found = re.search(r"\bremind me in (?:\d{1,3}|an?|one) (minute|hour)s?\b", said)
+        if found and what and what in said:
+            return found.group(1)
+    return None
+
+
 def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     """"Make that 4": the reminder he just set, at the new time, replacing
     the old one. None unless his last ask was a one-off reminder and the
@@ -1338,6 +1355,18 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
             return None
         at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(**{unit + "s": n})
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": f"your {n}-{unit} timer is up",
+                            "replaces": previous["text"]}, "say": None}
+    # "Remind me in 20 minutes to check the oven", "make it 25" went to the
+    # planner (2026-10-07): a reminder set as a length is moved as one.
+    relative = _relative_length_asked(previous)
+    if relative and length:
+        import datetime as dt
+        n = int(length.group(1))
+        unit = {"m": "minute", "h": "hour", "s": "second"}[(length.group(2) or relative)[:1]]
+        if n < 1:
+            return None
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(**{unit + "s": n})
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
                             "replaces": previous["text"]}, "say": None}
     hhmm = _spoken_time(time_words)
     if not hhmm:

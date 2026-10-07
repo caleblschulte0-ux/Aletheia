@@ -138,5 +138,31 @@ class WhereHeParkedIsSaidToHim(unittest.TestCase):
             self.assertEqual(quick._parked(), "You parked on level 3 row b.")
 
 
+class AReminderSetAsALengthMovesAsOne(unittest.TestCase):
+    def test_make_it_25_after_in_20_minutes(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import converse, voice
+        turns = [{"he_asked": "remind me in 20 minutes to check the oven",
+                  "she_answered": "I'll remind you today at 5:28 am: check the oven."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            said = voice._interpret("actually make it 25")
+        cmd = said["command"]
+        self.assertEqual((cmd["kind"], cmd["text"], cmd["replaces"]), ("remind_at", "check the oven", "check the oven"))
+        left = dt.datetime.fromisoformat(cmd["at"]) - dt.datetime.now(dt.timezone.utc)
+        self.assertAlmostEqual(left.total_seconds(), 25 * 60, delta=30)
+
+
+class RemindersAreReadSoonestFirst(unittest.TestCase):
+    def test_soonest_first(self):
+        from aletheia import intercom, scheduler
+        scheduler.create("t-later", {"kind": "notify_operator", "text": "later"}, kind="once",
+                         at="2099-01-02T00:00:00+00:00")
+        scheduler.create("t-sooner", {"kind": "notify_operator", "text": "sooner"}, kind="once",
+                         at="2099-01-01T00:00:00+00:00")
+        rows = [r for r in scheduler.all_schedules() if r["id"] in ("t-later", "t-sooner")]
+        self.assertEqual([r["id"] for r in intercom._soonest_first(rows)], ["t-sooner", "t-later"])
+
+
 if __name__ == "__main__":
     unittest.main()
