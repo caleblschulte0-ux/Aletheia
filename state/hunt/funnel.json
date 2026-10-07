@@ -217,16 +217,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 40,
-      "found": 62,
+      "filled": 41,
+      "found": 63,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 25
+      "sent": 26
     }
   },
-  "generated_at": "2026-10-07T22:40:31Z",
-  "sent_all_time": 259,
+  "generated_at": "2026-10-07T22:47:26Z",
+  "sent_all_time": 260,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -271,12 +271,12 @@
     }
   },
   "totals": {
-    "filled": 370,
-    "found": 676,
+    "filled": 371,
+    "found": 677,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 259
+    "sent": 260
   },
   "waiting": {
     "asked_about": {
