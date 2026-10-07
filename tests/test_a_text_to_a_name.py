@@ -741,5 +741,20 @@ class WhatAboutTomorrow(unittest.TestCase):
             self.assertIsNone(quick.answer("what about pizza"))
 
 
+
+class TheOtherOne(unittest.TestCase):
+    def test_with_one_left_the_other_one_is_it(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", return_value=[{"id": "t1", "description": "renew my passport"}]):
+            self.assertEqual(intercom._one_task("the other one")[0]["id"], "t1")
+        with mock.patch.object(intercom, "_open_tasks", return_value=[{"id": "a", "description": "x"},
+                                                                      {"id": "b", "description": "y"}]):
+            self.assertIn("Which one", intercom._one_task("other")[1])
+
+    def test_whats_left_after_a_tick_is_the_task_list(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("mark the first one done", "Done: call the plumber.")):
+            self.assertEqual(voice._interpret("what's left")["command"], {"kind": "tasks"})
+
+
 if __name__ == "__main__":
     unittest.main()

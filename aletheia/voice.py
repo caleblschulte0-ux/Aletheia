@@ -2097,6 +2097,10 @@ def _interpret(transcript: str) -> dict:
         named = re.search(r"\byour ([a-z][a-z' -]{1,30}?) list\b", answered, re.IGNORECASE)
         if named:
             return {"command": {"kind": "list_read", "list": named.group(1)}, "say": None}
+        # "What's left" after ticking a task off (2026-10-07: it read the
+        # SETUP checklist). The task list the last exchange was about.
+        if re.match(r"(?:Done|Added a task|Moved|\d+ things? on your list|1 thing on your list)\b", answered):
+            return {"command": {"kind": "tasks"}, "say": None}
     # HIS OWN NAMED LISTS (2026-10-07: "make a list called packing", "add
     # socks to my packing list" and "what's on my packing list" went to the
     # planner). A list with a name of its own - never shopping, tasks or

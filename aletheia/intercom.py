@@ -2062,6 +2062,15 @@ def _one_task(which: str):
             return None, (f"There {'is' if len(rows) == 1 else 'are'} only "
                           + speech.count_phrase(len(rows), "thing")
                           + " on your list.")
+    # "THE OTHER ONE", after one of two was ticked off: with one task left
+    # open, that is the one (2026-10-07: "Nothing open matching 'other'").
+    if re.fullmatch(r"(?:the )?other(?: one)?", needle):
+        if len(rows) == 1:
+            return rows[0], ""
+        if not rows:
+            return None, "Nothing on your list is open."
+        return None, ("Which one — " + speech.or_list([str(t.get("description") or t["id"])[:50]
+                                                      for t in rows[:4]]) + "?")
     hits = [t for t in rows
             if needle and (needle in str(t.get("description", "")).casefold()
                            or needle in str(t.get("id", "")).casefold())]
