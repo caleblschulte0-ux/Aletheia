@@ -216,7 +216,7 @@
       "sent": 12
     }
   },
-  "generated_at": "2026-10-07T17:03:56Z",
+  "generated_at": "2026-10-07T17:08:55Z",
   "sent_all_time": 246,
   "stuck_at": {
     "approval_denied": {
@@ -270,6 +270,12 @@
     "sent": 246
   },
   "waiting": {
+    "asked_about": {
+      "demographic": 5,
+      "on_site": 1,
+      "other": 6,
+      "travel": 1
+    },
     "closed": {
       "duplicate": 3,
       "gone": 36,
