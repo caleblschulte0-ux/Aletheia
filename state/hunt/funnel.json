@@ -34,7 +34,7 @@
       "sent": 24
     },
     "2026-09-13": {
-      "filled": 48,
+      "filled": 47,
       "found": 69,
       "interviews": 0,
       "rejections": 0,
@@ -42,7 +42,7 @@
       "sent": 43
     },
     "2026-09-14": {
-      "filled": 33,
+      "filled": 30,
       "found": 40,
       "interviews": 0,
       "rejections": 0,
@@ -58,7 +58,7 @@
       "sent": 1
     },
     "2026-09-16": {
-      "filled": 15,
+      "filled": 9,
       "found": 15,
       "interviews": 0,
       "rejections": 0,
@@ -66,7 +66,7 @@
       "sent": 8
     },
     "2026-09-17": {
-      "filled": 19,
+      "filled": 12,
       "found": 22,
       "interviews": 0,
       "rejections": 0,
@@ -74,7 +74,7 @@
       "sent": 10
     },
     "2026-09-18": {
-      "filled": 19,
+      "filled": 5,
       "found": 25,
       "interviews": 0,
       "rejections": 0,
@@ -82,7 +82,7 @@
       "sent": 3
     },
     "2026-09-19": {
-      "filled": 14,
+      "filled": 10,
       "found": 33,
       "interviews": 0,
       "rejections": 0,
@@ -90,7 +90,7 @@
       "sent": 5
     },
     "2026-09-20": {
-      "filled": 9,
+      "filled": 5,
       "found": 11,
       "interviews": 0,
       "rejections": 0,
@@ -98,7 +98,7 @@
       "sent": 0
     },
     "2026-09-21": {
-      "filled": 19,
+      "filled": 9,
       "found": 26,
       "interviews": 0,
       "rejections": 0,
@@ -106,7 +106,7 @@
       "sent": 0
     },
     "2026-09-22": {
-      "filled": 17,
+      "filled": 15,
       "found": 64,
       "interviews": 0,
       "rejections": 0,
@@ -226,7 +226,7 @@
       "sent": 27
     }
   },
-  "generated_at": "2026-10-07T23:07:00Z",
+  "generated_at": "2026-10-07T23:26:30Z",
   "sent_all_time": 261,
   "stuck_at": {
     "approval_denied": {
@@ -272,7 +272,7 @@
     }
   },
   "totals": {
-    "filled": 373,
+    "filled": 322,
     "found": 679,
     "interviews": 2,
     "rejections": 4,
@@ -284,7 +284,7 @@
       "demographic": 5,
       "education": 1,
       "on_site": 1,
-      "other": 7,
+      "other": 6,
       "travel": 1
     },
     "closed": {
@@ -299,20 +299,21 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
+      "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
-      "not_a_form_asks_nothing_on_employer_site": 7,
-      "not_a_form_asks_nothing_on_greenhouse": 1,
-      "not_a_form_asks_nothing_on_lever": 1,
-      "not_a_form_asks_nothing_on_smartrecruiters": 26,
-      "not_a_form_signup_list_on_employer_site": 8,
+      "not_a_form_asks_nothing_on_employer_site": 20,
+      "not_a_form_asks_nothing_on_greenhouse": 22,
+      "not_a_form_asks_nothing_on_lever": 2,
+      "not_a_form_asks_nothing_on_myworkdayjobs": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 33,
+      "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 75
     },
-    "failed": 59,
+    "failed": 8,
     "failed_because": {
       "ApplyError": 2,
       "TargetClosedError": 3,
       "browser_spending": 2,
-      "other": 51,
       "submit_would_not_click": 1
     },
     "his_ok": {
