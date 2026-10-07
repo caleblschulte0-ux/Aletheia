@@ -1380,7 +1380,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("note_search", re.compile(
         r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
         r"|^(?:find|look up) (?P<note_q2>.{2,40}?) in (?:my |the )?notes$"
-        r"|^what did i (?:note|write down|jot down) about (?P<note_q3>.{2,40})$")),
+        r"|^what did i (?:note|write down|jot down) about (?P<note_q3>.{2,40})$"
+        # "What notes mention wifi", "any notes about the plumber" (2026-10-07: to a model)
+        r"|^(?:what|which|any|do i have any) notes? (?:mention|mentions|mentioning|about|on|with|say anything about) (?P<note_q4>.{2,40})$")),
     # "What car do I drive" (2026-10-07) went to the planner a turn after
     # "remember that my car is a 2014 civic". A thing of his he OWNS is a
     # recall; the things she keeps stores of are not, and are excluded by
@@ -4085,7 +4087,7 @@ def _match_of(name: str, text: str) -> dict:
 
 def _note_search(text: str) -> str | None:
     g = _groups("note_search", text)
-    words = (g.get("note_q") or g.get("note_q2") or g.get("note_q3") or "").strip()
+    words = (g.get("note_q") or g.get("note_q2") or g.get("note_q3") or g.get("note_q4") or "").strip()
     return _recall(re.sub(r"^(?:the|my|a|an) ", "", words)) if words else None
 
 

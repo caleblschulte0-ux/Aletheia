@@ -481,5 +481,11 @@ class MoreSums(unittest.TestCase):
             self.assertEqual(quick.answer(said), want, said)
 
 
+class WhatNotesMention(unittest.TestCase):
+    def test_a_search_of_his_notes(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what notes mention wifi")[0], "note_search")
+
+
 if __name__ == "__main__":
     unittest.main()
