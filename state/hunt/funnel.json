@@ -88,8 +88,8 @@
       "sent": 0
     },
     "2026-09-21": {
-      "filled": 28,
-      "found": 35,
+      "filled": 27,
+      "found": 34,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
@@ -208,23 +208,23 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 14,
-      "found": 16,
+      "filled": 15,
+      "found": 17,
       "interviews": 0,
       "rejections": 0,
-      "replies": 0,
-      "sent": 4
+      "replies": 1,
+      "sent": 5
     }
   },
-  "generated_at": "2026-10-07T16:10:49Z",
-  "sent_all_time": 238,
+  "generated_at": "2026-10-07T16:20:53Z",
+  "sent_all_time": 239,
   "totals": {
     "filled": 359,
     "found": 645,
     "interviews": 2,
     "rejections": 3,
-    "replies": 31,
-    "sent": 238
+    "replies": 32,
+    "sent": 239
   },
   "waiting": {
     "closed": {
@@ -242,11 +242,11 @@
       "not_a_form": 38,
       "not_realistic": 75
     },
-    "failed": 74,
+    "failed": 73,
     "failed_because": {
       "ApplyError": 2,
       "TargetClosedError": 3,
-      "TimeoutError": 14,
+      "TimeoutError": 13,
       "browser_spending": 2,
       "other": 52,
       "submit_would_not_click": 1
