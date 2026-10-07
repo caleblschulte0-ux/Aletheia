@@ -735,7 +735,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|(?:am i|is (?:the|my) (?:pc|laptop|computer)) (?:plugged in|charging|on battery)"
         r"|how(?:'s| is) (?:my |the )?battery(?: doing)?)\s*\??$")),
     ("version", re.compile(
-        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
+        r"^what version are (?:you|u) on$|^what version are (?:you|u) running$|^what version are (?:you|u)$"
+        r"|^which version (?:are (?:you|u)|is this)(?: on| running)?$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
         r"|^which (?:branch|commit) are (?:you|u) on$"
         r"|^are (?:you|u) (?:up to date|current|stale)$"
@@ -1105,6 +1106,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)$"
         r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day)$")),
+    # 2026-10-07: the weather asked sideways, each to a model while the
+    # forecast was one call away. LAST, so the main weather pattern keeps
+    # every sentence it already had.
+    ("weather_more", re.compile(
+        r"^(?:what(?:'s| is|s)? )?(?:the )?(?:weather|forecast)(?: like)? (?:on|for) (?P<wm>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what(?:'s| is|s)? the forecast(?: (?P<wm2>today|tonight|tomorrow))?$"
+        r"|^(?:is|will) it (?:going to )?(?:rain|snow|storm)(?: later)?$"
+        r"|^how (?:hot|cold|warm) (?:will it be|is it going to be|is it)(?: outside)?(?: (?P<wm3>today|tonight|tomorrow))?$"
+        r"|^what should i wear(?: (?P<wm4>today|tonight|tomorrow))?$"
+        r"|^do i need (?:a jacket|a coat|sunscreen|boots)(?: (?P<wm5>today|tonight|tomorrow))?$")),
+    ("fun_fact", re.compile(r"^(?:tell me|give me|got|know) (?:a |another |any )?(?:fun |random |cool |interesting )?facts?$"
+                            r"|^tell me something (?:interesting|cool)$")),
+    ("quote", re.compile(r"^(?:give me|tell me|say|read me) (?:a |another )?(?:quote|motivational quote|inspiring quote)$"
+                         r"|^(?:quote of the day|what's the quote of the day)$")),
 )
 
 
@@ -1122,7 +1137,7 @@ def match(question: str) -> tuple[str, str] | None:
             return name, text
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
-                    "prime", "average", "round_to", "time_units", "fraction_pct"):
+                    "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -3135,6 +3150,40 @@ def _feeling(text: str) -> str | None:
     if said.startswith(("i'm having", "im having")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
+def _weather_more(text: str) -> str | None:
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "weather_more"), None)
+    if not found:
+        return None
+    day = next((v for k, v in found.groupdict().items() if v), "")
+    return _weather(day)
+
+
+#: Small, true, and checkable - a fact list a person could verify in a
+#: minute, never a model's recollection read out as fact.
+FUN_FACTS = (
+    "Honey doesn't spoil - edible honey has been found in ancient Egyptian tombs.",
+    "Octopuses have three hearts and blue blood.",
+    "A day on Venus is longer than its year.",
+    "Bananas are berries, and strawberries aren't.",
+    "The Eiffel Tower grows about 15 centimeters taller in summer, because the iron expands in the heat.",
+    "Sharks were around before trees were.",
+    "A group of flamingos is called a flamboyance.",
+    "Your stomach gets a new lining every few days, so it doesn't digest itself.",
+)
+
+QUOTES = (
+    "\"The secret of getting ahead is getting started.\" - attributed to Mark Twain.",
+    "\"It always seems impossible until it's done.\" - Nelson Mandela.",
+    "\"Well done is better than well said.\" - Benjamin Franklin.",
+    "\"You miss 100 percent of the shots you don't take.\" - Wayne Gretzky.",
+    "\"The best way out is always through.\" - Robert Frost.",
+    "\"Whether you think you can, or you think you can't - you're right.\" - attributed to Henry Ford.",
+)
+
+
+def _pick(rows) -> str:
+    import secrets
+    return secrets.choice(rows)
 
 
 def _how_many() -> str | None:
@@ -4638,6 +4687,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "round_to": lambda rest: _round_to(rest),
            "time_units": lambda rest: _time_units(rest),
            "fraction_pct": lambda rest: _fraction_pct(rest),
+           "fun_fact": lambda rest: _pick(FUN_FACTS),
+           "quote": lambda rest: _pick(QUOTES),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
@@ -4723,6 +4774,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
            "weather": lambda rest: _weather(rest),
+           "weather_more": lambda rest: _weather_more(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),

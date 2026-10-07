@@ -804,6 +804,9 @@ def _a_loose_when(low: str, text: str, now=None) -> dict | None:
             days = count * (7 if n.group(2) == "week" else 1)
         at = (now + dt.timedelta(days=days)).replace(hour=hour, minute=minute, second=0, microsecond=0)
     return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": _as_he_said(text, what)}, "say": None}
+#: People named by who they are to him, not by name.
+_RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "sister", "brother", "grandma",
+              "grandpa", "son", "daughter", "boss", "girlfriend", "boyfriend", "partner", "roommate"}
 
 
 def _as_he_said(transcript: str, fragment: str) -> str:
@@ -1592,8 +1595,42 @@ def _interpret(transcript: str) -> dict:
                             r"(?:the |some |a |an )?(.+?)", low)
         if said and _on_the_shopping_list(said.group(1)):
             m = said
+    if not m:
+        # "TAKE EGGS OFF" with no list named (2026-10-07: to the planner) -
+        # only when that thing is on the list, the same store check.
+        said = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(.+?) off", low)
+        if said and _on_the_shopping_list(said.group(1)):
+            m = said
     if m:
         return {"command": {"kind": "shopping_off", "item": m.group(1).strip()},
+                "say": None}
+
+    # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
+    # place a bare thing goes. A verb is a task; anything naming another
+    # store, or with a preposition in it, is left to the patterns for those.
+    # "Add bread too" is the thread's ("the second item is free too").
+    m = re.fullmatch(r"add (?:some |more )?(?P<item>[a-z][a-z' -]{1,30})", low)
+    if m and not re.search(r"\b(?:to|on|with|at|for|from|in|into|by|task|tasks|meeting|reminder|note|contact|event|"
+                           r"appointment|calendar|alarm|timer|that|it|this|them|everything|all|too|also|well)\b", m.group("item")):
+        if _TASK_VERB.match(m.group("item")):
+            return _new_task(_as_he_said(text, m.group("item")))
+        if not _might_be_several(m.group("item")):
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
+                    "say": None}
+
+    # "WE'RE OUT OF COFFEE", "we need paper towels", "I need to buy
+    # batteries": a thing to buy, said as a need (2026-10-07: the planner,
+    # and the last one refused as SPENDING). It goes on the list; buying
+    # it stays his. Anything that starts with a verb is not a thing.
+    m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?:the |some )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
+    if m and not _TASK_VERB.match(m.group("item")) \
+            and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
+                             r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
+                             r"idea|ideas|plan|answer|answers|space|quiet|coffee break|drink|win|friend|friends|"
+                             r"date|haircut|change|reminder|timer|alarm|it|that|this|them|him|her)\b", m.group("item")):
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
     # "Snooze that for an hour" — the commonest thing anybody says to a
@@ -1814,6 +1851,25 @@ def _interpret(transcript: str) -> dict:
     # word as often as a digit out loud, and only the digit form was read
     # - the word form fell through to a planner that, with no model, kept
     # it for later. Same words table as the timer above.
+    # THE TIME BEFORE THE DAY, AT THE END. "Remind me to call mom at 5:30 pm
+    # tomorrow" was set for 9 am with "at 5:30 pm" left in the words
+    # (2026-10-07): the day pattern below reads "at <time>" only AFTER the
+    # day. Same handling as there, the other order.
+    m = re.fullmatch(r"remind me (?:to|that) (?P<text>.+?) at (?P<time>[\w: ]+?) (?:on |this )?"
+                     r"(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)", low)
+    if m:
+        import datetime as dt
+        from aletheia import localtime
+        day_iso, hhmm = _spoken_day(m.group("day")), _spoken_time(m.group("time"))
+        if day_iso and hhmm:
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+                hour += 12
+            tz = localtime.operator_tz()
+            when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+            return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                                "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+
     # A DAY IN THE SENTENCE. "Remind me to call mom on Sunday at 6" was set
     # for TODAY at 6 with "on sunday" swallowed into the text (2026-09-22):
     # the day is read from either end of the sentence. "Next friday" is
@@ -3107,6 +3163,28 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "message_send", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
+    # "TEXT MOM HAPPY BIRTHDAY" - no "that" between them, so the name ran
+    # into the message: "I don't have a phone number for mom happy"
+    # (2026-10-07). The longest leading words that name a contact he has,
+    # or a one-word relation, are the person; the rest is the message.
+    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<rest>.+)", low)
+    if m:
+        words = m.group("rest").split()
+        try:
+            from aletheia import contacts as _contacts
+            people = _contacts.all_contacts()
+        except Exception:
+            people = []
+        for n in range(min(3, len(words) - 1), 0, -1):
+            who = " ".join(words[:n])
+            try:
+                _contacts.resolve(who, people)
+                known = True
+            except Exception:
+                known = n == 1 and who in _RELATIONS
+            if known:
+                return {"command": {"kind": "message_send", "to": who,
+                                    "body": _as_he_said(text, " ".join(words[n:]))}, "say": None}
 
     # "Send an email to dana@example.com saying thanks for the call" went to
     # the planner - and with every frontier off, to her own model for two
