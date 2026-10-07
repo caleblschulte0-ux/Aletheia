@@ -4206,5 +4206,15 @@ class HowLongSince(unittest.TestCase):
             self.assertEqual(quick._contacts_count(), "2 contacts: Dad and Mom.")
 
 
+class AHolidayInAYear(unittest.TestCase):
+    """2026-10-07: "when is Easter next year" went to a model."""
+
+    def test_named_years(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("when is easter 2028"), "Sunday 16 April 2028.")
+        self.assertEqual(quick.answer("what day is thanksgiving in 2028"), "Thursday 23 November 2028.")
+        self.assertEqual(quick.match("when is easter next year")[0], "holiday_year")
+
+
 if __name__ == "__main__":
     unittest.main()

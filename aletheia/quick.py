@@ -752,6 +752,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"mlk day|martin luther king day|presidents'? day|president's day|mother'?s day|father'?s day|"
         r"columbus day|indigenous peoples'? day|veterans'? day|veteran's day|juneteenth|st\.? patrick'?s day"
         r"|saint patrick'?s day)(?: on| fall on| this year)?\s*\??$")),
+    # "When is Easter next year", "what day is Christmas in 2028" (2026-10-07: to a model).
+    ("holiday_year", re.compile(
+        r"^(?:when is|when's|what day is|what day's|what day does|which day is|what date is) (?P<hy>christmas|new year(?:'s)?(?: day| eve)?|halloween"
+        r"|thanksgiving|valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day|labou?r day|memorial day"
+        r"|mlk day|martin luther king day|presidents'? day|president's day|mother'?s day|father'?s day"
+        r"|columbus day|indigenous peoples'? day|veterans'? day|veteran's day|juneteenth|st\.? patrick'?s day"
+        r"|saint patrick'?s day)(?: (?:fall )?on)? (?P<hy_year>next year|in \d{4}|\d{4})(?: fall on| on)?\s*\??$")),
     # "What's the date tomorrow", "what was yesterday's date", "what week is
     # it", "how many days in February" (2026-10-07, all to a model).
     # THE NEXT HOLIDAY (2026-10-07: "what holiday is next" and "is today a
@@ -2137,7 +2144,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3291,6 +3298,25 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if which_day:
         return f"{said}, {days} days from now."
     return f"{days} days, {said}."
+
+
+def _holiday_year(text: str) -> str | None:
+    """A holiday in the year he names: the day it falls on, said whole."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("holiday_year", text)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    said = (g.get("hy_year") or "").replace("in ", "")
+    year = today.year + 1 if said == "next year" else int(said) if said.isdigit() else None
+    if not year or not g.get("hy") or abs(year - today.year) > 200:
+        return None
+    try:
+        when = _named_date(g["hy"], dt.date(year - 1, 12, 31))
+    except Exception:
+        return None
+    if when is None or when.year != year:
+        return None
+    return f"{when.strftime('%A %d %B %Y').replace(' 0', ' ')}."
 
 
 def _until_mine(words: str) -> str | None:
@@ -10144,6 +10170,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "missed_reminders": _missed_reminders,
            "saved": _saved,
            "next_due": _next_due,
+           "holiday_year": _holiday_year,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,
