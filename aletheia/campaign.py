@@ -1840,7 +1840,14 @@ def refused_submit(record: dict) -> bool:
         # when they're finished" - Tenex, 2026-09-23): read it again and send.
         if not apply_run.asks_to_try_again([failure]):
             return False
-    elif state != "FAILED" or "would not take a click" not in failure:
+    elif state != "FAILED":
+        return False
+    elif failure.startswith("TimeoutError:") and not record.get("pressed_at"):
+        # A page that was slow once, before Submit was ever pressed: 14 of
+        # the month's 74 failures on 2026-10-07, each FAILED for good on
+        # one attempt. Read again like any other, within the same fillings.
+        return int(record.get("stagings") or 0) < apply_run.MAX_STAGINGS_AFTER_FAILURE
+    elif "would not take a click" not in failure:
         return False
     evidence = record.get("click_evidence") if isinstance(record.get("click_evidence"), dict) else {}
     # A challenge SHOWN in front of the button is not a reading problem. An
