@@ -51,7 +51,7 @@ class TheRoomsTranscriptsAreNotNotes(unittest.TestCase):
         rows = [{"ts": NOW, "kind": "note", "subject": "operator", "text": "(voice, unmatched) north korea"},
                 {"ts": NOW, "kind": "note", "subject": "operator", "text": "my landlord is Mr Okafor"}]
         with mock.patch("aletheia.journal.entries", return_value=rows):
-            self.assertEqual(quick.answer("what notes do you have"), "1 note: my landlord is Mr Okafor.")
+            self.assertEqual(quick.answer("what notes do you have"), "1 note: your landlord is Mr Okafor.")
 
 
 class AnythingFromThemSaysWhenAndWhetherTheyWroteBack(unittest.TestCase):

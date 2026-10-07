@@ -2345,7 +2345,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # gets a tombstone line the readers honour.
             gone = _forget_note(about)
             if gone:
-                return f"Forgotten: {gone}."
+                return f"Forgotten: {speech.as_she_says_it(gone)}."
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.

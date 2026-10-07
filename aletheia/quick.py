@@ -930,7 +930,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|has) (?:the )?(?P<ran>[a-z0-9][a-z0-9 .'-]{1,40}?)(?: pipeline| workflow| repo| project)? "
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
-        r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        r"^what notes do (?:you|u|i) have(?: for me)?$|^(?:do i have )?any notes$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(
@@ -939,6 +939,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+    # "What car do I drive" (2026-10-07) went to the planner a turn after
+    # "remember that my car is a 2014 civic". A thing of his he OWNS is a
+    # recall; the things she keeps stores of are not, and are excluded by
+    # name so "what reminders do I have" still reaches its own reader.
+    ("recall_owned", re.compile(
+        r"^what (?:kind of |type of |make of |sort of )?(?!(?:notes?|reminders?|tasks?|lists?|meetings?|appointments?"
+        r"|events?|plans?|alarms?|timers?|e?mails?|messages?|drafts?|applications?|interviews?|jobs?|time|bills?"
+        r"|subscriptions?|projects?|calls?|texts?|things?|files?|documents?|approvals?)\b)"
+        r"(?P<recall>[a-z][a-z '-]{1,24}?) do i (?:drive|have|own|use|ride)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -3078,7 +3087,7 @@ def _notes_list() -> str:
     rows = _notes()
     if not rows:
         return "No notes yet. Say \"note that\" or \"remember that\" and I'll keep it."
-    said = [str(r.get("text") or "").strip().rstrip(".") for r in rows[:5]]
+    said = [speech.as_she_says_it(str(r.get("text") or "").strip().rstrip(".")) for r in rows[:5]]
     out = f"{speech.count_phrase(len(rows), 'note')}: " + "; ".join(said)
     if len(rows) > 5:
         out += f"; and {len(rows) - 5} more"
@@ -3101,7 +3110,7 @@ def _recall(words: str) -> str | None:
     found: list[str] = []
     for row in _notes():
         if hit(row.get("text")):
-            found.append(f"you told me: {str(row.get('text')).strip().rstrip('.')}")
+            found.append(f"you told me: {speech.as_she_says_it(str(row.get('text')).strip().rstrip('.'))}")
         if len(found) >= 3:
             break
     try:
@@ -3681,6 +3690,19 @@ def _about_him() -> str:
                     facts.append(f"{key.replace('_', ' ')}: {text}")
     except Exception:
         pass
+    # HIS NOTES ABOUT HIMSELF. "Remember that my car is a 2014 civic" is
+    # kept as a note, and "what do you know about me" answered "Nothing
+    # yet" a turn later (2026-10-07). A note in his first person is about
+    # him; said back in hers.
+    try:
+        for row in _notes(60):
+            line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(r"(?i)(?:my|i|i'm|i am|i've)\b", line):
+                facts.append(speech.as_she_says_it(line))
+            if len(facts) >= 12:
+                break
+    except Exception:
+        pass
     if not facts:
         return "Nothing yet. Tell me things and I'll remember them; a resume teaches me a lot at once."
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
@@ -3904,6 +3926,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
+           "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),
            "slow": lambda rest: _slow(),

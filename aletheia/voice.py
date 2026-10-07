@@ -2288,6 +2288,11 @@ def _interpret(transcript: str) -> dict:
         r"\b(?:that|it|the pending one|approval|approvals|reminder|reminders"
         r"|alarm|alarms|timer|timers|task|tasks|note|notes|meeting|meetings"
         r"|appointment|appointments|event|events|schedule|agenda"
+        # Plans with a person are not services either. "Cancel lunch with
+        # sam" (2026-10-07) was prepared as a cancellation of a
+        # subscription called "lunch with sam".
+        r"|with|lunch|dinner|breakfast|brunch|coffee|drinks|call|date|party"
+        r"|plans|trip|flight|booking|reservation|order|visit|interview"
         # No leading "the": `cancel (?:my |the )?` has already eaten it,
         # so "cancel the last one" arrives here as just "last one".
         r"|(?:first|second|third|fourth|last)(?: one)?)\b", re.IGNORECASE)

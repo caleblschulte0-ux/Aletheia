@@ -102,5 +102,33 @@ class HisMyIsYour(unittest.TestCase):
         self.assertEqual(speech.as_she_says_it("my wife"), "your wife")
 
 
+class PlansWithAPersonAreNotSubscriptions(unittest.TestCase):
+    def test_cancel_lunch_is_not_a_cancellation_of_a_service(self):
+        for said in ("cancel lunch with sam", "cancel my flight", "cancel dinner tonight",
+                     "cancel the interview"):
+            self.assertNotEqual(say(said)[0]["kind"], "subscription_cancel", said)
+
+    def test_a_service_still_is(self):
+        self.assertEqual(say("cancel my gym membership")[0],
+                         {"kind": "subscription_cancel", "subscription": "gym"})
+        self.assertEqual(say("cancel netflix")[0]["kind"], "subscription_cancel")
+
+
+class WhatHeOwns(unittest.TestCase):
+    def test_a_thing_he_owns_is_recalled_and_her_stores_are_not(self):
+        self.assertEqual(quick.match("what car do I drive"), ("recall_owned", "car"))
+        self.assertEqual(quick.match("what kind of phone do i have"), ("recall_owned", "phone"))
+        self.assertNotEqual((quick.match("what reminders do I have") or ("",))[0], "recall_owned")
+        self.assertEqual(quick.match("what notes do I have")[0], "notes_list")
+
+    def test_his_notes_about_himself_are_what_she_knows_about_him(self):
+        notes = [{"text": "my car is a 2014 civic"}, {"text": "the plumber comes tuesday"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            said = quick._about_him()
+            self.assertIn("your car is a 2014 civic", said)
+            self.assertNotIn("plumber", said)
+            self.assertEqual(quick._recall("car"), "You told me: your car is a 2014 civic.")
+
+
 if __name__ == "__main__":
     unittest.main()

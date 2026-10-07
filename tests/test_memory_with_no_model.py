@@ -30,14 +30,16 @@ class RememberThatIsANote(unittest.TestCase):
 
 class RecallReadsHerStores(unittest.TestCase):
     def test_what_he_told_her_comes_back_in_his_words(self):
+        # His words, said back by HER: "my landlord" is "your landlord" in
+        # her mouth (speech.as_she_says_it), the substance untouched.
         with mock.patch("aletheia.journal.entries", return_value=NOTES), \
              mock.patch("aletheia.memory.everything", return_value={}):
             self.assertEqual(quick.answer("what did I tell you about the car"),
                              "You told me: the car needs an oil change.")
-            self.assertEqual(quick.answer("what's my landlord's name"), "You told me: my landlord is Mr Okafor.")
+            self.assertEqual(quick.answer("what's my landlord's name"), "You told me: your landlord is Mr Okafor.")
             self.assertIn("nothing about lease", quick.answer("when is my lease up"))
             said = quick.answer("what notes do you have")
-            self.assertTrue(said.startswith("2 notes: the car needs an oil change; my landlord is Mr Okafor"), said)
+            self.assertTrue(said.startswith("2 notes: the car needs an oil change; your landlord is Mr Okafor"), said)
 
     def test_memory_answers_too_and_nothing_is_said_as_nothing(self):
         with mock.patch("aletheia.journal.entries", return_value=[]), \
