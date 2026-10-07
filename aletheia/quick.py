@@ -518,13 +518,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? the time( right now| now)?$"
         r"|^(?:do you know )?what time is it( right now| now)?$"
         r"|^(?:got|have) the time$|^time$")),
+    # "Help" went to the planner (2026-10-07). A few things to say, in his
+    # words; "what can you do" is the long answer.
+    ("help", re.compile(r"^(?:help|help me|i need help|what can i say|what do i say|how do i use you"
+                        r"|what (?:can|should) i ask(?: you)?|how does this work)$")),
     ("date", re.compile(
         r"^what(?:'s| is|s)? (?:the |today'?s? )?date( today)?$"
         r"|^what day is it( today)?$|^what(?:'s| is|s)? today$"
         r"|^what day of the week is it$"
         # "what day is it tomorrow" went to a model (2026-09-24).
         r"|^what day (?:is it|will it be|is) (?P<date_ahead>tomorrow|the day after tomorrow)$"
-        r"|^what(?:'s| is|s)? (?P<date_ahead2>tomorrow|the day after tomorrow)(?:'s date)?$")),
+        r"|^what(?:'s| is|s)? (?P<date_ahead2>tomorrow|the day after tomorrow)(?:'s date)?$"
+        # "What's the date tomorrow" (2026-10-07: to a model).
+        r"|^what(?:'s| is|s)? the date (?P<date_ahead3>tomorrow|the day after tomorrow)$"
+        r"|^what date is (?P<date_ahead4>tomorrow|the day after tomorrow)$")),
     # NOT folded into "date": that sentence is "Monday the 7th of
     # September", which contains no year and buries the month. Answering
     # "what year is it" with it was a confident answer to a question he
@@ -917,6 +924,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
+    # A FACT HE TOLD HER, asked back (2026-10-07: "what's my favorite
+    # color", "what is my blood type", "when is jess's birthday" each went
+    # to a model while the note sat in her journal).
+    ("fact_q", re.compile(
+        r"^what(?:'s| is|s|are)? my (?P<fact>(?:favou?rite|fave) [a-z][a-z ]{1,25}?)s?\s*\??$"
+        r"|^what(?:'s| is|s)? my (?P<fact2>blood type|shoe size|shirt size|ring size|pants size|dress size"
+        r"|wifi(?: password| name)?|wi-fi(?: password)?|gate code|door code|garage code|locker (?:number|combination)"
+        r"|license plate|plate number|account number|member(?:ship)? number|policy number|anniversary)\s*\??$"
+        r"|^when(?:'s| is) (?P<fact3>[a-z][a-z' ]{1,30}?)(?:'s| s) (?P<factk>birthday|anniversary)\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -962,7 +978,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "fact_q"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -976,7 +992,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "ran",
-                                           "date_ahead", "date_ahead2", "found_window",
+                                           "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3",
@@ -2387,6 +2403,12 @@ def _math(text: str) -> str | None:
     return None
 
 
+HELP = ("Just talk to me. A few things people say: \"remind me at 3 to call the dentist\", "
+        "\"add milk to my shopping list\", \"what's on my calendar tomorrow\", \"set a timer for 10 minutes\", "
+        "\"note that the plumber is coming Friday\", or \"what's waiting on me\". "
+        "Say \"what can you do\" for the whole list, and \"stop\" halts everything.")
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3067,6 +3089,31 @@ def _notes_list() -> str:
     if len(rows) > 5:
         out += f"; and {len(rows) - 5} more"
     return out + "."
+
+
+def _fact_q(text: str) -> str | None:
+    """"What's my favorite color": the note that says it, by ALL its words.
+
+    Stricter than `_recall`, which matches any word: "favorite" alone
+    would read back his favorite food to a question about his color.
+    """
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "fact_q"), None)
+    if not found:
+        return None
+    g = found.groupdict()
+    key = " ".join(x for x in (g.get("fact") or g.get("fact2") or g.get("fact3"), g.get("factk")) if x)
+    if "password" in key:
+        from aletheia import voice
+        return voice._NO_PASSWORDS
+    wanted = [w for w in re.findall(r"[a-z0-9]+", key.casefold().replace("'s", ""))
+              if w not in _STOP_WORDS and w not in ("favorite", "favourite", "fave")]
+    for row in _notes():
+        said = str(row.get("text") or "")
+        low = said.casefold()
+        if wanted and all(w.rstrip("s") in low for w in wanted):
+            return f"You told me: {said.strip().rstrip('.')}."
+    return f"You haven't told me your {key}. Tell me once and I'll remember it." if not g.get("fact3") \
+        else f"You haven't told me {g['fact3'].strip()}'s {g['factk']}. Tell me once and I'll remember it."
 
 
 def _recall(words: str) -> str | None:
@@ -3771,6 +3818,8 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "fact_q": lambda rest: _fact_q(rest),
+           "help": lambda rest: HELP,
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,

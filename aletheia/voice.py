@@ -918,6 +918,11 @@ right well like just really actually thing things please thanks thank
 """.split())
 
 
+_NO_PASSWORDS = ("I don't keep passwords - anything that looks like one is blanked out of "
+                 "everything I write down, so I couldn't read it back to you. "
+                 "Your password manager is the place for it.")
+
+
 def worth_answering(said: str) -> bool:
     """Did a person actually ask her something?
 
@@ -1431,6 +1436,10 @@ def _interpret(transcript: str) -> dict:
                     # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
                     r"|(when|what time) (is|'s) (my|the) next reminder|what(?:'s| is) my next reminder", low):
         return {"command": {"kind": "reminders"}, "say": None}
+    # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
+    # whose words end "timer is up"; two running are asked about by name.
+    if re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|kill|end|clear) (?:the |my |that |this )?timers?", low):
+        return {"command": {"kind": "reminder_off", "which": "timer is up"}, "say": None}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
     if not m:
@@ -2989,6 +2998,25 @@ def _interpret(transcript: str) -> dict:
         name = m.group("name") if "." in m.group("name") else m.group("name") + ".txt"
         return {"command": {"kind": "file_write", "path": name,
                             "text": _as_he_said(text, m.group("body").strip())}, "say": None}
+
+    # A FACT ABOUT HIM, SAID AS ONE. "My favorite color is blue", "my wifi
+    # password is ...", "Jess's birthday is March 3" went to the planner
+    # (2026-10-07). Kept as a note in his words, which is what `quick`
+    # reads back. Only keys that name a fact - a favourite, a size, a code,
+    # a number, someone's name or birthday - so "my head is killing me"
+    # and "my computer is slow" are never filed as facts. His own name,
+    # address, email, phone and birthday have their own patterns.
+    m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary)"
+                     r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
+                     r"|gate code|door code|garage code|locker (?:number|combination)|license plate|plate number"
+                     r"|anniversary|account number|member(?:ship)? number|policy number) (?:is|are) (?P<value>.{1,80})", low)
+    if m and not re.search(r"\b(?:what|who|when|where|why|how|not|wrong)\b", m.group("key") + " " + m.group("value")[:12]) \
+            and not low.startswith(("what", "who", "when", "where", "how", "why")):
+        if re.search(r"pass(?:word|code|phrase)", m.group("key")):
+            # `sensitivity` blanks a password out of every record she
+            # keeps, so a note would read back "[redacted]". Said, not faked.
+            return {"command": None, "say": _NO_PASSWORDS}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
 
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".
