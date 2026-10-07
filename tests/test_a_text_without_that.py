@@ -73,3 +73,13 @@ class SmallTreats(unittest.TestCase):
     def test_a_fact_and_a_quote_from_her_own_lists(self):
         self.assertIn(quick.answer("tell me a fun fact"), quick.FUN_FACTS)
         self.assertIn(quick.answer("give me a quote"), quick.QUOTES)
+
+
+class TheTimeBeforeTheDay(unittest.TestCase):
+    def test_at_a_time_then_a_day(self):
+        import datetime as dt
+        cmd = voice._interpret("remind me to call mom at 5:30 pm tomorrow")["command"]
+        self.assertEqual(cmd["text"], "call mom")
+        self.assertEqual(dt.datetime.fromisoformat(cmd["at"]).strftime("%H:%M"), "17:30")
+        cmd = voice._interpret("remind me to call mom at 6 on friday")["command"]
+        self.assertEqual(dt.datetime.fromisoformat(cmd["at"]).strftime("%A %H:%M"), "Friday 18:00")

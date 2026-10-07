@@ -1560,6 +1560,25 @@ def _interpret(transcript: str) -> dict:
     # word as often as a digit out loud, and only the digit form was read
     # - the word form fell through to a planner that, with no model, kept
     # it for later. Same words table as the timer above.
+    # THE TIME BEFORE THE DAY, AT THE END. "Remind me to call mom at 5:30 pm
+    # tomorrow" was set for 9 am with "at 5:30 pm" left in the words
+    # (2026-10-07): the day pattern below reads "at <time>" only AFTER the
+    # day. Same handling as there, the other order.
+    m = re.fullmatch(r"remind me (?:to|that) (?P<text>.+?) at (?P<time>[\w: ]+?) (?:on |this )?"
+                     r"(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)", low)
+    if m:
+        import datetime as dt
+        from aletheia import localtime
+        day_iso, hhmm = _spoken_day(m.group("day")), _spoken_time(m.group("time"))
+        if day_iso and hhmm:
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+                hour += 12
+            tz = localtime.operator_tz()
+            when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+            return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                                "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+
     # A DAY IN THE SENTENCE. "Remind me to call mom on Sunday at 6" was set
     # for TODAY at 6 with "on sunday" swallowed into the text (2026-09-22):
     # the day is read from either end of the sentence. "Next friday" is
