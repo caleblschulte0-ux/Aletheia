@@ -60,6 +60,13 @@ WISHES: tuple[tuple[re.Pattern, str, str], ...] = (
                 r"|^(?:dim|brighten) the lights?\b"
                 r"|^set the (?:thermostat|temperature)\b", re.I),
      "room.scene", "control the lights and devices"),
+    # "Lock the front door", "is the garage door closed" (2026-10-07: to
+    # the planner). Asked or ordered, the answer is the same no.
+    (re.compile(r"^(?:lock|unlock) (?:the |my )?(?:\w+ ){0,2}(?:doors?|locks?|deadbolt)\b"
+                r"|^(?:open|close|shut) (?:the |my )?garage(?: door)?\b"
+                r"|^(?:is|are) (?:the |my )?(?:\w+ ){0,2}(?:doors?|garage(?: door)?)"
+                r"(?: (?:locked|unlocked|closed|open|shut))?\??$", re.I),
+     "home.lock", "lock doors or work the garage"),
     (re.compile(r"^(?:what'?s|hows?|how is) the weather\b"
                 r"|^(?:is it|will it be) (?:going to )?(?:rain|snow|sunny|cold|hot)\b"
                 r"|^what'?s the (?:forecast|temperature) (?:today|tomorrow|outside)\b",

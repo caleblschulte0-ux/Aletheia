@@ -1623,11 +1623,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
         r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
-        r"|hang out with|text|catch up with) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
-        r"|talk to|talked to|speak to|spoken to|see|seen|text|texted) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
+        r"|turn off|turned off) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -4293,7 +4294,8 @@ def _owed(question: str = "") -> str:
 _PAST = {"talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
          "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
-         "catch up with": "caught up with", "get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
+         "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
+         "get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
          "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
 
 

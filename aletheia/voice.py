@@ -1205,7 +1205,9 @@ _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuum
                # his to tell her; "when did I last call mom" reads it back.
                "|called|visited"
                # "I talked to mom", "I saw Sam today" (2026-10-07: to the planner).
-               "|talked to|talked with|spoke to|spoke with|saw|met with|met up with|hung out with|texted|caught up with")
+               "|talked to|talked with|spoke to|spoke with|saw|met with|met up with|hung out with|texted|caught up with"
+               # "I locked the front door" - "did I lock the door" reads it back
+               "|locked|closed|shut|unplugged|turned off")
 
 
 def _new_task(raw: str) -> dict:

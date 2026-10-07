@@ -1912,6 +1912,16 @@
       "notes": "Registered 2026-09-08 alongside media.play, which does transport with no key at all. Kept SEPARATE on purpose: one entry covering both would say AVAILABLE about a capability that cannot do what its own description promises, and 'play some music' answering by resuming Thursday's queue is not what he asked for. Until this exists, naming something to play opens YouTube's results for it in his browser (open_page, his tap; the receipt says what opened, never that it is playing), and naming his own player is answered honestly - aletheia.music.cannot_choose."
     },
     {
+      "id": "home.lock",
+      "status": "NOT_BUILT",
+      "risk_class": "high",
+      "approval_policy": "operator_always",
+      "provider": "aletheia.local",
+      "description": "Lock or unlock doors and open or close the garage, and say whether they are",
+      "caller": "ticket - needs a device layer (Home Assistant's lock and cover domains) behind room.scene's setup, with every unlock or open waiting on his own yes",
+      "notes": "Registered 2026-10-07 because 'lock the front door' and 'is the garage door closed' went to the planner, and with no model there to say otherwise the honest answer had nowhere to come from. Kept apart from room.scene on purpose: lights are low risk, and a door is the one device where a wrong command lets somebody in, so it is operator_always from the day it exists."
+    },
+    {
       "id": "sms.read",
       "description": "Read the texts sent to your Google Voice number, so a verification code that arrives by text is one I can use instead of one you have to go and fetch",
       "provider": "aletheia.local",

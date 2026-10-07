@@ -3650,5 +3650,29 @@ class HisPeopleTalkedToAndSeen(unittest.TestCase):
         self.assertEqual((got["kind"], got["text"]), ("remind_at", "pick up where we left off"))
 
 
+class DoorsAndLockingUp(unittest.TestCase):
+    def test_a_door_is_an_honest_no_and_counted(self):
+        from aletheia import capabilities, cannot
+        entry = capabilities.get("home.lock")
+        self.assertEqual((entry["status"], entry["approval_policy"]), ("NOT_BUILT", "operator_always"))
+        with mock.patch.object(cannot, "_count_it"):
+            for said in ("lock the front door", "is the garage door closed", "open the garage", "is the back door locked"):
+                self.assertIn("can't lock doors", cannot.answer(said) or "", said)
+            self.assertIsNone(cannot.answer("lock in my answer"))
+            # whether HE locked it is his notes' to answer, not a no
+            self.assertIsNone(cannot.answer("did I lock the door"))
+
+    def test_locking_up_is_kept_and_read_back(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I locked the front door")["command"],
+                         {"kind": "note", "text": "I locked the front door"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I locked the front door", "ts": now}]):
+            self.assertTrue(quick.answer("did I lock the door").startswith("You told me you locked the front door"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertTrue(quick.answer("did I turn off the stove").startswith("Not that you've told me"))
+
+
 if __name__ == "__main__":
     unittest.main()
