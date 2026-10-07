@@ -4489,7 +4489,7 @@ def _interpret(transcript: str) -> dict:
     # "MY BIRTHDAY IS MARCH 3RD 1995" (2026-10-07: to the planner). One
     # fact about him, kept in her memory, read by "how old am I".
     m = re.fullmatch(r"(?:my birthday is|my birthday's|i was born on|i was born|my date of birth is|my dob is) "
-                     r"(?:on )?((?:[a-z]+\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)? (?:of )?[a-z]+)(?:,? \d{4})?"
+                     r"(?:on )?(?:the )?((?:[a-z]+\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)? (?:of )?[a-z]+)(?:,? \d{4})?"
                      r"|\d{4}-\d{1,2}-\d{1,2})", low)
     if m:
         return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",

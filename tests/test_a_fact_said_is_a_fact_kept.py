@@ -1984,5 +1984,23 @@ class WhatAndShhCase(unittest.TestCase):
         self.assertEqual(voice._interpret("shh")["command"]["kind"], "notify_snooze")
 
 
+
+class HisBirthdaySaidBackCase(unittest.TestCase):
+    """2026-10-07: "I was born on May 5 1995" was confirmed as "I'll remember
+    your birthday", and "my birthday is the 3rd of march" went to the planner."""
+
+    def test_said_back(self):
+        from aletheia import speech, memory
+        for kept, said in (("may 5 1995", "Got it - your birthday is May 5, 1995."),
+                           ("march 3rd", "Got it - your birthday is March 3rd."),
+                           ("3rd of march", "Got it - your birthday is the 3rd of March.")):
+            with self.subTest(kept=kept), mock.patch.object(memory, "recall", return_value=kept):
+                self.assertEqual(speech.spoken_receipt("remember", "remembered identity.birthday"), said)
+
+    def test_the_third_of_march(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my birthday is the 3rd of march")["command"]["key"], "birthday")
+
+
 if __name__ == "__main__":
     unittest.main()

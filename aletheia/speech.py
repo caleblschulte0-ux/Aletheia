@@ -766,8 +766,15 @@ def spoken_receipt(kind: str, detail: str, *,
                 value = ""
             said = {"home_city": "you live in {}", "zip_code": "your zip code is {}",
                     "postal_code": "your zip code is {}", "operator_name": "I'll call you {}",
-                    "full_name": "your name is {}", "timezone": "your time zone is {}"}.get(slot.group(2))
+                    "full_name": "your name is {}", "timezone": "your time zone is {}",
+                    "birthday": "your birthday is {}"}.get(slot.group(2))
             if value and said and len(value) <= 60:
+                if slot.group(2) == "birthday":
+                    # "may 5 1995" as she says a date: "May 5, 1995".
+                    value = re.sub(r"(\d{1,2})(?:st|nd|rd|th)? (\d{4})$", r"\1, \2", as_she_says_it(value))
+                    value = re.sub(r"(?i)\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b",
+                                   lambda m: m.group(0).capitalize(), value)
+                    value = re.sub(r"^(\d{1,2}(?:st|nd|rd|th) of)", r"the \1", value)
                 return f"Got it - {said.format(value)}."
             slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
             what = {"full_name": "your name", "operator_name": "what to call you", "postal_code": "your zip code",
