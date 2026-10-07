@@ -2873,6 +2873,13 @@ def _interpret(transcript: str) -> dict:
         r"(?: for me| please| right now| today)?\s*\??", low)
     if m:
         command = {"kind": "jobs", "role": _as_he_said(transcript, m.group("role"))}
+        # "Find me remote jobs" searched for a job called "remote"
+        # (2026-10-07). A word about the job's kind is not its title: the
+        # roles come from his resume, and remote is where.
+        if m.group("role") in ("remote", "local", "new", "good", "open", "more", "some", "any", "nearby"):
+            command = {"kind": "jobs"}
+            if m.group("role") == "remote":
+                command["where"] = "remote"
         if m.group("where"):
             command["where"] = _as_he_said(transcript, m.group("where"))
         return {"command": command, "say": None}

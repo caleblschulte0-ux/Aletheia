@@ -629,5 +629,12 @@ class HisPlaylistIsNotASearch(unittest.TestCase):
         self.assertEqual(voice._interpret("play jazz")["command"]["kind"], "open_page")
 
 
+
+class RemoteIsWhereNotWhat(unittest.TestCase):
+    def test_remote_jobs(self):
+        self.assertEqual(voice._interpret("find me remote jobs")["command"], {"kind": "jobs", "where": "remote"})
+        self.assertEqual(voice._interpret("find me remote sales jobs")["command"]["role"], "sales")
+
+
 if __name__ == "__main__":
     unittest.main()
