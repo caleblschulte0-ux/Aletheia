@@ -914,7 +914,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:did|has) (?:the )?(?P<ran>[a-z0-9][a-z0-9 .'-]{1,40}?)(?: pipeline| workflow| repo| project)? "
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
-        r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        r"^what notes do (?:you|u|i) have(?: for me)?$|^(?:list|read me|read back|show me|read|show) (?:my |your |the |all my )?notes$"
+        r"|^how many notes (?:do i have|have i got|are there)$|^(?:my|all my) notes$|^what(?:'s| is| are) (?:in )?my notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(

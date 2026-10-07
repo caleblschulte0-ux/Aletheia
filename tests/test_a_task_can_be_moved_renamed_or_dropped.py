@@ -69,3 +69,17 @@ class ItReallyChanges(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NotesAndHerWorkspace(unittest.TestCase):
+    def test_his_notes_asked_about_himself(self):
+        from aletheia import quick
+        for said in ("what notes do i have", "read my notes", "how many notes do i have"):
+            self.assertEqual(quick.match(said)[0], "notes_list", said)
+
+    def test_an_empty_workspace_is_said_in_her_own_voice(self):
+        from aletheia import workspace
+        with mock.patch.object(workspace, "listing", return_value=[]):
+            said = intercom.execute_command({"kind": "file_list"}, {})
+        self.assertIn("my workspace", said)
+        self.assertNotIn("her ", said)
