@@ -8358,6 +8358,14 @@ def _interpret(transcript: str) -> dict:
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I ordered a new phone" (2026-10-07: to the planner). Something he
+    # already bought is a note in his words - past tense, nothing for her
+    # to buy - read back by "when is my phone arriving".
+    if re.fullmatch(r"i (?:just |finally )?(?:ordered|bought|purchased) (?:a |an |some |the |my |new |a new |an extra )*[a-z][a-z0-9' -]{1,40}?"
+                    r"(?: (?:from|on|off) [a-z][a-z0-9.' -]{1,25}?)?(?: today| yesterday| last night| this morning| online)?"
+                    r"(?:,? (?:it'?s|and it'?s|it is) (?:arriving|coming|due|getting here) [a-z0-9 ]{2,25})?", low) \
+            and not re.search(r"\b(?:you|thea)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "It's my anniversary on May 5" (2026-10-07: to the planner) is "my
     # anniversary is May 5", the shape every date reader already reads.
     m = re.fullmatch(r"(?:it'?s|it is) (?P<whose>my|our|[a-z]+'s|my [a-z]+'s) (?P<what>anniversary|birthday|wedding anniversary)"

@@ -472,7 +472,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # (2026-10-07: both to a model, a turn after he said).
         r"|^when (?:am i|was i) (?:going|heading|gonna go) (?:to )?(?:the )?(?P<lw8>gym|store|grocery store|pool|park|library|post office"
         r"|bank|mall|barber|salon|vet|shopping|running|swimming|for a (?:run|walk|swim|bike ride))\s*\??$"
-        r"|^what am i doing (?P<lw9>after work|before work|after lunch|after dinner|after school|later(?: today)?)\s*\??$")),
+        r"|^what am i doing (?P<lw9>after work|before work|after lunch|after dinner|after school|later(?: today)?)\s*\??$"
+        # "When is my phone arriving" (2026-10-07: to a model, after "I ordered a new phone").
+        r"|^when (?:is|are|will|does|do|should) my (?!package|parcel|delivery)(?P<lw10>[a-z][a-z' ]{1,25}?) "
+        r"(?:coming|arriving|arrive|come|get here|be here|be delivered|getting delivered|ship|shipping)\s*\??$"
+        r"|^(?P<lw11>is anything|are any packages|is a package|is anything being|am i expecting (?:any )?(?:packages|deliveries|anything))"
+        r"(?: (?:coming|arriving|being delivered|getting delivered|due|delivered))?(?: today| tomorrow| this week)?\s*\??$")),
     # "What did I promise Sarah" (2026-10-07: to a model).
     ("promised", re.compile(r"^what did i promise (?P<prom>[a-z][a-z' ]{1,25}?)\s*\??$"
                             r"|^(?:did i|have i) promise(?:d)? (?P<prom2>anyone|anybody|someone|[a-z][a-z' ]{1,25}?) anything\s*\??$"
@@ -9856,6 +9861,46 @@ _LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b",
                "pto": r"\b(?:days? off|time off|pto|off work|on vacation)\b"}
 
 
+def _on_its_way(thing: str | None) -> str | None:
+    """What he told her he ordered or has coming, in the last month - the
+    thing he named, or any delivery when he asked about all of them. None
+    when he named a thing he never mentioned: his mail may know."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    coming = r"\b(?:ordered|bought|purchased|arriving|coming|delivered|delivery|package|parcel|shipping|shipped)\b"
+    named = [w for w in re.findall(r"[a-z0-9']+", (thing or "").casefold()) if w not in ("new", "the", "my", "a", "an")]
+    hits = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not re.search(coming, said, re.I):
+            continue
+        if named and not all(re.search(r"\b" + re.escape(w) + r"s?\b", said, re.I) for w in named):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if (now - at).days > 30:
+            continue
+        day = "today" if at.date() == now.date() else f"on {at.strftime('%A')} {at.day} {at.strftime('%B')}"
+        hits.append((day, speech.as_she_says_it(said).rstrip(".")))
+        if named or len(hits) == 3:
+            break
+    if not hits:
+        if named:
+            return None
+        return "Nothing you've told me about. Say \"my package is arriving Thursday\" and I'll keep it."
+    if named:
+        day, told = hits[0]
+        arrive = re.search(r"\b(?:arriv|coming|due|deliver|get(?:ting)? here)", told, re.I)
+        return f"You told me {day}: {told}." + ("" if arrive else " You didn't say when it arrives.")
+    days = {d for d, _t in hits}
+    lead = f"You told me {hits[0][0]}" if len(days) == 1 else "From what you've told me lately"
+    return f"{lead}: " + speech.and_list([t for _d, t in hits]) + "."
+
+
 def _plan_said_today(place: str | None, when: str | None) -> str | None:
     """A plan for later he told her today ("I'm going to the gym after
     work"), read back in his words. None when there is none: it may be on
@@ -9893,6 +9938,10 @@ def _life_when(text: str) -> str | None:
     g = _groups("life_when", text)
     if g.get("lw8") or g.get("lw9"):
         return _plan_said_today(g.get("lw8"), g.get("lw9"))
+    if g.get("lw10") or g.get("lw11"):
+        # "When is my sister coming" is a visit, not a delivery: what he
+        # told her about it is read the way any "when" note is.
+        return _on_its_way(g.get("lw10")) or (_when_note(text) if g.get("lw10") else None)
     asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or g.get("lw6") or g.get("lw7")
              or ("car due" if re.match(r"when is (?:my|the) (?:car|truck|van|suv) due", text.casefold()) else "")).strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)

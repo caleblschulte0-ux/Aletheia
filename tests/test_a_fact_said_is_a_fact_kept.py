@@ -5283,5 +5283,25 @@ class TheListAndItsVerbs(unittest.TestCase):
         self.assertEqual(quick.match("what do we need from the store")[0], "shopping")
 
 
+class ThingsOnTheirWay(unittest.TestCase):
+    """"I ordered a new phone" and "is anything being delivered today" went to the planner."""
+
+    def test_ordered_is_a_note_not_a_purchase(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("i ordered a new phone")["command"]["kind"], "note")
+
+    def test_read_back(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "my package is arriving Thursday", "ts": now}, {"text": "I ordered a new phone", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("when is my phone arriving"),
+                             "You told me today: you ordered a new phone. You didn't say when it arrives.")
+            self.assertEqual(quick.answer("is anything being delivered today"),
+                             "You told me today: your package is arriving Thursday and you ordered a new phone.")
+            self.assertIsNone(quick.answer("when are my shoes arriving"))
+
+
 if __name__ == "__main__":
     unittest.main()
