@@ -36,8 +36,8 @@ class AskedBack(unittest.TestCase):
 
     def test_by_all_its_words(self):
         with mock.patch.object(quick, "_notes", return_value=self.NOTES):
-            self.assertEqual(quick.answer("what's my favorite color"), "You told me: my favorite color is blue.")
-            self.assertEqual(quick.answer("what's my favorite food"), "You told me: my favorite food is tacos.")
+            self.assertEqual(quick.answer("what's my favorite color"), "You told me: your favorite color is blue.")
+            self.assertEqual(quick.answer("what's my favorite food"), "You told me: your favorite food is tacos.")
             self.assertEqual(quick.answer("when is jess's birthday"), "You told me: Jess's birthday is March 3.")
 
     def test_nothing_on_file_is_said_as_nothing(self):
