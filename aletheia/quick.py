@@ -5973,8 +5973,14 @@ def _asked_on(rest) -> str:
     asks = []
     for e in rows:
         line = " ".join(str(e.get("text") or "").split()).strip(" .?!")
+        # "What did I just ask you" and "repeat that" are talk about the
+        # talk, and read back as asks of the day (2026-10-07).
+        if line and _about_the_talk(line):
+            continue
         if line and line.casefold() not in {a.casefold() for a in asks}:
             asks.append(line)
+    if not asks:
+        return f"Nothing from you {when} that I wrote down."
     shown = [f"'{_shortened(a)}'" for a in asks[-5:]]
     said = f"{when.capitalize()} you asked me: " + "; ".join(shown)
     if len(asks) > 5:

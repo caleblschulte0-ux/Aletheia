@@ -1553,5 +1553,18 @@ class IGotEverythingCase(unittest.TestCase):
             self.assertNotEqual((voice._interpret("i got everything")["command"] or {}).get("kind"), "shopping_off")
 
 
+class TalkAboutTheTalkIsNotAnAskCase(unittest.TestCase):
+    def test_the_days_asks_skip_repeat_that(self):
+        import datetime as _dt
+        from aletheia import converse, journal, quick
+        now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        rows = [{"kind": "note", "subject": converse.ASKED_SUBJECT, "ts": now, "text": t}
+                for t in ("remind me at 6 to cook dinner", "what did i just ask you", "repeat that")]
+        with mock.patch.object(journal, "entries", return_value=rows):
+            said = quick._asked_on("today")
+        self.assertIn("cook dinner", said)
+        self.assertNotIn("repeat that", said)
+
+
 if __name__ == "__main__":
     unittest.main()
