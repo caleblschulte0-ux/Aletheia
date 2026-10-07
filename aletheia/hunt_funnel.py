@@ -41,6 +41,31 @@ PRESSED = ("SUBMITTED", "SUBMITTING")
 CLOSED_BECAUSE = (("not realistic", "not_realistic"), ("already", "duplicate"),
                   ("same job", "duplicate"), ("stale", "stale"), ("expired", "stale"),
                   ("no longer", "stale"))
+#: The record's own closure kind, where it wrote one, in the funnel's words.
+#: Live 2026-10-07 the first published breakdown read "other: 276" - nearly
+#: every closure - because pages that were never forms and postings taken
+#: down carry their kind on the record and no reason the text buckets knew.
+CLOSED_KINDS = {"not-a-form": "not_a_form", "gone": "gone", "left": "left",
+                "duplicate": "duplicate"}
+
+
+def _closed_bucket(record: dict) -> str:
+    why = str(record.get("closed_because") or "").casefold()
+    named = next((name for lead, name in CLOSED_BECAUSE if lead in why), "")
+    try:
+        from aletheia import apply_run
+        kind = apply_run.closure_kind(record)
+    except Exception:
+        kind = str(record.get("closed_kind") or "")
+    if kind in CLOSED_KINDS:
+        return CLOSED_KINDS[kind]
+    if named:
+        return named
+    # `closure_kind` calls everything it cannot place "unfit", and every
+    # unfit closure is a judgement that the job was not realistic for him.
+    return "not_realistic" if kind == "unfit" else "other"
+
+
 WORKED = ("AWAITING_YOU", "NEEDS_YOU", "NEEDS_ACCOUNT", "SUBMITTED", "SUBMITTING", "FAILED", "REJECTED", "APPROVED")
 
 
@@ -137,8 +162,7 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
         elif state == "CLOSED":
             if first and _day(r.get("closed_at") or r.get("staged_at"), zone) < first:
                 continue
-            why = str(r.get("closed_because") or "").casefold()
-            bucket = next((name for lead, name in CLOSED_BECAUSE if lead in why), "other")
+            bucket = _closed_bucket(r)
             out["closed"][bucket] = out["closed"].get(bucket, 0) + 1
             continue
         else:
