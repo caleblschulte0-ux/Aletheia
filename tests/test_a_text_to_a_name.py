@@ -1260,5 +1260,31 @@ class BlockingTimeForSomething(unittest.TestCase):
         self.assertEqual(voice.interpret("block off friday")["command"]["minutes"], 480)
 
 
+
+class AListCalledCostco(unittest.TestCase):
+    def _with(self, turns, said):
+        from aletheia import converse, voice
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]):
+            return voice.interpret(said)
+
+    def test_a_grocery_list_called_costco_is_a_named_list(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "is_named_list", return_value=True):
+            self.assertEqual(voice.interpret("make a grocery list called costco")["command"],
+                             {"kind": "list_new", "list": "costco"})
+
+    def test_add_to_a_list_he_has_without_saying_list(self):
+        from aletheia import lists
+        with mock.patch.object(lists, "exists", side_effect=lambda n: n == "costco"):
+            self.assertEqual(self._with([], "add paper towels to costco")["command"],
+                             {"kind": "list_add", "list": "costco", "item": "paper towels"})
+
+    def test_and_water_goes_on_it_and_a_meeting_does_not(self):
+        turns = [{"he_asked": "add paper towels to costco", "she_answered": "Added to your costco list: paper towels."}]
+        self.assertEqual(self._with(turns, "and water")["command"],
+                         {"kind": "list_add", "list": "costco", "item": "water"})
+        self.assertNotEqual((self._with(turns, "add a meeting to friday")["command"] or {}).get("kind"), "list_add")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1544,11 +1544,18 @@ def _named_list_said(low: str, text: str) -> dict | None:
         return {"command": {"kind": "list_read"}, "say": None}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
-    m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?list (?:called|named|for) " + name_, low)
+    m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?:grocery |shopping |packing |to-?do |todo |check ?)?"
+                      r"list (?:called|named|for) " + name_, low)
          or re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?" + name_ + r" list", low))
     if m and lists.is_named_list(m.group("name")):
         return {"command": {"kind": "list_new", "list": _as_he_said(text, m.group("name"))}, "say": None}
     m = re.fullmatch(r"(?:add|put|stick|throw) (?P<item>.+?) (?:to|on|onto|in) (?:my |the )" + name_ + r" list", low)
+    # "Add paper towels to costco" (2026-10-07: to the planner) names a list
+    # he HAS without saying "list"; only an existing one counts.
+    if not m:
+        m = re.fullmatch(r"(?:add|put|stick|throw) (?P<item>.+?) (?:to|on|onto) (?:my |the )?" + name_, low)
+        if m and not lists.exists(m.group("name")):
+            m = None
     if m and lists.is_named_list(m.group("name")):
         return {"command": {"kind": "list_add", "list": _as_he_said(text, m.group("name")),
                             "item": _as_he_said(text, m.group("item"))}, "say": None}
@@ -1818,7 +1825,10 @@ def _the_named_list_just_used(turns: int = 3) -> tuple[str, bool]:
         return "", False
     for depth, turn in enumerate(reversed(rows)):
         both = f"{turn.get('he_asked') or ''} {turn.get('she_answered') or ''}".casefold()
-        if re.search(r"\b(?:shopping|grocery) list\b", both):
+        # "Make a grocery list called costco" - "Started your costco list":
+        # her own answer names the list, whatever kind he called it.
+        mine = re.search(r"\byour ([a-z][a-z'-]*(?: [a-z][a-z'-]*){0,2}?) list\b", str(turn.get("she_answered") or "").casefold())
+        if re.search(r"\b(?:shopping|grocery) list\b", both) and not (mine and mine.group(1) not in ("shopping", "grocery")):
             return "", False
         name_ = r"([a-z][a-z'-]*(?: [a-z][a-z'-]*){0,2}?)"
         found = re.search(r"\byour " + name_ + r" list\b", str(turn.get("she_answered") or "").casefold()) \
@@ -1837,7 +1847,13 @@ def _onto_the_named_list(low: str) -> dict | None:
         return None
     m = re.fullmatch(r"(?:and |also )?add (?:the |some )?(?P<w>[a-z][a-z0-9' ,-]{1,60}?)(?: back| too| as well| again)?", low) \
         or re.fullmatch(r"(?:and|also) (?P<w>[a-z][a-z0-9' ,-]{1,60}?)(?: too| as well)?", low)
-    if m and last and not _TASK_VERB.match(m.group("w")):
+    # "Add a meeting to friday" is not a thing for the costco list: an item
+    # with somewhere or somewhen after it belongs to another verb.
+    # A verb is a task ("and call the bank"); a lone word is a thing, even
+    # one that can be a verb ("and water").
+    if m and last and not (_TASK_VERB.match(m.group("w")) and " " in m.group("w").strip()) \
+            and not re.search(r"\b(?:to|on|at|onto|into|by|tomorrow|today|tonight|monday|tuesday|wednesday|thursday"
+                              r"|friday|saturday|sunday|meeting|appointment|reminder|task)\b", m.group("w")):
         return _interpret(f"add {m.group('w')} to my {name} list")
     m = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(?P<w>[a-z][a-z0-9' -]{1,40}?) off"
                      r"|(?:remove|cross off|take off|delete) (?:the |my )?(?P<w2>[a-z][a-z0-9' -]{1,40}?)", low)
