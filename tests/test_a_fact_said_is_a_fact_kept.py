@@ -1594,5 +1594,21 @@ class NextWeekendCase(unittest.TestCase):
         self.assertTrue(said.startswith("Next weekend"), said)
 
 
+class RemindMeInAMonthCase(unittest.TestCase):
+    def _at(self, said, now):
+        from aletheia import voice
+        out = voice._a_loose_when(said.lower(), said, now=now)
+        return out and (out["command"]["at"][:10], out["command"]["text"])
+
+    def test_months_land_on_a_real_date(self):
+        tz = dt.timezone(dt.timedelta(hours=-5))
+        now = dt.datetime(2027, 1, 31, 12, 0, tzinfo=tz)
+        self.assertEqual(self._at("remind me in a month to cancel Netflix", now), ("2027-02-28", "cancel Netflix"))
+        self.assertEqual(self._at("remind me next month to renew my license", now), ("2027-02-01", "renew my license"))
+        self.assertEqual(self._at("remind me in 3 months to check the filter", now), ("2027-04-30", "check the filter"))
+        now = dt.datetime(2026, 11, 15, 12, 0, tzinfo=tz)
+        self.assertEqual(self._at("remind me to book flights in two months", now), ("2027-01-15", "book flights"))
+
+
 if __name__ == "__main__":
     unittest.main()

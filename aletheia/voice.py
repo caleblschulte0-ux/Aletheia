@@ -838,7 +838,9 @@ _LOOSE_TIMES = {
 }
 _LOOSE_WHEN = (r"(?P<when>" + "|".join(sorted((re.escape(k) for k in _LOOSE_TIMES), key=len, reverse=True))
                + r"|in (?:a|one|\d+|two|three|four|five|six|seven|a couple of|a few) (?:days?|weeks?)"
-               + r"|next week|in a fortnight)")
+               + r"|next week|in a fortnight|next month"
+               # "Remind me in a month to cancel Netflix" (2026-10-07: to the planner).
+               + r"|in (?:a|one|\d+|two|three|four|five|six) months?)")
 
 
 def _a_loose_when(low: str, text: str, now=None) -> dict | None:
@@ -872,6 +874,21 @@ def _a_loose_when(low: str, text: str, now=None) -> dict | None:
             days = 7 - now.weekday()                    # next Monday
         elif when == "in a fortnight":
             days = 14
+        elif "month" in when:
+            # Next month is its 1st; "in N months" is the same date N on,
+            # held to the month's last day (31 January + 1 is 28 February).
+            import calendar as _cal
+            n = re.search(r"in (\S+) month", when)
+            count = 1 if not n else {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                                     "six": 6}.get(n.group(1)) or (int(n.group(1)) if n.group(1).isdigit() else 0)
+            if not count or count > 24:
+                return None
+            month0 = now.month - 1 + count
+            year, month = now.year + month0 // 12, month0 % 12 + 1
+            day = 1 if when == "next month" else min(now.day, _cal.monthrange(year, month)[1])
+            at = now.replace(year=year, month=month, day=day, hour=hour, minute=minute, second=0, microsecond=0)
+            return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": _as_he_said(text, what)},
+                    "say": None}
         else:
             n = re.search(r"in (a couple of|a few|\S+) (day|week)", when)
             count = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
