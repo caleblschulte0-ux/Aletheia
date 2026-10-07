@@ -4171,6 +4171,10 @@ def _interpret(transcript: str) -> dict:
         return _new_task(_as_he_said(transcript, m.group(1)).strip())
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
+    if m and re.match(r"buy (?:some |more )?\S", m.group(1)):
+        # "Add buy milk to my list" put "buy milk" on the shopping list.
+        m = re.match(r"(?:add|put|get|stick|throw) buy (?:some |more )?(.+?) (?:on|to) (?:the |my )?"
+                     r"(?:shopping |grocery )?list$", low)
     if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
         # "Add call the dentist to my list" went on the SHOPPING list
         # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
@@ -4798,8 +4802,21 @@ def _interpret(transcript: str) -> dict:
                      r"(?: for me| now| please| back)?", low)
     if m and _is_a_person_to_ring(m.group("who")):
         who = _as_he_said(transcript, m.group("who"))
+        # "Call my dentist" offered to "text or email dentist".
+        if re.match(r"(?:call|phone|ring|dial|give|facetime|video) .*\bmy " + re.escape(m.group("who")), low):
+            who = f"your {who}"
+        number = ""
+        try:
+            from aletheia import contacts as _contacts, speech as _speech
+            one = _contacts.resolve(m.group("who"))
+            phones = [str(v) for v in (one.get("phones") or []) if v]
+            if phones:
+                name = str(one["display_name"])
+                number = f" {name[:1].upper()}{name[1:]}'s number is {_speech._spoken_number(phones[0])}."
+        except Exception:  # noqa: BLE001 - no contact is the plain answer
+            pass
         return {"command": None,
-                "say": f"I can't place phone calls from here. I can text or email {who}, "
+                "say": f"I can't place phone calls from here.{number} I can text or email {who}, "
                        "or remind you to call them - which would you like?"}
 
     # A VOLUME LEVEL is not a key. "Set the volume to 50" planned for a

@@ -406,6 +406,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:finished|completed|done) tasks\s*\??$"
         # "How productive was I today" (2026-10-07: to the planner).
         r"|^how productive (?:was i|have i been|am i)(?P<what3> today| yesterday| this week)?\s*\??$")),
+    # "How am I doing on my tasks" (2026-10-07: to the planner, then "the
+    # big models can't answer"). What got done today and what is left.
+    ("task_progress", re.compile(
+        r"^how (?:am i|'?m i) doing (?:on|with) (?:my |the )?(?:tasks|task list|to ?do list|to-do list|list)(?: today)?\s*\??$"
+        r"|^how(?:'s| is) my (?:task list|to ?do list|to-do list|list) (?:looking|going)(?: today)?\s*\??$"
+        r"|^how many tasks (?:have i|did i) (?:done|do|finish(?:ed)?|complete(?:d)?)(?: today)?\s*\??$")),
     ("task_top", re.compile(
         r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
         r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$"
@@ -3501,6 +3507,15 @@ def _tasks_done(when: str = "") -> str:
         return f"Nothing ticked off your list {when}."
     return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
             + (f", and {len(done) - 6} more" if len(done) > 6 else "") + ".")
+
+
+def _task_progress() -> str:
+    """Done today, then what is open - the two halves of "how am I doing"."""
+    done = _tasks_done("today")
+    left = _tasks()
+    if done.startswith("Nothing ticked off"):
+        return "Nothing ticked off yet today. " + left
+    return done + " " + left
 
 
 def _task_top() -> str:
@@ -7308,6 +7323,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "computer_ok": lambda rest: _computer_ok(),
            "week": lambda rest: _week(),
            "tasks_done": lambda rest: _tasks_done(rest),
+           "task_progress": lambda rest: _task_progress(),
            "task_top": lambda rest: _task_top(),
            "tasks_clear_done": lambda rest: ("Finished tasks are already off your list - I keep them only as a "
                                              "record of what you did, so there's nothing to clear."),

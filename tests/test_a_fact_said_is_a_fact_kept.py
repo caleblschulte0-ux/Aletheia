@@ -555,3 +555,29 @@ class TheNextOneIsOne(unittest.TestCase):
                              "Your next alarm is today at 6:30 am. You have 1 more after it.")
             self.assertTrue(voice._interpret("what's my next reminder")["say"].startswith("Your next reminder: "))
             self.assertEqual(voice._interpret("next timer")["say"], "You have no timers set.")
+
+
+class TheListHeMeant(unittest.TestCase):
+    def test_buy_is_not_part_of_the_thing(self):
+        self.assertEqual(voice._interpret("add buy milk to my list")["command"],
+                         {"kind": "shopping_add", "item": "milk"})
+
+    def test_an_empty_task_list_points_at_the_shopping_one(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", return_value=[]), \
+             mock.patch.object(intercom, "_shopping_items", return_value=[{"id": "s1", "need": "milk"}]):
+            self.assertEqual(intercom._tasks_answer(), "Nothing on your task list. 1 thing on your shopping list: milk.")
+
+    def test_how_am_i_doing(self):
+        with mock.patch.object(quick, "_tasks_done", return_value="Nothing ticked off your list today."), \
+             mock.patch.object(quick, "_tasks", return_value="1 task open. Next: call the bank."):
+            self.assertEqual(quick.answer("how am i doing on my tasks"),
+                             "Nothing ticked off yet today. 1 task open. Next: call the bank.")
+
+    def test_a_call_says_the_number_she_has(self):
+        from aletheia import contacts
+        with mock.patch.object(contacts, "resolve", return_value={"display_name": "mom", "phones": ["5551234567"]}):
+            said = voice._interpret("call mom")["say"]
+        self.assertIn("Mom's number is", said)
+        with mock.patch.object(contacts, "resolve", side_effect=KeyError("no")):
+            self.assertIn("text or email your dentist", voice._interpret("call my dentist")["say"])

@@ -1307,6 +1307,10 @@ def _tasks_answer(which: str = "") -> str:
         if not rows:
             return f"Nothing open matching {which!r}."
     if not rows:
+        # "Add milk to my list", then "what's on my list": "Nothing on your
+        # list" - the milk was on the other one.
+        if _shopping_items():
+            return "Nothing on your task list. " + shopping_answer()
         return "Nothing on your list."
     said = speech.and_list([_task_words(t) for t in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
