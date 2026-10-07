@@ -568,7 +568,7 @@ class DeleteTheNoteAbout(unittest.TestCase):
 class NumbersAPersonCanSay(unittest.TestCase):
     def test_a_long_decimal_is_rounded(self):
         from aletheia import quick
-        self.assertEqual(quick._math("what is 100 divided by 7"), "14.2857.")
+        self.assertEqual(quick._math("what is 100 divided by 7"), "14.29.")
 
     def test_the_date_yesterday(self):
         from aletheia import quick

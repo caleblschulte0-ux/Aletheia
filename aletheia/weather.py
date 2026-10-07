@@ -262,6 +262,7 @@ def _periods_for(periods: list, wanted: str):
     does not reach that far. The weekend is two days, so it is two."""
     if not wanted:
         return [periods[0]]
+    wanted = re.sub(r"^(?:on|for) ", "", wanted)
     if wanted in _WEEKEND:
         days = [p for p in periods if p.get("isDaytime", True) and
                 str(p.get("name", "")).casefold() in ("saturday", "sunday", "today")]
@@ -297,6 +298,10 @@ def _periods_for(periods: list, wanted: str):
     for period in periods:
         if wanted in str(period.get("name", "")).casefold():
             return [period]
+    if wanted in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+        # "What's the forecast for Friday" with no Friday in it yet was
+        # answered with right now, under right now's name (2026-10-07).
+        return f"The forecast doesn't reach {wanted.capitalize()} yet - ask me again in a day or two."
     return [periods[0]]
 
 

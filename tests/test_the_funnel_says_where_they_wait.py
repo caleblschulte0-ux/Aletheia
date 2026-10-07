@@ -94,6 +94,14 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(hunt_funnel._question_topic("Preferred first name"), "other")
         self.assertEqual(hunt_funnel._question_topic("Were you referred by an employee?"), "referral")
 
+    def test_the_browser_librarys_bare_error_is_named_by_its_network_code(self):
+        rows = [row("FAILED", failure="Error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://acme.example/jobs"),
+                row("FAILED", failure="Error: Target crashed"),
+                row("FAILED", failure="Something Acme said")]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]["failed_because"]
+        self.assertEqual(held, {"browser_err_name_not_resolved": 1, "browser_error": 1, "other": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
+
     def test_a_failure_is_counted_by_its_shape_never_its_words(self):
         rows = [row("FAILED", failure="TimeoutError: page.goto https://acme.example/jobs/1 timed out"),
                 row("FAILED", failure="BrowserBusy: in use (tried 3 times, nothing was ever pressed)"),

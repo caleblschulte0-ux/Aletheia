@@ -1842,10 +1842,12 @@ def refused_submit(record: dict) -> bool:
             return False
     elif state != "FAILED":
         return False
-    elif failure.startswith("TimeoutError:") and not record.get("pressed_at"):
+    elif (failure.startswith("TimeoutError:") or (failure.startswith("Error:") and "net::ERR_" in failure)) \
+            and not record.get("pressed_at"):
         # A page that was slow once, before Submit was ever pressed: 14 of
         # the month's 74 failures on 2026-10-07, each FAILED for good on
-        # one attempt. Read again like any other, within the same fillings.
+        # one attempt; and a dropped connection the same. Read again like
+        # any other, within the same fillings.
         return int(record.get("stagings") or 0) < apply_run.MAX_STAGINGS_AFTER_FAILURE
     elif "would not take a click" not in failure:
         return False
