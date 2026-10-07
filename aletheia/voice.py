@@ -2090,7 +2090,10 @@ def _with_the_person_named(transcript: str) -> str:
     low = " ".join(str(transcript or "").split())
     shapes = (r"^((?:thea,? )?)(?:her|his) (number|phone(?: number)?|email(?: address)?|birthday|address|anniversary)( is .+)$",
               r"^((?:thea,? )?what(?:'s| is|s) )(?:her|his) (number|phone(?: number)?|email(?: address)?|birthday|address)(\??)$",
-              r"^((?:thea,? )?(?:text|message|email) )(?:her|him) (.+)$")
+              r"^((?:thea,? )?(?:text|message|email) )(?:her|him) (.+)$",
+              # "Call Dana" -> "I can text or email Dana" -> "text her"
+              # (2026-10-07: to the planner).
+              r"^((?:thea,? )?(?:text|message|email|call|ring) )(?:her|him|them)()$")
     for i, shape in enumerate(shapes):
         m = re.match(shape, low, flags=re.IGNORECASE)
         if not m:
@@ -2101,6 +2104,8 @@ def _with_the_person_named(transcript: str) -> str:
         who = who[:1].upper() + who[1:]
         if i == 2:
             return f"{m.group(1)}{who} {m.group(2)}"
+        if i == 3:
+            return f"{m.group(1)}{who}"
         return f"{m.group(1)}{who}'s {m.group(2)}{m.group(3)}"
     return transcript
 
@@ -5221,9 +5226,14 @@ def _interpret(transcript: str) -> dict:
                 number = f" {name[:1].upper()}{name[1:]}'s number is {_speech._spoken_number(phones[0])}."
         except Exception:  # noqa: BLE001 - no contact is the plain answer
             pass
+        if not who.startswith(("your ", "the ")):
+            who = who[:1].upper() + who[1:]
+        # The sentences, not "which would you like?": a bare "text" after
+        # it had nothing to catch it (2026-10-07).
+        his = re.sub(r"^your ", "my ", who)   # the sentence HE says
         return {"command": None,
-                "say": f"I can't place phone calls from here.{number} I can text or email {who}, "
-                       "or remind you to call them - which would you like?"}
+                "say": f"I can't place phone calls from here.{number} I can text or email {who}, or remind you "
+                       f"to call - say \"text {his} that I'll call later\" or \"remind me at 5 to call {his}\"."}
 
     # A VOLUME LEVEL is not a key. "Set the volume to 50" planned for a
     # minute on her own model and was refused with a list of action ids

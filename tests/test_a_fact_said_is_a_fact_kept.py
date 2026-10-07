@@ -1479,5 +1479,18 @@ class AHeadacheIsBeingSickCase(unittest.TestCase):
             self.assertNotIn("Want ", got, said)
 
 
+class CallHerThenTextHerCase(unittest.TestCase):
+    def test_a_call_offers_sentences_he_can_say(self):
+        from aletheia import voice
+        said = voice._interpret("call my dentist")["say"]
+        self.assertIn('"text my dentist', said)
+        self.assertNotIn("which would you like", said)
+
+    def test_text_her_is_the_person_just_named(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_the_person_just_named", return_value="dana"):
+            self.assertEqual(voice._with_the_person_named("text her"), "text Dana")
+
+
 if __name__ == "__main__":
     unittest.main()
