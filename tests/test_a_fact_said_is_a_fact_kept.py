@@ -2822,9 +2822,11 @@ class CallsHeMade(unittest.TestCase):
         self.assertEqual(quick._base_verb("changed"), "change")
         three = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3)).isoformat()
         with mock.patch.object(quick, "_notes", return_value=[{"text": "I called mom", "ts": three}]):
-            for asked in ("when did I last call mom", "how long since I called mom"):
-                said = quick.answer(asked)
-                self.assertTrue(said.startswith("You told me you called mom - that was"), (asked, said))
+            said = quick.answer("when did I last call mom")
+            self.assertTrue(said.startswith("You told me you called mom - that was"), said)
+            # "How long since" is answered in how long (2026-10-07).
+            said = quick.answer("how long since I called mom")
+            self.assertTrue(said.startswith("3 days - you told me you called mom"), said)
             self.assertTrue(quick.answer("did I call mom today").startswith("Not today"))
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIn(" days, since ", quick.answer("how long since january 1"))
@@ -4184,6 +4186,24 @@ class JobsAroundTheHouse(unittest.TestCase):
         from aletheia import lists, voice
         with mock.patch.object(lists, "all_lists", return_value=[]):
             self.assertEqual(voice._interpret("what chores do i have")["command"], {"kind": "tasks"})
+
+
+class HowLongSince(unittest.TestCase):
+    """2026-10-07: "how long since I talked to mom" went to a model, and the
+    contact count said "Dad and mom"."""
+
+    def test_how_long_since(self):
+        import datetime as dt
+        from aletheia import quick
+        then = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3)).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i talked to mom", "ts": then}]):
+            said = quick.answer("how long since i talked to mom")
+        self.assertTrue(said.startswith(("3 days - you told me you talked to mom", "2 days", "4 days")), said)
+
+    def test_contact_names_keep_their_capital(self):
+        from aletheia import contacts, quick
+        with mock.patch.object(contacts, "all_contacts", return_value=[{"display_name": "mom"}, {"display_name": "Dad"}]):
+            self.assertEqual(quick._contacts_count(), "2 contacts: Dad and Mom.")
 
 
 if __name__ == "__main__":

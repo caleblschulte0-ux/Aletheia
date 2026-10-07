@@ -1665,7 +1665,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # service: "when did I get that email" belongs to the mail.
         r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v4>get|got|gotten|have|had) (?P<did_o4>" + _SERVICES + r")"
-        r"(?P<did_today2> today| yet| this morning| this week)?\s*\??$")),
+        r"(?P<did_today2> today| yet| this morning| this week)?\s*\??$"
+        # "How long since I talked to mom" (2026-10-07: to a model).
+        r"|^how long (?:has it been |is it |'s it been )?since i (?:last )?(?P<did_v5>changed|gave|fed|walked|watered|cleaned|washed"
+        r"|mowed|vacuumed|replaced|renewed|called|visited|paid|talked to|talked with|spoke to|spoke with|saw|met with|texted"
+        r"|caught up with|change|give|feed|walk|water|clean|wash|mow|call|visit|pay|talk to|speak to|see|text) (?P<did_o5>[a-z][a-z' ]{1,40}?)\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
@@ -4467,8 +4471,8 @@ def _did_last(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("did_last", text)
-    verb = (g.get("did_v") or g.get("did_v2") or g.get("did_v3") or g.get("did_v4") or "").strip()
-    thing = (g.get("did_o") or g.get("did_o2") or g.get("did_o3") or g.get("did_o4") or "").strip()
+    verb = (g.get("did_v") or g.get("did_v2") or g.get("did_v3") or g.get("did_v4") or g.get("did_v5") or "").strip()
+    thing = (g.get("did_o") or g.get("did_o2") or g.get("did_o3") or g.get("did_o4") or g.get("did_o5") or "").strip()
     window = (g.get("did_today") or g.get("did_today2") or "").strip()
     service = bool(g.get("did_v3") or g.get("did_v4"))
     if not verb or not thing:
@@ -4504,6 +4508,10 @@ def _did_last(text: str) -> str | None:
         if at is None:
             return f"You told me {told}."
         when = speech.humanize_time(at.isoformat())
+        if g.get("did_v5"):
+            days = (dt.datetime.now(tz).date() - at.date()).days
+            lead = "Not long" if days <= 0 else speech.count_phrase(days, "day")
+            return f"{lead} - you told me {told} {when}."
         if window in ("today", "yet", "this morning"):
             if at.date() == dt.datetime.now(tz).date():
                 return f"Yes - you told me {told}, {when}."
@@ -7847,7 +7855,9 @@ def _contacts_count() -> str | None:
         return None
     if not rows:
         return "No contacts saved yet. Say \"Sam's number is\" and the number, and I'll keep it."
+    # "2 contacts: Dad and mom" (2026-10-07): a name is said with its capital.
     names = sorted(str(r.get("display_name") or r.get("id")) for r in rows)
+    names = [n[:1].upper() + n[1:] for n in names]
     return (f"{speech.count_phrase(len(rows), 'contact')}: " + speech.and_list(names[:8])
             + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
