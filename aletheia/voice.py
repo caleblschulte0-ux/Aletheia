@@ -6308,6 +6308,20 @@ def _interpret(transcript: str) -> dict:
                   else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
 
+    # "Skip tomorrow's pill reminder", "pause my reminders for today"
+    # (2026-10-07: to the planner). Neither is a door she has; said plainly,
+    # with the two that are.
+    m = re.fullmatch(r"skip (?:(?:tomorrow'?s?|today'?s?|tonight'?s?|the next|my next|this week'?s?|the) )?(?:my )?"
+                     r"(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)(?: (?:tomorrow|today|tonight|this time|once|just once))?", low)
+    if m:
+        return {"command": None,
+                "say": f"I can't skip just one of a repeating reminder yet. Say \"turn off my {m.group('w')} reminder\" "
+                       "and set it again after, or let it go off and ignore it."}
+    if re.fullmatch(r"(?:pause|suspend|hold|stop|mute|silence) (?:all )?(?:my |the )?(?:reminders|alarms)"
+                    r"(?: for (?:today|tonight|the day|the rest of the day|now|a while|the weekend|this week))?", low):
+        return {"command": None,
+                "say": "I can't pause reminders yet. Say \"what reminders do I have\", then \"turn off\" and the one "
+                       "you don't want."}
     # DO NOT DISTURB is the one switch of hers this can honestly mean: her
     # own notices go quiet for a while (`notify_snooze`). Windows' Focus
     # Assist is not a door she has, and "turn on do not disturb" waited 78 s

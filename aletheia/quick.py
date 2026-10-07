@@ -757,6 +757,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$"
         # "How much sleep will I get" (2026-10-07: to a model) is the same sum.
         r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$")),
+    # "What time is my pill reminder" (2026-10-07: to a model).
+    ("reminder_when", re.compile(
+        r"^(?:what time|when)(?:'s| is|s| does) (?:my |the )(?P<reminder_when>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)"
+        r"(?: (?:set for|go off|for))?\s*\??$")),
     ("until_mine", re.compile(
         # "My interview" is the `until` reader's; this is only the ones named by who.
         r"^how long (?:is it )?(?:until|till|til|before) (?:my |the |our )?(?P<until_mine>"
@@ -2235,7 +2239,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
-                                           "place", "place2", "place3", "when_with", "until_mine")
+                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -8201,6 +8205,32 @@ def _alarm_left() -> str:
     return f"Your alarm goes off {speech.humanize_time(at.isoformat())} - {span} from now."
 
 
+def _reminder_when(what: str) -> str | None:
+    """"What time is my pill reminder": the one reminder his words name,
+    said with when it goes off. None when none or several match - "when is
+    my next reminder" and the rest have their own readers."""
+    what = " ".join(str(what or "").split())
+    if not what or what in ("next", "first", "last", "the next"):
+        return None
+    try:
+        from aletheia import intercom
+        found, why = intercom._one_reminder(what)
+        if found is None:
+            stem = re.sub(r"s$", "", what)
+            found, why = intercom._one_reminder(stem) if stem != what else (None, why)
+        if found is None:
+            # Her reminders are all hers, so "none is about that" and "which
+            # one" are both facts of her store, already said in a sentence.
+            return str(why) or None
+        said = intercom._reminder_words(found)
+    except Exception:
+        return None
+    text, _, when = said.partition(" — ")
+    if not when:
+        return None
+    return f"Your {what} reminder is {when}: {text.rstrip('.')}."
+
+
 def _when_mine(what: str, until: bool = False) -> str | None:
     """"What time is my dentist appointment": the soonest event or reminder
     naming it, said with when. Every word he named must be in it. With
@@ -10614,6 +10644,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "reminder_when": lambda rest: _reminder_when(rest),
            "until_mine": lambda rest: _when_mine(rest, until=True),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),

@@ -4782,5 +4782,30 @@ class ADailyReminderMovedStaysDaily(unittest.TestCase):
         self.assertIn("moved", str(said))
 
 
+class ARemindersTimeAskedByName(unittest.TestCase):
+    """"What time is my pill reminder" reads the reminder; skip and pause are said plainly."""
+
+    DAILY = {"id": "r", "kind": "daily", "enabled": True, "time": "08:00",
+             "command": {"kind": "notify_operator", "text": "take my pills"}}
+
+    def test_what_time_is_my_pill_reminder(self):
+        from aletheia import intercom, quick
+        with mock.patch.object(intercom, "_one_reminder", return_value=(self.DAILY, "")):
+            self.assertEqual(quick.answer("what time is my pill reminder"),
+                             "Your pill reminder is every day at 8 am: take my pills.")
+
+    def test_none_by_that_name_is_her_own_sentence(self):
+        from aletheia import intercom, quick
+        with mock.patch.object(intercom, "_one_reminder", return_value=(None, "You have no reminders set.")):
+            self.assertEqual(quick.answer("what time is my dentist reminder"), "You have no reminders set.")
+
+    def test_skip_and_pause_are_said_plainly(self):
+        from aletheia import voice
+        for said in ("skip tomorrow's pill reminder", "pause my reminders for today"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("can't", got["say"], said)
+
+
 if __name__ == "__main__":
     unittest.main()
