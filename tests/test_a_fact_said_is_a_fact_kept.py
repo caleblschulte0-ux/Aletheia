@@ -5073,5 +5073,23 @@ class TheirClockInHis(unittest.TestCase):
         self.assertIn("your time", said)
 
 
+class AboutTheMeetingOnADay(unittest.TestCase):
+    """"Remind me about the meeting next Tuesday at noon" was set for tomorrow."""
+
+    def test_the_day_is_the_when(self):
+        import datetime as dt
+        from aletheia import voice
+        got = voice.interpret("remind me about the meeting on tuesday at noon")["command"]
+        self.assertEqual(got["text"], "the meeting")
+        self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%A %H:%M"), "Tuesday 12:00")
+
+    def test_next_tuesday_is_asked_in_his_words(self):
+        from aletheia import voice
+        got = voice.interpret("remind me about the meeting next tuesday at noon")
+        self.assertIsNone(got["command"])
+        self.assertIn("about the meeting", got["say"])
+        self.assertNotIn("next tuesday'", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

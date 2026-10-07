@@ -4341,6 +4341,20 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group(4).strip())},
                 "say": None}
 
+    # "Remind me about the meeting next Tuesday at noon" was set for
+    # TOMORROW at noon, with "next tuesday" left in the words (2026-10-07).
+    # The day is the when; "about" keeps his words for the reminder.
+    m = re.fullmatch(r"remind me (?:about|of) (?P<what>.+?),? (?P<day>(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday"
+                     r"|saturday|sunday)(?: (?:morning|afternoon|evening|night))?)(?P<at> at [\w: ]+)?", low) \
+        or re.fullmatch(r"remind me (?P<day>(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                        r"(?: (?:morning|afternoon|evening|night))?)(?P<at> at [\w: ]+)? (?:about|of) (?P<what>.+)", low)
+    if m:
+        again = _interpret(f"remind me {m.group('day')}{m.group('at') or ''} to {m.group('what')}")
+        if (again.get("command") or {}).get("kind") == "remind_at":
+            again["command"]["text"] = _as_he_said(text, m.group("what").strip())
+            return again
+        if again.get("command") is None and again.get("say"):
+            return {"command": None, "say": again["say"].replace(f" to {m.group('what')}'", f" about {m.group('what')}'")}
     loose = _a_loose_when(low, text)
     if loose:
         return loose
@@ -5431,6 +5445,10 @@ def _interpret(transcript: str) -> dict:
     # license task tomorrow'" (2026-10-07).
     m = re.fullmatch(r"remind me (?:about|of) (.+?),? ((?:tomorrow|today|tonight|this (?:morning|afternoon|evening))"
                      r"(?: (?:morning|afternoon|evening|night))?(?: at [\w: ]+)?|on [a-z]+(?: at [\w: ]+)?|"
+                     # "...the meeting next Tuesday at noon" kept "next Tuesday"
+                     # in the words and set it for TOMORROW (2026-10-07).
+                     r"(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: (?:morning|afternoon|evening|night))?"
+                     r"(?: at [\w: ]+)?|"
                      r"at [\w: ]+|in (?:\d+|an?|half an) (?:minutes?|mins?|hours?))", low)
     if m:
         when = m.group(2).replace("tonight", "today night").replace("this ", "today ")
@@ -5438,6 +5456,9 @@ def _interpret(transcript: str) -> dict:
         if (again.get("command") or {}).get("kind") in ("remind_at",):
             again["command"]["text"] = _as_he_said(text, m.group(1).strip())
             return again
+        if again.get("command") is None and again.get("say") and m.group(2).startswith("next "):
+            # "Which Tuesday" asked back, in his own "about" words.
+            return {"command": None, "say": again["say"].replace(f" to {m.group(1)}'", f" about {m.group(1)}'")}
     # "Remind me tomorrow at 2 about the dentist" (2026-10-07: to the
     # planner) is "remind me tomorrow at 2 to" the same thing.
     m = re.fullmatch(r"remind me ((?:today|tonight|tomorrow|on |at |in |this |next |every |each )[a-z0-9: ]{1,40}?) about (.+)", low)
