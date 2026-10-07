@@ -937,6 +937,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many times (?:have|did) i (?:have|had) to (?:step in|fix (?:you|things|something)|"
         r"restart (?:you|u)|repeat myself)(?: lately)?$")),
     # THE GROUNDED STATUS FAMILY, last so an exact pattern above wins.
+    # "HOW MANY WEEKS UNTIL CHRISTMAS" and "a 20% tip on 45" (2026-10-07:
+    # to a model). Arithmetic on a date and on a bill.
+    ("until_weeks", re.compile(r"^how many (?P<what2>weeks|months) (?:until|till|to|before) (?:the )?(?P<what>[a-z][a-z' ]{2,30}?)$")),
+    ("tip", re.compile(r"^(?:what(?:'s| is|s)?|how much is|calculate) (?:a |the )?(?P<what>\d{1,2}(?:\.\d)?) ?(?:%|percent) tip on "
+                       r"(?:a |an )?\$?(?P<what2>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$"
+                       r"|^(?:what(?:'s| is|s)? the )?tip on \$?(?P<what3>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$"
+                       r"|^how much (?:should i|do i) tip on (?:a |an )?\$?(?P<what4>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$")),
+    # "HOW MUCH IS 50 EUROS IN DOLLARS" (2026-10-07: to a model, which
+    # cannot know today's rate). The ECB's published rate, or "I couldn't
+    # reach it" - never a remembered number.
+    ("currency", re.compile(r"^(?:how much is |what(?:'s| is|s)? |convert )?\$?(?P<what>[\d,]+(?:\.\d+)?) (?P<what2>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))"
+                            r" (?:in|to|into) (?P<what3>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))$"
+                            r"|^how many (?P<what4>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek)) (?:is|are|in|for|to) (?:a |an |one |(?P<what5>[\d,]+(?:\.\d+)?) )?(?P<what6>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))$")),
+    # "HOW DO I TURN YOU OFF": the switch is his, and it is one word.
+    ("off_switch", re.compile(r"^how (?:do|can) i (?:turn (?:you|u) off|stop (?:you|u)|shut (?:you|u) (?:off|down|up)|pause (?:you|u)"
+                              r"|halt (?:you|u)|make (?:you|u) stop)(?: for (?:a while|now|good))?$")),
     # Found live 2026-09-14 from his phone: "give me a status update on how
     # applying to jobs is going" went to the PLANNER, and with Claude and
     # ChatGPT out came back "I could not plan that: ReasonerUnavailable".
@@ -963,6 +979,8 @@ def match(question: str) -> tuple[str, str] | None:
         if name == "status_of":
             return name, text
         if name in ("math", "farewell"):
+            return name, text
+        if name in ("until_weeks", "tip", "currency"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -1073,6 +1091,72 @@ _NAMED_DAYS = {"christmas": (12, 25), "christmas day": (12, 25), "christmas eve"
                "independence day": (7, 4)}
 _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
            "september", "october", "november", "december")
+
+
+OFF_SWITCH = ("Say \"stop\" or \"halt\" and nothing I do runs until you say \"resume\". "
+              "\"Announcements off\" keeps me from speaking up on my own, and \"turn off the microphone\" stops me listening.")
+
+
+def _until_weeks(text: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    m = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "until_weeks"), None)
+    if not m:
+        return None
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when = _named_date(m.group("what"), today) or _his_date(m.group("what"), today)
+    if when is None:
+        return None
+    days = (when - today).days
+    said = when.strftime("%A %d %B").replace(" 0", " ")
+    if m.group("what2") == "weeks" or days < 45:
+        weeks, extra = divmod(days, 7)
+        span = (f"{weeks} week{'s' if weeks != 1 else ''}" + (f" and {extra} day{'s' if extra != 1 else ''}" if extra else "")
+                if weeks else f"{days} day{'s' if days != 1 else ''}")
+    else:
+        months = round(days / 30.44, 1)
+        span = f"about {months:g} month{'s' if months != 1 else ''}"
+    return f"{span[0].upper()}{span[1:]} - {said}."
+
+
+def _tip(text: str) -> str | None:
+    m = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "tip"), None)
+    if not m:
+        return None
+    bill = float((m.group("what2") or m.group("what3") or m.group("what4")).replace(",", ""))
+    if m.group("what"):
+        pct = float(m.group("what"))
+        tip = bill * pct / 100
+        return f"${tip:,.2f}, so ${bill + tip:,.2f} in all."
+    rows = [f"{p}% is ${bill * p / 100:,.2f}" for p in (15, 18, 20)]
+    return "On $" + f"{bill:,.2f}: " + ", ".join(rows[:-1]) + f", and {rows[-1]}."
+
+
+def _currency(text: str) -> str | None:
+    from aletheia import fx
+    m = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "currency"), None)
+    if not m:
+        return None
+    if m.group("what2"):
+        amount, base, to = m.group("what"), fx.code_of(m.group("what2")), fx.code_of(m.group("what3"))
+    else:
+        amount, base, to = m.group("what5") or "1", fx.code_of(m.group("what6")), fx.code_of(m.group("what4"))
+    if not base or not to or base == to:
+        return None
+    return fx.spoken(float(amount.replace(",", "")), base, to)
+
+
+def _his_date(words: str, today):
+    """"My birthday": the date he told her, next time it comes round."""
+    w = " ".join(str(words or "").casefold().split()).strip(" ?.")
+    if w not in ("my birthday", "birthday"):
+        return None
+    try:
+        from aletheia import memory
+        said = str(memory.recall("identity", "birthday") or "")
+    except Exception:
+        return None
+    return _named_date(said, today) if said else None
 
 
 def _named_date(words: str, today):
@@ -1229,8 +1313,10 @@ def _until(words: str) -> str | None:
     if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
         return _interview_when()
     today = dt.datetime.now(localtime.operator_tz()).date()
-    when = _named_date(words, today)
+    when = _named_date(words, today) or _his_date(words, today)
     if when is None:
+        if re.fullmatch(r"(?:my )?birthday", " ".join(str(words or "").casefold().split())):
+            return "I don't know your birthday yet. Say \"my birthday is March 3\" and I'll remember it."
         return None            # a thing, not a date: the model may think
     days = (when - today).days
     said = when.strftime("%A %d %B").replace(" 0", " ")
@@ -3771,6 +3857,10 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "until_weeks": lambda rest: _until_weeks(rest),
+           "tip": lambda rest: _tip(rest),
+           "currency": lambda rest: _currency(rest),
+           "off_switch": lambda rest: OFF_SWITCH,
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,

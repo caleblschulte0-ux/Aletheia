@@ -1912,6 +1912,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "MY BIRTHDAY IS MARCH 3" (2026-10-07: to the planner, and "how many
+    # days until my birthday" had nothing to read). Kept in her memory of
+    # him, never on a form: his date of birth is his to type.
+    m = re.fullmatch(r"my birthday(?: is|'s)(?: on)? (?P<day>(?:the )?\d{1,2}(?:st|nd|rd|th)? (?:of )?[a-z]+|[a-z]+ (?:the )?\d{1,2}(?:st|nd|rd|th)?)", low)
+    if m and re.search(r"january|february|march|april|may|june|july|august|september|october|november|december", m.group("day")):
+        return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",
+                            "value": m.group("day")}, "say": None}
+
     # "what do you still need from me?" - SETUP. Not the bare "what do you
     # need from me": that is the brief's fourth question, about what is
     # waiting on him (approvals, applications stopped on his answers), and
