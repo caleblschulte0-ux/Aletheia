@@ -361,6 +361,33 @@ def employer_full(company: str, *, now: dt.datetime | None = None) -> str:
             "chance without more")
 
 
+def full_employers(*, now: dt.datetime | None = None, days: int = EMPLOYER_WINDOW_DAYS) -> set[str]:
+    """Every employer `employer_full` would refuse now, read in one pass so a
+    search can leave them out before its window is cut."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    since = (now - dt.timedelta(days=days)).isoformat()
+    seen: dict[str, set[str]] = {}
+    for url, entry in already_sent().items():
+        who = _employer(entry.get("company", ""))
+        if who and str(entry.get("at") or "") >= since:
+            seen.setdefault(who, set()).add(str(url))
+    for record in all_runs():
+        if record.get("state") in (CLOSED, "FAILED"):
+            continue
+        who = _employer(record.get("company", ""))
+        when = str(record.get("submitted_at") or record.get("staged_at") or "")
+        if who and when >= since:
+            seen.setdefault(who, set()).add(str(record.get("url") or record.get("id") or ""))
+    return {who for who, urls in seen.items() if len(urls) >= EMPLOYER_LIMIT}
+
+
+def sent_role_keys() -> set[str]:
+    """The role of every application that ever went, from the ledger that
+    never forgets - the same reading `was_applied_to_role` makes one at a time."""
+    return {_role_key(e.get("company", ""), e.get("job_title", "")) for e in already_sent().values()
+            if str(e.get("company") or "").strip() and str(e.get("job_title") or "").strip()}
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()

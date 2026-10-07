@@ -239,6 +239,18 @@ def settled_already(*, since: str = "", now: dt.datetime | None = None):
         walled = walled_systems(apply_run.all_runs(), now=now)
     except Exception:
         walled = {}
+    # THE BATCH'S OWN DUPLICATE CHECKS, before the cut. Live 2026-10-07 107 of
+    # a day's 450 openings were turned away after it as "the same job" or "a
+    # fourth role at one employer": the sent ledger holds roles the records
+    # no longer do, and the employer limit was only asked once a slot was spent.
+    try:
+        roles = roles | apply_run.sent_role_keys()
+    except Exception:
+        pass
+    try:
+        full = apply_run.full_employers(now=now)
+    except Exception:
+        full = set()
     if walled:
         journal.append("decision", "campaign",
                        "leaving out openings on " + speech.and_list(
@@ -254,6 +266,8 @@ def settled_already(*, since: str = "", now: dt.datetime | None = None):
         if url and walled and employers.ats_of(url) in walled:
             return True
         company, title = str(job.get("company") or ""), str(job.get("title") or "")
+        if full and apply_run._employer(company) in full:
+            return True
         # WORK HE SAID HE WILL NOT DO, BY ITS TITLE. Live 2026-10-07 the second
         # batch spent 39 of its 90 openings on jobs titled sales, and every one
         # was turned away by the same rule after the cut. His own words decide
