@@ -26,6 +26,14 @@ class HeCanSayIt(unittest.TestCase):
         self.assertEqual((got["kind"], got["which"]), ("task_change", "call the plumber"))
         self.assertRegex(got["deadline"], r"^\d{4}-\d{2}-\d{2}$")
 
+    def test_move_says_my_and_task(self):
+        got = voice.interpret("move my plumber task to friday")["command"]
+        self.assertEqual((got["kind"], got["which"]), ("task_change", "plumber"))
+        # a task he names that is not on the list is said so, not planned
+        out = voice.interpret("move my dentist task to friday")
+        self.assertIsNone(out["command"])
+        self.assertEqual(out["say"], "Nothing on your list matches dentist.")
+
     def test_rename_keeps_his_words(self):
         got = voice.interpret("rename the passport one to Renew Passport Online")["command"]
         self.assertEqual(got["description"], "Renew Passport Online")

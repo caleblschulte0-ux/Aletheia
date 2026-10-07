@@ -4335,10 +4335,10 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "task_change", "which": task,
                                 "description": _as_he_said(text, m.group("new"))}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
-    m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail
+    m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
                        r"|wednesday|thursday|friday|saturday|sunday))", low) \
-        or re.fullmatch(r"(?:make|set) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) "
+        or re.fullmatch(r"(?:make|set) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) "
                         r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low) \
         or re.fullmatch(r"(?:the |my )?(?P<w>.+?) (?:task )?(?:is|should be) due (?:on |by )?"
                         r"(?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
@@ -4351,6 +4351,16 @@ def _interpret(transcript: str) -> dict:
         day = _spoken_day("today" if said == "tonight" else said)
         if day:
             return {"command": {"kind": "task_change", "which": m.group("w"), "deadline": day}, "say": None}
+    elif m and re.search(r"\btask\b|\bon my (?:list|to-?do list)\b", low):
+        # "Move my dentist task to friday" with no such task went to the
+        # planner (2026-10-07). He said task: the answer is the list's.
+        try:
+            from aletheia import intercom
+            _found, why = intercom._one_task(m.group("w"))
+        except Exception:
+            why = ""
+        if why:
+            return {"command": None, "say": why}
     m = re.fullmatch(r"(?:rename|retitle|reword) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:to|as) (?P<new>.+)", low) \
         or re.fullmatch(r"change (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" to say (?P<new>.+)", low)
     if m and _names_one_open_task(m.group("w")):
