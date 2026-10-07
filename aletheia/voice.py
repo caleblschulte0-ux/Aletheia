@@ -5535,7 +5535,7 @@ def _interpret(transcript: str) -> dict:
     # nothing to cancel, and there "Nothing is waiting for approval" is a
     # report on a queue he did not ask about.
     dropped_it = re.match(
-        r"(?:never ?mind|forget (?:it|that)|call it off|"
+        r"(?:never ?mind(?: that| it)?|forget (?:it|that)|call it off|"
         r"don'?t do (?:it|that))$", low)
     m = asked_to_cancel or dropped_it
     if m:

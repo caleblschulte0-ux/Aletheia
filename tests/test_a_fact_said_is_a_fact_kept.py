@@ -1178,5 +1178,12 @@ class ADayKeepsItsCapital(unittest.TestCase):
                          "your mom may visit Tuesday in June")
 
 
+class SmallTalkAnswered(unittest.TestCase):
+    def test_the_little_ones(self):
+        self.assertEqual(quick.match("what time do you have")[0], "clock")
+        self.assertIn("around the clock", quick.answer("do you sleep"))
+        self.assertIsNone(voice.interpret("nevermind that")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()

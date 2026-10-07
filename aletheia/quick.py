@@ -750,7 +750,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("clock", re.compile(
         r"^what(?:'s| is|s)? the time( right now| now)?$"
         r"|^(?:do you know )?what time is it( right now| now)?$"
-        r"|^(?:got|have) the time$|^time$")),
+        r"|^(?:got|have) the time$|^time$"
+        # "What time do you have" (2026-10-07: to a model).
+        r"|^what time (?:do (?:you|u) have|have (?:you|u) got)$")),
     # "Help" went to the planner (2026-10-07). A few things to say, in his
     # words; "what can you do" is the long answer.
     ("help", re.compile(r"^(?:help|help me|i need help|what can i say|what do i say|how do i use you"
@@ -1386,7 +1388,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me)"
         # "Are you ChatGPT", "how smart are you", "do you love me" (2026-10-07).
         r"|are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)"
-        r"|how smart are (?:you|u)|do (?:you|u) (?:love|like) me)$")),
+        r"|how smart are (?:you|u)|do (?:you|u) (?:love|like) me"
+        # "Do you sleep" (2026-10-07: to a model).
+        r"|do (?:you|u) (?:ever )?(?:sleep|rest|get tired|take breaks?)|are (?:you|u) (?:ever )?(?:tired|asleep|awake))$")),
     # "What's my work address", "what's my home address" (2026-10-07: a
     # recall of "work" that found nothing). A saved place, his own address,
     # or else exactly the recall it was before.
@@ -5083,6 +5087,9 @@ def _about_her(text: str) -> str:
     if re.match(r"are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)", asked):
         return ("No - I'm Thea, your own assistant, running on your PC. When I need to think hard I ask Claude "
                 "or ChatGPT on your subscriptions, and I say so when an answer is my own model's instead.")
+    if re.search(r"sleep|rest|tired|breaks?|asleep|awake", asked):
+        return ("No - I keep running on your PC around the clock, and do the quiet work while you sleep. "
+                "If the PC is off or asleep, so am I.")
     if asked.startswith("are"):
         return "I'm an AI - your own assistant, running on your PC. Not a person."
     if asked.startswith("how smart"):
