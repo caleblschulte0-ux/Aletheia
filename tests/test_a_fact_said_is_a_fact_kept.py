@@ -384,5 +384,37 @@ class APackingListForATrip(unittest.TestCase):
         self.assertEqual(voice._interpret("start a list for the camping trip")["command"]["list"], "camping trip")
 
 
+class HisDayLoggedAndAddedUp(unittest.TestCase):
+    def notes(self, *texts):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"ts": now, "text": t} for t in texts]
+
+    def test_said_is_noted(self):
+        from aletheia import voice
+        for said, kept in (("i drank a glass of water", "I drank a glass of water"),
+                           ("i ran 3 miles today", "I ran 3 miles"), ("i slept 7 hours", "I slept 7 hours")):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": kept}, said)
+
+    def test_water_is_counted(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.notes("I drank a glass of water", "I drank two glasses of water")):
+            self.assertEqual(quick.answer("how much water have i had today"), "3 glasses of water today.")
+
+    def test_miles_and_km_add_up(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.notes("I ran 3 miles", "I ran 5 km")):
+            self.assertEqual(quick.answer("how far did i run today"), "6.11 miles today.")
+
+    def test_nothing_logged_says_how_to(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("I drank a glass of water", quick.answer("how much water have i had today"))
+            self.assertEqual(quick.answer("did i work out today"), "Not that you've told me today.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5518,6 +5518,18 @@ def _interpret(transcript: str) -> dict:
                      r"(?: today| this morning| tonight| just now| already)?", low)
     if m:
         return {"command": {"kind": "note", "text": f"took my {m.group('what')}"}, "say": None}
+    # HIS DAY, LOGGED (2026-10-07: "I drank a glass of water", "I ran 3
+    # miles", "I slept 7 hours" went to the planner). A note in his words
+    # with the time on it; `quick._logged` adds today's or this week's up.
+    m = re.fullmatch(r"(?:i )?(?:just )?(?P<log>(?:drank|had) (?:a|an|one|two|three|four|five|\d{1,2}) (?:glass(?:es)?|cups?|bottles?|mugs?|cans?)"
+                     r" of [a-z][a-z ]{1,20}?"
+                     r"|(?:ran|walked|jogged|biked|cycled|swam|hiked) (?:\d{1,3}(?:\.\d+)?|a|one|two|three|four|five|six|ten|half a) ?"
+                     r"(?:miles?|km|kilometers?|kilometres?|k|minutes?|mins?|hours?|laps?)"
+                     r"|slept (?:for )?(?:\d{1,2}(?:\.\d+)?|five|six|seven|eight|nine|ten) (?:and a half )?hours?"
+                     r"|(?:worked out|exercised|meditated|stretched|did yoga|went to the gym)(?: for \d{1,3} (?:minutes?|mins?|hours?))?)"
+                     r"(?: today| this morning| last night| tonight| just now)?", low)
+    if m:
+        return {"command": {"kind": "note", "text": "I " + m.group("log")}, "say": None}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.

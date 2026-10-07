@@ -594,6 +594,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # it", "how many days in February" (2026-10-07, all to a model).
     # THE NEXT HOLIDAY (2026-10-07: "what holiday is next" and "is today a
     # holiday" went to the planner while every date was computed here).
+    # HIS DAY, LOGGED, read back (2026-10-07: all to a model). The notes
+    # "I drank a glass of water", "I ran 3 miles" are added up here.
+    ("logged", re.compile(
+        r"^how (?:much|many (?:glasses|cups|bottles|mugs|cans)(?: of)?) (?P<logged_drink>water|coffee|tea|soda|beer|wine|juice|milk)"
+        r" (?:have i (?:had|drunk|drank)|did i (?:have|drink))(?P<logged_w> today| this week)?\s*\??$"
+        r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
+        r"(?P<logged_w2> today| this week)?\s*\??$"
+        r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
+        r"|^(?:did|have) i (?P<logged_did>work(?:ed)? out|exercised?|meditated?|stretch(?:ed)?|done yoga|did yoga|gone to the gym|go to the gym)"
+        r"(?P<logged_w3> today| this week)?\s*\??$")),
     ("holiday_next", re.compile(
         r"^(?:what(?:'s| is|s) the next (?:holiday|public holiday|federal holiday|big holiday)"
         r"|what holiday is (?:next|coming up)|when(?:'s| is|s) the next (?:holiday|public holiday|federal holiday))\s*\??$"
@@ -1649,7 +1659,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "logged", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -1772,6 +1782,80 @@ OFF_SWITCH = ("Say \"stop\" or \"halt\" and nothing I do runs until you say \"re
 _HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's Day", "Easter", "Mother's Day",
                   "Memorial Day", "Father's Day", "Independence Day", "Labor Day", "Columbus Day", "Halloween",
                   "Thanksgiving", "Christmas Eve", "Christmas", "New Year's Eve")
+
+
+_COUNT_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                "eight": 8, "nine": 9, "ten": 10, "half a": 0.5}
+
+
+def _logged(text: str) -> str | None:
+    """What he told her he drank, ran, slept or did, added up from his notes."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("logged", text)
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or " today").strip()
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if window == "this week":
+        start -= dt.timedelta(days=now.weekday())
+    rows = []
+    for row in _notes():
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        rows.append((at, " ".join(str(row.get("text") or "").casefold().split())))
+    when = "today" if window == "today" else "this week"
+
+    def amount(word):
+        return float(word) if re.fullmatch(r"\d+(?:\.\d+)?", word) else _COUNT_WORDS.get(word)
+    if g.get("logged_drink"):
+        drink = g["logged_drink"]
+        total, unit = 0.0, "glass"
+        for at, said in rows:
+            m = re.match(rf"i (?:drank|had) (\w+) (glass(?:es)?|cups?|bottles?|mugs?|cans?) of {drink}\b", said)
+            if m and at >= start and amount(m.group(1)):
+                total += amount(m.group(1))
+                unit = {"glasses": "glass"}.get(m.group(2), m.group(2) if m.group(2) == "glass" else m.group(2).rstrip("s"))
+        if not total:
+            return f"You haven't told me about any {drink} {when}. Say \"I drank a glass of {drink}\" and I'll keep count."
+        plural = {"glass": "glasses"}.get(unit, unit + "s")
+        return f"{_plain(total)} {unit if total == 1 else plural} of {drink} {when}."
+    if g.get("logged_move"):
+        verb = {"run": "ran", "walk": "walked", "jog": "jogged", "bike": "biked", "cycle": "cycled",
+                "swim": "swam", "swum": "swam", "hike": "hiked"}.get(g["logged_move"], g["logged_move"])
+        miles = 0.0
+        found = False
+        for at, said in rows:
+            m = re.match(rf"i {verb} (\d+(?:\.\d+)?|\w+(?: a)?) ?(miles?|km|kilometers?|kilometres?|k)\b", said)
+            if m and at >= start and amount(m.group(1)):
+                found = True
+                miles += amount(m.group(1)) / (1 if m.group(2).startswith("mile") else 1.609344)
+        if not found:
+            return f"You haven't told me about a {g['logged_move'].rstrip('ed')} {when}. Say \"I {verb} 3 miles\" and I'll add it up."
+        return f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''} {when}."
+    if g.get("logged_sleep"):
+        for at, said in rows:
+            m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
+            if m and amount(m.group(1)):
+                hours = amount(m.group(1)) + (0.5 if m.group(2) else 0)
+                return f"{_plain(hours)} hours, you told me {speech.humanize_time(at.isoformat())}."
+        return "You haven't told me how you slept. Say \"I slept 7 hours\" and I'll remember."
+    if g.get("logged_did"):
+        stem = re.match(r"(?:work|exercise|meditat|stretch|yoga|gym)", re.sub(r"^(?:done |did |gone to the |go to the )", "", g["logged_did"]))
+        key = stem.group(0) if stem else g["logged_did"]
+        for at, said in rows:
+            if at >= start and re.match(r"i (?:worked out|exercised|meditated|stretched|did yoga|went to the gym)", said) and key[:4] in said:
+                clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+                return f"Yes - you told me at {clock}{'' if at.date() == now.date() else ' on ' + at.strftime('%A')}: {as_said(said)}."
+        return f"Not that you've told me {when}."
+    return None
+
+
+def as_said(said: str) -> str:
+    from aletheia import speech
+    return speech.as_she_says_it(said)
 
 
 def _workdays_until(words: str) -> str | None:
@@ -7157,6 +7241,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "stopwatch_it": lambda rest: _stopwatch_running(),
            "holiday_next": lambda rest: _holiday_next("list" if rest in ("holidays", "upcoming") or rest.startswith("next") else rest),
            "workdays_until": _workdays_until,
+           "logged": _logged,
            "speaking_pace": lambda rest: _speaking_pace(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
