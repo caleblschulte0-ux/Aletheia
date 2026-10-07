@@ -532,6 +532,16 @@ def clock_words(hhmm: str) -> str:
     return f"{twelve} {suffix}" if minute == 0 else f"{twelve}:{minute:02d} {suffix}"
 
 
+def _spoken_number(number: str) -> str:
+    """A phone number in the groups a person reads it in: 555 123 4567."""
+    digits = re.sub(r"\D", "", number)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+    return number
+
+
 def spoken_receipt(kind: str, detail: str, *,
                    now: dt.datetime | None = None) -> str:
     """One subsystem receipt, as a sentence.

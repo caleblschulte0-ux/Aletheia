@@ -333,6 +333,14 @@ def _split_deadline(text: str) -> tuple[str, str]:
     """
     m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
     if not m:
+        # "Call the plumber tomorrow", "pay the gas bill on friday": a day
+        # said last is as much a deadline as "by friday" (2026-10-07).
+        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?(today|tonight|tomorrow|monday|tuesday|wednesday"
+                         r"|thursday|friday|saturday|sunday)$", text, re.IGNORECASE)
+        if bare:
+            day = _spoken_day("today" if bare.group(2).lower() == "tonight" else bare.group(2))
+            if day:
+                return bare.group(1).strip(), day
         return text, ""
     rest, when = m.group(1).strip(), m.group(2).strip()
     if not rest:
@@ -1877,6 +1885,13 @@ def _interpret(transcript: str) -> dict:
     repeat = _a_repeat(low, text)
     if repeat:
         return repeat
+    # "REMIND ME ABOUT THIS LATER" names neither the thing nor the time,
+    # and was read as a memory search for "this later". Asked for whole.
+    # (A bare "remind me later" is a snooze of what just fired.)
+    if re.fullmatch(r"remind me (?:about|of) (?:this|that|it)(?: (?:later|in a bit|another time|some other time|soon))?", low):
+        return {"command": None,
+                "say": "Remind you of what, and when? Say it whole - like \"remind me at 4 to call Sam\" "
+                       "or \"remind me in an hour to check the oven\"."}
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.
@@ -2491,6 +2506,34 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "SAM'S NUMBER IS 555 123 4567", "save mom's number as ...", "Dana's
+    # email is ..." (2026-10-07: all to the planner). His own number is the
+    # profile's, never a contact called "my".
+    _who = r"(?P<name>[a-z][a-z.-]*(?: [a-z][a-z.-]*){0,2}?)"
+    _num = r"(?P<phone>\+?\(?\d[\d ().-]{6,18}\d)"
+    _mail = r"(?P<email>\S+@\S+\.\S+|\S+ at \S+ dot \S+)"
+    m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? (?:phone )?(?:number|phone|cell|mobile)"
+                      r"(?: number)?(?: as| is| to|:)? " + _num, low)
+         or re.fullmatch(_who + r"'s (?:phone )?(?:number|phone|cell|mobile)(?: number)? is " + _num, low)
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?(?:phone )?(?:number|phone))? " + _num, low))
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
+                            if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
+                            "phone": m.group("phone")}, "say": None}
+    m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? email(?: address)?(?: as| is| to|:)? " + _mail, low)
+         or re.fullmatch(_who + r"'s email(?: address)? is " + _mail, low)
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?email(?: address)?)? " + _mail, low))
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
+                            if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
+                            "email": m.group("email")}, "say": None}
+    m = re.fullmatch(r"add " + _who + r" to (?:my )?contacts", low)
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a"):
+        name = _as_he_said(text, m.group("name"))
+        name = name.title() if name.islower() else name
+        return {"command": None,
+                "say": f"What's {name}'s number or email? Say \"{name}'s number is ...\" and I'll keep it."}
+
     # "what do you still need from me?" - SETUP. Not the bare "what do you
     # need from me": that is the brief's fourth question, about what is
     # waiting on him (approvals, applications stopped on his answers), and
@@ -2578,7 +2621,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
                     # The phrasings a person actually uses. "Give me the
                     # brief" and "brief me" both went to the planner.
-                    r"(?:give me|read me|run) (?:the |my )?brief(?:ing)?|"
+                    r"(?:give me|read me|run) (?:the |my |a )?(?:morning |daily )?brief(?:ing)?|"
                     r"brief me|catch me up|what did i miss", low):
         return {"command": {"kind": "brief"}, "say": None}
 
@@ -3048,6 +3091,7 @@ def _interpret(transcript: str) -> dict:
                      # "Turn up the volume" fell to the planner (2026-10-07).
                      r"turn (?P<dir3>up|down) (?:the )?(?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
+                     r"turn (?P<dir3>up|down) the (?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
                      r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
                      r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
@@ -3713,6 +3757,14 @@ def _interpret(transcript: str) -> dict:
     held_by = [h for h in held_by if h and (h.group("day") or h.group("time"))]
     m = max(held_by, key=lambda h: (bool(h.group("day")) + bool(h.group("time")), -len(h.group("title"))),
             default=None)
+    # "ADD DENTIST APPOINTMENT FRIDAY AT 2" (2026-10-07: to the planner)
+    # names no calendar, and an appointment, meeting or dinner on a day
+    # is nothing else. Not "book": that is somebody else's diary.
+    m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up) (?:a |an |my )?"
+                          r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
+                          r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
+                          r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                          r"(?: at (?P<time>[\w: ]+?))?", low)
     if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:

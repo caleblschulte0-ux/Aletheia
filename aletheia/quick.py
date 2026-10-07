@@ -808,11 +808,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # read she can do from a cache in a hundredth of a second, which is
     # what this lane is for — and it means the most ordinary question
     # anybody asks never touches a model.
+    # "DO I NEED AN UMBRELLA" (2026-10-07: to the planner): yes or no
+    # first, then the forecast it stands on. Before "weather", which would
+    # answer "will it rain tomorrow" with a forecast and no yes.
+    ("rain", re.compile(
+        r"^(?:do i|will i|should i) (?:need|take|bring) (?:an |my )?(?:umbrella|raincoat|rain jacket)"
+        r"(?: (?P<weather>today|tonight|tomorrow|this weekend|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
+        r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("weather", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?weather(?: like| looking like| doing| going to be like)?(?: out(?:side)?)?"
         r"|how(?:'s| is) the weather(?: looking)?(?: out(?:side)?)?|what(?:'s| is|s)? it like out(?:side)?"
         r"|how(?:'s| is) it (?:looking )?out(?:side)?|is it (?:nice|cold|hot|warm) out(?:side)?)"
-        r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
+        r"(?: (?:for |on )?(?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening|weekend)|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
         r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
@@ -1046,6 +1054,36 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many times (?:have|did) i (?:have|had) to (?:step in|fix (?:you|things|something)|"
         r"restart (?:you|u)|repeat myself)(?: lately)?$")),
     # THE GROUNDED STATUS FAMILY, last so an exact pattern above wins.
+    # CHANCE, SPELLING AND THE KITCHEN (2026-10-07, all to the planner,
+    # and with nothing thinking "I could not plan that"). A coin, a die and
+    # a number need randomness, not a model; spelling a word he said is its
+    # letters; cups and spoons are a table.
+    ("coin", re.compile(r"^(?:flip|toss) a coin$|^heads or tails$|^coin (?:flip|toss)$")),
+    ("dice", re.compile(r"^roll (?:a |the )?(?P<what>\d+|two|three|four|five|six)? ?(?:dice|die|d6)$")),
+    ("pick_number", re.compile(r"^(?:pick|choose|give me|think of) a (?:random )?number"
+                               r"(?: (?:between|from) (?P<what>\d+ (?:and|to) \d+))?$")),
+    ("spell", re.compile(r"^(?:how (?:do you|do i|to) )?spell (?:the word )?(?P<what>[a-z'-]{2,30})$")),
+    ("volume", re.compile(r"^(?P<what>(?:how many (?:fluid ounces?|fl oz|teaspoons?|tsp|tablespoons?|tbsp|ounces?|oz|cups?"
+                          r"|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) (?:are )?(?:in|make|is|to) "
+                          r"|(?:convert|what(?:'s| is|s)?) (?:[\d.]+|half a|a half) (?:fluid ounces?|fl oz|teaspoons?|tsp"
+                          r"|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) "
+                          r"(?:to|in|into) ).{1,30})$")),
+    # "WHAT'S DUE TODAY", "what's overdue" (2026-10-07: to the planner).
+    # A task carries the deadline he said; `tasks.due` compares it to now.
+    ("due", re.compile(r"^(?:what(?:'s| is|s)?|what do i have|anything|is anything|do i have anything) "
+                       r"(?:(?P<what>overdue)|due(?: (?P<what2>today|tomorrow|this week|soon))?)(?: on my (?:list|tasks))?$"
+                       r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$")),
+    # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
+    ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
+                                r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
+    ("leap_year", re.compile(r"^is (?:it a leap year|this a leap year|this year a leap year|(?P<what>\d{4}) a leap year)$"
+                             r"|^when(?:'s| is) the (?P<what2>next) leap year$")),
+    # "HOW MUCH TIME IS LEFT ON MY TIMER" (2026-10-07: to the planner). A
+    # timer is a one-off reminder whose words end "timer is up"; the time
+    # left is arithmetic on its due time.
+    ("timer_left", re.compile(r"^(?:how (?:much (?:time|longer)|long)(?: is)? (?:left|remaining|to go)? ?(?:on|for) (?:my|the) timers?"
+                              r"|how much (?:time is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
+                              r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer)$")),
     # Found live 2026-09-14 from his phone: "give me a status update on how
     # applying to jobs is going" went to the PLANNER, and with Claude and
     # ChatGPT out came back "I could not plan that: ReasonerUnavailable".
@@ -4015,6 +4053,204 @@ def _weather(when: str = "") -> str | None:
         return str(exc) if isinstance(exc, WeatherUnavailable) and str(exc) else None
 
 
+def _rain(when: str = "") -> str | None:
+    """Will it rain: yes or no, from the same forecast as `_weather`."""
+    try:
+        from aletheia import weather
+        return weather.rain(when)
+    except Exception:
+        return None
+
+
+def _timer_left(now=None) -> str | None:
+    """Time left on every timer still running, soonest first."""
+    import datetime as dt
+    try:
+        from aletheia import scheduler
+        specs = scheduler.all_schedules()
+    except Exception:
+        return None
+    now = now or dt.datetime.now(dt.timezone.utc)
+    running = []
+    for spec in specs:
+        text = str((spec.get("command") or {}).get("text") or "")
+        if spec.get("kind") != "once" or not spec.get("enabled") or "timer is up" not in text:
+            continue
+        try:
+            at = scheduler.next_occurrence(spec, now)
+        except Exception:
+            continue
+        if at is not None:
+            running.append((at, text))
+    if not running:
+        return "No timer running."
+    running.sort()
+
+    def left(at) -> str:
+        seconds = int((at - now).total_seconds())
+        if seconds < 60:
+            return f"{max(seconds, 1)} second{'s' if seconds != 1 else ''}"
+        hours, minutes = divmod((seconds + 30) // 60, 60)
+        bits = []
+        if hours:
+            bits.append(f"{hours} hour{'s' if hours != 1 else ''}")
+        if minutes:
+            bits.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+        return " and ".join(bits) or "under a minute"
+
+    def name(text: str) -> str:
+        found = re.search(r"your (.+?) timer is up", text)
+        return f"your {found.group(1)} timer" if found else "your timer"
+    lines = [f"{left(at)} left on {name(text)}" for at, text in running[:3]]
+    return lines[0][0].upper() + "; ".join(lines)[1:] + "."
+
+
+def _week_of_year() -> str:
+    from aletheia import localtime
+    import datetime as dt
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    week = today.isocalendar()[1]
+    return f"Week {week} of {today.isocalendar()[0]}."
+
+
+def _leap_year(year: str = "") -> str:
+    import calendar
+    import datetime as dt
+    from aletheia import localtime
+    this = dt.datetime.now(localtime.operator_tz()).year
+    if year == "next":
+        return f"{next(y for y in range(this + 1, this + 9) if calendar.isleap(y))}."
+    if year:
+        n = int(year)
+        verb = "is" if n >= this else "was"
+        return f"Yes, {n} {verb} a leap year." if calendar.isleap(n) else f"No, {n} {verb}n't a leap year."
+    if calendar.isleap(this):
+        return f"Yes, {this} is a leap year."
+    nxt = next(y for y in range(this + 1, this + 9) if calendar.isleap(y))
+    return f"No, {this} isn't. The next leap year is {nxt}."
+
+
+def _due(when: str = "", now=None) -> str | None:
+    """His tasks with a deadline inside the window he named, overdue first."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    now = now or dt.datetime.now(dt.timezone.utc)
+    local = now.astimezone(localtime.operator_tz())
+    end_of_today = local.replace(hour=23, minute=59, second=59)
+    horizon = {"": end_of_today, "today": end_of_today, "soon": end_of_today + dt.timedelta(days=2),
+               "tomorrow": end_of_today + dt.timedelta(days=1),
+               "this week": end_of_today + dt.timedelta(days=6 - local.weekday()),
+               "overdue": now}[when]
+    hours = max((horizon - now).total_seconds() / 3600, 0)
+    try:
+        rows = [r for r in tasks.due(now=now, within_hours=hours) if tasks.is_his(r["task"])]
+    except Exception:
+        return None
+    if when == "overdue":
+        rows = [r for r in rows if r["overdue"]]
+    if when == "tomorrow":
+        start = end_of_today
+        rows = [r for r in rows if r["overdue"] or r["when"] > start]
+    if not rows:
+        return {"overdue": "Nothing's overdue."}.get(when, f"Nothing due {when or 'today'}.")
+
+    def line(row) -> str:
+        what = str(row["task"].get("description") or row["task"].get("id")).strip().rstrip(".")
+        return f"{what} (overdue)" if row["overdue"] and when != "overdue" else what
+    lead = "overdue" if when == "overdue" else f"due {when or 'today'}"
+    return f"{speech.count_phrase(len(rows), 'task')} {lead}: {speech.and_list([line(r) for r in rows[:5]])}."
+
+
+def _coin() -> str:
+    import secrets
+    return secrets.choice(("Heads.", "Tails."))
+
+
+_SMALL_NUMBERS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+
+
+def _dice(how_many: str = "") -> str | None:
+    import secrets
+    n = int(how_many) if str(how_many).isdigit() else _SMALL_NUMBERS.get(str(how_many), 1)
+    if not 1 <= n <= 10:
+        return None
+    rolls = [secrets.randbelow(6) + 1 for _ in range(n)]
+    if n == 1:
+        return f"{rolls[0]}."
+    from aletheia import speech
+    return f"{speech.and_list([str(r) for r in rolls])} - {sum(rolls)} in all."
+
+
+def _pick_number(span: str = "") -> str | None:
+    import secrets
+    low, high = 1, 10
+    if span:
+        a, b = (int(x) for x in re.findall(r"\d+", span)[:2])
+        low, high = min(a, b), max(a, b)
+    if high - low > 10**9:
+        return None
+    return f"{low + secrets.randbelow(high - low + 1)}."
+
+
+def _spell(word: str) -> str | None:
+    word = str(word or "").strip("'-")
+    if not word:
+        return None
+    return f"{word.capitalize()}: " + ", ".join(ch.upper() for ch in word if ch.isalpha()) + "."
+
+
+# Kitchen and liquid volumes, in US teaspoons. A US cup is 48 teaspoons and a
+# fluid ounce is 6; a millilitre is 1/4.92892 of a teaspoon.
+_VOLUMES = {"teaspoon": 1.0, "tsp": 1.0, "tablespoon": 3.0, "tbsp": 3.0, "ounce": 6.0, "fluid ounce": 6.0,
+            "fl oz": 6.0, "oz": 6.0, "cup": 48.0, "pint": 96.0, "quart": 192.0, "gallon": 768.0,
+            "milliliter": 1 / 4.92892, "millilitre": 1 / 4.92892, "ml": 1 / 4.92892,
+            "liter": 1000 / 4.92892, "litre": 1000 / 4.92892, "l": 1000 / 4.92892}
+_VOLUME_WORD = (r"(fluid ounces?|fl oz|teaspoons?|tsp|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?"
+                r"|millilit(?:er|re)s?|ml|lit(?:er|re)s?|l)")
+
+
+def _volume_unit(word: str) -> str | None:
+    word = word.strip()
+    if word in _VOLUMES:
+        return word
+    if word.endswith("s") and word[:-1] in _VOLUMES:
+        return word[:-1]
+    return None
+
+
+def _volume(sentence: str) -> str | None:
+    """"How many ounces in a cup", "convert 2 cups to ml". None for any
+    other "how many" so the rest of the lane and the planner still see it."""
+    weight = re.fullmatch(r"how many (?:ounces?|oz) (?:are )?(?:in|is|make) (?:a |an |one |(?P<n>[\d.]+) )?(?:pounds?|lbs?)",
+                          sentence)
+    if weight:
+        # An ounce of weight, not of water: 16 to the pound.
+        pounds = float(weight.group("n") or 1)
+        return f"{pounds * 16:g} ounces."
+    m = (re.fullmatch(r"how many " + _VOLUME_WORD + r" (?:are )?(?:in|make|is|to) (?:a |an |one |(?P<n>[\d.]+|half a|a half) )?"
+                      + _VOLUME_WORD, sentence)
+         or re.fullmatch(r"(?:convert |what(?:'s| is|s)? )(?P<n>[\d.]+|half a|a half) " + _VOLUME_WORD
+                         + r" (?:to|in|into) " + _VOLUME_WORD, sentence))
+    if not m:
+        return None
+    groups = [g for g in m.groups() if g is not None]
+    if sentence.startswith("how many"):
+        dst, src = _volume_unit(m.group(1)), _volume_unit(m.group(3))
+    else:
+        src, dst = _volume_unit(m.group(2)), _volume_unit(m.group(3))
+    if not src or not dst or src == dst:
+        return None
+    said_n = m.group("n")
+    n = 0.5 if said_n in ("half a", "a half") else float(said_n) if said_n else 1.0
+    value = n * _VOLUMES[src] / _VOLUMES[dst]
+    shown = round(value, 2) if value < 10 else round(value, 1)
+    lead = "About " if abs(shown - value) > 1e-6 else ""
+    number = f"{shown:g}"
+    full = {"tsp": "teaspoon", "tbsp": "tablespoon", "oz": "ounce", "fl oz": "fluid ounce", "ml": "milliliter",
+            "l": "liter", "millilitre": "milliliter", "litre": "liter"}.get(dst, dst)
+    return f"{lead}{number} {full if shown == 1 else full + 's'}."
+
+
 def _greeting() -> str | None:
     """Greeted back, plus the one thing he would have asked next.
 
@@ -4689,6 +4925,16 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "fraction_pct": lambda rest: _fraction_pct(rest),
            "fun_fact": lambda rest: _pick(FUN_FACTS),
            "quote": lambda rest: _pick(QUOTES),
+           "rain": lambda rest: _rain(rest),
+           "timer_left": lambda rest: _timer_left(),
+           "week_of_year": lambda rest: _week_of_year(),
+           "due": lambda rest: _due(rest),
+           "leap_year": lambda rest: _leap_year(rest),
+           "coin": lambda rest: _coin(),
+           "dice": lambda rest: _dice(rest),
+           "pick_number": lambda rest: _pick_number(rest),
+           "spell": lambda rest: _spell(rest),
+           "volume": lambda rest: _volume(rest),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
