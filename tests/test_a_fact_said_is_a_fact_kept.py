@@ -276,5 +276,18 @@ class WhatEmailsIsTheInbox(unittest.TestCase):
         self.assertEqual(voice._interpret("what's sam's email")["command"]["kind"], "contacts")
 
 
+class CatchMeUpWithNoFleetReadingStillTellsHisDay(unittest.TestCase):
+    def test_his_day(self):
+        import pathlib
+        import tempfile
+        from unittest import mock
+        from aletheia import intercom, pulse, quick
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pulse, "PULSE_DIR", pathlib.Path(tmp)), \
+                mock.patch.object(quick, "_waiting", return_value="Nothing needs you right now."), \
+                mock.patch.object(quick, "_plan_today", return_value="1 task open. Next: call the bank."):
+            said = intercom.execute_command({"kind": "brief"}, {"repos": {}}, quote="test")
+        self.assertTrue(said.startswith("Nothing needs you right now. 1 task open. Next: call the bank."), said)
+
+
 if __name__ == "__main__":
     unittest.main()
