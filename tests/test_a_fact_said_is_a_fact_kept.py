@@ -4973,5 +4973,27 @@ class DidIFinishIt(unittest.TestCase):
             self.assertIsNone(quick._did_finish("the mail"))
 
 
+class WhatHeThinksAndWants(unittest.TestCase):
+    def test_kept_as_he_said_it(self):
+        from aletheia import voice
+        for said in ("i loved the thai place", "i'm thinking about getting a dog", "i want to try that new thai place"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_a_pronoun_or_bedtime_is_not_kept(self):
+        from aletheia import voice
+        for said in ("i loved it", "i liked that", "i want to try again", "i want to go to bed"):
+            self.assertNotEqual((voice.interpret(said).get("command") or {}).get("kind"), "note", said)
+
+    def test_read_back(self):
+        from aletheia import quick
+        notes = [{"text": "i loved the thai place"}, {"text": "i'm thinking about getting a dog"},
+                 {"text": "i want to try that new thai place"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what did i think of the thai place"), "You told me: you loved the thai place.")
+            self.assertIn("getting a dog", quick.answer("what was i thinking about getting"))
+            self.assertIn("new thai place", quick.answer("what restaurants do i want to try"))
+            self.assertIsNone(quick._opinion("what did i think of the sushi bar"))
+
+
 if __name__ == "__main__":
     unittest.main()

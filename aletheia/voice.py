@@ -6008,6 +6008,18 @@ def _interpret(transcript: str) -> dict:
         # This month's first has passed; "in October" said in October is not next year.
         if _dt_mon.datetime.now(_lt_mon.operator_tz()).strftime("%B").casefold() != m.group("mon"):
             return _interpret(f"remind me {m.group('what')} on {m.group('mon')} 1")
+    # "I loved the Thai place", "I'm thinking about getting a dog", "I want
+    # to try that new Thai place" (2026-10-07: every one to the planner).
+    # What he thinks and wants, kept in his words for the question later.
+    if re.fullmatch(r"(?:i|we) (?:really |absolutely |totally |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t like|did not like"
+                    r"|didn'?t enjoy|did not enjoy) (?!it\b|that\b$|this\b$|them\b|you\b|him\b|her\b)(?:the |that |this |our |my )?"
+                    r"[a-z0-9][a-z0-9' -]{1,40}", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:thinking|thinkin) (?:about|of) (?:getting|buying|doing|trying|starting|taking"
+                            r"|learning|moving|going|adopting|selling|switching|joining|quitting|making) [a-z0-9][a-z0-9' -]{1,50}", low) \
+            or re.fullmatch(r"(?:i|we) (?:want|wanna|would like|'d like|need) to (?:try|check out|go to|visit) (?:the |that |this |a |an )?"
+                            r"(?!it\b|again\b|that\b$|harder\b|bed\b|sleep\b|home\b|work\b|school\b|the bathroom\b|the toilet\b)"
+                            r"[a-z0-9][a-z0-9' -]{2,50}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I lost 2 pounds" (2026-10-07: to the planner) - a change in his
     # weight, kept for "how much weight have I lost".
     if re.fullmatch(r"i(?:'ve| have)? (?:lost|dropped|gained|put on) (?:another |about |almost |over )?\d{1,3}(?:\.\d)? ?"

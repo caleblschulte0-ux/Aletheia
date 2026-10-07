@@ -416,6 +416,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_finish", re.compile(
         r"^(?:did|have) i (?:finish(?:ed)?|complete(?:d)?|wrap(?:ped)? up) (?:the |my )?(?P<did_finish>[a-z0-9][a-z0-9' ]{1,40}?)"
         r"(?: done| finished)?(?: yet| already| today| this week)?\s*\??$")),
+    # "What did I think of the Thai place", "what restaurants do I want to
+    # try", "what was I thinking about getting" (2026-10-07: to a model,
+    # with the note in his words).
+    ("opinion", re.compile(
+        r"^(?:what did i think (?:of|about)|how did i like|did i like|did i enjoy) (?:the |that |this |my |our )?(?P<opinion>[a-z0-9][a-z0-9' -]{1,40}?)\s*\??$"
+        r"|^what (?P<want_try>restaurants?|places?|foods?|things?|movies?|shows?|books?|bars?|cafes?|coffee shops?|games?)? ?(?:do|did) i (?:want|wanna|say i wanted) to"
+        r" (?:try|check out|go to|visit)\s*\??$"
+        r"|^what (?:was|am|were) i thinking (?:about|of)(?: (?:getting|buying|doing|trying|starting))?\s*\??$")),
     # "What did I add to the list today" (2026-10-07: to the planner).
     ("shop_added", re.compile(
         r"^what (?:did i|have i|did we|have we) (?:add|added|put)(?: on| to)? (?:to |on )?(?:my |the |our )?(?:shopping |grocery )?list"
@@ -2253,7 +2261,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6896,6 +6904,33 @@ def _repos() -> str | None:
             + speech.and_list(shown) + ".")
 
 
+def _opinion(text: str) -> str | None:
+    """What he told her he thought of a thing, wants to try, or is thinking
+    about - his own words read back. None for a thing he never mentioned."""
+    from aletheia import speech
+    low = _tidy(text)
+    g = _groups("opinion", text)
+    if g.get("opinion"):
+        words = [w for w in re.findall(r"[a-z0-9]+", g["opinion"]) if w not in ("the", "that", "this", "my", "our")]
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            if re.match(r"(?:i|we) (?:really |absolutely |totally |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t|did not)\b",
+                        said.casefold()) and words and all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
+    if "thinking" in low:
+        rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()
+                if re.match(r"(?:i'?m|i am|we'?re|we are) thinkin", str(r.get("text") or "").casefold())]
+    else:
+        rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()
+                if re.match(r"(?:i|we) (?:want|wanna|would like|'d like|need) to (?:try|check out|go to|visit)",
+                            str(r.get("text") or "").casefold())]
+    if not rows:
+        return None
+    said = [speech.as_she_says_it(r).rstrip(".") for r in rows[:4]]
+    return f"You told me: {speech.and_list(said)}."
+
+
 def _shop_added(text: str) -> str | None:
     """What went on his shopping list today (or yesterday, this week), still
     on it, newest last. From the store's own times; nothing is guessed."""
@@ -10869,6 +10904,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "opinion": lambda rest: _opinion(rest),
            "did_finish": lambda rest: _did_finish(rest),
            "shop_added": lambda rest: _shop_added(rest),
            "cook_temp": lambda rest: _cook_temp(rest),
