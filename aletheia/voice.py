@@ -4607,10 +4607,12 @@ def _interpret(transcript: str) -> dict:
                     r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
                     r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
         return {"command": {"kind": "note", "text": "finished work"}, "say": None}
-    m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(.+?)"
+    # "Mark everything on my to do list done" is the whole list - refused
+    # further on, never a task called "everything on my to do list".
+    m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(?!everything\b|all\b|every task\b)(.+?)"
                       r"(?: one| task)? (?:as )?(?:done|complete[d]?|finished)",
                       low)
-         or re.fullmatch(r"(?:tick|check|cross) off (?:the )?(.+?)"
+         or re.fullmatch(r"(?:tick|check|cross) off (?:the )?(?!everything\b|all\b|every task\b)(.+?)"
                          r"(?: one| task)?", low)
          or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
                          r"(?: one| task)?", low)
@@ -7941,7 +7943,10 @@ def _interpret(transcript: str) -> dict:
     # planner). The same rule: his whole list is not one sentence's to undo.
     if re.fullmatch(r"(?:delete|remove|clear|wipe|cancel|drop) (?:all|every one of|everything on) (?:of )?(?:my |the )?"
                     r"(?:tasks|to[- ]?dos?|task list|to[- ]?do list)|(?:clear|wipe|empty) (?:my |the )?(?:task list|to[- ]?do list|tasks)"
-                    r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task) (?:as )?(?:done|complete|completed|finished)", low):
+                    r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?"
+                    r" (?:as )?(?:done|complete|completed|finished)"
+                    r"|(?:check|tick|cross) off (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)"
+                    r"(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?", low):
         return {"command": None,
                 "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
                        "\"mark the first one done\" or \"delete\" and what it says, one at a time."}

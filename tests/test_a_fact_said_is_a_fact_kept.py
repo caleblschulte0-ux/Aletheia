@@ -4669,5 +4669,21 @@ class PushedBackAndCantMakeIt(unittest.TestCase):
         self.assertNotIn("calendar", str(got.get("say") or ""))
 
 
+class TheWholeListSaidOtherWays(unittest.TestCase):
+    """"Mark everything on my to do list done" is the whole list, not a task called that."""
+
+    def test_the_whole_list_is_refused_however_it_is_said(self):
+        from aletheia import voice
+        for said in ("mark everything on my to do list done", "check off all my tasks",
+                     "check off everything on my list"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("whole task list", got["say"], said)
+
+    def test_one_task_is_still_ticked_off(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("check off the milk")["command"], {"kind": "task_done", "which": "milk"})
+
+
 if __name__ == "__main__":
     unittest.main()
