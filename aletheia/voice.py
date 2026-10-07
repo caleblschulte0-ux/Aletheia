@@ -5273,6 +5273,13 @@ def _interpret(transcript: str) -> dict:
                     r"|how long (?:is|will be|'s) (?:my|the) commute(?: today| this morning)?", low):
         if _known_place("work"):
             return {"command": {"kind": "travel_time", "place": "work"}, "say": None}
+        # No address, but he told her how long the commute is and when he
+        # starts (2026-10-07): that is the answer, added up and said as his.
+        if low.startswith("when should i leave"):
+            from aletheia import quick
+            told = quick._leave_for_work()
+            if told:
+                return {"command": None, "say": told}
         # "How long is my commute" with no work on file (2026-10-07: to a
         # model, which knows no better). The one thing that would let her.
         return {"command": None, "say": "I don't know where work is. Say \"work is at\" and the address, "
@@ -7304,6 +7311,17 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|now|this morning))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
             or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I START WORK AT 9", "my commute is 30 minutes" (2026-10-07: to the
+    # planner). Notes in his words; "what time do I start work" reads the
+    # first, and "when should I leave for work" adds the two up when there
+    # is no work address to time a drive to.
+    if re.fullmatch(r"i (?:start|begin|get to|have to be at|need to be at|clock in at|clock in|go in)(?: work)?(?: at)? "
+                    r"\d{1,2}(?::\d\d)?(?: ?(?:am|pm|a\.m\.|p\.m\.))?(?: (?:every day|on weekdays|most days|tomorrow|today))?"
+                    r"|i (?:get off|finish|leave|clock out)(?: work)?(?: at)? \d{1,2}(?::\d\d)?(?: ?(?:am|pm|a\.m\.|p\.m\.))?"
+                    r"|my (?:shift|work ?day) (?:starts|begins|ends|finishes) (?:at )?\d{1,2}(?::\d\d)?(?: ?(?:am|pm|a\.m\.|p\.m\.))?"
+                    r"|(?:my commute is|it takes me|my drive to work is) (?:about |around )?\d{1,3} (?:minutes|mins|min|hours?)"
+                    r"(?: to get to work| to work| each way)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I work at Acme", "I go to school at UIC" (2026-10-07: to the planner).
     # Not "I work at 9 tomorrow" - that is a shift, not a place.

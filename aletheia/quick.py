@@ -390,6 +390,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how much do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)\s*\??$")),
+    ("work_hours", re.compile(
+        r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
+        r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -715,7 +718,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:was|is) (?P<cal2>yesterday|tomorrow)(?:'s)? date\s*\??$"
         r"|^what day (?:was|is|will it be) (?P<cal3>yesterday|tomorrow)\s*\??$"
         r"|^what (?P<cal4>week) (?:is it|of the year is it|number is it|are we in)\s*\??$"
-        r"|^how many days (?:are )?(?:in|does) (?P<cal5>january|february|march|april|may|june|july|august|september|october|november|december|this month)(?: have)?\s*\??$"
+        r"|^how many days (?:are )?(?:in|does) (?P<cal5>(?:january|february|march|april|may|june|july|august|september|october|november|december|this month)(?: this year| next year| (?:19|20)\d\d)?)(?: have)?\s*\??$"
         r"|^is (?P<cal6>this|it) a leap year\s*\??$"
         # "Is tomorrow a weekday", "what quarter are we in" (2026-10-07: to a model).
         r"|^is (?P<cal7>(?:tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday) (?:a |the )?"
@@ -1592,6 +1595,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # a number need randomness, not a model; spelling a word he said is its
     # letters; cups and spoons are a table.
     ("coin", re.compile(r"^(?:flip|toss) a coin$|^heads or tails$|^coin (?:flip|toss)$")),
+    # "Yes or no" (2026-10-07: to the planner) - a coin with other words on it.
+    ("yes_no", re.compile(r"^(?:just )?(?:say )?yes or no\s*\??$|^(?:give me a )?random yes or no$")),
     # Small games (2026-10-07: "pick a card" and "rock paper scissors" went
     # to the planner, which queued them for later).
     ("card", re.compile(r"^(?:pick|draw|deal me|give me) a (?:random )?card(?: any card)?$|^pick a card,? any card$")),
@@ -1933,7 +1938,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2980,12 +2985,19 @@ def _calendar_fact(what: str) -> str | None:
     if what in ("this", "it"):
         leap = calendar.isleap(today.year)
         return f"{today.year} is {'' if leap else 'not '}a leap year."
+    # "How many days in February 2028" (2026-10-07: to a model).
+    year_said = re.search(r" (this year|next year|(?:19|20)\d\d)$", what)
+    what = what[:year_said.start()] if year_said else what
+    year = (today.year + 1 if year_said.group(1) == "next year" else today.year if year_said.group(1) == "this year"
+            else int(year_said.group(1))) if year_said else today.year
     month = today.month if what == "this month" else (
         ["january", "february", "march", "april", "may", "june", "july", "august",
          "september", "october", "november", "december"].index(what) + 1)
-    days = calendar.monthrange(today.year, month)[1]
+    days = calendar.monthrange(year, month)[1]
+    if month == 2 and year_said and year_said.group(1)[0].isdigit():
+        return f"February {year} has {days} days."
     return f"{calendar.month_name[month]} has {days} days" + (
-        f" this year." if month == 2 else ".")
+        f" {'next year' if year != today.year else 'this year'}." if month == 2 else ".")
 
 
 def _until(words: str, *, which_day: bool = False) -> str | None:
@@ -8270,6 +8282,54 @@ def _spent(question: str) -> str | None:
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
+_START_NOTE = re.compile(r"^(?:i (?:start|begin|get to|have to be at|need to be at|clock in at|clock in|go in)(?: work)?(?: at)?"
+                         r"|my (?:shift|work ?day) (?:starts|begins)(?: at)?) (?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
+_END_NOTE = re.compile(r"^(?:i (?:get off|finish|leave|clock out)(?: work)?(?: at)?|my (?:shift|work ?day) (?:ends|finishes)(?: at)?) "
+                       r"(?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
+_COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
+
+
+def _work_hours(text: str) -> str | None:
+    """"What time do I start work": his note saying so, in his words."""
+    from aletheia import speech
+    g = _groups("work_hours", text)
+    which = g.get("work_hours") or g.get("work_hours2") or ""
+    note = _END_NOTE if which in ("get off", "finish", "clock out", "end") else _START_NOTE
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if note.match(said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
+def _leave_for_work() -> str | None:
+    """When to leave, from his own notes: the start time less the commute.
+    None unless he told her both - half of it is not an answer."""
+    import datetime as dt
+    start = commute = None
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        start = start or _START_NOTE.match(low)
+        commute = commute or _COMMUTE_NOTE.match(low)
+    if not start or not commute:
+        return None
+    m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", start.group("at").strip())
+    hour, minute = int(m.group(1)), int(m.group(2) or 0)
+    if m.group(3) == "pm" and hour < 12:
+        hour += 12
+    elif m.group(3) == "am" and hour == 12:
+        hour = 0
+    elif not m.group(3) and hour < 5:
+        hour += 12                      # "I start at 2" is the afternoon
+    if hour > 23 or minute > 59:
+        return None
+    minutes = int(commute.group("n")) * (60 if commute.group("u").startswith("hour") else 1)
+    leave = dt.datetime(2000, 1, 1, hour, minute) - dt.timedelta(minutes=minutes)
+    said = leave.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    return (f"By {said} - you start at {start.group('at').strip()} and your commute is about {minutes} minutes, "
+            "from what you've told me. That's without traffic.")
+
+
 def _did_count(text: str) -> str | None:
     """"How many times did I walk the dog today": his notes saying he did,
     counted for the day, week or month he named. Never a guess."""
@@ -8740,6 +8800,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "due": lambda rest: _due(rest),
            "leap_year": lambda rest: _leap_year(rest),
            "coin": lambda rest: _coin(),
+           "yes_no": lambda rest: __import__("secrets").choice(("Yes.", "No.")),
            "card": lambda rest: _card(),
            "rps": _rps,
            "place_where": lambda rest: _place_where(rest),
@@ -8810,6 +8871,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "lent": _lent,
            "went": _went,
            "did_count": _did_count,
+           "work_hours": _work_hours,
            "cost_mine": _cost_mine,
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),

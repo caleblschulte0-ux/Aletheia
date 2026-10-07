@@ -3173,5 +3173,34 @@ class HisBillsAndHowOften(unittest.TestCase):
         self.assertEqual(quick.match("what do I have to do tomorrow"), ("tasks_due", "tomorrow"))
 
 
+class HisWorkDay(unittest.TestCase):
+    def test_start_end_and_commute_are_kept_and_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        for said in ("I start work at 9", "I get off work at 5", "my commute is 30 minutes", "my shift starts at 7am"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": t, "ts": now} for t in ("I start work at 9", "I get off work at 5", "my commute is 30 minutes")]
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(voice, "_known_place", return_value=None):
+            self.assertEqual(quick.answer("what time do I start work"), "You told me: you start work at 9.")
+            self.assertEqual(quick.answer("when do I get off work"), "You told me: you get off work at 5.")
+            self.assertTrue(voice._interpret("when should I leave for work")["say"].startswith("By 8:30 am - you start at 9"))
+        with mock.patch.object(quick, "_notes", return_value=notes[:1]), \
+                mock.patch.object(voice, "_known_place", return_value=None):
+            self.assertIn("where work is", voice._interpret("when should I leave for work")["say"])
+
+
+class MonthsInOtherYears(unittest.TestCase):
+    def test_a_year_named_is_the_year_counted(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("how many days in february 2028"), "February 2028 has 29 days.")
+        self.assertEqual(quick.answer("how many days does february 2027 have"), "February 2027 has 28 days.")
+
+    def test_yes_or_no_is_a_coin(self):
+        from aletheia import quick
+        self.assertIn(quick.answer("yes or no"), ("Yes.", "No."))
+
+
 if __name__ == "__main__":
     unittest.main()
