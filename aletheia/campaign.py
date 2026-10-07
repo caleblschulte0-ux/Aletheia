@@ -678,7 +678,8 @@ def _with_his_roles(roles: list[str], known: dict) -> list[str]:
     to the roles", 2026-09-23) - never twice, never work he refused."""
     out = list(roles)
     have = {r.casefold() for r in out}
-    for role in profile.roles_added():
+    extra = list(job_fit.DEVELOPMENT_REP_ROLES) if job_fit.development_reps_welcome() else []
+    for role in list(profile.roles_added()) + extra:
         if role.casefold() in have or job_fit.unwanted_reason(role, "", known):
             continue
         out.append(role)
