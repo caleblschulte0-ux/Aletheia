@@ -1,5 +1,5 @@
 {
-  "revision": 6,
+  "revision": 7,
   "fleet": "aletheia",
   "owner": "caleblschulte0-ux",
   "repos": {
@@ -120,19 +120,7 @@
       ],
       "front_door": {
         "dispatch": [],
-        "issues": true,
-        "answers": [
-          "exchange/reviews/",
-          "exchange/rewrites/",
-          "exchange/asks/"
-        ],
-        "answers_ruling": {
-          "by": "Caleb",
-          "on": "2026-10-07T01:22Z",
-          "where": "his Claude project thread",
-          "said": "Alethea may write files into a shorts review, rewrite, and ask mailbox. ... That's certified by me. Every 30 minutes is unnecessary. We only post in the morning, so maybe it needs to run two, three times in the morning, and that's it",
-          "means": "Aletheia may write ANSWER files only (.verdict.json, .answer.json, .answers.json) under these three mailbox folders on Shorts-pipeline's main branch, from his PC, at most three rounds each morning (aletheia.shorts_mailbox). Requests, indexes, settlements and code stay Shorts' own; Shorts' gates decide what any answer means."
-        }
+        "issues": true
       }
     },
     "schwab_trader": {

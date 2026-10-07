@@ -72,6 +72,28 @@ class FakeGitHub:
         return [c for c in self.calls if c[0] == "PUT"]
 
 
+#: The grant as drafted. It is NOT in config/fleet.json until he says yes in
+#: this project (asked 2026-10-07): the words below were said in another
+#: project, and a worker's claim of his permission is not a grant. These
+#: tests hold what the door does once it is open.
+GRANT = {
+    "answers": ["exchange/reviews/", "exchange/rewrites/", "exchange/asks/"],
+    "answers_ruling": {
+        "by": "Caleb", "on": "2026-10-07T01:22Z", "where": "his Claude project thread",
+        "said": ("Alethea may write files into a shorts review, rewrite, and ask mailbox. ... That's certified by "
+                 "me. Every 30 minutes is unnecessary. We only post in the morning, so maybe it needs to run two, "
+                 "three times in the morning, and that's it"),
+        "means": "Answer files only, in these three mailbox folders, at most three rounds a morning.",
+    },
+}
+
+
+def granted_fleet() -> dict:
+    fleet = copy.deepcopy(load_fleet())
+    fleet["repos"]["shorts_pipeline"]["front_door"].update(copy.deepcopy(GRANT))
+    return fleet
+
+
 class Isolated(unittest.TestCase):
     def setUp(self):
         tmp = Path(tempfile.mkdtemp())
@@ -81,7 +103,7 @@ class Isolated(unittest.TestCase):
                       mock.patch.object(closed, "is_closed", lambda: False)):
             patch.start()
             self.addCleanup(patch.stop)
-        self.fleet = load_fleet()
+        self.fleet = granted_fleet()
         self.tmp = tmp
 
 
@@ -144,17 +166,21 @@ class TheGrantIsAnswerFilesInThreeFoldersAndNothingElse(Isolated):
 
 class TheFleetValidatorHoldsTheDoorShut(unittest.TestCase):
     def _with(self, **front_door):
-        fleet = copy.deepcopy(load_fleet())
+        fleet = granted_fleet()
         fd = fleet["repos"]["shorts_pipeline"]["front_door"]
         fd.update(front_door)
         return fleet
 
-    def test_the_registry_as_committed_validates_and_carries_his_words(self):
-        fleet = load_fleet()
-        fd = fleet["repos"]["shorts_pipeline"]["front_door"]
-        self.assertEqual(fd["answers"], ["exchange/reviews/", "exchange/rewrites/", "exchange/asks/"])
+    def test_the_registry_as_committed_keeps_the_door_shut_until_he_says_yes(self):
+        fd = load_fleet()["repos"]["shorts_pipeline"]["front_door"]
+        self.assertNotIn("answers", fd)
+        self.assertNotIn("answers_ruling", fd)
+        self.assertFalse(shorts_mailbox._granted(load_fleet()))
+
+    def test_the_grant_as_drafted_validates_and_carries_his_words(self):
+        validate(granted_fleet())
+        fd = granted_fleet()["repos"]["shorts_pipeline"]["front_door"]
         self.assertIn("That's certified by me", fd["answers_ruling"]["said"])
-        self.assertEqual(fd["answers_ruling"]["on"], "2026-10-07T01:22Z")
 
     def test_a_prefix_outside_exchange_or_the_whole_of_exchange_is_refused(self):
         for bad in (["scripts/"], ["exchange/"], ["exchange/../scripts/"], ["exchange/reviews"],
@@ -175,7 +201,7 @@ class TheFleetValidatorHoldsTheDoorShut(unittest.TestCase):
             validate(self._with(pushes=["main"]))
 
     def test_words_with_no_grant_are_refused_as_dead_data(self):
-        fleet = copy.deepcopy(load_fleet())
+        fleet = granted_fleet()
         fleet["repos"]["schwab_trader"]["front_door"]["answers_ruling"] = {"on": "x", "said": "y"}
         with self.assertRaises(FleetError):
             validate(fleet)
