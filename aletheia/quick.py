@@ -1063,7 +1063,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
     # "What's your name" got the whole introduction, about "his" tasks, said
     # TO him. A name question gets a name.
-    ("her_name", re.compile(r"^what(?:'s| is|s) your name\s*\??$|^what (?:do|should) i call (?:you|u)\s*\??$")),
+    ("her_name", re.compile(r"^what(?:'s| is|s) your name\s*\??$|^what (?:do|should|can) i call (?:you|u)\s*\??$|^(?:do you have|have you got) a name\s*\??$")),
     ("who_are_you", re.compile(
         r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
         r"|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),

@@ -2137,5 +2137,16 @@ class AQuietRefusalIsNotOvernightCase(unittest.TestCase):
             self.assertNotIn("snoozed", quick._overnight())
 
 
+
+class WhatCanICallYouCase(unittest.TestCase):
+    """2026-10-07: "what can I call you" went to a model."""
+
+    def test_her_name(self):
+        from aletheia import quick
+        for said in ("what can i call you", "do you have a name"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "her_name")
+
+
 if __name__ == "__main__":
     unittest.main()
