@@ -1835,5 +1835,22 @@ class NoContactYetCase(unittest.TestCase):
         self.assertIn("Dana's number is", said)
 
 
+
+class LunchWithSamTomorrowCase(unittest.TestCase):
+    """2026-10-07: "lunch with Sam tomorrow at noon" went to the planner, and
+    "call tomorrow" offered to text somebody called Tomorrow."""
+
+    def test_a_diary_line_without_a_verb(self):
+        from aletheia import voice
+        cmd = voice.interpret("lunch with Sam tomorrow at noon")["command"]
+        self.assertEqual(cmd["kind"], "calendar_hold")
+        self.assertEqual(cmd["title"], "lunch with Sam")
+        self.assertEqual(dt.datetime.fromisoformat(cmd["start"]).hour, 12)
+
+    def test_a_day_is_not_a_person(self):
+        from aletheia import voice
+        self.assertNotIn("Tomorrow", str(voice.interpret("call tomorrow").get("say") or ""))
+
+
 if __name__ == "__main__":
     unittest.main()

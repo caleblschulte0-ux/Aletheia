@@ -3415,8 +3415,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
                                         location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
+        # "Block off 2 to 4" was confirmed as "at 2 pm" alone (2026-10-07):
+        # a length he named is said back, so a wrong one is caught by ear.
+        until = ""
+        if cmd.get("minutes") and int(cmd["minutes"]) != 60:
+            ends = calendar_reasoning.human(held["event"].get("end") or end.isoformat())
+            until = f" until {ends.split(' at ', 1)[1]}" if " at " in ends else ""
+        when = calendar_reasoning.human(held['event']['start'])
+        if until and " at " in when:
+            when = when.replace(" at ", " from ", 1)
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
-                f"{'to ' if old else ''}{calendar_reasoning.human(held['event']['start'])}, "
+                f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only.")
     if kind == "calendar_propose":
         from aletheia import conversations

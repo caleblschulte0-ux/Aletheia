@@ -569,6 +569,11 @@ def _is_a_person_to_ring(captured: str) -> bool:
     words = text.split()
     if len(words) > 3 or words[0] in _NOT_SOMEBODY:
         return False
+    # "Call tomorrow" offered to "text or email Tomorrow" (2026-10-07): a
+    # day is when, never who.
+    if words[0] in ("today", "tonight", "tomorrow", "later", "now", "soon", "back", "monday", "tuesday",
+                    "wednesday", "thursday", "friday", "saturday", "sunday", "this", "next", "in", "at"):
+        return False
     # "Call the whole thing off" ends on a particle, and a particle is
     # what makes the verb mean something other than the telephone.
     if len(words) > 1 and words[-1] in _NOT_SOMEBODY:
@@ -6178,11 +6183,18 @@ def _interpret(transcript: str) -> dict:
     # is nothing else. Not "book": that is somebody else's diary.
     # "I have a dentist appointment Tuesday at 2" (2026-10-07: to the
     # planner) is the same hold, told rather than asked for.
-    m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up|i have|i've got|i got|i have got) (?:a |an |my )?"
-                          r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
-                          r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
-                          r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
-                          r"(?: at (?P<time>[\w: ]+?))?", low)
+    # "LUNCH WITH SAM TOMORROW AT NOON" (2026-10-07: to the planner) is the
+    # same hold with the verb left off; the noun list keeps it a diary entry.
+    told = re.fullmatch(r"(?P<lead>(?:add|schedule|put|pencil in|set up|i have|i've got|i got|i have got) )?(?:a |an |my )?"
+                        r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
+                        r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
+                        r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                        r"(?: at (?P<time>[\w: ]+?))?", low)
+    # ...but "call tomorrow" alone is not a diary entry called Call.
+    if told and not told.group("lead") and " " not in told.group("title").strip() \
+            and not (told.group("time") or told.group("part")):
+        told = None
+    m = m or told
     # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
     # errand to approve. A meeting or call with a person, on a day, is his
     # own diary; "book" stays somebody else's for anything else.
