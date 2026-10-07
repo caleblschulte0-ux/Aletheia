@@ -4227,6 +4227,48 @@ def _interpret(transcript: str) -> dict:
                                 "text": f"{event.get('title') or 'your next event'} in {said}{plural}"},
                     "say": None}
 
+    # "REMIND ME THE DAY BEFORE MY DENTIST APPOINTMENT" (2026-10-07: to the
+    # planner). The same lookup, a day-sized lead: the day before at nine,
+    # the night before at seven, the morning of at eight. A birthday or an
+    # anniversary is not on the calendar and has its own branch below.
+    m = re.fullmatch(r"remind me (?P<lead>the day|the night|the morning|a day|one day|(?P<n>\d|two|three|four|five) days|a week|one week)"
+                     r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40})", low)
+    if m and not re.search(r"\b(?:birthday|anniversary|bday)\b", m.group("what")):
+        import datetime as dt
+        from aletheia import calendar as cal, localtime, speech as _sp_before
+        tz = localtime.operator_tz()
+        what = m.group("what").strip()
+        generic = what in ("meeting", "appointment", "event", "call", "thing", "one")
+        now = dt.datetime.now(tz)
+        try:
+            upcoming = sorted((e for e in cal.all_events()
+                               if e.get("status") != "CANCELLED" and cal.parse_time(e["start"]) > now),
+                              key=lambda e: cal.parse_time(e["start"]))
+        except Exception:
+            upcoming = []
+        if not generic:
+            words = [w for w in re.findall(r"[a-z0-9]+", what) if len(w) > 2]
+            upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
+        if not upcoming:
+            return {"command": None,
+                    "say": ("Nothing on your calendar coming up" if generic
+                            else f"I don't see {what} on your calendar coming up") + " to remind you before."}
+        event = upcoming[0]
+        start = cal.parse_time(event["start"]).astimezone(tz)
+        lead = m.group("lead")
+        if lead == "the morning":
+            when = start.replace(hour=8, minute=0, second=0, microsecond=0)
+        else:
+            days = 7 if "week" in lead else (_spoken_amount(m.group("n")) if m.group("n") else 1) or 1
+            when = (start - dt.timedelta(days=int(days))).replace(hour=19 if lead == "the night" else 9,
+                                                                   minute=0, second=0, microsecond=0)
+        if when <= now or when >= start:
+            return {"command": None, "say": f"{event.get('title') or 'That'} is too soon for that - "
+                                            f"it's {_sp_before.humanize_time(start.isoformat())}."}
+        clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                            "text": f"{event.get('title') or what} {start.strftime('%A')} at {clock}"}, "say": None}
+
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):

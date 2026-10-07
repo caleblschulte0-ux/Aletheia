@@ -4460,5 +4460,30 @@ class UndoingARemovalPutsItBack(unittest.TestCase):
             self.assertEqual(sorted(r["need"] for r in intercom._shopping_items()), ["eggs", "milk"])
 
 
+class RemindMeTheDayBefore(unittest.TestCase):
+    """2026-10-07: "remind me the day before my dentist appointment" went to
+    the planner."""
+
+    def test_the_day_and_the_night_before(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import calendar, localtime, voice
+        tz = localtime.operator_tz()
+        start = (dt.datetime.now(tz) + dt.timedelta(days=5)).replace(hour=10, minute=0, second=0, microsecond=0)
+        events = [{"title": "Dentist appointment", "start": start.isoformat()}]
+        with mock.patch.object(calendar, "all_events", return_value=events):
+            c = voice._interpret("remind me the day before my dentist appointment")["command"]
+            self.assertEqual(c["kind"], "remind_at")
+            at = dt.datetime.fromisoformat(c["at"]).astimezone(tz)
+            self.assertEqual((at.date(), at.hour), ((start - dt.timedelta(days=1)).date(), 9))
+            at = dt.datetime.fromisoformat(voice._interpret("remind me the night before the dentist")["command"]["at"]).astimezone(tz)
+            self.assertEqual(at.hour, 19)
+            r = voice._interpret("remind me the day before my haircut")
+            self.assertIsNone(r["command"])
+            self.assertIn("don't see haircut", r["say"])
+        self.assertNotEqual((voice._interpret("remind me a day before mom's birthday") or {}).get("say", "")[:12],
+                            "I don't see m")
+
+
 if __name__ == "__main__":
     unittest.main()
