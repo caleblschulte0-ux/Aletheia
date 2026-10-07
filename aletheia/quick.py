@@ -1779,6 +1779,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's the plural of moose" (2026-10-07: to a model).
     ("plural", re.compile(r"^what(?:'s| is|s)? the plural (?:of|for) (?:an? )?(?P<plural>[a-z]{2,20})\s*\??$"
                           r"|^(?:what(?:'s| is) )?(?:the )?plural (?:of|for) (?:an? )?(?P<plural2>[a-z]{2,20})\s*\??$")),
+    # 2026-10-07, all to a model with nothing to think about: "what's 8
+    # percent sales tax on 45", "if I save 200 a month how much will I have
+    # in a year", "what year was it 25 years ago", "how tall is 180 cm in feet".
+    ("sums_more", re.compile(
+        r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?:the )?(?P<tax>\d{1,2}(?:\.\d{1,3})?) ?(?:%|percent) (?:sales )?tax on \$?(?P<tax_on>[\d,]+(?:\.\d{1,2})?)(?: dollars| bucks)?\s*\??$"
+        r"|^if i (?:save|put away|set aside) \$?(?P<save>[\d,]+(?:\.\d{1,2})?)(?: dollars| bucks)? (?:a|per|every) (?P<save_per>week|month|day|year)"
+        r",? how much (?:will|would) i have (?:saved )?(?:in|after) (?P<save_n>a|one|two|three|four|five|six|ten|\d{1,2}) (?P<save_u>weeks?|months?|years?)\s*\??$"
+        r"|^what year (?:was it|will it be) (?P<yr_n>\d{1,4}) years? (?P<yr_dir>ago|from now)\s*\??$"
+        r"|^what year will it be in (?P<yr_n2>\d{1,4}) years?\s*\??$"
+        r"|^how (?:tall|long|far|heavy|big|wide|deep|high|hot|cold|much) is (?!(?:a |an )?\d+(?:\.\d)?k\b)(?P<conv>(?:a |an )?[\d.,]+ ?[a-z°]+(?: [a-z]+)?) in (?P<conv_to>[a-z ]+?)\s*\??$")),
     ("discount", re.compile(
         r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?P<off>[\d.]+) ?(?:%|percent) off (?:of )?\$?(?P<price>[\d.,]+)(?: dollars| bucks)?$"
         r"|^\$?(?P<price2>[\d.,]+)(?: dollars)? (?:with|at|minus) (?P<off2>[\d.]+) ?(?:%|percent) off$")),
@@ -2043,7 +2053,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5177,6 +5187,38 @@ def _ordinal_day(n: int) -> str:
 
 def _money(v: float) -> str:
     return f"${v:,.2f}".replace(".00", "")
+
+
+def _sums_more(text: str) -> str | None:
+    """Sales tax, plain saving, a year counted back or forward, and a unit
+    conversion asked as "how tall is". Arithmetic said as arithmetic."""
+    import datetime as dt
+    g = _groups("sums_more", text)
+    if g.get("tax"):
+        rate, on = float(g["tax"]), float(g["tax_on"].replace(",", ""))
+        tax = round(on * rate / 100 + 1e-9, 2)
+        return f"${tax:,.2f} tax, ${on + tax:,.2f} total."
+    if g.get("save"):
+        words = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "ten": 10}
+        n = words.get(g["save_n"]) or int(g["save_n"])
+        per_year = {"day": 365, "week": 52, "month": 12, "year": 1}[g["save_per"]]
+        unit = g["save_u"].rstrip("s")
+        periods = n * {"year": per_year, "month": per_year / 12, "week": per_year / 52}[unit]
+        total = float(g["save"].replace(",", "")) * periods
+        return (f"${total:,.0f}" if total == int(total) else f"${total:,.2f}") + ", before any interest."
+    if g.get("yr_n") or g.get("yr_n2"):
+        n = int(g.get("yr_n") or g.get("yr_n2"))
+        year = dt.date.today().year + (-n if g.get("yr_dir") == "ago" else n)
+        return f"{year}." if year > 0 else None
+    if g.get("conv"):
+        # a height is said in feet AND inches: "5 feet 11", not "5.91 feet"
+        h = re.fullmatch(r"(?:a |an )?([\d.]+) ?(cm|centimeters?|centimetres?|m|meters?|metres?)", g["conv"])
+        if h and g["conv_to"].strip() in ("feet", "foot", "feet and inches", "ft"):
+            inches = float(h.group(1)) / (2.54 if h.group(2).startswith("c") else 0.0254)
+            feet, rest = divmod(round(inches), 12)
+            return f"About {feet} feet {rest} inches." if rest else f"About {feet} feet."
+        return answer(f"what's {g['conv']} in {g['conv_to']}")
+    return None
 
 
 def _discount(text: str) -> str | None:
@@ -9510,6 +9552,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "meal_plan": _meal_plan,
            "pick_for_me": _pick_for_me,
            "worked": _worked,
+           "sums_more": _sums_more,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

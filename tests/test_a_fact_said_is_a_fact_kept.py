@@ -3603,5 +3603,17 @@ class HisWorkDayAndTalkingToHer(unittest.TestCase):
         self.assertEqual(quick.match("where was I")[0], "asked_last")
 
 
+class TaxSavingYearsAndHeights(unittest.TestCase):
+    def test_sums_said_as_sums(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 8 percent sales tax on 45"), "$3.60 tax, $48.60 total.")
+        self.assertEqual(quick.answer("if I save 200 a month how much will I have in a year"), "$2,400, before any interest.")
+        self.assertEqual(quick.answer("what year was it 25 years ago"), f"{dt.date.today().year - 25}.")
+        self.assertEqual(quick.answer("what year will it be in 10 years"), f"{dt.date.today().year + 10}.")
+        self.assertEqual(quick.answer("how tall is 180 cm in feet"), "About 5 feet 11 inches.")
+        self.assertEqual(quick.answer("how heavy is 10 kg in pounds"), "About 22.05 pounds.")
+
+
 if __name__ == "__main__":
     unittest.main()
