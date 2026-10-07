@@ -4260,5 +4260,36 @@ class AThingLentComesBack(unittest.TestCase):
             self.assertIn("lent", quick.answer("who has my drill"))
 
 
+class WhatHeDoesntEatAndHisKids(unittest.TestCase):
+    """2026-10-07: "I don't like mushrooms", "I'm vegetarian", "I have 3 kids"
+    and "my kids are Emma, Leo and Sam" went to the planner, and the
+    questions after them to a model."""
+
+    def _kind(self, said):
+        from aletheia import voice
+        return ((voice._interpret(said) or {}).get("command") or {}).get("kind")
+
+    def test_the_facts_are_kept(self):
+        for said in ("i don't like mushrooms", "i can't stand olives", "i'm vegetarian", "i have 3 kids",
+                     "my kids are emma, leo and sam", "my children are max and ava"):
+            self.assertEqual(self._kind(said), "note", said)
+
+    def test_how_he_feels_is_not_a_note(self):
+        for said in ("i don't like this", "i don't like it when you do that", "i don't know", "i don't care",
+                     "my kids are loud and annoying", "i don't like my job"):
+            self.assertNotEqual(self._kind(said), "note", said)
+
+    def test_the_readers(self):
+        from unittest import mock
+        from aletheia import quick
+        rows = [{"text": "My kids are Emma, Leo and Sam"}, {"text": "I don't like mushrooms"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("mushrooms", quick.answer("what foods don't i like"))
+            self.assertTrue(quick.answer("do i like mushrooms").startswith("No"))
+            self.assertIsNone(quick.answer("do i like pizza"))
+            self.assertIn("Emma", quick.answer("what are my kids' names"))
+            self.assertIn("Emma", quick.answer("how many kids do i have"))
+
+
 if __name__ == "__main__":
     unittest.main()

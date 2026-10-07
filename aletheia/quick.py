@@ -1642,7 +1642,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What am I allergic to" (2026-10-07: to the planner, a turn after
         # "remember that I'm allergic to peanuts").
         r"|^what am i (?P<recall7>allergic) to\s*\??$|^what are my (?P<recall8>allergies)\s*\??$"
-        r"|^do i have any (?P<recall9>allergies)\s*\??$|^am i (?P<recall10>allergic) to [a-z][a-z ,'-]{1,40}\s*\??$")),
+        r"|^do i have any (?P<recall9>allergies)\s*\??$|^am i (?P<recall10>allergic) to [a-z][a-z ,'-]{1,40}\s*\??$"
+        # "How many kids do I have", "what are my kids' names" (2026-10-07:
+        # to a model, a turn after "my kids are Emma, Leo and Sam").
+        r"|^how many (?P<recall13>kids|children|sons|daughters|grandkids|grandchildren|siblings|brothers|sisters) do (?:i|we) have\s*\??$"
+        r"|^(?:what are|who are|what's|whats) (?:my|our) (?P<recall14>kids|children|grandkids|grandchildren)(?:'s|'|s)?(?: names?)?\s*\??$")),
+    # "What foods don't I like", "do I like mushrooms" (2026-10-07: to a
+    # model, a turn after "I don't like mushrooms").
+    ("dislikes", re.compile(
+        r"^what (?:foods?|things?|food) (?:don't|do not|dont) i (?:like|eat)\s*\??$"
+        r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what do i (?:not like|hate|dislike|not eat)\s*\??$"
+        r"|^(?:what are|what's|whats) my (?:food )?dislikes\s*\??$"
+        r"|^do i (?:like|eat) (?P<dl_thing>[a-z][a-z ]{1,30}?)\s*\??$")),
     # "When does the plumber come" a turn after noting it (2026-10-07: to
     # the planner). A note answers it; no note is not "never" - his mail or
     # calendar may know - so that case goes on to a model.
@@ -2144,7 +2155,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2161,7 +2172,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -7650,6 +7661,30 @@ def _recall(words: str) -> str | None:
     return said[:1].upper() + said[1:] + "."
 
 
+_DISLIKE = re.compile(r"\b(?:don't|do not|dont|never) (?:like|eat)\b|\bdislike|\bcan't stand\b|\bcan't eat\b|\bhate\b"
+                      r"|\ballergic\b|\b(?:vegetarian|vegan|lactose|gluten)\b")
+
+
+def _dislikes(text: str) -> str | None:
+    """What he told her he doesn't like or eat, in his words. "Do I like X"
+    is answered only when a note names X; otherwise a model may know."""
+    from aletheia import speech
+    g = _groups("dislikes", text)
+    thing = " ".join(str(g.get("dl_thing") or "").split())
+    said = []
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        if _DISLIKE.search(low) and (not thing or thing.rstrip("s") in low):
+            said.append(speech.as_she_says_it(str(row.get("text")).strip()).rstrip("."))
+    if thing:
+        if said:
+            return f"No - you told me: {said[0]}."
+        return None
+    if not said:
+        return "You haven't told me anything you don't like. Say \"I don't like mushrooms\" and I'll remember it."
+    return "You told me: " + speech.and_list(said[:5]) + "."
+
+
 def _home() -> str | None:
     """Where he lives — the city AND the state, which is how it is said.
 
@@ -10318,6 +10353,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
+           "dislikes": _dislikes,
            "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),

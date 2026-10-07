@@ -7438,6 +7438,31 @@ def _interpret(transcript: str) -> dict:
                                           # somebody called When (2026-10-07).
                                           "when", "where", "why", "how", "which", "whose", "whats", "wheres", "whens"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHAT HE DOESN'T EAT, AND HIS KIDS (2026-10-07: "I don't like
+    # mushrooms", "I'm vegetarian", "I have 3 kids", "my kids are Emma, Leo
+    # and Sam" all went to the planner, and the questions after them to a
+    # model). Notes in his words; "I don't like this" stays how he feels.
+    m = re.fullmatch(r"i (?:really |just )?(?:don't like|do not like|dont like|don't really like|can't stand|cannot stand|can't eat|cannot eat|don't eat|never eat|dislike)"
+                     r" (?P<thing>[a-z][a-z ,'-]{2,40})", low)
+    if m and not re.match(r"(?:it|this|that|these|those|you|him|her|them|me|when|how|what|where|why|the way|being|to |my |your |his "
+                          r"|their |our |people|anyone|anybody|someone|everyone|going|doing|having|getting|feeling|working|know|think"
+                          r"|care|want|need|have|like it|get|see|mind|feel|remember|understand|trust|believe|agree)",
+                          m.group("thing")) \
+            and not re.search(r"\b(?:it|this|that|you|anymore|any more)$", m.group("thing")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i'm|i am|im) (?:a )?(?:vegetarian|vegan|pescatarian|gluten[- ]free|lactose intolerant|dairy[- ]free|kosher|halal)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i|we) (?:have|got) (?:\d{1,2}|one|two|three|four|five|six|seven|eight) (?:kids|children|sons|daughters|grandkids"
+                    r"|grandchildren|brothers|sisters|siblings|kid|child|son|daughter|brother|sister)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:my|our) (?:kids|children|grandkids|grandchildren|sons|daughters)(?:'|'s)?(?: names)? are (?P<names>[a-z]+(?:, [a-z]+)*,? and [a-z]+)", low)
+    if m and not (set(re.findall(r"[a-z]+", m.group("names"))) - {"and"}) & {
+            "loud", "annoying", "sick", "tired", "happy", "grown", "great", "fine", "good", "bad", "crazy", "home", "asleep",
+            "awake", "young", "older", "little", "big", "wild", "hungry", "bored", "cute", "smart", "busy", "ready", "done",
+            "gone", "out", "away", "safe", "healthy", "well", "okay", "ok", "grumpy", "cranky", "upset", "sad", "excited",
+            "noisy", "messy", "quiet", "adults", "teenagers", "twins", "fighting", "sleeping", "playing", "screaming", "amazing",
+            "awesome", "sweet", "funny", "spoiled", "growing", "fast", "late", "early", "here", "there", "back"}:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
     # his words is the writer that reader was missing.
