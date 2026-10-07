@@ -1425,6 +1425,23 @@ def _reminders_answer(which: str = "") -> str:
     return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
 
 
+def _next_reminder_answer(sort: str = "reminder") -> str:
+    """"When's my next alarm" - the soonest one of that sort, not the list."""
+    from aletheia import speech
+    needle = {"alarm": "wake up", "timer": "timer is up"}.get(sort, "")
+    rows = [r for r in _reminder_schedules()
+            if needle in str((r.get("command") or {}).get("text", "")).casefold()]
+    if not rows:
+        return f"You have no {sort}s set."
+    rows = _soonest_first(rows)
+    more = f" You have {len(rows) - 1} more after it." if len(rows) > 1 else ""
+    said = _reminder_words(rows[0])
+    if sort == "alarm" and " — " in said:
+        # Every alarm says "wake up"; the time is the answer.
+        return f"Your next alarm is {said.split(' — ', 1)[1]}.{more}"
+    return f"Your next {sort}: {said}.{more}"
+
+
 def _reminder_list_words(rows: list) -> str:
     """What he DOES have, for when the one he named is not there."""
     from aletheia import speech

@@ -540,3 +540,18 @@ class APlaceSaidIsAPlaceKept(unittest.TestCase):
     def test_a_file_is_still_a_file(self):
         self.assertEqual(voice._interpret("where is my resume")["command"]["kind"], "file_find")
         self.assertNotEqual((voice._interpret("the meeting is at 3 pm")["command"] or {}).get("kind"), "place_add")
+
+
+class TheNextOneIsOne(unittest.TestCase):
+    def test_the_soonest_not_the_list(self):
+        from aletheia import intercom
+        rows = [{"id": "a", "command": {"text": "wake up"}}, {"id": "b", "command": {"text": "stretch"}},
+                {"id": "c", "command": {"text": "wake up"}}]
+        words = {"a": "wake up — today at 6:30 am", "b": "stretch — today at 6:20 am", "c": "wake up — today at 7 am"}
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+             mock.patch.object(intercom, "_soonest_first", side_effect=lambda r: sorted(r, key=lambda x: "bac".index(x["id"]))), \
+             mock.patch.object(intercom, "_reminder_words", side_effect=lambda r, **_: words[r["id"]]):
+            self.assertEqual(voice._interpret("when is my next alarm")["say"],
+                             "Your next alarm is today at 6:30 am. You have 1 more after it.")
+            self.assertTrue(voice._interpret("what's my next reminder")["say"].startswith("Your next reminder: "))
+            self.assertEqual(voice._interpret("next timer")["say"], "You have no timers set.")

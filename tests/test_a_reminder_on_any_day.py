@@ -103,10 +103,14 @@ class ATimeIsNotAService(unittest.TestCase):
 
 class TheOtherWaysOfAsking(unittest.TestCase):
     def test_reminder_questions(self):
-        for said in ("when's my next reminder", "what are my reminders", "show me my alarms",
+        for said in ("what are my reminders", "show me my alarms",
                      "what reminders did i set"):
             with self.subTest(said=said):
                 self.assertEqual(voice._interpret(said)["command"]["kind"], "reminders")
+        # The next one is answered on the spot, from the same store.
+        nxt = voice._interpret("when's my next reminder")
+        self.assertIsNone(nxt["command"])
+        self.assertTrue(nxt["say"])
 
     def test_remind_me_again_is_a_snooze(self):
         self.assertEqual(voice._interpret("remind me again in 10 minutes")["command"],
