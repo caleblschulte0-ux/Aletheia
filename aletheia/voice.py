@@ -1584,9 +1584,9 @@ def _interpret(transcript: str) -> dict:
         if m.group(2) == "tomorrow" or when <= now:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": "wake up"}, "say": None}
-    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
-                     r"|timer(?: for)? (\w+) (minutes?|mins?|hours?|seconds?)"
-                     r"|remind me in (\w+) (minutes?|mins?|hours?)", low)
+    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
+                     r"|remind me in (half an|\w+) (minutes?|mins?|hours?)", low)
     if m:
         import datetime as dt
         raw = m.group(1) or m.group(3) or m.group(5)
@@ -1595,8 +1595,15 @@ def _interpret(transcript: str) -> dict:
         if amount:
             seconds = amount * (3600 if unit.startswith("hour") else 1 if unit.startswith("sec") else 60)
             at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(seconds=seconds)).isoformat()
-            one = unit.rstrip("s") if unit != "mins" else "minute"
-            said = f"{raw if not raw.isdigit() else int(amount)}-{one}"
+            one = "hour" if unit.startswith("hour") else "second" if unit.startswith("sec") else "minute"
+            # "Remind me in an hour" was "your an-hour timer is up" (2026-10-07).
+            # His own number word stays ("your ten-minute timer"); only an
+            # article becomes a number.
+            if amount < 1 and one == "hour":
+                amount, one = amount * 60, "minute"
+            number = (raw if not raw.isdigit() and raw not in ("a", "an", "half an")
+                      else int(amount) if float(amount).is_integer() else amount)
+            said = f"{number}-{one}"
             return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"},
                     "say": None}
     # "remind me in TWENTY minutes to check the oven": the amount is a
@@ -2782,7 +2789,11 @@ def _interpret(transcript: str) -> dict:
     # start with "look", and the browse branch would swallow the first, then
     # complain it heard no web address.
     m = re.match(r"(?:look into|research|find out(?: about)?|dig into|"
-                 r"look up|what do you know about|tell me about)\s+(.+)", low)
+                 r"look up|what do you know about|tell me about|"
+                 # "Search the web for the best tacos in Denver" went to the
+                 # planner (2026-10-07); it is the same read-only research.
+                 r"(?:search|look|check) (?:the web|online|the internet|google) (?:for|about)|google|"
+                 r"search (?:for|up))\s+(.+)", low)
     if m:
         question = m.group(1).strip(" ?.")
         if len(question) > 2:
@@ -3137,12 +3148,27 @@ def _interpret(transcript: str) -> dict:
     # calendar Friday at 7", "hold Friday at 10 for the tour". Nothing is
     # sent and no live calendar is written; it is the reversible half.
     _cal_days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
-    m = (re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
+    held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
-                      r"(?: at (?P<time>[\w: ]+?))?", low)
-         or re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
-                         r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low))
-    if m and (m.group("day") or m.group("time")):
+                      r"(?: at (?P<time>[\w: ]+?))?", low),
+               # "Add lunch with Dana Friday at noon to my calendar": the day and
+               # the time said BEFORE the calendar (2026-10-07, fell to the planner).
+               re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?)(?: on| this| for)? (?P<day>" + _cal_days
+                         + r")(?: (?P<part>morning|afternoon|evening|night))?(?: at (?P<time>[\w: ]+?))?"
+                         r" (?:on|in|to|into|onto) my calendar", low),
+         re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) at (?P<time>[\w: ]+?)"
+                         r"(?: (?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
+                         r" (?:on|in|to|into|onto) my calendar", low),
+         re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                         r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low)]
+    # The shape that reads the most of it as a day and a time, and the least
+    # as title: "add lunch Friday at noon to my calendar" also fits the first
+    # pattern with the day inside the title, and "dentist at 3 tomorrow" fits
+    # one with "at 3" inside it.
+    held_by = [h for h in held_by if h and (h.group("day") or h.group("time"))]
+    m = max(held_by, key=lambda h: (bool(h.group("day")) + bool(h.group("time")), -len(h.group("title"))),
+            default=None)
+    if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
             return held

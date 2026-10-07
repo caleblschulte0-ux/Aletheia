@@ -700,7 +700,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("plan_today", re.compile(
         r"^what(?:'s| is|s)? (?:the |my )?plan (?:for )?(?:today|this morning|this afternoon)\s*\??$"
         r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
-        r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$")),
+        r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$"
+        # "How's my day look" fell to the planner (2026-10-07).
+        r"|^how(?:'s| is| does|s)? (?:my day|today|the day) (?:look|looking)(?: like)?(?: today)?\s*\??$")),
     # A BARE YES OR NO with nothing pending went to the planner and, offline,
     # to "I could not plan that". With something pending the approve/deny
     # rules take it before this; here it is only ever the empty case.

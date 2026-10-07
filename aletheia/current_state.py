@@ -730,7 +730,7 @@ def agent(now: dt.datetime | None = None, *, hunt: dict | None = None,
                          + (f", usually {speech.about_seconds(typical)}" if typical else "")),
                 "since": busy.get("started_at")}
     if _safe(followups.pending_count, 0):
-        return {"state": "THINKING", "mission": "answering you", "step": "a reply is on its way",
+        return {"state": "THINKING", "mission": "answering you", "step": "the reply to your last question",
                 "since": None}
     thinking_now = list((sessions or {}).get("running") or [])
     if thinking_now:
