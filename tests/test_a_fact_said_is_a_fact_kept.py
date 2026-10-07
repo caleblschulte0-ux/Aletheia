@@ -4742,5 +4742,12 @@ class TheCarAndAMonth(unittest.TestCase):
                          {"kind": "note", "text": "my car has 45000 miles"})
 
 
+class HowOldIsSamTurning(unittest.TestCase):
+    def test_turning_is_not_part_of_the_name(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "sam's birthday is june 4 1990"}]):
+            self.assertTrue((quick.answer("how old is sam turning") or "").startswith("Sam is "))
+
+
 if __name__ == "__main__":
     unittest.main()

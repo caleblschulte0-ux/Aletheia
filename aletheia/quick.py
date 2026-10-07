@@ -1951,8 +1951,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # he told her. A name she holds nothing about goes on to a model,
     # which may well know how old a famous person is.
     ("age_of", re.compile(
-        r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b)[a-z][a-z'-]{1,20})?)"
-        r"(?: be| turn| be turning)?(?: this year| next)?\s*\??$")),
+        r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b|turning\b|now\b)[a-z][a-z'-]{1,20})?)"
+        r"(?: be| turn| be turning| turning| now)?(?: this year| next)?\s*\??$")),
     ("took_today", re.compile(
         r"^(?:did|have) i (?:take|taken|had|have) (?:my |any |an? |some )?(?:morning |evening |night |daily )?(?P<took>medicine|meds|medication|pills?|vitamins?"
         r"|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")(?: today| this morning| tonight| yet| already)?\s*\??$"
