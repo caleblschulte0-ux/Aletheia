@@ -758,7 +758,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("date_of", re.compile(
         r"^what(?:'s| is|s)? the date (?:on |for )?(?:of )?(?!(?:today|tomorrow|yesterday|now)\b)(?P<date_of>(?:next |this )?[a-z][a-z ']{2,30}?)\s*\??$"
         r"|^what date is (?P<date_of2>(?:next |this )?[a-z][a-z ']{2,30}?)\s*\??$"
-        r"|^when(?:'s| is) (?P<date_of3>(?:next |this )(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
+        r"|^when(?:'s| is) (?P<date_of3>(?:next |this )(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$"
+        # "What's next Monday's date" (2026-10-07: a model).
+        r"|^what(?:'s| is|s) (?P<date_of4>(?:next |this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))'?s date\s*\??$")),
     ("up_to_date", re.compile(
         r"^(?:are|is) (?:you|u|your code) (?:up to date|current|on the (?:latest|newest)(?: code)?)(?: right now| now)?$"
         r"|^(?:are|is) (?:you|u) (?:behind|running old code|out of date)$")),
@@ -890,7 +892,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What's Friday look like" (2026-10-07: to a model).
         r"|^what(?:'s| is|s| does) (?P<day12>monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this weekend|next weekend)"
         r"(?: looking like| look like)$"
-        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
+        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything(?: (?:on|happening|coming up|planned))?|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
@@ -1921,7 +1923,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",

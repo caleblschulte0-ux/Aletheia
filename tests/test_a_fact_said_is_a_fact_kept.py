@@ -3034,5 +3034,13 @@ class HisNewsHeardLikeAPerson(unittest.TestCase):
         self.assertEqual((quick.match("what's the news") or ("",))[0], "news")
 
 
+class ShortDayQuestions(unittest.TestCase):
+    def test_anything_tomorrow_and_next_mondays_date(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("anything tomorrow"), ("agenda", "tomorrow"))
+        self.assertEqual(quick.match("what's next monday's date"), ("date_of", "next monday"))
+        self.assertIsNone(quick.match("anything else"))
+
+
 if __name__ == "__main__":
     unittest.main()
