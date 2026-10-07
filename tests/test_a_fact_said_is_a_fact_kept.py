@@ -309,5 +309,26 @@ class SumsOnSumsAndDistances(unittest.TestCase):
         self.assertNotEqual((voice._interpret("how far is a 5k in miles").get("command") or {}).get("kind"), "travel_time")
 
 
+class PushItBackAnHour(unittest.TestCase):
+    def test_from_where_it_is(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import converse, intercom, voice
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
+        spec = {"id": "r1", "kind": "once", "at": at.isoformat(), "enabled": True,
+                "command": {"kind": "notify_operator", "text": "call mom"}}
+        turns = [{"he_asked": "remind me to call mom in 3 hours", "she_answered": "I'll remind you..."}]
+        with mock.patch.object(converse, "recent", return_value=turns), \
+                mock.patch.object(intercom, "_one_reminder", return_value=(spec, "")):
+            cmd = voice._interpret("push it back an hour")["command"]
+        self.assertEqual(cmd["text"], "call mom")
+        self.assertEqual(dt.datetime.fromisoformat(cmd["at"]), at + dt.timedelta(hours=1))
+
+    def test_cancel_all_is_counted(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("reminder_off", "reminder 1 off — 1 reminder: call mom — today at 9 am")
+        self.assertEqual(said, "Cancelled 1 reminder: call mom — today at 9 am.")
+
+
 if __name__ == "__main__":
     unittest.main()

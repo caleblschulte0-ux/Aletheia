@@ -1099,7 +1099,7 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
 #: looking for "his last ask", so "make that 4" then "cancel it" finds the
 #: reminder and not the move (and never re-reads itself).
 _IS_FOLLOW_UP = re.compile(
-    r"^(?:(?:make|change|move) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
+    r"^(?:(?:make|change|move|push|bump|shift) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
     r"(?:and|what about|how about|also)\b|(?:read|list|show) (?:me )?(?:them|those)\b)")
 
 
@@ -1332,6 +1332,34 @@ def _relative_length_asked(previous: dict) -> str | None:
         if found and what and what in said:
             return found.group(1)
     return None
+
+
+def _shifted_reminder(amount: str, unit: str, direction: str) -> dict | None:
+    """The reminder he just set, moved by an amount from its stored time."""
+    import datetime as dt
+    from aletheia import intercom
+    previous = _recent_reminder_ask()
+    if not previous:
+        return None
+    found, _why = intercom._one_reminder(str(previous.get("text") or ""))
+    if not found or found.get("kind") != "once":
+        return None
+    try:
+        was = dt.datetime.fromisoformat(str(found.get("at") or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    words = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10, "fifteen": 15,
+             "twenty": 20, "thirty": 30, "forty-five": 45}
+    n = 0.5 if amount.startswith("half") else (int(amount) if amount.isdigit() else words.get(amount))
+    if not n:
+        return None
+    minutes = n * (60 if unit.startswith("hour") else 1)
+    sign = -1 if direction in ("forward", "earlier", "up", "sooner") else 1
+    at = was + dt.timedelta(minutes=sign * minutes)
+    if at <= dt.datetime.now(dt.timezone.utc):
+        return {"command": None, "say": "That would put it in the past. Say the new time instead."}
+    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
+                        "replaces": previous["text"]}, "say": None}
 
 
 def _moved_reminder(transcript: str, time_words: str) -> dict | None:
@@ -5299,6 +5327,17 @@ def _interpret(transcript: str) -> dict:
         moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))
         if moved:
             return moved
+    # "Push it back an hour", "move it 30 minutes earlier" (2026-10-07: to
+    # the planner): the reminder he just set, shifted from where it IS.
+    m = re.fullmatch(r"(?:push|move|bump|shift|put) (?:it|that|the reminder) (?P<dir>back|later|forward|earlier|up|off)"
+                     r"(?: by)? (?P<n>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?(?P<unit>hours?|minutes?|mins?)"
+                     r"|(?:push|move|bump|shift|put) (?:it|that|the reminder)(?: by)? (?P<n2>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?"
+                     r"(?P<unit2>hours?|minutes?|mins?) (?P<dir2>later|earlier|back|forward|sooner)", low)
+    if m:
+        shifted = _shifted_reminder(m.group("n") or m.group("n2"), m.group("unit") or m.group("unit2"),
+                                    m.group("dir") or m.group("dir2"))
+        if shifted:
+            return shifted
     # "Sorry, I meant 4pm" (2026-10-07: to the planner) - a correction
     # that is nothing but the new time. Only when he led with one, so a
     # bare "4" is never a move.
