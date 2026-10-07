@@ -1352,7 +1352,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                               r"|how much (?:time is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
                               r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer"
                               # "How much time is left" (2026-10-07: to the planner) is the timer's.
-                              r"|how much (?:time|longer) is (?:left|remaining)|how long is left)$")),
+                              r"|how much (?:time|longer) is (?:left|remaining)|how long is left"
+                              # "How long left", "how long on the rice" (2026-10-07: to the planner).
+                              r"|how (?:long|much time|much longer) (?:left|to go)|how much longer"
+                              r"|how (?:long|much time) (?:is )?(?:left )?on the [a-z]{2,20}(?: timer)?)$")),
     # "HOW MANY WEEKS UNTIL CHRISTMAS" and "a 20% tip on 45" (2026-10-07:
     # to a model). Arithmetic on a date and on a bill.
     ("until_weeks", re.compile(r"^how many (?P<what2>weeks|months) (?:until|till|to|before) (?:the )?(?P<what>[a-z][a-z' ]{2,30}?)$")),

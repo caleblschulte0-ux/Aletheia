@@ -1864,6 +1864,13 @@ def _interpret(transcript: str) -> dict:
     on_list = _onto_the_named_list(low)
     if on_list:
         return on_list
+    # "Set another one for 10 minutes" / "another timer for the rice"
+    # (2026-10-07: to the planner) is a new timer like the first.
+    another = re.fullmatch(r"(?:set |start |make )?another (?:one|timer)(?: for| of)? (.+)", low)
+    if another:
+        got = _interpret(f"set a timer for {another.group(1)}")
+        if ((got or {}).get("command") or {}).get("kind") == "remind_at":
+            return got
     # "And remind me to email Sam too" (2026-10-07: to the planner).
     also = re.fullmatch(r"(?:and|also|oh and|and also) (remind me .+?)(?: too| as well| also)?", low)
     if also:
@@ -4001,15 +4008,23 @@ def _interpret(transcript: str) -> dict:
     # cancellation of a SUBSCRIPTION called "bank one" (2026-10-07). A
     # reminder or a task of his that the words name is the thing; only
     # what names neither is left to be a service.
-    one = re.fullmatch(r"(?:cancel|stop|turn off|delete|remove) (?:my |the )?(?P<w>[a-z][a-z' ]{1,40}?)(?: one| reminder| alarm)", low)
+    one = re.fullmatch(r"(?:cancel|stop|turn off|delete|remove) (?:my |the )?(?P<w>[a-z0-9][a-z0-9' -]{1,40}?)(?: one| reminder| alarm| timer)", low)
+    # "Cancel the first one" counts whatever she just read out - usually
+    # approvals - and has its own branch.
+    if one and re.search(r"\b(?:first|second|third|fourth|last|latest|newest|oldest|next|other|that|this|it|pending)\b",
+                         one.group("w")):
+        one = None
     if one:
-        try:
-            from aletheia import intercom
-            found, _why = intercom._one_reminder(one.group("w"))
-        except Exception:  # noqa: BLE001
-            found = None
-        if found is not None:
-            return {"command": {"kind": "reminder_off", "which": one.group("w")}, "say": None}
+        found = None
+        # "The 3 minute one" is the 3-minute timer: try his words, then hyphenated.
+        for words in dict.fromkeys((one.group("w"), re.sub(r"(\d+) (minute|hour|second)", r"\1-\2", one.group("w")))):
+            try:
+                from aletheia import intercom
+                found, _why = intercom._one_reminder(words)
+            except Exception:  # noqa: BLE001
+                found = None
+            if found is not None:
+                return {"command": {"kind": "reminder_off", "which": words}, "say": None}
         if _names_one_open_task(one.group("w")):
             return {"command": {"kind": "task_change", "which": one.group("w"), "drop": True}, "say": None}
     m = re.fullmatch(r"cancel (?:my |the )?(.+?)"

@@ -866,5 +866,31 @@ class NotesThatAnswerWhen(unittest.TestCase):
         self.assertIn("don't keep passwords", said["say"])
 
 
+
+class TwoTimers(unittest.TestCase):
+    def test_another_one_is_a_new_timer(self):
+        cmd = voice._interpret("set another one for 10 minutes for the rice")["command"]
+        self.assertEqual(cmd["kind"], "remind_at")
+        self.assertIn("rice", cmd["text"])
+
+    def test_how_long_left_is_the_timer(self):
+        from aletheia import quick
+        for said in ("how long left", "how long on the rice", "how much longer"):
+            self.assertEqual(quick.match(said)[0], "timer_left", said)
+
+    def test_the_3_minute_one_is_the_3_minute_timer(self):
+        from aletheia import intercom
+        seen = []
+
+        def one(words):
+            seen.append(words)
+            return ({"id": "r"}, "") if words == "3-minute" else (None, "no")
+        with mock.patch.object(intercom, "_one_reminder", side_effect=one):
+            self.assertEqual(voice._interpret("cancel the 3 minute one")["command"], {"kind": "reminder_off", "which": "3-minute"})
+
+    def test_cancel_the_first_one_is_still_counting(self):
+        self.assertNotEqual((voice._interpret("cancel the first one").get("command") or {}).get("kind"), "reminder_off")
+
+
 if __name__ == "__main__":
     unittest.main()
