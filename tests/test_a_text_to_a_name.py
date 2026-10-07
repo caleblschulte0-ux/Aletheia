@@ -1179,5 +1179,32 @@ class ACorrectionLeadsWithAComma(unittest.TestCase):
         self.assertIn("When should I remind you to call mom", voice.interpret("would you remind me to call mom")["say"])
 
 
+
+class CorrectingWhatSheJustDid(unittest.TestCase):
+    def _with(self, turns, said):
+        from aletheia import converse, voice
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]):
+            return voice.interpret(said)
+
+    def test_make_that_renames_the_task_just_added(self):
+        turns = [{"he_asked": "add a task to email sam", "she_answered": "Added a task: email sam."}]
+        self.assertEqual(self._with(turns, "actually make that call sam")["command"],
+                         {"kind": "task_change", "which": "email sam", "description": "call sam"})
+
+    def test_make_it_15_after_a_timer_is_its_length(self):
+        import datetime as dt
+        turns = [{"he_asked": "set a timer for 10 minutes", "she_answered": "Timer set for 10 minutes."}]
+        cmd = self._with(turns, "make it 15")["command"]
+        self.assertEqual(cmd["text"], "your 15-minute timer is up")
+        at = dt.datetime.fromisoformat(cmd["at"])
+        self.assertLess(abs((at - dt.datetime.now(dt.timezone.utc)).total_seconds() - 900), 30)
+
+    def test_sorry_i_meant_4pm_moves_the_reminder(self):
+        turns = [{"he_asked": "remind me at 3pm to call the vet", "she_answered": "I'll remind you today at 3 pm: call the vet."}]
+        cmd = self._with(turns, "sorry, i meant 4pm")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"], cmd.get("replaces")), ("remind_at", "call the vet", "call the vet"))
+        self.assertIn("T16:00", cmd["at"])
+
+
 if __name__ == "__main__":
     unittest.main()

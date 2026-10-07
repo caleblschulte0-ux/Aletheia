@@ -1206,8 +1206,9 @@ def _the_task_just_added() -> str:
         return ""
     for turn in reversed(turns or []):
         answered = " ".join(str(turn.get("she_answered") or "").split())
-        found = re.match(r"Added a task: (.+?)\.(?:\s|$)", answered) \
-            or re.match(r"Moved: (.+?) due ", answered)
+        found = re.match(r"Added a task: (.+?)(?: due [A-Z][a-z]+day)?\.(?:\s|$)", answered) \
+            or re.match(r"Moved: (.+?) due ", answered) \
+            or re.match(r"Renamed .+? to (.+?)\.(?:\s|$)", answered)
         if found:
             return found.group(1).strip()
     return ""
@@ -1282,6 +1283,21 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     previous = _recent_reminder_ask()
     if not previous:
         return None
+    # "Set a timer for 10 minutes", "make it 15" moved the timer to THREE
+    # IN THE AFTERNOON (2026-10-07). After a timer, a bare number is its
+    # new length, counted from now.
+    timer = re.fullmatch(r"your (\d+)-(minute|hour|second) timer is up", str(previous.get("text") or ""))
+    length = re.fullmatch(r"(\d{1,3})(?: (minutes?|mins?|hours?|hrs?|seconds?|secs?))?", " ".join(str(time_words).split()))
+    if timer and length:
+        import datetime as dt
+        n = int(length.group(1))
+        unit = (length.group(2) or timer.group(2))[:1]
+        unit = {"m": "minute", "h": "hour", "s": "second"}[unit]
+        if n < 1:
+            return None
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(**{unit + "s": n})
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": f"your {n}-{unit} timer is up",
+                            "replaces": previous["text"]}, "say": None}
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return None
@@ -3051,6 +3067,17 @@ def _interpret(transcript: str) -> dict:
         day = _spoken_day("today" if said == "tonight" else said)
         if day:
             return {"command": {"kind": "task_change", "which": task, "deadline": day}, "say": None}
+    # "Add a task to email Sam", then "actually make that call Sam"
+    # (2026-10-07: to the planner) - the task just added, renamed. A time
+    # or a day is a move, handled above and by the reminder mover.
+    m = re.fullmatch(r"(?:make (?:it|that)|change (?:it|that) to|rename (?:it|that)(?: to)?|call (?:it|that)) "
+                     r"(?P<new>[a-z][a-z0-9 ,.'-]{2,80})", low)
+    if m and not re.match(r"(?:due|at|for|by|on|in|next|this|today|tomorrow|tonight|noon|midnight|\d"
+                          r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", m.group("new")):
+        task = _the_task_just_added()
+        if task and task.casefold() != m.group("new").casefold():
+            return {"command": {"kind": "task_change", "which": task,
+                                "description": _as_he_said(text, m.group("new"))}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
     m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
@@ -5058,6 +5085,15 @@ def _interpret(transcript: str) -> dict:
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
     if m:
         moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))
+        if moved:
+            return moved
+    # "Sorry, I meant 4pm" (2026-10-07: to the planner) - a correction
+    # that is nothing but the new time. Only when he led with one, so a
+    # bare "4" is never a move.
+    if re.match(r"(?:\W*)(?:sorry|i meant|i mean|no|nope|oops|actually|wait|oh)\b", text.lower().strip()) and \
+            re.fullmatch(r"(?:at )?(?P<time>\d{1,2}(?::\d{2})? ?(?:am|pm|a\.m\.|p\.m\.)?|noon|midnight|\d{1,3} minutes?)", low):
+        tw = re.sub(r"^at ", "", low)
+        moved = _moved_reminder(text, tw) or _moved_hold(tw)
         if moved:
             return moved
 
