@@ -918,7 +918,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # store" as an item and went to the planner (2026-10-07).
         r"|^do (?:i|we) need (?:anything|something|stuff) (?:from|at) the (?:store|shop|grocery store|supermarket|grocer'?s)\s*\??$"
         r"|^what do (?:i|we) need to (?:get|pick up|grab) (?:from|at) the (?:store|shop|grocery store|supermarket)\s*\??$"
-        r"|^what(?:'s| is|s)? on (?:my|the) grocery list\s*\??$|^(?:my |the )?grocery list$")),
+        r"|^what(?:'s| is|s)? on (?:my|the) grocery list\s*\??$|^(?:my |the )?grocery list$"
+        # "I'm at the store" (2026-10-07: to a model) is the moment the list is for.
+        r"|^(?:i'?m|i am|we'?re|we are) (?:at|in) (?:the )?(?:grocery store|store|supermarket|shops?|market|costco|target"
+        r"|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|grocer'?s)(?: now)?\s*$")),
     # "What is running" was wired into `voice` and NOT here, so SAYING it
     # was instant and TYPING it paid a full planner round trip for the
     # same answer out of the same store. Every door should give the same

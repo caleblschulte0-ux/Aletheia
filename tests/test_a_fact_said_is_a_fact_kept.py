@@ -2258,5 +2258,16 @@ class HolidaysInNovemberCase(unittest.TestCase):
         self.assertTrue(quick.answer("when is veterans day").endswith("from now."))
 
 
+
+class ImAtTheStoreCase(unittest.TestCase):
+    """2026-10-07: "I'm at the store" went to a model."""
+
+    def test_the_list(self):
+        from aletheia import quick
+        for said in ("i'm at the store", "im at costco", "we're at the supermarket"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "shopping")
+
+
 if __name__ == "__main__":
     unittest.main()
