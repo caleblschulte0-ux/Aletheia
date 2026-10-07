@@ -1312,7 +1312,9 @@ def _where_he_put(thing: str) -> str | None:
             said = str(row.get("text") or "").strip()
             low = said.casefold()
             if re.search(rf"\b{re.escape(stem)}", low) and re.search(
-                    r"\b(?:put|left|keep|hid|placed|parked|are|is)\b.*\b(?:in|on|at|under|by|behind|next to|inside|near)\b", low):
+                    r"\b(?:put|left|keep|hid|placed|parked|are|is)\b.*\b(?:in|on|at|under|by|behind|next to|inside|near)\b"
+                    # "I lent my drill to Bob" answers "where's my drill" too.
+                    r"|\b(?:lent|loaned|borrowed)\b", low):
                 hers = speech.as_she_says_it(said).rstrip(".")
                 # "You left your keys on the counter.", not "You told me:
                 # you left..." - the same as where he parked.
@@ -6987,7 +6989,7 @@ def _interpret(transcript: str) -> dict:
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
     m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
-                     r"|gate code|door code|garage code|locker (?:number|combination|code)|license plate|plate number"
+                     r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
@@ -6999,7 +7001,9 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:monthly |weekly |daily |grocery |food |step |calorie |water |reading |savings )?(?:budget|goal)"
                      r"|goal weight|target weight|bedtime|employee (?:id|number)|student (?:id|number)"
                      r"|insurance(?: company| provider)?|pharmacy|gym) (?:is|are) (?P<value>.{1,80})", fact_low)
-    if m and re.search(r"(?:budget|goal|weight|bedtime)$", m.group("key")) \
+    # "My locker is 42" (2026-10-07: to the planner) - a locker with no
+    # number in it is where he left something, not which one is his.
+    if m and re.search(r"(?:budget|goal|weight|bedtime|locker)$", m.group("key")) \
             and not (re.search(r"\d", m.group("value")) or m.group("value").startswith(("to ", "a ", "an "))
                      and m.group("key").endswith("goal")):
         m = None
@@ -7017,6 +7021,35 @@ def _interpret(transcript: str) -> dict:
             # `sensitivity` blanks a password out of every record she
             # keeps, so a note would read back "[redacted]". Said, not faked.
             return {"command": None, "say": _NO_PASSWORDS}
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "MY FLIGHT IS AT 6AM FRIDAY" (2026-10-07: to the planner, so "when is
+    # my flight" had nothing to read). A trip he is told about is a note in
+    # his words, which `quick._when_mine` reads back - only with a time or a
+    # day in it, so "my flight is delayed" stays news.
+    m = re.fullmatch(r"(?:my|our) (?:(?:return|outbound|connecting|early|late|next) )?(?P<trip>flight|plane|train|bus|ferry|cruise"
+                     r"|shuttle|ride|uber|lyft|pickup|pick-up|check-in|checkout|check-out)"
+                     r" (?:is|leaves|departs|takes off|lands|arrives|gets in|boards|comes)(?: back)? (?P<when>.{2,60})", fact_low)
+    if m and re.search(r"\d|\b(?:today|tonight|tomorrow|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday"
+                       r"|sunday|morning|afternoon|evening|next week)\b", m.group("when")) \
+            and not re.search(r"\b(?:delayed|late|cancell?ed|early|full|over|done|gone)\b", m.group("when")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "I LENT MY DRILL TO BOB" (2026-10-07: to the planner, and "who has my
+    # drill" with nothing to read). A thing, not money - money is the
+    # ledger's ("I lent Sam 20 dollars").
+    m = (re.fullmatch(r"i (?:lent|loaned|gave|handed) (?:my |our |the )(?P<thing>[a-z][a-z' ]{1,25}?) to (?P<who>[a-z][a-z' ]{1,25})", fact_low)
+         or re.fullmatch(r"i (?:lent|loaned) (?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,25})", fact_low)
+         or re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:borrowed|has|took|is borrowing|has got) "
+                         r"(?:my|our) (?P<thing>[a-z][a-z' ]{1,25})", fact_low))
+    if m and not re.search(r"\d|\b(?:dollars?|bucks|money|cash|euros?|pounds?|ride|hand|call|break|chance|hug|kiss|lift"
+                           r"|attention|word|heart|back|number|money)\b", m.group("thing")) \
+            and m.group("who").split()[0] not in ("who", "what", "he", "she", "they", "it", "this", "that", "somebody",
+                                                  "someone", "nobody", "everyone", "i", "you", "where", "why", "when", "how"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "I LIKE MY COFFEE BLACK" (2026-10-07: to the planner) - how he takes
+    # something he eats or drinks, read back by "how do I like my coffee".
+    if re.fullmatch(r"i (?:like|take|have|drink|want|prefer) my (?:coffee|tea|steak|burgers?|eggs|toast|latte|martini|whiskey"
+                    r"|bourbon|pizza|tacos|sandwich|smoothie|oatmeal) (?!a lot\b|so much\b|too\b|now\b|every\b|at\b|in the\b)"
+                    r"[a-z][a-z ,'-]{1,40}", fact_low):
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "MY CAR IS A 2015 HONDA CIVIC" (2026-10-07: to the planner) - what he
     # drives or carries, kept only when it names a make or a year, so "my

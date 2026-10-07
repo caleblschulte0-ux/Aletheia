@@ -370,6 +370,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("ate", re.compile(
         r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
         r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
+    ("lent", re.compile(
+        r"^who (?:has|borrowed|took|has got) (?:my|our) (?P<lent>[a-z][a-z' ]{1,25}?)\s*\??$"
+        r"|^(?:who did i|did i) (?:lend|loan|give) (?:my|our|the) (?P<lent2>[a-z][a-z' ]{1,25}?) to(?: anyone| anybody| someone)?\s*\??$")),
+    ("liked_how", re.compile(
+        r"^how do i (?:like|take|have|drink) my (?P<liked_how>coffee|tea|steak|burgers?|eggs|toast|latte|martini|whiskey"
+        r"|bourbon|pizza|tacos|sandwich|smoothie|oatmeal)\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -1515,7 +1521,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who do I owe money", "how much do I owe Sam", "who owes me" (2026-10-07:
     # each to a model, a turn after "remember I owe Sam 20 dollars").
     ("owed", re.compile(
-        r"^who (?:do i owe|owes me)(?: money| anything)?\s*\??$"
+        r"^who (?:do i owe|owes me)(?: money| anything)?(?: to)?\s*\??$"
         r"|^(?:does|do) (?:anyone|anybody) (?:still )?owe me(?: (?:any )?(?:money|anything))?\s*\??$"
         r"|^(?:do i owe|does) (?:anyone|anybody) (?:any )?(?:money|anything)(?: owe me(?: money)?)?\s*\??$"
         r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
@@ -1911,7 +1917,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8103,6 +8109,38 @@ def _counted(text: str) -> str | None:
     return f"{total:,} {what} {when}."
 
 
+def _lent(text: str) -> str | None:
+    """"Who has my drill": his note saying he lent it, in his words. Nothing
+    kept is said as nothing kept (2026-10-07: to a model, which could only
+    guess)."""
+    from aletheia import speech
+    g = _groups("lent", text)
+    thing = " ".join(str(g.get("lent") or g.get("lent2") or "").split())
+    stem = re.sub(r"(?:es|s)$", "", thing) or thing
+    if len(stem) < 3:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.search(rf"\b{re.escape(stem)}", low) and re.search(r"\b(?:lent|loaned|gave|handed|borrowed|has|took)\b", low):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return f"You haven't told me you lent your {thing} to anybody."
+
+
+def _liked_how(text: str) -> str | None:
+    """"How do I like my coffee": his note saying so. None when there is
+    none - a taste is not a thing to guess at."""
+    from aletheia import speech
+    thing = str(_groups("liked_how", text).get("liked_how") or "")
+    if not thing:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.match(rf"i (?:like|take|have|drink|want|prefer) my {re.escape(thing)}\b", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return f"You haven't told me how you like your {thing}. Tell me once and I'll remember it."
+
+
 def _ate(text: str) -> str | None:
     """"What did I have for lunch yesterday": his notes saying "I had a
     burrito for lunch" or "I ate a salad", for that day (and that meal, when
@@ -8542,6 +8580,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weight": lambda rest: _weight(),
            "counted": _counted,
            "ate": _ate,
+           "lent": _lent,
+           "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),

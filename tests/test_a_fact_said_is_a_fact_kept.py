@@ -3042,5 +3042,35 @@ class ShortDayQuestions(unittest.TestCase):
         self.assertIsNone(quick.match("anything else"))
 
 
+class ThingsHeToldHerOnce(unittest.TestCase):
+    def test_a_locker_a_flight_a_loan_and_a_taste_are_kept_and_read(self):
+        import datetime as dt
+        from aletheia import quick
+        for said in ("my locker is 42", "my flight is at 6am friday", "my train leaves at 7:15",
+                     "I lent my drill to Bob", "I lent Bob my drill", "Bob borrowed my ladder", "I like my coffee black"):
+            self.assertEqual((voice._interpret(said) or {}).get("command"), {"kind": "note", "text": said}, said)
+        for feeling in ("my locker is a mess", "my flight is delayed", "I like my coffee a lot"):
+            got = voice._interpret(feeling)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", feeling)
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": t, "ts": now} for t in ("my locker is 42", "my flight is at 6am friday",
+                                                  "I lent my drill to Bob", "I like my coffee black")]
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIn("42", quick.answer("what's my locker number"))
+            self.assertIn("6am Friday", quick.answer("when is my flight"))
+            for asked in ("who has my drill", "who did I lend my drill to"):
+                self.assertIn("Bob", quick.answer(asked), asked)
+            self.assertIn("Bob", voice._where_he_put("drill"))
+            self.assertEqual(quick.answer("who has my ladder"), "You haven't told me you lent your ladder to anybody.")
+            self.assertIn("black", quick.answer("how do I like my coffee"))
+            self.assertIn("haven't told me", quick.answer("how do I take my tea"))
+
+    def test_who_do_i_owe_money_to_reads_the_ledger(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_ledger", return_value={"jo": -5}):
+            self.assertIn("Jo", quick.answer("who do I owe money to"))
+
+
 if __name__ == "__main__":
     unittest.main()
