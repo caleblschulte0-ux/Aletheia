@@ -641,6 +641,25 @@ def tried_key(obs: dict, target: dict) -> str:
     return str((obs.get("_refs") or {}).get(target.get("id")) or target.get("id"))
 
 
+def goes_back(href, here: str, visited: set | None = None) -> bool:
+    """Whether a link leads to a page this mission has already read.
+
+    A link to THIS page with a fragment ("#", "#apply") is not one: it is the
+    page's own button, drawn as a link - an Apply that opens the form below or
+    in a dialog. Live 2026-10-07 "no way forward" was 53 job postings stopped
+    at the first look with nothing to press, and an in-page Apply was being
+    thrown away as a link back to where she stood. The same page with no
+    fragment (a "Books" link on the Books page) still is going back."""
+    href = str(href or "")
+    if not href:
+        return False
+    base = href.split("#")[0]
+    here = str(here or "").split("#")[0]
+    if "#" in href and base == here:
+        return False
+    return base in ((visited or set()) | {here})
+
+
 def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str],
                 visited: set[str] | None = None, allow_progress: bool = True) -> dict | None:
     """The link or harmless control that best moves toward the goal.
@@ -655,8 +674,7 @@ def way_forward(obs: dict, goal: str, skill, site: dict, *, tried: set[str],
     # the breadcrumb "Philosophy" shares a word with the goal and led straight
     # back to the list (live 2026-09-17, Scenario D).
     here = str(obs.get("url") or "").split("#")[0]
-    candidates = [c for c in candidates
-                  if not (c.get("href") and str(c["href"]).split("#")[0] in ((visited or set()) | {here}))]
+    candidates = [c for c in candidates if not goes_back(c.get("href"), here, visited)]
     if not candidates:
         return None
     for hint in site.get("nav_hints") or []:
@@ -1368,10 +1386,10 @@ def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited:
     # WHAT IS ACTUALLY A WAY ON is what the model is shown: a link back to a page
     # this mission has already read is not one, and leaving it in the list is how
     # her own model spent nineteen steps choosing the page it was on.
-    been = (visited or set()) | {str(obs.get("url") or "").split("#")[0]}
     page = for_model(obs)
+    here = str(obs.get("url") or "").split("#")[0]
     page["targets"] = [t for t in page.get("targets") or []
-                       if not (t.get("href") and str(t["href"]).split("#")[0] in been)
+                       if not goes_back(t.get("href"), here, visited)
                        and tried_key(obs, t) not in (tried or set())]
     page["url"] = str(obs.get("url") or "")
     try:
@@ -1386,7 +1404,7 @@ def _ask_model(decide: Callable, goal: str, obs: dict, record: dict, *, visited:
     target = find_target(obs, (said or {}).get("target")) if isinstance(said, dict) else None
     if target is not None and tried_key(obs, target) in (tried or set()):
         return None                 # she pressed that already, on this page
-    if target is not None and target.get("href") \
+    if target is not None and target.get("href") and goes_back(target["href"], here, visited) \
             and str(target["href"]).split("#")[0] in (visited or set()):
         # BACK WHERE SHE HAS BEEN. Live 2026-09-17 her own model chose the
         # "Books" link on the Books page nineteen times in a row.
