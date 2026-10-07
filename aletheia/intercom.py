@@ -2198,6 +2198,15 @@ def _undo_his_last_ask() -> str | None:
         # "who is it with", "cancel it" means the lunch (2026-10-07).
         if voice._only_asked(said, command):
             continue
+        # "Remove everything from the list", then "undo that" (2026-10-07:
+        # "nothing to undo"). Taking things off is undone by putting back
+        # the rows that turn cancelled - kept, not deleted, for this.
+        # Deliberately not in UNDOES_HIS_ASK: "take that off the list"
+        # after a removal must never put it back on.
+        # By the answer, not the re-read: "remove milk" only reads as a
+        # removal while milk is on the list, and now it isn't.
+        if re.match(r"Took (?:it|\S+ things?) off (?:your|the) shopping list:", str(turn.get("she_answered") or "")):
+            return _put_back_on_the_list(str(turn.get("she_answered") or ""))
         if kind not in UNDOES_HIS_ASK:
             return None
         if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
@@ -2207,6 +2216,38 @@ def _undo_his_last_ask() -> str | None:
             return "That added nothing - it was already on your shopping list, so I've left it there."
         return _reverse_his_ask(kind, command)
     return None
+
+
+def _put_back_on_the_list(answer: str) -> str:
+    """What the last removal took off the shopping list, put back: the
+    things its answer named, and - past the six an answer names - the rows
+    cancelled with them. Anything already back on the list is left alone."""
+    import datetime as dt
+    from aletheia import shopping, speech
+    listed = re.sub(r"^Took (?:it|\S+ things?) off (?:your|the) shopping list: ", "", answer).rstrip(".")
+    more = re.search(r", and \d+ more$", listed)
+    listed = re.sub(r",? and \d+ more$", "", listed)
+    names = [n.strip() for n in re.split(r", | and ", listed) if n.strip()]
+    if more:
+        now = dt.datetime.now(dt.timezone.utc)
+        stamps = []
+        for row in shopping.all_workflows():
+            try:
+                at = dt.datetime.fromisoformat(str(row.get("updated_at") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if row.get("state") == "CANCELLED" and (now - at).total_seconds() <= 900:
+                stamps.append((at, str(row.get("need") or "").strip()))
+        if stamps:
+            newest = max(at for at, _n in stamps)
+            names += [n for at, n in stamps if n and (newest - at).total_seconds() <= 5 and n not in names]
+    open_now = {str(r.get("need") or "").strip().casefold() for r in _shopping_items()}
+    back = [n for n in names if n.casefold() not in open_now]
+    if not back:
+        return "That's already back on the shopping list." if names else "I couldn't tell what came off the list to put it back."
+    for need in back:
+        execute_command({"kind": "shopping_add", "item": need}, {}, quote="undo that")
+    return f"Undone: put {speech.and_list(back)} back on the shopping list."
 
 
 def _reverse_his_ask(kind: str, command: dict) -> str:

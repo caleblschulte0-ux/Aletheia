@@ -4438,5 +4438,27 @@ class Capitals(unittest.TestCase):
         self.assertIsNone(quick.answer("what's the capital of narnia"))
 
 
+class UndoingARemovalPutsItBack(unittest.TestCase):
+    """2026-10-07: "remove everything from the list", then "undo that",
+    answered "Nothing to undo"."""
+
+    def test_put_back(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from aletheia import converse, intercom, shopping
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(shopping, "SHOP_DIR", Path(tmp)):
+            for item in ("milk", "eggs"):
+                intercom.execute_command({"kind": "shopping_add", "item": item}, {}, quote="t")
+            said = intercom.execute_command({"kind": "shopping_off", "item": "everything"}, {}, quote="t")
+            self.assertTrue(said.startswith("Took 2 things"), said)
+            turns = [{"he_asked": "remove everything from the list", "she_answered": said}]
+            with mock.patch.object(converse, "recent", return_value=turns):
+                back = intercom._undo_his_last_ask()
+                self.assertIn("eggs and milk back", back)
+                self.assertEqual(intercom._undo_his_last_ask(), "That's already back on the shopping list.")
+            self.assertEqual(sorted(r["need"] for r in intercom._shopping_items()), ["eggs", "milk"])
+
+
 if __name__ == "__main__":
     unittest.main()
