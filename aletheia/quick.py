@@ -761,8 +761,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:do i have|have i got|is there) (?:any |an )?(?:meetings?|appointments?|events?|plans|calls?)"
         r"(?: on)?(?: for)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^how (?:busy|booked|full) (?:am i|is my (?:day|week|calendar|schedule))(?: on)? (?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
+    # A DAY BY ITS DATE (2026-10-07: "what's on my calendar on the 15th"
+    # and "what do I have on October 15" went to the planner).
+    ("agenda_on", re.compile(
+        r"^(?:what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda)|what (?:do i have|have i got|am i doing)"
+        r"|anything (?:on|happening)|am i (?:free|busy))"
+        r" (?:on |for )?(?P<agenda_on>the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
+        r"|september|october|november|december))?|(?:january|february|march|april|may|june|july|august|september|october"
+        r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     ("first_meeting", re.compile(
-        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my first (?:meeting|appointment|event|call|thing)(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my first (?:meeting|appointment|event|call|thing)(?:(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
@@ -1463,7 +1471,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -3120,6 +3128,48 @@ def _first_meeting(day: str = "today") -> str | None:
     head, _, rest = said.partition(": ")
     first = re.split(r",? and |, ", rest, maxsplit=1)[0].rstrip(".")
     return f"{head}, first up: {first}."
+
+
+def _agenda_on(words: str) -> str | None:
+    """His calendar on a date he names: "the 15th", "October 15"."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    w = " ".join(str(words or "").split())
+    bare = re.fullmatch(r"the (\d{1,2})(?:st|nd|rd|th)?", w)
+    try:
+        if bare:
+            # "The 15th" is this month's, or next month's once it has passed.
+            day, year, month = int(bare.group(1)), today.year, today.month
+            when = dt.date(year, month, day)
+            if when < today:
+                when = dt.date(year + (month == 12), month % 12 + 1, day)
+        else:
+            when = _named_date(w.removeprefix("the "), today)
+    except ValueError:
+        return None
+    if when is None:
+        return None
+    try:
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start.date() == when:
+                rows.append((start, str(event.get("title") or "something")[:80]))
+    except Exception:
+        return None
+    label = f"{when.strftime('%A')} {when.day} {when.strftime('%B')}"
+    if not rows:
+        return f"Nothing on your calendar on {label}."
+    rows.sort()
+    said = [f"{title} at " + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for start, title in rows[:6]]
+    return f"{label}: " + speech.and_list(said) + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
 
 
 def _agenda(day: str = "today") -> str | None:
@@ -6165,6 +6215,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda": lambda rest: _agenda(rest or "today"),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
+           "agenda_on": lambda rest: _agenda_on(rest),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repo_wrong": _repo_wrong,

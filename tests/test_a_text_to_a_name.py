@@ -268,5 +268,28 @@ class LooseTimesOfDay(unittest.TestCase):
         self.assertIn("Remind you of what", got["say"])
 
 
+class HisCalendarByDateAndBlocks(unittest.TestCase):
+    def test_a_day_by_its_date(self):
+        import datetime as dt
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        later = today + dt.timedelta(days=3)
+        event = {"title": "Dentist", "start": dt.datetime.combine(later, dt.time(15), tzinfo=tz).isoformat()}
+        with mock.patch.object(calendar, "all_events", return_value=[event]):
+            said = quick.answer(f"what do i have on {later.strftime('%B').lower()} {later.day}")
+        self.assertEqual(said, f"{later.strftime('%A')} {later.day} {later.strftime('%B')}: Dentist at 3 pm.")
+        self.assertEqual(quick.match("what's on my calendar on the 15th")[0], "agenda_on")
+
+    def test_a_block_of_time_for_something(self):
+        got = voice._interpret("block 2 hours tomorrow morning for focus")["command"]
+        self.assertEqual((got["kind"], got["title"], got["minutes"]), ("calendar_hold", "Focus", 120))
+        self.assertIn("T09:00", got["start"])
+
+    def test_the_first_meeting_is_todays_when_no_day_is_said(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what's my first meeting")[0], "first_meeting")
+
+
 if __name__ == "__main__":
     unittest.main()

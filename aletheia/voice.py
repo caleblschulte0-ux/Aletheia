@@ -4559,6 +4559,21 @@ def _interpret(transcript: str) -> dict:
             if held:
                 held["command"]["minutes"] = 60 if not b.group("part") else (180 if b.group("part") != "night" else 120)
                 return held
+        # "BLOCK 2 HOURS TOMORROW MORNING FOR FOCUS" (2026-10-07: to the
+        # planner): the same hold, for as long as he says, called what it is for.
+        b = re.fullmatch(r"(?:block|block off|block out|hold|reserve|set aside|carve out) (?:out )?"
+                         r"(?P<n>an?|one|two|three|four|\d{1,3}|half an) (?P<unit>hours?|minutes?)"
+                         r"(?: (?:on |this )?(?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
+                         r"(?: at (?P<time>[\w: ]+?))?(?: (?:for|to) (?P<what>[a-z][a-z' ]{1,30}))?", low)
+        if b and (b.group("day") or b.group("part") or b.group("time")):
+            amount = _spoken_amount(b.group("n")) if b.group("n") != "a" and b.group("n") != "an" else 1
+            minutes = int(round((amount or 1) * (60 if b.group("unit").startswith("hour") else 1)))
+            title = re.sub(r"^(?:the|my|some) ", "", (b.group("what") or "busy").strip())
+            held = _calendar_hold(text, title[:1].upper() + title[1:], b.group("day") or "today", b.group("part"),
+                                  b.group("time"))
+            if held and 15 <= minutes <= 12 * 60:
+                held["command"]["minutes"] = minutes
+                return held
     if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
