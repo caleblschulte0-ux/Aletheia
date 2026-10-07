@@ -260,3 +260,27 @@ class HisOwnFactsAsSentences(unittest.TestCase):
         with mock.patch.object(contacts, "all_contacts", return_value=[mia]):
             self.assertEqual(intercom.execute_command({"kind": "contacts", "which": "mia"}, {}),
                              "Mia's number is 605 555 1234.")
+
+
+class MoreTimeAndAMovedAlarm(unittest.TestCase):
+    """"Add 5 minutes" and "change my alarm to 6:30" went to the planner."""
+
+    def test_five_more_minutes_on_the_one_timer(self):
+        import datetime as dt
+        at = dt.datetime(2030, 1, 1, 12, 0, tzinfo=dt.timezone.utc)
+        with mock.patch.object(voice, "_running_once", return_value=[(at, "your 10-minute timer is up")]):
+            got = voice._interpret("add 5 minutes")["command"]
+        self.assertEqual(got, {"kind": "remind_at", "at": "2030-01-01T12:05:00+00:00",
+                               "text": "your 10-minute timer is up", "replaces": "your 10-minute timer is up"})
+        with mock.patch.object(voice, "_running_once", return_value=[]):
+            self.assertIn("No timer running", voice._interpret("give me 5 more minutes")["say"])
+
+    def test_the_alarm_keeps_its_day_and_its_morning(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        at = dt.datetime(2030, 1, 2, 7, 0, tzinfo=tz)
+        with mock.patch.object(voice, "_running_once", return_value=[(at, "wake up")]):
+            got = voice._interpret("change my alarm to 6:30")["command"]
+        self.assertEqual((got["kind"], got["replaces"]), ("remind_at", "wake up"))
+        self.assertTrue(got["at"].startswith("2030-01-02T06:30"), got["at"])

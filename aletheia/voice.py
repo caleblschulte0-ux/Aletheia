@@ -1152,6 +1152,70 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
                         "replaces": previous["text"]}, "say": None}
 
 
+def _running_once(marker: str) -> list:
+    """[(when, text)] for the one-off reminders still to fire whose words
+    carry `marker` ("timer is up", "wake up"), soonest first. Never raises."""
+    import datetime as dt
+    try:
+        from aletheia import scheduler
+        specs = scheduler.all_schedules()
+    except Exception:
+        return []
+    now = dt.datetime.now(dt.timezone.utc)
+    out = []
+    for spec in specs:
+        words = str((spec.get("command") or {}).get("text") or "")
+        if spec.get("kind") != "once" or not spec.get("enabled") or marker not in words.casefold():
+            continue
+        try:
+            at = scheduler.next_occurrence(spec, now)
+        except Exception:
+            continue
+        if at is not None:
+            out.append((at, words))
+    return sorted(out)
+
+
+def _more_on_the_timer(minutes: int) -> dict:
+    """"Add 5 minutes" to the one timer running (2026-10-07: to the planner)."""
+    import datetime as dt
+    running = _running_once("timer is up")
+    if not running:
+        return {"command": None, "say": "No timer running. Say \"set a timer for 5 minutes\" to start one."}
+    if len(running) > 1:
+        return {"command": None, "say": f"You have {len(running)} timers running - cancel the one you don't "
+                                        "want and set it again for the new time."}
+    at, words = running[0]
+    later = (at + dt.timedelta(minutes=minutes)).astimezone(dt.timezone.utc)
+    return {"command": {"kind": "remind_at", "at": later.isoformat(), "text": words, "replaces": words},
+            "say": None}
+
+
+def _moved_alarm(time_words: str) -> dict:
+    """"Change my alarm to 6:30": the one alarm, same day, the new time."""
+    import datetime as dt
+    from aletheia import localtime
+    running = _running_once("wake up")
+    hhmm = _spoken_time(time_words)
+    if not hhmm:
+        return _to_the_planner(f"change my alarm to {time_words}")
+    if not running:
+        return {"command": None, "say": f"You don't have an alarm set. Say \"set an alarm for {time_words}\" and I'll set one."}
+    if len(running) > 1:
+        return {"command": None, "say": f"You have {len(running)} alarms - turn off the one you don't want and "
+                                        "set the new time."}
+    at, words = running[0]
+    was = at.astimezone(localtime.operator_tz())
+    hour, minute = map(int, hhmm.split(":"))
+    if _is_bare_hour(time_words) and was.hour >= 12 and hour < 12:
+        hour += 12
+    new = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if new <= dt.datetime.now(new.tzinfo):
+        new += dt.timedelta(days=1)
+    return {"command": {"kind": "remind_at", "at": new.isoformat(), "text": words, "replaces": words},
+            "say": None}
+
+
 def _to_the_planner(text: str) -> dict:
     """Hand the sentence on rather than ending the turn on a parse error.
 
@@ -2589,6 +2653,25 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
                     r"what's new|anything new|notifications?)", low):
         return {"command": {"kind": "notify_check"}, "say": None}
+    # MORE TIME ON THE TIMER, AND THE ALARM MOVED (2026-10-07: both to the planner).
+    # Not "give me a minute": that is a nod to the room, and stays one.
+    m = re.fullmatch(r"(?:add|put|give it) (?P<n>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?"
+                     r"(?P<unit>minutes?|mins?|seconds?)(?: more)?(?: (?:to|on) (?:the |my )?timer)?"
+                     r"|(?P<n2>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) more (?P<unit2>minutes?|mins?)(?: on (?:the |my )?timer)?"
+                     r"|give me (?P<n4>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) more (?P<unit4>minutes?|mins?)"
+                     r"(?: on (?:the |my )?timer)?"
+                     r"|(?:extend|add to) (?:the |my )?timer by (?P<n3>\d{1,3}|five|ten|fifteen|twenty|thirty) (?P<unit3>minutes?|mins?)", low)
+    if m:
+        words = {"a": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30}
+        n = m.group("n") or m.group("n2") or m.group("n3") or m.group("n4")
+        unit = m.group("unit") or m.group("unit2") or m.group("unit3") or m.group("unit4") or "minutes"
+        count = int(n) if n.isdigit() else words[n]
+        if unit.startswith("sec"):
+            return {"command": None, "say": "I can add whole minutes to a timer, not seconds."}
+        return _more_on_the_timer(count)
+    m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?alarm (?:to|for|until) (?P<time>[\w: ]+?)", low)
+    if m:
+        return _moved_alarm(m.group("time"))
     # HIS STOPWATCH (2026-10-07: "start a stopwatch" went to the planner).
     if re.fullmatch(r"(?:start|begin|set|run) (?:a |the |my )?stopwatch(?: now| for me)?|stopwatch(?: start| go)", low):
         return {"command": {"kind": "stopwatch", "action": "start"}, "say": None}
