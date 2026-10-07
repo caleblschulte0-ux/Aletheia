@@ -1661,5 +1661,19 @@ class WhereThePasswordIsCase(unittest.TestCase):
         self.assertIsNone(voice.interpret("thea remember my wifi password is hunter22")["command"])
 
 
+class APoliteAskIsStillAnAskCase(unittest.TestCase):
+    def test_would_you_mind_i_need_you_to_and_a_trailing_please(self):
+        from aletheia import voice
+        self.assertEqual(voice._a_polite_ask("thea would you mind adding a task to call the bank"),
+                         "thea add a task to call the bank")
+        self.assertEqual(voice._a_polite_ask("i need you to remind me tomorrow to pay rent"),
+                         "remind me tomorrow to pay rent")
+        self.assertEqual(voice._a_polite_ask("add eggs to my list please"), "add eggs to my list")
+        # The words of the ask are never cut, and a question stays a question.
+        self.assertEqual(voice._a_polite_ask("remind me at 5 to say thank you"), "remind me at 5 to say thank you")
+        self.assertEqual(voice._a_polite_ask("can you buy things"), "can you buy things")
+        self.assertEqual(voice._a_polite_ask("would you mind"), "would you mind")
+
+
 if __name__ == "__main__":
     unittest.main()

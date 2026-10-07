@@ -2049,11 +2049,25 @@ def _a_polite_ask(transcript: str) -> str:
     """
     said = str(transcript or "")
     bare = strip_wake_word(said)
-    m = re.fullmatch(r"(?:hey |ok |okay )?(?:can|could|would|will) (?:you|u) (?:please |kindly |just )?(?P<rest>.{3,160}?)"
-                     r"(?:,? please)?(?: for me)?\s*\??", " ".join(bare.split()), re.IGNORECASE)
-    if not m:
+    # "Would you mind adding...", "I need you to remind me...", and a bare
+    # ask that ends "please" (2026-10-07: all three to the planner, and "I
+    # need you to remind me to pay rent" refused as SPENDING).
+    m = re.fullmatch(r"(?:hey |ok |okay )?(?P<lead>would (?:you|u) mind |(?:can|could|would|will) (?:you|u) (?:please |kindly |just )?"
+                     r"|(?:i need|i want|i'd like|i would like) (?:you|u) to (?:please )?)?"
+                     r"(?P<rest>.{3,160}?)(?P<tail>,? please|, thanks|, thank you)?(?: for me)?\s*[?.!]?",
+                     " ".join(bare.split()), re.IGNORECASE)
+    if not m or not (m.group("lead") or m.group("tail")):
         return said
     rest = m.group("rest")
+    if m.group("lead") and "mind" in m.group("lead"):
+        # "Adding a task" is "add a task".
+        verb, _, after = rest.partition(" ")
+        base = {"adding": "add", "setting": "set", "reminding": "remind", "putting": "put", "making": "make",
+                "taking": "take", "removing": "remove", "checking": "check", "reading": "read",
+                "playing": "play", "starting": "start", "noting": "note", "writing": "write"}.get(verb.casefold())
+        if not base:
+            return said
+        rest = f"{base} {after}".strip()
     try:
         cmd = (_interpret(rest) or {}).get("command") or {}
     except Exception:
