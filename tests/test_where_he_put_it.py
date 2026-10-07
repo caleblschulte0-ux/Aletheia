@@ -121,3 +121,38 @@ class ClockArithmetic(unittest.TestCase):
 
     def test_clearing_his_calendar_is_said_plainly(self):
         self.assertIn("can't cancel things on your calendar", voice._interpret("clear my calendar tomorrow")["say"])
+
+
+class WhatIsAhead(unittest.TestCase):
+    def setUp(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        tomorrow = (now + dt.timedelta(days=1)).replace(hour=10, minute=0, second=0, microsecond=0)
+        self.rows = [(tomorrow, "Standup", "calendar"), (tomorrow.replace(hour=8), "take my pills", "reminder")]
+        self.rows.sort(key=lambda r: r[0])
+
+    def test_coming_up_lists_both_stores(self):
+        with mock.patch.object(quick, "_coming", return_value=self.rows):
+            said = quick.answer("what's coming up")
+        self.assertIn("reminder: take my pills", said)
+        self.assertIn("Standup", said)
+
+    def test_meetings_tomorrow_counts_only_meetings(self):
+        with mock.patch.object(quick, "_coming", return_value=self.rows):
+            self.assertEqual(quick.answer("how many meetings do i have tomorrow"), "1 meeting tomorrow: 10 am, Standup.")
+
+    def test_is_a_day_free(self):
+        self.assertEqual(voice._interpret("is friday free")["command"]["kind"], "free_time")
+
+    def test_a_title_keeps_no_next(self):
+        self.assertEqual(voice._interpret("schedule lunch with sam next tuesday at noon")["command"]["title"],
+                         "lunch with sam")
+
+    def test_due_and_overdue_asked_about_tasks(self):
+        self.assertEqual(quick.match("what tasks are due this week"), ("due", "this week"))
+        self.assertEqual(quick.match("show me my overdue tasks"), ("due", "overdue"))
+
+    def test_his_whole_list_is_not_one_sentence(self):
+        for said in ("delete all my tasks", "mark everything done", "clear my to do list"):
+            self.assertIn("one at a time", voice._interpret(said)["say"], said)

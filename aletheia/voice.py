@@ -1026,6 +1026,9 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     day_iso = _spoken_day(day)
     if not day_iso:
         return None
+    # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
+    # (2026-10-07): the word before the day belongs to the day.
+    title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
     if time_words:
         hhmm = _spoken_time(time_words)
         if not hhmm:
@@ -2887,6 +2890,15 @@ def _interpret(transcript: str) -> dict:
             command["purpose"] = m.group(2).strip()
         return {"command": command, "say": None}
 
+    # "IS FRIDAY FREE" (2026-10-07: to the planner) - the day's free time.
+    m = re.fullmatch(r"is (?:my )?(?:this )?(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                     r"(?: (?P<part>morning|afternoon|evening))? (?:free|open|clear|busy)\s*\??", low)
+    if m and _spoken_day(m.group("day")):
+        command = {"kind": "free_time", "day": _spoken_day(m.group("day"))}
+        if m.group("part"):
+            command["part"] = m.group("part")
+        return {"command": command, "say": None}
+
     # "AM I FREE FRIDAY AT 10" - a moment, not a day (2026-10-07: to the
     # planner). Either order, and a bare "at 10" is today, or tomorrow once
     # it has passed. A bare hour gets the same no-small-hours rule as a
@@ -4415,6 +4427,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I won't wipe every note on one sentence. Say \"forget\" and what the note says, "
                        "or \"delete my last note\", and I'll take them off one at a time."}
+    # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
+    # planner). The same rule: his whole list is not one sentence's to undo.
+    if re.fullmatch(r"(?:delete|remove|clear|wipe|cancel|drop) (?:all|every one of|everything on) (?:of )?(?:my |the )?"
+                    r"(?:tasks|to[- ]?dos?|task list|to[- ]?do list)|(?:clear|wipe|empty) (?:my |the )?(?:task list|to[- ]?do list|tasks)"
+                    r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task) (?:as )?(?:done|complete|completed|finished)", low):
+        return {"command": None,
+                "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
+                       "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
     m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
                  # "Write a note that the car needs oil" (2026-10-07: to the planner).
                  r"(?:write|leave|add) (?:me )?a note(?: that| saying| of|:)?|"

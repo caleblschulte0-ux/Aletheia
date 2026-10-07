@@ -525,6 +525,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:time ?zone|timezone) (?:am i in|are we in|is (?:this|it|set))\s*\??$|^what(?:'s| is) my (?:time ?zone|timezone)\s*\??$"
         r"|^is it (?:daylight sav(?:ing|ings)(?: time)?|dst)(?: (?:right )?now)?\s*\??$"
         r"|^(?:when|what day) (?:do|does) (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)\s*\??$")),
+    # WHAT'S AHEAD (2026-10-07): "what's coming up", "what am I doing
+    # tonight", "how many meetings do I have tomorrow" went to the planner.
+    # Her calendar and reminders, soonest first.
+    ("coming_up", re.compile(
+        r"^(?:what(?:'s| is)|anything|is anything|do i have anything) coming up(?: (?P<coming>today|tonight|tomorrow))?\s*\??$"
+        r"|^what(?:'s| is) (?:on )?(?:for )?(?P<coming2>tonight)\s*\??$|^what am i doing (?P<coming3>tonight|this evening)\s*\??$"
+        r"|^what do i have (?:on |going on )?(?P<coming4>tonight|this evening)\s*\??$")),
+    ("meetings_count", re.compile(
+        r"^how many (?:meetings|appointments|events) (?:do i have|are on my calendar|have i got)"
+        r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
     # "How long until my alarm" (2026-10-07: to the planner).
     ("alarm_left", re.compile(
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$")),
@@ -1258,7 +1268,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("due", re.compile(r"^(?:what(?:'s| is|s)?|what do i have|anything|is anything|do i have anything) "
                        r"(?:(?P<what>overdue)|due(?: (?:on )?(?P<what2>today|tomorrow|this week|soon|monday|tuesday|wednesday"
                        r"|thursday|friday|saturday|sunday))?)(?: on my (?:list|tasks))?$"
-                       r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$")),
+                       r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$"
+                       # "What tasks are due this week", "show me my overdue tasks" (2026-10-07).
+                       r"|^(?:what|which) (?:tasks|things) (?:are|r) (?:due (?P<what4>today|tomorrow|this week|soon)|(?P<what5>overdue))$"
+                       r"|^(?:show me|list|read me|what are|tell me) (?:my |the )?(?P<what6>overdue) (?:tasks|things|items)$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
     ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
                                 r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
@@ -1410,7 +1423,7 @@ def match(question: str) -> tuple[str, str] | None:
             return name, text
         if name in ("until_weeks", "tip", "currency"):
             return name, text
-        rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
+        rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7",
@@ -1422,7 +1435,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "need_q", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4823,6 +4836,40 @@ def _time_zone() -> str:
     return said
 
 
+def _coming_up(when: str = "", calendar_only: bool = False) -> str:
+    """What is ahead on his calendar and in his reminders: the next few, or
+    the ones inside the day (or the evening) he named."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    rows = [(at.astimezone(tz), text, store) for at, text, store in _coming(now)
+            if store == "calendar" or not calendar_only]
+    when = str(when or "").strip()
+    if when in ("today", "tonight", "this evening"):
+        rows = [r for r in rows if r[0].date() == now.date() and (when == "today" or r[0].hour >= 17)]
+    elif when == "tomorrow":
+        rows = [r for r in rows if r[0].date() == now.date() + dt.timedelta(days=1)]
+    else:
+        rows = [r for r in rows if r[0] <= now + dt.timedelta(days=7)]
+    if not rows and calendar_only:
+        return f"No meetings {when}."
+    if not rows:
+        return {"": "Nothing coming up in the next week - no events and no reminders.",
+                "tomorrow": "Nothing on your calendar or in your reminders tomorrow."}.get(
+            when, f"Nothing on your calendar or in your reminders {when}.")
+
+    def line(row) -> str:
+        at, text, store = row
+        clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        day = "" if when else ("today " if at.date() == now.date() else "tomorrow " if at.date() == now.date()
+                               + dt.timedelta(days=1) else f"{at.strftime('%A')} ")
+        said = text.rstrip(".") if store == "calendar" else f"reminder: {text.rstrip('.')}"
+        return f"{day}{clock}, {said}"
+    lead = speech.count_phrase(len(rows), "meeting" if calendar_only else "thing") + (f" {when}" if when else " coming up")
+    return f"{lead}: " + "; ".join(line(r) for r in rows[:5]) + (f"; and {len(rows) - 5} more" if len(rows) > 5 else "") + "."
+
+
 def _alarm_left() -> str:
     """His next alarm and how long until it, from the reminder store."""
     import datetime as dt
@@ -6006,6 +6053,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
            "alarm_left": lambda rest: _alarm_left(),
+           "coming_up": lambda rest: _coming_up(rest),
+           "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
            "reminders_on": lambda rest: _reminders_on(rest),
