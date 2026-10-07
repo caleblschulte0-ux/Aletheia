@@ -43,3 +43,30 @@ class AnythingTomorrowIsHisCalendar(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HowLongLeftOnTheTimer(unittest.TestCase):
+    def test_it_is_a_subtraction(self):
+        import datetime as dt
+        now = dt.datetime(2026, 10, 7, 1, 0, tzinfo=dt.timezone.utc)
+        rows = [{"kind": "once", "at": "2026-10-07T01:09:30+00:00",
+                 "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"}},
+                {"kind": "once", "at": "2026-10-07T02:30:00+00:00",
+                 "command": {"kind": "notify_operator", "text": "your 2-hour timer is up"}},
+                {"kind": "once", "at": "2026-10-07T03:00:00+00:00",
+                 "command": {"kind": "notify_operator", "text": "pay rent"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows):
+            said = voice._timer_left(now)
+        self.assertEqual(said, "9 minutes left on your 10-minute timer and "
+                               "1 hour and 30 minutes left on your 2-hour timer.")
+
+    def test_no_timer_says_so(self):
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[]):
+            self.assertEqual(voice._timer_left(), "No timer is running.")
+
+    def test_the_question_reaches_it(self):
+        for said in ("how long left on my timer", "how much time is left on the timer",
+                     "when will my timer go off"):
+            out = voice._interpret(said) or {}
+            self.assertIsNone(out.get("command"), said)
+            self.assertTrue(out.get("say"), said)

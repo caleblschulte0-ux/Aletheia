@@ -17,6 +17,7 @@ touching the gates, because the output is only ever a command object.
 """
 from __future__ import annotations
 
+import datetime as dt
 import re
 
 from aletheia import capabilities, policy, speech, tasks
@@ -745,6 +746,37 @@ def _might_be_several(text: str) -> bool:
     return "," in t or " and " in t or " & " in t or " plus " in t
 
 
+def _timer_left(now=None) -> str:
+    """What is left on each running timer, from the reminder store."""
+    from aletheia import intercom, speech
+    now = now or dt.datetime.now(dt.timezone.utc)
+    left = []
+    for spec in intercom._reminder_schedules():
+        text = str((spec.get("command") or {}).get("text") or "")
+        m = re.fullmatch(r"your (.+?) timer is up", text)
+        if spec.get("kind") != "once" or not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(spec.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=dt.timezone.utc)
+        seconds = (at - now).total_seconds()
+        if seconds <= 0:
+            continue
+        minutes = int(seconds // 60)
+        amount = (speech.count_phrase(int(seconds), "second") if seconds < 60
+                  else speech.count_phrase(minutes, "minute") if minutes < 60
+                  else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))
+        left.append((seconds, f"{amount} left on your {m.group(1)} timer"))
+    if not left:
+        return "No timer is running."
+    left.sort()
+    said = speech.and_list([words for _, words in left])
+    return said[:1].upper() + said[1:] + "."
+
+
 def _a_plain_list(text: str) -> bool:
     """A list nobody has to guess at: the shopping store splits it into
     more than one row ("eggs, bread and butter", "milk and eggs"), and no
@@ -1428,6 +1460,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "forget",
                             "about": _as_he_said(transcript, m.group(1))},
                 "say": None}
+
+    # "HOW LONG LEFT ON MY TIMER" told him she couldn't think (2026-10-07,
+    # no model). A timer is a reminder with a time on it; the answer is a
+    # subtraction.
+    if re.fullmatch(r"(?:how (?:long|much time|many minutes)(?: is)? (?:left|remaining)|time left|"
+                    r"how long (?:until|till|before)|when (?:does|will))"
+                    r"(?: on| for| in)? (?:my|the|that) timers?(?: (?:go off|be done|ring|done))?"
+                    r"|how(?:'s| is) (?:my|the) timer(?: doing| going)?", low):
+        return {"command": None, "say": _timer_left()}
 
     # what is set, and stopping one. Before the "remind me" patterns so a
     # question about reminders is never read as a request for a new one.
