@@ -109,3 +109,17 @@ class HisNotes(unittest.TestCase):
                              {"kind": "forget", "about": "milk is out"})
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertEqual(voice._interpret("delete my last note")["say"], "You don't have any notes.")
+
+
+class BeforeTheMeeting(unittest.TestCase):
+    def test_lead_time_from_the_next_event(self):
+        from aletheia import calendar as cal, voice
+        start = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
+        events = [{"title": "Dentist", "start": start.isoformat(), "end": start.isoformat(), "status": "CONFIRMED"}]
+        with mock.patch.object(cal, "all_events", return_value=events):
+            cmd = voice._interpret("remind me 15 minutes before my meeting")["command"]
+            self.assertEqual(cmd["text"], "Dentist in 15 minutes")
+            self.assertEqual(dt.datetime.fromisoformat(cmd["at"]), start - dt.timedelta(minutes=15))
+            self.assertIn("standup", voice._interpret("remind me 10 minutes before my standup")["say"])
+        with mock.patch.object(cal, "all_events", return_value=[]):
+            self.assertIsNone(voice._interpret("remind me 15 minutes before my meeting")["command"])

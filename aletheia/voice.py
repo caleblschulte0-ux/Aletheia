@@ -1556,6 +1556,40 @@ def _interpret(transcript: str) -> dict:
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+    # "REMIND ME 15 MINUTES BEFORE MY MEETING" (2026-10-07: to the planner).
+    # The next event on his calendar - or the next one whose title has the
+    # words he said - less the lead time he gave.
+    m = re.fullmatch(r"remind me (?P<n>\w+(?: an)?) (?P<unit>minutes?|mins?|hours?) before (?:my |the )?(?:next )?"
+                     r"(?P<what>.+?)", low)
+    if m:
+        import datetime as dt
+        from aletheia import calendar as cal
+        amount = _spoken_amount(m.group("n"))
+        if amount:
+            lead = dt.timedelta(hours=amount) if m.group("unit").startswith("hour") else dt.timedelta(minutes=amount)
+            what = m.group("what").strip()
+            generic = what in ("meeting", "appointment", "event", "call", "thing", "one")
+            now = dt.datetime.now(dt.timezone.utc)
+            try:
+                upcoming = [e for e in cal.all_events()
+                            if e.get("status") != "CANCELLED" and cal.parse_time(e["start"]) > now + lead]
+            except Exception:
+                upcoming = []
+            if not generic:
+                words = [w for w in re.findall(r"[a-z0-9]+", what) if len(w) > 2]
+                upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
+            if not upcoming:
+                return {"command": None,
+                        "say": ("Nothing on your calendar coming up" if generic
+                                else f"I don't see {what} on your calendar coming up") + " to remind you before."}
+            event = upcoming[0]
+            at = (cal.parse_time(event["start"]) - lead).astimezone(dt.timezone.utc).isoformat()
+            said = f"{int(amount) if float(amount).is_integer() else amount} {m.group('unit').rstrip('s')}"
+            plural = "s" if amount != 1 else ""
+            return {"command": {"kind": "remind_at", "at": at,
+                                "text": f"{event.get('title') or 'your next event'} in {said}{plural}"},
+                    "say": None}
+
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:
         if m.group(1):
