@@ -6295,15 +6295,19 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
                        "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
-    m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
+    # "Note to self buy stamps" kept "to self buy stamps" (2026-10-07).
+    m = re.match(r"(?:(?:make a |take a |a )?note to (?:my)?self(?: that)?|make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
                  # "Write a note that the car needs oil" (2026-10-07: to the planner).
                  r"(?:write|leave|add) (?:me )?a note(?: that| saying| of|:)?|"
                  # "Note: buy a card for Dana" missed this (a colon, not a
                  # space), reached the planner and was refused as SPENDING
                  # (2026-10-07). Writing a line down commits nothing.
-                 r"note that|note|write down that|write down|log)(?:\s*:\s*|\s+)(.+)", low)
+                 r"note that|note|write down that|write down|log)(?:\s*[:,]\s*|\s+)(.+)", low)
+    if m and m.group(1).strip() in ("it", "that", "this"):
+        return {"command": None, "say": 'What should the note say? Say "note that the plumber comes Tuesday".'}
     if m:
-        return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
+        # In his capitals: "dana called" was what a note kept of "Dana called".
+        return {"command": {"kind": "note", "text": _as_he_said(text, m.group(1).strip())}, "say": None}
     # "Remember that my landlord is Mr Okafor" is the same note. With every
     # frontier off (2026-09-23) it was compiled by a rule into a plan that
     # waited for his approve - to write one line in her own store. "Remember

@@ -1426,5 +1426,17 @@ class DidTheTeamWinCase(unittest.TestCase):
             self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "research", said)
 
 
+class ANoteToSelfCase(unittest.TestCase):
+    def test_to_self_is_not_the_note(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("Note to self, buy stamps for Dana")["command"]["text"], "buy stamps for Dana")
+        self.assertEqual(voice._interpret("make a note to self that the car needs oil")["command"]["text"],
+                         "the car needs oil")
+
+    def test_a_note_of_it_asks(self):
+        from aletheia import voice
+        self.assertIsNone(voice._interpret("make a note of it")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()
