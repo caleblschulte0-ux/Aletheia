@@ -2488,5 +2488,24 @@ class WhereHeWorks(unittest.TestCase):
             self.assertIsNone(quick.answer("where do I work"))
 
 
+
+class WhatsAfterThat(unittest.TestCase):
+    """2026-10-07: "what's after that" after her next meeting went to a model."""
+
+    def test_the_one_after_the_one_she_named(self):
+        import datetime as dt
+        from aletheia import calendar, converse, quick, speech
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+        events = [{"title": "lunch with Sam", "start": soon.isoformat()},
+                  {"title": "dentist", "start": (soon + dt.timedelta(days=2)).isoformat()}]
+        said = f"Next up: lunch with Sam, {speech.humanize_time(soon.isoformat())}."
+        with mock.patch.object(calendar, "all_events", return_value=events), \
+             mock.patch.object(converse, "_thread", return_value=[{"you": "what's next", "her": said}]):
+            self.assertTrue(quick.answer("what's after that").startswith("After that: dentist, "))
+        with mock.patch.object(calendar, "all_events", return_value=events), \
+             mock.patch.object(converse, "_thread", return_value=[{"you": "hi", "her": "Hello."}]):
+            self.assertIsNone(quick.answer("what's after that"))
+
+
 if __name__ == "__main__":
     unittest.main()

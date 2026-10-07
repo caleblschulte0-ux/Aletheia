@@ -355,6 +355,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Where do I work" after "I work at Acme" (2026-10-07: to a model).
     ("work_at", re.compile(
         r"^(?:where do i (?:work|go to school|study)|who do i work for|where(?:'s| is) my (?:work|job|office|school))\s*\??$")),
+    ("after_that", re.compile(
+        r"^(?:and |ok |okay )?(?:what(?:'s| is|s)? |what about |and )?(?:after that|next after that|the one after(?: that)?"
+        r"|after it|then what)\s*\??$")),
     ("person", re.compile(
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
@@ -5733,7 +5736,41 @@ def _next_meeting() -> str | None:
     when = str(appointment.get("when") or "").strip()
     if not when:
         return None
-    return f"{title} {when}." if title else f"You've got something {when}."
+    # "lunch with Sam Friday at 12 pm." began in lower case (2026-10-07).
+    return f"Next up: {title}, {when}." if title else f"You've got something {when}."
+
+
+def _after_that() -> str | None:
+    """"What's after that", once she has named something on his calendar:
+    the next one after it. Only when her last answer named one."""
+    import datetime as dt
+    try:
+        from aletheia import calendar, converse, speech
+        turns = converse._thread()
+        last = next((str(t.get("her") or "") for t in reversed(turns or []) if str(t.get("her") or "").strip()), "")
+        now = dt.datetime.now(dt.timezone.utc)
+        upcoming = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start >= now:
+                upcoming.append((start, str(event.get("title") or "").strip()))
+    except Exception:
+        return None
+    upcoming.sort(key=lambda pair: pair[0])
+    named = [i for i, (start, title) in enumerate(upcoming)
+             if title and title.casefold() in last.casefold() and speech.humanize_time(start.isoformat()) in last]
+    if not named:
+        return None
+    later = upcoming[max(named) + 1:]
+    if not later:
+        return "Nothing after that on your calendar."
+    start, title = later[0]
+    return f"After that: {title or 'something'}, {speech.humanize_time(start.isoformat())}."
 
 
 def _battery() -> str:
@@ -8110,6 +8147,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "work_at": lambda rest: _work_at(),
+           "after_that": lambda rest: _after_that(),
            "who_named": lambda rest: _who_named(rest),
            "contacts_count": lambda rest: _contacts_count(),
            "repeat": lambda rest: _repeat(),
