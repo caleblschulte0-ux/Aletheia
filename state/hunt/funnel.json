@@ -1,23 +1,25 @@
 {
   "batches": {
     "2026-10-07": {
-      "duplicate": 67,
+      "duplicate": 107,
       "employer_full": 0,
-      "minutes": 0,
+      "minutes": 37,
       "needs_account": 0,
-      "needs_answer": 6,
-      "not_realistic": 146,
-      "offered": 270,
-      "ready": 13,
-      "runs": 3,
+      "needs_answer": 7,
+      "not_realistic": 267,
+      "offered": 450,
+      "ready": 14,
+      "runs": 5,
       "unfit_clearance": 2,
-      "unfit_language": 1,
-      "unfit_license": 1,
-      "unfit_model": 13,
-      "unfit_sales": 81,
-      "unfit_years": 5,
-      "unjudged": 21,
-      "unreachable": 17,
+      "unfit_language": 3,
+      "unfit_license": 2,
+      "unfit_model": 17,
+      "unfit_sales": 190,
+      "unfit_years": 10,
+      "unjudged": 33,
+      "unreachable": 22,
+      "unreachable_ApplyError": 4,
+      "unreachable_no_form": 1,
       "weak_shot": 0
     }
   },
@@ -215,16 +217,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 39,
-      "found": 55,
+      "filled": 41,
+      "found": 63,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 24
+      "sent": 26
     }
   },
-  "generated_at": "2026-10-07T20:32:11Z",
-  "sent_all_time": 258,
+  "generated_at": "2026-10-07T22:47:26Z",
+  "sent_all_time": 260,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -235,7 +237,7 @@
     },
     "error": {
       "nothing_to_press_on_unread/filled": 8,
-      "nothing_to_press_on_unread/observed": 4,
+      "nothing_to_press_on_unread/observed": 5,
       "nothing_to_press_on_unread/submit_clicked": 1
     },
     "going_in_circles": {
@@ -269,12 +271,12 @@
     }
   },
   "totals": {
-    "filled": 369,
-    "found": 669,
+    "filled": 371,
+    "found": 677,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 258
+    "sent": 260
   },
   "waiting": {
     "asked_about": {
@@ -286,17 +288,22 @@
     },
     "closed": {
       "duplicate": 3,
-      "gone": 36,
+      "gone": 37,
       "left_approval_denied": 16,
       "left_captcha": 13,
-      "left_error": 11,
+      "left_error": 12,
       "left_going_in_circles": 14,
       "left_no_way_forward": 71,
       "left_out_of_steps": 3,
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
-      "not_a_form": 47,
+      "not_a_form_asks_nothing_on_bamboohr": 8,
+      "not_a_form_asks_nothing_on_employer_site": 7,
+      "not_a_form_asks_nothing_on_greenhouse": 1,
+      "not_a_form_asks_nothing_on_lever": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 26,
+      "not_a_form_signup_list_on_employer_site": 8,
       "not_realistic": 75
     },
     "failed": 59,

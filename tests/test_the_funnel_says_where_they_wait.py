@@ -54,7 +54,30 @@ class WhereTheyWait(unittest.TestCase):
                 row("CLOSED", closed_kind="left", closed_because="the browser could not finish it", closed_at=at),
                 row("CLOSED", closed_because="this posting is no longer available", closed_at=at)]
         self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
-                         {"gone": 1, "left": 1, "not_a_form": 2, "stale": 1})
+                         {"gone": 1, "left": 1, "not_a_form_other_on_employer_site": 2, "stale": 1})
+
+    def test_a_page_that_was_not_a_form_says_which_finding_and_which_system(self):
+        from aletheia import apply_run
+        at = "2026-10-06T10:00:00Z"
+        texts = {"signup": "a talent-network / job-alert signup, not an application",
+                 "nothing": ("nothing on this page asks for his name, email or phone, so it is not an "
+                             "application form - a bot check or a contact page looks like this"),
+                 "fill": ("there is no application form on this page to fill - the posting may have "
+                          "been taken down or the link was wrong")}
+        rows = [row("CLOSED", closed_kind=apply_run.NOT_A_FORM, closed_because=texts["signup"],
+                    url="https://careers.acme.example/alerts", closed_at=at),
+                row("CLOSED", closed_kind=apply_run.NOT_A_FORM, closed_because=texts["nothing"],
+                    url="https://jobs.ashbyhq.com/acme/1/application", closed_at=at),
+                row("CLOSED", closed_kind=apply_run.NOT_A_FORM, closed_because=texts["fill"],
+                    url="https://boards.greenhouse.io/embed/job_app?for=acme&token=1", closed_at=at),
+                row("CLOSED", closed_kind=apply_run.NOT_A_FORM, closed_because=texts["fill"],
+                    url="https://acme.wd5.myworkdayjobs.com/x", closed_at=at)]
+        closed = hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"]
+        self.assertEqual(closed, {"not_a_form_asks_nothing_on_ashbyhq": 1,
+                                  "not_a_form_nothing_to_fill_on_greenhouse": 1,
+                                  "not_a_form_nothing_to_fill_on_myworkdayjobs": 1,
+                                  "not_a_form_signup_list_on_employer_site": 1})
+        self.assertNotIn("acme", json.dumps(closed))
 
     def test_an_application_the_browser_left_is_counted_by_the_wall(self):
         at = "2026-10-06T10:00:00Z"
@@ -113,6 +136,19 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(held["failed_because"], {"ApplyError": 1, "TimeoutError": 1, "never_pressed": 1,
                                                   "other": 1, "site_refused": 1})
         self.assertNotIn("acme", json.dumps(held).casefold())
+
+    def test_an_exception_not_called_error_is_still_named(self):
+        class PressNeverReached(RuntimeError):
+            pass
+        rows = [row("FAILED", failure="PressNeverReached: Acme's button never came"),
+                row("FAILED", failure="DoorDash: they said no"),
+                row("FAILED", last_failure="TimeoutError: acme.example was slow"),
+                row("FAILED")]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]["failed_because"]
+        self.assertEqual(held, {"PressNeverReached": 1, "TimeoutError": 1, "no_reason_written": 1,
+                                "other": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
+        self.assertNotIn("doordash", json.dumps(held).casefold())
 
     def test_nothing_that_names_an_employer_is_published(self):
         rows = [row("CLOSED", closed_because="Acme Robotics said no", company="Acme Robotics",
