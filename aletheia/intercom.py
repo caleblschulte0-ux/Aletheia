@@ -2301,7 +2301,28 @@ def free_time_answer(cmd: dict) -> str:
     # and he has no way to tell that it happened.
     if part:
         slots = cal.in_part(slots, part)
-    said = _free_sentence(cal.merge_slots(slots), day, part)
+    ranges = cal.merge_slots(slots)
+    # "When's my next free hour" at 2:30 pm said "Free today 9 am to 5 pm"
+    # (2026-10-07): the morning was already gone. Today starts now.
+    try:
+        now = _dt.datetime.now(_dt.timezone.utc)
+        if day != now.astimezone(localtime.operator_tz()).date():
+            raise ValueError("not today")
+        kept = []
+        for a, b in ranges:
+            end = _dt.datetime.fromisoformat(b)
+            if end.astimezone(_dt.timezone.utc) <= now + _dt.timedelta(minutes=minutes):
+                continue
+            begin = _dt.datetime.fromisoformat(a)
+            if begin.astimezone(_dt.timezone.utc) < now:
+                step = now.astimezone(begin.tzinfo)
+                step = step.replace(second=0, microsecond=0) + _dt.timedelta(minutes=(15 - step.minute % 15) % 15)
+                a = step.isoformat()
+            kept.append((a, b))
+        ranges = kept
+    except (TypeError, ValueError):
+        pass
+    said = _free_sentence(ranges, day, part)
     # AN EMPTY CALENDAR AND THE WRONG CALENDAR GIVE THE SAME ANSWER.
     # "Free tomorrow afternoon 12 pm to 5 pm", said with no hedge, when
     # the connected feed holds ZERO events for two months in either
@@ -4041,7 +4062,26 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # verbatim, quotes and all. He cannot act on that; he can act
             # on being told to name the place once.
             place = str(cmd["place"])
-            named = f"the {place}" if re.fullmatch(r"[a-z]+", place) and place not in ("work", "home", "school", "church") else place
+            # "the chicago" (2026-10-07): a city is a NAME, and a name takes
+            # its capitals and no article. Only an ordinary place noun - the
+            # airport, the gym - is "the" one.
+            try:
+                from aletheia import quick as _quick
+                common = set(_quick._COMMON_PLACES)
+            except Exception:  # noqa: BLE001
+                common = set()
+            if place in ("work", "home", "school", "church"):
+                named = place
+            elif re.fullmatch(r"[a-z]+", place) and place in common:
+                named = f"the {place}"
+            elif re.fullmatch(r"[a-z][a-z .'-]*", place) and not re.match(r"(?:the|my|our|a|an) ", place):
+                named = " ".join(w[:1].upper() + w[1:] for w in place.split())
+            else:
+                named = place
+            if named[:1].isupper() and named not in ("work", "home"):
+                raise act.Refused(
+                    f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
+                    f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
             raise act.Refused(
                 f"I don't know where {named} is. Say \"{named} is at\" and the address, "
                 "and I'll remember it.") from None
@@ -4066,6 +4106,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # §104: never invent a duration. An unobserved trip is unknown,
             # but where it is is not, and that is half of what he asked.
             if not home:
+                # "My address is 12 Oak Street" is kept as his address, not
+                # as a place (2026-10-07), and this said there was no home
+                # address one breath after he gave it.
+                try:
+                    from aletheia import memory as _memory
+                    his = _memory.recall("identity", "address")
+                except Exception:  # noqa: BLE001
+                    his = None
+                if his:
+                    return f"{where}. I've never timed the trip from home, so I won't guess how long it takes."
                 return f"{where}. I have no home address to measure from, so I won't guess how long it takes."
             return f"{where}. I've never timed the trip there, so I won't guess how long it takes."
         return (f"{destination['name']}: {observed.get('minutes', '?')} minutes "
@@ -4159,6 +4209,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import subscriptions
         rows = subscriptions.all_subscriptions(active_only=True)
         if not rows:
+            # "My Netflix is 15 a month" is a note (2026-10-07), and this
+            # said "No subscriptions are being tracked" beside it - a
+            # writer with no reader. What he told her is the answer.
+            try:
+                from aletheia import quick as _quick
+                told = _quick._cost_mine("what are my bills")
+            except Exception:  # noqa: BLE001
+                told = None
+            if told:
+                return "I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
             return "No subscriptions are being tracked."
         monthly = [subscriptions.monthly_equivalent(r) for r in rows]
         total = sum(m for m in monthly if m)
@@ -4303,11 +4363,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if cmd.get("email"):
             addr, _ = mail_mod.resolve_address(cmd["email"])
             if addr is None or "@" not in addr:
-                return f"that didn't sound like an email address: {cmd['email']!r}"
+                return (f"{cmd['email']} doesn't look like an email address to me. Say it like "
+                        "\"sam at example dot com\" and I'll save it.")
         if cmd.get("phone"):
             phone = _messages.normalize_number(cmd["phone"])
             if not _messages.looks_like_a_number(phone):
-                return f"that didn't sound like a phone number: {cmd['phone']!r}"
+                return (f"{cmd['phone']} doesn't look like a whole phone number. Say it with the area code, "
+                        "like \"312 555 1234\", and I'll save it.")
         if not addr and not phone:
             # A contact she cannot reach is not a contact, and saying so
             # is better than storing a name that fails at send time.

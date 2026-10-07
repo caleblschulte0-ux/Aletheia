@@ -92,7 +92,7 @@ class SavingAContactCase(unittest.TestCase):
 
     def test_a_number_that_is_not_a_number_is_refused(self):
         """Ten digits or more; "12" is a house number or a mishearing."""
-        self.assertIn("didn't sound like a phone number", self._add(
+        self.assertIn("doesn't look like a whole phone number", self._add(
             name="Bad", phone="12"))
 
     def test_the_grammar_requires_only_a_name(self):
