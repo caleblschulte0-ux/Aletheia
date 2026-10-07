@@ -1528,7 +1528,22 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
-    return _his_capitals(strip_wake_word(transcript), _interpret(transcript))
+    return _his_capitals(strip_wake_word(transcript), _no_reminder_about_a_pronoun(_interpret(transcript)))
+
+
+_PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing"}
+
+
+def _no_reminder_about_a_pronoun(said: dict) -> dict:
+    """"Remind me about this tomorrow" set a reminder whose whole text was
+    "this" (2026-10-07). At nine tomorrow "this" means nothing, so she asks
+    what, rather than keep a reminder he cannot use."""
+    cmd = (said or {}).get("command") or {}
+    if str(cmd.get("kind", "")).startswith("remind_") and \
+            str(cmd.get("text") or "").strip().lower() in _PRONOUN_ONLY:
+        return {"command": None, "say": "What should I remind you about? Say it with the thing, like "
+                                        "\"remind me tomorrow to call the bank\"."}
+    return said
 
 
 def _a_study_is_open() -> bool:
@@ -1589,6 +1604,13 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
+    # "Every weekday at 8 remind me to stretch" (2026-10-07: to the planner):
+    # the when said first. The same sentence with the when after "remind me"
+    # is one every reminder branch below already reads.
+    lead = re.fullmatch(r"((?:every|each|tomorrow|tonight|today|on|at|this|in) [a-z0-9: ]{1,40}?),? "
+                        r"remind me (to|about|that) (.+)", low)
+    if lead:
+        return _interpret(f"remind me {lead.group(1)} {lead.group(2)} {lead.group(3)}")
 
     # THE KILL SWITCH HAS TO CATCH THE SENTENCE HE WOULD ACTUALLY SAY.
     #
@@ -1757,7 +1779,7 @@ def _interpret(transcript: str) -> dict:
     # answer into the planner — twenty seconds for a question worth 50ms.
     if re.fullmatch(r"(what needs my attention|does anything need my attention|"
                     r"anything need my attention|what do i need to deal with|"
-                    r"what needs attention|anything need me)", low):
+                    r"what needs attention|anything need me|what'?s urgent|is anything urgent|anything urgent)", low):
         return {"command": None, "say": _attention_say()}
 
     if re.fullmatch(r"(status|what'?s going on|what is going on|what'?s up|"
@@ -2101,7 +2123,8 @@ def _interpret(transcript: str) -> dict:
                     r"|what(?:'s| is) my next reminder"
                     # "When's my next reminder", "what are my reminders" (2026-10-07: to a model)
                     r"|(?:what are|show(?: me)?|read(?: me)?|tell me) (?:all )?(?:my |the )?(?:reminders|alarms|timers)"
-                    r"|what reminders (?:have i (?:got|set)|did i set)", low):
+                    r"|what reminders (?:have i (?:got|set)|did i set)"
+                    r"|(?:what are |show me |read me )?my (?:recurring|repeating|regular) reminders", low):
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.
@@ -2928,7 +2951,7 @@ def _interpret(transcript: str) -> dict:
 
     # notifications
     if re.fullmatch(r"(?:check (?:my )?notifications?|any notifications?|"
-                    r"what's new|anything new|notifications?)", low):
+                    r"what's new|anything new|notifications?|any updates?|(?:are there )?any news for me)", low):
         return {"command": {"kind": "notify_check"}, "say": None}
     # MORE TIME ON THE TIMER, AND THE ALARM MOVED (2026-10-07: both to the planner).
     # Not "give me a minute": that is a nod to the room, and stays one.
@@ -3287,7 +3310,8 @@ def _interpret(transcript: str) -> dict:
                     # The phrasings a person actually uses. "Give me the
                     # brief" and "brief me" both went to the planner.
                     r"(?:give me|read me|run) (?:the |my |a )?(?:morning |daily )?brief(?:ing)?|"
-                    r"brief me|catch me up|what did i miss", low):
+                    r"brief me|catch me up|what did i miss|give me (?:a |the )?(?:summary|rundown|run-down)"
+                    r"|(?:sum (?:it|things) up|summari[sz]e (?:my day|today|things))(?: for me)?", low):
         return {"command": {"kind": "brief"}, "say": None}
 
     m = re.match(r"handle (?:it|this|that)[,: ]*(.*)$", low)
@@ -3385,7 +3409,8 @@ def _interpret(transcript: str) -> dict:
     # transactions", about a store with nothing in it. A question she can
     # answer from a store must never be left to a model without it.
     if re.fullmatch(r"(?:how much money do i have|what'?s my balance|"
-                    r"my net worth|how am i doing financially"
+                    r"(?:what'?s |what is )?my net worth|how am i doing financially"
+                    r"|(?:check|show me|read me|tell me) my (?:bank )?(?:balance|balances|accounts)"
                     r"|what'?s my bank balance|what'?s in (?:my|the) bank"
                     r"|what do i have in (?:my|the) bank"
                     r"|how much (?:do i have|money is there)"

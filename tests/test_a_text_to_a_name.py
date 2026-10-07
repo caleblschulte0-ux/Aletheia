@@ -408,5 +408,38 @@ class CalendarArithmetic(unittest.TestCase):
         self.assertIsNone(quick._born_in("1066"))
 
 
+
+class AReminderAboutAPronoun(unittest.TestCase):
+    def test_this_is_asked_about(self):
+        said = voice.interpret("remind me about this tomorrow")
+        self.assertIsNone(said["command"])
+        self.assertIn("What should I remind you about", said["say"])
+
+    def test_a_real_thing_is_kept(self):
+        self.assertEqual(voice.interpret("remind me tomorrow to call the bank")["command"]["kind"], "remind_at")
+
+
+
+class TheWhenSaidFirst(unittest.TestCase):
+    def test_every_weekday_first(self):
+        self.assertEqual(voice._interpret("every weekday at 8 remind me to stretch")["command"],
+                         voice._interpret("remind me every weekday at 8 to stretch")["command"])
+
+    def test_tomorrow_first(self):
+        self.assertEqual(voice._interpret("tomorrow at 3 remind me to call the bank")["command"]["text"], "call the bank")
+
+
+class OtherWaysToAskTheSameThing(unittest.TestCase):
+    def test_updates_urgent_summary_and_recurring(self):
+        self.assertEqual(voice._interpret("any updates")["command"], {"kind": "notify_check"})
+        self.assertEqual(voice._interpret("give me a summary")["command"], {"kind": "brief"})
+        self.assertEqual(voice._interpret("what are my recurring reminders")["command"], {"kind": "reminders"})
+        self.assertIsNone(voice._interpret("what's urgent")["command"])
+
+    def test_net_worth_and_bank_balance_read_the_money_store(self):
+        for said in ("what's my net worth", "check my bank balance", "show me my accounts"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "money"}, said)
+
+
 if __name__ == "__main__":
     unittest.main()
