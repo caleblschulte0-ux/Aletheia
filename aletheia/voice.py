@@ -3091,7 +3091,6 @@ def _interpret(transcript: str) -> dict:
                      # "Turn up the volume" fell to the planner (2026-10-07).
                      r"turn (?P<dir3>up|down) (?:the )?(?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
-                     r"turn (?P<dir3>up|down) the (?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
                      r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
                      r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
