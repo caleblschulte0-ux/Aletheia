@@ -4586,7 +4586,7 @@ def _interpret(transcript: str) -> dict:
     if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
         # "Add call the dentist to my list" went on the SHOPPING list
         # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
-        return _new_task(m.group(1).strip())
+        return _new_task(_as_he_said(text, m.group(1).strip()))
     if m and _might_be_several(m.group(1)) and _a_plain_list(m.group(1)):
         # "Add eggs, bread and butter to my shopping list" asked for an
         # APPROVAL with no model (2026-10-07) - for the thing one item does
@@ -5801,7 +5801,7 @@ def _interpret(transcript: str) -> dict:
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
-        return _new_task(m.group(1).strip())
+        return _new_task(_as_he_said(text, m.group(1).strip()))
     # "Add pay rent to my tasks for Friday" was refused as SPENDING by a
     # planner door (2026-10-07). A task with a day is a task with a deadline.
     m = re.fullmatch(r"(?:add|put) (?P<what>.+?) (?:to|on) (?:my |the )?(?:tasks?|task list|todos?|to-?dos?)"
