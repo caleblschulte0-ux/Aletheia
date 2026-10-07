@@ -3895,7 +3895,8 @@ def _interpret(transcript: str) -> dict:
                             "value": m.group(1)}, "say": None}
     m = re.fullmatch(r"(?:my name is|my name's|you can call me|please call me|call me) "
                      r"([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,3})", low)
-    if m and not re.match(r"(?:not|what|who|wrong|spelled|spelt)\b", m.group(1)) \
+    if m and not re.match(r"(?:not|what|who|wrong|spelled|spelt|on|in|the|a|an|at|missing|still|also|now|being"
+                          r"|already|me|it|that|this)\b", m.group(1)) \
             and not re.fullmatch(r"(?:back|later|tomorrow|tonight|now|soon|when .+|if .+|at .+|in .+)", m.group(1)) \
             and not (low.startswith("call me") and len(m.group(1).split()) > 1):
         name = _as_he_said(text, m.group(1)).strip()

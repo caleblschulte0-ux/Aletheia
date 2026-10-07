@@ -665,8 +665,9 @@ def spoken_receipt(kind: str, detail: str, *,
         # value never lands in a committed receipt: "remembered identity.full_name".
         slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
         if slot:
-            what = {"full_name": "name", "operator_name": "name", "postal_code": "zip code"}.get(slot.group(1), deslug(slot.group(1)))
-            return f"Got it - I'll remember your {what}."
+            what = {"full_name": "your name", "operator_name": "what to call you", "postal_code": "your zip code",
+                    "zip_code": "your zip code"}.get(slot.group(1), "your " + deslug(slot.group(1)).replace("_", " "))
+            return f"Got it - I'll remember {what}."
     if kind == "task_change":
         changed = re.match(r"(dropped|renamed|moved)\s*[—-]\s*(.+)", text)
         if changed:

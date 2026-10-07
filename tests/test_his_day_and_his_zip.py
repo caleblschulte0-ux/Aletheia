@@ -37,7 +37,7 @@ class HisDay(unittest.TestCase):
 class HisZip(unittest.TestCase):
     def test_said_is_remembered(self):
         self.assertEqual(voice.interpret("my zip code is 78701")["command"],
-                         {"kind": "remember", "domain": "identity", "key": "zip_code", "value": "78701"})
+                         {"kind": "remember", "domain": "identity", "key": "postal_code", "value": "78701"})
 
     def test_the_weather_finds_it(self):
         from aletheia import memory
