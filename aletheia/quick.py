@@ -607,8 +607,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What tasks do I have today" (2026-10-07: to the planner), and
         # "what did I forget", which is the overdue list asked guiltily.
         r"|^what tasks (?:do i have|have i got|are there|are on my list)(?: due)? (?P<due3>today|tomorrow|this week)\s*\??$"
-        r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something))"
-        r"(?P<due4>)\s*\??$")),
+        # "What am I forgetting" (2026-10-07: to a model).
+        r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
+        r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
+        r"(?: today)?(?P<due4>)\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a

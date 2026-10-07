@@ -2861,5 +2861,12 @@ class BudgetsAndGoals(unittest.TestCase):
             self.assertEqual(quick.answer("what's my budget"), "You told me: your budget is 2000 a month.")
 
 
+class WhatHeIsForgetting(unittest.TestCase):
+    def test_forgetting_is_his_day_not_a_model(self):
+        from aletheia import quick
+        for asked in ("what am I forgetting", "am I forgetting anything", "did I forget something today"):
+            self.assertEqual((quick.match(asked) or ("",))[0], "tasks_due", asked)
+
+
 if __name__ == "__main__":
     unittest.main()
