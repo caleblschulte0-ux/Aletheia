@@ -958,6 +958,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:hot|cold|warm) (?:will it be|is it going to be|is it)(?: outside)?(?: (?P<wm3>today|tonight|tomorrow))?$"
         r"|^what should i wear(?: (?P<wm4>today|tonight|tomorrow))?$"
         r"|^do i need (?:a jacket|a coat|sunscreen|boots)(?: (?P<wm5>today|tonight|tomorrow))?$")),
+    ("fun_fact", re.compile(r"^(?:tell me|give me|got|know) (?:a |another |any )?(?:fun |random |cool |interesting )?facts?$"
+                            r"|^tell me something (?:interesting|cool)$")),
+    ("quote", re.compile(r"^(?:give me|tell me|say|read me) (?:a |another )?(?:quote|motivational quote|inspiring quote)$"
+                         r"|^(?:quote of the day|what's the quote of the day)$")),
 )
 
 
@@ -2406,6 +2410,34 @@ def _weather_more(text: str) -> str | None:
     return _weather(day)
 
 
+#: Small, true, and checkable - a fact list a person could verify in a
+#: minute, never a model's recollection read out as fact.
+FUN_FACTS = (
+    "Honey doesn't spoil - edible honey has been found in ancient Egyptian tombs.",
+    "Octopuses have three hearts and blue blood.",
+    "A day on Venus is longer than its year.",
+    "Bananas are berries, and strawberries aren't.",
+    "The Eiffel Tower grows about 15 centimeters taller in summer, because the iron expands in the heat.",
+    "Sharks were around before trees were.",
+    "A group of flamingos is called a flamboyance.",
+    "Your stomach gets a new lining every few days, so it doesn't digest itself.",
+)
+
+QUOTES = (
+    "\"The secret of getting ahead is getting started.\" - attributed to Mark Twain.",
+    "\"It always seems impossible until it's done.\" - Nelson Mandela.",
+    "\"Well done is better than well said.\" - Benjamin Franklin.",
+    "\"You miss 100 percent of the shots you don't take.\" - Wayne Gretzky.",
+    "\"The best way out is always through.\" - Robert Frost.",
+    "\"Whether you think you can, or you think you can't - you're right.\" - attributed to Henry Ford.",
+)
+
+
+def _pick(rows) -> str:
+    import secrets
+    return secrets.choice(rows)
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3790,6 +3822,8 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "fun_fact": lambda rest: _pick(FUN_FACTS),
+           "quote": lambda rest: _pick(QUOTES),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,

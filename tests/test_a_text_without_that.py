@@ -67,3 +67,9 @@ class ANeedIsAListLine(unittest.TestCase):
             self.assertEqual(voice._interpret("take eggs off")["command"], {"kind": "shopping_off", "item": "eggs"})
         with mock.patch.object(voice, "_on_the_shopping_list", return_value=False):
             self.assertNotEqual(voice._interpret("take eggs off")["command"]["kind"], "shopping_off")
+
+
+class SmallTreats(unittest.TestCase):
+    def test_a_fact_and_a_quote_from_her_own_lists(self):
+        self.assertIn(quick.answer("tell me a fun fact"), quick.FUN_FACTS)
+        self.assertIn(quick.answer("give me a quote"), quick.QUOTES)
