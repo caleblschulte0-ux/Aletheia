@@ -1072,5 +1072,27 @@ class TheAnswerToWhichOne(unittest.TestCase):
                              or {}).get("kind"), "reminder_off")
 
 
+class ASpokenListHasNoCommas(unittest.TestCase):
+    """Speech-to-text writes "add milk eggs and bread", and that went to the
+    planner because "milk eggs" read as one thing with a long name."""
+
+    def test_a_run_of_plain_things_is_a_list(self):
+        from aletheia import intercom
+        self.assertEqual(intercom.shopping_items_of("milk eggs and bread"), ["milk", "eggs", "bread"])
+        self.assertEqual(intercom.shopping_items_of("eggs milk butter and cheese"),
+                         ["eggs", "milk", "butter", "cheese"])
+        for one in ("salt and vinegar chips", "oat milk and eggs", "peanut butter eggs and bread"):
+            self.assertEqual(len(intercom.shopping_items_of(one)), 1, one)
+        self.assertEqual(voice.interpret("add milk eggs and bread to my list")["command"]["kind"], "shopping_add")
+
+
+class HealthReadingsLiveOnHisPhone(unittest.TestCase):
+    def test_steps_are_answered_honestly(self):
+        for said in ("how many steps did i take", "what's my heart rate", "did i hit my steps goal"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("phone or watch", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

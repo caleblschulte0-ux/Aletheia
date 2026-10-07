@@ -1955,6 +1955,19 @@ SHOPPING_EVERYTHING = frozenset({"everything", "all", "all of it", "the whole li
 
 #: Things whose NAME has "and" in it. Short on purpose: anything not here
 #: that is two single words ("milk and eggs") is two rows.
+#: Things that are a whole item said as one word, for telling a spoken run
+#: of them ("milk eggs and bread") from one thing with a long name.
+GROCERY_WORDS = frozenset("""
+milk eggs bread butter cheese yogurt cream coffee tea sugar flour salt pepper rice pasta
+beans cereal oatmeal apples bananas oranges lemons limes grapes berries strawberries
+blueberries avocados tomatoes potatoes onions garlic carrots lettuce spinach broccoli
+celery cucumbers peppers mushrooms corn chicken beef pork bacon ham turkey sausage fish
+salmon tuna shrimp tofu juice water soda beer wine chips crackers cookies honey jam
+ketchup mustard mayo mayonnaise oil vinegar soap shampoo toothpaste deodorant detergent
+napkins batteries foil diapers wipes razors lightbulbs nuts almonds peanuts popcorn
+salsa hummus tortillas bagels muffins granola ice candy chocolate gum bleach sponges
+""".split())
+
 SHOPPING_ONE_THING = ("mac and cheese", "macaroni and cheese", "half and half", "fish and chips",
                       "salt and vinegar", "sweet and sour", "peanut butter and jelly",
                       "chips and salsa", "rice and beans", "pb and j", "pb&j")
@@ -1988,6 +2001,14 @@ def shopping_items_of(said: str) -> list[str]:
     parts = [p.strip() for p in re.split(r"\s+(?:and|&)\s+", text) if p.strip()]
     if len(parts) >= 2 and all(" " not in p for p in parts):
         return parts
+    # "MILK EGGS AND BREAD": speech-to-text writes no commas, so a spoken
+    # list arrives as words run together before its last "and". Split the
+    # run only when every word in it is a thing on its own, and only before
+    # the last "and" - "salt and vinegar chips" keeps its name.
+    if len(parts) == 2 and " " not in parts[1] and parts[1].casefold() in GROCERY_WORDS:
+        run = parts[0].split()
+        if len(run) >= 2 and all(w.casefold() in GROCERY_WORDS for w in run):
+            return run + [parts[1]]
     return [text]
 
 

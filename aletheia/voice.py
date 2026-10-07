@@ -3176,6 +3176,15 @@ def _interpret(transcript: str) -> dict:
         r"|(?:did|has) (?P<from3>[a-z][a-z' ]{0,30}?) (?:text|texted) me(?: back)?"
         r"|what did (?P<from4>[a-z][a-z' ]{0,30}?) (?:text|say in (?:his|her|their) text)(?: me)?(?: about)?)",
         said)
+    # "HOW MANY STEPS DID I TAKE" went to a model, which has no steps to
+    # count. Health readings live on his phone or watch, and saying so is
+    # the whole answer.
+    if re.fullmatch(r"(?:how many|what(?:'s| are| is)? my|did i (?:hit|reach|get)(?: my)?) "
+                    r"(?:steps?|step count|steps goal|heart rate|resting heart rate|sleep score|calories burned)"
+                    r"(?: (?:did i (?:take|do|walk|get|burn)|have i (?:taken|done|walked|burned)|today|yesterday|this week|goal))*",
+                    said):
+        return {"command": None,
+                "say": "I can't see your health data - steps, heart rate and sleep stay on your phone or watch."}
     if texts:
         who = next((g for g in texts.group("from1", "from2", "from3", "from4") if g), "")
         who = re.sub(r"^(?:my|the) ", "", who.strip())
