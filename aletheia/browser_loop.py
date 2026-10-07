@@ -1218,6 +1218,18 @@ def _drive(ctx, page, record: dict, goal: str, skill, site: dict, *, decide, bud
                 record["route"] = route
                 bm.save(record)
                 continue
+            opener = _application_opener(obs, record, tried)
+            if opener is not None and state != ps.REVIEW:
+                # THE POSTING'S OWN APPLY, on a page the site had already put
+                # values in. Pressed as a way in, not blessed as a send: she
+                # has written none of his answers, so there is nothing of his
+                # for it to send.
+                tried.add(tried_key(obs, opener))
+                page = _click(ctx, page, hands, obs["_refs"][opener["id"]], route, tracker, follow=obs["url"])
+                record["route"] = route
+                bm.save(record)
+                _note(record, f"opened the application with {opener['label'][:50]!r}")
+                continue
             result = None
             if kinds.get(ps.COMMIT) or kinds.get(ps.CREATE_ACCOUNT) or kinds.get(ps.SPEND):
                 result = _gate(ctx, page, obs, record, goal, route, attached, hold_s=hold_s, skill=skill)
@@ -1976,6 +1988,36 @@ def _search_control(obs: dict, tried: set) -> dict | None:
         return None
     return next((t for t in typed if t.get("role") in ("textbox", "combobox") and tried_key(obs, t) not in tried
                  and str(t.get("value") or "").strip()), None)
+
+
+#: The words a job posting's button uses to OPEN its application - never to
+#: send one. Anchored whole: "Quick apply", "1-click apply" and "Apply with
+#: my profile" are not here, because those are the ones that may send.
+_OPENER = re.compile(
+    r"^\s*(?:apply|apply (?:now|here|online|today)|apply (?:for|to) (?:this|the) "
+    r"(?:job|role|position|opening|vacancy|opportunity)|i(?:'|’)?m interested|i am interested|"
+    r"(?:start|begin) (?:your |my |an |the )?application|"
+    r"(?:continue|go|proceed) to (?:the )?application)\s*[>›→»]*\s*$", re.I)
+
+
+def _application_opener(obs: dict, record: dict, tried: set) -> dict | None:
+    """The posting's Apply, when it is the way IN and cannot be a send.
+
+    Live 2026-10-07, fifteen postings stopped at "tell me what to press": a
+    page whose search box or job-alert tick the SITE had filled reads as a
+    form holding answers, so its Apply was taken for the button that sends
+    them - on a page where she had written nothing at all. Only before she
+    has filled anything, only a label that says it opens an application,
+    only once per control.
+    """
+    if she_filled_something(record):
+        return None
+    for t in controls(obs).get(ps.COMMIT, []):
+        label = str(t.get("label") or "")
+        if _OPENER.match(label) and tried_key(obs, t) not in tried \
+                and not webtask.computer.committing_label(label) and not webtask.would_spend(label):
+            return t
+    return None
 
 
 def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],

@@ -472,3 +472,56 @@ class ARealPageSaysWhatItsControlsAre(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---- a posting's own Apply opens the application -----------------------------
+
+def posting_with_site_values(label, *, role="button"):
+    """A job posting the SITE has already put values in - its search box
+    holds the last search, a job-alert box is ticked - with one Apply."""
+    return obs("https://careers.example.org/opening/12",
+               "Account Manager. Responsibilities. Requirements.",
+               [{"role": "combobox", "label": "Location", "value": "Sioux Falls"},
+                {"role": "checkbox", "label": "Email me jobs like this", "checked": True},
+                {"role": role, "label": label}])
+
+
+class APostingsApplyIsTheWayIn(unittest.TestCase):
+    """Live 2026-10-07: fifteen postings stopped at "tell me what to press"
+    on their own Apply, because the site's values made the page read as a
+    form holding answers and the Apply as the button that sends them."""
+
+    def record(self, *, filled=False):
+        record = bm.open_mission("apply for this job", "https://careers.example.org/opening/12", inputs={})
+        record["route"] = [{"action": "type", "selector": "#sel1", "value": "Caleb"}] if filled else []
+        return record
+
+    def test_the_apply_it_used_to_stop_on_is_the_way_in(self):
+        for label in ("Apply", "Apply now", "Apply for this job", "Apply to this position",
+                      "I'm interested", "Begin your application",
+                      "Continue to application"):
+            with self.subTest(label=label):
+                page = posting_with_site_values(label)
+                self.assertEqual(ps.control_kind(label, role="button", on_form=True,
+                                                 sendable=ps.could_send(page)), ps.COMMIT,
+                                 "this is the page that used to stop")
+                found = browser_loop._application_opener(page, self.record(), set())
+                self.assertIsNotNone(found)
+                self.assertEqual(found["label"], label)
+
+    def test_once_she_has_written_his_answers_it_is_a_send_again(self):
+        self.assertIsNone(browser_loop._application_opener(posting_with_site_values("Apply now"),
+                                                           self.record(filled=True), set()))
+
+    def test_a_button_that_may_send_is_never_the_way_in(self):
+        for label in ("Quick apply", "1-click apply", "Easy Apply", "Apply with my profile",
+                      "Submit application", "Send application", "Weiter", "Apply and pay $5"):
+            with self.subTest(label=label):
+                self.assertIsNone(browser_loop._application_opener(
+                    posting_with_site_values(label), self.record(), set()))
+
+    def test_it_is_pressed_once(self):
+        page = posting_with_site_values("Apply now")
+        found = browser_loop._application_opener(page, self.record(), set())
+        tried = {browser_loop.tried_key(page, found)}
+        self.assertIsNone(browser_loop._application_opener(page, self.record(), tried))
