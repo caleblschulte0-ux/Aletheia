@@ -2924,6 +2924,8 @@ class AReminderSaidAsANoun(unittest.TestCase):
         self.assertEqual(cmd("add a monthly reminder to pay rent on the 1st")["kind"], "remind_monthly")
         self.assertEqual(cmd("add a weekly reminder to take out the trash on tuesdays")["days"], ["tuesday"])
         self.assertEqual(cmd("create a reminder to call mom at 5")["kind"], "remind_at")
+        self.assertEqual(cmd("remind me every day to take my pills at 9"),
+                         {"kind": "remind_daily", "time": "09:00", "text": "take my pills"})
         self.assertEqual(cmd("set a reminder for 3pm to call the bank")["text"], "call the bank")
         self.assertTrue(voice._interpret("set a reminder to stretch")["say"].startswith("When should I remind you"))
         # Weekly with no day is not quietly made a one-off.

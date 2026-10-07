@@ -3591,14 +3591,20 @@ def _interpret(transcript: str) -> dict:
     # thing (2026-10-07: to the planner; only the other order matched).
     m = re.fullmatch(r"remind me (?:every|each) (?P<part>morning|evening|night|day)(?: at (?P<time>[\w: ]+?))? (?:to|that) (?P<text>.+)", low)
     if m:
-        hhmm = (_spoken_time(m.group("time")) if m.group("time")
+        said_time, what = m.group("time"), m.group("text").strip()
+        # "Remind me every day to take my pills at 9" kept "at 9" in the
+        # reminder's words (2026-10-07). A time at the end is the when.
+        late = re.fullmatch(r"(?P<what>.+?) at (?P<time>\d{1,2}(?::\d{2})?(?: ?(?:am|pm|a\.m\.|p\.m\.))?|noon|midnight)", what)
+        if not said_time and late and _spoken_time(late.group("time")):
+            said_time, what = late.group("time"), late.group("what")
+        hhmm = (_spoken_time(said_time) if said_time
                 else {"morning": "09:00", "evening": "19:00", "night": "21:00"}.get(m.group("part"), DEFAULT_REMINDER_TIME))
-        if hhmm and m.group("time") and _is_bare_hour(m.group("time")) and int(hhmm[:2]) < 12 \
+        if hhmm and said_time and _is_bare_hour(said_time) and int(hhmm[:2]) < 12 \
                 and (m.group("part") in ("evening", "night") or int(hhmm[:2]) <= EARLIEST_BARE_HOUR):
             hhmm = f"{int(hhmm[:2]) + 12:02d}{hhmm[2:]}"      # "every night at 10" is ten at night
         if hhmm:
             return {"command": {"kind": "remind_daily", "time": hhmm,
-                                "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+                                "text": _as_he_said(text, what)}, "say": None}
     m = re.match(r"remind me (?:every day|daily) at ([\w: ]+?) (?:to|that) (.+)", low)
     if m:
         hhmm = _spoken_time(m.group(1))
