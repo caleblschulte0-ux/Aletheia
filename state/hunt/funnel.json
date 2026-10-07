@@ -201,7 +201,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-07T10:35:05Z",
+  "generated_at": "2026-10-07T12:26:47Z",
   "sent_all_time": 235,
   "totals": {
     "filled": 355,
@@ -210,6 +210,19 @@
     "rejections": 3,
     "replies": 31,
     "sent": 235
+  },
+  "waiting": {
+    "closed": {
+      "duplicate": 3,
+      "not_realistic": 7,
+      "other": 276
+    },
+    "failed": 74,
+    "his_ok": {},
+    "needs_account": 0,
+    "needs_answer": 10,
+    "oldest_days": 24,
+    "to_send": 0
   },
   "window_days": 30
 }
