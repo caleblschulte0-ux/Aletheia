@@ -181,6 +181,41 @@ def internet_reachable(timeout_s: float = 2.0) -> bool:
     return False
 
 
+def memory_users(limit: int = 5, *, run=None) -> list[tuple[str, int]]:
+    """The programs holding the most memory, newest reading, largest first.
+
+    Summed by program name: Chrome is thirty processes and one answer to
+    "what's using my memory". Empty when the OS will not say. Never raises.
+    """
+    import subprocess
+    run = run or (lambda cmd: subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout)
+    totals: dict[str, int] = {}
+    try:
+        if sys.platform == "win32":
+            import csv
+            import io
+            out = run(["tasklist", "/fo", "csv", "/nh"])
+            for row in csv.reader(io.StringIO(out or "")):
+                if len(row) < 5:
+                    continue
+                name = row[0].rsplit(".", 1)[0] if row[0].lower().endswith(".exe") else row[0]
+                kb = "".join(ch for ch in row[4] if ch.isdigit())
+                if kb:
+                    totals[name] = totals.get(name, 0) + int(kb) * 1024
+        else:
+            out = run(["ps", "-eo", "rss=,comm="])
+            for line in (out or "").splitlines():
+                parts = line.strip().split(None, 1)
+                if len(parts) == 2 and parts[0].isdigit():
+                    totals[parts[1]] = totals.get(parts[1], 0) + int(parts[0]) * 1024
+    except Exception:
+        return []
+    # The OS's own bookkeeping is not a program he can close.
+    for name in ("System Idle Process", "Memory Compression", "Registry", "System", "Secure System"):
+        totals.pop(name, None)
+    return sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+
+
 def open_windows(limit: int = 12) -> list[str]:
     """Titles of the visible top-level windows, most recent first, no
     duplicates. Empty off Windows. Never raises."""

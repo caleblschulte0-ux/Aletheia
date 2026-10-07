@@ -158,10 +158,14 @@ class SaidOutLoudCase(unittest.TestCase):
                 self.assertFalse(said.endswith(short) and said[-2:-1].isdigit(),
                                  said)
 
-    def test_the_fast_lane_declines_when_she_does_not_know(self):
+    def test_the_fast_lane_never_invents_a_duration_it_does_not_know(self):
+        # It used to decline, which handed her own clock to a model that
+        # could not know it either. The rule is: no invented number.
         from aletheia import quick
         with mock.patch("aletheia.liveness.uptime_seconds", return_value=None):
-            self.assertIsNone(quick.answer("how long have you been up"))
+            said = quick.answer("how long have you been up")
+            self.assertIn("can't say", said)
+            self.assertFalse(any(ch.isdigit() for ch in said), said)
 
     def test_the_fast_lane_says_it_when_she_does(self):
         from aletheia import quick

@@ -330,6 +330,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (searched his contacts for "my ip"), whether the internet is up
     # (94 s of her own model, and "Thinking with no internet: yes"), and
     # what is open ("[Uses look at the desktop]" read out as prose).
+    # "What's using all my memory" went to the planner (2026-10-07); the OS
+    # lists the programs for free. "Why is my pc so slow" is the CPU's.
+    ("memory_users", re.compile(
+        r"^what(?:'s| is|s)? (?:using|eating|hogging|taking(?: up)?) (?:all |so much |up )?(?:of )?(?:my |the )?(?:memory|ram)"
+        r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
+        r"|^what (?:programs|apps) are using (?:the most |all the |all my )?(?:memory|ram)$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -338,7 +344,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is) (?:my|this computer's|the|this machine's) ip(?: address)?$"
         r"|^what ip(?: address)? (?:am i on|is this|do i have)$")),
     ("internet", re.compile(
-        r"^(?:is|do (?:i|we) have) (?:the |an )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
+        r"^(?:is|do (?:i|we) have) (?:the |an |my |our )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
         r"(?: working| up| on| down| connected| okay| ok)?$"
         r"|^(?:am i|are we|are you) (?:online|connected|on the internet)$"
         r"|^(?:is|has) the (?:internet|wifi|wi-fi) (?:down|out|gone|back)$")),
@@ -2555,7 +2561,10 @@ def _uptime() -> str | None:
     from aletheia import liveness
     seconds = liveness.uptime_seconds()
     if seconds is None:
-        return None                 # she does not know; do not invent one (test_liveness)
+        # She does not know, and must not invent one (test_liveness). Nor can a
+        # model know better - declining sent this to the planner, which with
+        # nothing thinking said "I can't think just now" about her own clock.
+        return "I don't have a heartbeat record on this machine, so I can't say how long I've been on."
     return f"Up {liveness.spoken_duration(seconds)}."
 
 
@@ -3709,6 +3718,28 @@ def _machine() -> str:
     return said + "."
 
 
+def _memory_users() -> str:
+    """The biggest programs by memory, and how much is free, in one breath."""
+    from aletheia import machine, speech
+    users = machine.memory_users(4)
+    try:
+        found = machine.memory()
+        free, total = int(found.get("available") or 0), int(found.get("total") or 0)
+    except machine.UnknownMachine:
+        free = total = 0
+    if not users:
+        return "I can't see what's running on this computer right now."
+    named = speech.and_list([f"{name} with {machine.gigabytes(size)}" for name, size in users])
+    said = f"The biggest are {named}"
+    if total:
+        said += f". {machine.gigabytes(free)} of {machine.gigabytes(total)} is free"
+        if free < 2 * 1024 ** 3:
+            said += " - that's tight, so closing the top one would help most"
+        elif free > 0.3 * total:
+            said += ", so memory isn't what's slowing it down"
+    return said + ". I don't close programs myself; that could lose your work."
+
+
 def _disk() -> str:
     from aletheia import machine
     try:
@@ -3805,6 +3836,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
+           "memory_users": lambda rest: _memory_users(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
            "job_hunt": lambda rest: _job_hunt(),
