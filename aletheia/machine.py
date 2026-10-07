@@ -188,7 +188,11 @@ def memory_users(limit: int = 5, *, run=None) -> list[tuple[str, int]]:
     "what's using my memory". Empty when the OS will not say. Never raises.
     """
     import subprocess
-    run = run or (lambda cmd: subprocess.run(cmd, capture_output=True, text=True, timeout=10).stdout)
+    from aletheia import proc
+    # Windowless: the Core runs with no console, and tasklist from it would
+    # flash one on his screen (test_the_night_of_the_console_windows).
+    run = run or (lambda cmd: subprocess.run(cmd, capture_output=True, text=True, timeout=10,
+                                             creationflags=proc.hidden_flags()).stdout)
     totals: dict[str, int] = {}
     try:
         if sys.platform == "win32":
