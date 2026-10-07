@@ -729,6 +729,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what did (?:you|u) get done(?: today)?$"
         # A part of the day (2026-09-24, offline: "I can't think just now")
         r"|^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) (?P<day_part>this morning|this afternoon|this evening|tonight|earlier|earlier today|so far today)$"
+        # "What happened this morning" (2026-10-07: to a model).
+        r"|^what(?:'s| has)? happened (?P<day_part2>this morning|this afternoon|this evening|earlier|earlier today|so far today|today)$"
         # "Show me the journal" went to the planner, which compiled
         # `recall` and answered "I don't have anything remembered about
         # 'journal entries'" — a lookup in the wrong store.
@@ -1370,8 +1372,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("note_last", re.compile(
         r"^(?:what(?:'s| is|s| was)|read(?: me)?|tell me) (?:my |the )?(?:last|latest|newest|most recent) note\s*\??$")),
     ("notes_day", re.compile(
-        r"^what (?:did i|notes did i) (?:note|write down|jot down|save|take|make) (?P<notes_day>today|yesterday)\s*\??$"
-        r"|^(?:what are |read(?: me)? |show(?: me)? )?(?:my |the )?notes (?:from|for) (?P<notes_day2>today|yesterday)\s*\??$")),
+        r"^what (?:did i|notes did i) (?:note|write down|jot down|save|take|make) (?P<notes_day>today|yesterday|this week|last week)\s*\??$"
+        r"|^(?:what are |read(?: me)? |show(?: me)? )?(?:my |the )?notes (?:from|for) (?P<notes_day2>today|yesterday|this week|last week)\s*\??$")),
     # "Is milk on my list" went to the planner (2026-10-07). The list is a
     # store; whether a thing is on it is a read.
     ("shopping_has", re.compile(
@@ -1834,7 +1836,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
+                                           "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
@@ -5733,14 +5735,18 @@ def _notes_day(day: str) -> str:
     import datetime as dt
     from aletheia import localtime, speech
     tz = localtime.operator_tz()
-    want = dt.datetime.now(tz).date() - dt.timedelta(days=1 if day == "yesterday" else 0)
+    today = dt.datetime.now(tz).date()
+    # "What did I note last week" (2026-10-07: to a model) is a range.
+    first = {"yesterday": today - dt.timedelta(days=1), "this week": today - dt.timedelta(days=today.weekday()),
+             "last week": today - dt.timedelta(days=today.weekday() + 7)}.get(day, today)
+    last = {"yesterday": first, "last week": first + dt.timedelta(days=6)}.get(day, today)
     said = []
     for row in _notes():
         try:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
         except ValueError:
             continue
-        if at.date() == want:
+        if first <= at.date() <= last:
             said.append(speech.as_she_says_it(str(row.get("text") or "").strip()).rstrip("."))
     if not said:
         return f"No notes from {day}."

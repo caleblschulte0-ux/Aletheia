@@ -2159,5 +2159,25 @@ class ABareNumberIsMinutesCase(unittest.TestCase):
         self.assertIn("20-minute", voice._interpret("set a timer for 20")["command"]["text"])
 
 
+
+class WhatHappenedThisMorningCase(unittest.TestCase):
+    """2026-10-07: "what happened this morning" and "what did I note last week"
+    went to a model."""
+
+    def test_matched(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what happened this morning"), ("today", "this morning"))
+        self.assertEqual(quick.match("what did i note last week"), ("notes_day", "last week"))
+
+    def test_last_week_is_a_range(self):
+        from aletheia import quick, localtime
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        last_week = today - dt.timedelta(days=today.weekday() + 5)
+        stamp = dt.datetime.combine(last_week, dt.time(12), tzinfo=localtime.operator_tz()).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "the plumber is Bob", "ts": stamp}]):
+            self.assertIn("the plumber is Bob", quick._notes_day("last week"))
+            self.assertEqual(quick._notes_day("today"), "No notes from today.")
+
+
 if __name__ == "__main__":
     unittest.main()
