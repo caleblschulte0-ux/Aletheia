@@ -414,7 +414,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|take|charge|empty|fill|refill)(?:ed|d)? (?P<dc_o>[a-z][a-z' ]{1,40}?)(?P<dc_when> today| this week| this month| yesterday)?\s*\??$")),
     ("cost_mine", re.compile(
         r"^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
-        r"|^how much do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
+        r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)\s*\??$")),
     ("work_hours", re.compile(
@@ -9180,7 +9180,8 @@ def _did_count(text: str) -> str | None:
 _BILL_KEYS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )?insurance(?: payment| bill)?"
               r"|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill|water bill|gas bill|cable bill"
               r"|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition|gym membership|hoa(?: fees?)?"
-              r"|childcare|car loan|trash bill|sewer bill")
+              r"|childcare|car loan|trash bill|sewer bill"
+              r"|netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
 
 
 def _cost_mine(text: str) -> str | None:

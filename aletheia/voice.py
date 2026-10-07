@@ -1227,7 +1227,9 @@ _WENT = (r"went (?:for a |on a )(?:run|walk|swim|bike ride|ride|hike|jog)|went (
 _BILL_WORDS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )insurance(?: payment| bill)?"
                r"|insurance (?:payment|bill)|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill"
                r"|water bill|gas bill|cable bill|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition"
-               r"|gym membership|hoa(?: fees?)?|childcare|car loan|trash bill|sewer bill")
+               r"|gym membership|hoa(?: fees?)?|childcare|car loan|trash bill|sewer bill"
+               # "My Netflix is 15 a month" (2026-10-07: to the planner).
+               r"|netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
 _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"

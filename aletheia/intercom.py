@@ -4178,6 +4178,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import subscriptions
         rows = subscriptions.all_subscriptions(active_only=True)
         if not rows:
+            # "My Netflix is 15 a month" is a note (2026-10-07), and this
+            # said "No subscriptions are being tracked" beside it - a
+            # writer with no reader. What he told her is the answer.
+            try:
+                from aletheia import quick as _quick
+                told = _quick._cost_mine("what are my bills")
+            except Exception:  # noqa: BLE001
+                told = None
+            if told:
+                return "I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
             return "No subscriptions are being tracked."
         monthly = [subscriptions.monthly_equivalent(r) for r in rows]
         total = sum(m for m in monthly if m)

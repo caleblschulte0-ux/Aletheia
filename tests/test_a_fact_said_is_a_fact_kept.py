@@ -3939,5 +3939,22 @@ class SomebodyElsesThingsAreTheirs(unittest.TestCase):
         self.assertEqual(quick.match("what birthdays are coming up")[0], "birthdays")
 
 
+class AServiceHePaysForIsABill(unittest.TestCase):
+    """2026-10-07: "my Netflix is 15 a month" went to the planner, and "what
+    subscriptions do I have" said none were tracked beside it."""
+
+    def test_kept_and_read_back(self):
+        import datetime as dt
+        from aletheia import intercom, quick, subscriptions, voice
+        self.assertEqual(voice._interpret("my netflix is 15 a month")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("my netflix is down")["command"] or {}).get("kind"), "note")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my netflix is 15 a month", "ts": now}]):
+            self.assertIn("15 a month", quick.answer("what do i pay for netflix"))
+            with mock.patch.object(subscriptions, "all_subscriptions", return_value=[]):
+                said = intercom.execute_command({"kind": "subscriptions"}, None)
+            self.assertIn("netflix is 15 a month", said)
+
+
 if __name__ == "__main__":
     unittest.main()
