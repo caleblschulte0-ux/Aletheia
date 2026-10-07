@@ -4822,9 +4822,26 @@ def _notes_day(day: str) -> str:
             + (f"; and {len(said) - 5} more" if len(said) > 5 else "") + ".")
 
 
+#: Things nobody means anything but shopping by: "do I need milk" with milk
+#: not on the list is a plain no from the list, not a question for a model
+#: (2026-10-07: offline it was "I could not plan that").
+_STAPLES = frozenset((
+    "milk eggs bread butter cheese coffee tea sugar flour rice pasta apples bananas onions potatoes "
+    "garlic tomatoes lettuce carrots chicken beef pork bacon fish juice cereal yogurt yoghurt water "
+    "salt pepper oil soap shampoo toothpaste detergent cream oranges lemons grapes berries "
+    "strawberries avocados beans soup snacks chips crackers cookies ham turkey sausages"
+).split()) | {"toilet paper", "paper towels", "dish soap", "olive oil", "orange juice", "ice cream",
+              "peanut butter", "trash bags", "bin bags"}
+
+
 def _shopping_need(item: str) -> str | None:
     said = _shopping_has(item)
-    return said if said and said.startswith("Yes") else None
+    if said and said.startswith("Yes"):
+        return said
+    thing = " ".join(str(item or "").casefold().split())
+    if said and thing in _STAPLES:
+        return f"{thing[:1].upper()}{thing[1:]} isn't on your shopping list."
+    return None
 
 
 def _version() -> str | None:

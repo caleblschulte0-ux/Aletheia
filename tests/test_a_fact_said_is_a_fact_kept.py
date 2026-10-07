@@ -191,5 +191,14 @@ class MinutesFromNowIsAClock(unittest.TestCase):
         self.assertRegex(quick.answer("what's 30 minutes from now"), r"^\d{1,2}(?::\d\d)? [ap]m")
 
 
+class DoINeedMilkIsTheList(unittest.TestCase):
+    def test_a_staple_not_on_the_list_is_a_no(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_shopping_has", return_value="No - your shopping list is empty."):
+            self.assertEqual(quick._shopping_need("milk"), "Milk isn't on your shopping list.")
+            self.assertIsNone(quick._shopping_need("a visa"))
+
+
 if __name__ == "__main__":
     unittest.main()
