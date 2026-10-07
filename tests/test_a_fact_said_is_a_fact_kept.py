@@ -5012,5 +5012,23 @@ class AfterWorkIsNotBusy(unittest.TestCase):
         self.assertTrue(said.startswith("Your working hours are over"), said)
 
 
+class FreeHoursAndClearingADay(unittest.TestCase):
+    def test_an_hour_free_this_week(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("when do i have an hour free this week")["command"],
+                         {"kind": "calendar_find_free", "when": "this week", "minutes": 60})
+
+    def test_how_much_free_time_today(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("how much free time do i have today")["command"]["kind"], "free_time")
+
+    def test_clearing_a_day_is_said_plainly(self):
+        from aletheia import voice
+        for said in ("cancel everything tomorrow", "clear my afternoon"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("can't cancel things on your calendar", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

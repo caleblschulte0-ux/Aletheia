@@ -4795,6 +4795,34 @@ def _interpret(transcript: str) -> dict:
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
 
+    # "When do I have an hour free this week", "how much free time do I have
+    # today" (2026-10-07: to the planner). The same doors, with the length.
+    m = re.fullmatch(r"(?:when|where) (?:do|will|can) i (?:have|get|find) (?:an? |(?P<n>\d{1,3}|two|three|half an) )?"
+                     r"(?P<u>hours?|minutes?|mins?)(?: free| open| to myself)?(?: (?P<when>today|tomorrow|this week|next week"
+                     r"|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
+    if m:
+        n = {"two": 2, "three": 3, "half an": 0.5}.get(m.group("n") or "", None)
+        n = n if n is not None else (int(m.group("n")) if (m.group("n") or "").isdigit() else 1)
+        minutes = int(n * 60) if m.group("u").startswith("hour") else int(n)
+        when = m.group("when") or "this week"
+        if when in ("this week", "next week", "this weekend"):
+            return {"command": {"kind": "calendar_find_free", "when": when, "minutes": max(15, minutes)}, "say": None}
+        day, _part = _spoken_when(when)
+        if day:
+            return {"command": {"kind": "free_time", "day": day, "minutes": max(15, minutes)}, "say": None}
+    m = re.fullmatch(r"how much (?:free|spare|open) time (?:do i have|have i got|is there)(?: left)?(?: (?P<when>today|tomorrow"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
+    if m:
+        day, _part = _spoken_when(m.group("when") or "today")
+        if day:
+            return {"command": {"kind": "free_time", "day": day}, "say": None}
+    # "Cancel everything tomorrow", "clear my afternoon" (2026-10-07: to the
+    # planner). His calendar is not hers to empty; said plainly.
+    if re.fullmatch(r"(?:cancel|clear|wipe|drop) (?:everything|all|all my plans|my plans|my (?:morning|afternoon|evening|day|night|schedule))"
+                    r"(?: (?:today|tomorrow|tonight|on [a-z]+|this [a-z]+|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low):
+        return {"command": None,
+                "say": "I can't cancel things on your calendar yet - I can only add holds to it, so clear it there. "
+                       "If I pencilled something in, say \"cancel my\" and what it is, and I'll take it off."}
     # "FIND A TIME FOR LUNCH WITH SAM THIS WEEK" compiled a file search for
     # "time for lunch with sam this week" (2026-10-07). It is when he is free.
     m = re.fullmatch(r"(?:find|pick|suggest|give me|when(?:'s| is) there) (?:me )?(?:a |some )?(?:good )?time(?:s)? (?:for|to) "
