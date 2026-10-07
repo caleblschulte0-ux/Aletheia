@@ -1685,7 +1685,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)(?: today)?$"
         r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
-        r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile)$")),
+        r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
+        # "I have a headache" (2026-10-07: to a model) is "I'm sick".
+        r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
+        r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great))$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
     # every sentence it already had.
@@ -5132,7 +5135,7 @@ CRISIS = ("I'm really sorry you're feeling this way, and I'm glad you said it. P
 #: can really do. Never a work item and never a planner round trip.
 _FEELINGS = {
     "hungry": "Go eat something. If anything's run out, tell me and I'll put it on the shopping list.",
-    "bored": "Want a joke? Or say \"what's on my list\" and we'll knock something off it.",
+    "bored": "Say \"tell me a joke\", or \"what's on my list\" and we'll knock something off it.",
     "tired": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
     "exhausted": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
     "sleepy": "Then get some sleep. I'll keep things going quietly.",
@@ -5146,7 +5149,9 @@ _FEELINGS = {
     "sad": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
     "down": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
     "lonely": "I'm sorry. I'm here - and it might be a good moment to text someone you like. I can send it for you.",
-    "sick": "Rest up. Want me to set a reminder for medicine, or move anything off today?",
+    # A yes/no offer here was a dead end: "yes" found nothing waiting
+    # (2026-10-07). The sentence that does it is the offer.
+    "sick": "Rest up. If you want a nudge for medicine, say \"remind me in 4 hours to take medicine\".",
     "i can't sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
     "i cant sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
     "i need a break": "Take one. Say \"set a timer for 15 minutes\" and I'll tell you when it's up.",
@@ -5162,6 +5167,8 @@ def _feeling(text: str) -> str | None:
         said = "motivate me"
     if said in ("cheer me up", "make me smile"):
         said = "say something nice"
+    if re.match(r"i(?:'ve| have)|i (?:don'?t|do not) feel", said):
+        said = "sick"
     if said.startswith(("i'm having", "im having", "i had a")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)

@@ -1470,5 +1470,14 @@ class WhenIsItFromANoteCase(unittest.TestCase):
             self.assertIsNone(quick._when_mine("dentist appointment"))
 
 
+class AHeadacheIsBeingSickCase(unittest.TestCase):
+    def test_answered_with_a_sentence_not_a_dead_yes(self):
+        from aletheia import quick
+        for said in ("i have a headache", "i don't feel well", "i'm sick", "i'm bored"):
+            got = quick.answer(said)
+            self.assertTrue(got, said)
+            self.assertNotIn("Want ", got, said)
+
+
 if __name__ == "__main__":
     unittest.main()
