@@ -1682,5 +1682,15 @@ class WhatDidIAskYouCase(unittest.TestCase):
         self.assertEqual(voice.interpret("thea did you set any reminders")["command"], {"kind": "reminders"})
 
 
+class WhatSheDidIsInThePastCase(unittest.TestCase):
+    def test_a_reminder_receipt_is_read_back_as_done(self):
+        from aletheia import quick
+        self.assertEqual(quick._as_done("I'll remind you today at 5 pm: call Dana"),
+                         "Set a reminder for today at 5 pm: call Dana")
+        self.assertEqual(quick._as_done("Every Monday at 9 am I'll remind you: take out the trash"),
+                         "Set a reminder for every Monday at 9 am: take out the trash")
+        self.assertEqual(quick._as_done("Added to the shopping list: milk"), "Added to the shopping list: milk")
+
+
 if __name__ == "__main__":
     unittest.main()

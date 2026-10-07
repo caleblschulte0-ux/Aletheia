@@ -3159,6 +3159,19 @@ def _shortened(line: str) -> str:
     return (clipped or line[:MAX_LINE].rstrip()) + "..."
 
 
+def _as_done(line: str) -> str:
+    """A receipt read back as something done. "Today: I'll remind you today
+    at 5 pm: call Dana" promised in the future what he asked about in the
+    past (2026-10-07)."""
+    m = re.fullmatch(r"I'll remind you (.+?): (.+)", line)
+    if m:
+        return f"Set a reminder for {m.group(1)}: {m.group(2)}"
+    m = re.fullmatch(r"(.+?),? I'll remind you: (.+)", line)
+    if m:
+        return f"Set a reminder for {m.group(1)[:1].lower()}{m.group(1)[1:]}: {m.group(2)}"
+    return line
+
+
 def _listed(rows: list[dict], when: str) -> str:
     """What she did, said the way somebody tells you what they did.
 
@@ -3173,7 +3186,7 @@ def _listed(rows: list[dict], when: str) -> str:
     from aletheia import speech
     # Each line is already a finished sentence; joining them with "; "
     # after a full stop gives "call the dentist.; email dana."
-    lines = [_shortened(str(r.get("what") or "").strip().rstrip("."))
+    lines = [_shortened(_as_done(str(r.get("what") or "").strip().rstrip(".")))
              for r in rows[-3:]]
     said = "; ".join(line for line in lines if line)
     if len(rows) <= len(lines):
@@ -3187,7 +3200,7 @@ def _last() -> str:
     for days_ago, when in ((0, "today"), (1, "yesterday")):
         rows = _on_day(days_ago)
         if rows:
-            line = _shortened(str(rows[-1].get("what") or "").strip().rstrip("."))
+            line = _shortened(_as_done(str(rows[-1].get("what") or "").strip().rstrip(".")))
             if line:
                 return f"The last thing I did {when}: {line}."
     return "Nothing in my journal for today or yesterday."
