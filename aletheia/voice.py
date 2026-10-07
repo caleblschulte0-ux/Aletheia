@@ -7271,6 +7271,17 @@ def _answers_which(low: str) -> dict | None:
     answer = re.sub(r"\s+(?:one|alarm|reminder)$", "", answer).strip()
     if not answer:
         return None
+    # "Which one - 6 am or 7 am?" -> "good night" (2026-10-07) was taken as
+    # the choice: "None of your reminders is about good night." A choice
+    # names something in the question; anything else is a new sentence.
+    asked = re.sub(r"^.*?\bWhich one\b", "", str(last.get("she_answered") or "")).casefold()
+    if not any(re.search(r"(?<![a-z0-9])" + re.escape(w) + r"(?![a-z0-9])", asked)
+               for w in re.findall(r"[a-z0-9:']+", answer) if w not in ("a", "an", "at", "on", "the", "my", "and", "or", "am", "pm")):
+        return None
+    if cmd.get("kind") in ("reminder_off", "reminder_on") and re.fullmatch(r"\d{1,2}", answer):
+        # "The 7 one" asked again (2026-10-07): a bare hour is read the way
+        # "turn off my 7 alarm" reads it.
+        answer = f"{answer}:00"
     if cmd.get("kind") in ("reminder_off", "reminder_on") and re.search(r"\d", answer):
         # The words already matched both; the time is what tells them apart.
         answer = f"{cmd['which']} {answer}".strip()

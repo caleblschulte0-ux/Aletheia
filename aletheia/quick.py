@@ -1248,7 +1248,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?P<night>good ?night|night night|sleep well|(?:i'?m |im |i am )?(?:going to|off to|heading to) (?:bed|sleep)"
         r"|turning in|see you tomorrow|talk tomorrow)(?:,? thea)?(?: now)?$"
         r"|^(?:(?:i'?m|im|i am) )?(?:leaving|heading out|heading off|going out|off|out|off to work|going to work|"
-        r"heading to work|leaving for work|back later|be back later)(?: now| for work| for the day| for a bit)?$"
+        r"heading to work|leaving for work|back later|be back later"
+        # "I'm leaving work" (2026-10-07: queued for a model to plan).
+        r"|leaving work|leaving the office|heading home|going home|off work|done for the day|on my way home)"
+        r"(?: now| for work| for the day| for a bit)?$"
         r"|^(?:see (?:you|ya)(?: later)?|bye|goodbye|later|talk later|catch you later)$"
         # "I'm going to the gym" (2026-10-07: queued for a model to plan).
         r"|^(?:(?:i'?m|im|i am) )?(?:going|off|heading|leaving|popping out) (?:to|for) (?:the |a |my )?"

@@ -2890,5 +2890,17 @@ class RainThisAfternoon(unittest.TestCase):
             self.assertEqual(quick.answer("do I need an umbrella later"), "rain|")
 
 
+class AChoiceNamesAnOption(unittest.TestCase):
+    def test_good_night_is_not_which_alarm(self):
+        from aletheia import converse, quick
+        asked = [{"she_answered": "Which one \u2014 tomorrow at 6 am or tomorrow at 7 am?"}]
+        with mock.patch.object(converse, "recent", return_value=asked), \
+                mock.patch.object(voice, "_previous_ask", return_value="turn off my alarm"):
+            self.assertIsNone(voice._answers_which("good night"))
+            self.assertEqual(voice._answers_which("the 7 one")["command"],
+                             {"kind": "reminder_off", "which": "wake up 7:00"})
+        self.assertEqual((quick.match("I'm leaving work") or ("",))[0], "farewell")
+
+
 if __name__ == "__main__":
     unittest.main()
