@@ -545,6 +545,39 @@ def _not_a_form(run_id: str, url: str, failure: str, *, resume: str, kept_job: d
     return record
 
 
+#: The sentences `stage` wrote on a page that was never a form, back when
+#: it recorded them FAILED (until 2026-09-22). Matched on its own fixed words.
+_OLD_NOT_A_FORM = ("talent-network / job-alert signup",
+                   "nothing on this page asks for his name, email or phone",
+                   "there is no application form on this page")
+
+
+def settle_old_not_a_form() -> int:
+    """FAILED records that were never applications, closed the way `stage`
+    closes them now. Until 2026-09-22 a job-alert list or a page asking
+    nothing was recorded FAILED, and FAILED is not settled: discovery kept
+    offering those pages back, and live 2026-10-07 51 of 59 "failures" in
+    the funnel read "other" - a failure count that is mostly pages that were
+    never forms says nothing about what would not send. Never a record that
+    was pressed. Returns how many were closed."""
+    closed = 0
+    for record in all_runs("FAILED"):
+        why = str(record.get("failure") or "")
+        if record.get("pressed_at") or not any(words in why for words in _OLD_NOT_A_FORM):
+            continue
+        record.update({"state": CLOSED, "closed_because": why, "closed_kind": NOT_A_FORM,
+                       "closed_by": ACTOR, "settled_from": "FAILED",
+                       "closed_at": str(record.get("staged_at") or "") or stateio.utcnow()})
+        _write_record(record["id"], record)
+        closed += 1
+    if closed:
+        journal.append("action", "apply",
+                       f"closed {speech.count_phrase(closed, 'old application record')} that were never forms - "
+                       "a job-alert list or a page asking nothing - as not-a-form rather "
+                       "than failed", actor=ACTOR)
+    return closed
+
+
 def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
     """Retire a waiting application without applying, and say why.
 
