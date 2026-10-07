@@ -5928,7 +5928,7 @@ def _interpret(transcript: str) -> dict:
     m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up|i have|i've got|i got|i have got) (?:a |an |my )?"
                           r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
                           r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
-                          r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                          r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                           r"(?: at (?P<time>[\w: ]+?))?", low)
     # "Book a meeting with Dana tomorrow at 11" (2026-10-07) became a web
     # errand to approve. A meeting or call with a person, on a day, is his

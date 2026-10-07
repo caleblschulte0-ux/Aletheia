@@ -1256,5 +1256,14 @@ class AnAppointmentOnADateCase(unittest.TestCase):
         self.assertEqual(voice._interpret("my keys are on the table")["command"]["kind"], "note")
 
 
+class NextTuesdayOnTheCalendarCase(unittest.TestCase):
+    def test_a_meeting_next_tuesday_is_held_like_lunch_next_tuesday(self):
+        from aletheia import voice
+        told = voice._interpret("i have a meeting next tuesday at 3")["command"]
+        asked = voice._interpret("schedule a meeting next tuesday at 3")["command"]
+        self.assertEqual(told["kind"], "calendar_hold")
+        self.assertEqual(told["start"], asked["start"])
+
+
 if __name__ == "__main__":
     unittest.main()
