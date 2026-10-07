@@ -4033,6 +4033,17 @@ def _interpret(transcript: str) -> dict:
                  r"search (?:for|up))\s+(.+)", low)
     if m and not low.endswith(" on youtube"):
         question = m.group(1).strip(" ?.")
+        # "Look up the weather in Paris", "google what time it is in Tokyo"
+        # (2026-10-07): a question she answers herself is not research.
+        if len(question) > 2 and re.match(r"(?:the )?(?:weather|forecast|time|temperature|definition|meaning|"
+                                          r"what time|what(?:'s| is) the weather|how many days|what day)\b", question):
+            try:
+                from aletheia import quick
+                own = quick.answer(re.sub(r"^the (definition|meaning) of ", r"define ", question))
+            except Exception:
+                own = None
+            if own:
+                return {"command": None, "say": own}
         if len(question) > 2:
             return {"command": {"kind": "research", "question": question},
                     "say": None}   # the receipt speaks, not a canned line

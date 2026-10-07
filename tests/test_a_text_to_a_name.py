@@ -142,5 +142,20 @@ class ThingsWithNumbers(unittest.TestCase):
         self.assertIn("one at a time", got["say"])
 
 
+class SitesAndLookups(unittest.TestCase):
+    def test_sites_people_open_by_name(self):
+        from aletheia import open_it
+        self.assertEqual(voice._interpret("open spotify")["command"], {"kind": "open_page", "which": "spotify"})
+        self.assertEqual(open_it.page_for("netflix")[1], "Netflix")
+
+    def test_a_lookup_she_can_answer_is_answered(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "answer", return_value="3:53 pm in Tokyo."):
+            self.assertEqual(voice._interpret("google what time is it in tokyo"), {"command": None, "say": "3:53 pm in Tokyo."})
+        with mock.patch.object(quick, "answer", return_value=None):
+            self.assertEqual(voice._interpret("look up the weather in paris")["command"]["kind"], "research")
+        self.assertEqual(voice._interpret("look up pizza places")["command"], {"kind": "research", "question": "pizza places"})
+
+
 if __name__ == "__main__":
     unittest.main()
