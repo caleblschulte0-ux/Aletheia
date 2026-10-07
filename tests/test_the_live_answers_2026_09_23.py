@@ -14,12 +14,18 @@ from unittest import mock
 
 from aletheia import quick
 
-NOW = dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def now_stamp() -> str:
+    # Read when the test RUNS, not when the module was imported: a suite
+    # imported at 23:56 his time and run at 00:16 called the note
+    # "yesterday" and the count went missing (CI, 2026-10-07).
+    return dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 class FoundIsWhatTheHuntSaw(unittest.TestCase):
     def test_the_campaigns_own_count_wins(self):
-        note = {"ts": NOW, "kind": "note", "subject": "jobs", "actor": "aletheia-campaign",
+        note = {"ts": now_stamp(), "kind": "note", "subject": "jobs", "actor": "aletheia-campaign",
                 "text": "I found 1137 openings today, 27 of them realistic for you; 1 of them looks unusually good"}
         with mock.patch("aletheia.journal.entries", return_value=[note]), \
              mock.patch("aletheia.current_state.job_hunt", return_value={"today": {"discovered": 48, "qualified": 48, "sent": 22}}):
@@ -48,8 +54,8 @@ class ARefusalSaidOnce(unittest.TestCase):
 
 class TheRoomsTranscriptsAreNotNotes(unittest.TestCase):
     def test_unmatched_transcripts_are_left_out(self):
-        rows = [{"ts": NOW, "kind": "note", "subject": "operator", "text": "(voice, unmatched) north korea"},
-                {"ts": NOW, "kind": "note", "subject": "operator", "text": "my landlord is Mr Okafor"}]
+        rows = [{"ts": now_stamp(), "kind": "note", "subject": "operator", "text": "(voice, unmatched) north korea"},
+                {"ts": now_stamp(), "kind": "note", "subject": "operator", "text": "my landlord is Mr Okafor"}]
         with mock.patch("aletheia.journal.entries", return_value=rows):
             self.assertEqual(quick.answer("what notes do you have"), "1 note: your landlord is Mr Okafor.")
 
