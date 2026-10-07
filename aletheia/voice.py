@@ -3645,6 +3645,12 @@ def _interpret(transcript: str) -> dict:
         put = _where_he_put(m.group(1))
         if put:
             return {"command": None, "say": put}
+        # "The gym is at 20 Oak Ave", then "where is the gym" searched his
+        # Documents for a file called gym. A place she keeps answers first.
+        from aletheia import quick
+        there = quick._place_where(m.group(1))
+        if there:
+            return {"command": None, "say": there}
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group(1))},
@@ -3869,6 +3875,19 @@ def _interpret(transcript: str) -> dict:
                      r"(?:contacts|contact list|phone book|address book)", low)
     if m and m.group(1) not in ("my", "all", "everyone", "everybody", "all my", "them", "him", "her"):
         return {"command": {"kind": "contact_remove", "name": _as_he_said(transcript, m.group(1)).strip()}, "say": None}
+    # WHERE ONE OF HIS PLACES IS (2026-10-07: "my work address is 5 Market
+    # St" went to the planner, while "how long to work" told him to give
+    # her the address). Only an address that reads as one - a number and
+    # a street - so "the meeting is at 3" is never a place.
+    _address = r"(?P<addr>\d{1,6}[a-z]? [a-z0-9][a-z0-9 .,'#-]{2,60})"
+    m = (re.fullmatch(r"(?:remember (?:that )?)?(?:my |our )(?P<pname>work|office|gym|school|[a-z]+'s (?:house|place|school|work|office)"
+                      r"|parents'? (?:house|place))(?: address)? is (?:at )?" + _address, low)
+         or re.fullmatch(r"(?:remember (?:that )?)?(?:the |my |our )?(?P<pname>[a-z][a-z' ]{1,25}?) is (?:at|on|located at) " + _address, low))
+    if m and not re.search(r"\b(?:meeting|appointment|call|dinner|lunch|party|game|show|it|this|that)\b", m.group("pname")) \
+            and re.search(r"\b(?:st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|ct|court|pl|place|pkwy|parkway"
+                          r"|hwy|highway|cir|circle|ter|terrace|sq|square)\b", m.group("addr")):
+        return {"command": {"kind": "place_add", "name": _as_he_said(transcript, m.group("pname")).strip(),
+                            "address": _as_he_said(transcript, m.group("addr")).strip()}, "say": None}
     # "Add Sam to my contacts, his number is 555 222 3333" (2026-10-07: to
     # the planner) - the same contact, said the long way round.
     m = re.fullmatch(r"(?:add|save|put) ([a-z][a-z' -]{0,30}?) (?:to|in|into) (?:my )?(?:contacts|contact list|phone book|address book)"
@@ -4745,6 +4764,10 @@ def _interpret(transcript: str) -> dict:
         put = _where_he_put(m.group("thing"))
         if put:
             return {"command": None, "say": put}
+        from aletheia import quick
+        there = quick._place_where(m.group("thing"))
+        if there:
+            return {"command": None, "say": there}
     m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
                      r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
                      r"(?: please)?", low)

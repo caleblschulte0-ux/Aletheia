@@ -501,3 +501,42 @@ class MakeItTheAfternoon(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class APlaceSaidIsAPlaceKept(unittest.TestCase):
+    """"The gym is at 20 Oak Ave", then "where is the gym" searched his
+    Documents for a file called gym, and "how long to the gym" asked him
+    to name a place he had just named."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import places
+        self.tmp = tempfile.TemporaryDirectory()
+        root = Path(self.tmp.name)
+        for name, value in (("PLACES_DIR", root / "d"), ("TRAVEL_DIR", root / "t")):
+            patcher = mock.patch.object(places, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.addCleanup(self.tmp.cleanup)
+
+    run_it = HerOwnHoldsCanBeMovedAndCancelled.run_it
+
+    def test_said_then_asked(self):
+        self.assertEqual(self.run_it("the gym is at 20 Oak Ave"), "Got it - the gym is at 20 Oak Ave.")
+        self.assertEqual(self.run_it("where is the gym"), "The gym is at 20 Oak Ave.")
+        self.assertEqual(quick.answer("where's the gym"), "The gym is at 20 Oak Ave.")
+        trip = self.run_it("how long to get to the gym")
+        self.assertTrue(trip.startswith("The gym is at 20 Oak Ave."), trip)
+        self.assertIn("won't guess", trip)
+
+    def test_work_and_a_friends_house(self):
+        self.run_it("my work address is 400 Main Street")
+        self.assertEqual(quick.answer("what's my work address"), "Work is at 400 Main Street.")
+        self.assertIn("Say \"Sam's house is at\"", self.run_it("where is sam's house"))
+        self.run_it("sam's house is at 9 pine road")
+        self.assertEqual(self.run_it("where is sam's house"), "Sam's house is at 9 pine road.")
+
+    def test_a_file_is_still_a_file(self):
+        self.assertEqual(voice._interpret("where is my resume")["command"]["kind"], "file_find")
+        self.assertNotEqual((voice._interpret("the meeting is at 3 pm")["command"] or {}).get("kind"), "place_add")

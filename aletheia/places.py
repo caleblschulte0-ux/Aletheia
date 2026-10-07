@@ -6,6 +6,7 @@ time from two addresses.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from aletheia.stateio import private_dir, read_json, safe_id, utcnow, write_json_atomic
@@ -42,6 +43,20 @@ def create(place_id: str, name: str, *, address: str = "", aliases: list[str] | 
     return value
 
 
+def update(place_id: str, **changes: object) -> dict:
+    """Change a saved place's name, address or aliases."""
+    allowed = {"name", "address", "aliases"}
+    unknown = set(changes) - allowed
+    if unknown:
+        raise ValueError(f"unsupported place fields: {sorted(unknown)}")
+    value = load(place_id)
+    for key, item in changes.items():
+        value[key] = item.strip() if isinstance(item, str) else item
+    value["updated_at"] = utcnow()
+    write_json_atomic(_path(place_id), value)
+    return value
+
+
 def load(place_id: str) -> dict:
     return read_json(_path(place_id))
 
@@ -56,6 +71,20 @@ def all_places() -> list[dict]:
         except ValueError:
             continue
     return out
+
+
+_PLAIN = frozenset({"work", "home", "school", "church", "college", "campus", "daycare"})
+
+
+def called(name: str) -> str:
+    """A place's name the way it sits in a sentence: "the gym", "work",
+    "Sam's house". Capitalise it yourself at the start of one."""
+    name = " ".join(str(name or "").split())
+    if re.fullmatch(r"[a-z]+'s .+", name):
+        return name[:1].upper() + name[1:]
+    if name.casefold() in _PLAIN or not name.islower() or "'" in name:
+        return name
+    return f"the {name}"
 
 
 def resolve(query: str) -> dict:

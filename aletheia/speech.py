@@ -555,6 +555,11 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "place_add":
+        saved = re.match(r"place \S+ saved\s*[—-]\s*(.+?): (.+)$", text)
+        if saved:
+            from aletheia import places
+            return f"Got it - {places.called(saved.group(1))} is at {saved.group(2)}."
     if kind == "hold_release":
         gone = re.match(r"hold (\S+) released\s*[—-]\s*(.+)$", text)
         if gone and gone.group(1) != "none":

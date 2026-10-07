@@ -58,6 +58,9 @@ READER_FOR = {
     "reminder_off": "reminders",
     "contact_add": "contacts",
     "contact_remove": "contacts",
+    # A place he saved is what "how long to the gym" looks up, and what
+    # "what's my work address" reads.
+    "place_add": "travel_time",
     "watch_email_from": "watches",
     "remember": "recall",
     # "Only apply to remote jobs" shows up the moment he asks what she steers by.

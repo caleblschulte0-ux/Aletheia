@@ -154,7 +154,9 @@ class ExecutionCase(unittest.TestCase):
 
         with mock.patch.object(places, "resolve", side_effect=resolve):
             said = self.run_kind(kind="travel_time", place="the office")
-        self.assertIn("no place called", said)
+        # The rule: no home, no number - and he hears what is missing.
+        self.assertIn("no home address", said)
+        self.assertIn("guess", said)
 
     def test_meet_starts_a_real_negotiation(self):
         from aletheia import scheduling

@@ -1359,6 +1359,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Are you ChatGPT", "how smart are you", "do you love me" (2026-10-07).
         r"|are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)"
         r"|how smart are (?:you|u)|do (?:you|u) (?:love|like) me)$")),
+    # "What's my work address", "what's my home address" (2026-10-07: a
+    # recall of "work" that found nothing). A saved place, his own address,
+    # or else exactly the recall it was before.
+    ("place_addr", re.compile(
+        r"^what(?:'s| is|s) (?:my |the )(?P<place_a>(?!email\b|e-mail\b|ip\b|web\b|mac\b|mailing\b)[a-z][a-z' ]{0,30}?) address\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -1636,6 +1641,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What's 30 minutes from now" (2026-10-07: to a model)
         r"|^(?:what(?:'s| is|s)? |what time is |whats )(?:an? |one )?(?:[\d.]+|half an?|a couple of"
         r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?) from now$")),
+    # A PLACE HE SAVED, read back (2026-10-07: "where is the gym" was a
+    # FILE search; "what's my work address" had nowhere to look). LAST, so
+    # every other "where is"/"what's my" shape keeps its own answer.
+    ("place_where", re.compile(
+        r"^(?:where(?:'s| is) (?:my |the )?|what(?:'s| is|s) the address (?:of|for) (?:my |the )?)(?P<place_w>[a-z][a-z' ]{1,30}?)\s*\??$"
+        r"|^what(?:'s| is|s) (?:my |the )(?P<place_w2>[a-z][a-z' ]{1,30}?) address\s*\??$")),
 )
 
 
@@ -1693,7 +1704,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -6205,6 +6216,48 @@ def _due(when: str = "", now=None) -> str | None:
     return f"{speech.count_phrase(len(rows), 'task')} {lead}: {speech.and_list([line(r) for r in rows[:5]])}."
 
 
+_COMMON_PLACES = frozenset((
+    "airport station mall store shop market hospital clinic office school college campus university park "
+    "beach gym church library restaurant cafe hotel stadium arena museum zoo pharmacy bank dentist doctor "
+    "vet barber salon work daycare"
+).split())
+
+
+def _place_where(name: str) -> str | None:
+    """Where a place he saved is; for a common place he never saved, how to
+    tell her. None for anything else, so files and things stay theirs."""
+    name = " ".join(str(name or "").casefold().split())
+    if not name:
+        return None
+    try:
+        from aletheia import places
+        place = places.resolve(name)
+    except Exception:
+        place = None
+    if place and place.get("address"):
+        said = places.called(place.get("name") or name)
+        return f"{said[:1].upper()}{said[1:]} is at {place['address']}."
+    home_of = re.fullmatch(r"([a-z]+)'s (house|place|apartment|flat|home)", name)
+    if home_of:
+        named = f"{home_of.group(1).capitalize()}'s {home_of.group(2)}"
+        return f"I don't know where {named} is. Say \"{named} is at\" and the address, and I'll remember it."
+    if name in _COMMON_PLACES:
+        named = "work" if name == "work" else f"the {name}"
+        return f"I don't know where {named} is. Say \"{named} is at\" and the address, and I'll remember it."
+    return None
+
+
+def _place_addr(name: str) -> str | None:
+    name = " ".join(str(name or "").casefold().split())
+    if name in ("home", "house", "street"):
+        from aletheia import voice
+        return voice._where_he_lives()
+    said = _place_where(name)
+    if said and not said.startswith("I don't know where"):
+        return said
+    return _recall(name)
+
+
 def _card() -> str:
     import secrets
     rank = secrets.choice(("Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"))
@@ -7191,6 +7244,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "coin": lambda rest: _coin(),
            "card": lambda rest: _card(),
            "rps": _rps,
+           "place_where": lambda rest: _place_where(rest),
+           "place_addr": lambda rest: _place_addr(rest),
            "arith_more": _arith_more,
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),

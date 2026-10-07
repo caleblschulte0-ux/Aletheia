@@ -352,6 +352,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "brief":           (set(), set()),
     "handle":          ({"text"}, set()),
     "travel_time":     ({"place"}, set()),
+    "place_add":       ({"name", "address"}, set()),
     "shopping_add":    ({"item"}, {"budget", "replaces"}),
     # Reading the list back, and taking something off it. `shopping_add`
     # shipped without either, so she confirmed "Added to the shopping
@@ -735,6 +736,9 @@ KIND_NOTES: dict[str, str] = {
         'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
         'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
         'clashes and says with what.'),
+    "place_add": (
+        'Remember where one of his places is: "my work address is 5 Market St", "the gym is at 20 Oak '
+        'Ave". name is what he calls it, address what he said. Saying it again updates it.'),
     "hold_release": (
         'Take one of HER OWN tentative holds off his calendar model - one she pencilled in, never an '
         'event of his live calendar: "cancel my meeting with Sam" after she held it. title and start '
@@ -806,7 +810,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
-               "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
+               "meet", "recall", "forget", "handle", "travel_time", "place_add", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
                "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
                "speaking_pace", "speaking_pace_read",
@@ -948,7 +952,7 @@ ROUTINE_KINDS = frozenset({
     # be told something without an approval and needs one to be told to
     # drop it. It is the one act with no undo, though, so the receipt says
     # WHAT went rather than just "forgotten".
-    "notify_clear", "remember", "forget", "contact_add", "contact_remove", "shopping_add",
+    "notify_clear", "remember", "forget", "contact_add", "contact_remove", "place_add", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
     "announce_set",
@@ -3572,32 +3576,60 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         request = handler.create(f"handle-{_uuid.uuid4().hex[:8]}", intent=cmd["text"])
         return (f"I'm on it: {request['intent'][:80]}. "
                 f"State is {request['state'].lower().replace('_', ' ')}.")
+    if kind == "place_add":
+        from aletheia import places
+        import re as _re
+        name = " ".join(str(cmd["name"]).split())
+        address = " ".join(str(cmd["address"]).split()).rstrip(".")
+        pid = _re.sub(r"[^a-z0-9]+", "-", name.casefold()).strip("-") or "place"
+        try:
+            places.create(pid, name, address=address, provenance=f"operator via voice/intercom: {quote[:100]}")
+        except FileExistsError:
+            places.update(pid, address=address)
+        return f"place {pid} saved — {name}: {address}"
     if kind == "travel_time":
         from aletheia import places
         try:
-            destination = places.resolve(cmd["place"])
+            try:
+                destination = places.resolve(cmd["place"])
+            except KeyError:
+                # "how long to the gym" asks for "the gym"; he saved "gym".
+                bare = re.sub(r"^(?:the|my|our) ", "", " ".join(str(cmd["place"]).casefold().split()))
+                if bare == " ".join(str(cmd["place"]).casefold().split()):
+                    raise
+                destination = places.resolve(bare)
         except KeyError:
             # `KeyError: "no place matches 'airport'"` reached the room
             # verbatim, quotes and all. He cannot act on that; he can act
             # on being told to name the place once.
+            place = str(cmd["place"])
+            named = f"the {place}" if re.fullmatch(r"[a-z]+", place) and place not in ("work", "home", "school", "church") else place
             raise act.Refused(
-                f"I don't know where {cmd['place']} is. Tell me the address "
-                "once and I'll remember it.") from None
+                f"I don't know where {named} is. Say \"{named} is at\" and the address, "
+                "and I'll remember it.") from None
         except LookupError:
             raise act.Refused(
                 f"More than one place answers to {cmd['place']!r} — which "
                 "one do you mean?") from None
+        said = places.called(destination["name"])
+        where = (f"{said[:1].upper()}{said[1:]} is at {destination['address']}"
+                 if destination.get("address") else f"I know {destination['name']}")
         try:
             home = places.resolve("home")
         except Exception:
-            return (f"I know {destination['name']}, but I have no place called "
-                    "'home' to measure from — add one first.")
-        try:
-            observed = places.travel_time(home["id"], destination["id"])
-        except (ValueError, OSError):
-            # §104: never invent a duration. An unobserved trip is unknown.
-            return (f"I know {destination['name']} but have never observed a "
-                    "journey to it, so any number would be a guess.")
+            home = None
+        observed = None
+        if home:
+            try:
+                observed = places.travel_time(home["id"], destination["id"])
+            except (ValueError, OSError):
+                observed = None
+        if not observed:
+            # §104: never invent a duration. An unobserved trip is unknown,
+            # but where it is is not, and that is half of what he asked.
+            if not home:
+                return f"{where}. I have no home address to measure from, so I won't guess how long it takes."
+            return f"{where}. I've never timed the trip there, so I won't guess how long it takes."
         return (f"{destination['name']}: {observed.get('minutes', '?')} minutes "
                 f"observed {observed.get('observed_at', 'previously')}.")
     if kind == "shopping_add":
