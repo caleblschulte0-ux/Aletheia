@@ -5340,8 +5340,10 @@ def _interpret(transcript: str) -> dict:
     m = m or re.match(r"(?:send|shoot|drop) (?!an? )(.+?) an? (?:text|message|quick text|quick message)"
                       r"\s+(?:that says|saying|that|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
+        # The message is sent in HIS capitals, not the lowercased sentence
+        # the matching reads ("i'm on my way", 2026-10-07).
         return {"command": {"kind": "message_send", "to": m.group(1).strip(),
-                            "body": m.group(2).strip()}, "say": None}
+                            "body": _as_he_said(text, m.group(2).strip())}, "say": None}
     # "TEXT MOM HAPPY BIRTHDAY" - no "that" between them, so the name ran
     # into the message: "I don't have a phone number for mom happy"
     # (2026-10-07). The longest leading words that name a contact he has,
@@ -5355,7 +5357,7 @@ def _interpret(transcript: str) -> dict:
     # planner). One word, then a word only a sentence starts with, is a
     # name and a message - "text bob happy birthday" is still not guessed
     # at. With no number for Dana the send says so, by name.
-    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<who>[a-z][a-z']{1,20}) "
+    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<who>(?:my |our )?[a-z][a-z']{1,20}) "
                      r"(?P<body>(?:i'm|im|i|i'll|i've|we're|we|we'll|can you|could you|are you|did you|do you|don't|dont"
                      r"|where|what|when|call me|hey|hi|thanks|thank you|on my way|running late|see you|love you)\b.*)", low)
     if m and m.group("who") not in ("a", "the", "my", "him", "her", "them", "it", "that", "this", "me", "back", "again"):

@@ -1326,5 +1326,25 @@ class AnExtendedTimerCase(unittest.TestCase):
         self.assertIn("15 minutes left", said)
 
 
+class HisSisterByNameCase(unittest.TestCase):
+    def test_her_number_through_the_name_he_told(self):
+        from aletheia import contacts, intercom, quick
+        dana = {"id": "dana", "display_name": "Dana", "phones": ["555-123-4567"]}
+        with mock.patch.object(contacts, "all_contacts", return_value=[dana]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "my sister's name is Dana"}]):
+            self.assertIn("Dana", intercom._contacts_answer("my sister"))
+
+    def test_a_text_to_my_sister_keeps_his_capitals(self):
+        from aletheia import voice
+        cmd = voice._interpret("Text my sister I'm running late")["command"]
+        self.assertEqual((cmd["kind"], cmd["to"], cmd["body"]), ("message_send", "my sister", "I'm running late"))
+        self.assertEqual(voice._interpret("Text Brant that I'm on my way")["command"]["body"], "I'm on my way")
+
+    def test_march_beside_a_day_is_the_month(self):
+        from aletheia import speech
+        self.assertIn("March 3", speech.as_she_says_it("dana's birthday is march 3"))
+        self.assertIn("we march on", speech.as_she_says_it("we march on"))
+
+
 if __name__ == "__main__":
     unittest.main()

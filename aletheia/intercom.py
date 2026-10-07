@@ -1811,6 +1811,17 @@ def _contacts_answer(which: str = "") -> str:
                      if len(w) > 2 and w not in TASK_STOP]
             hits = [c for c in rows
                     if any(w in n for w in words for n in names(c) if n)]
+        if not hits and re.match(r"(?:my|our)\s", which.casefold().strip()):
+            # "What's my sister's number" with Dana saved and "my sister's
+            # name is Dana" in his notes (2026-10-07: "no contact for 'my
+            # sister'").
+            try:
+                from aletheia import quick
+                named = quick._name_for_relation(which)
+            except Exception:  # noqa: BLE001
+                named = None
+            if named:
+                return _contacts_answer(named)
         rows = hits
         if not rows:
             return f"I have no contact for {which!r}."

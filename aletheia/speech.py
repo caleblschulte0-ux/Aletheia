@@ -473,8 +473,11 @@ def as_she_says_it(phrase: str) -> str:
     return _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
 
 
+# March and May are words too, so only beside a day of the month: "march
+# 3", "the 3rd of may" ("Dana's birthday is march 3", 2026-10-07).
 _NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
-                         r"|june|july|august|september|october|november|december)\b")
+                         r"|june|july|august|september|october|november|december)\b"
+                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b")
 
 
 #: Words that should not start a file name: they describe whose it is,
