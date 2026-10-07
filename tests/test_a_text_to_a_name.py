@@ -73,5 +73,19 @@ class AReminderMoved(unittest.TestCase):
         self.assertIn('remind me at 6 to feed the cat', got["say"])
 
 
+class ListsAndBills(unittest.TestCase):
+    def test_a_bill_split_between_people(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("split 120 between 4"), "$30 each.")
+        self.assertEqual(quick.answer("split the 90 dollar bill among three people"), "$30 each.")
+
+    def test_deleting_a_list_empties_it(self):
+        self.assertEqual(voice._interpret("delete the shopping list")["command"],
+                         {"kind": "shopping_off", "item": "everything"})
+        with mock.patch("aletheia.lists.is_named_list", return_value=True):
+            self.assertEqual(voice._interpret("delete the packing list")["command"],
+                             {"kind": "list_off", "list": "packing", "item": "everything"})
+
+
 if __name__ == "__main__":
     unittest.main()

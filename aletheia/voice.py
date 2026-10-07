@@ -1373,7 +1373,9 @@ def _named_list_said(low: str, text: str) -> dict | None:
                             "item": _as_he_said(text, m.group("item"))}, "say": None}
     m = (re.fullmatch(r"(?:take|remove|delete|cross|scratch|tick) (?:off )?(?P<item>.+?) (?:off|from) (?:of )?(?:my |the )"
                       + name_ + r" list", low)
-         or re.fullmatch(r"(?:clear|empty|wipe) (?:out )?(?:my |the )" + name_ + r" list(?P<item>)", low))
+         # "Delete the packing list" (2026-10-07: to the planner) empties it;
+         # the receipt says cleared, which is what happened.
+         or re.fullmatch(r"(?:clear|empty|wipe|delete|get rid of|scrap|throw out) (?:out )?(?:my |the )" + name_ + r" list(?P<item>)", low))
     if m and lists.is_named_list(m.group("name")):
         return {"command": {"kind": "list_off", "list": _as_he_said(text, m.group("name")),
                             "item": m.group("item") or "everything"}, "say": None}
@@ -2904,7 +2906,7 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "stopwatch", "action": "reset"}, "say": None}
     # "CLEAR MY SHOPPING LIST" (2026-10-07: to the planner). Every row is
     # cancelled, never deleted, through the verb that already does it.
-    if re.fullmatch(r"(?:clear|empty|wipe|reset|delete everything on|clear out|empty out) (?:my |the )?"
+    if re.fullmatch(r"(?:clear|empty|wipe|reset|delete|delete everything on|clear out|empty out|get rid of|scrap) (?:my |the )?"
                     r"(?:shopping|grocery) list", low):
         return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
     if re.fullmatch(r"(?:clear|dismiss|acknowledge) (?:my |the )?notifications?", low):

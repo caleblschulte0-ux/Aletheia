@@ -1353,7 +1353,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^\$?(?P<price2>[\d.,]+)(?: dollars)? (?:with|at|minus) (?P<off2>[\d.]+) ?(?:%|percent) off$")),
     ("split", re.compile(
         r"^(?:split|divide) \$?(?P<bill>[\d.,]+)(?: dollars| bucks)? (?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
-        r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$")),
+        r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
+        # "Split 120 between 4" (2026-10-07: to the planner).
+        r"|^(?:split|divide) (?:a |the )?\$?(?P<bill3>[\d.,]+)(?: dollars?| bucks)?(?: bill| check)? (?:between|among|by|with|for) "
+        r"(?P<ways3>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: people| of us| ways| friends)?$")),
     ("area", re.compile(
         r"^(?:what(?:'s| is) the )?(?:square footage|area) of (?:a )?(?P<w>[\d.]+) by (?P<l>[\d.]+)(?: room| foot room)?$"
         r"|^how many square feet is (?:a )?(?P<w2>[\d.]+) by (?P<l2>[\d.]+)(?: room)?$")),
@@ -3430,8 +3433,8 @@ _WAYS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eigh
 def _split(text: str) -> str | None:
     g = _groups("split", text)
     try:
-        bill = float((g.get("bill") or g.get("bill2")).replace(",", ""))
-        raw = g.get("ways") or g.get("ways2")
+        bill = float((g.get("bill") or g.get("bill2") or g.get("bill3")).replace(",", ""))
+        raw = g.get("ways") or g.get("ways2") or g.get("ways3")
         ways = int(raw) if raw.isdigit() else _WAYS[raw]
     except (AttributeError, KeyError, ValueError):
         return None
