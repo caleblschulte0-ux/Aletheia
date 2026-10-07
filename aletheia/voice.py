@@ -2002,6 +2002,10 @@ def worth_answering(said: str) -> bool:
 
 
 _BARE_VERBS = (
+    # "Set a reminder for 5" (2026-10-07: to the planner) has the when and
+    # not the what; her question carries the time to his answer.
+    (r"(?:set|make|add|create) (?:a |me a )?reminder (?:for|at) (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)",
+     'What should I remind you about at {t}? Just say it, like "take the bins out".'),
     (r"(?:set|make|add|create|new) (?:a |me a )?(?:new )?reminder(?: for me)?|remind me(?: of something| about something| later)?",
      'What should I remind you about, and when? Say "remind me at 3 to call the dentist".'),
     (r"(?:take|make|add|write|create|new) (?:a |me a )?(?:new )?note(?: for me)?|(?:take|write) (?:this|something) down|note this",
@@ -2033,8 +2037,9 @@ def _bare_verb(low: str) -> str | None:
     said = re.sub(r"^(?:can you |could you |please |i (?:want|need) (?:you )?to )", "", said)
     said = re.sub(r" please$", "", said)
     for pattern, answer in _BARE_VERBS:
-        if re.fullmatch(pattern, said):
-            return answer
+        found = re.fullmatch(pattern, said)
+        if found:
+            return answer.format(**found.groupdict()) if found.groupdict() else answer
     return None
 
 
@@ -2304,6 +2309,12 @@ _HER_QUESTIONS = (
     (r"When should I remind you to (.+?)\? ", "remind me {low} to {0}", "remind_"),
     (r"For how long\? Say \"set a timer", "set a timer for {low}", "remind_at"),
     (r"For what time\? Say \"wake me up", "wake me up at {low}", "remind_"),
+    # "Add a reminder" - "What should I remind you about, and when?" - "for
+    # tomorrow at 9 to email Sam" (2026-10-07: she asked "when?" again).
+    (r"What should I remind you about, and when\? ", "remind me {free}", "remind_"),
+    # "Set a reminder for 5" - "What should I remind you about at 5?" - "to
+    # take the bins out" (2026-10-07: both went to the planner).
+    (r"What should I remind you about at (.+?)\? ", "remind me at {0} {what}", "remind_"),
     # "Text Mom" - "What should it say?" - "that I'll be late" (2026-10-07:
     # the answer went to the planner).
     (r"What should it say\? Say \"text (.+?) that ", "text {0} that {body}", "message_send"),
@@ -2324,9 +2335,10 @@ def _answering_her(low: str, answered: str | None = None) -> dict | None:
             continue
         if low.startswith(template.split("{")[0].strip()):
             continue                    # already the whole ask, not an answer to put back together
-        if "{body}" not in template and len(low.split()) > 6:
+        loose = "{free}" in template or "{what}" in template
+        if "{body}" not in template and len(low.split()) > (16 if loose else 6):
             continue
-        if "{body}" in template and not re.match(r"(?:that|saying|say|tell)\b", low):
+        if ("{body}" in template or loose) and not re.match(r"(?:that|saying|say|tell)\b", low):
             # "What time is it" after "What should it say?" is his own
             # question, not the text (2026-10-07: it was drafted as one).
             # Only a sentence that is not an ask of hers becomes the words.
@@ -2338,7 +2350,9 @@ def _answering_her(low: str, answered: str | None = None) -> dict | None:
             except Exception:  # noqa: BLE001
                 continue
         body = re.sub(r"^(?:that|saying|say|tell (?:her|him|them)(?: that)?)\s+", "", low)
-        rebuilt = template.format(*[g for g in m.groups()], body=body,
+        what = low if re.match(r"(?:to|about|that)\b", low) else f"to {low}"
+        rebuilt = template.format(*[g for g in m.groups()], body=body, what=what,
+                                  free=re.sub(r"^(?:for|on) (?!\d)", "", low),
                                   low=re.sub(r"^(?:at|for|in) (?=\d)", "", low) if "{low} to" not in template else low)
         got = _interpret(rebuilt)
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith(kind):

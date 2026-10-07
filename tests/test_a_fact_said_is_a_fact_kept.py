@@ -2013,5 +2013,30 @@ class TwoPlacesCase(unittest.TestCase):
         self.assertEqual(quick.answer("what is 7.5 times 2"), "15.")
 
 
+
+class AReminderAskedInTwoHalvesCase(unittest.TestCase):
+    """2026-10-07: "add a reminder" then "for tomorrow at 9 to email Sam" was
+    asked "when?" again; "set a reminder for 5" went to the planner."""
+
+    def test_the_when_and_the_what_after_her_question(self):
+        from aletheia import voice
+        got = voice._answering_her("for tomorrow at 9 to email sam",
+                                   'What should I remind you about, and when? Say "remind me at 3 to call the dentist".')
+        self.assertEqual(got["command"]["kind"], "remind_at")
+        self.assertEqual(got["command"]["text"], "email sam")
+
+    def test_a_time_first(self):
+        from aletheia import voice
+        asked = voice._interpret("set a reminder for 5")["say"]
+        self.assertIn("at 5?", asked)
+        got = voice._answering_her("take the bins out", asked)
+        self.assertEqual(got["command"]["text"], "take the bins out")
+        self.assertEqual(dt.datetime.fromisoformat(got["command"]["at"]).hour, 17)
+
+    def test_a_question_is_still_a_question(self):
+        from aletheia import voice
+        self.assertIsNone(voice._answering_her("what time is it", "What should I remind you about at 5? Just say it."))
+
+
 if __name__ == "__main__":
     unittest.main()
