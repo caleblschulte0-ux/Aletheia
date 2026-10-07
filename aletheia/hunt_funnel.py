@@ -91,6 +91,9 @@ def _closed_bucket(record: dict) -> str:
 _ERROR_NAME = re.compile(r"^([A-Za-z_][A-Za-z0-9_]{2,60}(?:Error|Exception|Timeout|Busy|Refused|Closed))\s*:")
 
 
+_NET_CODE = re.compile(r"net::(ERR_[A-Z_]{2,40})")
+
+
 def _failed_bucket(record: dict) -> str:
     why = str(record.get("failure") or "")
     low = why.casefold()
@@ -103,6 +106,12 @@ def _failed_bucket(record: dict) -> str:
     named = _ERROR_NAME.match(why.strip())
     if named:
         return named.group(1)
+    if re.match(r"^Error\s*:", why.strip()):
+        # The browser library's own exception is called just "Error", and
+        # it was most of the 52 "other" failures on 2026-10-07. Its network
+        # code (net::ERR_...) names the shape without naming the site.
+        code = _NET_CODE.search(why)
+        return f"browser_{code.group(1).casefold()}" if code else "browser_error"
     if not why.strip() and record.get("engine"):
         # The general browser's REFUSED and MANUAL_ONLY land here with no
         # failure text at all: the wall it stopped at is the reason. Live
