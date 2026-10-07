@@ -4505,5 +4505,21 @@ class TheBottomRungKeepsTalking(unittest.TestCase):
         self.assertIn("Just talk to me", quick.answer("what can i say to you"))
 
 
+class TheCar(unittest.TestCase):
+    """2026-10-07: "the check engine light is on" and "my car is due for
+    inspection in November" went to the planner."""
+
+    def test_a_light_is_a_job_and_a_due_date_a_note(self):
+        from unittest import mock
+        from aletheia import quick, voice
+        c = voice._interpret("the check engine light is on")["command"]
+        self.assertEqual(c["kind"], "task_new")
+        self.assertIn("check engine", c["description"])
+        self.assertEqual(voice._interpret("my car is due for inspection in november")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "My car is due for inspection in November"}]):
+            self.assertIn("inspection", quick.answer("when is my car inspection"))
+            self.assertIn("inspection", quick.answer("when is my car due"))
+
+
 if __name__ == "__main__":
     unittest.main()

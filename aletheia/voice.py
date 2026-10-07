@@ -7560,6 +7560,22 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i|we) (?:just )?(?:got|bought) (?:a |an |my )?new (?:phone|car|truck|laptop|computer|tv|television|bike|watch"
                     r"|tablet|ipad|iphone|couch|bed|mattress|fridge|washer|dryer|dishwasher|puppy|dog|cat|kitten|house|apartment)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THE CAR (2026-10-07: "the check engine light is on" and "my car is due
+    # for inspection in November" went to the planner). A warning light is
+    # a job to get it looked at; a due date is a note `quick._life_when`
+    # reads back.
+    m = re.fullmatch(r"(?:my |the |our )?(?:car'?s? |truck'?s? )?(?P<light>check engine|tire pressure|tyre pressure|oil|battery|brake"
+                     r"|abs|engine|coolant|maintenance|service engine soon|low fuel|airbag)(?: warning)? light (?:is|came|has come|just came|keeps coming)"
+                     r"(?: back)? on", low)
+    if m:
+        light = m.group("light")
+        job = {"tire pressure": "check the tire pressure", "tyre pressure": "check the tire pressure",
+               "low fuel": "get gas"}.get(light, f"get the {light} light looked at")
+        return _new_task(job)
+    if re.fullmatch(r"(?:my |the |our )(?:car|truck|van|suv)(?:'s| is)? (?:due|overdue) for (?:an? |its |her |his )?"
+                    r"(?:inspection|service|oil change|tune-?up|smog check|emissions test|tire rotation|registration)"
+                    r"(?: (?:in|on|by|next|this|at) [a-z0-9 ,]{2,30})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
     # his words is the writer that reader was missing.

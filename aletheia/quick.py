@@ -430,6 +430,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Am I working from home today" (2026-10-07: to the planner).
         r"|^(?:am i|are we) (?P<lw4>working from home|wfh|off(?: work)?|on vacation) (?:today|tomorrow)\s*\??$"
         # "When is my package coming" (2026-10-07: to a model).
+        # "When is my car inspection" (2026-10-07: to a model).
+        r"|^when(?:'s| is) (?:my|the) (?:car|truck|van|suv)(?:'s|s)? (?P<lw6>inspection|service|oil change|tune-?up|smog check"
+        r"|emissions test|tire rotation)(?: due)?\s*\??$"
+        r"|^when is (?:my|the) (?:car|truck|van|suv) due(?: for (?:an? |its )?(?P<lw7>inspection|service|oil change|tune-?up"
+        r"|smog check|emissions test|tire rotation))?\s*\??$"
         r"|^when (?:is|does|will|should) (?:my|the) (?P<lw5>package|parcel|delivery) (?:coming|arriving|arrive|come|get here|be here|due)\s*\??$")),
     # "What did I promise Sarah" (2026-10-07: to a model).
     ("promised", re.compile(r"^what did i promise (?P<prom>[a-z][a-z' ]{1,25}?)\s*\??$"
@@ -9355,6 +9360,10 @@ _LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b",
                "out of the office": r"\bout of (?:the )?office\b", "out of office": r"\bout of (?:the )?office\b",
                "package": r"\b(?:package|parcel|delivery)\b", "parcel": r"\b(?:package|parcel|delivery)\b",
                "delivery": r"\b(?:package|parcel|delivery)\b",
+               "inspection": r"\binspection\b", "service": r"\bdue for (?:an? |its )?service\b",
+               "oil change": r"\boil change\b", "tune-up": r"\btune-?up\b", "tuneup": r"\btune-?up\b",
+               "smog check": r"\bsmog\b", "emissions test": r"\bemissions\b", "tire rotation": r"\btire rotation\b",
+               "car due": r"\b(?:car|truck|van|suv)\b.*\bdue\b",
                "pto": r"\b(?:days? off|time off|pto|off work|on vacation)\b"}
 
 
@@ -9365,7 +9374,8 @@ def _life_when(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("life_when", text)
-    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or "").strip()
+    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or g.get("lw6") or g.get("lw7")
+             or ("car due" if re.match(r"when is (?:my|the) (?:car|truck|van|suv) due", text.casefold()) else "")).strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
     place = re.search(r"(?:fly|flying) to (.+)$", asked)
     pattern = (r"\b(?:fly|flying|flight) to " + re.escape(place.group(1))) if place else _LIFE_WORDS.get(key or "")
