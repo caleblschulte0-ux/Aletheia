@@ -1259,7 +1259,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # appointment" and "what are my reminders for tomorrow" went to the
     # planner. Her calendar and her reminders hold both answers.
     ("when_mine", re.compile(
-        r"^(?:what time|when|what day)(?:'s| is) (?:my|the|our) (?:next )?(?!last |first )(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
+        r"^(?:what time|when|what day)(?:'s| is) (?:my|the|our|(?=(?!my|your|the|our)[a-z]{2,20}(?:'s|s') )) ?(?:next )?(?!last |first )(?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
         r"(?:appointment|appt|meeting|call|interview|dinner|lunch|breakfast|class|game|flight|party|reservation|session|visit"
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
@@ -1579,7 +1579,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:whose|who(?:'s| has a| has)) birthday(?:s)? (?:is |are )?(?:coming up|next|soon)\s*\??$"
         r"|^(?:any|are there any|do i have any|upcoming) birthdays?(?: (?:coming up|soon))?(?: (?P<bwin>this week|this month))?\s*\??$"
         r"|^(?:any )?birthdays? (?P<bwin2>this week|this month)\s*\??$"
-        r"|^when(?:'s| is) the next birthday\s*\??$")),
+        r"|^when(?:'s| is) the next birthday\s*\??$"
+        # "What birthdays are coming up" (2026-10-07: to a model).
+        r"|^what birthdays (?:are|do i have|have i got) (?:coming up|soon|next)\s*\??$"
+        r"|^(?:what|which) birthdays? (?:is|are) (?:next|soon)\s*\??$")),
     ("birthday_when", re.compile(
         r"^when(?:'s| is) (?:my )?(?P<bday>(?!my\b|your\b|our\b)[a-z][a-z ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday)\s*\??$")),
     # A FACT HE TOLD HER, asked back (2026-10-07: "what's my favorite
@@ -7409,6 +7412,12 @@ def _recall(words: str) -> str | None:
     if not wanted:
         return None
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in wanted]
+    # "What pets do I have" said nothing while "my dog's name is Max" was
+    # on file (2026-10-07): a category is asked by its members' names.
+    for w in list(stems):
+        stems += {"pet": ["dog", "cat", "puppy", "kitten", "hamster", "rabbit", "bunny", "parrot", "fish", "turtle", "horse"],
+                  "kid": ["son", "daughter", "children"], "children": ["son", "daughter", "kid"],
+                  "car": ["truck", "van", "suv"], "vehicle": ["car", "truck", "van", "suv"]}.get(w.rstrip("s"), [])
 
     def hit(text: str) -> bool:
         low = str(text or "").casefold()

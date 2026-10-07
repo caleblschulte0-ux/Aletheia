@@ -3910,5 +3910,34 @@ class HisVerdictOnAJoke(unittest.TestCase):
         self.assertIn("got wrong", voice._interpret("that's not what i asked")["say"])
 
 
+class SomebodyElsesThingsAreTheirs(unittest.TestCase):
+    """2026-10-07: "Max has a vet appointment Friday at 3" was held as "max
+    has a vet appointment", "when is Max's vet appointment" went to a model,
+    "what pets do I have" said nothing beside "my dog's name is Max", and
+    "what birthdays are coming up" went to a model."""
+
+    def test_their_appointment_is_titled_as_theirs(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("max has a vet appointment friday at 3")["command"]["title"],
+                         "max's vet appointment")
+        self.assertEqual(voice._interpret("i have a dentist appointment tomorrow at 2")["command"]["title"],
+                         "dentist appointment")
+
+    def test_their_appointment_is_asked_by_their_name(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("when is max's vet appointment")[0], "when_mine")
+        self.assertEqual(quick.match("when is mom's birthday")[0], "birthday_when")
+
+    def test_a_category_finds_its_members(self):
+        from aletheia import memory, quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my dog's name is Max", "ts": ""}]), \
+                mock.patch.object(memory, "everything", return_value={}):
+            self.assertIn("Max", quick._recall("pets"))
+
+    def test_coming_birthdays(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what birthdays are coming up")[0], "birthdays")
+
+
 if __name__ == "__main__":
     unittest.main()

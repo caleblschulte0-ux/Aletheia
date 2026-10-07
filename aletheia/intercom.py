@@ -4322,11 +4322,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if cmd.get("email"):
             addr, _ = mail_mod.resolve_address(cmd["email"])
             if addr is None or "@" not in addr:
-                return f"that didn't sound like an email address: {cmd['email']!r}"
+                return (f"{cmd['email']} doesn't look like an email address to me. Say it like "
+                        "\"sam at example dot com\" and I'll save it.")
         if cmd.get("phone"):
             phone = _messages.normalize_number(cmd["phone"])
             if not _messages.looks_like_a_number(phone):
-                return f"that didn't sound like a phone number: {cmd['phone']!r}"
+                return (f"{cmd['phone']} doesn't look like a whole phone number. Say it with the area code, "
+                        "like \"312 555 1234\", and I'll save it.")
         if not addr and not phone:
             # A contact she cannot reach is not a contact, and saying so
             # is better than storing a name that fails at send time.

@@ -1268,6 +1268,17 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
+    # "Max has a vet appointment friday at 3" was held as "max has a vet
+    # appointment" (2026-10-07) and read back "Max has a vet appointment
+    # is Friday". Somebody else's appointment is theirs: "Max's vet
+    # appointment". His own ("I have a dentist appointment") is just it.
+    own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)", str(title), flags=re.IGNORECASE)
+    theirs = re.fullmatch(r"([a-z][a-z']{1,20}) (?:has|has got|'s got) (?:a|an|his|her|their) (.+)", str(title), flags=re.IGNORECASE)
+    if own:
+        title = own.group(1)
+    elif theirs and theirs.group(1).casefold() not in ("he", "she", "it", "who", "what", "that", "this", "there", "everyone",
+                                                         "somebody", "someone", "nobody"):
+        title = f"{theirs.group(1)}'s {theirs.group(2)}"
     if time_words:
         hhmm = _spoken_time(time_words)
         if not hhmm:
