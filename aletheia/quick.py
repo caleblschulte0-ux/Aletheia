@@ -461,7 +461,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|emissions test|tire rotation)(?: due)?\s*\??$"
         r"|^when is (?:my|the) (?:car|truck|van|suv) due(?: for (?:an? |its )?(?P<lw7>inspection|service|oil change|tune-?up"
         r"|smog check|emissions test|tire rotation))?\s*\??$"
-        r"|^when (?:is|does|will|should) (?:my|the) (?P<lw5>package|parcel|delivery) (?:coming|arriving|arrive|come|get here|be here|due)\s*\??$")),
+        r"|^when (?:is|does|will|should) (?:my|the) (?P<lw5>package|parcel|delivery) (?:coming|arriving|arrive|come|get here|be here|due)\s*\??$"
+        # "When am I going to the gym", "what am I doing after work"
+        # (2026-10-07: both to a model, a turn after he said).
+        r"|^when (?:am i|was i) (?:going|heading|gonna go) (?:to )?(?:the )?(?P<lw8>gym|store|grocery store|pool|park|library|post office"
+        r"|bank|mall|barber|salon|vet|shopping|running|swimming|for a (?:run|walk|swim|bike ride))\s*\??$"
+        r"|^what am i doing (?P<lw9>after work|before work|after lunch|after dinner|after school|later(?: today)?)\s*\??$")),
     # "What did I promise Sarah" (2026-10-07: to a model).
     ("promised", re.compile(r"^what did i promise (?P<prom>[a-z][a-z' ]{1,25}?)\s*\??$"
                             r"|^(?:did i|have i) promise(?:d)? (?P<prom2>anyone|anybody|someone|[a-z][a-z' ]{1,25}?) anything\s*\??$"
@@ -487,6 +492,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?P<off_n>books|movies|shows|films) have i (?:read|watched|seen|finished)(?P<off_y> this year| so far)?\s*\??$"
         r"|^what was the last (?P<off_l>book|movie|show|film) i (?:read|watched|saw|finished)\s*\??$"
         r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$")),
+    # "What time do I usually wake up" (2026-10-07: to a model, two turns
+    # after "I woke up at 6:30").
+    ("woke_usual", re.compile(
+        r"^(?:what time|when) do i (?:usually|normally|typically|tend to) (?:wake up|get up|go to bed|go to sleep|fall asleep)\s*\??$"
+        r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -1068,7 +1078,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What's Friday look like" (2026-10-07: to a model).
         r"|^what(?:'s| is|s| does) (?P<day12>monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this weekend|next weekend)"
         r"(?: looking like| look like)$"
-        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up|going on)|anything(?: (?:on|happening|coming up|planned|going on))?|what have i got on"
+        # "Is anything happening Saturday" (2026-10-07: to the planner).
+        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up|going on)|(?:is (?:there )?|(?:do i have|have i got) )?anything(?: (?:on|happening|coming up|planned|going on))?|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s| does)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
@@ -2275,7 +2286,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -9792,6 +9803,34 @@ _LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b",
                "pto": r"\b(?:days? off|time off|pto|off work|on vacation)\b"}
 
 
+def _plan_said_today(place: str | None, when: str | None) -> str | None:
+    """A plan for later he told her today ("I'm going to the gym after
+    work"), read back in his words. None when there is none: it may be on
+    his calendar, which a model reads."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    if place:
+        pattern = r"\b(?:going|heading|gonna go|go)(?: to)? (?:the )?" + re.escape(place) + r"\b"
+    elif (when or "").startswith("later"):
+        pattern = r"\b(?:going|heading|gonna go)\b"     # any plan he told her for today
+    else:
+        pattern = r"\b" + re.escape(when or "") + r"\b"
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not re.search(pattern, said, re.I) or not re.match(r"(?:i'?m|i am|i'?ll be|i will be) ", said, re.I):
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if day != today:
+            continue
+        return f"You told me earlier: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _life_when(text: str) -> str | None:
     """When his move, trip or new job is, from his note - with the day he
     said it, since "next month" is only true from that day. None when he
@@ -9799,6 +9838,8 @@ def _life_when(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("life_when", text)
+    if g.get("lw8") or g.get("lw9"):
+        return _plan_said_today(g.get("lw8"), g.get("lw9"))
     asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or g.get("lw6") or g.get("lw7")
              or ("car due" if re.match(r"when is (?:my|the) (?:car|truck|van|suv) due", text.casefold()) else "")).strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
@@ -10227,6 +10268,54 @@ def _ate(text: str) -> str | None:
                 "Say \"I had a burrito for lunch\" and I'll remember it.")
     hits.reverse()                      # newest first in the store; said in the order he ate
     return f"You told me you had {speech.and_list(hits)} {named}."
+
+
+def _woke_usual(text: str) -> str:
+    """"What time do I usually wake up": the middle of the times he told her
+    in the last month. Once is not "usually", and it says so."""
+    import datetime as dt
+    from aletheia import localtime
+    low = _tidy(text)
+    bed = bool(re.search(r"\b(?:bed|bedtime|sleep|asleep)\b", low))
+    kin = ("went to bed", "went to sleep", "fell asleep") if bed else ("woke up", "got up")
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    minutes = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = re.match(r"i (?:" + "|".join(kin) + r") (?:at |around |about )?(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?(?:\W|$)", said)
+        if not m:
+            continue
+        try:
+            noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+            if (now - noted).days > 30:
+                continue
+        except ValueError:
+            pass
+        hour, mins, half = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").replace(".", "")
+        if hour > 23 or mins > 59:
+            continue
+        if half == "pm" and hour < 12:
+            hour += 12
+        elif half == "am" and hour == 12:
+            hour = 0
+        elif not half and bed and 6 <= hour <= 11:
+            hour += 12          # "went to bed at 11" is the evening
+        elif not half and bed and hour == 12:
+            hour = 0            # "went to bed at 12:30" is half past midnight
+        at = hour * 60 + mins
+        if bed and at < 12 * 60:
+            at += 24 * 60       # after midnight is later the same night
+        minutes.append(at)
+    if len(minutes) < 2:
+        return _woke("go to bed" if bed else "wake up") + (
+            " That's the only time you've told me, so I can't say what's usual yet." if minutes else "")
+    minutes.sort()
+    middle = minutes[len(minutes) // 2] if len(minutes) % 2 else (minutes[len(minutes) // 2 - 1] + minutes[len(minutes) // 2]) // 2
+    middle = int(round(middle / 5.0) * 5) % (24 * 60)
+    clock = dt.time(middle // 60, middle % 60)
+    said = clock.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").replace("AM", "am").replace("PM", "pm")
+    return f"Around {said} - from the {len(minutes)} times you've told me this month."
 
 
 def _woke(act: str) -> str:
@@ -10865,6 +10954,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "cost_mine": _cost_mine,
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
+           "woke_usual": lambda text: _woke_usual(text),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

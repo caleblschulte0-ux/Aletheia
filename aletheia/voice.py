@@ -8326,6 +8326,14 @@ def _interpret(transcript: str) -> dict:
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'm going to the gym after work" (2026-10-07: to the planner). A plan
+    # for later today is a note in his words, not a reminder he didn't ask for.
+    if re.fullmatch(r"(?:i'?m|i am|i'?ll be|i will be) (?:going|heading|gonna go|going to go) (?:to )?(?:the )?"
+                    r"(?:gym|store|grocery store|pool|park|library|post office|bank|doctor'?s?|dentist'?s?|office|mall|barber|salon|vet"
+                    r"|for a (?:run|walk|swim|bike ride|drive)|on a (?:run|walk|bike ride)|running|walking|swimming|shopping)"
+                    r" (?:after work|before work|after lunch|after dinner|after school|later(?: today| tonight)?|tonight|this afternoon"
+                    r"|this evening|in the morning|tomorrow(?: morning| afternoon| evening| night)?)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I GOT A HAIRCUT", "I need an oil change" (2026-10-07: both to the
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.

@@ -5114,5 +5114,55 @@ class ADoctorsNameIsWrittenAsOne(unittest.TestCase):
             self.assertEqual(quick._person("boss"), "Your boss is a nice guy.")
 
 
+class WhatIsUsual(unittest.TestCase):
+    """"What time do I usually wake up" went to a model after "I woke up at 6:30"."""
+
+    def _notes(self, *said):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"text": t, "ts": now} for t in said]
+
+    def test_the_middle_of_what_he_told_her(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self._notes(
+                "i woke up at 6:30", "i woke up at 7", "I woke up at 6:45 am")):
+            self.assertEqual(quick.answer("what time do i usually wake up"),
+                             "Around 6:45 am - from the 3 times you've told me this month.")
+
+    def test_bedtime_runs_past_midnight(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self._notes(
+                "i went to bed at 11", "i went to bed at 12:30", "i went to bed at 11:30 pm")):
+            self.assertEqual(quick.answer("what's my usual bedtime"),
+                             "Around 11:30 pm - from the 3 times you've told me this month.")
+
+    def test_once_is_not_usual(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self._notes("i woke up at 6:30")):
+            self.assertIn("can't say what's usual yet", quick.answer("when do i usually get up"))
+
+
+class APlanForLaterToday(unittest.TestCase):
+    """"I'm going to the gym after work" went to the planner, and so did asking."""
+
+    def test_kept_as_a_note(self):
+        from aletheia import voice
+        got = voice.interpret("i'm going to the gym after work")["command"]
+        self.assertEqual(got["kind"], "note")
+
+    def test_read_back_today(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I'm going to the gym after work", "ts": now}]):
+            for asked in ("when am i going to the gym", "what am i doing after work", "what am i doing later"):
+                self.assertEqual(quick.answer(asked), "You told me earlier: you're going to the gym after work.", asked)
+
+    def test_a_day_he_names_reads_the_calendar(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("is anything happening saturday"), ("agenda", "saturday"))
+        self.assertEqual(quick.match("do i have anything on saturday"), ("agenda", "saturday"))
+
+
 if __name__ == "__main__":
     unittest.main()
