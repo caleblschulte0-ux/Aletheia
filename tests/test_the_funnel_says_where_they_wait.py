@@ -114,6 +114,19 @@ class WhereTheyWait(unittest.TestCase):
                                                   "other": 1, "site_refused": 1})
         self.assertNotIn("acme", json.dumps(held).casefold())
 
+    def test_an_exception_not_called_error_is_still_named(self):
+        class PressNeverReached(RuntimeError):
+            pass
+        rows = [row("FAILED", failure="PressNeverReached: Acme's button never came"),
+                row("FAILED", failure="DoorDash: they said no"),
+                row("FAILED", last_failure="TimeoutError: acme.example was slow"),
+                row("FAILED")]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]["failed_because"]
+        self.assertEqual(held, {"PressNeverReached": 1, "TimeoutError": 1, "no_reason_written": 1,
+                                "other": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
+        self.assertNotIn("doordash", json.dumps(held).casefold())
+
     def test_nothing_that_names_an_employer_is_published(self):
         rows = [row("CLOSED", closed_because="Acme Robotics said no", company="Acme Robotics",
                     closed_at="2026-10-06T10:00:00Z"),
