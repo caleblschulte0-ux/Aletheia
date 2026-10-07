@@ -2648,7 +2648,11 @@ def _interpret(transcript: str) -> dict:
     # start with "look", and the browse branch would swallow the first, then
     # complain it heard no web address.
     m = re.match(r"(?:look into|research|find out(?: about)?|dig into|"
-                 r"look up|what do you know about|tell me about)\s+(.+)", low)
+                 r"look up|what do you know about|tell me about|"
+                 # "Search the web for the best tacos in Denver" went to the
+                 # planner (2026-10-07); it is the same read-only research.
+                 r"(?:search|look|check) (?:the web|online|the internet|google) (?:for|about)|google|"
+                 r"search (?:for|up))\s+(.+)", low)
     if m:
         question = m.group(1).strip(" ?.")
         if len(question) > 2:

@@ -28,3 +28,15 @@ class AHoldInAnyWordOrder(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SearchTheWeb(unittest.TestCase):
+    def test_search_the_web_is_research(self):
+        for said, q in (("search the web for best tacos in denver", "best tacos in denver"),
+                        ("google cheap flights to denver", "cheap flights to denver")):
+            c = (voice._interpret(said) or {}).get("command") or {}
+            self.assertEqual((c.get("kind"), c.get("question")), ("research", q))
+
+    def test_a_file_search_is_still_a_file(self):
+        c = (voice._interpret("search for my resume") or {}).get("command") or {}
+        self.assertEqual(c.get("kind"), "file_find")
