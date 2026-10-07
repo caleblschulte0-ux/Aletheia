@@ -35,6 +35,12 @@ PUBLISH_EVERY_S = 1800.0
 _LAST: dict = {"at": 0.0}
 
 PRESSED = ("SUBMITTED", "SUBMITTING")
+#: Why a closed application was closed, by the words of the reason
+#: `apply_run.close` was given. Buckets only: the reason itself can name the
+#: employer, and this file is public.
+CLOSED_BECAUSE = (("not realistic", "not_realistic"), ("already", "duplicate"),
+                  ("same job", "duplicate"), ("stale", "stale"), ("expired", "stale"),
+                  ("no longer", "stale"))
 WORKED = ("AWAITING_YOU", "NEEDS_YOU", "NEEDS_ACCOUNT", "SUBMITTED", "SUBMITTING", "FAILED", "REJECTED", "APPROVED")
 
 
@@ -86,7 +92,65 @@ def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS
             total[key] += day[key]
     return {"days": dict(sorted(by_day.items())), "window_days": days, "totals": total,
             "sent_all_time": sum(1 for r in rows if isinstance(r, dict) and r.get("state") in PRESSED),
+            "waiting": waiting(rows, now=now, first=first),
             "generated_at": stateio.utcnow()}
+
+
+def _waits_for_him(record: dict) -> str:
+    try:
+        from aletheia import apply_run
+        return apply_run.waits_for_his_ok(record) or ""
+    except Exception:
+        return ""
+
+
+def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = "") -> dict:
+    """Where the applications that were filled and NOT sent are sitting now.
+
+    Live 2026-10-06 the funnel said 15 filled and 4 sent for the day, and
+    nothing anywhere said where the other eleven were: waiting on an
+    answer only he has, an account, his own OK for part-time work, a send
+    that failed, or a grant nobody created. Every one of those is a
+    different fix, and from the cloud they were indistinguishable. Counts
+    only, never a name or a question."""
+    from aletheia import localtime
+    zone = localtime.operator_tz()
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(zone)
+    out = {"to_send": 0, "his_ok": {}, "needs_answer": 0, "needs_account": 0, "failed": 0,
+           "closed": {}, "oldest_days": 0}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        state = str(r.get("state") or "")
+        if state in ("AWAITING_YOU", "APPROVED"):
+            kind = _waits_for_him(r)
+            if kind:
+                out["his_ok"][kind] = out["his_ok"].get(kind, 0) + 1
+            else:
+                out["to_send"] += 1
+        elif state == "NEEDS_YOU":
+            out["needs_answer"] += 1
+        elif state == "NEEDS_ACCOUNT":
+            out["needs_account"] += 1
+        elif state == "FAILED":
+            out["failed"] += 1
+        elif state == "CLOSED":
+            if first and _day(r.get("closed_at") or r.get("staged_at"), zone) < first:
+                continue
+            why = str(r.get("closed_because") or "").casefold()
+            bucket = next((name for lead, name in CLOSED_BECAUSE if lead in why), "other")
+            out["closed"][bucket] = out["closed"].get(bucket, 0) + 1
+            continue
+        else:
+            continue
+        try:
+            age = (now - localtime.parse_utc(str(r.get("staged_at"))).astimezone(zone)).days
+            out["oldest_days"] = max(out["oldest_days"], age)
+        except Exception:
+            pass
+    out["his_ok"] = dict(sorted(out["his_ok"].items()))
+    out["closed"] = dict(sorted(out["closed"].items()))
+    return out
 
 
 def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | None:
@@ -152,5 +216,28 @@ def words(funnel: dict, *, now: dt.datetime | None = None) -> list[str]:
         rate = (100 * month["replies"] // month["sent"]) if month["sent"] else 0
         out.append(f"- {month['sent']} applications and no interview yet; {rate}% heard back at all. "
                    "Say 'how is the job hunt going' for which employers and why.")
+    out.extend(_waiting_words(funnel.get("waiting")))
     out.append("")
     return out
+
+
+def _waiting_words(held) -> list[str]:
+    """One line saying where the filled-but-unsent applications are, when
+    any are. Every part names what clears it."""
+    if not isinstance(held, dict):
+        return []
+    parts = []
+    if held.get("needs_answer"):
+        parts.append(f"{held['needs_answer']} stopped on a question only you can answer")
+    if held.get("needs_account"):
+        parts.append(f"{held['needs_account']} need an account on the employer's site")
+    his_ok = sum(int(v or 0) for v in (held.get("his_ok") or {}).values())
+    if his_ok:
+        parts.append(f"{his_ok} wait for your own OK (part-time, contract or judged by her own model)")
+    if held.get("to_send"):
+        parts.append(f"{held['to_send']} filled and not yet sent")
+    if held.get("failed"):
+        parts.append(f"{held['failed']} failed to send")
+    if not parts:
+        return []
+    return ["- **Waiting:** " + "; ".join(parts) + "."]
