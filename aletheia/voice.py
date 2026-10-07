@@ -3959,7 +3959,9 @@ def _interpret(transcript: str) -> dict:
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
                        r"|wednesday|thursday|friday|saturday|sunday))", low) \
         or re.fullmatch(r"(?:make|set) (?:the )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) "
-                        r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+                        r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low) \
+        or re.fullmatch(r"(?:the |my )?(?P<w>.+?) (?:task )?(?:is|should be) due (?:on |by )?"
+                        r"(?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
     if m and _names_one_open_task(m.group("w")):
         said = m.group("day")
         if said.startswith("next "):
@@ -4058,7 +4060,7 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:the |my )?(?P<w>.+?) task is (?:done|finished|complete|taken care of)", low)
          # "I need to sort the photos" is not a past tense (2026-10-07: it
          # ticked a task off).
-         or re.fullmatch(r"i (?:just |already )?(?P<w>(?![a-z]*eed\b|used\b)[a-z]+ed (?:the |my |a )?.+)", low))
+         or re.fullmatch(r"(?:i )?(?:just |already )?(?P<w>(?![a-z]*eed\b|used\b)[a-z]+ed (?:the |my |a )?.+)", low))
     if m and m.group("w") not in ("it", "that", "this", "everything", "all", "work", "today") \
             and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_done", "which": m.group("w")}, "say": None}

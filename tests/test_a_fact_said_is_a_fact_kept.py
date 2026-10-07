@@ -2348,5 +2348,20 @@ class EveryWayToSayANote(unittest.TestCase):
                 self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": kept})
 
 
+
+class ATaskSaidInPassing(unittest.TestCase):
+    """2026-10-07: "emailed Sam" with no "I", and "the plumber task is due
+    friday", both went to the planner with the task on his list."""
+
+    def test_done_and_due(self):
+        with mock.patch.object(voice, "_names_one_open_task", side_effect=lambda w: "plumber" in w or "sam" in w):
+            self.assertEqual(voice._interpret("emailed Sam")["command"], {"kind": "task_done", "which": "emailed sam"})
+            got = voice._interpret("the plumber task is due friday")["command"]
+            self.assertEqual((got["kind"], got["which"]), ("task_change", "plumber"))
+            self.assertIn("deadline", got)
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False):
+            self.assertNotEqual((voice._interpret("emailed Sam")["command"] or {}).get("kind"), "task_done")
+
+
 if __name__ == "__main__":
     unittest.main()
