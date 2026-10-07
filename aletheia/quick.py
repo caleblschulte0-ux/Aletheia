@@ -133,6 +133,8 @@ _STATUS = re.compile(
     # "What's new with Barkly" (2026-10-07: to the planner) - the same row.
     r"|^what(?:'s| is|s)? (?:new|happening|going on|the latest) (?:with|on|in) (?:the |my )?(?P<repo6>[a-z0-9][a-z0-9 _.-]{1,40}?)"
     r"(?: pipeline| repo| project| bot)?$"
+    # "What's Barkly doing" (2026-10-07: to the planner).
+    r"|^what(?:'s| is|s) (?:the |my )?(?P<repo7>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)? (?:doing|up to)(?: today| now| right now| lately)?$"
     r"|^why (?:is|are) (?:the |my )?(?P<repo4>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
     r" (?:red|failing|broken|down|unhealthy|not healthy|in trouble)(?: right now| today)?$")
 
@@ -395,7 +397,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("projects", re.compile(
         r"^what projects (?:are (?:you|u)|r u|am i|are we) (?:working on|carrying|running|doing)(?: right now)?$"
         r"|^what are (?:my|our|your) projects$|^(?:list|name|read me) (?:my|our|your|the) projects$"
-        r"|^what projects (?:do i|do we|do (?:you|u)) have$")),
+        r"|^what projects (?:do i|do we|do (?:you|u)) have$"
+        r"|^how (?:are|r) (?:the|my|our|your) projects(?: going| doing| coming along| looking)?$")),
     ("project_next", re.compile(
         r"^what(?:'s| is|s)? (?:the )?next (?:step )?(?:for|on|in) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 '-]{1,30}?)(?: project)?$")),
     ("disk", re.compile(

@@ -1095,6 +1095,27 @@ def _last_ask_kind() -> str:
         return ""
 
 
+def _known_person_first(rest: str) -> tuple[str, str] | None:
+    """(who, the rest) when the leading words name a contact he has, or a
+    one-word relation; else None. Never a stranger guessed at."""
+    words = str(rest or "").split()
+    try:
+        from aletheia import contacts as _contacts
+        people = _contacts.all_contacts()
+    except Exception:
+        _contacts, people = None, []
+    for n in range(min(3, len(words) - 1), 0, -1):
+        who = " ".join(words[:n])
+        try:
+            _contacts.resolve(who, people)
+            known = True
+        except Exception:
+            known = n == 1 and who in _RELATIONS
+        if known:
+            return who, " ".join(words[n:])
+    return None
+
+
 def _previous_turn() -> tuple[str, str]:
     """(what he said, what she answered) for the last exchange. Never raises."""
     try:
@@ -3520,6 +3541,13 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:quiet|hush|shush|mute your notifications)(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
                      r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?",
                      low)
+    # "Don't bother me for an hour" (2026-10-07: to the planner) - the
+    # span in words, the way the snooze reads it.
+    span = re.fullmatch(r"(?:(?:don'?t|do not) (?:disturb|bother|interrupt) me|(?:turn on|enable|put me on) "
+                        r"(?:do not disturb|dnd|quiet mode|focus mode)|(?:be )?quiet|hush) for (?P<span>.+)", low)
+    if span and not m and _spoken_minutes(span.group("span")):
+        return {"command": {"kind": "notify_snooze",
+                            "minutes": max(1, min(_spoken_minutes(span.group("span")), 60 * 24 * 7))}, "say": None}
     if m:
         n = next((m.group(k) for k in ("n", "n2", "n3", "n4") if m.group(k)), "")
         unit = next((m.group(k) for k in ("unit", "unit2", "unit3", "unit4") if m.group(k)), "")
@@ -3696,23 +3724,10 @@ def _interpret(transcript: str) -> dict:
     # (2026-10-07). The longest leading words that name a contact he has,
     # or a one-word relation, are the person; the rest is the message.
     m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<rest>.+)", low)
-    if m:
-        words = m.group("rest").split()
-        try:
-            from aletheia import contacts as _contacts
-            people = _contacts.all_contacts()
-        except Exception:
-            people = []
-        for n in range(min(3, len(words) - 1), 0, -1):
-            who = " ".join(words[:n])
-            try:
-                _contacts.resolve(who, people)
-                known = True
-            except Exception:
-                known = n == 1 and who in _RELATIONS
-            if known:
-                return {"command": {"kind": "message_send", "to": who,
-                                    "body": _as_he_said(text, " ".join(words[n:]))}, "say": None}
+    split = _known_person_first(m.group("rest")) if m else None
+    if split:
+        return {"command": {"kind": "message_send", "to": split[0],
+                            "body": _as_he_said(text, split[1])}, "say": None}
     # "SEND A MESSAGE TO DANA" names who and not what (2026-10-07: to the
     # planner). Asked for whole, the way the bare verbs are.
     # One word after a bare "text": "text bob happy birthday" is a stranger
@@ -3746,6 +3761,16 @@ def _interpret(transcript: str) -> dict:
     if m and not re.search(r"\b(?:remind|reminder)\b", low):
         return {"command": {"kind": "email_draft", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
+
+    # "EMAIL MOM HAPPY BIRTHDAY" (2026-10-07: to the planner): the same
+    # split "text mom happy birthday" makes - a person he has, then the
+    # words. "About" is the conversation below, not a message.
+    m = re.fullmatch(r"(?:send (?:an? )?e?mail to|e?mail) (?P<rest>.+)", low)
+    split = _known_person_first(m.group("rest")) if m and not re.search(
+        r"\b(?:about|regarding|remind|reminder)\b", low) else None
+    if split:
+        return {"command": {"kind": "email_draft", "to": split[0],
+                            "body": _as_he_said(text, split[1])}, "say": None}
 
     # "Email the landlord about the listing": a CONVERSATION she carries - the
     # draft, the reply, the follow-up - rather than one message and forget.
