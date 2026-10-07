@@ -358,8 +358,9 @@ def _home_point(code: str, name: str) -> tuple[float, float, str]:
     if name and name != "where you live":
         return place_point(name)
     raise WeatherUnavailable(
-        "I don't know where you are. Tell me your postcode and I'll "
-        "remember it, and then I can just answer this.")
+        # He is in the US and "postcode" is not his word; a town works too.
+        "I don't know where you are. Say \"my zip code is\" and the number, or "
+        "\"I live in\" and your town, and I'll remember it.")
 
 
 def sun_times(day=None, *, lat: float | None = None, lon: float | None = None):
