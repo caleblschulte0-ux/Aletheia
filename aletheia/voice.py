@@ -1482,6 +1482,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
         return _to_the_planner(text)
+    # "REMIND ME ABOUT THIS LATER" names neither the thing nor the time,
+    # and was read as a memory search for "this later". Asked for whole.
+    # (A bare "remind me later" is a snooze of what just fired.)
+    if re.fullmatch(r"remind me (?:about|of) (?:this|that|it)(?: (?:later|in a bit|another time|some other time|soon))?", low):
+        return {"command": None,
+                "say": "Remind you of what, and when? Say it whole - like \"remind me at 4 to call Sam\" "
+                       "or \"remind me in an hour to check the oven\"."}
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.
@@ -1982,7 +1989,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:the |my )?(?:morning )?brief(?:ing)?|"
                     # The phrasings a person actually uses. "Give me the
                     # brief" and "brief me" both went to the planner.
-                    r"(?:give me|read me|run) (?:the |my )?brief(?:ing)?|"
+                    r"(?:give me|read me|run) (?:the |my |a )?(?:morning |daily )?brief(?:ing)?|"
                     r"brief me|catch me up|what did i miss", low):
         return {"command": {"kind": "brief"}, "say": None}
 

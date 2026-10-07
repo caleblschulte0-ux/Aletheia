@@ -129,3 +129,16 @@ class TheCalendarItself(unittest.TestCase):
 
     def test_week_number(self):
         self.assertRegex(quick.answer("what week is it"), r"^Week \d{1,2} of \d{4}\.$")
+
+
+class AskedForWhole(unittest.TestCase):
+    def test_a_reminder_with_no_thing_and_no_time_asks(self):
+        from aletheia import voice
+        got = voice.interpret("remind me about this later")
+        self.assertIsNone(got["command"])
+        self.assertIn("what, and when", got["say"])
+        self.assertEqual(voice.interpret("remind me about my landlord")["command"]["kind"], "recall")
+
+    def test_a_briefing_with_an_a(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("give me a briefing")["command"]["kind"], "brief")
