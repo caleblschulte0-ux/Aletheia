@@ -38,7 +38,8 @@ class AskedBack(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=self.NOTES):
             self.assertEqual(quick.answer("what's my favorite color"), "You told me: your favorite color is blue.")
             self.assertEqual(quick.answer("what's my favorite food"), "You told me: your favorite food is tacos.")
-            self.assertEqual(quick.answer("when is jess's birthday"), "You told me: Jess's birthday is March 3.")
+            # The day he told her, with how far off it is now.
+            self.assertRegex(quick.answer("when is jess's birthday"), r"^Jess's birthday is \w+ 3 March(?:, \d+ days away\.| - tomorrow\.| - that's today!)$")
 
     def test_nothing_on_file_is_said_as_nothing(self):
         with mock.patch.object(quick, "_notes", return_value=self.NOTES):
@@ -708,6 +709,54 @@ class BusyIsNotFree(unittest.TestCase):
                          "calendar_hold")
         self.assertNotEqual((voice._interpret("book a table for two tomorrow at 7")["command"] or {}).get("kind"),
                             "calendar_hold")
+
+
+class BirthdaysHeToldHer(unittest.TestCase):
+    def notes(self):
+        import datetime as dt
+        from aletheia import localtime
+        today = localtime.today()
+        soon, later = today + dt.timedelta(days=10), today + dt.timedelta(days=40)
+        return [{"text": f"my mom's birthday is {later.strftime('%B').lower()} {later.day}"},
+                {"text": f"Jess's birthday is {soon.strftime('%B')} {soon.day}"}], soon, later
+
+    def test_when_and_who(self):
+        rows, soon, later = self.notes()
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("when is jess's birthday").endswith("10 days away."))
+            self.assertTrue(quick.answer("when is mom's birthday").startswith("Your mom's birthday is"))
+            said = quick.answer("whose birthday is coming up")
+        self.assertTrue(said.startswith("Birthdays coming up: Jess on"), said)
+        self.assertIn("your mom on", said)
+
+    def test_none_told_is_said(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me anybody's birthday", quick.answer("any birthdays coming up"))
+            self.assertIn("haven't told me your mom's birthday", quick.answer("when is mom's birthday"))
+
+
+class ARemindBeforeABirthday(unittest.TestCase):
+    def test_the_day_before_at_nine(self):
+        import datetime as dt
+        from aletheia import localtime
+        later = localtime.today() + dt.timedelta(days=40)
+        rows = [{"text": f"my mom's birthday is {later.strftime('%B').lower()} {later.day}"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            cmd = voice._interpret("remind me a day before mom's birthday")["command"]
+        at = dt.datetime.fromisoformat(cmd["at"]).astimezone(localtime.operator_tz())
+        self.assertEqual((at.date(), at.hour), (later - dt.timedelta(days=1), 9))
+        self.assertEqual(cmd["text"], "your mom's birthday is tomorrow")
+
+    def test_unknown_says_how(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            said = voice._interpret("remind me on sam's birthday")["say"]
+        self.assertIn('Say "Sam\'s birthday is"', said)
+
+    def test_an_apostrophe_is_read_out_not_the_receipt(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("remind_at", 'reminder set for 2099-01-01T17:00:00+00:00 — "call Jess\'s mom"')
+        self.assertTrue(said.startswith("I'll remind you"), said)
+        self.assertIn("call Jess's mom", said)
 
 
 if __name__ == "__main__":

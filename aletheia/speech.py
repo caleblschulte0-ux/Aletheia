@@ -546,6 +546,15 @@ def _spoken_number(number: str) -> str:
     return number
 
 
+def _reminder_quote(text: str):
+    """The reminder's words out of its receipt. repr() quotes them with
+    double quotes when they hold an apostrophe ("call Jess's mom"), and the
+    single-quote search missed them, so the raw receipt reached the room
+    (2026-10-07)."""
+    return (re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r'[—-]\s*"(.+?)"\s*$', text)
+            or re.search(r"'(.+?)'", text))
+
+
 def spoken_receipt(kind: str, detail: str, *,
                    now: dt.datetime | None = None) -> str:
     """One subsystem receipt, as a sentence.
@@ -592,7 +601,7 @@ def spoken_receipt(kind: str, detail: str, *,
             return f"Got it - {who}: {and_list(said)}."
     if kind == "remind_at":
         when = ISO_TIME.search(text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         # A timer and an alarm are said as what they are: "I'll remind you
         # at 12:29 am: your 10-minute timer is up" is a reminder ABOUT a
         # timer, read back to someone who just started one (2026-10-07).
@@ -627,7 +636,7 @@ def spoken_receipt(kind: str, detail: str, *,
         # "reminder remind-every-9f2 set every 2 days from 2026-10-08T09:00:00-05:00 — 'run'"
         span = re.search(r"set every (\d+) (days|weeks)(?: on (\w+))?", text)
         when = ISO_TIME.search(text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if span and when and what:
             n, unit, day = int(span.group(1)), span.group(2), span.group(3)
             lead = ("Every other day" if (n, unit) == (2, "days") else
@@ -637,7 +646,7 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "remind_every":
         # "reminder remind-every-9f2 set every 60 minutes from 2026-10-07T04:00:00+00:00 — 'drink water'"
         span = re.search(r"set every (\d+) minutes", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if span and what:
             n = int(span.group(1))
             hours, mins = divmod(n, 60)
@@ -647,7 +656,7 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "remind_monthly":
         # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
         when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             n = int(when.group(1))
             nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
@@ -655,7 +664,7 @@ def spoken_receipt(kind: str, detail: str, *,
                     f"{_quoted(what.group(1))}.")
     if kind == "remind_daily":
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             return (f"Every day at {clock_words(when.group(1))} I'll remind "
                     f"you: {_quoted(what.group(1))}.")
@@ -663,7 +672,7 @@ def spoken_receipt(kind: str, detail: str, *,
         # "weekly reminder remind-weekly-9f2 set for Monday at 09:00 —
         # 'take out the trash'"
         when = re.search(r"set for (.+?) at (\d{1,2}:\d{2})\b", text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             days = when.group(1)
             lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
@@ -673,7 +682,7 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "notify_snooze":
         # "snoozed snooze-9f2 until 2026-09-07T21:00:00+00:00 — 'the boiler'"
         when = ISO_TIME.search(text)
-        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        what = _reminder_quote(text)
         if when and what:
             return (f"Put away until {humanize_time(when.group(0), now)}: "
                     f"{_quoted(what.group(1))}.")

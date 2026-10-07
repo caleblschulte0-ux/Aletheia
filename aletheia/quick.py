@@ -1346,6 +1346,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "do I need a visa" is not a shopping question, so a miss goes on.
     ("shopping_need", re.compile(
         r"^do (?:i|we) need (?:any |some |more )?(?P<need_q>(?!to\b)[a-z][a-z '&-]{1,30}?)\s*\??$")),
+    # "Whose birthday is coming up", "when is mom's birthday" (2026-10-07:
+    # a model, and the bare note read back with no day or distance).
+    ("birthdays", re.compile(
+        r"^(?:whose|who(?:'s| has a| has)) birthday(?:s)? (?:is |are )?(?:coming up|next|soon)\s*\??$"
+        r"|^(?:any|are there any|do i have any|upcoming) birthdays?(?: (?:coming up|soon))?(?: (?P<bwin>this week|this month))?\s*\??$"
+        r"|^(?:any )?birthdays? (?P<bwin2>this week|this month)\s*\??$"
+        r"|^when(?:'s| is) the next birthday\s*\??$")),
+    ("birthday_when", re.compile(
+        r"^when(?:'s| is) (?:my )?(?P<bday>(?!my\b|your\b|our\b)[a-z][a-z ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday)\s*\??$")),
     # A FACT HE TOLD HER, asked back (2026-10-07: "what's my favorite
     # color", "what is my blood type", "when is jess's birthday" each went
     # to a model while the note sat in her journal).
@@ -1723,7 +1732,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2427,6 +2436,97 @@ def _took_today(what: str) -> str:
     return f"You haven't told me you took your {what} today. Say \"I took my {what}\" when you do and I'll keep track."
 
 
+def _birthday_notes() -> list[tuple[str, int, int]]:
+    """(who, month, day) for every birthday his notes name, newest note
+    first and one per person. "who" is how she says it: "your mom", "Jess"."""
+    month_re = "|".join(_MONTHS)
+    seen, out = set(), []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        m = re.search(r"^(?:that )?(?P<who>(?:my )?[a-z][a-z' ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday) is ", low)
+        if not m or m.group("who") in ("my", "your"):
+            continue
+        d = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?", low[m.end():])
+             or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? (?:of )?(?P<mon>{month_re})", low[m.end():]))
+        if not d:
+            continue
+        who = m.group("who")
+        key = re.sub(r"^my ", "", who)
+        if key in seen:
+            continue
+        seen.add(key)
+        if who.startswith("my "):
+            shown = "your " + who[3:]
+        else:
+            shown = said[m.start("who"):m.end("who")]
+            shown = shown[:1].upper() + shown[1:]
+        out.append((shown, _MONTHS.index(d.group("mon")) + 1, int(d.group("day"))))
+    return out
+
+
+def _next_birthday(month: int, day: int):
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    for year in (today.year, today.year + 1, today.year + 2):
+        try:
+            when = dt.date(year, month, day)
+        except ValueError:          # 29 February in a year without one
+            continue
+        if when >= today:
+            return when, (when - today).days
+    return None, None
+
+
+def _birthday_line(shown: str, month: int, day: int) -> str:
+    when, days = _next_birthday(month, day)
+    if when is None:
+        return ""
+    lead = f"{shown[:1].upper()}{shown[1:]}'s birthday is {when.strftime('%A')} {when.day} {when.strftime('%B')}"
+    return lead + (" - that's today!" if days == 0 else " - tomorrow." if days == 1 else f", {days} days away.")
+
+
+def _birthday_when(who: str) -> str | None:
+    """"When is mom's birthday": the day, and how far off, from his note."""
+    who = re.sub(r"^my ", "", " ".join(str(who or "").casefold().split()))
+    for shown, month, day in _birthday_notes():
+        if re.sub(r"^your ", "", shown.casefold()) == who:
+            return _birthday_line(shown, month, day)
+    return _fact_q(f"when is {who}'s birthday")
+
+
+def _birthdays_coming(window: str = "") -> str:
+    """"Whose birthday is coming up": the ones his notes name, soonest first."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    rows = []
+    for shown, month, day in _birthday_notes():
+        when, days = _next_birthday(month, day)
+        if when is not None:
+            rows.append((days, when, shown))
+    if not rows:
+        return ("You haven't told me anybody's birthday. Say \"Mom's birthday is May 12\" and I'll keep it.")
+    rows.sort()
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    window = " ".join(str(window or "").split())
+    if window == "this week":
+        inside = [r for r in rows if r[0] <= 6 - today.weekday()]
+    elif window == "this month":
+        inside = [r for r in rows if r[1].month == today.month and r[1].year == today.year]
+    else:
+        inside = [r for r in rows if r[0] <= 60]
+    if not inside:
+        days, when, shown = rows[0]
+        lead = {"this week": "No birthdays this week.", "this month": "No birthdays this month."}.get(
+            window, "No birthdays in the next two months.")
+        return f"{lead} The next is {shown}'s, on {when.strftime('%A')} {when.day} {when.strftime('%B')}, {days} days away."
+    if len(inside) == 1:
+        return _birthday_line(*[inside[0][2], inside[0][1].month, inside[0][1].day])
+    said = [f"{shown} on {when.strftime('%A')} {when.day} {when.strftime('%B')}" for _d, when, shown in inside[:5]]
+    return f"Birthdays coming up: {speech.and_list(said)}."
+
+
 def _age_of(who: str) -> str | None:
     """How old somebody he told her about is, from the birthday in his note."""
     import datetime as dt
@@ -2451,7 +2551,8 @@ def _age_of(who: str) -> str | None:
             continue
         shown = name or (f"Your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
         if not m.group("year"):
-            return (f"You told me {shown}'s birthday is {m.group('mon').title()} {int(m.group('day'))}, "
+            told = shown[:1].lower() + shown[1:] if shown.startswith("Your ") else shown
+            return (f"You told me {told}'s birthday is {m.group('mon').title()} {int(m.group('day'))}, "
                     f"but not the year, so I can't say how old. Tell me the year and I'll know.")
         month, day, year = _MONTHS.index(m.group("mon")) + 1, int(m.group("day")), int(m.group("year"))
         today = dt.datetime.now(localtime.operator_tz()).date()
@@ -7321,6 +7422,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rps": _rps,
            "place_where": lambda rest: _place_where(rest),
            "place_addr": lambda rest: _place_addr(rest),
+           "birthdays": lambda rest: _birthdays_coming(rest),
+           "birthday_when": lambda rest: _birthday_when(rest),
            "task_due": lambda rest: _task_due(rest),
            "arith_more": _arith_more,
            "dice": lambda rest: _dice(rest),

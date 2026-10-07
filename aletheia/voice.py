@@ -1056,6 +1056,42 @@ _TASK_VERB = re.compile(
     r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water)\b")
 
 
+def _birthday_reminder(m) -> dict:
+    """A reminder some days before a birthday his note names, at 9 am."""
+    import datetime as dt
+    from aletheia import localtime, quick
+    who = m.group("who").strip()
+    words = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+    if m.group("n"):
+        n = words.get(m.group("n")) or int(m.group("n"))
+        before = n * (7 if m.group("unit").startswith("week") else 1)
+    else:
+        before = 1 if m.group("eve") else 0
+    for shown, month, day in quick._birthday_notes():
+        if re.sub(r"^your ", "", shown.casefold()) != who:
+            continue
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        when, _days = quick._next_birthday(month, day)
+        for _ in range(2):
+            at = dt.datetime.combine(when - dt.timedelta(days=before), dt.time(9, 0), tzinfo=tz)
+            if at > now:
+                break
+            when, _days = quick._next_birthday(month, day) if when.year > now.year else (when.replace(year=when.year + 1), None)
+        if at <= now:
+            return {"command": None, "say": "That's already gone by this year. Say a different number of days."}
+        lead = f"{shown}'s birthday"
+        text = (f"{lead} is today" if before == 0 else f"{lead} is tomorrow" if before == 1
+                else f"{lead} is in a week, on {when.strftime('%A')}" if before == 7
+                else f"{lead} is in {before} days, on {when.strftime('%A')}")
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
+    relation = who in quick._relation_words() or " " in who
+    said, his = (f"your {who}", f"My {who}") if relation else (who.title(), who.title())
+    return {"command": None,
+            "say": f"I don't know when {said}'s birthday is. Say \"{his}'s birthday is\" and the date, "
+                   "and then I can."}
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -4084,6 +4120,13 @@ def _interpret(transcript: str) -> dict:
             command.update(from_day=day_iso, to_day=day_iso)
         return {"command": command, "say": None}
 
+    # "Remind me a day before Mom's birthday" (2026-10-07: to the planner)
+    # - the day is in his note, so the reminder is arithmetic.
+    m = re.fullmatch(r"remind me (?:(?P<n>a|one|two|three|four|five|six|seven|\d{1,2}) (?P<unit>days?|weeks?) before"
+                     r"|the (?P<eve>day|morning|night) before|on) "
+                     r"(?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday)", low)
+    if m:
+        return _birthday_reminder(m)
     # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
     # not a lookup: it answered "I don't have anything remembered about 'the
     # license task tomorrow'" (2026-10-07).
