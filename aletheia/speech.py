@@ -606,7 +606,7 @@ def spoken_receipt(kind: str, detail: str, *,
         # value never lands in a committed receipt: "remembered identity.full_name".
         slot = re.match(r"remembered\s+\w+\.([\w-]+)\s*$", text)
         if slot:
-            what = {"full_name": "name", "operator_name": "name"}.get(slot.group(1), deslug(slot.group(1)))
+            what = {"full_name": "name", "operator_name": "name", "postal_code": "zip code"}.get(slot.group(1), deslug(slot.group(1)))
             return f"Got it - I'll remember your {what}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)

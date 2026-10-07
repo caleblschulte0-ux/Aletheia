@@ -2998,6 +2998,13 @@ def _interpret(transcript: str) -> dict:
     # I'll remember it", and telling her went to the planner - which, with
     # no model, kept the sentence "for later". A name is one line in her
     # memory of him; two to four words is a full name, one is what he goes by.
+    # "MY ZIP CODE IS 80202": the weather asks for his postcode, and telling
+    # her went to the planner. Five digits are a fact, not a plan.
+    m = re.fullmatch(r"(?:my (?:zip|zip code|zipcode|postcode|postal code) is|my (?:zip|postcode)'s|"
+                     r"i live in|i'm in|i am in) (\d{5}(?:-\d{4})?)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "postal_code",
+                            "value": m.group(1)}, "say": None}
     m = re.fullmatch(r"(?:my name is|my name's|you can call me|please call me|call me) "
                      r"([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,3})", low)
     if m and not re.match(r"(?:not|what|who|wrong|spelled|spelt)\b", m.group(1)) \

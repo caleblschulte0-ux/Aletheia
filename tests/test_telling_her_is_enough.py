@@ -43,3 +43,16 @@ class TellingHerIsEnough(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HisZipCode(unittest.TestCase):
+    def test_saying_it_remembers_it(self):
+        c = voice._interpret("my zip code is 80202")["command"]
+        self.assertEqual((c["kind"], c["key"], c["value"]), ("remember", "postal_code", "80202"))
+
+    def test_the_weather_reads_it(self):
+        from aletheia import weather
+        held = {"identity": {"postal_code": {"value": "80202"}}}
+        with mock.patch("aletheia.profile.answer", return_value=None), \
+                mock.patch("aletheia.memory.everything", return_value=held):
+            self.assertEqual(weather.where_he_is()[0], "80202")
