@@ -863,7 +863,20 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return None
-    at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(time_words))
+    bare = _is_bare_hour(time_words)
+    if bare:
+        # "Remind me at 5" then "make that 6" set it for SIX IN THE MORNING
+        # (2026-10-07): the bare-hour rule read 6 on its own. A correction
+        # keeps the half of the day the reminder was already in.
+        try:
+            import datetime as dt
+            was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00"))
+            hour, minute = map(int, hhmm.split(":"))
+            if was.hour >= 12 and hour < 12:
+                hhmm, bare = f"{hour + 12:02d}:{minute:02d}", False
+        except (ValueError, TypeError):
+            pass
+    at = _next_occurrence_iso(hhmm, bare_hour=bare)
     return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
                         "replaces": previous["text"]}, "say": None}
 

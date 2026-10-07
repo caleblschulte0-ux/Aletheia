@@ -3972,6 +3972,11 @@ def _follow_up(question: str) -> str | None:
         if days:
             last = days[-1]
             rebuilt = prev[:last.start()] + new_words + prev[last.end():]
+        else:
+            # "What's the weather" then "how about tomorrow": the first ask
+            # named no day, so the day is ADDED (2026-10-07). Kept only if
+            # the result is still a question a store answers - checked below.
+            rebuilt = f"{prev} {new_words}"
     if not rebuilt:
         shape = status_of(prev)
         subject = shape[1] if shape and shape[0] == "repo" else ""
@@ -3979,7 +3984,9 @@ def _follow_up(question: str) -> str | None:
             found = match(prev)
             subject = found[1] if found and found[1] and found[1] != prev else ""
         if subject and subject in prev:
-            rebuilt = prev.replace(subject, re.sub(r"^(?:the |my )", "", new_words), 1)
+            # "And in Tokyo?" after "what time is it in london": the "in" is
+            # already in the sentence, so it is not said twice.
+            rebuilt = prev.replace(subject, re.sub(r"^(?:in |at |for |on )?(?:the |my )?", "", new_words), 1)
     if not rebuilt or rebuilt == prev or not match(rebuilt):
         return None
     return answer(rebuilt)
