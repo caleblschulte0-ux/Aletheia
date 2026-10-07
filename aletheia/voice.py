@@ -3257,7 +3257,9 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": None, "say": _spell_his_name(m.group("which") or "full")}
 
-    if re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(?:most recent|latest|newest|last) e-?mail(?: about| say| saying)?", low):
+    if re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(?:most recent|latest|newest|last) e-?mail(?: about| say| saying)?"
+                    r"|(?:my |any |the )?(?:unread|new) (?:e-?mails?|mail)|(?:read|check) (?:me )?(?:my )?(?:unread|new) (?:e-?mails?|mail)"
+                    r"|how many (?:unread |new )?e-?mails? (?:do i have|have i got)", low):
         return {"command": {"kind": "email_check"}, "say": None}
     # HIS PACKAGES (2026-10-07: "where is my amazon order" searched his
     # FILES for "amazon order"; "track my package" went to the planner).

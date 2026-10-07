@@ -530,7 +530,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("tasks_due", re.compile(
         r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
         r"(?: today| tomorrow| this week| soon| next)?)(?: on my list)?\s*\??$"
-        r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$")),
+        r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$"
+        # "What tasks do I have today" (2026-10-07: to the planner), and
+        # "what did I forget", which is the overdue list asked guiltily.
+        r"|^what tasks (?:do i have|have i got|are there|are on my list)(?: due)? (?P<due3>today|tomorrow|this week)\s*\??$"
+        r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something))"
+        r"(?P<due4>)\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
@@ -1042,6 +1047,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
         # "What's the high today" (2026-10-07: to the planner).
         r"|^what(?:'s| is|s| will be)? the (?:high|low|temperature high|temperature low)(?: (?P<weather7>today|tonight|tomorrow))?$"
+        r"|^how (?:hot|cold|warm|chilly) (?:will it get|is it going to get|will it be|is it going to be)(?: (?P<weather8>today|tonight|tomorrow))?$"
         r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|sunny|cold|hot|warm)"
         r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
     # WIND, HUMIDITY AND THE BATTERY. All three went to the planner and,
@@ -1527,10 +1533,10 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -1955,7 +1961,9 @@ def _tasks_due(which: str = "") -> str | None:
     now = dt.datetime.now(tz)
     which = " ".join(str(which or "").split())
     end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
-    overdue_only = which in ("overdue", "late", "past due")
+    if which in ("today", "tomorrow", "this week"):
+        which = "due " + which
+    overdue_only = which in ("overdue", "late", "past due", "")
     limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
              "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
              "due soon": now + dt.timedelta(days=3)}.get(which, now + dt.timedelta(days=7))
@@ -1973,6 +1981,8 @@ def _tasks_due(which: str = "") -> str | None:
             which[4:] if which.startswith("due ") else "in the next week") + "."
         if rows and undated == len(rows):
             return lead + f" {speech.count_phrase(len(rows), 'task')} on your list, none with a date."
+        if rows:
+            return lead + f" {speech.count_phrase(len(rows), 'task')} open on your list in all."
         return lead
     late = [t for w, t in dated if w < now]
     said = speech.and_list([intercom._task_words(t) for _w, t in dated[:5]])

@@ -941,5 +941,42 @@ class TheNextMeetingInDetail(unittest.TestCase):
             self.assertIn("free", quick.answer("how long is my day"))
 
 
+
+class TheDaysTasksAndWhatHeForgot(unittest.TestCase):
+    def test_the_sentences_reach_the_deadline_reader(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what tasks do i have today"), ("tasks_due", "today"))
+        self.assertEqual(quick.match("what did i forget")[0], "tasks_due")
+        self.assertEqual(quick.match("did i forget anything")[0], "tasks_due")
+        self.assertEqual(quick.match("how hot will it get")[0], "weather")
+
+    def test_what_did_i_forget_is_the_overdue_list(self):
+        import datetime as dt
+        from aletheia import intercom, quick
+        past = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)).isoformat()
+        rows = [{"id": "a", "description": "renew passport", "deadline": past},
+                {"id": "b", "description": "call the bank"}]
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows):
+            said = quick.answer("what did i forget")
+        self.assertIn("overdue", said)
+        self.assertIn("renew passport", said)
+        self.assertNotIn("call the bank", said)
+
+    def test_nothing_due_still_says_how_many_are_open(self):
+        import datetime as dt
+        from aletheia import intercom, quick
+        later = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=30)).isoformat()
+        rows = [{"id": "a", "description": "renew passport", "deadline": later},
+                {"id": "b", "description": "call the bank"}]
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows):
+            said = quick.answer("what tasks do i have today")
+        self.assertIn("Nothing's due today", said)
+        self.assertIn("2 tasks open", said)
+
+    def test_unread_email_reads_the_inbox(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("unread emails")["command"]["kind"], "email_check")
+
+
 if __name__ == "__main__":
     unittest.main()
