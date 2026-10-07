@@ -891,6 +891,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<weather>today|tonight|tomorrow|this weekend|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))?$"
         r"|^(?:is|will) it (?:going to |gonna )?(?:rain|snow)(?: (?:on )?(?P<weather2>today|tonight|tomorrow|this weekend|the weekend"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
+    # SOMEWHERE ELSE (2026-10-07): "what's the weather like in Chicago"
+    # went to the planner. Before the pattern for his own weather, which
+    # would otherwise never see the town.
+    ("weather_in", re.compile(
+        r"^(?:what(?:'s| is|s)? (?:the )?(?:weather|forecast|temperature)(?: like| going to be like| looking like| doing)?"
+        r"|how(?:'s| is) the weather(?: looking)?|weather|is it (?:raining|snowing|cold|hot|warm|nice)"
+        r"|how (?:hot|cold|warm) is it) (?:in|for|at) (?!(?:the )?(?:morning|afternoon|evening|weekend)\b)"
+        r"(?P<weather_place>[a-z][a-z .,'-]{1,40}?|\d{5})"
+        r"(?: (?:for |on )?(?:today|tonight|tomorrow|this weekend|the weekend|right now|now"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     ("weather", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?weather(?: like| looking like| doing| going to be like)?(?: out(?:side)?)?"
         r"|how(?:'s| is) the weather(?: looking)?(?: out(?:side)?)?|what(?:'s| is|s)? it like out(?:side)?"
@@ -1336,7 +1346,8 @@ def match(question: str) -> tuple[str, str] | None:
             return name, text
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
-                    "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon"):
+                    "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
+                    "weather_in"):
             return name, text
         if name in ("until_weeks", "tip", "currency"):
             return name, text
@@ -3572,6 +3583,21 @@ def _feeling(text: str) -> str | None:
     if said.startswith(("i'm having", "im having")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
+def _weather_in(text: str) -> str | None:
+    """The forecast for a town he names, said with the town it read."""
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "weather_in"), None)
+    if not found:
+        return None
+    place = found.group("weather_place").strip(" ,.")
+    when = re.search(r"\b(today|tonight|tomorrow|this weekend|the weekend|monday|tuesday|wednesday|thursday"
+                     r"|friday|saturday|sunday)\s*\??$", _tidy(text))
+    try:
+        from aletheia import weather
+        return weather.spoken(when.group(1) if when else "", place=place)
+    except Exception:
+        return None
+
+
 def _weather_more(text: str) -> str | None:
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "weather_more"), None)
     if not found:
@@ -5686,6 +5712,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "stopwatch": lambda rest: _stopwatch(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
+           "weather_in": lambda rest: _weather_in(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),

@@ -42,6 +42,22 @@ AGENT = "Aletheia personal assistant (local, single user)"
 
 POINT_URL = "https://api.zippopotam.us/us/{zip}"
 GRID_URL = "https://api.weather.gov/points/{lat},{lon}"
+# A town by NAME ("what's the weather in Chicago"), same terms as the two
+# above: free, no key, no account. Asked for the United States only,
+# because the forecast behind it covers nowhere else.
+GEOCODE_URL = ("https://geocoding-api.open-meteo.com/v1/search?name={name}"
+               "&count=10&countryCode=US&language=en&format=json")
+
+_STATES = dict(pair.split(":") for pair in (
+    "al:alabama ak:alaska az:arizona ar:arkansas ca:california co:colorado ct:connecticut "
+    "de:delaware fl:florida ga:georgia hi:hawaii id:idaho il:illinois in:indiana ia:iowa "
+    "ks:kansas ky:kentucky la:louisiana me:maine md:maryland ma:massachusetts mi:michigan "
+    "mn:minnesota ms:mississippi mo:missouri mt:montana ne:nebraska nv:nevada nh:new_hampshire "
+    "nj:new_jersey nm:new_mexico ny:new_york nc:north_carolina nd:north_dakota oh:ohio "
+    "ok:oklahoma or:oregon pa:pennsylvania ri:rhode_island sc:south_carolina sd:south_dakota "
+    "tn:tennessee tx:texas ut:utah vt:vermont va:virginia wa:washington wv:west_virginia "
+    "wi:wisconsin wy:wyoming dc:district_of_columbia").split())
+_STATES = {k: v.replace("_", " ") for k, v in _STATES.items()}
 
 # A forecast is issued hourly and does not move in between. Long enough
 # that asking twice costs one call, short enough to still be today's.
@@ -109,6 +125,44 @@ def _point(code: str) -> tuple[float, float, str]:
             "and I'll remember it.") from None
 
 
+def place_point(place: str) -> tuple[float, float, str]:
+    """A town he names, as (lat, lon, "Town, State").
+
+    The largest town of that name wins unless he names the state, and the
+    answer always SAYS which one it read - "Springfield, Illinois" - so a
+    wrong pick is caught in one syllable rather than believed.
+    """
+    said = " ".join(str(place or "").replace(",", " ").split())
+    if re.fullmatch(r"\d{5}", said):
+        return _point(said)
+    words, state = said.split(), None
+    for n in (3, 2, 1):
+        tail = " ".join(words[-n:]).casefold()
+        if len(words) > n and (tail in _STATES.values() or (n == 1 and tail in _STATES)):
+            state, words = _STATES.get(tail, tail), words[:-n]
+            break
+    city = " ".join(words)
+    try:
+        data = _get(GEOCODE_URL.format(name=urllib.parse.quote(city)))
+    except OSError as exc:
+        raise WeatherUnavailable(
+            "I couldn't reach the weather service just now - the internet may be down. "
+            "Everything else still works.") from exc
+    except Exception:
+        data = {}
+    rows = [r for r in (data.get("results") or []) if isinstance(r, dict) and r.get("country_code") == "US"
+            and r.get("latitude") is not None and r.get("longitude") is not None]
+    if state:
+        rows = [r for r in rows if str(r.get("admin1") or "").casefold() == state]
+    if not rows:
+        raise WeatherUnavailable(
+            f"I couldn't find a place called {said.title()} in the United States - "
+            "the forecast I read covers the US only.")
+    best = max(rows, key=lambda r: r.get("population") or 0)
+    label = ", ".join(x for x in (str(best.get("name") or city.title()), str(best.get("admin1") or "")) if x)
+    return float(best["latitude"]), float(best["longitude"]), label
+
+
 def _periods(lat: float, lon: float) -> list[dict]:
     try:
         grid = _get(GRID_URL.format(lat=round(lat, 4), lon=round(lon, 4)))
@@ -122,8 +176,13 @@ def _periods(lat: float, lon: float) -> list[dict]:
         ) from None
 
 
-def forecast(*, fresh: bool = False) -> dict:
-    """Today and the next few periods, cached for half an hour."""
+def forecast(*, fresh: bool = False, place: str = "") -> dict:
+    """Today and the next few periods, cached for half an hour. A `place`
+    he names is looked up fresh and never replaces his own cached forecast."""
+    if place:
+        lat, lon, resolved = place_point(place)
+        return {"at": stateio.utcnow(), "place": resolved, "periods": _periods(lat, lon)[:14],
+                "lat": lat, "lon": lon}
     if not fresh:
         try:
             cached = stateio.read_json(_cache_path())
@@ -154,7 +213,7 @@ def forecast(*, fresh: bool = False) -> dict:
     return value
 
 
-def spoken(when: str = "") -> str:
+def spoken(when: str = "", place: str = "") -> str:
     """One sentence, out loud. Never raises — it says what went wrong.
 
     `when` is his word: nothing for now, or "tomorrow"/"tonight". A
@@ -163,7 +222,7 @@ def spoken(when: str = "") -> str:
     rather than picking something and sounding certain.
     """
     try:
-        data = forecast()
+        data = forecast(place=place) if place else forecast()
     except WeatherUnavailable as exc:
         return str(exc)
     except Exception as exc:
