@@ -562,12 +562,15 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         (patched, not a PATH strip): four fell through that a store settles."""
         for s, name in (("what did we talk about earlier", "asked_on"),
                         ("what have we discussed today", "asked_on"),
-                        ("what's the wifi password", "recall"),
+                        ("what's the wifi password", "fact_q"),
                         ("how many jobs are left to apply to", "jobs_left"),
                         ("what's left to apply for", "jobs_left")):
             self.assertEqual((quick.match(s) or ("",))[0], name, s)
         self.assertEqual(quick.match("what did we talk about earlier")[1], "earlier")
-        self.assertEqual(quick.match("what's the wifi password")[1], "wifi")
+        # A password is never kept, so it is said as never kept - not "nothing
+        # on file, tell me and I'll remember it", which she then would not.
+        from aletheia import voice
+        self.assertEqual(quick.answer("what's the wifi password"), voice._NO_PASSWORDS)
         with mock.patch("aletheia.current_state.job_hunt_words", return_value="Today: 4 found, 2 sent."):
             said = quick.answer("how many jobs are left to apply to")
         self.assertTrue(said.startswith("There's no queue to work down"), said)

@@ -289,7 +289,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     # `replaces` is the text of the reminder this one moves ("make that 4").
     "remind_at":       ({"at", "text"}, {"replaces"}),
-    "remind_daily":    ({"time", "text"}, {"tz", "every"}),
+    "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
     # "Every hour", "every 30 minutes": within the day, from now.
     "remind_every":    ({"minutes", "text"}, set()),
@@ -1874,6 +1874,22 @@ def _contacts_answer(which: str = "", asked: str = "") -> str:
                 return _contacts_answer(named, asked)
         rows = hits
         if not rows:
+            # "The plumber's number is 555 867 5309" kept as a NOTE, then
+            # "what's the plumber's number" said she had none and asked him
+            # to say exactly what he had said (2026-10-07). A note naming
+            # them with a number or an address in it is the answer.
+            try:
+                from aletheia import quick as _q_note, speech as _sp_note
+                wanted = [w for w in re.findall(r"[a-z0-9]+", needle) if w not in ("s", "the", "my", "our")]
+                for note in _q_note._notes():
+                    said = " ".join(str(note.get("text") or "").split())
+                    low_said = said.casefold()
+                    if wanted and all(re.search(rf"\b{re.escape(w)}", low_said) for w in wanted) \
+                            and re.search(r"\b(?:number|phone|cell|mobile|email|e-mail)\b", low_said) \
+                            and re.search(r"\d{3}|@", low_said):
+                        return f"You told me: {_sp_note.as_she_says_it(said).rstrip('.')}."
+            except Exception:  # noqa: BLE001 - the plain answer below still stands
+                pass
             # "I have no contact for 'dana'." (2026-10-07): quotes and his
             # lower case read out, and nothing said how to fix it.
             who = " ".join(str(which).split())
@@ -2198,6 +2214,15 @@ def _undo_his_last_ask() -> str | None:
         # "who is it with", "cancel it" means the lunch (2026-10-07).
         if voice._only_asked(said, command):
             continue
+        # "Remove everything from the list", then "undo that" (2026-10-07:
+        # "nothing to undo"). Taking things off is undone by putting back
+        # the rows that turn cancelled - kept, not deleted, for this.
+        # Deliberately not in UNDOES_HIS_ASK: "take that off the list"
+        # after a removal must never put it back on.
+        # By the answer, not the re-read: "remove milk" only reads as a
+        # removal while milk is on the list, and now it isn't.
+        if re.match(r"Took (?:it|\S+ things?) off (?:your|the) shopping list:", str(turn.get("she_answered") or "")):
+            return _put_back_on_the_list(str(turn.get("she_answered") or ""))
         if kind not in UNDOES_HIS_ASK:
             return None
         if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
@@ -2207,6 +2232,38 @@ def _undo_his_last_ask() -> str | None:
             return "That added nothing - it was already on your shopping list, so I've left it there."
         return _reverse_his_ask(kind, command)
     return None
+
+
+def _put_back_on_the_list(answer: str) -> str:
+    """What the last removal took off the shopping list, put back: the
+    things its answer named, and - past the six an answer names - the rows
+    cancelled with them. Anything already back on the list is left alone."""
+    import datetime as dt
+    from aletheia import shopping, speech
+    listed = re.sub(r"^Took (?:it|\S+ things?) off (?:your|the) shopping list: ", "", answer).rstrip(".")
+    more = re.search(r", and \d+ more$", listed)
+    listed = re.sub(r",? and \d+ more$", "", listed)
+    names = [n.strip() for n in re.split(r", | and ", listed) if n.strip()]
+    if more:
+        now = dt.datetime.now(dt.timezone.utc)
+        stamps = []
+        for row in shopping.all_workflows():
+            try:
+                at = dt.datetime.fromisoformat(str(row.get("updated_at") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if row.get("state") == "CANCELLED" and (now - at).total_seconds() <= 900:
+                stamps.append((at, str(row.get("need") or "").strip()))
+        if stamps:
+            newest = max(at for at, _n in stamps)
+            names += [n for at, n in stamps if n and (newest - at).total_seconds() <= 5 and n not in names]
+    open_now = {str(r.get("need") or "").strip().casefold() for r in _shopping_items()}
+    back = [n for n in names if n.casefold() not in open_now]
+    if not back:
+        return "That's already back on the shopping list." if names else "I couldn't tell what came off the list to put it back."
+    for need in back:
+        execute_command({"kind": "shopping_add", "item": need}, {}, quote="undo that")
+    return f"Undone: put {speech.and_list(back)} back on the shopping list."
 
 
 def _reverse_his_ask(kind: str, command: dict) -> str:
@@ -3794,11 +3851,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid
+        moved = ""
+        if cmd.get("replaces"):
+            # "Change my pill reminder to 9": the daily one moves, and the
+            # old time goes off (never deleted) so he is not reminded twice.
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None:
+                scheduler.set_enabled(found["id"], False)
+                moved = " (moved)"
         sid = "remind-daily-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
-        return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
+        return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}{moved}"
     if kind == "remind_weekly" and cmd.get("every") not in (None, 1, "1"):
         # "EVERY OTHER MONDAY", "every 2 weeks": one day, the interval kind.
         from aletheia import scheduler

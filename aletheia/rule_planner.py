@@ -351,7 +351,40 @@ def _read_list(m, request):
     return {"__kind__": kind}, f"Read you {_LIST_SAID[kind]}"
 
 
+def _said_again(m, request):
+    """"What do you mean", "I didn't understand" with nothing to think
+    (2026-10-07: "I can't think just now"). Her last answer, said again,
+    and the honest reason it cannot be put another way just now."""
+    from aletheia import converse
+    try:
+        turns = converse.recent(limit=3) or []
+    except Exception:  # noqa: BLE001 - no thread is the same as no last answer
+        turns = []
+    last = next((" ".join(str(t.get("she_answered") or "").split()) for t in reversed(turns)
+                 if str(t.get("she_answered") or "").strip()
+                 and not str(t.get("she_answered") or "").startswith("I said: ")), "")
+    if not last:
+        return None
+    return {"say": f"I said: {last.rstrip('.')}. I can't put it another way until Claude or ChatGPT is back - "
+                   f"ask me differently and I'll try."}
+
+
+#: Small talk a model would answer better, said plainly when none can.
+#: Their rules name "recall" only to satisfy the grammar check: a fill
+#: that returns {"say": ...} is an ANSWER and never a step.
+_SMALL_TALK = (
+    (r"are (?:you|u) (?:smart|clever|intelligent|dumb|stupid)", "Smart enough to keep your lists, your calendar and your "
+     "reminders straight. The clever thinking I borrow from Claude or ChatGPT when they're around."),
+    (r"(?:you'?re|you are|your) welcome", "Thanks."),
+    (r"(?:good|nice|great) (?:job|work)|well done", "Thanks - glad that helped."),
+)
+
+
 RULES: tuple[tuple[str, str, Callable], ...] = (
+    (r"i (?:didn'?t|did not|don'?t|do not) (?:understand|get it|get that|follow)|what do (?:you|u) mean(?: by that)?|"
+     r"explain (?:that|it)|huh|come again|say (?:that|it) (?:more )?(?:simply|differently|another way)",
+     "recall", _said_again),
+    *((pattern, "recall", (lambda said: lambda m, r: {"say": said})(said)) for pattern, said in _SMALL_TALK),
     (r"(?:add|make|create|put|set up|new)\s+(?:a |an )?(?:new )?(?:task|to-?do|todo)(?: for me)?(?: to| :|:)?\s+(?P<what>.+)",
      "task_new", _task_new),
     (r"(?:add|put)\s+(?P<what>.+?)\s+(?:to|on)\s+(?:my |the )?(?:task list|to-?do list|todo list|tasks)",

@@ -37,11 +37,14 @@ class WhichSpeedCase(unittest.TestCase):
                 self.assertEqual(asking.expectation(said), "instant", said)
 
     def test_a_fact_about_the_world_is_one_round_trip(self):
-        for said in ("what's the capital of Iceland", "who wrote Dune",
+        for said in ("what's the longest river in Africa", "who wrote Dune",
                      "how tall is Everest", "why is the sky blue",
                      "explain how a diesel engine works"):
             with self.subTest(said=said):
                 self.assertEqual(asking.expectation(said), "quick", said)
+        # A capital is in her own table now, so it beats his five seconds
+        # with no model at all - faster than the round trip, never slower.
+        self.assertIn(asking.expectation("what's the capital of Iceland"), ("instant", "quick"))
 
     def test_real_work_is_working(self):
         for said in ("go do major work on my repos",
