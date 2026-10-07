@@ -1630,5 +1630,15 @@ class PushItToSixCase(unittest.TestCase):
                 self.assertTrue(got.called, said)
 
 
+class APastaTimerCase(unittest.TestCase):
+    def test_the_name_said_before_the_length_still_names_the_timer(self):
+        from aletheia import voice
+        for said in ("set a pasta timer for 8 minutes", "set a timer for pasta for 8 minutes"):
+            command = voice.interpret(f"thea {said}")["command"]
+            self.assertEqual(command["text"], "your 8 minute pasta timer is up", said)
+        command = voice.interpret("thea set a new timer for 5 minutes")["command"]
+        self.assertEqual(command["text"], "your 5 minute timer is up")
+
+
 if __name__ == "__main__":
     unittest.main()

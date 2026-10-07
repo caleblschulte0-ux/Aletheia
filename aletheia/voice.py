@@ -3561,6 +3561,17 @@ def _interpret(transcript: str) -> dict:
                               r" timer(?:\s+(to|for|so i can)\s+(.+))?", low)
     timer_words = (f"set a timer for {said_first.group(1)} {said_first.group(2)}"
                    + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else low
+    # "Set a pasta timer for 8 minutes", "set a timer for pasta for 8
+    # minutes" (2026-10-07: to the planner) - the name said before the length.
+    named_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?:timer for (?:the |my )?(?P<a>[a-z][a-z ]{1,24}?) for"
+                               r"|(?P<b>[a-z][a-z ]{1,24}?) timer for) (?P<n>\d+) ?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)",
+                               low)
+    if named_first:
+        name = named_first.group("a") or named_first.group("b")
+        # "A new timer", "another timer": no name, just a timer.
+        plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", name)
+        timer_words = (f"set a timer for {named_first.group('n')} {named_first.group('u')}"
+                       + ("" if plain else f" for {name}"))
     m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
                      r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
                      r"(?:\s+(to|for|so i can)\s+(.+))?", timer_words)
