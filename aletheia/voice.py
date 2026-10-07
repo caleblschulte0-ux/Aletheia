@@ -1308,6 +1308,7 @@ def _the_task_just_added() -> str:
         answered = " ".join(str(turn.get("she_answered") or "").split())
         found = re.match(r"Added a task: (.+?)(?: due [A-Z][a-z]+day)?\.(?:\s|$)", answered) \
             or re.match(r"Moved: (.+?) due ", answered) \
+            or re.match(r"(.+?) is due .+ now\.(?:\s|$)", answered) \
             or re.match(r"Renamed .+? to (.+?)\.(?:\s|$)", answered)
         if found:
             return found.group(1).strip()

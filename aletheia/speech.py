@@ -767,6 +767,11 @@ def spoken_receipt(kind: str, detail: str, *,
             if verb == "renamed" and " -> " in rest:
                 old, new = rest.split(" -> ", 1)
                 return f"Renamed {old.strip()} to {new.strip()}."
+            # "Moved: call the bank due Friday." read as a log line
+            # (2026-10-07); said, it is when the thing is due now.
+            due = re.fullmatch(r"(.+?) due (.+)", rest.strip()) if verb == "moved" else None
+            if due:
+                return f"{due.group(1)[:1].upper()}{due.group(1)[1:]} is due {due.group(2).rstrip('.')} now."
             return f"{'Dropped' if verb == 'dropped' else 'Moved'}: {rest.strip()}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)

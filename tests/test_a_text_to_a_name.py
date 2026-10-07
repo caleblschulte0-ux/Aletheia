@@ -657,8 +657,10 @@ class ItIsTheTaskJustAdded(unittest.TestCase):
         self.assertEqual((cmd["kind"], cmd["which"]), ("task_change", "call the dentist"))
 
     def test_change_it_after_a_move(self):
-        with self.turns("Moved: call the dentist due Friday."):
-            self.assertEqual(voice._interpret("actually change it to thursday")["command"]["which"], "call the dentist")
+        for said in ("Moved: call the dentist due Friday.", "Call the dentist is due Friday now."):
+            with self.turns(said):
+                self.assertEqual(voice._interpret("actually change it to thursday")["command"]["which"].casefold(),
+                                 "call the dentist")
 
     def test_remind_me_about_it(self):
         with self.turns("Added a task: call the dentist."):

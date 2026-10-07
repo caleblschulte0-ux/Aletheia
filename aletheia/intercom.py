@@ -1694,7 +1694,7 @@ def _one_reminder(which: str):
         try:
             return rows[where], ""
         except IndexError:
-            return None, ("You only have "
+            return None, ("You have no reminders set." if not rows else "You only have "
                           + speech.count_phrase(len(rows), "reminder") + ".")
 
     # "CANCEL THAT REMINDER" right after setting it (2026-10-07: "None of
@@ -2432,6 +2432,9 @@ def _one_task(which: str):
         try:
             return rows[where], ""
         except IndexError:
+            # "There are only 0 things on your list" (2026-10-07).
+            if not rows:
+                return None, "Your list is empty."
             return None, (f"There {'is' if len(rows) == 1 else 'are'} only "
                           + speech.count_phrase(len(rows), "thing")
                           + " on your list.")

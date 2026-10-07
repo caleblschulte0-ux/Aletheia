@@ -1508,5 +1508,28 @@ class HisCapitalsAreKeptCase(unittest.TestCase):
         self.assertIn("mail app", voice._interpret("mark it as read")["say"])
 
 
+class TheTaskListSaidPlainlyCase(unittest.TestCase):
+    def test_a_move_is_when_it_is_due(self):
+        from aletheia import speech
+        self.assertEqual(speech.spoken_receipt("task_change", "moved — call the bank due Friday"),
+                         "Call the bank is due Friday now.")
+
+    def test_the_first_one_of_nothing(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", return_value=[]):
+            self.assertEqual(intercom._one_task("first")[1], "Your list is empty.")
+
+
+class DueTomorrowSaysTheDayOnceCase(unittest.TestCase):
+    def test_the_day_is_the_head(self):
+        import datetime as _dt
+        from aletheia import intercom, localtime, quick
+        tomorrow = (_dt.datetime.now(localtime.operator_tz()) + _dt.timedelta(days=1)).date().isoformat()
+        rows = [{"id": "call-the-bank", "description": "call the bank", "deadline": tomorrow}]
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows):
+            said = quick.answer("what's due tomorrow")
+        self.assertEqual(said, "1 thing due tomorrow: call the bank.")
+
+
 if __name__ == "__main__":
     unittest.main()

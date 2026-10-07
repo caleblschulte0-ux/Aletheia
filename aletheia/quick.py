@@ -2433,9 +2433,15 @@ def _tasks_due(which: str = "") -> str | None:
             return lead + f" {speech.count_phrase(len(rows), 'task')} open on your list in all."
         return lead
     late = [t for w, t in dated if w < now]
-    said = speech.and_list([intercom._task_words(t) for _w, t in dated[:5]])
+    # "1 thing due: call the bank due tomorrow" said the day twice
+    # (2026-10-07). Asked about one day, the day is the head and each task
+    # is just what it is.
+    one_day = which in ("due today", "due tomorrow") and not late
+    said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") if one_day
+                            else intercom._task_words(t) for _w, t in dated[:5]])
     more = f", and {len(dated) - 5} more" if len(dated) > 5 else ""
     head = (f"{speech.count_phrase(len(dated), 'thing')} overdue" if overdue_only
+            else f"{speech.count_phrase(len(dated), 'thing')} {which}" if one_day
             else f"{speech.count_phrase(len(dated), 'thing')} due" + (f", {len(late)} already late" if late else ""))
     return f"{head}: {said}{more}."
 
