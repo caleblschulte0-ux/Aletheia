@@ -233,7 +233,7 @@ class TheWeekendAndBirthdays(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertEqual(quick.answer("what's dana's birthday"),
                              "You haven't told me Dana's birthday. Tell me once and I'll remember it.")
-            self.assertIn("Mom's birthday", quick.answer("when is my mom's birthday"))
+            self.assertIn("your mom's birthday", quick.answer("when is my mom's birthday"))
 
     def test_a_birthday_he_told_her_is_read_back(self):
         with mock.patch.object(quick, "_notes", return_value=[{"text": "Dana's birthday is March 3"}]):

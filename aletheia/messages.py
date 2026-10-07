@@ -116,7 +116,16 @@ def resolve_number(who: str) -> tuple[str | None, str]:
     try:
         contact = contacts.resolve(text)
     except Exception:
-        return None, text
+        # "Text my sister" when he told her "my sister's name is Jenna" and
+        # gave Jenna's number (2026-10-07: asked him for the number again).
+        try:
+            from aletheia import quick
+            named = quick._name_for_relation(text)
+            contact = contacts.resolve(named) if named else None
+        except Exception:
+            contact = None
+        if contact is None:
+            return None, text
     try:
         return normalize_number(primary_number(contact)), \
             contact.get("display_name") or text

@@ -5008,6 +5008,32 @@ def _notes_list() -> str:
     return out + "."
 
 
+def _name_for_relation(relation: str) -> str | None:
+    """The name he told her for "my sister", "my boss" - from his notes.
+
+    "My sister's name is Jenna" was kept as a note, and then "when is my
+    sister's birthday" and "text my sister" both asked him again
+    (2026-10-07). Only a note that says it plainly counts; never a guess.
+    """
+    rel = re.sub(r"^(?:my|our)\s+", "", " ".join(str(relation or "").casefold().split()))
+    if not rel or len(rel) > 25:
+        return None
+    r = re.escape(rel)
+    name = r"(?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)"
+    shapes = (rf"^(?:my|our) {r}(?:'s| s)? name is {name}\.?$",
+              rf"^(?:my|our) {r} is (?:called |named ){name}\.?$",
+              rf"^(?:my|our) {r} is {name}\.?$",
+              rf"^{name} is (?:my|our) (?:new |older |younger |little |big |best )?{r}\.?$")
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        for shape in shapes:
+            m = re.match(shape, said.casefold())
+            if m and m.group("name").split()[0] not in ("in", "on", "at", "a", "an", "the", "not", "very", "so"):
+                start = said.casefold().find(m.group("name"))
+                return said[start:start + len(m.group("name"))]
+    return None
+
+
 def _fact_q(text: str) -> str | None:
     """"What's my favorite color": the note that says it, by ALL its words.
 
@@ -5028,13 +5054,26 @@ def _fact_q(text: str) -> str | None:
     # (number, code) is often left unsaid when he tells her.
     named = [w for w in wanted if w not in ("number", "combination", "code", "size", "name")]
     wanted = named or wanted
-    for row in _notes():
-        said = str(row.get("text") or "")
-        low = said.casefold()
-        if wanted and all(w.rstrip("s") in low for w in wanted):
-            return f"You told me: {said.strip().rstrip('.')}."
-    return f"You haven't told me your {key}. Tell me once and I'll remember it." if not g.get("fact3") \
-        else f"You haven't told me {g['fact3'].strip().title()}'s {g['factk']}. Tell me once and I'll remember it."
+    # "My sister's birthday", when he told her his sister is Jenna, is also
+    # asked as "Jenna's birthday".
+    whose = (g.get("fact3") or "").strip()
+    alias = _name_for_relation(whose) if whose else None
+    asked = [wanted]
+    if alias:
+        rel_words = set(re.findall(r"[a-z0-9]+", whose.casefold()))
+        asked.append([w for w in wanted if w not in rel_words] + re.findall(r"[a-z0-9]+", alias.casefold()))
+    for words in asked:
+        for row in _notes():
+            said = str(row.get("text") or "")
+            low = said.casefold()
+            if words and all(w.rstrip("s") in low for w in words):
+                return f"You told me: {said.strip().rstrip('.')}."
+    if not whose:
+        return f"You haven't told me your {key}. Tell me once and I'll remember it."
+    from aletheia import voice
+    who = (f"your {re.sub(r'^my ', '', whose.casefold())}" if re.sub(r"^my ", "", whose.casefold()) in voice._RELATIONS
+           else whose.title())
+    return f"You haven't told me {who}'s {g['factk']}. Tell me once and I'll remember it."
 
 
 def _recall(words: str) -> str | None:

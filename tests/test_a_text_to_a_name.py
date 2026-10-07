@@ -1050,5 +1050,43 @@ class ACancelledTimerIsNotOneThatWentOff(unittest.TestCase):
         self.assertTrue(said.startswith("Stopped reminding you: call the bank"), said)
 
 
+
+class MySisterIsJenna(unittest.TestCase):
+    NOTES = [{"text": "Jenna's birthday is March 4"}, {"text": "my sister's name is Jenna"},
+             {"text": "Sam is my boss"}]
+
+    def test_the_relation_reads_the_name_from_his_notes(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertEqual(quick._name_for_relation("my sister"), "Jenna")
+            self.assertEqual(quick._name_for_relation("boss"), "Sam")
+            self.assertIsNone(quick._name_for_relation("brother"))
+
+    def test_my_sisters_birthday_is_jennas(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertIn("March 4", quick.answer("when is my sister's birthday"))
+            self.assertIn("your brother's birthday", quick.answer("when is my brother's birthday"))
+
+    def test_text_my_sister_finds_jennas_number(self):
+        from aletheia import contacts, messages, quick
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES), \
+                mock.patch.object(contacts, "resolve", side_effect=lambda q, *a: (
+                    {"display_name": "Jenna", "phones": ["3125550101"]} if q == "Jenna" else (_ for _ in ()).throw(KeyError(q)))), \
+                mock.patch.object(messages, "primary_number", return_value="3125550101"):
+            number, name = messages.resolve_number("my sister")
+        self.assertEqual(name, "Jenna")
+        self.assertTrue(number and number.endswith("5550101"))
+
+    def test_what_do_you_know_reads_his_notes_too(self):
+        from aletheia import intercom, memory, quick
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES), \
+                mock.patch.object(memory, "recall", return_value=None), \
+                mock.patch.object(intercom, "_remembered_matching", return_value=[]):
+            said = intercom.execute_command({"kind": "recall", "about": "jenna"}, {"repos": {}}, quote="test")
+        said = said if isinstance(said, str) else str(said)
+        self.assertIn("March 4", said)
+
+
 if __name__ == "__main__":
     unittest.main()

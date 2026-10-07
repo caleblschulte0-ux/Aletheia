@@ -3438,7 +3438,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for one, key, value in _remembered_matching(loose, cmd.get("domain"))[:4]:
                 found.append(f"{one}: {key} is {value}")
         if not found:
-            return f"I don't have anything remembered about {about!r}."
+            # "My sister's name is Jenna" is a NOTE, and "what do you know
+            # about Jenna" read only the remembered facts and said there was
+            # nothing (2026-10-07) - a store with a writer and no reader.
+            # Her contacts and his notes are asked too.
+            try:
+                from aletheia import quick
+                said = quick._who_named(str(about))
+            except Exception:
+                said = None
+            if said:
+                return said
+            return f"I don't have anything remembered about {str(about).strip()}."
         return "; ".join(found[:4])
     if kind == "brief":
         from aletheia import brief, journal as _j, pulse as _p
