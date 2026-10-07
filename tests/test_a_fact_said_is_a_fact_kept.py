@@ -5452,5 +5452,30 @@ class MySisterIsSister(unittest.TestCase):
             contacts.resolve("my brother", people)
 
 
+class TripsAndPlansSaidAhead(unittest.TestCase):
+    """2026-10-07: "I'm going to Denver next weekend", "I'm visiting my
+    parents next week" and "I'm going to call mom tomorrow" all went to
+    the planner, and "when am I going to Denver" to a model."""
+
+    def test_a_trip_with_a_when_is_a_note(self):
+        for said in ("I'm going to Denver next weekend", "I'm visiting my parents next week",
+                     "We're heading to Chicago on Friday", "I'm going to be late tomorrow"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_something_to_do_with_a_day_is_a_task(self):
+        cmd = voice._interpret("I'm going to call mom tomorrow")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "call mom"))
+        self.assertIn("deadline", cmd)
+        # Narration with no day, and a promise to her, are not tasks.
+        self.assertNotEqual((voice._interpret("I'm going to make dinner")["command"] or {}).get("kind"), "task_new")
+        self.assertNotEqual((voice._interpret("I'll call you tomorrow")["command"] or {}).get("kind"), "task_new")
+
+    def test_when_am_i_going_reads_the_note(self):
+        rows = [{"text": "I'm going to Denver next weekend", "ts": "2026-10-07T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("Denver next weekend", quick.answer("when am I going to Denver"))
+            self.assertIsNone(quick._life_when("when am i visiting paris"))
+
+
 if __name__ == "__main__":
     unittest.main()

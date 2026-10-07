@@ -482,7 +482,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when (?:is|are|will|does|do|should) my (?!package|parcel|delivery)(?P<lw10>[a-z][a-z' ]{1,25}?) "
         r"(?:coming|arriving|arrive|come|get here|be here|be delivered|getting delivered|ship|shipping)\s*\??$"
         r"|^(?P<lw11>is anything|are any packages|is a package|is anything being|am i expecting (?:any )?(?:packages|deliveries|anything))"
-        r"(?: (?:coming|arriving|being delivered|getting delivered|due|delivered))?(?: today| tomorrow| this week)?\s*\??$")),
+        r"(?: (?:coming|arriving|being delivered|getting delivered|due|delivered))?(?: today| tomorrow| this week)?\s*\??$"
+        # "When am I going to Denver" (2026-10-07: to a model, after he said).
+        r"|^when (?:am i|are we) (?:going|heading|headed|driving) to (?P<lw12>[a-z][a-z' ]{1,30}?)\s*\??$"
+        r"|^when (?:am i|are we) visiting (?P<lw13>[a-z][a-z' ]{1,30}?)\s*\??$")),
     # "What did I promise Sarah" (2026-10-07: to a model).
     ("promised", re.compile(r"^what did i promise (?P<prom>[a-z][a-z' ]{1,25}?)\s*\??$"
                             r"|^(?:did i|have i) promise(?:d)? (?P<prom2>anyone|anybody|someone|[a-z][a-z' ]{1,25}?) anything\s*\??$"
@@ -9973,6 +9976,11 @@ def _life_when(text: str) -> str | None:
         # "When is my sister coming" is a visit, not a delivery: what he
         # told her about it is read the way any "when" note is.
         return _on_its_way(g.get("lw10")) or (_when_note(text) if g.get("lw10") else None)
+    if g.get("lw12") or g.get("lw13"):
+        dest = (g.get("lw12") or g.get("lw13")).strip()
+        pattern = (r"\b(?:going|heading|headed|driving|trip|off|flying|fly|flight) to " if g.get("lw12") else r"\bvisiting ") + re.escape(dest) + r"\b"
+        found = _told_when(pattern)
+        return found or (_when_note(text) if g.get("lw12") else None)
     asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or g.get("lw4") or g.get("lw5") or g.get("lw6") or g.get("lw7")
              or ("car due" if re.match(r"when is (?:my|the) (?:car|truck|van|suv) due", text.casefold()) else "")).strip()
     key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
@@ -9980,6 +9988,14 @@ def _life_when(text: str) -> str | None:
     pattern = (r"\b(?:fly|flying|flight) to " + re.escape(place.group(1))) if place else _LIFE_WORDS.get(key or "")
     if not pattern:
         return None
+    return _told_when(pattern)
+
+
+def _told_when(pattern: str) -> str | None:
+    """His newest note matching `pattern`, read back with the day he said
+    it, because "next week" is only true from that day."""
+    import datetime as dt
+    from aletheia import localtime, speech
     tz = localtime.operator_tz()
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())

@@ -4037,6 +4037,13 @@ def _interpret(transcript: str) -> dict:
             if ((timed or {}).get("command") or {}).get("kind") == "remind_at":
                 return timed
         return _new_task(_as_he_said(text, m.group("what")))
+    # "I'm going to call mom tomorrow" (2026-10-07: to the planner). Said
+    # as a plan, it is a task only when it names a day - "I'm going to make
+    # dinner" is narration, not something to keep.
+    m = re.fullmatch(r"(?:i'?m going to|i'?m gonna|i am going to|i'?ll|i will|i plan to|i'?m planning to) (?P<what>.{3,120})", low)
+    if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:you|thea|it)\b", m.group("what")) \
+            and _split_deadline(m.group("what"))[1]:
+        return _new_task(_as_he_said(text, m.group("what")))
 
     # THE VERB WITH NOTHING AFTER IT. "Set a reminder", "take a note" and
     # "add a task" went to the planner, which with nothing thinking kept
@@ -8426,7 +8433,7 @@ def _interpret(transcript: str) -> dict:
                     r"|flying to [a-z][a-z ]{1,25}?|driving to [a-z][a-z ]{1,25}?|having surgery"
                     r"|starting (?:my |a )?(?:new job|school|college|classes|work)|retiring|graduating)(?: to [a-z][a-z ]{1,25}?)? " + _when, low) \
             or re.fullmatch(r"(?:i|we) (?:start|begin) (?:my |our |a )?(?:new job|school|college|classes|work|the new job) " + _when, low) \
-            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are|i'?ll be|i will be) (?:on vacation|on holiday|off(?: work)?|out of (?:the )?office"
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are|i'?ll be|i will be|i'?m going to be|i'?m gonna be) (?:on vacation|on holiday|off(?: work)?|out of (?:the )?office"
                             r"|working from home|wfh|working late|late|home late|out of town|away) " + _when, low) \
             or re.fullmatch(r"(?:i'?m|i am) taking (?:the day |a day |time |pto |a few days )?off " + _when, low) \
             or re.fullmatch(r"(?:i'?m|i am) taking (?:" + _when + r") off", low) \
@@ -8438,6 +8445,17 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:" + _SOCIAL_PLAN + r")(?: (?:for|on|over) (?:" + _HOLIDAYS + r"))?(?: " + _when + r")?(?: night| morning| afternoon| evening)?", low) \
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'm going to Denver next weekend", "I'm visiting my parents next
+    # week" (2026-10-07: both to the planner). A trip with a when is a note
+    # in his words; "I'm going to call mom tomorrow" is something to DO and
+    # is left alone, so the place may not start with a verb.
+    m = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:going|heading|headed|driving|taking a trip|off) to (?P<place>[a-z][a-z' ]{1,30}?) " + _when, low) \
+        or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) visiting (?P<place>[a-z][a-z' ]{1,30}?) " + _when, low)
+    if m and not re.match(r"(?:be|call|text|email|buy|get|do|make|have|need|try|work|start|finish|pay|clean|take|go|see|meet|watch"
+                          r"|cook|read|write|fix|send|pick|drop|order|book|cancel|stop|check|ask|tell|leave|bring|study|run|play"
+                          r"|want|miss|skip|sleep|eat|stay|help|move|apply|quit|sell|look|find|talk|join|wake|put|use|keep|let"
+                          r"|give|show|change|bed|sleep|lunch|dinner|breakfast|work|school)\b", m.group("place")):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I ordered a new phone" (2026-10-07: to the planner). Something he
     # already bought is a note in his words - past tense, nothing for her
