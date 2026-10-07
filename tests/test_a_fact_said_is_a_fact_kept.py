@@ -1566,5 +1566,13 @@ class TalkAboutTheTalkIsNotAnAskCase(unittest.TestCase):
         self.assertNotIn("repeat that", said)
 
 
+class AndTheWeekendCase(unittest.TestCase):
+    def test_the_weekend_is_a_day_to_ask_again_with(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_previous_ask", return_value="what's the weather"), \
+                mock.patch.object(quick, "answer", side_effect=lambda q: q):
+            self.assertEqual(quick._follow_up("and the weekend"), "what's the weather the weekend")
+
+
 if __name__ == "__main__":
     unittest.main()

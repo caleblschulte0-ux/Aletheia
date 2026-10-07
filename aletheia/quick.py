@@ -8006,7 +8006,9 @@ def warm() -> None:
 
 _DAY_PHRASE = re.compile(
     r"\b(?:today|tomorrow|yesterday|tonight|this morning|this afternoon|this evening|this week|next week|"
-    r"last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b")
+    r"last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
+    # "And the weekend?" after the weather (2026-10-07: to the planner).
+    r"(?:this |the |next )?weekend)\b")
 _FOLLOW_UP = re.compile(r"^(?:and|what about|how about|and what about|and how about)(?: on| for)?\s+(?P<x>.+?)$")
 _LIST_THEM = re.compile(r"^(?:read|list|show|name)(?: me)? (?:them|those|these)(?: out| to me| all)?$"
                         r"|^(?:what|which) (?:are they|ones(?: are they)?)$")
