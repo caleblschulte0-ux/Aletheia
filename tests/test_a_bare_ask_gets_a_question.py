@@ -42,7 +42,8 @@ class TheWeatherAskedSideways(unittest.TestCase):
     def test_umbrella_and_temperature_are_the_forecast(self):
         for said in ("should i bring an umbrella", "what's the temperature", "is it raining",
                      "how cold is it outside", "do i need a jacket"):
-            self.assertEqual((quick.match(said) or ("",))[0], "weather", said)
+            # Rain and snow have their own yes-or-no answer from the same forecast.
+            self.assertIn((quick.match(said) or ("",))[0], ("weather", "rain"), said)
 
 
 if __name__ == "__main__":

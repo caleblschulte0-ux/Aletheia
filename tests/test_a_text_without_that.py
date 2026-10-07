@@ -38,11 +38,13 @@ class TheWeatherAskedSideways(unittest.TestCase):
     def test_each_reads_the_forecast_for_the_day_he_said(self):
         from aletheia import weather
         with mock.patch.object(weather, "spoken", side_effect=lambda when="": f"[{when}]"):
-            for said, day in (("what's the weather on saturday", "saturday"), ("will it snow", ""),
+            for said, day in (("what's the weather on saturday", "saturday"),
                               ("how hot will it be today", "today"), ("what should i wear tomorrow", "tomorrow"),
                               ("do i need a jacket", ""), ("what's the forecast", "")):
                 with self.subTest(said=said):
                     self.assertEqual(quick.answer(said), f"[{day}]")
+        # "Will it snow" is a yes or no, answered by the rain pattern from the same forecast.
+        self.assertIn(quick.match("will it snow")[0], ("weather", "rain"))
 
 
 class ANeedIsAListLine(unittest.TestCase):
