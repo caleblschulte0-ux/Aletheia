@@ -3871,5 +3871,44 @@ class APlaceIsNotATime(unittest.TestCase):
             self.assertNotIn("Which one", quick._overnight())
 
 
+class TheDayAndTheMapSaidPlainly(unittest.TestCase):
+    """2026-10-07: "what does my morning look like tomorrow" and "prioritize
+    my tasks" went to a model, and "how far is Chicago" said "the chicago"."""
+
+    def test_part_of_a_day_is_the_calendar(self):
+        from aletheia import quick
+        for said in ("what's my schedule look like tomorrow morning", "what does my morning look like tomorrow",
+                     "what does my afternoon look like"):
+            self.assertEqual(quick.match(said)[0], "agenda_part", said)
+
+    def test_ranking_his_list_is_the_focus_answer(self):
+        from aletheia import quick
+        for said in ("prioritize my tasks", "i have 30 minutes free what should i do",
+                     "i've got an hour, what should i work on", "what's my most important task"):
+            self.assertEqual(quick.match(said)[0], "focus", said)
+
+    def test_a_city_is_a_name(self):
+        from aletheia import act, intercom, places
+        with mock.patch.object(places, "resolve", side_effect=KeyError("no place")):
+            with self.assertRaises(act.Refused) as said:
+                intercom.execute_command({"kind": "travel_time", "place": "new york"}, None)
+            self.assertIn("New York isn't one", str(said.exception))
+            with self.assertRaises(act.Refused) as said:
+                intercom.execute_command({"kind": "travel_time", "place": "airport"}, None)
+            self.assertIn("where the airport is", str(said.exception))
+
+
+class HisVerdictOnAJoke(unittest.TestCase):
+    """2026-10-07: "that's not funny" went to the planner."""
+
+    def test_a_verdict_gets_one_line(self):
+        from aletheia import voice
+        for said in ("that's not funny", "bad joke", "that's a dad joke"):
+            self.assertIn("another one", voice._interpret(said)["say"], said)
+        for said in ("good one", "that was funny", "haha"):
+            self.assertEqual(voice._interpret(said)["say"], "Glad that one landed.", said)
+        self.assertIn("got wrong", voice._interpret("that's not what i asked")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

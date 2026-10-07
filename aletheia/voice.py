@@ -6824,6 +6824,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": None, "say": "Forty-two, if you ask a book. If you ask me: the people you love and the things you build."}
     if re.fullmatch(r"are you (?:busy|free|available)(?: right now| now)?(?: thea)?", low):
         return {"command": None, "say": "Never too busy for you. What do you need?"}
+    # HIS VERDICT ON A JOKE (2026-10-07: "that's not funny" went to the
+    # planner). One line; "another one" is how he gets a different one.
+    if re.fullmatch(r"(?:that(?:'s| is| was)|not) (?:not )?(?:funny|very funny|that funny)(?: thea)?|(?:bad|terrible|lame|awful) joke"
+                    r"|that(?:'s| is| was) (?:a )?(?:bad|terrible|lame|awful|dad) joke", low):
+        if re.search(r"\bnot\b|bad|terrible|lame|awful|dad", low):
+            return {"command": None, "say": "Fair. Say \"another one\" and I'll try a better one."}
+    if re.fullmatch(r"(?:that(?:'s| is| was) (?:funny|hilarious|a good one|good)|good one|lol|haha+|ha ha(?: ha)?)(?: thea)?", low):
+        return {"command": None, "say": "Glad that one landed."}
     # Said TO her about her. A line, not a model call; a complaint is the one
     # worth a question back, because it is a defect report.
     if re.fullmatch(r"(?:you(?:'re| are) (?:awesome|great|the best|amazing|a lifesaver|smart|good)|good job|"

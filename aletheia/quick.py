@@ -248,7 +248,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do i need to (?:do|get done)(?: today)?$"
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
-        r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$")),
+        r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$"
+        # "Prioritize my tasks", "I have 30 minutes free what should I do",
+        # "what's my most important task" (2026-10-07: to the planner).
+        r"|^(?:prioriti[sz]e|rank|order|sort) my (?:tasks|to ?dos?|to-dos?|list|to do list|day)(?: for me)?$"
+        r"|^i(?:'ve| have)? (?:got )?(?:\d{1,3}|half an|an|a few) (?:minutes?|mins?|hours?)(?: free| to kill| spare)?,?"
+        r" what should i (?:do|work on|tackle)$"
+        r"|^what(?:'s| is) my (?:most important|top|biggest|first) (?:task|thing|priority|to ?do)(?: today| right now)?$")),
     # "How many interviews do I have" / "did I get any rejections" (2026-09-23):
     # outcomes are on the application records.
     ("outcomes", re.compile(
@@ -425,7 +431,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is)(?: on)?(?: my (?:calendar|schedule))?|what do i have(?: on)?|what have i got(?: on)?|anything(?: on)?"
         r"|do i have anything|is there anything(?: on my calendar)?)"
         r"(?: (?:for|on))? (?:(?P<ap_day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday) (?P<ap_part>morning|afternoon|evening|night)"
-        r"|this (?P<ap_part2>morning|afternoon|evening)|(?P<ap_part3>tonight))\s*\??$")),
+        r"|this (?P<ap_part2>morning|afternoon|evening)|(?P<ap_part3>tonight))\s*\??$"
+        # "What's my schedule look like tomorrow morning", "what does my
+        # morning look like tomorrow" (2026-10-07: to a model).
+        r"|^what(?:'s| is| does)? my (?:schedule|calendar|day) look(?:s)? like (?P<ap_day4>today|tomorrow|monday|tuesday|wednesday"
+        r"|thursday|friday|saturday|sunday) (?P<ap_part4>morning|afternoon|evening|night)\s*\??$"
+        r"|^what(?:'s| is| does)? my (?P<ap_part5>morning|afternoon|evening) look(?:s)? like(?: (?P<ap_day5>today|tomorrow|monday"
+        r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -4882,8 +4894,8 @@ def _agenda_part(text: str) -> str | None:
     import datetime as dt
     from aletheia import calendar, localtime, speech
     g = _groups("agenda_part", text)
-    day = g.get("ap_day") or "today"
-    part = g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or ""
+    day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or "today"
+    part = g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5") or ""
     lo, hi = _PART_HOURS.get(part, (0, 24))
     try:
         tz = localtime.operator_tz()

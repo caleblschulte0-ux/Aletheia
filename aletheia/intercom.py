@@ -4041,7 +4041,26 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # verbatim, quotes and all. He cannot act on that; he can act
             # on being told to name the place once.
             place = str(cmd["place"])
-            named = f"the {place}" if re.fullmatch(r"[a-z]+", place) and place not in ("work", "home", "school", "church") else place
+            # "the chicago" (2026-10-07): a city is a NAME, and a name takes
+            # its capitals and no article. Only an ordinary place noun - the
+            # airport, the gym - is "the" one.
+            try:
+                from aletheia import quick as _quick
+                common = set(_quick._COMMON_PLACES)
+            except Exception:  # noqa: BLE001
+                common = set()
+            if place in ("work", "home", "school", "church"):
+                named = place
+            elif re.fullmatch(r"[a-z]+", place) and place in common:
+                named = f"the {place}"
+            elif re.fullmatch(r"[a-z][a-z .'-]*", place) and not re.match(r"(?:the|my|our|a|an) ", place):
+                named = " ".join(w[:1].upper() + w[1:] for w in place.split())
+            else:
+                named = place
+            if named[:1].isupper() and named not in ("work", "home"):
+                raise act.Refused(
+                    f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
+                    f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
             raise act.Refused(
                 f"I don't know where {named} is. Say \"{named} is at\" and the address, "
                 "and I'll remember it.") from None
