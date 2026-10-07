@@ -2735,6 +2735,36 @@ def _interpret(transcript: str) -> dict:
         what = m.group("what") or m.group("what2")
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": _as_he_said(text, what)}, "say": None}
 
+    # BEFORE THE THING HE JUST PUT ON THE CALENDAR (2026-10-07): "I have a
+    # dentist appointment Tuesday at 2", then "remind me the day before" or
+    # "remind me an hour before" went to the planner. The hold he just made
+    # is "it"; the day before is nine in the morning.
+    m = re.fullmatch(r"remind me (?:about it |of it )?(?:(?P<day>the day|the night|the morning) before|"
+                     r"(?P<n>\d{1,3}|an|a|one|two|five|ten|fifteen|twenty|thirty|forty-five) (?P<unit>minutes?|mins?|hours?) "
+                     r"(?:before|ahead|early|beforehand))(?: it| that)?(?: starts)?", low)
+    if m:
+        held = _recent_ask_of("calendar_hold", "start")
+        if held:
+            import datetime as dt
+            from aletheia import localtime
+            try:
+                start = dt.datetime.fromisoformat(str(held["start"])).astimezone(localtime.operator_tz())
+            except (TypeError, ValueError):
+                start = None
+            if start is not None:
+                if m.group("day"):
+                    hour = {"the day": 9, "the morning": 8, "the night": 19}[m.group("day")]
+                    if m.group("day") == "the morning":
+                        when = start.replace(hour=hour, minute=0, second=0, microsecond=0)
+                    else:
+                        when = (start - dt.timedelta(days=1)).replace(hour=hour, minute=0, second=0, microsecond=0)
+                else:
+                    n = _spoken_amount(m.group("n")) if m.group("n") not in ("a", "an") else 1
+                    when = start - dt.timedelta(**{("hours" if m.group("unit").startswith("h") else "minutes"): n or 1})
+                if when > dt.datetime.now(localtime.operator_tz()) and when < start:
+                    clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+                    return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                                        "text": f"{held['title']} {start.strftime('%A')} at {clock}"}, "say": None}
     # BEFORE AN EVENT, SAID THE OTHER WAY ROUND (2026-10-07): "remind me
     # about the meeting 10 minutes before" compiled a memory RECALL of "the
     # meeting 10 minutes before". It is "remind me 10 minutes before my
@@ -5249,7 +5279,9 @@ def _interpret(transcript: str) -> dict:
     # "ADD DENTIST APPOINTMENT FRIDAY AT 2" (2026-10-07: to the planner)
     # names no calendar, and an appointment, meeting or dinner on a day
     # is nothing else. Not "book": that is somebody else's diary.
-    m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up) (?:a |an |my )?"
+    # "I have a dentist appointment Tuesday at 2" (2026-10-07: to the
+    # planner) is the same hold, told rather than asked for.
+    m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up|i have|i've got|i got|i have got) (?:a |an |my )?"
                           r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
                           r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
                           r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"

@@ -1339,5 +1339,27 @@ class APickUpIsAnErrand(unittest.TestCase):
         self.assertEqual(voice.interpret("we need eggs")["command"], {"kind": "shopping_add", "item": "eggs"})
 
 
+
+class AnAppointmentToldNotAsked(unittest.TestCase):
+    def test_i_have_a_dentist_appointment_is_a_hold(self):
+        from aletheia import voice
+        cmd = voice.interpret("i have a dentist appointment tuesday at 2")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"]), ("calendar_hold", "dentist appointment"))
+        self.assertIn("T14:00", cmd["start"])
+        self.assertNotEqual((voice.interpret("i have a cold")["command"] or {}).get("kind"), "calendar_hold")
+
+    def test_remind_me_the_day_before_is_the_hold_just_made(self):
+        import datetime as dt
+        from aletheia import converse, localtime, voice
+        start = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=3)).replace(hour=14, minute=0, second=0, microsecond=0)
+        day = start.strftime("%A").lower()
+        turns = [{"he_asked": f"i have a dentist appointment {day} at 2", "she_answered": "Pencilled in dentist appointment."}]
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]):
+            cmd = voice.interpret("remind me the day before")["command"]
+        at = dt.datetime.fromisoformat(cmd["at"])
+        self.assertEqual((at.date(), at.hour), ((start - dt.timedelta(days=1)).date(), 9))
+        self.assertTrue(cmd["text"].startswith("dentist appointment"))
+
+
 if __name__ == "__main__":
     unittest.main()
