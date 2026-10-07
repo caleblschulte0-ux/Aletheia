@@ -41,8 +41,32 @@ class WhereTheyWait(unittest.TestCase):
         self.assertEqual(held["to_send"], 1)
         self.assertEqual(held["his_ok"], {"contract": 1, "part-time": 1})
         self.assertEqual(held["failed"], 1)
-        self.assertEqual(held["closed"], {"duplicate": 1, "not_realistic": 1, "other": 1})
+        # A closure with no kind and no known reason is what apply_run itself
+        # calls it: a judgement that the job was not realistic.
+        self.assertEqual(held["closed"], {"duplicate": 1, "not_realistic": 2})
         self.assertEqual(held["oldest_days"], 2)
+
+    def test_a_closure_kind_on_the_record_names_its_bucket(self):
+        at = "2026-10-06T10:00:00Z"
+        rows = [row("CLOSED", closed_kind="not-a-form", closed_because="a job alert signup", closed_at=at),
+                row("CLOSED", closed_kind="not-a-form", closed_because="a bot check", closed_at=at),
+                row("CLOSED", closed_kind="gone", closed_because="Sorry, we can't find that page", closed_at=at),
+                row("CLOSED", closed_kind="left", closed_because="the browser could not finish it", closed_at=at),
+                row("CLOSED", closed_because="this posting is no longer available", closed_at=at)]
+        self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
+                         {"gone": 1, "left": 1, "not_a_form": 2, "stale": 1})
+
+    def test_a_failure_is_counted_by_its_shape_never_its_words(self):
+        rows = [row("FAILED", failure="TimeoutError: page.goto https://acme.example/jobs/1 timed out"),
+                row("FAILED", failure="BrowserBusy: in use (tried 3 times, nothing was ever pressed)"),
+                row("FAILED", failure="the site refused it: Acme needs a cover letter"),
+                row("FAILED", failure="ApplyError: Acme's form wants a phone extension"),
+                row("FAILED", failure="Acme Robotics broke something")]
+        held = hunt_funnel.counts(rows, now=NOW)["waiting"]
+        self.assertEqual(held["failed"], 5)
+        self.assertEqual(held["failed_because"], {"ApplyError": 1, "TimeoutError": 1, "never_pressed": 1,
+                                                  "other": 1, "site_refused": 1})
+        self.assertNotIn("acme", json.dumps(held).casefold())
 
     def test_nothing_that_names_an_employer_is_published(self):
         rows = [row("CLOSED", closed_because="Acme Robotics said no", company="Acme Robotics",
