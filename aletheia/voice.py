@@ -684,6 +684,59 @@ def _just_added_to_the_list() -> bool:
     return False
 
 
+_ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
+                 "eighth": 8, "ninth": 9, "tenth": 10, "fifteenth": 15, "twentieth": 20, "last": 31}
+_SPAN = (r"(?P<span>(?:every|each) (?:month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
+         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|monthly|fortnightly)")
+_MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
+
+
+def _a_repeat(low: str, text: str) -> dict | None:
+    """A reminder that repeats monthly, every N days or every N weeks."""
+    at = r"(?: at (?P<time>[\w: ]+?))?"
+    m = (re.fullmatch(r"remind me (?:" + _MDAY + r" )?" + _SPAN + r"(?: " + _MDAY.replace("mday", "mday2") + r")?"
+                      + at + r",? (?:to|that|about) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:to|that|about) (?P<text>.+?),? (?:" + _MDAY + r" )?" + _SPAN
+                         + r"(?: " + _MDAY.replace("mday", "mday2") + r")?" + at, low))
+    if not m:
+        return None
+    hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+    if not hhmm:
+        return None
+    hour, minute = map(int, hhmm.split(":"))
+    if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+        hour += 12
+    hhmm = f"{hour:02d}:{minute:02d}"
+    what = _as_he_said(text, m.group("text").strip())
+    span = m.group("span")
+    if "month" in span:
+        said = m.group("mday") or m.group("mday2")
+        if said:
+            day = _ORDINAL_DAYS.get(said) or int(re.match(r"\d+", said).group(0))
+        else:
+            import datetime as dt
+            from aletheia import localtime
+            day = dt.datetime.now(localtime.operator_tz()).day      # today's date, each month
+        return {"command": {"kind": "remind_monthly", "day": day, "time": hhmm, "text": what}, "say": None}
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
+    if span == "fortnightly" or "couple of weeks" in span:
+        n, unit = 2, "weeks"
+    elif "other day" in span:
+        n, unit = 2, "days"
+    elif "other" in span:
+        n, unit = 2, "weeks"
+    else:
+        n = int(m.group("n")) if m.group("n").isdigit() else words[m.group("n")]
+        unit = m.group("unit")
+    if unit == "days":
+        return {"command": {"kind": "remind_daily", "time": hhmm, "text": what, "every": n}, "say": None}
+    import datetime as dt
+    from aletheia import localtime
+    day = m.group("oday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
+    return {"command": {"kind": "remind_weekly", "days": [day], "time": hhmm, "text": what, "every": n},
+            "say": None}
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -1482,6 +1535,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_daily", "time": hhmm,
                                 "text": m.group(2).strip()}, "say": None}
         return _to_the_planner(text)
+    # MONTHLY, EVERY OTHER DAY, EVERY TWO WEEKS (2026-10-07: "remind me on
+    # the first of every month to pay rent" was refused as SPENDING, the
+    # rest went to the planner). Either word order; nine o'clock when he
+    # names no time, as for the weekly ones, and the receipt says it back.
+    repeat = _a_repeat(low, text)
+    if repeat:
+        return repeat
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.

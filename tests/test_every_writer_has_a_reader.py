@@ -47,6 +47,7 @@ READER_FOR = {
     "remind_at": "reminders",
     "remind_daily": "reminders",
     "remind_weekly": "reminders",
+    "remind_monthly": "reminders",
     "reminder_off": "reminders",
     "contact_add": "contacts",
     "watch_email_from": "watches",

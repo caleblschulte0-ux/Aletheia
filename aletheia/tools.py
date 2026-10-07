@@ -126,7 +126,7 @@ STORE_OF = {
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
-    "remind_weekly": "schedules", "reminder_off": "schedules",
+    "remind_weekly": "schedules", "remind_monthly": "schedules", "reminder_off": "schedules",
     "contacts": "contacts", "contact_add": "contacts",
     "watches": "watches", "watch_email_from": "watches",
     "recall": "memory", "remember": "memory", "forget": "memory",
@@ -696,7 +696,7 @@ def for_model(visible_to: str = "local", *, tools: dict[str, Tool] | None = None
 SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "your tasks and reminders": ("task_new", "tasks", "task_done",
                                  "task_status", "remind_at", "remind_daily",
-                                 "remind_weekly", "reminders", "reminder_off",
+                                 "remind_weekly", "remind_monthly", "reminders", "reminder_off",
                                  "do_task"),
     "your lists": ("shopping_add", "shopping_list", "shopping_off"),
     # Third on purpose: dict order is spoken order, only the first six

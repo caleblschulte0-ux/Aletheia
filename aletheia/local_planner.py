@@ -92,7 +92,7 @@ COMPILED_BY_RULES = "rules, with no model"
 # `tests/test_local_planner.py`, so this cannot drift into naming something
 # that does not exist or something the planner may not emit.
 VERB_HINTS: dict[str, tuple[str, ...]] = {
-    r"\bremind\b|\breminder\b": ("remind_at", "remind_daily", "remind_weekly"),
+    r"\bremind\b|\breminder\b": ("remind_at", "remind_daily", "remind_weekly", "remind_monthly"),
     r"\bevery day\b|\bdaily\b": ("remind_daily",),
     r"\bevery (?:mon|tues|wednes|thurs|fri|satur|sun)day\b|\bweekly\b": ("remind_weekly",),
     r"\btask\b|\bto-?do\b": ("task_new", "tasks"),
