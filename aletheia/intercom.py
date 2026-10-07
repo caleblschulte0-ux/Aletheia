@@ -3008,6 +3008,20 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _reminders_answer(cmd.get("which", ""))
     if kind == "reminder_off":
         from aletheia import scheduler
+        # "TURN OFF ALL MY ALARMS" - every one of that sort, each disabled
+        # (never deleted), so each can be put back. Only the three sorts he
+        # can name: alarms, timers, or everything that reminds him.
+        every = {"all alarms": "wake up", "all timers": "timer is up", "all reminders": ""}.get(
+            " ".join(str(cmd["which"]).casefold().split()))
+        if every is not None:
+            rows = [r for r in _reminder_schedules()
+                    if every in str((r.get("command") or {}).get("text") or "").casefold()]
+            if not rows:
+                return f"reminder none off — you have no {cmd['which'][4:]} set"
+            for row in rows:
+                scheduler.set_enabled(row["id"], False)
+            return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), cmd['which'][4:].rstrip('s'))}: "
+                    + speech.and_list([_reminder_words(r) for r in rows[:4]]))
         found, why = _one_reminder(cmd["which"])
         if found is None:
             raise act.Refused(why)

@@ -123,3 +123,63 @@ class BeforeTheMeeting(unittest.TestCase):
             self.assertIn("standup", voice._interpret("remind me 10 minutes before my standup")["say"])
         with mock.patch.object(cal, "all_events", return_value=[]):
             self.assertIsNone(voice._interpret("remind me 15 minutes before my meeting")["command"])
+
+
+class APartOfTheDayIsATime(unittest.TestCase):
+    def _at(self, said, now):
+        import zoneinfo
+        from aletheia import voice
+        fake = dt.datetime(*now, tzinfo=zoneinfo.ZoneInfo("America/Chicago"))
+        out = voice._a_loose_when(said, said, now=fake)
+        self.assertIsNotNone(out, said)
+        return dt.datetime.fromisoformat(out["command"]["at"]), out["command"]["text"]
+
+    def test_parts_of_the_day(self):
+        morning = (2026, 10, 7, 8, 0)
+        self.assertEqual(self._at("remind me tonight to take out the trash", morning)[0].hour, 21)
+        self.assertEqual(self._at("remind me at lunch to eat", morning)[0].hour, 12)
+        at, text = self._at("remind me to log hours at the end of the day", morning)
+        self.assertEqual((at.day, at.hour, text), (7, 17, "log hours"))
+
+    def test_tonight_said_late_is_still_tonight(self):
+        at, _ = self._at("remind me to call mom tonight", (2026, 10, 7, 21, 40))
+        self.assertEqual((at.day, at.hour, at.minute), (7, 22, 40))
+
+    def test_both_word_orders_reach_it(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("remind me at lunch to eat")["command"]["kind"], "remind_at")
+        self.assertEqual(voice._interpret("remind me to call bob in 3 days")["command"]["kind"], "remind_at")
+
+    def test_in_the_morning_said_at_night_is_tomorrow(self):
+        at, _ = self._at("remind me in the morning to email dana", (2026, 10, 7, 22, 0))
+        self.assertEqual((at.day, at.hour), (8, 9))
+
+    def test_days_and_weeks(self):
+        at, text = self._at("remind me to call bob in a couple of days", (2026, 10, 7, 8, 0))
+        self.assertEqual((at.day, text), (9, "call bob"))
+        self.assertEqual(self._at("remind me in a week to check the mail", (2026, 10, 7, 8, 0))[0].day, 14)
+        self.assertEqual(self._at("remind me next week to call bob", (2026, 10, 7, 8, 0))[0].weekday(), 0)
+
+
+class AllOfOneSort(unittest.TestCase):
+    def test_turn_off_all_my_alarms_is_not_the_kill_switch(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("turn off all my alarms")["command"],
+                         {"kind": "reminder_off", "which": "all alarms"})
+        self.assertEqual(voice._interpret("cancel all timers")["command"]["which"], "all timers")
+        self.assertIsNone(voice._interpret("turn off everything")["command"])
+
+    def test_each_is_disabled_and_none_is_said(self):
+        from aletheia import intercom, scheduler, speech
+        rows = [{"id": "a", "kind": "once", "at": "2026-10-08T12:00:00+00:00",
+                 "command": {"kind": "notify_operator", "text": "your 5-minute timer is up"}},
+                {"id": "b", "kind": "once", "at": "2026-10-08T12:00:00+00:00",
+                 "command": {"kind": "notify_operator", "text": "wake up"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+                mock.patch.object(scheduler, "set_enabled") as off:
+            receipt = intercom.execute_command({"kind": "reminder_off", "which": "all timers"}, {}, quote="test")
+        off.assert_called_once_with("a", False)
+        self.assertIn("1 timer", speech.spoken_receipt("reminder_off", receipt))
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[]):
+            receipt = intercom.execute_command({"kind": "reminder_off", "which": "all alarms"}, {}, quote="test")
+        self.assertEqual(speech.spoken_receipt("reminder_off", receipt), "You have no alarms set.")

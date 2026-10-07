@@ -684,6 +684,65 @@ def _just_added_to_the_list() -> bool:
     return False
 
 
+#: A when said as part of a day, and the clock time a person means by it.
+#: "Tonight" is nine, as `night` already is; lunch is noon; "before bed"
+#: half past nine; the end of the day five.
+_LOOSE_TIMES = {
+    "this morning": "09:00", "this afternoon": "14:00", "this evening": "19:00", "tonight": "21:00",
+    "later tonight": "21:00", "at lunch": "12:00", "at lunchtime": "12:00", "at lunch time": "12:00",
+    "before bed": "21:30", "at bedtime": "21:30", "at bed time": "21:30", "before i go to bed": "21:30",
+    "at the end of the day": "17:00", "end of day": "17:00", "at end of day": "17:00", "after work": "17:30",
+    "in the morning": "09:00", "first thing in the morning": "08:00", "first thing tomorrow": "08:00",
+}
+_LOOSE_WHEN = (r"(?P<when>" + "|".join(sorted((re.escape(k) for k in _LOOSE_TIMES), key=len, reverse=True))
+               + r"|in (?:a|one|\d+|two|three|four|five|six|seven|a couple of|a few) (?:days?|weeks?)"
+               + r"|next week|in a fortnight)")
+
+
+def _a_loose_when(low: str, text: str, now=None) -> dict | None:
+    """"Remind me tonight to take out the trash", "remind me to follow up
+    in 3 days", "remind me next week to call Bob" - all went to the planner
+    (2026-10-07). Either word order. A time that has already passed today
+    moves to tomorrow, and the receipt names the day, so a wrong guess is
+    caught in one syllable."""
+    import datetime as dt
+    from aletheia import localtime
+    m = (re.fullmatch(r"remind me " + _LOOSE_WHEN + r",? (?:to|that|about) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:to|that|about) (?P<text>.+?),? " + _LOOSE_WHEN, low))
+    if not m:
+        return None
+    when, what = m.group("when"), m.group("text").strip()
+    if re.search(r"\b(?:every|each)\b", what):
+        return None
+    now = now or dt.datetime.now(localtime.operator_tz())
+    if when in _LOOSE_TIMES:
+        hour, minute = map(int, _LOOSE_TIMES[when].split(":"))
+        at = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if "tonight" in when and at <= now and now.hour < 23:
+            # Said at ten at night, "tonight" still means tonight: an hour on.
+            at = (now + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
+        elif at <= now or (when.endswith("morning") and when != "this morning" and now.hour >= 5) \
+                or when == "first thing tomorrow":
+            at += dt.timedelta(days=1)
+    else:
+        hour, minute = map(int, DEFAULT_REMINDER_TIME.split(":"))
+        if when == "next week":
+            days = 7 - now.weekday()                    # next Monday
+        elif when == "in a fortnight":
+            days = 14
+        else:
+            n = re.search(r"in (a couple of|a few|\S+) (day|week)", when)
+            count = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
+                     "a couple of": 2, "a few": 3}.get(n.group(1), None)
+            if count is None:
+                count = int(n.group(1)) if n.group(1).isdigit() else None
+            if not count:
+                return None
+            days = count * (7 if n.group(2) == "week" else 1)
+        at = (now + dt.timedelta(days=days)).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": _as_he_said(text, what)}, "say": None}
+
+
 def _as_he_said(transcript: str, fragment: str) -> str:
     """A matched fragment with his capitals put back.
 
@@ -1144,6 +1203,12 @@ def _interpret(transcript: str) -> dict:
     # download when you can" and "stop the music" are ordinary requests
     # that happen to start with the same verb, and swallowing those would
     # trade one silent substitution for another.
+    # "TURN OFF ALL MY ALARMS" is about her alarms, not her switch
+    # (2026-10-07: it got the kill-switch speech). Every one of that sort.
+    m = re.fullmatch(r"(?:turn off|cancel|delete|clear|stop|remove|disable|kill) (?:all|every one of) (?:of )?(?:my |the )?"
+                     r"(?P<sort>alarms|timers|reminders)", low)
+    if m:
+        return {"command": {"kind": "reminder_off", "which": "all " + m.group("sort")}, "say": None}
     m = re.match(r"^(resume|un-?halt|halt|close|open|shut down|turn off|"
                  r"turn on|go to sleep|wake up)\s+"
                  r"((?:yourself|aletheia|thea|it|everything|all|again|now|"
@@ -1595,7 +1660,8 @@ def _interpret(transcript: str) -> dict:
         if m.group(1):
             hhmm = _spoken_time(m.group(1))
             if not hhmm:
-                return _to_the_planner(text)
+                # "At lunch", "at the end of the day": a time with no clock.
+                return _a_loose_when(low, text) or _to_the_planner(text)
             at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(1)))
         else:
             import datetime as dt
@@ -1607,6 +1673,10 @@ def _interpret(transcript: str) -> dict:
             at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
         return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group(4).strip())},
                 "say": None}
+
+    loose = _a_loose_when(low, text)
+    if loose:
+        return loose
 
     # THE OTHER WORD ORDER, which is the commoner one. Every pattern
     # above is "remind me AT <time> TO <thing>"; "remind me to call the
