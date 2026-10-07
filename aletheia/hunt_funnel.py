@@ -50,6 +50,22 @@ CLOSED_KINDS = {"not-a-form": "not_a_form", "gone": "gone", "left": "left",
                 "duplicate": "duplicate"}
 
 
+def _left_bucket(why: str) -> str:
+    """Which wall the general browser left an application at, by the
+    mission's own words. Live 2026-10-07 "left" was 139 of the month's
+    closures, the largest by far, and a human check, a page with no way
+    forward and a question nobody answered are three different fixes."""
+    try:
+        from aletheia import browser_mission
+        words = browser_mission._KIND_WORDS
+    except Exception:
+        words = {}
+    for kind, said in sorted(words.items(), key=lambda kv: -len(kv[1])):
+        if said.casefold() in why:
+            return "left_" + kind.casefold()
+    return "left"
+
+
 def _closed_bucket(record: dict) -> str:
     why = str(record.get("closed_because") or "").casefold()
     named = next((name for lead, name in CLOSED_BECAUSE if lead in why), "")
@@ -58,6 +74,8 @@ def _closed_bucket(record: dict) -> str:
         kind = apply_run.closure_kind(record)
     except Exception:
         kind = str(record.get("closed_kind") or "")
+    if kind == "left":
+        return _left_bucket(why)
     if kind in CLOSED_KINDS:
         return CLOSED_KINDS[kind]
     if named:
@@ -80,10 +98,104 @@ def _failed_bucket(record: dict) -> str:
         return "never_pressed"
     if low.startswith("the site refused it"):
         return "site_refused"
+    if "would not take a click" in low:
+        return "submit_would_not_click"
     named = _ERROR_NAME.match(why.strip())
     if named:
         return named.group(1)
+    if not why.strip() and record.get("engine"):
+        # The general browser's REFUSED and MANUAL_ONLY land here with no
+        # failure text at all: the wall it stopped at is the reason. Live
+        # 2026-10-07, 54 of 74 failures read "other".
+        wall = str(record.get("boundary") or "unknown").casefold()
+        return "browser_" + re.sub(r"[^a-z0-9_]+", "_", wall)[:40]
     return "other"
+
+
+#: What each batch did with the openings it was handed, by the time it
+#: finished: counts only. Private state, because a run's own lists name
+#: employers; only the sums are published.
+TALLIES_PATH = stateio.private_dir("campaign") / "tallies.json"
+#: The parts of a batch's answer that are lists of openings, in the
+#: funnel's words.
+BATCH_PARTS = (("ready", "ready"), ("blocked", "needs_answer"), ("failed", "unreachable"),
+               ("needs_account", "needs_account"), ("passed_over", "not_realistic"),
+               ("duplicates", "duplicate"), ("later", "unjudged"))
+
+
+def _batch_tally(result: dict) -> dict:
+    """One batch's answer as counts. A weak shot and a full employer are
+    told apart from the plain not-realistic and same-job, because each is
+    a different dial: the angle's bar and the per-employer limit."""
+    tally = {name: 0 for _part, name in BATCH_PARTS}
+    tally.update({"weak_shot": 0, "employer_full": 0})
+    for part, name in BATCH_PARTS:
+        for row in result.get(part) or []:
+            why = str(row.get("why") or "").casefold() if isinstance(row, dict) else ""
+            if part == "passed_over" and why.startswith("a weak shot"):
+                tally["weak_shot"] += 1
+            elif part == "duplicates" and "this month" in why:
+                tally["employer_full"] += 1
+            else:
+                tally[name] += 1
+    return tally
+
+
+def note_batch(result: dict, *, offered: int = 0, now: dt.datetime | None = None,
+               path=None) -> None:
+    """Keep one finished batch's counts, a month of them. Never raises: the
+    job hunt must not stop because a tally could not be written."""
+    try:
+        target = path or TALLIES_PATH
+        stamp = (now or dt.datetime.now(dt.timezone.utc)).astimezone(dt.timezone.utc)
+        floor = (stamp - dt.timedelta(days=DAYS + 1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            rows = json.loads(target.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            rows = []
+        rows = [r for r in rows if isinstance(r, dict) and str(r.get("at") or "") >= floor]
+        rows.append({"at": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "offered": int(offered or 0),
+                     **_batch_tally(result)})
+        target.parent.mkdir(parents=True, exist_ok=True)
+        stateio.write_json_atomic(target, rows)
+    except Exception:
+        pass
+
+
+def batches(tallies: list[dict], *, now: dt.datetime | None = None, days: int = DAYS) -> dict:
+    """Per local day, what the batches did with what they were handed:
+    how many ran and how many openings went each way. Pure.
+
+    Live 2026-10-07 the funnel said 13 found for the day where mid-September
+    days said forty and more, and nothing said whether the boards ran dry,
+    the fit judge turned them away, the angle called them weak shots, or the
+    per-employer limit held them: four different fixes, indistinguishable
+    from the cloud."""
+    from aletheia import localtime
+    zone = localtime.operator_tz()
+    now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(zone)
+    first = (now.date() - dt.timedelta(days=days - 1)).isoformat()
+    out: dict[str, dict] = {}
+    for row in tallies or []:
+        if not isinstance(row, dict):
+            continue
+        day = _day(row.get("at"), zone)
+        if not day or day < first:
+            continue
+        into = out.setdefault(day, {"runs": 0})
+        into["runs"] += 1
+        for key, value in row.items():
+            if key != "at" and isinstance(value, int):
+                into[key] = into.get(key, 0) + value
+    return dict(sorted(out.items()))
+
+
+def _tallies(path=None) -> list[dict]:
+    try:
+        rows = json.loads((path or TALLIES_PATH).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return rows if isinstance(rows, list) else []
 
 
 WORKED = ("AWAITING_YOU", "NEEDS_YOU", "NEEDS_ACCOUNT", "SUBMITTED", "SUBMITTING", "FAILED", "REJECTED", "APPROVED")
@@ -210,6 +322,7 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     from aletheia import apply_run
     rows = apply_run.all_runs()
     fresh = counts(rows, now=now)
+    fresh["batches"] = batches(_tallies(), now=now)
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))

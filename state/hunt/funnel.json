@@ -1,4 +1,5 @@
 {
+  "batches": {},
   "days": {
     "2026-09-12": {
       "filled": 26,
@@ -193,38 +194,48 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 11,
-      "found": 13,
+      "filled": 12,
+      "found": 14,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 2
+      "sent": 3
     }
   },
-  "generated_at": "2026-10-07T14:09:05Z",
-  "sent_all_time": 236,
+  "generated_at": "2026-10-07T15:36:03Z",
+  "sent_all_time": 237,
   "totals": {
-    "filled": 356,
-    "found": 642,
+    "filled": 357,
+    "found": 643,
     "interviews": 2,
     "rejections": 3,
     "replies": 31,
-    "sent": 236
+    "sent": 237
   },
   "waiting": {
     "closed": {
       "duplicate": 3,
       "gone": 31,
-      "left": 139,
+      "left_approval_denied": 16,
+      "left_captcha": 13,
+      "left_error": 11,
+      "left_going_in_circles": 14,
+      "left_no_way_forward": 71,
+      "left_out_of_steps": 3,
+      "left_posting_closed": 6,
+      "left_questions": 1,
+      "left_sign_in": 4,
       "not_a_form": 38,
       "not_realistic": 75
     },
     "failed": 74,
     "failed_because": {
-      "ApplyError": 3,
+      "ApplyError": 2,
       "TargetClosedError": 3,
       "TimeoutError": 14,
-      "other": 54
+      "browser_spending": 2,
+      "other": 52,
+      "submit_would_not_click": 1
     },
     "his_ok": {},
     "needs_account": 0,
