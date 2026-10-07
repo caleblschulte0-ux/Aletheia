@@ -224,7 +224,7 @@
       "sent": 24
     }
   },
-  "generated_at": "2026-10-07T21:23:48Z",
+  "generated_at": "2026-10-07T21:40:10Z",
   "sent_all_time": 258,
   "stuck_at": {
     "approval_denied": {
@@ -297,7 +297,12 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
-      "not_a_form": 49,
+      "not_a_form_asks_nothing_on_bamboohr": 8,
+      "not_a_form_asks_nothing_on_employer_site": 7,
+      "not_a_form_asks_nothing_on_greenhouse": 1,
+      "not_a_form_asks_nothing_on_lever": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 24,
+      "not_a_form_signup_list_on_employer_site": 8,
       "not_realistic": 75
     },
     "failed": 59,
