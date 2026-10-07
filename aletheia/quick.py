@@ -3668,6 +3668,16 @@ def _person(rest: str) -> str:
         found = None
     if found:
         return f"Your {who} is {found}."
+    # "REMEMBER THAT MY LANDLORD IS SAM ORTIZ" is kept as a note, and one turn
+    # later "who is my landlord" answered "I don't have anyone remembered as
+    # your landlord. Tell me and I'll remember it" - he just had. The note says
+    # it in his own words; read it the way he said it.
+    if who:
+        said = re.compile(r"\bmy " + re.escape(who.casefold()) + r"(?:'s name)? (?:is|was|=) (.+)", re.IGNORECASE)
+        for row in _notes():
+            m = said.search(str(row.get("text") or ""))
+            if m:
+                return f"Your {who} is {m.group(1).strip().rstrip('.')}."
     return f"I don't have anyone remembered as your {who}. Tell me and I'll remember it."
 
 

@@ -77,6 +77,14 @@ def where_he_is() -> tuple[str, str]:
         state = str(profile.answer("state") or "").strip()
     except Exception:
         code, city, state = "", "", ""
+    if not code:
+        # "My zip code is 80202" by voice is kept in her memory of him.
+        try:
+            from aletheia import memory
+            entry = ((memory.everything() or {}).get("identity") or {}).get("postal_code")
+            code = str((entry.get("value") if isinstance(entry, dict) else entry) or "").strip()
+        except Exception:
+            code = ""
     name = ", ".join([p for p in (city, state) if p]) or "where you live"
     return code, name
 
