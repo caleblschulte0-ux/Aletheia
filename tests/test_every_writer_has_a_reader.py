@@ -57,6 +57,7 @@ READER_FOR = {
     "remind_every": "reminders",
     "reminder_off": "reminders",
     "contact_add": "contacts",
+    "contact_remove": "contacts",
     "watch_email_from": "watches",
     "remember": "recall",
     # "Only apply to remote jobs" shows up the moment he asks what she steers by.

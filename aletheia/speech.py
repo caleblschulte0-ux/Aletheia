@@ -555,6 +555,13 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "contact_remove":
+        gone = re.match(r"contact (\S+) removed\s*[—-]\s*(.+)$", text)
+        if gone and gone.group(1) != "none":
+            who = gone.group(2).strip()
+            return f"Took {who[:1].upper() + who[1:]} out of your contacts."
+        if gone:
+            return gone.group(2)[:1].upper() + gone.group(2)[1:] + "."
     if kind == "contact_add":
         # "remembered mom as 6055550123 — private contacts only, never the
         # public repo" was read out verbatim: a log line, a run of digits,

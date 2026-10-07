@@ -75,7 +75,7 @@ MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
 #: an interface can ask before offering them as one-tap buttons.
 DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
-    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off",
+    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off", "contact_remove",
     "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
     "apply_pause",
 })
@@ -87,6 +87,7 @@ IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
+    "contact_remove",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -132,7 +133,7 @@ STORE_OF = {
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
     "remind_weekly": "schedules", "remind_monthly": "schedules", "reminder_off": "schedules",
     "remind_every": "schedules",
-    "contacts": "contacts", "contact_add": "contacts",
+    "contacts": "contacts", "contact_add": "contacts", "contact_remove": "contacts",
     "watches": "watches", "watch_email_from": "watches",
     "recall": "memory", "remember": "memory", "forget": "memory",
     "preference_set": "profile", "preferences": "profile",
@@ -716,7 +717,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
                                       "calendar_hold", "calendar_propose"),
-    "people you know": ("contacts", "contact_add", "watch_email_from",
+    "people you know": ("contacts", "contact_add", "contact_remove", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "forget", "note"),
     "music": ("music",),

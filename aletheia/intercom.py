@@ -329,6 +329,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # texting needed a number: `contacts.create` had supported phones all
     # along, and the grammar was the only thing that did not.
     "contact_add":     ({"name"}, {"email", "phone", "alias"}),
+    "contact_remove":  ({"name"}, set()),
     # The slot for everything that is not a slot (2026-08-27). `text` is
     # whatever the operator actually said; aletheia.planner compiles it
     # into steps expressed in the kinds ABOVE, and every one of those is
@@ -486,6 +487,10 @@ KIND_NOTES: dict[str, str] = {
         'Who he has saved, and how to reach them. which is optional and '
         'narrows by name or alias — use it for "what is my mum\'s '
         'number". `contact_add` is the writer.'),
+    "contact_remove": (
+        'Take someone out of his contacts. name is who he said; she finds the '
+        'one contact that matches and asks if two do. Hidden, not deleted: '
+        'adding them again brings them back.'),
     "watches": (
         'What she is waiting to tell him about — the watchers '
         '`watch_email_from` creates. Nothing to do with browsing.'),
@@ -793,7 +798,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
                "reminders", "reminder_off", "notify_snooze",
                "watch_email_from", "notify_check",
-               "notify_clear", "free_time", "contact_add", "notify_operator",
+               "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
                "intent", "screen_ask",
                # every private-state verb below lives on the PC
                "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
@@ -938,7 +943,7 @@ ROUTINE_KINDS = frozenset({
     # be told something without an approval and needs one to be told to
     # drop it. It is the one act with no undo, though, so the receipt says
     # WHAT went rather than just "forgotten".
-    "notify_clear", "remember", "forget", "contact_add", "shopping_add",
+    "notify_clear", "remember", "forget", "contact_add", "contact_remove", "shopping_add",
     # reversible by saying the opposite, reaches nobody but him, and its
     # own default is silence
     "announce_set",
@@ -3772,6 +3777,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _jobs_answer(cmd)
     if kind == "free_time":
         return free_time_answer(cmd)
+    if kind == "contact_remove":
+        from aletheia import contacts
+        rows = contacts.all_contacts()
+        try:
+            person = contacts.resolve(cmd["name"], rows)
+        except (KeyError, ValueError):
+            return f"contact none removed — you have no contact called {cmd['name']}"
+        except LookupError:
+            raise act.Refused(f"More than one contact answers to {cmd['name']} - which one?") from None
+        contacts.update(person["id"], tags=sorted(set(person.get("tags") or []) | {contacts.REMOVED}))
+        return f"contact {person['id']} removed — {person.get('display_name') or person['id']}"
     if kind == "contact_add":
         from aletheia import contacts, mail as mail_mod, messages as _messages
         import re as _re
@@ -3798,7 +3814,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                             aliases=aliases,
                             provenance=f"operator via voice/intercom: {quote[:100]}")
         except FileExistsError:
-            changes = {}
+            # Taken out earlier and said again: back in, as he says it now.
+            changes = {"tags": [t for t in (contacts.load(cid).get("tags") or []) if t != contacts.REMOVED]}
             if addr:
                 changes["emails"] = [addr]
             if phone:

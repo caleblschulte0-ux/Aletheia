@@ -346,5 +346,24 @@ class ContactsTheLongWayRound(unittest.TestCase):
         self.assertEqual(quick.match("who are my contacts")[0], "contacts_count")
 
 
+class AContactCanBeTakenOut(unittest.TestCase):
+    def test_hidden_not_deleted_and_back_when_added_again(self):
+        from aletheia import contacts, intercom, voice
+        run = lambda said: intercom.execute_command(voice._interpret(said)["command"], {"repos": {}}, quote="test")
+        run("zed's number is 555 222 3333")
+        self.assertIn("zed", [c["id"] for c in contacts.all_contacts()])
+        self.assertEqual(voice._interpret("delete zed from my contacts")["command"]["kind"], "contact_remove")
+        self.assertIn("removed", run("delete zed from my contacts"))
+        self.assertNotIn("zed", [c["id"] for c in contacts.all_contacts()])
+        self.assertIn("zed", [c["id"] for c in contacts.all_contacts(include_removed=True)])
+        run("zed's number is 555 222 4444")
+        self.assertIn("zed", [c["id"] for c in contacts.all_contacts()])
+
+    def test_nobody_by_that_name(self):
+        from aletheia import intercom, speech
+        said = intercom.execute_command({"kind": "contact_remove", "name": "nobody-at-all"}, {"repos": {}}, quote="test")
+        self.assertEqual(speech.spoken_receipt("contact_remove", said), "You have no contact called nobody-at-all.")
+
+
 if __name__ == "__main__":
     unittest.main()

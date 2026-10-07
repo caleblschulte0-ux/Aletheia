@@ -3805,6 +3805,11 @@ def _interpret(transcript: str) -> dict:
     if m and m.group(1) not in ("my", "your", "his", "her"):
         return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
                             "email": m.group(2).strip().rstrip(".")}, "say": None}
+    # "Delete Sam from my contacts" (2026-10-07: to the planner).
+    m = re.fullmatch(r"(?:delete|remove|take|drop|get rid of) ([a-z][a-z' -]{0,30}?) (?:from|out of|off) (?:my )?"
+                     r"(?:contacts|contact list|phone book|address book)", low)
+    if m and m.group(1) not in ("my", "all", "everyone", "everybody", "all my", "them", "him", "her"):
+        return {"command": {"kind": "contact_remove", "name": _as_he_said(transcript, m.group(1)).strip()}, "say": None}
     # "Add Sam to my contacts, his number is 555 222 3333" (2026-10-07: to
     # the planner) - the same contact, said the long way round.
     m = re.fullmatch(r"(?:add|save|put) ([a-z][a-z' -]{0,30}?) (?:to|in|into) (?:my )?(?:contacts|contact list|phone book|address book)"
