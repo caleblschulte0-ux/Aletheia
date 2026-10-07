@@ -3783,5 +3783,25 @@ class HisAgeAheadAndHisNickname(unittest.TestCase):
         self.assertEqual(quick.match("what's my nickname")[0], "call_me")
 
 
+class AQuestionAboutBuyingIsNotSpending(unittest.TestCase):
+    """2026-10-07: "did i buy milk" was refused as an instruction to spend."""
+
+    def test_the_local_door_lets_a_question_through(self):
+        from aletheia import local_planner
+        self.assertIsNone(local_planner._refusal_for_spending("did i buy milk"))
+        self.assertIsNone(local_planner._refusal_for_spending("have i paid rent yet"))
+        self.assertTrue(local_planner._refusal_for_spending("order me a pizza"))
+        self.assertTrue(local_planner._refusal_for_spending("buy milk for me"))
+
+    def test_the_shopping_list_answers_it(self):
+        from aletheia import shopping, voice
+        rows = [{"need": "milk", "state": "RESEARCHING"},
+                {"need": "eggs", "state": "CANCELLED", "updated_at": "2026-10-07T15:00:00Z"}]
+        with mock.patch.object(shopping, "all_workflows", return_value=rows):
+            self.assertIn("Not yet", voice._interpret("did i buy milk")["say"])
+            self.assertIn("Yes - eggs came off", voice._interpret("did i get the eggs")["say"])
+            self.assertIsNone(voice._interpret("did i get the job")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

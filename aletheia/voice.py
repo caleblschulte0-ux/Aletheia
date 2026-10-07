@@ -796,6 +796,36 @@ def _other_lists() -> bool:
         return True
 
 
+def _bought_yet(item: str) -> str | None:
+    """Whether he has bought a thing, by his shopping list. None when the
+    list does not know - never a guess."""
+    want = " ".join(str(item or "").casefold().split())
+    stem = want[:-1] if len(want) > 3 and want.endswith("s") else want
+    if not stem:
+        return None
+    try:
+        from aletheia import shopping
+        rows = shopping.all_workflows()
+    except Exception:  # noqa: BLE001
+        return None
+    hits = [r for r in rows if stem in " ".join(str(r.get("need") or "").casefold().split())]
+    open_ = [r for r in hits if str(r.get("state", "")).upper() in ("RESEARCHING", "SELECTED", "PURCHASE_PROPOSED")]
+    if open_:
+        return f"Not yet - {open_[0].get('need')} is still on your shopping list."
+    done = sorted((r for r in hits if str(r.get("state", "")).upper() == "CANCELLED"),
+                  key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+    if done:
+        when = ""
+        try:
+            from aletheia import speech
+            at = str(done[0].get("updated_at") or "")
+            when = ", " + speech.humanize_time(at) if at else ""
+        except Exception:  # noqa: BLE001
+            when = ""
+        return f"Yes - {done[0].get('need')} came off your shopping list{when.rstrip()}."
+    return None
+
+
 def _on_the_shopping_list(item: str) -> bool:
     """Is that actually on his shopping list right now?
 
@@ -4436,6 +4466,16 @@ def _interpret(transcript: str) -> dict:
     if m:
         from aletheia import quick
         said = quick._shopping_has(m.group("w"))
+        if said:
+            return {"command": None, "say": said}
+    # "DID I BUY MILK" (2026-10-07: refused as an instruction to spend). A
+    # question about his shopping, answered from the list: still on it is
+    # "not yet", ticked off is "yes" with when. Neither is None - the
+    # planner, which is what it did before.
+    m = re.fullmatch(r"(?:did|have) i (?:already )?(?:buy|bought|get|got|pick up|picked up|grab|grabbed) "
+                     r"(?:the |some |any )?(?P<w>[a-z][a-z' ]{1,30}?)(?: yet| already| today)?", low)
+    if m:
+        said = _bought_yet(m.group("w"))
         if said:
             return {"command": None, "say": said}
     # "Clear the list" names no list; with nothing but the shopping list
