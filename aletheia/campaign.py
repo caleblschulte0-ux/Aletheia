@@ -1493,12 +1493,17 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                    f"{len(duplicates)} already applied for, waiting, or at an employer she has applied to enough this month; "
                    f"left {len(later)} unjudged for a later batch; "
                    "nothing submitted", actor=ACTOR)
-    return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
-            "ready": staged, "blocked": needs_you, "failed": failed,
-            "needs_account": needs_account,
-            "passed_over": passed_over, "duplicates": duplicates, "later": later,
-            "ignored_role": ignored_role,
-            "questions": open_questions(), "submitted": 0}
+    result = {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
+              "ready": staged, "blocked": needs_you, "failed": failed,
+              "needs_account": needs_account,
+              "passed_over": passed_over, "duplicates": duplicates, "later": later,
+              "ignored_role": ignored_role,
+              "questions": open_questions(), "submitted": 0}
+    # The counts, and how many openings the search handed it, kept for the
+    # published funnel: "why so few today" is answered by these.
+    from aletheia import hunt_funnel
+    hunt_funnel.note_batch(result, offered=len(pages))
+    return result
 
 
 ESSAY_BRIEF = (
