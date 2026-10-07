@@ -1143,5 +1143,18 @@ class AForecastByDayIsNotAPlace(unittest.TestCase):
         self.assertEqual(quick.match("weather this weekend"), ("weather", "this weekend"))
 
 
+class DaysLeftInTheMonth(unittest.TestCase):
+    def test_the_month_and_the_year(self):
+        from aletheia import localtime
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        nxt = dt.date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+        left = (nxt - dt.timedelta(days=1) - today).days
+        said = quick.answer("how many days left in the month")
+        self.assertTrue(said.startswith("Today is the last day") if left == 0 else said.startswith(f"{left} day"), said)
+        self.assertEqual(quick.answer("how many days until the end of the month"), said)
+        self.assertIn(str(today.year), quick.answer("how many days until the end of the year"))
+        self.assertNotIn(" 1 days", quick.answer("how many weeks left in the year"))
+
+
 if __name__ == "__main__":
     unittest.main()

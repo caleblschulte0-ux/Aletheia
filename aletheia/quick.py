@@ -1695,6 +1695,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # be in 3 hours". `reckon` answers or returns None, which sends the
     # question on - the shapes here only decide who looks first. LAST in the table, so
     # every older, narrower answer looks before it.
+    # "How many days left in the month" (2026-10-07): the reckon pattern
+    # took it as a unit sum and found none.
+    ("days_left", re.compile(
+        r"^how many (?:more )?(?:days|weeks) (?:are )?(?:left|remaining|to go|are there left) (?:in|of|until the end of) "
+        r"(?:the |this )?(?P<days_left>month|year)$"
+        r"|^how many (?:days|weeks) (?:until|till|to) the end of (?:the |this )?(?P<days_left2>month|year)$")),
     ("reckon", re.compile(
         r"^(?:what(?:'s| is|s)? |whats |calculate |work out )?(?:the )?(?:square|cube) root of -?[\d.,]+$"
         r"|^(?:what(?:'s| is|s)? |whats )?-?[\d.,]+ (?:squared|cubed|to the power of -?[\d.,]+|to the -?[\d.,]+(?:th|st|nd|rd)?(?: power)?)$"
@@ -1766,7 +1772,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -2701,6 +2707,10 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     # (2026-09-23 night sweep: it fell through here to a model).
     if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
         return _next_meeting()
+    # "How many days until the end of the month" (2026-10-07: no answer).
+    end = re.fullmatch(r"(?:the )?end of (?:the |this )?(month|year)", " ".join(str(words or "").casefold().split()))
+    if end:
+        return _days_left(end.group(1))
     # "how long until my interview" is the calendar's too (2026-09-24)
     if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
         return _interview_when()
@@ -3154,6 +3164,31 @@ def _last() -> str:
 
 #: A part of the day, by the hour on his clock: [from, to).
 _DAY_PARTS = {"this morning": (0, 12), "this afternoon": (12, 17), "this evening": (17, 24), "tonight": (17, 24)}
+
+
+def _days_left(said: str) -> str:
+    """Days (or weeks) left in this month or year, after today, on his
+    calendar."""
+    import datetime as dt
+    from aletheia import localtime
+    scope = "year" if re.search(r"\byear\b", said) else "month"
+    weeks = bool(re.search(r"\bweeks\b", said))
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    if scope == "year":
+        last, name = dt.date(today.year, 12, 31), str(today.year)
+    else:
+        nxt = dt.date(today.year + (today.month == 12), today.month % 12 + 1, 1)
+        last, name = nxt - dt.timedelta(days=1), today.strftime("%B")
+    n = (last - today).days
+    if weeks:
+        w, d = divmod(n, 7)
+        span = f"{w} week{'s' if w != 1 else ''}" + (f" and {d} day{'s' if d != 1 else ''}" if d else "")
+        return f"{span} left in {name} after today."
+    if n == 0:
+        return f"Today is the last day of {name}."
+    ends = (f"{last.strftime('%A')} the {_ordinal(last.day)}" if scope == "month"
+            else f"{last.strftime('%A')}, December 31st")
+    return f"{n} day{'s' if n != 1 else ''} left in {name} after today - it ends on {ends}."
 
 
 def _today(part: str = "") -> str:
@@ -4659,7 +4694,7 @@ def _area(text: str) -> str | None:
 
 def _year_left(text: str) -> str | None:
     import datetime as dt
-    from aletheia import localtime
+    from aletheia import localtime, speech
     g = _groups("year_left", text)
     today = dt.datetime.now(localtime.operator_tz()).date()
     days = (dt.date(today.year, 12, 31) - today).days
@@ -4667,7 +4702,7 @@ def _year_left(text: str) -> str | None:
     if unit == "days":
         return f"{days} days left in {today.year}."
     if unit == "weeks":
-        return f"{days // 7} weeks and {days % 7} days left in {today.year}." if days % 7 else \
+        return f"{days // 7} weeks and {speech.count_phrase(days % 7, 'day')} left in {today.year}." if days % 7 else \
             f"{days // 7} weeks left in {today.year}."
     return f"{12 - today.month} full months after this one, in {today.year}."
 
@@ -7819,6 +7854,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "free": _free,
            "free_at": lambda rest: _free_at(rest),
            "reckon": lambda rest: _reckon(rest),
+           "days_left": lambda rest: _days_left(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
            "took_today": lambda rest: _took_today(rest),
