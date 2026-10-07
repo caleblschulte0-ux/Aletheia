@@ -1301,5 +1301,17 @@ class TheCalendarBackwards(unittest.TestCase):
         self.assertEqual(quick.match("when is daylight saving")[0], "time_zone")
 
 
+
+class AClockTimeInAnotherZone(unittest.TestCase):
+    def test_us_zones_by_their_names(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("convert 3pm est to pst"), "3 pm EST is 12 pm PST.")
+        self.assertEqual(quick.answer("11pm pacific to eastern"), "11 pm Pacific time is 2 am Eastern time, the next day.")
+
+    def test_a_zone_she_does_not_know_goes_on(self):
+        from aletheia import quick
+        self.assertIsNone(quick.answer("convert 3pm to narnia"))
+
+
 if __name__ == "__main__":
     unittest.main()

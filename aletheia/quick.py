@@ -625,6 +625,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? the time (?:in|at) (?P<time_in>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^what time is it (?:in|at|over in) (?P<time_in2>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+    # A CLOCK TIME IN ANOTHER ZONE (2026-10-07: "convert 3pm est to pst",
+    # "what's 9am in london" went to the planner).
+    ("time_convert", re.compile(
+        r"^(?:convert |what(?:'s| is|s) |what time is )?(?P<t>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight)"
+        r"(?: (?P<from>[a-z][a-z ]{1,20}?))? (?:to|in|into) (?P<to>[a-z][a-z ]{1,20}?)(?: time)?\s*\??$")),
     ("date_after", re.compile(
         r"^what(?:'s| is| date is| day is| will the date be)? (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
         r" (?P<unit>days?|weeks?|months?) (?:from|after) (?:today|now)\s*\??$"
@@ -1584,7 +1589,8 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last"):
+        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+                    "time_convert"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -1901,6 +1907,14 @@ def _named_date(words: str, today):
 #: Where a place name puts the clock. Cities, countries and US states he
 #: is likely to say; anything not here is left to a model, never guessed.
 _ZONES = {
+    # The US zones by the names he says them with (2026-10-07: "convert
+    # 3pm est to pst" went to the planner).
+    "eastern": "America/New_York", "eastern time": "America/New_York", "est": "America/New_York",
+    "edt": "America/New_York", "et": "America/New_York",
+    "central": "America/Chicago", "central time": "America/Chicago", "cst": "America/Chicago", "cdt": "America/Chicago",
+    "mountain": "America/Denver", "mountain time": "America/Denver", "mst": "America/Denver", "mdt": "America/Denver",
+    "pacific": "America/Los_Angeles", "pacific time": "America/Los_Angeles", "pst": "America/Los_Angeles",
+    "pdt": "America/Los_Angeles", "pt": "America/Los_Angeles",
     "tokyo": "Asia/Tokyo", "japan": "Asia/Tokyo", "osaka": "Asia/Tokyo",
     "london": "Europe/London", "uk": "Europe/London", "england": "Europe/London", "the uk": "Europe/London",
     "britain": "Europe/London", "scotland": "Europe/London", "dublin": "Europe/Dublin", "ireland": "Europe/Dublin",
@@ -1953,6 +1967,49 @@ _ZONES = {
     "east coast": "America/New_York", "central time": "America/Chicago", "mountain time": "America/Denver",
     "pacific time": "America/Los_Angeles", "the west coast": "America/Los_Angeles", "west coast": "America/Los_Angeles",
 }
+
+
+def _time_convert(text: str) -> str | None:
+    """A clock time in one zone, said in another. His own zone when he names
+    only one. A zone she does not know goes on to a model."""
+    import datetime as dt
+    from zoneinfo import ZoneInfo
+    from aletheia import localtime
+    g = _groups("time_convert", text)
+    def zone_of(words):
+        key = " ".join(str(words or "").casefold().split())
+        if key in ("", "here", "my time", "local", "local time", "mine"):
+            return localtime.operator_tz(), "your time"
+        name = _ZONES.get(key) or _ZONES.get(re.sub(r" time$", "", key))
+        if not name:
+            return None, key
+        if len(key) <= 3 and name.startswith("America/"):
+            return ZoneInfo(name), key.upper()
+        if key.split()[0] in ("eastern", "central", "mountain", "pacific"):
+            return ZoneInfo(name), key.split()[0].title() + " time"
+        return ZoneInfo(name), "in " + (key.upper() if key in ("uk", "uae", "nyc", "dc", "la", "utc", "gmt") else key.title())
+    src, src_name = zone_of(g.get("from"))
+    dst, dst_name = zone_of(g.get("to"))
+    if src is None or dst is None:
+        return None
+    raw = g.get("t") or ""
+    if raw in ("noon", "midnight"):
+        hour, minute = (12, 0) if raw == "noon" else (0, 0)
+    else:
+        m = re.fullmatch(r"(\d{1,2})(?::(\d{2}))? ?(am|pm)", raw)
+        if not m:
+            return None
+        hour, minute = int(m.group(1)) % 12 + (12 if m.group(3) == "pm" else 0), int(m.group(2) or 0)
+        if hour > 23 or minute > 59:
+            return None
+    today = dt.datetime.now(src).date()
+    at = dt.datetime.combine(today, dt.time(hour, minute), tzinfo=src).astimezone(dst)
+    def clock(t):
+        return t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").replace("AM", "am").replace("PM", "pm")
+    shift = (at.date() - today).days
+    day = " the next day" if shift > 0 else (" the day before" if shift < 0 else "")
+    said_from = clock(dt.datetime.combine(today, dt.time(hour, minute)))
+    return f"{said_from} {src_name} is {clock(at)} {dst_name}{',' if day else ''}{day}."
 
 
 def _time_in(place: str) -> str | None:
@@ -6736,6 +6793,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
+           "time_convert": lambda rest: _time_convert(rest),
            "on_the_last": lambda rest: _on_the_last(rest),
            "age_of": lambda rest: _age_of(rest),
            "day_span": lambda rest: _day_span(rest),
