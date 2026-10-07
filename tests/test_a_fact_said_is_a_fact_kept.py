@@ -815,5 +815,18 @@ class ListsSpokenToAsIt(unittest.TestCase):
                       + self.say("what's on my weekend list"))
 
 
+class KitchenSums(unittest.TestCase):
+    def test_each(self):
+        for said, expected in (("what's half of 3 and a quarter", "1 and 5/8."),
+                               ("double 2 and a half cups", "5 cups."),
+                               ("what's 3/4 plus 1/2", "1 and a quarter."),
+                               ("what's a third of 2 cups", "Two thirds of a cup."),
+                               ("triple 1 1/2 teaspoons", "4 and a half teaspoons."),
+                               ("1/2 times 1/3", "1/6.")):
+            with self.subTest(said=said):
+                self.assertEqual(quick.answer(said), expected)
+        self.assertEqual(quick.answer("what's 2 plus 2"), "4.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -142,6 +142,12 @@ _STATUS = re.compile(
 
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
+#: A unit after a kitchen quantity; money and rates have their own sums.
+_KITCHEN_UNIT = r"(?!dollars?\b|bucks\b|euros?\b|pounds?\b|percent\b)[a-z]{2,12}"
+#: A kitchen quantity said out loud: "3/4", "1 1/2", "2 and a half", "a quarter".
+_QTY = (r"(?:\d+ (?:and )?\d+/\d+|\d+/\d+|\d+(?:\.\d+)?(?: and (?:a |one )?(?:half|quarter|third|three quarters|two thirds))?"
+        r"|(?:a |one )?(?:half|quarter|third))")
+
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in
     # crisis must never be filed as a work item "for when the big models
@@ -1605,6 +1611,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?P<fact>\d{1,2}) ?(?:factorial|!)$"
         r"|^(?:what(?:'s| is|s)? |how much is |how many is )?(?P<dozen>[\d.]+|a|half a) dozen$"
         r"|^(?:what(?:'s| is|s)? |how much is |calculate )?\$?(?P<base>[\d.,]+) (?P<pm>plus|minus|\+|-) (?P<pcent>[\d.]+) ?(?:%|percent)$")),
+    # "What's half of 3 and a quarter", "double 2 and a half cups", "3/4
+    # plus 1/2" (2026-10-07: each to a model) - kitchen sums in fractions.
+    ("fractions", re.compile(
+        r"^(?:what(?:'s| is|s)? |how much is )?(?:half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters"
+        r"|double|triple|twice|three times) (?:of )?" + _QTY + r"(?: " + _KITCHEN_UNIT + r")?$"
+        r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r" (?:plus|minus|times|divided by|\+|-) " + _QTY
+        + r"(?: " + _KITCHEN_UNIT + r")?$")),
     ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
     ("average", re.compile(r"^(?:what(?:'s| is) )?(?:the )?(?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
     # 2026-10-07, each to the planner: "what percent is 30 of 120", "what's
@@ -1722,7 +1735,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "fractions", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -4703,6 +4716,96 @@ def _arith(text: str) -> str | None:
     return said[0].upper() + said[1:] + "."
 
 
+_PARTS = {"half": (1, 2), "quarter": (1, 4), "third": (1, 3), "three quarters": (3, 4), "two thirds": (2, 3)}
+
+
+def _qty(said: str):
+    """A spoken quantity as a Fraction, or None."""
+    from fractions import Fraction
+    said = " ".join(str(said or "").split())
+    m = re.fullmatch(r"(\d+) (?:and )?(\d+)/(\d+)", said)
+    if m:
+        return int(m.group(1)) + Fraction(int(m.group(2)), int(m.group(3))) if int(m.group(3)) else None
+    m = re.fullmatch(r"(\d+)/(\d+)", said)
+    if m:
+        return Fraction(int(m.group(1)), int(m.group(2))) if int(m.group(2)) else None
+    m = re.fullmatch(r"(\d+(?:\.\d+)?)(?: and (?:a |one )?(half|quarter|third|three quarters|two thirds))?", said)
+    if m:
+        whole = Fraction(m.group(1))
+        if m.group(2):
+            whole += Fraction(*_PARTS[m.group(2)])
+        return whole
+    m = re.fullmatch(r"(?:a |one )?(half|quarter|third)", said)
+    if m:
+        return Fraction(*_PARTS[m.group(1)])
+    return None
+
+
+def _say_fraction(value) -> str:
+    """1.625 as "1 and 5/8"; a whole number plainly."""
+    from fractions import Fraction
+    value = Fraction(value).limit_denominator(64)
+    sign = "minus " if value < 0 else ""
+    value = abs(value)
+    whole, part = divmod(value.numerator, value.denominator)
+    if not part:
+        return f"{sign}{whole}"
+    frac = {(1, 2): "a half", (1, 4): "a quarter", (3, 4): "three quarters", (1, 3): "a third",
+            (2, 3): "two thirds"}.get((part, value.denominator), f"{part}/{value.denominator}")
+    if not whole:
+        return sign + ("half" if frac == "a half" else frac)
+    return f"{sign}{whole} and {frac}"
+
+
+def _fractions(text: str) -> str | None:
+    """Halve, double or add kitchen quantities; the unit he said is kept."""
+    from fractions import Fraction
+    low = re.sub(r"^(?:what(?:'s| is|s)? |how much is )", "", " ".join(str(text or "").casefold().split()))
+    if not re.search(r"/|half|quarter|third|double|triple|twice|three times", low):
+        return None                           # whole numbers are the plain sums' job
+    unit = ""
+    m = re.fullmatch(r"(half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters|double|triple|twice"
+                     r"|three times) (?:of )?(.+?)(?: ([a-z]{2,12}))?", low)
+    if m:
+        amount = _qty(m.group(2))
+        if amount is None and m.group(3):
+            amount = _qty(f"{m.group(2)} {m.group(3)}")
+            unit = ""
+        else:
+            unit = m.group(3) or ""
+        if amount is None:
+            return None
+        factor = {"half": Fraction(1, 2), "a half": Fraction(1, 2), "a third": Fraction(1, 3), "one third": Fraction(1, 3),
+                  "a quarter": Fraction(1, 4), "one quarter": Fraction(1, 4), "two thirds": Fraction(2, 3),
+                  "three quarters": Fraction(3, 4), "double": 2, "twice": 2, "triple": 3, "three times": 3}[m.group(1)]
+        result = amount * factor
+    else:
+        m = re.fullmatch(r"(.+?) (plus|minus|times|divided by|\+|-) (.+?)(?: ([a-z]{2,12}))?", low)
+        if not m:
+            return None
+        a, b = _qty(m.group(1)), _qty(m.group(3))
+        unit = m.group(4) or ""
+        if b is None and m.group(4):
+            b, unit = _qty(f"{m.group(3)} {m.group(4)}"), ""
+        if a is None or b is None:
+            return None
+        op = m.group(2)
+        if op in ("divided by",) and not b:
+            return "You can't divide by zero."
+        result = {"plus": a + b, "+": a + b, "minus": a - b, "-": a - b, "times": a * b}.get(op, a / b if b else None)
+    if unit in ("dollars", "dollar", "bucks", "euros", "pounds", "percent"):
+        return None                           # money and rates have their own sums
+    if unit in ("of",):
+        unit = ""
+    one = unit[:-1] if unit.endswith("s") and not unit.endswith("ss") else unit
+    said = _say_fraction(result)
+    if unit and 0 < result < 1:
+        said = f"{said} of a {one}"           # "two thirds of a cup"
+    elif unit:
+        said = f"{said} {one if result == 1 else unit}"
+    return said[:1].upper() + said[1:] + "."
+
+
 def _arith_more(text: str) -> str | None:
     import math
     g = _match_of("arith_more", text)
@@ -7426,6 +7529,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "birthday_when": lambda rest: _birthday_when(rest),
            "task_due": lambda rest: _task_due(rest),
            "arith_more": _arith_more,
+           "fractions": _fractions,
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),
            "spell": lambda rest: _spell(rest),
