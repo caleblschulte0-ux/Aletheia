@@ -1406,7 +1406,11 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "watches"}, "say": None}
     if re.fullmatch(r"(who|what) (contacts? )?(do i have|have i got)( saved)?"
                     r"|(list )?(my )?contacts"
-                    r"|who do i have (saved|on file)", low):
+                    # "Who's in my contacts" (2026-10-07: to a model).
+                    r"|(who'?s|who is|what'?s) in my (contacts|address book|phone book)"
+                    r"|(show|read)( me)? (my )?contacts", low):
+        return {"command": {"kind": "contacts"}, "say": None}
+    if re.fullmatch(r"who do i have (saved|on file)", low):
         return {"command": {"kind": "contacts"}, "say": None}
     m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
                      r"address|details)", low)
@@ -1556,10 +1560,16 @@ def _interpret(transcript: str) -> dict:
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
                     r"|(list )?(my )?applications", low):
         return {"command": {"kind": "applications"}, "say": None}
-    if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?shopping list"
-                    r"|what do i need (to buy|from the (shop|store))"
-                    r"|read (me )?(my |the )?shopping list", low):
+    if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?(shopping|grocery) list"
+                    r"|what do i need (to buy|from the (shop|store|grocery store))"
+                    r"|read (me )?(my |the )?(shopping|grocery) list"
+                    # "What's on the grocery list" (2026-10-07: to a model).
+                    r"|(show me|what'?s in|check) (my |the )?(shopping|grocery) list", low):
         return {"command": {"kind": "shopping_list"}, "say": None}
+    # "Start a grocery list": she keeps one, and it is already there.
+    if re.fullmatch(r"(?:start|make|create|begin|open) (?:a |my |the |new )*(?:shopping|grocery) list", low):
+        return {"command": None,
+                "say": "Your shopping list is ready - tell me what to put on it, like \"add milk and eggs to the list\"."}
     # "SHOPPING LIST" WAS REQUIRED IN FULL, while the ADD side beside it
     # has always accepted a bare "the list" — so "add milk to the list"
     # was instant and "take milk off the list" cost four and a half
@@ -3140,7 +3150,7 @@ def _interpret(transcript: str) -> dict:
                  # planner (2026-10-07); it is the same read-only research.
                  r"(?:search|look|check) (?:the web|online|the internet|google) (?:for|about)|google|"
                  r"search (?:for|up))\s+(.+)", low)
-    if m:
+    if m and not low.endswith(" on youtube"):
         question = m.group(1).strip(" ?.")
         if len(question) > 2:
             return {"command": {"kind": "research", "question": question},
@@ -3371,6 +3381,13 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
         return _new_task(m.group(1).strip())
+    # "Add pay rent to my tasks for Friday" was refused as SPENDING by a
+    # planner door (2026-10-07). A task with a day is a task with a deadline.
+    m = re.fullmatch(r"(?:add|put) (?P<what>.+?) (?:to|on) (?:my |the )?(?:tasks?|task list|todos?|to-?dos?)"
+                     r"(?: (?:for|by|on|due) (?P<day>.+))?", low)
+    if m:
+        what = _as_he_said(text, m.group("what").strip())
+        return _new_task(f"{what} by {m.group('day')}" if m.group("day") else what)
 
     # "SET MY INTERVIEW WINDOW TO 2 TO 4": his hours, in his own words only.
     # A bare hour reads as an interview hour: 1 to 7 is the afternoon, 8 to
@@ -3433,6 +3450,14 @@ def _interpret(transcript: str) -> dict:
                 return {"command": {"kind": "open_page", "which": known}, "say": None}
         except Exception:
             pass
+
+    # "SEARCH YOUTUBE FOR CAT VIDEOS" - YouTube's own results page, opened
+    # in his browser (2026-10-07: to the planner).
+    m = (re.fullmatch(r"(?:search|look up|find) (?P<q>.{2,80}?) on youtube", low)
+         or re.fullmatch(r"(?:search youtube for|youtube search(?: for)?|look on youtube for) (?P<q>.{2,80})", low))
+    if m:
+        return {"command": {"kind": "open_page", "which": "youtube search " + _as_he_said(text, m.group("q").strip())},
+                "say": None}
 
     # "CANCEL THE PASSPORT TASK": a task he named, cancelled - the same
     # lookup "mark the passport one done" uses (bottom rung: no verb).

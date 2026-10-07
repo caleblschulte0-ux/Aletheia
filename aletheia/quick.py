@@ -136,6 +136,14 @@ _STATUS = re.compile(
 # Each is (name, pattern). Anchored, because "tell me about the halt
 # behaviour in the docs" is not "are you halted".
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    # FIRST, before anything else can claim the sentence: a person in
+    # crisis must never be filed as a work item "for when the big models
+    # are back" (2026-10-07: "I'm sad" was).
+    ("crisis", re.compile(
+        r"^(?:i|i'm|im|i am) (?:want to|wanna|going to|gonna|am going to|feel like|thinking about|thinking of|"
+        r"just want to|really want to) (?:die|dying|kill(?:ing)? myself|end(?:ing)? (?:it all|my life)|hurt(?:ing)? myself|be dead)$"
+        r"|^(?:i'm|im|i am|i feel|feeling) (?:suicidal|thinking about suicide)$"
+        r"|^i don'?t want to (?:live|be alive|be here) anymore$")),
     # `down` marks the alternatives that ask whether she is STOPPED, so
     # the answer can agree with the question. Without it "are you
     # running" and "you there" -- the two most natural ways to ask --
@@ -854,6 +862,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^why (?:is|does) (?:this|it|everything) (?:take|taking) so long$"
         r"|^what(?:'s| is) taking so long$|^who(?:'s| is) (?:thinking|answering)(?: right now)?$"
         r"|^(?:are|r) (?:you|u) (?:using|on) (?:your own|the local) (?:model|brain)$"
+        # "What model are you" (2026-10-07: to a model, which cannot say).
+        r"|^what (?:model|ai|llm|brain) (?:are|r) (?:you|u)$|^what are (?:you|u) running on$"
         # Who is thinking is a fact she holds; asked with every frontier off,
         # her own model said "Sonnet 5" and "I'm running on Claude right now
         # - nothing's down" (2026-09-22). The line is the brains line.
@@ -952,7 +962,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
-        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
+        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u|i) have|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
@@ -1002,6 +1012,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|wifi(?: password| name)?|wi-fi(?: password)?|gate code|door code|garage code|locker (?:number|combination)"
         r"|license plate|plate number|account number|member(?:ship)? number|policy number|anniversary)\s*\??$"
         r"|^when(?:'s| is) (?P<fact3>[a-z][a-z' ]{1,30}?)(?:'s| s) (?P<factk>birthday|anniversary)\s*\??$")),
+    # Questions about HER, each to a model that knows nothing she does not
+    # (2026-10-07).
+    ("about_her", re.compile(
+        r"^(?P<her>how old are (?:you|u)|who (?:made|built|created|programmed) (?:you|u)"
+        r"|are (?:you|u) (?:a robot|a bot|an ai|ai|human|a person|real|alive|a real person)"
+        r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me))$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -1075,6 +1091,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("time_diff", re.compile(
         r"^what(?:'s| is) the time difference (?:with|to|between (?:me|here|us) and) (?P<tz>[a-z][a-z .'-]{1,40})$"
         r"|^how many hours (?:ahead|behind) is (?P<tz2>[a-z][a-z .'-]{1,40})$")),
+    # 2026-10-07: sums said in words, each to a model with nothing to think
+    # about. LAST, so every narrower pattern above keeps its sentence.
+    ("arith", re.compile(
+        r"^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){2,6})$")),
+    ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
+    ("average", re.compile(r"^what(?:'s| is) the (?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
+    ("round_to", re.compile(r"^round (?P<rn>[\d.]+) to (?:the nearest )?(?P<places>\d|one|two|three|whole number|integer)(?: decimal)?(?: places?)?$")),
+    ("time_units", re.compile(
+        r"^how many (?P<small>seconds|minutes|hours|days|weeks) (?:are )?in (?:a |an |one )?(?P<count>\d+(?:\.\d+)? )?(?P<big>minutes?|hours?|days?|weeks?|years?)$")),
+    ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
+    ("feeling", re.compile(
+        r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
+        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)$"
+        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day)$")),
 )
 
 
@@ -1091,7 +1121,8 @@ def match(question: str) -> tuple[str, str] | None:
         if name == "status_of":
             return name, text
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
-                    "area", "year_left", "weekday_of", "days_between", "time_diff"):
+                    "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
+                    "prime", "average", "round_to", "time_units", "fraction_pct"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2785,7 +2816,14 @@ HELP = ("Just talk to me. A few things people say: \"remind me at 3 to call the 
         "\"add milk to my shopping list\", \"what's on my calendar tomorrow\", \"set a timer for 10 minutes\", "
         "\"note that the plumber is coming Friday\", or \"what's waiting on me\". "
         "Say \"what can you do\" for the whole list, and \"stop\" halts everything.")
+
+
 def _groups(name: str, text: str) -> dict:
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == name), None)
+    return {k: v for k, v in (found.groupdict() if found else {}).items() if v}
+
+
+def _match_of(name: str, text: str) -> dict:
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == name), None)
     return {k: v for k, v in (found.groupdict() if found else {}).items() if v}
 
@@ -2951,6 +2989,152 @@ def _days_between(text: str) -> str | None:
 def _time_diff(text: str) -> str | None:
     g = _groups("time_diff", text)
     return _time_in(g.get("tz") or g.get("tz2") or "")
+
+
+def _number_said(v: float) -> str:
+    """A result the way it is said: whole numbers with commas, otherwise at
+    most four decimals with "about" when it was rounded."""
+    if abs(v - round(v)) < 1e-9:
+        return f"{int(round(v)):,}"
+    shown = round(v, 4)
+    return ("About " if abs(shown - v) > 1e-12 else "") + f"{shown:,}".rstrip("0").rstrip(".")
+
+
+def _arith(text: str) -> str | None:
+    """Words to an expression, evaluated by walking its AST: numbers and the
+    four operators only, with ordinary precedence. Nothing is exec'd."""
+    import ast
+    import operator
+    expr = _match_of("arith", text).get("expr")
+    if not expr:
+        return None
+    for word, op in (("multiplied by", "*"), ("divided by", "/"), ("plus", "+"), ("minus", "-"),
+                     ("times", "*"), ("over", "/"), (" x ", " * ")):
+        expr = expr.replace(word, op)
+    expr = expr.replace(",", "")
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+    def walk(node):
+        if isinstance(node, ast.Expression):
+            return walk(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return ops[type(node.op)](walk(node.left), walk(node.right))
+        raise ValueError("not arithmetic")
+    try:
+        value = walk(ast.parse(expr, mode="eval"))
+    except ZeroDivisionError:
+        return "You can't divide by zero."
+    except (SyntaxError, ValueError):
+        return None
+    said = _number_said(value)
+    return said[0].upper() + said[1:] + "."
+
+
+def _prime(text: str) -> str | None:
+    n = int(_match_of("prime", text).get("prime") or 0)
+    if n < 2:
+        return f"No - {n} isn't prime."
+    i = 2
+    while i * i <= n:
+        if n % i == 0:
+            return f"No - {n:,} is {i:,} times {n // i:,}."
+        i += 1 if i == 2 else 2
+    return f"Yes, {n:,} is prime."
+
+
+def _average(text: str) -> str | None:
+    nums = [float(x) for x in re.findall(r"\d+(?:\.\d+)?", _match_of("average", text).get("nums", ""))]
+    if len(nums) < 2:
+        return None
+    said = _number_said(sum(nums) / len(nums))
+    return said[0].upper() + said[1:] + "."
+
+
+def _round_to(text: str) -> str | None:
+    g = _match_of("round_to", text)
+    places = {"one": 1, "two": 2, "three": 3, "whole number": 0, "integer": 0}.get(g.get("places"))
+    if places is None:
+        places = int(g.get("places") or 0)
+    value = round(float(g["rn"]), places)
+    return (f"{int(value):,}" if places == 0 else f"{value:.{places}f}") + "."
+
+
+_SECONDS = {"second": 1, "minute": 60, "hour": 3600, "day": 86400, "week": 604800, "year": 31536000}
+
+
+def _time_units(text: str) -> str | None:
+    g = _match_of("time_units", text)
+    small, big = g["small"].rstrip("s"), g["big"].rstrip("s")
+    count = float(g.get("count") or 1)
+    if _SECONDS[small] >= _SECONDS[big]:
+        return None
+    value = count * _SECONDS[big] / _SECONDS[small]
+    if big == "year":
+        note = ", 366 in a leap year" if small == "day" and count == 1 else " in a 365-day year"
+    else:
+        note = ""
+    return f"{_number_said(value)} {g['small']}{note}."
+
+
+def _fraction_pct(text: str) -> str | None:
+    g = _match_of("fraction_pct", text)
+    if int(g["den"]) == 0:
+        return "You can't divide by zero."
+    return f"{_number_said(100 * int(g['num']) / int(g['den']))} percent."
+
+
+def _about_her(text: str) -> str:
+    asked = _match_of("about_her", text).get("her", "")
+    if asked.startswith("how old"):
+        return "Not old - you're still building me, and I get a little better most days."
+    if asked.startswith("who"):
+        return ("You did - I'm your own assistant, running on your PC. I think with Claude or ChatGPT "
+                "when they're available, and with a small model of my own when they're not.")
+    if asked.startswith("are"):
+        return "I'm an AI - your own assistant, running on your PC. Not a person."
+    known = _about_him()
+    return ("Yes. " + known) if known and not known.startswith("Nothing") else \
+        "I don't know much about you yet - tell me your name and I'll remember it."
+
+
+CRISIS = ("I'm really sorry you're feeling this way, and I'm glad you said it. Please call or text 988 "
+          "right now - that's the Suicide and Crisis Lifeline in the US, any hour - or 911 if you might act "
+          "on it. Telling someone you trust helps too. I'm here, but a person can help in ways I can't.")
+
+#: Said back to a feeling - short, honest, and only ever offering what she
+#: can really do. Never a work item and never a planner round trip.
+_FEELINGS = {
+    "hungry": "Go eat something. If anything's run out, tell me and I'll put it on the shopping list.",
+    "bored": "Want a joke? Or say \"what's on my list\" and we'll knock something off it.",
+    "tired": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
+    "exhausted": "Then rest. I'll keep things going, and anything that really needs you will still reach you.",
+    "sleepy": "Then get some sleep. I'll keep things going quietly.",
+    "stressed": ("Take a breath. Say \"what's waiting on me\" and I'll tell you exactly what's on your "
+                 "plate - it's usually less than it feels."),
+    "stressed out": ("Take a breath. Say \"what's waiting on me\" and I'll tell you exactly what's on your "
+                     "plate - it's usually less than it feels."),
+    "overwhelmed": ("One thing at a time. Say \"what's waiting on me\" and I'll lay it out, and anything "
+                    "I can take off your hands, I will."),
+    "anxious": "Take a slow breath. If it's something on your list, tell me and I'll help you get it handled.",
+    "sad": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
+    "down": "I'm sorry. I'm here if you want to talk it through, and talking to someone you trust helps too.",
+    "lonely": "I'm sorry. I'm here - and it might be a good moment to text someone you like. I can send it for you.",
+    "sick": "Rest up. Want me to set a reminder for medicine, or move anything off today?",
+    "i can't sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
+    "i cant sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
+    "i need a break": "Take one. Say \"set a timer for 15 minutes\" and I'll tell you when it's up.",
+    "motivate me": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
+}
+
+
+def _feeling(text: str) -> str | None:
+    g = _match_of("feeling", text)
+    said = (g.get("feel") or g.get("feel2") or "").strip()
+    if said.startswith(("i'm having", "im having")):
+        return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
+    return _FEELINGS.get(said)
 
 
 def _how_many() -> str | None:
@@ -4445,6 +4629,15 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weekday_of": lambda rest: _weekday_of(rest),
            "days_between": lambda rest: _days_between(rest),
            "time_diff": lambda rest: _time_diff(rest),
+           "crisis": lambda rest: CRISIS,
+           "feeling": lambda rest: _feeling(rest),
+           "about_her": lambda rest: _about_her(rest),
+           "arith": lambda rest: _arith(rest),
+           "prime": lambda rest: _prime(rest),
+           "average": lambda rest: _average(rest),
+           "round_to": lambda rest: _round_to(rest),
+           "time_units": lambda rest: _time_units(rest),
+           "fraction_pct": lambda rest: _fraction_pct(rest),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
