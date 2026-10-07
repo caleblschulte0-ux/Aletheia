@@ -1385,7 +1385,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?P<sq>[\d.]+) (?P<sqw>squared|cubed)$"
         r"|^what(?:'s| is|s)? (?:the )?(?P<rootw>square|cube) root of (?P<root>[\d.,]+)$")),
     ("joke", re.compile(r"^(?:tell me|say|got|know|give me) (?:a |another |any )?(?:good |funny |dad )?jokes?$"
-                        r"|^(?:make me laugh|tell me something funny)$")),
+                        r"|^(?:make me laugh|tell me something funny|say something funny|cheer me up with a joke)$")),
     ("parked", re.compile(r"^where (?:did i|have i) park(?:ed)?(?: the car| my car)?$"
                           r"|^where(?:'s| is) (?:my|the) car(?: parked)?$")),
     # 2026-10-07, every one to a model with nothing to think about:

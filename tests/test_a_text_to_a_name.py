@@ -615,5 +615,19 @@ class AnythingThisEvening(unittest.TestCase):
         self.assertEqual(voice._interpret("do i have anything tonight")["command"]["part"], "tonight")
 
 
+
+class NewsAboutAThing(unittest.TestCase):
+    def test_a_topic_is_web_research(self):
+        self.assertEqual(voice._interpret("sports news")["command"], {"kind": "research", "question": "latest sports news"})
+        self.assertEqual(voice._interpret("any news about the election")["command"]["question"],
+                         "latest news about election")
+
+
+class HisPlaylistIsNotASearch(unittest.TestCase):
+    def test_my_playlist_is_the_honest_half(self):
+        self.assertIsNone(voice._interpret("play my playlist")["command"])
+        self.assertEqual(voice._interpret("play jazz")["command"]["kind"], "open_page")
+
+
 if __name__ == "__main__":
     unittest.main()

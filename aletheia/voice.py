@@ -4010,7 +4010,10 @@ def _interpret(transcript: str) -> dict:
         # player, but she can open YouTube's results for it in his browser -
         # his tap, and the receipt says what opened, never "it's playing".
         m = re.fullmatch(r"(?:play|put on) (?:some )?(?P<q>[a-z0-9][a-z0-9 '&.-]{1,60}?)(?: on youtube| for me| please)?", low)
-        if m and not re.search(r"\b(?:on spotify|on apple music|on pandora|game|games)\b", low):
+        # "Play my playlist" is HIS list in his player, not a search for
+        # the words "my playlist" (2026-10-07). That stays the honest half.
+        if m and not re.search(r"\b(?:on spotify|on apple music|on pandora|game|games)\b", low) \
+                and not m.group("q").startswith("my "):
             return {"command": {"kind": "open_page", "which": "youtube search " + _as_he_said(text, m.group("q").strip())},
                     "say": None}
         from aletheia import music as _music
@@ -4240,6 +4243,19 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:follow up|nudge|chase up|check in)(?: with| on)? (.+?)(?: for me)?", low)
     if m and not re.search(r"\b(?:remind|task|application)\b", low):
         return {"command": {"kind": "thread_followup", "thread": m.group(1).strip()}, "say": None}
+
+    # NEWS ABOUT A THING (2026-10-07: "sports news", "any news about the
+    # election", "what's the latest on apple" to the planner). Her feeds are
+    # the headlines; a topic is the same read-only web research.
+    m = re.fullmatch(r"(?:any |the latest |latest |what'?s the latest )?news (?:about|on|from) (?P<t>.{2,60})"
+                     r"|what'?s the latest (?:on|with) (?P<t2>.{2,60})"
+                     r"|(?:the latest )?(?P<t3>sports|tech|technology|business|world|local|science|political|politics|"
+                     r"entertainment|finance|financial|stock market|ai) news(?: today)?", low)
+    if m:
+        if m.group("t3"):
+            return {"command": {"kind": "research", "question": f"latest {m.group('t3')} news"}, "say": None}
+        topic = re.sub(r"^(?:the|a|an) ", "", (m.group("t") or m.group("t2")).strip(" ?."))
+        return {"command": {"kind": "research", "question": f"latest news about {topic}"}, "say": None}
 
     # BEFORE the browse pattern: "look into X" and "look at example.com" both
     # start with "look", and the browse branch would swallow the first, then
