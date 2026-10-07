@@ -758,10 +758,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How much sleep will I get" (2026-10-07: to a model) is the same sum.
         r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$")),
     ("until_mine", re.compile(
-        r"^how long (?:is it )?(?:until|till|til|before) (?:my |the |our )?(?P<until_mine>(?:(?:[a-z][a-z' ]{0,30}? )?"
-        r"(?:appointment|appt|interview|reservation|flight|party|game|class|haircut|dentist|doctor|vet|shift|practice)"
-        r"|(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
-        r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow))?\s*\??$")),
+        # "My interview" is the `until` reader's; this is only the ones named by who.
+        r"^how long (?:is it )?(?:until|till|til|before) (?:my |the |our )?(?P<until_mine>"
+        r"(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
+        r"(?: (?:today|tomorrow))?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
