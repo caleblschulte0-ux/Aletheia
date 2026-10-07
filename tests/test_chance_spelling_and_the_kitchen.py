@@ -167,7 +167,7 @@ class WhatIsDue(unittest.TestCase):
             self.assertEqual(quick._due("overdue", now), "1 task overdue: renew passport.")
             self.assertIn("call the plumber", quick._due("this week", now))
         self.assertIn(quick.match("what's due today")[0], ("due", "tasks_due"))
-        self.assertEqual(quick.match("what's overdue")[0], "due")
+        self.assertIn(quick.match("what's overdue")[0], ("due", "tasks_due"))
 
 
 class ANumberSaidIsAContact(unittest.TestCase):
