@@ -422,6 +422,26 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what did (?:you|u) just do$"
         r"|^what was (?:your|the) (?:last|most recent) (?:action|thing)$"
         r"|^what(?:'s| is|s)? the (?:last|latest|most recent) thing (?:you|u)(?:'ve| have)? done$")),
+    # HIS BIRTHDAY, kept in her memory of him (2026-10-07: "how old am I"
+    # and "when is my birthday" told him she couldn't think).
+    ("birthday", re.compile(
+        r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
+        r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
+        r"|how long (?:until|till|before) my birthday)\s*\??$")),
+    # DEADLINES HE SET. "Add a task to renew my license by Friday" stores a
+    # real deadline; "what's due this week" and "what's overdue" told him she
+    # couldn't think (2026-10-07).
+    ("tasks_due", re.compile(
+        r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
+        r"(?: today| tomorrow| this week| soon| next)?)(?: on my list)?\s*\??$"
+        r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$")),
+    ("tasks_done", re.compile(
+        r"^(?:what|which) tasks? (?:did|have) i (?:finish|finished|complete|completed|do|done|tick off|ticked off)"
+        r"(?: today| this week| lately| recently)?\s*\??$"
+        r"|^what (?:have i|did i) (?:finished|finish|completed|complete|ticked off|tick off)(?: today| this week)?\s*\??$"
+        r"|^(?:my )?(?:finished|completed|done) tasks\s*\??$")),
+    ("weeks_until", re.compile(
+        r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
     # calendar (2026-09-23). Weekdays, named days and a month-and-day.
     ("until", re.compile(
@@ -807,6 +827,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Sums he would otherwise wait a minute for.
     ("math", re.compile(
         r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
+        # "What's a 20% tip on 45" (2026-10-07, to a model that wasn't there).
+        r"|^(?:what(?:'s| is|s)? (?:a )?|how much is (?:a )?)(?P<tip>[\d.]+) ?(?:%|percent) tip (?:on|for) (?:a )?(?:\$)?(?P<bill>[\d.,]+)(?: dollars| bucks)?(?: bill| tab| check)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)"
@@ -977,7 +999,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9",
+                                           "until", "until2", "day8", "day9", "weeks", "due", "due2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1222,6 +1244,127 @@ def _date_of(words: str) -> str | None:
     if when.year != today.year:
         said += f" {when.year}"
     return said + "."
+
+
+def _tasks_due(which: str = "") -> str | None:
+    """His open tasks with a deadline inside the window he named."""
+    import datetime as dt
+    from aletheia import intercom, localtime, speech, tasks as tasks_mod
+    try:
+        rows = intercom._open_tasks()
+    except Exception:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    which = " ".join(str(which or "").split())
+    end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
+    overdue_only = which in ("overdue", "late", "past due")
+    limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
+             "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
+             "due soon": now + dt.timedelta(days=3)}.get(which, now + dt.timedelta(days=7))
+    dated = []
+    for task in rows:
+        when = tasks_mod.parse_deadline(task.get("deadline"))
+        if when is None:
+            continue
+        if (when < now) if overdue_only else (when <= limit):
+            dated.append((when, task))
+    dated.sort(key=lambda pair: pair[0])
+    if not dated:
+        undated = len(rows) - sum(1 for t in rows if tasks_mod.parse_deadline(t.get("deadline")))
+        lead = "Nothing's overdue." if overdue_only else "Nothing's due " + (
+            which[4:] if which.startswith("due ") else "in the next week") + "."
+        if rows and undated == len(rows):
+            return lead + f" {speech.count_phrase(len(rows), 'task')} on your list, none with a date."
+        return lead
+    late = [t for w, t in dated if w < now]
+    said = speech.and_list([intercom._task_words(t) for _w, t in dated[:5]])
+    more = f", and {len(dated) - 5} more" if len(dated) > 5 else ""
+    head = (f"{speech.count_phrase(len(dated), 'thing')} overdue" if overdue_only
+            else f"{speech.count_phrase(len(dated), 'thing')} due" + (f", {len(late)} already late" if late else ""))
+    return f"{head}: {said}{more}."
+
+
+def _tasks_done() -> str | None:
+    """What he has ticked off, newest first."""
+    from aletheia import speech, tasks as tasks_mod
+    try:
+        rows = [t for t in tasks_mod.all_tasks()
+                if str(t.get("status", "")).upper() == "COMPLETED" and tasks_mod.is_his(t)]
+    except Exception:
+        return None
+    if not rows:
+        return "You haven't ticked anything off yet."
+    rows.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+    said = speech.and_list([str(t.get("description") or t.get("id"))[:70] for t in rows[:5]])
+    more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
+    return f"{speech.count_phrase(len(rows), 'thing')} done: {said}{more}."
+
+
+def _weeks_until(words: str) -> str | None:
+    """"How many weeks until Christmas": the same date, counted in weeks."""
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when = _named_date(words or "", today)
+    if when is None:
+        return None
+    days = (when - today).days
+    weeks, extra = divmod(days, 7)
+    said = when.strftime("%A %d %B").replace(" 0", " ")
+    if weeks == 0:
+        return f"Less than a week - {days} days, {said}."
+    tail = f" and {extra} day{'s' if extra != 1 else ''}" if extra else ""
+    return f"{weeks} week{'s' if weeks != 1 else ''}{tail}, {said}."
+
+
+def _birthday_on_file():
+    """(month, day, year or None) from her memory of him, or None."""
+    try:
+        from aletheia import memory
+        entry = ((memory.everything() or {}).get("identity") or {}).get("birthday")
+    except Exception:
+        return None
+    said = str((entry.get("value") if isinstance(entry, dict) else entry) or "").casefold()
+    m = re.search(r"(\d{4})-(\d{1,2})-(\d{1,2})", said)
+    if m:
+        return int(m.group(2)), int(m.group(3)), int(m.group(1))
+    m = (re.search(r"([a-z]+)\.? (\d{1,2})(?:st|nd|rd|th)?,?(?: (\d{4}))?", said)
+         or re.search(r"(\d{1,2})(?:st|nd|rd|th)? (?:of )?([a-z]+),?(?: (\d{4}))?", said))
+    if not m:
+        return None
+    a, b = m.group(1), m.group(2)
+    day, month = (a, b) if a.isdigit() else (b, a)
+    month = next((i + 1 for i, name in enumerate(_MONTHS) if name.startswith(month[:3])), None)
+    if not month:
+        return None
+    return month, int(day), int(m.group(3)) if m.group(3) else None
+
+
+def _birthday() -> str:
+    """When his birthday is, how far off, and how old he is when the year is known."""
+    import datetime as dt
+    from aletheia import localtime
+    held = _birthday_on_file()
+    if not held:
+        return "I don't have your birthday. Say \"my birthday is March 3rd, 1995\" and I'll remember it."
+    month, day, year = held
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    try:
+        this_year = dt.date(today.year, month, day)
+    except ValueError:                       # 29 February in a common year
+        this_year = dt.date(today.year, 3, 1)
+    nxt = this_year if this_year >= today else this_year.replace(year=today.year + 1)
+    away = (nxt - today).days
+    said = nxt.strftime("%A %d %B").replace(" 0", " ")
+    when = "today - happy birthday" if away == 0 else ("tomorrow, " + said if away == 1
+                                                         else f"{said}, {away} days away")
+    if year:
+        age = today.year - year - ((today.month, today.day) < (month, day))
+        turning = age if away == 0 else age + 1
+        return (f"You're {age}. Your birthday is {when}" +
+                ("." if away == 0 else f", when you turn {turning}."))
+    return f"Your birthday is {when}."
 
 
 def _until(words: str) -> str | None:
@@ -2350,6 +2493,9 @@ def _math(text: str) -> str | None:
         if "pct" in g:
             # "20 percent of 45 dollars" went to a model for the word "dollars".
             return f"{'$' if g.get('pct_money') else ''}{said(num(g['pct']) * num(g['of']) / 100)}."
+        if "tip" in g:
+            tip = num(g["tip"]) * num(g["bill"]) / 100
+            return f"${tip:,.2f} tip, ${tip + num(g['bill']):,.2f} total."
         if "op" in g:
             a, b = num(g["a"]), num(g["b"])
             op = g["op"]
@@ -3830,6 +3976,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "weeks_until": lambda rest: _weeks_until(rest),
+           "tasks_due": lambda rest: _tasks_due(rest),
+           "tasks_done": lambda rest: _tasks_done(),
+           "birthday": lambda rest: _birthday(),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
            "date_of": _date_of,
