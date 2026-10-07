@@ -218,15 +218,15 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 43,
-      "found": 65,
+      "filled": 41,
+      "found": 66,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 27
     }
   },
-  "generated_at": "2026-10-07T23:26:30Z",
+  "generated_at": "2026-10-07T23:55:31Z",
   "sent_all_time": 261,
   "stuck_at": {
     "approval_denied": {
@@ -272,8 +272,8 @@
     }
   },
   "totals": {
-    "filled": 322,
-    "found": 679,
+    "filled": 320,
+    "found": 680,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
@@ -281,10 +281,10 @@
   },
   "waiting": {
     "asked_about": {
-      "demographic": 5,
+      "demographic": 3,
       "education": 1,
       "on_site": 1,
-      "other": 6,
+      "other": 5,
       "travel": 1
     },
     "closed": {
@@ -307,7 +307,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 75
+      "not_realistic": 78
     },
     "failed": 8,
     "failed_because": {
@@ -320,9 +320,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 11,
+    "needs_answer": 8,
     "oldest_days": 24,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
