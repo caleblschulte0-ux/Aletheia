@@ -1715,5 +1715,19 @@ class HowLongUntilCase(unittest.TestCase):
             self.assertIsNone(quick._until_mine("my haircut"))
 
 
+class RemindMeOnADayHeNamesCase(unittest.TestCase):
+    def test_tonight_the_day_after_tomorrow_and_a_holiday(self):
+        from aletheia import localtime, voice
+        today = localtime.today()
+        def at(said):
+            return voice._interpret(said)["command"]["at"]
+        self.assertTrue(at("remind me the day after tomorrow to call mom").startswith(
+            (today + dt.timedelta(days=2)).isoformat()))
+        self.assertIn("-10-31T09:00", at("remind me on halloween to buy candy"))
+        self.assertIn("-12-24T09:00", at("remind me on christmas eve to wrap presents"))
+        tonight = dt.datetime.fromisoformat(at("remind me tonight at 8 to take my pills"))
+        self.assertTrue(tonight.hour == 20 or tonight > dt.datetime.now(tonight.tzinfo), tonight)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -225,10 +225,13 @@ def _spoken_day(text: str) -> str | None:
     t = t[5:].strip() if t.startswith("this ") else t
     from aletheia import localtime
     today = localtime.today()
-    if t in ("today", ""):
+    if t in ("today", "", "tonight"):
         return today.isoformat()
     if t == "tomorrow":
         return (today + dt.timedelta(days=1)).isoformat()
+    # "The day after tomorrow" (2026-10-07: to the planner).
+    if re.fullmatch(r"(?:the )?day after tomorrow", t):
+        return (today + dt.timedelta(days=2)).isoformat()
     if t in WEEKDAYS:
         ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
         return (today + dt.timedelta(days=ahead)).isoformat()
@@ -246,7 +249,17 @@ def _spoken_day(text: str) -> str | None:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
         pass
-    return _spoken_date(t, today)
+    said = _spoken_date(t, today)
+    if said:
+        return said
+    # "On Halloween", "on Christmas Eve" (2026-10-07: to the planner) - the
+    # holidays the countdown already knows.
+    try:
+        from aletheia import quick
+        named = quick._named_date(re.sub(r"^on ", "", t), today)
+    except Exception:  # noqa: BLE001
+        named = None
+    return named.isoformat() if named else None
 
 
 # A DATE SAID THE WAY PEOPLE SAY ONE. "Remind me on the 15th to pay rent"
@@ -3428,7 +3441,11 @@ def _interpret(transcript: str) -> dict:
     # still asked about, as before.
     # A date ("on the 15th", "on october 20") is a day too, and "next
     # tuesday" is caught so it can be ASKED about rather than guessed.
-    _days = (r"(?:(?:next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|tomorrow|today|"
+    # "The day after tomorrow", "tonight at 8", "on Halloween" (2026-10-07:
+    # all three to the planner).
+    _days = (r"(?:(?:next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|tomorrow|today|tonight|"
+             r"(?:the )?day after tomorrow|halloween|christmas(?: eve| day)?|new year'?s(?: eve| day)?|"
+             r"valentine'?s day|thanksgiving|(?:the )?fourth of july|"
              + SPOKEN_DATE + r")")
     # "Remind me TOMORROW MORNING to email Dana": a part of the day is a time
     # too (2026-09-24, offline: to the planner). Morning nine, afternoon two,
@@ -3462,11 +3479,17 @@ def _interpret(transcript: str) -> dict:
         if not day_iso or not hhmm:
             return _to_the_planner(text)
         hour, minute = map(int, hhmm.split(":"))
-        if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+        if m.group("time") and _is_bare_hour(m.group("time")) and (
+                hour <= EARLIEST_BARE_HOUR or (m.group("day") == "tonight" and hour < 12)):
             hour += 12                                  # "at 6" on a Sunday is the evening; "at 9" the morning
+        if m.group("day") == "tonight" and not m.group("time") and not m.group("part"):
+            hour, minute = 21, 0
         tz = localtime.operator_tz()
         when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
-        if when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
+        if when <= dt.datetime.now(tz) and m.group("day") == "tonight":
+            # Said at ten at night, "tonight" still means tonight: an hour on.
+            when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
+        elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
