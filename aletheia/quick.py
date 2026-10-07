@@ -336,6 +336,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?:using|eating|hogging|taking(?: up)?) (?:all |so much |up )?(?:of )?(?:my |the )?(?:memory|ram)"
         r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
         r"|^what (?:programs|apps) are using (?:the most |all the |all my )?(?:memory|ram)$")),
+    # HIS FINISHED WORK AND HIS TOP TASK (2026-10-07): "what have I done
+    # today", "what tasks did I finish", "what's my most important task" and
+    # "clear my completed tasks" all went to the planner. The task store
+    # holds the answer to every one.
+    ("tasks_done", re.compile(
+        r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off)"
+        r"(?P<what> today| yesterday| this week)?$"
+        r"|^what (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|do|done|get done|tick(?:ed)? off)"
+        r"(?P<what2> today| yesterday| this week)?$"
+        r"|^(?:what(?:'s| is|s)? (?:on )?)?my (?:done|finished|completed) (?:list|tasks)$")),
+    ("task_top", re.compile(
+        r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
+        r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$")),
+    ("tasks_clear_done", re.compile(
+        r"^(?:clear|delete|remove|get rid of|clean up) (?:all )?(?:my |the )?(?:completed|finished|done|old) tasks$")),
     ("disk", re.compile(
         r"^how much (?:disk|disk space|storage|space|hard drive space|room)(?: do (?:i|we) have| is)?"
         r"(?: free| left| available)?(?: on (?:this|the|my) (?:computer|machine|pc|laptop|disk|drive|hard drive))?$"
@@ -2078,6 +2093,51 @@ def _tasks() -> str:
     if ready and len(ready) != len(live):
         lead += f", {len(ready)} ready to start"
     return lead + (f". Next: {what[:130].rstrip('.')}." if what else ".")
+
+
+def _tasks_done(when: str = "") -> str:
+    """His tasks finished today, yesterday or this week, by when they closed."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    when = str(when or "today").strip() or "today"
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    first, last = {"yesterday": (today - dt.timedelta(days=1),) * 2,
+                   "this week": (today - dt.timedelta(days=today.weekday()), today)}.get(when, (today, today))
+    done = []
+    for t in tasks.all_tasks():
+        if str(t.get("status") or "").upper() != "COMPLETED" or not tasks.is_his(t):
+            continue
+        try:
+            closed = dt.datetime.fromisoformat(str(t.get("updated_at") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if first <= closed <= last:
+            done.append(str(t.get("description") or "").strip().rstrip("."))
+    if not done:
+        return f"Nothing ticked off your list {when}."
+    return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
+            + (f", and {len(done) - 6} more" if len(done) > 6 else "") + ".")
+
+
+def _task_top() -> str:
+    """The one to do first: the nearest deadline, else the oldest open task.
+    Said with WHY it is first, because "most important" is his to judge."""
+    from aletheia import speech, tasks
+    live = [t for t in tasks.all_tasks()
+            if str(t.get("status") or "").upper() not in _TASK_CLOSED and tasks.is_his(t)]
+    if not live:
+        return "Nothing open on your task list."
+    dated = [(tasks.parse_deadline(t.get("deadline")), t) for t in live]
+    dated = [(d, t) for d, t in dated if d is not None]
+    if dated:
+        deadline, top = sorted(dated, key=lambda dt_t: dt_t[0])[0]
+        what = str(top.get("description") or "").strip().rstrip(".")
+        return f"{what[:1].upper() + what[1:]} - it has the nearest deadline, {speech.humanize_time(deadline.isoformat())}."
+    top = sorted(live, key=lambda t: str(t.get("created_at") or ""))[0]
+    what = str(top.get("description") or "").strip().rstrip(".")
+    return (f"{what[:1].upper() + what[1:]} - nothing has a deadline, so that's the one that's waited longest."
+            if len(live) > 1 else f"{what[:1].upper() + what[1:]} - it's the only thing on your list.")
 
 
 def _approvals() -> str:
@@ -3836,6 +3896,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
+           "tasks_done": lambda rest: _tasks_done(rest),
+           "task_top": lambda rest: _task_top(),
+           "tasks_clear_done": lambda rest: ("Finished tasks are already off your list - I keep them only as a "
+                                             "record of what you did, so there's nothing to clear."),
            "memory_users": lambda rest: _memory_users(),
            "waiting": lambda rest: _waiting(),
            "doing": lambda rest: _doing(),
