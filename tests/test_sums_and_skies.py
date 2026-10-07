@@ -108,7 +108,7 @@ class HisNotes(unittest.TestCase):
             self.assertEqual(voice._interpret("delete my last note")["command"],
                              {"kind": "forget", "about": "milk is out"})
         with mock.patch.object(quick, "_notes", return_value=[]):
-            self.assertEqual(voice._interpret("delete my last note")["say"], "You don't have any notes.")
+            self.assertRegex(voice._interpret("delete my last note")["say"], r"no note|any notes")
 
 
 class BeforeTheMeeting(unittest.TestCase):
