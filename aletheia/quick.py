@@ -832,6 +832,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend|next weekend)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
+        # "What's Friday look like" (2026-10-07: to a model).
+        r"|^what(?:'s| is|s| does) (?P<day12>monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this weekend|next weekend)"
+        r"(?: looking like| look like)$"
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
@@ -1818,7 +1821,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",

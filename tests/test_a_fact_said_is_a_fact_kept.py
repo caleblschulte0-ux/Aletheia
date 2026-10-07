@@ -2071,5 +2071,16 @@ class RemoveThatCase(unittest.TestCase):
             self.assertNotEqual((voice._interpret("remove that")["command"] or {}).get("kind"), "undo")
 
 
+
+class WhatsFridayLookLikeCase(unittest.TestCase):
+    """2026-10-07: "what's Friday look like" went to a model."""
+
+    def test_a_day_he_names(self):
+        from aletheia import quick
+        for said, day in (("what's friday look like", "friday"), ("what does next week look like", "next week")):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said), ("agenda", day))
+
+
 if __name__ == "__main__":
     unittest.main()
