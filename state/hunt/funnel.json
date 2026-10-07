@@ -1,21 +1,23 @@
 {
   "batches": {
     "2026-10-07": {
-      "duplicate": 50,
+      "duplicate": 67,
       "employer_full": 0,
+      "minutes": 0,
       "needs_account": 0,
-      "needs_answer": 4,
-      "not_realistic": 93,
-      "offered": 180,
-      "ready": 6,
-      "runs": 2,
-      "unfit_clearance": 1,
+      "needs_answer": 6,
+      "not_realistic": 146,
+      "offered": 270,
+      "ready": 13,
+      "runs": 3,
+      "unfit_clearance": 2,
       "unfit_language": 1,
-      "unfit_model": 7,
-      "unfit_sales": 39,
-      "unfit_years": 2,
-      "unjudged": 12,
-      "unreachable": 15,
+      "unfit_license": 1,
+      "unfit_model": 13,
+      "unfit_sales": 81,
+      "unfit_years": 5,
+      "unjudged": 21,
+      "unreachable": 17,
       "weak_shot": 0
     }
   },
@@ -213,16 +215,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 30,
-      "found": 44,
+      "filled": 39,
+      "found": 55,
       "interviews": 0,
-      "rejections": 0,
-      "replies": 1,
-      "sent": 15
+      "rejections": 1,
+      "replies": 2,
+      "sent": 22
     }
   },
-  "generated_at": "2026-10-07T18:58:00Z",
-  "sent_all_time": 249,
+  "generated_at": "2026-10-07T20:09:38Z",
+  "sent_all_time": 256,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -267,19 +269,20 @@
     }
   },
   "totals": {
-    "filled": 360,
-    "found": 658,
+    "filled": 369,
+    "found": 669,
     "interviews": 2,
-    "rejections": 3,
-    "replies": 32,
-    "sent": 249
+    "rejections": 4,
+    "replies": 33,
+    "sent": 256
   },
   "waiting": {
     "asked_about": {
       "address": 1,
       "demographic": 5,
+      "education": 1,
       "on_site": 1,
-      "other": 7,
+      "other": 9,
       "travel": 1
     },
     "closed": {
@@ -294,7 +297,7 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
-      "not_a_form": 45,
+      "not_a_form": 47,
       "not_realistic": 75
     },
     "failed": 59,
@@ -309,7 +312,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 11,
+    "needs_answer": 13,
     "oldest_days": 24,
     "to_send": 0
   },
