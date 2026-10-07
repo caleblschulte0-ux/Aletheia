@@ -2269,5 +2269,16 @@ class ImAtTheStoreCase(unittest.TestCase):
                 self.assertEqual(quick.match(said)[0], "shopping")
 
 
+
+class AnythingWaitingOnMeCase(unittest.TestCase):
+    """2026-10-07: "anything waiting on me" went to a model."""
+
+    def test_waiting(self):
+        from aletheia import quick
+        for said in ("anything waiting on me", "is anything waiting on me", "what needs my attention"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "waiting")
+
+
 if __name__ == "__main__":
     unittest.main()

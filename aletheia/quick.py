@@ -181,6 +181,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? the (?:first|next|top) thing (?:waiting (?:on|for) me|i need to do|that needs me)\s*\??$"
         r"|^(?:does )?anything need me(?: right now| now)?\s*\??$"
         r"|^(?:is there )?anything (?:waiting )?for me$"
+        # "Anything waiting on me", "what needs my attention" (2026-10-07: to a model).
+        r"|^(?:is |are )?(?:there )?(?:anything|something|things) waiting (?:on|for) me(?: right now| now| today)?\s*\??$"
+        r"|^(?:what|does anything|anything|is there anything that) needs? my attention(?: right now| now| today)?\s*\??$"
         r"|^(?:do )?(?:you )?need anything(?: from me)?$"
         # "What do you need from me" is the fourth of the brief's four
         # questions, and it paid a round trip to be answered from the same
