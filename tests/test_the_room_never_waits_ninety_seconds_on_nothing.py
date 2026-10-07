@@ -282,7 +282,9 @@ class TwoQuestionsAboutHerselfNeedNoThinking(unittest.TestCase):
         said = quick.answer("who are you")
         self.assertTrue(said.startswith("I'm Thea"), said)
         self.assertEqual(speech.strip_ids(said), said)
-        self.assertEqual(quick.match("what's your name")[0], "who_are_you")
+        # A name question gets her name, not the whole introduction.
+        self.assertEqual(quick.match("what's your name")[0], "her_name")
+        self.assertTrue(quick.answer("what's your name").startswith("Thea"))
 
     def test_what_works_offline_is_said_from_what_is_true(self):
         with mock.patch("aletheia.reasoner.local_role_that_fits", return_value=(None, "only 3 GB of memory is free")):

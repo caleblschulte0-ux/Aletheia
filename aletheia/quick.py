@@ -169,7 +169,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what needs me$|^anything i need to (?:do|see|look at)$"
         r"|^what(?:'s| is|s)? on my plate$"
         r"|^is there anything waiting(?: on me| for me)?$"
-        r"|^anything i should know(?: about)?$"
+        r"|^(?:is there )?anything i (?:should|need to|ought to) know(?: about)?$"
         r"|^what am i blocking$|^am i blocking anything$"
         # "What needs my yes" took fifteen seconds on her own model for the
         # same one list (2026-09-22).
@@ -728,9 +728,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("stuck", re.compile(
         r"^(?:are|r) (?:you|u) (?:stuck|blocked|held up|waiting on (?:something|anything))(?: right now| now)?\s*\??$"
         r"|^is (?:anything|something) (?:stuck|blocked|held up)\s*\??$")),
+    # "What's your name" got the whole introduction, about "his" tasks, said
+    # TO him. A name question gets a name.
+    ("her_name", re.compile(r"^what(?:'s| is|s) your name\s*\??$|^what (?:do|should) i call (?:you|u)\s*\??$")),
     ("who_are_you", re.compile(
         r"^(?:who|what) (?:are|r) (?:you|u)(?: exactly| anyway)?\s*\??$"
-        r"|^what(?:'s| is|s) your name\s*\??$|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
+        r"|^introduce yourself\s*\.?$|^tell me about yourself\s*\.?$")),
     ("offline_can", re.compile(
         r"^what (?:can|do) (?:you|u) (?:still )?do (?:offline|without (?:the )?(?:internet|a model|the big models|claude|wifi))\s*\??$"
         r"|^what (?:still )?works (?:offline|without (?:the )?(?:internet|a model|the big models|claude))\s*\??$"
@@ -804,11 +807,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
-        r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)"
+        r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)"
         r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
-        r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$"
+        r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$"
         # THE OTHER WORD ORDER: "how many miles is 10 km", "how many pounds in 5 kg"
-        r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
+        r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name"
@@ -2362,25 +2365,54 @@ def _math(text: str) -> str | None:
                  "inch": ("in", 0.0254), "inches": ("in", 0.0254), "cm": ("cm", 0.01),
                  "centimeter": ("cm", 0.01), "centimeters": ("cm", 0.01),
                  "pound": ("lb", 0.45359237), "pounds": ("lb", 0.45359237), "lb": ("lb", 0.45359237),
-                 "lbs": ("lb", 0.45359237), "kg": ("kg", 1.0), "kilogram": ("kg", 1.0), "kilograms": ("kg", 1.0)}
+                 "lbs": ("lb", 0.45359237), "kg": ("kg", 1.0), "kilogram": ("kg", 1.0), "kilograms": ("kg", 1.0),
+                 "gram": ("g", 0.001), "grams": ("g", 0.001), "g": ("g", 0.001),
+                 "yard": ("yd", 0.9144), "yards": ("yd", 0.9144), "yd": ("yd", 0.9144), "yds": ("yd", 0.9144)}
+        # THE KITCHEN (2026-10-07): "how many ounces in a cup" told him she
+        # couldn't think. US measures, in milliliters; an ounce beside a
+        # volume is a fluid ounce, beside a weight it is a weight.
+        volume = {"cup": 236.5882365, "tablespoon": 14.78676478, "tbsp": 14.78676478,
+                  "teaspoon": 4.92892159, "tsp": 4.92892159, "fluid ounce": 29.5735295625,
+                  "fl oz": 29.5735295625, "ml": 1.0, "milliliter": 1.0, "millilitre": 1.0,
+                  "liter": 1000.0, "litre": 1000.0, "gallon": 3785.411784, "quart": 946.352946,
+                  "pint": 473.176473}
+        def vol(u):
+            u = re.sub(r"(?<=[a-z])s$", "", u) if u not in ("fl oz",) else u
+            return volume.get(u)
         n = num({"a": "1", "an": "1", "one": "1"}.get(str(g.get("n") or g.get("n2")).lower(), g.get("n") or g.get("n2")))
         src, dst = (g.get("from") or g.get("from2")).lower(), (g.get("to") or g.get("to2")).lower()
         if src in ("fahrenheit", "f") and dst in ("celsius", "c"):
             return f"{said(round((n - 32) * 5 / 9, 1))} degrees Celsius."
         if src in ("celsius", "c") and dst in ("fahrenheit", "f"):
             return f"{said(round(n * 9 / 5 + 32, 1))} degrees Fahrenheit."
+        ounce = ("ounce", "ounces", "oz")
+        if (vol(src) or src in ounce) and (vol(dst) or dst in ounce) and (vol(src) or vol(dst)):
+            a, b = vol(src) or volume["fluid ounce"], vol(dst) or volume["fluid ounce"]
+            value = n * a / b
+            word = re.sub(r"(?<=[a-z])s$", "", dst)
+            word = {"oz": "ounce", "fl oz": "fluid ounce", "tbsp": "tablespoon", "tsp": "teaspoon",
+                    "ml": "milliliter"}.get(word, word)
+            shown = round(value, 2)
+            lead = "About " if abs(shown - value) > 1e-6 * max(1.0, abs(value)) else ""
+            return f"{lead}{said(shown)} {word if shown == 1 else word + 's'}."
+        if src in ounce:
+            src = "oz"
+        if dst in ounce:
+            dst = "oz"
+        units["oz"] = ("oz", 0.028349523125)
         if src in units and dst in units:
-            length = {"mi", "km", "ft", "m", "in", "cm"}
+            length = {"mi", "km", "ft", "m", "in", "cm", "yd"}
             if (units[src][0] in length) != (units[dst][0] in length):
                 return None
             value = n * units[src][1] / units[dst][1]
             # SAID, not printed: "6.21 mi" is "six point two one em eye" out
             # loud. The unit is a word, singular when it is one of them.
             spoken = {"mi": "mile", "km": "kilometer", "ft": "foot", "m": "meter", "in": "inch",
-                      "cm": "centimeter", "lb": "pound", "kg": "kilogram"}[units[dst][0]]
+                      "cm": "centimeter", "lb": "pound", "kg": "kilogram", "g": "gram", "oz": "ounce",
+                      "yd": "yard"}[units[dst][0]]
             plural = {"foot": "feet", "inch": "inches"}.get(spoken, spoken + "s")
             shown = round(value, 2)
-            lead = "About " if abs(shown - value) > 1e-9 else ""
+            lead = "About " if abs(shown - value) > 1e-6 * max(1.0, abs(value)) else ""
             return f"{lead}{said(shown)} {spoken if shown == 1 else plural}."
     except (ValueError, ZeroDivisionError):
         return None
@@ -2978,9 +3010,9 @@ def _ran_today(name: str) -> str | None:
 
 def _who_are_you() -> str:
     """Who she is, in one breath. A fact about herself, not a thought."""
-    return ("I'm Thea - Aletheia - Caleb's own assistant, running on this PC. I keep his tasks, "
-            "reminders, lists, notes and calendar, read and draft his email, hunt and apply for jobs, "
-            "watch his projects, and I say plainly what I can't do. The big models help me think when "
+    return ("I'm Thea - Aletheia - your own assistant, running on your PC. I keep your tasks, "
+            "reminders, lists, notes and calendar, read and draft your email, hunt and apply for jobs, "
+            "watch your projects, and I say plainly what I can't do. The big models help me think when "
             "they're there; my own stores and my own model carry me when they're not.")
 
 
@@ -3859,6 +3891,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
            "who_are_you": lambda rest: _who_are_you(),
+           "her_name": lambda rest: "Thea - short for Aletheia.",
            "offline_can": lambda rest: _offline_can(),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
