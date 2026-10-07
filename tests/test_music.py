@@ -118,8 +118,7 @@ class ChoosingIsADifferentPromiseCase(MusicCase):
         she can do is open YouTube's results for it in his browser, and the
         receipt says that is what happened - never "playing"."""
         from aletheia import open_it
-        for sentence, words in (("play the rolling stones", "the rolling stones"), ("put on some jazz", "jazz"),
-                                ("play my discover weekly", "my discover weekly")):
+        for sentence, words in (("play the rolling stones", "the rolling stones"), ("put on some jazz", "jazz")):
             with self.subTest(sentence=sentence):
                 got = self.said(sentence).get("command") or {}
                 self.assertEqual(got, {"kind": "open_page", "which": "youtube search " + words}, sentence)
@@ -127,6 +126,13 @@ class ChoosingIsADifferentPromiseCase(MusicCase):
 
     def test_naming_his_own_player_still_says_what_it_would_take(self):
         got = self.said("play the rolling stones on spotify")
+        self.assertIsNone(got.get("command"))
+        self.assertIn("can't pick a particular song", got.get("say", ""))
+
+    def test_his_own_playlist_is_his_player_not_a_search(self):
+        """"Play my Discover Weekly" is a list inside HIS player; YouTube's
+        results for the words "my discover weekly" are not it."""
+        got = self.said("play my discover weekly")
         self.assertIsNone(got.get("command"))
         self.assertIn("can't pick a particular song", got.get("say", ""))
 
