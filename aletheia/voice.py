@@ -3698,6 +3698,38 @@ def _interpret(transcript: str) -> dict:
     if m and _known_place(m.group(1).strip()):
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
+    # "WHAT'S OPEN NOW" (2026-10-07: it read him the PC's windows). Shops
+    # and places near him, asked the way a person asks it.
+    m = re.fullmatch(r"what(?:'s| is|s)? (?:still )?open (?:right now|now|near me|nearby|around here|late|tonight)"
+                     r"(?: near me| nearby| around here)?|(?:is )?anything (?:still )?open (?:right now|now|near me|nearby|around here|late)"
+                     r"|what(?:'s| is|s)? open (?:for|to get) (?P<what>breakfast|lunch|dinner|food|coffee)(?: right now| now| near me| nearby)?", low)
+    if m:
+        what = m.group("what") or "places"
+        return {"command": {"kind": "research", "question": f"{what} open now near me"}, "say": None}
+    # DIRECTIONS, TRAFFIC AND THE COMMUTE (2026-10-07: all to the planner).
+    # "How do I get to work", "directions to the airport", "take me home"
+    # and "what's the traffic to work" are the trip, asked another way; the
+    # trip reader says how long it is today. With no place named, "the
+    # commute" and "traffic" mean work - only when she knows where work is.
+    _PLACE_WORDS = (r"\b(?:airport|station|mall|store|shop|market|hospital|clinic|downtown|uptown|office|school|"
+                    r"college|campus|university|park|beach|home|work|gym|church|library|restaurant|cafe|hotel|"
+                    r"stadium|arena|museum|zoo|center|centre|street|st|avenue|ave|road|rd|boulevard|blvd|drive|"
+                    r"costco|walmart|target|airport)\b")
+    m = (re.fullmatch(r"(?:(?:give me |get me |show me )?directions|navigate|route me|take me|drive me)"
+                      r" (?:to )?(?:the )?(?P<place>home|work)(?: right now| now| please)?", low)
+         or re.fullmatch(r"(?:(?:give me |get me |show me )?directions|navigate|route me|drive me) to (?:the )?"
+                         r"(?P<place>[a-z0-9][a-z0-9 .'&-]{1,40}?)(?: right now| now| please)?", low)
+         or re.fullmatch(r"(?:how do i get|how (?:can|should|would) i get|take me|what(?:'s| is|s) the "
+                         r"(?:traffic|drive|route)(?: like)?(?: on the way)?)"
+                         r" to (?:the )?(?P<place>[a-z0-9][a-z0-9 .'&-]{1,40}?)(?: right now| now| today| please)?", low))
+    if m and (m.group(0).startswith(("directions", "give me", "get me", "show me", "navigate", "route", "drive"))
+              or _known_place(m.group("place")) or re.search(_PLACE_WORDS, m.group("place"))):
+        return {"command": {"kind": "travel_time", "place": m.group("place").strip()}, "say": None}
+    if re.fullmatch(r"(?:what(?:'s| is|s)|how(?:'s| is|s)) (?:the )?(?:traffic|my commute|the commute)(?: like)?(?: right now| now| today| this morning)?"
+                    r"|how bad is (?:the )?traffic(?: right now| now| today)?|when should i leave(?: for work)?"
+                    r"|(?:is there|any) (?:bad )?traffic(?: on the way to work)?(?: right now| now| today)?", low) \
+            and _known_place("work"):
+        return {"command": {"kind": "travel_time", "place": "work"}, "say": None}
     # "How far is Chicago" (2026-10-07: to the planner). A place, not a
     # thing in the sky: "how far is the moon" is a question for a model.
     m = re.fullmatch(r"how far (?:away )?is (?:it to )?(.+?)(?: from here| from me| from home)?", low)

@@ -440,7 +440,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("windows", re.compile(
         r"^what(?:'s| is| are)? (?:apps?|programs?|windows?)(?: are| is)? (?:open|running|up)"
         r"(?: right now| now| on (?:this|the|my) (?:computer|machine|pc|laptop|screen))?$"
-        r"|^what(?:'s| is) (?:open|on (?:my|the) screen)(?: right now| now)?$"
+        # "What's open NOW" is a shop question (2026-10-07: it was read the
+        # PC's windows); bare "what's open" is still the screen.
+        r"|^what(?:'s| is) open$|^what(?:'s| is) on (?:my|the) screen(?: right now| now)?$"
         r"|^what (?:do (?:i|you) have|have i got) open(?: right now| now)?$")),
     # The third question. It has a `recollection` pattern for the model's
     # context and no fast answer, so "what went wrong today" paid a round

@@ -978,5 +978,28 @@ class TheDaysTasksAndWhatHeForgot(unittest.TestCase):
         self.assertEqual(voice._interpret("unread emails")["command"]["kind"], "email_check")
 
 
+
+class TheTripAskedAnotherWay(unittest.TestCase):
+    def _kind(self, said):
+        from aletheia import voice
+        out = voice._interpret(said)
+        return (out.get("command") or {}).get("kind"), (out.get("command") or {}).get("place")
+
+    def test_directions_and_take_me_are_the_trip(self):
+        self.assertEqual(self._kind("directions to the airport"), ("travel_time", "airport"))
+        self.assertEqual(self._kind("take me home"), ("travel_time", "home"))
+        self.assertEqual(self._kind("how do i get to the train station"), ("travel_time", "train station"))
+        self.assertEqual(self._kind("what's the traffic to work"), ("travel_time", "work"))
+
+    def test_get_to_that_is_not_a_place_is_left_alone(self):
+        for said in ("how do i get to sleep", "how do i get rid of ants", "take me to the settings"):
+            self.assertNotEqual(self._kind(said)[0], "travel_time", said)
+
+    def test_whats_open_now_is_a_shop_question(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("what's open now")["command"]["kind"], "research")
+        self.assertEqual(quick.match("what's open")[0], "windows")
+
+
 if __name__ == "__main__":
     unittest.main()
