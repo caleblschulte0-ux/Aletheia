@@ -1387,7 +1387,7 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
         if timer and not receipt:
             # "your 10-minute timer is up — today at 5:10 am" read as if it
             # had already gone off; it is a timer still running.
-            return f"{timer.group(1)}, going off {speech.humanize_time(str(spec.get('at') or ''))}"
+            return f"{timer.group(1)} — going off {speech.humanize_time(str(spec.get('at') or ''))}"
         return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
     if spec["kind"] == "interval":
         minutes = int(spec.get("every_minutes") or 0)
@@ -1678,6 +1678,15 @@ def _one_reminder(which: str):
                 timed = worded or timed
             if len(timed) == 1:
                 return timed[0], ""
+            if not rest:
+                # Two at 5 pm and "cancel the 5 o'clock reminder" said "None
+                # of your reminders is about 5 o'clock" (2026-10-07) - naming
+                # both. The clock is right and only the choice is left.
+                timed = _soonest_first(timed)
+                when = speech.clock_words(_reminder_clock(timed[0]) or "")
+                labels = [str((r.get("command") or {}).get("text") or r["id"])[:50] for r in timed[:4]]
+                return None, (f"You have {speech.count_phrase(len(timed), 'reminder')} at {when}: "
+                              f"{speech.or_list(labels)}. Which one, or all of them?")
             rows = timed
             needle = rest
         else:
@@ -1706,6 +1715,17 @@ def _one_reminder(which: str):
     if rows and re.fullmatch(r"(?:that|it|this|that one|this one|the last one|the one i just set|the reminder"
                              r"|that reminder|this reminder|the last reminder)", needle):
         return max(rows, key=lambda r: str(r.get("created_at") or "")), ""
+
+    # "DELETE MY REMINDER" (2026-10-07: searched for a reminder about "my").
+    # With one set, that is the one; with several, she asks which.
+    if needle in ("my", "the", "my reminder", "a reminder", "one"):
+        if len(rows) == 1:
+            return rows[0], ""
+        if rows:
+            from aletheia import speech
+            said = [_reminder_words(r) for r in _soonest_first(rows)[:4]]
+            more = "" if len(rows) <= 4 else f" - or one of {len(rows) - 4} more"
+            return None, f"You have {speech.count_phrase(len(rows), 'reminder')}. Which one: {speech.or_list(said)}{more}?"
 
     hits = [r for r in rows if needle and needle in text_of(r)]
     if not hits:
@@ -3760,6 +3780,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for row in rows:
                 scheduler.set_enabled(row["id"], False)
             return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), cmd['which'][4:].rstrip('s'))}: "
+                    + speech.and_list([_reminder_words(r) for r in rows[:4]]))
+        # "All of them" to "2 reminders are at 5 pm ... Which one, or all of
+        # them?": every reminder at that time, each disabled.
+        at = re.fullmatch(r"all at (\d{2}:\d{2})", " ".join(str(cmd["which"]).split()))
+        if at:
+            rows = [r for r in _reminder_schedules() if _reminder_clock(r) == at.group(1)]
+            if not rows:
+                return f"reminder none off — you have nothing set for {speech.clock_words(at.group(1))}"
+            for row in rows:
+                scheduler.set_enabled(row["id"], False)
+            return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), 'reminder')}: "
                     + speech.and_list([_reminder_words(r) for r in rows[:4]]))
         found, why = _one_reminder(cmd["which"])
         if found is None:
