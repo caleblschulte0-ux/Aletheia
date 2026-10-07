@@ -102,6 +102,15 @@ def where_he_is() -> tuple[str, str]:
             code = str((entry.get("value") if isinstance(entry, dict) else entry) or "").strip()
         except Exception:
             code = ""
+    if not city:
+        # "I live in Austin" by voice is kept as he said it, which the
+        # profile's "City, ST" parser does not read.
+        try:
+            from aletheia import memory
+            entry = ((memory.everything() or {}).get("identity") or {}).get("home_city")
+            city = str((entry.get("value") if isinstance(entry, dict) else entry) or "").strip()
+        except Exception:
+            city = ""
     name = ", ".join([p for p in (city, state) if p]) or "where you live"
     return code, name
 
@@ -198,11 +207,7 @@ def forecast(*, fresh: bool = False, place: str = "") -> dict:
             pass
 
     code, name = where_he_is()
-    if not code:
-        raise WeatherUnavailable(
-            "I don't know where you are. Tell me your postcode and I'll "
-            "remember it, and then I can just answer this.")
-    lat, lon, resolved = _point(code)
+    lat, lon, resolved = _home_point(code, name)
     periods = _periods(lat, lon)
     value = {"at": stateio.utcnow(), "place": resolved or name,
              "periods": periods[:14], "lat": lat, "lon": lon}
@@ -335,11 +340,21 @@ def _where_on_earth() -> tuple[float, float, str]:
     except Exception:
         pass
     code, name = where_he_is()
-    if not code:
-        raise WeatherUnavailable(
-            "I don't know where you are. Tell me your postcode and I'll "
-            "remember it, and then I can just answer this.")
-    return _point(code)
+    return _home_point(code, name)
+
+
+def _home_point(code: str, name: str) -> tuple[float, float, str]:
+    """Where he lives: his postcode, else the town he told her ("I live in
+    Austin", 2026-10-07: he said it and the weather still asked for a
+    postcode). The town is looked up by name and the answer names the
+    place it found, so a wrong Hartford is heard, not hidden."""
+    if code:
+        return _point(code)
+    if name and name != "where you live":
+        return place_point(name)
+    raise WeatherUnavailable(
+        "I don't know where you are. Tell me your postcode and I'll "
+        "remember it, and then I can just answer this.")
 
 
 def sun_times(day=None, *, lat: float | None = None, lon: float | None = None):

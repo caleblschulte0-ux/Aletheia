@@ -211,5 +211,33 @@ class ATimerReceiptSaysWhatItIs(unittest.TestCase):
         self.assertTrue(self.say("your one-minute timer is up").startswith("Timer set for one minute - "))
 
 
+class WhereHeLivesAndHisClock(unittest.TestCase):
+    def test_his_town_is_remembered_as_he_said_it(self):
+        self.assertEqual(voice._interpret("i live in austin")["command"],
+                         {"kind": "remember", "domain": "identity", "key": "home_city", "value": "Austin"})
+        self.assertEqual(voice._interpret("i moved to denver, co")["command"]["value"], "Denver, CO")
+        self.assertEqual(voice._interpret("i live in 80202")["command"]["key"], "postal_code")
+        self.assertNotEqual((voice._interpret("i live in an apartment").get("command") or {}).get("key"), "home_city")
+
+    def test_the_weather_reads_his_town_when_there_is_no_postcode(self):
+        from aletheia import memory, weather
+        with mock.patch.object(memory, "everything", return_value={"identity": {"home_city": "Austin"}}), \
+                mock.patch("aletheia.profile.answer", return_value=""), \
+                mock.patch.object(weather, "place_point", return_value=(30.2, -97.7, "Austin, Texas")) as looked:
+            code, name = weather.where_he_is()
+            self.assertEqual(weather._home_point(code, name), (30.2, -97.7, "Austin, Texas"))
+        looked.assert_called_once_with("Austin")
+
+    def test_his_time_zone(self):
+        for said, zone in (("set my timezone to pacific", "America/Los_Angeles"), ("i'm on eastern time", "America/New_York")):
+            self.assertEqual(voice._interpret(said)["command"],
+                             {"kind": "remember", "domain": "identity", "key": "timezone", "value": zone}, said)
+
+    def test_percent_and_rounding_said_plainly(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("15 percent of 200"), "30.")
+        self.assertEqual(quick.answer("round 3.14159 to 2 decimals"), "3.14.")
+
+
 if __name__ == "__main__":
     unittest.main()

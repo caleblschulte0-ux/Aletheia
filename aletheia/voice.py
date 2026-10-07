@@ -2865,7 +2865,8 @@ def _interpret(transcript: str) -> dict:
     # do I live") and "spell my last name" waited two minutes on her own
     # model (2026-09-22).
     if re.fullmatch(r"where do i live|what(?:'s| is) my (?:address|home address|city|home ?town)|"
-                    r"what city (?:am i in|do i live in)|where(?:'s| is) (?:my )?home", low):
+                    r"what city (?:am i in|do i live in)|where(?:'s| is) (?:my )?home"
+                    r"|where am i|what(?:'s| is) my (?:location|current location)|where do you think i (?:am|live)", low):
         return {"command": None, "say": _where_he_lives()}
     m = re.fullmatch(r"(?:spell|how do (?:you|u) spell) my (?P<which>first|last|full|sur)?\s*name(?: for me)?", low)
     if m:
@@ -4637,6 +4638,30 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "remember", "domain": "identity", "key": "postal_code",
                             "value": m.group(1)}, "say": None}
+    # "SET MY TIME ZONE TO PACIFIC", "I'm on eastern time" (2026-10-07: to
+    # the planner). The zone his clock is read in is one line in her memory
+    # of him (localtime reads it first); the US names map to their zones.
+    m = re.fullmatch(r"(?:(?:set|change|update|switch|make) my (?:time ?zone|clock) (?:to|is) |my time ?zone is |"
+                     r"i'?m (?:on|in) (?:the )?|i am (?:on|in) (?:the )?|i live (?:on|in) (?:the )?|we'?re (?:on|in) (?:the )?)"
+                     r"(?P<zone>eastern|central|mountain|pacific|alaska|hawaii|arizona)(?: (?:standard |daylight )?time(?: zone)?| time ?zone)?", low)
+    if m:
+        zone = {"eastern": "America/New_York", "central": "America/Chicago", "mountain": "America/Denver",
+                "pacific": "America/Los_Angeles", "alaska": "America/Anchorage", "hawaii": "Pacific/Honolulu",
+                "arizona": "America/Phoenix"}[m.group("zone")]
+        return {"command": {"kind": "remember", "domain": "identity", "key": "timezone", "value": zone}, "say": None}
+    # "I LIVE IN AUSTIN", "I moved to Denver", "set my city to Austin"
+    # (2026-10-07: to the planner, and the weather kept asking for a
+    # postcode). The town as he said it; the forecast names the place it
+    # finds, so a wrong one is heard.
+    m = re.fullmatch(r"(?:i live in|i moved to|i just moved to|we live in|we moved to|"
+                     r"(?:set|change|update|make) my (?:city|town|location|home(?: town| city)?) (?:to|is)|"
+                     r"my (?:city|town|home town|hometown) is) (?P<city>[a-z][a-z .'-]{1,40}?)(?:,? (?P<st>[a-z]{2}))?", low)
+    if m and not re.match(r"(?:a|an|the|my|our|this|that|here|there|an apartment|a house|town|the city|the country)\b",
+                          m.group("city")):
+        city = " ".join(w.capitalize() for w in m.group("city").split())
+        st = (m.group("st") or "").upper()
+        return {"command": {"kind": "remember", "domain": "identity", "key": "home_city",
+                            "value": f"{city}, {st}" if st else city}, "say": None}
     m = re.fullmatch(r"(?:my name is|my name's|you can call me|please call me|call me) "
                      r"([a-z][a-z'\-]*(?: [a-z][a-z'\-]*){0,3})", low)
     if m and not re.match(r"(?:not|what|who|wrong|spelled|spelt|on|in|the|a|an|at|missing|still|also|now|being"
