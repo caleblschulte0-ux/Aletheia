@@ -225,7 +225,64 @@ def _spoken_day(text: str) -> str | None:
     try:
         return dt.date.fromisoformat(t).isoformat()
     except ValueError:
+        pass
+    return _spoken_date(t, today)
+
+
+# A DATE SAID THE WAY PEOPLE SAY ONE. "Remind me on the 15th to pay rent"
+# and "on october 20 to renew my tags" matched no reminder pattern, fell to
+# the planner, and the first one was refused as SPENDING because it
+# contains "pay" (2026-10-07). The month names and their short forms, and
+# a day with or without its ordinal ending.
+MONTHS = ("january", "february", "march", "april", "may", "june", "july",
+          "august", "september", "october", "november", "december")
+_MONTH = (r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|"
+          r"aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)")
+_NTH = r"(?:[12]?\d|3[01])(?:st|nd|rd|th)?"
+#: "the 15th", "october 20", "oct 20th", "the 20th of october".
+SPOKEN_DATE = (r"(?:the " + _NTH + r"(?: of " + _MONTH + r")?|" + _MONTH + r" (?:the )?" + _NTH
+               + r"|" + _NTH + r" of " + _MONTH + r")")
+
+
+def _spoken_date(text: str, today=None) -> str | None:
+    """'the 15th' / 'october 20' / '20th of october' -> the NEXT such date.
+
+    A day with no month is this month's, or next month's once it has
+    passed; a month and day is this year's, or next year's once it has
+    passed. A date that does not exist (the 31st of a 30-day month) is
+    None, never quietly moved to a neighbouring day.
+    """
+    import datetime as dt
+    today = today or dt.date.today()
+    t = re.sub(r"^(?:on )", "", str(text or "").strip().lower())
+    m = re.fullmatch(r"(?:the )?(\d{1,2})(?:st|nd|rd|th)?(?: of (" + _MONTH + r"))?", t)
+    if not m:
+        m2 = re.fullmatch(r"(" + _MONTH + r") (?:the )?(\d{1,2})(?:st|nd|rd|th)?", t)
+        if not m2:
+            return None
+        month_word, day = m2.group(1), int(m2.group(2))
+    else:
+        day, month_word = int(m.group(1)), m.group(2)
+    if month_word:
+        month = next(i for i, name in enumerate(MONTHS, 1) if name.startswith(month_word[:3]))
+        for year in (today.year, today.year + 1):
+            try:
+                d = dt.date(year, month, day)
+            except ValueError:
+                return None
+            if d >= today:
+                return d.isoformat()
         return None
+    year, month = today.year, today.month
+    for _ in range(2):
+        try:
+            d = dt.date(year, month, day)
+        except ValueError:
+            d = None
+        if d and d >= today:
+            return d.isoformat()
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return None
 
 
 # Nobody means three in the morning. A bare hour with no am/pm is the
@@ -1526,7 +1583,10 @@ def _interpret(transcript: str) -> dict:
     # for TODAY at 6 with "on sunday" swallowed into the text (2026-09-22):
     # the day is read from either end of the sentence. "Next friday" is
     # still asked about, as before.
-    _days = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today)"
+    # A date ("on the 15th", "on october 20") is a day too, and "next
+    # tuesday" is caught so it can be ASKED about rather than guessed.
+    _days = (r"(?:(?:next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|tomorrow|today|"
+             + SPOKEN_DATE + r")")
     # "Remind me TOMORROW MORNING to email Dana": a part of the day is a time
     # too (2026-09-24, offline: to the planner). Morning nine, afternoon two,
     # evening seven, night nine.
@@ -1540,6 +1600,14 @@ def _interpret(transcript: str) -> dict:
     if m:
         import datetime as dt
         from aletheia import localtime
+        asked = _ambiguous_next_weekday(m.group("day"))
+        if asked:
+            # Asked, with the sentence that settles it in his own words, so
+            # the answer is one breath and not a guess about what to say.
+            soon = re.search(r"the (\d+\w\w)", asked).group(1)
+            what = _as_he_said(text, m.group("text").strip())
+            return {"command": None,
+                    "say": f"{asked} Say 'remind me on the {soon} to {what}' and it's set."}
         day_iso = _spoken_day(m.group("day"))
         part_time = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(
             m.group("part") or "")
@@ -1555,6 +1623,22 @@ def _interpret(transcript: str) -> dict:
         if when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
             when += dt.timedelta(days=1)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
+                            "text": _as_he_said(text, m.group("text").strip())}, "say": None}
+    # TWO UNITS IN ONE BREATH. "Remind me in 2 hours and 30 minutes to
+    # stretch" and "in an hour and a half" went to the planner (2026-10-07):
+    # every pattern here read one number and one unit.
+    _span = (r"(?P<h>\w+|an) hours? (?:and )?(?:(?P<m>\w+) (?:minutes?|mins?)|(?P<half>a half))"
+             r"|(?P<h2>\w+|an) and a half hours?")
+    m = (re.fullmatch(r"remind me in (?:" + _span + r") (?:to|that) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:to|that) (?P<text>.+?) in (?:" + _span + r")", low))
+    if m:
+        import datetime as dt
+        hours = _spoken_amount("1" if (m.group("h") or m.group("h2")) == "an" else m.group("h") or m.group("h2"))
+        minutes = 30 if (m.group("half") or m.group("h2")) else _spoken_amount(m.group("m"))
+        if hours is None or minutes is None:
+            return _to_the_planner(text)
+        at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=hours, minutes=minutes)).isoformat()
+        return {"command": {"kind": "remind_at", "at": at,
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:

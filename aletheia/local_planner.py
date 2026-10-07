@@ -390,7 +390,15 @@ def _refusal_for_spending(request: str) -> str | None:
     if not text or text.rstrip().endswith("?"):
         return None
     try:
-        from aletheia import webtask
+        from aletheia import intents, webtask
+        # RECORDING IS NOT SPENDING, the same exemption `intents` holds.
+        # "Remind me on the 15th to pay rent" was refused here as an
+        # instruction to spend (2026-10-07): the door at `intents` let it
+        # through and this one, missing the exemption, stopped it. A
+        # compiled errand that really would spend is still refused by
+        # `planner._classify`.
+        if intents._RECORDS_NOT_ACTS.match(text.casefold()):
+            return None
         return webtask.SPENDING_REFUSAL if webtask.would_spend(text) else None
     except Exception:  # noqa: BLE001
         # FAIL CLOSED, the way `intents._asks_to_spend` does: the only
