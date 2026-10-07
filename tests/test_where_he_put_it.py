@@ -194,3 +194,50 @@ class PeopleHeKnows(unittest.TestCase):
 
     def test_weather_at_his_house_is_his_weather(self):
         self.assertEqual(quick.match("what's the weather at my house")[0], "weather")
+
+
+class ATimerWithAName(unittest.TestCase):
+    def test_a_name_and_no_length_asks_how_long(self):
+        got = voice._interpret("set a timer for the pasta")
+        self.assertIsNone(got["command"])
+        self.assertIn("How long for the pasta?", got["say"])
+
+    def test_a_name_and_a_length_is_its_name_at_the_end(self):
+        text = voice._interpret("set a timer for 10 minutes for the eggs")["command"]["text"]
+        self.assertEqual(text, "your 10 minute eggs timer is up")
+
+    def test_a_named_timer_is_still_read_back_as_a_timer(self):
+        soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=9, seconds=30)).isoformat()
+        spec = {"kind": "once", "at": soon, "command": {"text": "your 10 minute eggs timer is up"}}
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[spec]):
+            self.assertEqual(voice._timer_left(), "9 minutes left on your 10 minute eggs timer.")
+
+    def test_a_length_alone_is_still_a_timer(self):
+        self.assertEqual(voice._interpret("set a timer for ten minutes")["command"]["kind"], "remind_at")
+
+
+class TheWeekendAndBirthdays(unittest.TestCase):
+    def test_the_weekend_is_saturday_and_sunday(self):
+        from aletheia import calendar, localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        sat = today + dt.timedelta(days=(5 - today.weekday()) % 7)
+        event = {"title": "Brunch", "start": dt.datetime.combine(sat, dt.time(11), tzinfo=tz).isoformat()}
+        self.assertEqual(quick.match("what's on my calendar this weekend")[0], "agenda")
+        self.assertEqual(quick.match("anything happening this weekend")[0], "agenda")
+        if today.weekday() != 6:
+            with mock.patch.object(calendar, "all_events", return_value=[event]):
+                self.assertIn("Brunch", quick.answer("what's on my calendar this weekend"))
+
+    def test_somebody_elses_birthday_asked_with_what(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(quick.answer("what's dana's birthday"),
+                             "You haven't told me Dana's birthday. Tell me once and I'll remember it.")
+            self.assertIn("Mom's birthday", quick.answer("when is my mom's birthday"))
+
+    def test_a_birthday_he_told_her_is_read_back(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "Dana's birthday is March 3"}]):
+            self.assertEqual(quick.answer("what's dana's birthday"), "You told me: Dana's birthday is March 3.")
+
+    def test_his_anniversary_asked_with_when(self):
+        self.assertEqual(quick.match("when's my anniversary")[0], "fact_q")

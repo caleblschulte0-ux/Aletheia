@@ -2520,7 +2520,7 @@ def _interpret(transcript: str) -> dict:
     # wants to hear at the end.
     m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
                      r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                     r"(?:\s+(?:to|for|so i can)\s+(.+))?", low)
+                     r"(?:\s+(to|for|so i can)\s+(.+))?", low)
     if m:
         import datetime as dt
         amount, unit = int(m.group(1)), m.group(2)
@@ -2530,7 +2530,14 @@ def _interpret(transcript: str) -> dict:
             delta, spoken_unit = dt.timedelta(hours=amount), "hour"
         else:
             delta, spoken_unit = dt.timedelta(minutes=amount), "minute"
-        why = (m.group(3) or "").strip()
+        why = (m.group(4) or "").strip()
+        if why and m.group(3) == "for":
+            # "for the eggs" names the timer, it is not the thing to do:
+            # "the eggs" alone read out at the end means nothing.
+            # Said as "your 10 minute pasta timer is up", the shape every
+            # timer reader matches on ("... timer is up").
+            what = re.sub(r"^(?:the|my|some) ", "", why)
+            why = f"your {amount} {spoken_unit} {what} timer is up"
         # The unit is an ADJECTIVE here and stays singular — "a 10
         # minute timer", not "a 10 minutes timer". Pluralising it
         # is the right rule in the wrong place, and this is read
@@ -2539,6 +2546,17 @@ def _interpret(transcript: str) -> dict:
         at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
         return {"command": {"kind": "remind_at", "at": at, "text": text},
                 "say": None}
+
+    # "Set a timer for the pasta" (2026-10-07: to the planner). The thing
+    # is named and the length is not; ask for the one missing fact, and
+    # keep his word in the example so the answer can be said back whole.
+    m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer for (?:the |my |some )?(?P<what>[a-z][a-z ]{1,24}?)", low)
+    if m and not re.search(r"\b(?:\d|an?|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+                           r"fifteen|twenty|thirty|forty|fifty|sixty|half|quarter|minutes?|mins?|hours?|"
+                           r"seconds?|secs?|hrs?|me|later|now|tomorrow|tonight)\b", m.group("what")):
+        what = m.group("what").strip()
+        return {"command": None,
+                "say": f'How long for the {what}? Say "set a timer for 10 minutes for the {what}".'}
 
     # An alarm is the same thing at a clock time, and it inherits the
     # bare-hour rule: "at 7" said in the evening means tomorrow morning,

@@ -720,17 +720,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HIS DAY, from the calendar mirror she already holds.
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? on (?:my |the )?(?:calendar|schedule|agenda|plate)"
-        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week)$"
+        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up)|anything (?:on|happening|coming up)|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
-        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
         # "What's my schedule this week" paid seven seconds of model for a
         # feed the shapes above already read (2026-09-22).
-        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week)"
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week|this weekend|the weekend)"
         r"(?: like| looking like)?$"
         # "What's my schedule look like" (2026-10-07: to the planner) - today
         # unless he names a day.
@@ -1210,7 +1210,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? my (?P<fact2>blood type|shoe size|shirt size|ring size|pants size|dress size"
         r"|wifi(?: password| name)?|wi-fi(?: password)?|gate code|door code|garage code|locker (?:number|combination)"
         r"|license plate|plate number|account number|member(?:ship)? number|policy number|anniversary)\s*\??$"
-        r"|^when(?:'s| is) (?P<fact3>[a-z][a-z' ]{1,30}?)(?:'s| s) (?P<factk>birthday|anniversary)\s*\??$")),
+        r"|^when(?:'s| is|s) my (?P<fact5>anniversary|wedding anniversary)\s*\??$"
+        r"|^(?:when|what)(?:'s| is|s) (?:my )?(?P<fact3>[a-z][a-z' ]{1,30}?)(?:'s| s) (?P<factk>birthday|anniversary)\s*\??$")),
     # Questions about HER, each to a model that knows nothing she does not
     # (2026-10-07).
     ("about_her", re.compile(
@@ -3088,6 +3089,10 @@ def _agenda(day: str = "today") -> str | None:
         elif day == "next week":
             first = now.date() + dt.timedelta(days=7 - now.weekday())
             last = first + dt.timedelta(days=6)
+        elif day in ("this weekend", "the weekend"):
+            # The coming Saturday and Sunday; on a Sunday, what is left of it.
+            first = now.date() + dt.timedelta(days=(5 - now.weekday()) % 7 if now.weekday() != 6 else 0)
+            last = now.date() + dt.timedelta(days=(6 - now.weekday()) % 7)
         elif day in _WEEKDAYS:
             # "What's on my calendar Monday": the coming one (today if it is today).
             ahead = (_WEEKDAYS.index(day) - now.weekday()) % 7
@@ -3110,8 +3115,9 @@ def _agenda(day: str = "today") -> str | None:
              else "Today" if first == last == now.date()
              else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
              else first.strftime("%A") if first == last
+             else "This weekend" if day in ("this weekend", "the weekend")
              else "This week" if day == "this week" else "Next week")
-    when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week") else label
+    when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend") else label
     if not rows:
         return f"Nothing on your calendar {when_said}."
     rows.sort(key=lambda r: r[0])
@@ -4626,7 +4632,7 @@ def _fact_q(text: str) -> str | None:
     if not found:
         return None
     g = found.groupdict()
-    key = " ".join(x for x in (g.get("fact") or g.get("fact2") or g.get("fact3"), g.get("factk")) if x)
+    key = " ".join(x for x in (g.get("fact") or g.get("fact2") or g.get("fact5") or g.get("fact3"), g.get("factk")) if x)
     if "password" in key:
         from aletheia import voice
         return voice._NO_PASSWORDS
@@ -4638,7 +4644,7 @@ def _fact_q(text: str) -> str | None:
         if wanted and all(w.rstrip("s") in low for w in wanted):
             return f"You told me: {said.strip().rstrip('.')}."
     return f"You haven't told me your {key}. Tell me once and I'll remember it." if not g.get("fact3") \
-        else f"You haven't told me {g['fact3'].strip()}'s {g['factk']}. Tell me once and I'll remember it."
+        else f"You haven't told me {g['fact3'].strip().title()}'s {g['factk']}. Tell me once and I'll remember it."
 
 
 def _recall(words: str) -> str | None:
