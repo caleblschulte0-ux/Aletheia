@@ -1452,6 +1452,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("days_since", re.compile(
         r"^how (?:many days|long) (?:has it been |is it |have i been |since )?since (?P<since>.+?)\s*\??$")),
     ("weekend_q", re.compile(r"^is (?:it|today) (?:a |the )?weekend(?: yet| today)?\s*\??$")),
+    # "HOW OLD IS JENNA" (2026-10-07: to the planner) - from the birthday
+    # he told her. A name she holds nothing about goes on to a model,
+    # which may well know how old a famous person is.
+    ("age_of", re.compile(
+        r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b)[a-z][a-z'-]{1,20})?)"
+        r"(?: be| turn| be turning)?(?: this year| next)?\s*\??$")),
     ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
         r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
@@ -1539,7 +1545,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born", "age_of",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2032,6 +2038,49 @@ def _birthday_on_file():
     if not month:
         return None
     return month, int(day), int(m.group(3)) if m.group(3) else None
+
+
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
+           "september", "october", "november", "december")
+
+
+def _age_of(who: str) -> str | None:
+    """How old somebody he told her about is, from the birthday in his note."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    who = " ".join(str(who or "").casefold().split())
+    if re.match(r"(?:you|u|it|that|this|the|a|an|he|she|they|him|her|someone|somebody|anyone)\b", who):
+        return None
+    name = _name_for_relation(who) if who.startswith("my ") or who in _relation_words() else None
+    label = name or re.sub(r"^my ", "", who)
+    words = re.findall(r"[a-z0-9]+", label.casefold())
+    month_re = "|".join(_MONTHS)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not words or not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            continue
+        if not re.search(r"\b(?:birthday|born|bday)\b", low):
+            continue
+        m = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:,? (?P<year>(?:19|20)\d\d))?", low)
+             or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? (?:of )?(?P<mon>{month_re})(?:,? (?P<year>(?:19|20)\d\d))?", low))
+        if not m:
+            continue
+        shown = name or (f"Your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
+        if not m.group("year"):
+            return (f"You told me {shown}'s birthday is {m.group('mon').title()} {int(m.group('day'))}, "
+                    f"but not the year, so I can't say how old. Tell me the year and I'll know.")
+        month, day, year = _MONTHS.index(m.group("mon")) + 1, int(m.group("day")), int(m.group("year"))
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        age = today.year - year - ((today.month, today.day) < (month, day))
+        return f"{shown} is {age}" + (f", and turns {age + 1} on {m.group('mon').title()} {day}." if (today.month, today.day) != (month, day)
+                                       else " - and it's today.")
+    return None
+
+
+def _relation_words() -> set:
+    from aletheia import voice
+    return set(voice._RELATIONS)
 
 
 def _birthday() -> str:
@@ -6568,6 +6617,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
+           "age_of": lambda rest: _age_of(rest),
            "day_span": lambda rest: _day_span(rest),
            "running": lambda rest: _running(),
            "mine": _mine,

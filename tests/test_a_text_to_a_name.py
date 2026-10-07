@@ -1088,5 +1088,25 @@ class MySisterIsJenna(unittest.TestCase):
         self.assertIn("March 4", said)
 
 
+
+class HowOldIsSomebodyHeToldHerAbout(unittest.TestCase):
+    def test_the_age_comes_from_the_birthday_in_his_note(self):
+        import datetime as dt
+        from aletheia import localtime, quick
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        born = dt.date(today.year - 40, 1, 1) if (today.month, today.day) != (1, 1) else dt.date(today.year - 40, 6, 1)
+        notes = [{"text": f"dad was born on {born.strftime('%B')} {born.day}, {born.year}"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            said = quick.answer("how old is my dad")
+        self.assertTrue(said.startswith("Your dad is 40"), said)
+
+    def test_no_year_says_so_and_a_stranger_goes_on(self):
+        from aletheia import quick
+        notes = [{"text": "Jenna's birthday is March 4"}, {"text": "my sister's name is Jenna"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertIn("not the year", quick.answer("how old is my sister"))
+            self.assertIsNone(quick.answer("how old is taylor swift"))
+
+
 if __name__ == "__main__":
     unittest.main()
