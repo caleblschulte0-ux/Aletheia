@@ -949,5 +949,18 @@ class ThingsHeDid(unittest.TestCase):
             self.assertIn('Say "I watered the plants"', quick.answer("have i watered the plants"))
 
 
+class SendItIsApproveIt(unittest.TestCase):
+    def test_same_gate_his_words(self):
+        from aletheia import policy
+        with mock.patch.object(policy, "all_approvals", return_value=[]):
+            self.assertEqual(voice._interpret("send it")["say"], "There's nothing waiting to send.")
+            self.assertEqual(voice._interpret("approve it")["say"], "Nothing is waiting for approval.")
+        pending = [{"id": "ap-1", "state": "PENDING", "capability": "email.send"}]
+        with mock.patch.object(policy, "all_approvals", return_value=pending), \
+             mock.patch.object(voice, "_asked_recently", return_value=True), \
+             mock.patch.object(voice, "_approve_by_voice", side_effect=lambda a: {"command": {"kind": "approve", "id": a["id"]}}):
+            self.assertEqual(voice._interpret("yes send it")["command"], {"kind": "approve", "id": "ap-1"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5373,13 +5373,22 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "screenshot", "monitor": "all"}, "say": None}
 
+    # "Send it", after she drafts something and says it waits for his word
+    # (2026-10-07: to the planner). It is "approve it" in his words, with
+    # every gate that one has - a send voice may not approve still says so.
+    if re.fullmatch(r"(?:yes,? |ok,? |okay,? |go ahead,? (?:and )?)?send (?:it|that|the (?:draft|email|e-mail|text|message))"
+                    r"(?: now| please| off)?", low):
+        low, sending = "approve it", True
+    else:
+        sending = False
     m = re.match(r"(?:approve|approved|yes to)\s*"
                  r"(?:that|it|the pending one|the (?P<ord>first|second|third|last)"
                  r"(?: one)?|(?P<what>.+?))?$", low)
     if m:
         pending = [a for a in policy.all_approvals() if a["state"] == "PENDING"]
         if not pending:
-            return {"command": None, "say": "Nothing is waiting for approval."}
+            return {"command": None, "say": "There's nothing waiting to send." if sending
+                    else "Nothing is waiting for approval."}
         if len(pending) == 1:
             only = pending[0]
             if _asked_recently(only):
