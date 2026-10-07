@@ -5547,6 +5547,16 @@ def _interpret(transcript: str) -> dict:
     # An OFFER is a claim about ability, and inventing a SOURCE sounds
     # like helpfulness, which makes it harder to catch than inventing an
     # answer. Same store, same door.
+    # "AM I OVER BUDGET" (2026-10-07: to the planner, with his budget a
+    # note and his spending notes beside it). Added up from what he said.
+    if re.fullmatch(r"(?:am i (?:over|under|within|on) (?:my |the )?(?:[a-z ]{1,15} )?budget(?: this (?:week|month))?"
+                    r"|how much (?:is |do i have )?left (?:in|of|on) (?:my|the) (?:[a-z ]{1,15} )?budget(?: this (?:week|month))?"
+                    r"|how(?:'s| is) my (?:[a-z ]{1,15} )?budget(?: looking| doing)?(?: this (?:week|month))?"
+                    r"|how much (?:of my|budget do i have) (?:[a-z ]{1,15} )?(?:budget )?(?:is )?left)\s*\??", low):
+        from aletheia import quick
+        told = quick._budget(low)
+        if told:
+            return {"command": None, "say": told}
     if re.fullmatch(r"(?:what (?:did|have) i spen[dt](?: .*)?"
                     r"|how much (?:did|have) i spen[dt](?: .*)?"
                     r"|what(?:'s| is| are)? my (?:spending|expenses|"
@@ -7377,6 +7387,28 @@ def _interpret(transcript: str) -> dict:
             # keeps, so a note would read back "[redacted]". Said, not faked.
             return {"command": None, "say": _NO_PASSWORDS}
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # HIS PAY (2026-10-07: "my paycheck is 2000 every two weeks", "I get paid
+    # every other Friday", "I make 25 an hour" and "I got paid today" all went
+    # to the planner). A note in his words, held to a number or a day, so
+    # "my pay is terrible" stays how he feels.
+    if (re.fullmatch(r"(?:my |our )?(?:paycheck|pay ?check|pay|salary|income|take[- ]home(?: pay)?|hourly rate|wage|wages)"
+                     r" (?:is|are) (?:about |around )?\$?\d[\d,.k]*.{0,40}", fact_low)
+            or re.fullmatch(r"i (?:make|earn|get paid|bring home|take home|get) (?:about |around )?\$?\d[\d,.k]*(?: dollars| bucks)?"
+                            r" (?:an? |per |every |each )(?:hour|week|month|year|two weeks|other week)(?: after tax(?:es)?| before tax(?:es)?)?", fact_low)
+            or re.fullmatch(r"i get paid (?:every|each|on|the|twice|weekly|biweekly|bi-weekly|monthly|fortnightly)\b.{0,40}", fact_low)
+            or re.fullmatch(r"(?:my )?pay ?day is (?:on )?(?:every |each |the )?[a-z0-9 ]{2,30}", fact_low)
+            or re.fullmatch(r"i (?:just )?got (?:my )?(?:paid|paycheck|pay ?check)(?: today| this morning)?", fact_low)) \
+            and not re.search(r"\b(?:terrible|awful|bad|low|late|not|never|enough)\b", fact_low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "HOW MUCH DO I MAKE A YEAR" from the pay he told her, worked out.
+    if re.fullmatch(r"how much (?:do i|money do i) (?:make|earn|get paid|bring home)(?: (?:an? |per )(?:hour|week|month|year))?"
+                    r"|what(?:'s| is) my (?:yearly |annual |monthly |weekly )?(?:income|salary|pay)(?: (?:a|per) (?:year|month|week))?"
+                    r"|when(?:'s| is) (?:my )?(?:next )?pay ?day|when do i (?:next )?get paid(?: next)?"
+                    r"|when did i (?:last )?get paid(?: last)?", low.rstrip("?")):
+        from aletheia import quick
+        told = quick._pay(low)
+        if told:
+            return {"command": None, "say": told}
     # "MY FLIGHT IS AT 6AM FRIDAY" (2026-10-07: to the planner, so "when is
     # my flight" had nothing to read). A trip he is told about is a note in
     # his words, which `quick._when_mine` reads back - only with a time or a

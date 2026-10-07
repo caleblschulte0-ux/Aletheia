@@ -8831,6 +8831,111 @@ def _spent(question: str) -> str | None:
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
+_BUDGET_NOTE = re.compile(r"^(?:my |our )?(?P<kind>monthly |weekly |grocery |food |eating out |gas |fun |shopping )?budget is "
+                          r"(?:about |around )?\$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)?"
+                          r"(?: (?:a|per|each|every) (?P<per>week|month))?")
+
+
+def _budget(question: str) -> str | None:
+    """"Am I over budget", "how much is left in my grocery budget": his
+    budget note against what he told her he spent. None when he never gave
+    a budget, so the question goes where it went before."""
+    import datetime as dt
+    from aletheia import localtime
+    low = _tidy(question or "")
+    asked = re.search(r"\b(grocery|food|eating out|gas|fun|shopping)\b", low)
+    budgets = []
+    for row in _notes():
+        m = _BUDGET_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
+        if m:
+            budgets.append(((m.group("kind") or "").strip(), float(m.group("amt").replace(",", "")),
+                            m.group("per") or ("week" if (m.group("kind") or "").strip() == "weekly" else "month")))
+    if not budgets:
+        return None
+    want = asked.group(1) if asked else ""
+    pick = next((b for b in budgets if b[0] == want), None) if want else \
+        next((b for b in budgets if b[0] in ("", "monthly", "weekly")), budgets[0])
+    if not pick:
+        return f"You haven't told me a {want} budget."
+    kind, amount, per = pick
+    category = kind if kind not in ("", "monthly", "weekly") else ""
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = midnight - dt.timedelta(days=now.weekday()) if per == "week" else midnight.replace(day=1)
+    words = {"grocery": ("grocer", "food"), "food": ("food", "grocer", "eating out", "takeout", "restaurant")}.get(
+        category, (category,) if category else ())
+    spent = 0.0
+    for row in _notes():
+        m = _SPENT_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
+        if not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if m.group("when") in ("yesterday", "last night"):
+            at -= dt.timedelta(days=1)
+        if at >= start and (not words or any(w in m.group("on") for w in words)):
+            spent += float(m.group("amt").replace(",", ""))
+    name = f"{category} budget" if category else "budget"
+    span = f"this {per}"
+    if spent > amount:
+        return f"Yes - you're {_money(spent - amount)} over your {_money(amount)} {name} {span}, from what you've told me."
+    if re.search(r"\bover\b", low):
+        return (f"No - you've spent {_money(spent)} of your {_money(amount)} {name} {span}, "
+                f"so {_money(amount - spent)} is left, from what you've told me.")
+    return f"{_money(amount - spent)} left of your {_money(amount)} {name} {span} - you've spent {_money(spent)}, from what you've told me."
+
+
+_PAY_AMOUNT = re.compile(r"(?:paycheck|pay ?check|pay|salary|income|take[- ]home(?: pay)?|hourly rate|wages?) (?:is|are) "
+                         r"(?:about |around )?\$?(?P<a>\d[\d,.]*)(?P<k>k)?(?: dollars| bucks)?(?: (?:an? |per |every |each )(?P<per>hour|week|month|year|two weeks|other week))?"
+                         r"|^i (?:make|earn|get paid|bring home|take home|get) (?:about |around )?\$?(?P<a2>\d[\d,.]*)(?P<k2>k)?(?: dollars| bucks)?"
+                         r" (?:an? |per |every |each )(?P<per2>hour|week|month|year|two weeks|other week)")
+_PAY_WHEN = re.compile(r"^(?:i get paid (?:every|each|on|the|twice|weekly|biweekly|bi-weekly|monthly|fortnightly)\b|(?:my )?pay ?day is )")
+_PAID_NOTE = re.compile(r"^i (?:just )?got (?:my )?(?:paid|paycheck|pay ?check)")
+_PER_YEAR = {"hour": 2080, "week": 52, "two weeks": 26, "other week": 26, "month": 12, "year": 1}
+
+
+def _pay(question: str) -> str | None:
+    """His pay, from what he told her: how much (worked out to a year, a
+    month or a week when he asks one), when it comes, when it last came.
+    None when he never said, so the question goes on as before."""
+    from aletheia import speech
+    low = _tidy(question or "")
+    notes = [(" ".join(str(r.get("text") or "").split()), r) for r in _notes()]
+    if re.search(r"\bwhen did i\b", low):
+        paid = [(t, r) for t, r in notes if _PAID_NOTE.match(t.casefold())]
+        if not paid:
+            return None
+        return f"You told me you got paid {speech.humanize_time(str(paid[0][1].get('ts') or ''))}."
+    if re.search(r"\bwhen\b|pay ?day", low):
+        hit = next((t for t, _ in notes if _PAY_WHEN.match(t.casefold())), None)
+        return f"You told me: {speech.as_she_says_it(hit).rstrip('.')}." if hit else None
+    hit = None
+    for t, _ in notes:
+        m = _PAY_AMOUNT.search(t.casefold())
+        if m:
+            hit = (t, m)
+            break
+    if not hit:
+        return None
+    t, m = hit
+    amount = float((m.group("a") or m.group("a2")).replace(",", "").rstrip("."))
+    if m.group("k") or m.group("k2"):
+        amount *= 1000
+    per = m.group("per") or m.group("per2") or ("year" if re.search(r"salary|income", t.casefold()) and amount > 9000 else "")
+    want = next((u for u in ("hour", "week", "month", "year") if re.search(rf"\b(?:an? |per ){u}\b|\b{u}ly\b", low)),
+                "year" if re.search(r"\b(?:yearly|annual)\b", low) else
+                "month" if "monthly" in low else "week" if "weekly" in low else "")
+    if not per or not want or want == per:
+        return f"You told me: {speech.as_she_says_it(t).rstrip('.')}."
+    yearly = amount * _PER_YEAR[per]
+    out = yearly / _PER_YEAR[want]
+    note = " before tax, if that's a 40-hour week" if per == "hour" or want == "hour" else ""
+    return f"About {_money(round(out, 2 if want == 'hour' else 0))} a {want}{note}. You told me {speech.as_she_says_it(t).rstrip('.')}."
+
+
 _START_NOTE = re.compile(r"^(?:i (?:start|begin|get to|have to be at|need to be at|clock in at|clock in|go in)(?: work)?(?: at)?"
                          r"|my (?:shift|work ?day) (?:starts|begins)(?: at)?) (?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
 _END_NOTE = re.compile(r"^(?:i (?:get off|finish|leave|clock out)(?: work)?(?: at)?|my (?:shift|work ?day) (?:ends|finishes)(?: at)?) "

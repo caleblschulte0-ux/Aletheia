@@ -3803,5 +3803,44 @@ class AQuestionAboutBuyingIsNotSpending(unittest.TestCase):
             self.assertIsNone(voice._interpret("did i get the job")["say"])
 
 
+class HisBudgetAndPayAreKept(unittest.TestCase):
+    """2026-10-07: "am I over budget" and "how much do I make a year" went to
+    the planner, with the budget, the spending and the pay all in his notes."""
+
+    def _notes(self, *texts):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        from aletheia import quick
+        return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": now} for t in texts])
+
+    def test_a_budget_is_set_against_what_he_spent(self):
+        from aletheia import voice
+        with self._notes("my grocery budget is 400 a month", "I spent 150 dollars on groceries",
+                         "I spent 300 on rent"):
+            said = voice._interpret("how much is left in my grocery budget")["say"]
+            self.assertIn("$250 left", said)
+            self.assertIn("No - you've spent $150", voice._interpret("am i over my grocery budget")["say"])
+            self.assertIn("haven't told me a gas budget", voice._interpret("am i over my gas budget")["say"])
+        with self._notes():
+            self.assertIsNone(voice._interpret("am i over budget")["say"])
+
+    def test_pay_is_kept_in_his_words(self):
+        from aletheia import voice
+        for said in ("my paycheck is 2000 every two weeks", "I get paid every other Friday",
+                     "I make 25 an hour", "I got paid today", "payday is Friday"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual((voice._interpret("my pay is terrible")["command"] or {}).get("kind"), "note")
+
+    def test_pay_is_read_back_and_worked_out(self):
+        from aletheia import voice
+        with self._notes("my paycheck is 2000 every two weeks", "I get paid every other Friday"):
+            self.assertIn("$52,000 a year", voice._interpret("how much do i make a year")["say"])
+            self.assertIn("every other Friday", voice._interpret("when is payday")["say"])
+        with self._notes("I make 25 an hour"):
+            self.assertIn("40-hour week", voice._interpret("how much do i make a month")["say"])
+        with self._notes():
+            self.assertIsNone(voice._interpret("how much do i make a year")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
