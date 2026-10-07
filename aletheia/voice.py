@@ -1042,6 +1042,13 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     else:
         hour, minute = {"morning": (9, 0), "afternoon": (14, 0), "evening": (19, 0), "night": (21, 0)}.get(
             part or "", (9, 0))
+        # "Schedule lunch with Sam on Friday" was held at 9 am (2026-10-07).
+        # A meal named with no time is at that meal's hour; the receipt
+        # says the time, so a wrong guess is caught in one syllable.
+        meal = re.search(r"\b(breakfast|brunch|lunch|dinner|supper|drinks|happy hour)\b", str(title).lower())
+        if meal and not part:
+            hour, minute = {"breakfast": (8, 0), "brunch": (11, 0), "lunch": (12, 0), "dinner": (18, 30),
+                            "supper": (18, 30), "drinks": (18, 0), "happy hour": (17, 0)}[meal.group(1)]
     start = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute),
                                 tzinfo=localtime.operator_tz())
     return {"command": {"kind": "calendar_hold", "title": _as_he_said(transcript, title.strip()),
@@ -3190,10 +3197,17 @@ def _interpret(transcript: str) -> dict:
     # and simply unreachable from the room. Placed before the browse verbs
     # so "what am I paying for" is not parsed as a website.
     m = re.match(r"(?:set up|arrange|schedule|book) (?:a )?(?:meeting|time|call) "
-                 r"with ([a-z' -]+?)(?: (?:next week|this week|about .+))?$", low)
+                 r"with ([a-z' -]+?)"
+                 # "Schedule a call with Dana Friday" asked for a person called
+                 # "dana friday" (2026-10-07): the day is the window.
+                 r"(?: (?:on |this )?(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
+                 r"(?: (?:next week|this week|about .+))?$", low)
     if m:
-        return {"command": {"kind": "meet", "person": m.group(1).strip()},
-                "say": None}
+        command = {"kind": "meet", "person": m.group(1).strip()}
+        day_iso = _spoken_day(m.group("day")) if m.group("day") else None
+        if day_iso:
+            command.update(from_day=day_iso, to_day=day_iso)
+        return {"command": command, "say": None}
 
     # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
     # not a lookup: it answered "I don't have anything remembered about 'the

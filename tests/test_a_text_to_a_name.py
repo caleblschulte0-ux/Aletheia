@@ -186,5 +186,17 @@ class MailAndParcels(unittest.TestCase):
         self.assertEqual(voice._interpret("what's my most recent email about")["command"], {"kind": "email_check"})
 
 
+class MealsAndMeetings(unittest.TestCase):
+    def test_a_meal_with_no_time_is_at_its_hour(self):
+        self.assertIn("T12:00", voice._interpret("schedule lunch with sam on friday")["command"]["start"])
+        self.assertIn("T18:30", voice._interpret("schedule dinner with mom saturday")["command"]["start"])
+        self.assertIn("T13:00", voice._interpret("schedule lunch friday at 1")["command"]["start"])
+
+    def test_the_day_after_a_name_is_the_window_not_the_name(self):
+        got = voice._interpret("schedule a call with dana friday")["command"]
+        self.assertEqual(got["person"], "dana")
+        self.assertEqual(got["from_day"], got["to_day"])
+
+
 if __name__ == "__main__":
     unittest.main()
