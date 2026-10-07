@@ -414,6 +414,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
+    ("life_when", re.compile(
+        r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
+        r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?)\s*\??$"
+        r"|^when do (?:i|we) (?P<lw2>start (?:my |the |our )?(?:new job|school|college|classes)|move|leave for (?:my |our |the )?(?:vacation|trip|holiday)"
+        r"|fly to [a-z][a-z ]{1,25}?)\s*\??$"
+        r"|^when(?:'s| is) (?:my|our) (?P<lw3>vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon)\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -1919,8 +1925,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick"
         # "I'm procrastinating" (2026-10-07: to the planner)
-        r"|procrastinating|unmotivated|distracted|stuck)(?: today| again)?$"
-        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
+        r"|procrastinating|unmotivated|distracted|stuck|thirsty|cold|freezing|hot|nervous|scared|worried|running late|stuck in traffic"
+        r"|late)(?: today| again| now| right now)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
+        r"|^(?P<feel2>i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
         r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
@@ -1935,6 +1942,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|passed (?:my |the )?(?:test|exam|driving test|interview|class|bar|boards)|got engaged|got married|graduated"
         r"|finished (?:my |the )?(?:degree|marathon|race)|bought a (?:house|home|car)|closed on (?:the|our|my) house)(?: today)?!*$"
         r"|^(?:i'?m|i am|we'?re|we are) (?P<win2>getting married|engaged|having a baby|pregnant|expecting)!*$"
+        # "I didn't get the job", "I quit my job" (2026-10-07: to the planner).
+        r"|^i (?P<setback>didn'?t get (?:the|that) (?:job|offer|promotion|apartment|house|part|role)|did not get (?:the|that) (?:job|offer|promotion|role)"
+        r"|got (?:rejected|turned down|laid off|fired|let go)|lost my job|was laid off|was let go|failed (?:my |the )?(?:test|exam|interview|driving test|class))(?: today)?$"
+        r"|^i (?P<quit>quit my job|just quit|put in my notice|gave my notice|handed in my notice|resigned)(?: today)?!*$"
         r"|^(?:it'?s|today is|today's) my (?P<celebrate>birthday|anniversary|wedding anniversary|work anniversary)(?: today)?!*$"
         r"|^my (?P<loss>dog|cat|pet|bird|horse|grandma|grandmother|grandpa|grandfather|mom|mum|mother|dad|father|uncle|aunt"
         r"|friend|brother|sister|husband|wife|partner|cousin|best friend) (?:just )?(?:died|passed away|passed)"
@@ -2065,7 +2076,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3724,7 +3735,9 @@ def _interview_when() -> str:
             if event.get("status") == "CANCELLED":
                 continue
             title = str(event.get("title") or "")
-            if not re.match(r"\s*interview\b", title, re.I):
+            # "Job interview" he pencilled in himself (2026-10-07: "no
+            # interview on your calendar" with it there) is one too.
+            if not re.search(r"\binterview\b", title, re.I):
                 continue
             try:
                 start = calendar.parse_time(event["start"]).astimezone(tz)
@@ -3738,7 +3751,13 @@ def _interview_when() -> str:
         return "No interview on your calendar. When one is booked it goes there and I tell you."
     coming.sort()
     start, title = coming[0]
-    who = re.sub(r"^\s*interview\s*[:with-]*\s*", "", title, flags=re.I).strip() or "them"
+    who = re.sub(r"^\s*interview\s*[:with-]*\s*", "", title, flags=re.I).strip()
+    kind = re.fullmatch(r"\s*(?:(?:my|a|the) )?((?:job|phone|video|zoom|second|final|first|in-person|onsite|on-site) )*interview\s*", title, re.I)
+    if kind or not who:
+        named = f"Your {title.strip().lower()}" if kind and kind.group(1) else "Your interview"
+    else:
+        who = re.sub(r"\s*interview$", "", who, flags=re.I).strip() or "them"
+        named = f"Your interview with {who}"
     day = "today" if start.date() == now.date() else "tomorrow" if start.date() == now.date() + dt.timedelta(days=1) \
         else start.strftime("%A")
     clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
@@ -3747,7 +3766,7 @@ def _interview_when() -> str:
     until = (f"in {int(round(hours_left * 60))} minutes" if hours_left < 1
              else f"in {int(round(hours_left))} hours" if hours_left < 36
              else f"in {int(round(hours_left / 24))} days")
-    said = f"Your interview with {who} is {day} at {clock}, {until}."
+    said = f"{named} is {day} at {clock}, {until}."
     if len(coming) > 1:
         said += f" There {'is' if len(coming) == 2 else 'are'} {len(coming) - 1} more after it."
     return said
@@ -5946,6 +5965,19 @@ _FEELINGS = {
     "unmotivated": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
     "distracted": "Say \"start a focus session\" and I'll hold the time for you. Put the phone face down.",
     "stuck": "Tell me what you're stuck on. Saying it out loud is half of it.",
+    "thirsty": "Have a glass of water. Say \"I drank a glass of water\" and I'll keep count.",
+    "cold": "Grab a layer, or turn the heat up a notch.",
+    "freezing": "Grab a layer, or turn the heat up a notch.",
+    "hot": "Get some water and some air. Hot days are worth taking slowly.",
+    "nervous": ("That's normal before something that matters - it means you care. Tell me what's coming up and I'll "
+                "make sure nothing about it is left to chance."),
+    "scared": "I'm here. Tell me what's going on and we'll take it one step at a time.",
+    "worried": "Tell me what's on your mind. If there's something to do about it, I'll help you do it.",
+    "running late": "Want them to know? Say \"text\" and the name and what to say, like \"text Sam I'm running late\".",
+    "late": "Want them to know? Say \"text\" and the name and what to say, like \"text Sam I'm running late\".",
+    "stuck in traffic": "Want them to know? Say \"text\" and the name and what to say, like \"text Sam I'm stuck in traffic\".",
+    "i can't focus": "Say \"start a focus session\" and I'll hold the time for you. Put the phone face down.",
+    "i cant focus": "Say \"start a focus session\" and I'll hold the time for you. Put the phone face down.",
     "say something nice": "You keep starting things most people only talk about. That counts for a lot.",
 }
 
@@ -5959,6 +5991,18 @@ def _feeling(text: str) -> str | None:
         said = "say something nice"
     if re.match(r"i(?:'ve| have)|i (?:don'?t|do not) feel", said):
         said = "sick"
+    if re.match(r"i can'?t concentrate", said):
+        said = "i can't focus"
+    about = re.sub(r"^(?:about|for|before) (?:my |the |a |an )?", "", (g.get("feel_about") or "").strip())
+    if about and said in ("nervous", "scared", "worried") and re.search(
+            r"\b(?:interview|test|exam|presentation|meeting|date|flight|surgery|appointment|speech|game|race|first day"
+            r"|review|audition|call|trip|wedding|procedure)\b", about):
+        line = f"That's normal before your {about} - it means you care."
+        if "interview" in about:
+            when = _interview_when()
+            if not when.startswith(("No interview", "I can't")):
+                line += " " + when
+        return line
     if said.startswith(("i'm having", "im having", "i had a")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
@@ -5983,6 +6027,10 @@ def _life_news(text: str) -> str | None:
             return "Happy birthday!" + ("" if known else
                                         " Say \"my birthday is\" and the date, and I'll remember it for next year.")
         return f"Happy {which}!"
+    if g.get("setback"):
+        return "I'm sorry. That one stings, and it's their loss. When you're ready, we'll go again."
+    if g.get("quit"):
+        return "That's a big step. Tell me what's next when you know, and I'll keep track of it."
     if g.get("loss"):
         return ("I'm so sorry. Take whatever time you need - I'll keep things running, "
                 "and anything that can wait will.")
@@ -8626,6 +8674,42 @@ _END_NOTE = re.compile(r"^(?:i (?:get off|finish|leave|clock out)(?: work)?(?: a
 _COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
 
 
+_LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b", "vacation": r"\b(?:vacation|holiday)\b",
+               "holiday": r"\b(?:vacation|holiday)\b", "trip": r"\btrip\b", "new job": r"\bnew job\b", "school": r"\bschool\b",
+               "college": r"\bcollege\b", "classes": r"\bclasses\b", "surgery": r"\bsurgery\b", "first day": r"\bfirst day\b",
+               "graduation": r"\bgraduat", "graduating": r"\bgraduat", "retiring": r"\bretir", "honeymoon": r"\bhoneymoon\b",
+               "moving day": r"\b(?:moving|move)\b"}
+
+
+def _life_when(text: str) -> str | None:
+    """When his move, trip or new job is, from his note - with the day he
+    said it, since "next month" is only true from that day. None when he
+    never said: it may be on a calendar or in his mail."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("life_when", text)
+    asked = (g.get("lw") or g.get("lw2") or g.get("lw3") or "").strip()
+    key = next((k for k in sorted(_LIFE_WORDS, key=len, reverse=True) if k in asked), None)
+    place = re.search(r"(?:fly|flying) to (.+)$", asked)
+    pattern = (r"\b(?:fly|flying|flight) to " + re.escape(place.group(1))) if place else _LIFE_WORDS.get(key or "")
+    if not pattern:
+        return None
+    tz = localtime.operator_tz()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not re.search(pattern, said, re.I):
+            continue
+        told = speech.as_she_says_it(said).rstrip(".")
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            return f"You told me: {told}."
+        if day == dt.datetime.now(tz).date():
+            return f"You told me today: {told}."
+        return f"You told me on {day.strftime('%A')} {day.day} {day.strftime('%B')}: {told}."
+    return None
+
+
 def _worked(text: str) -> str | None:
     """Hours at work from his "started work" and "finished work" notes, day
     by day on his clock; a day still open counts to now. None when he never
@@ -9579,6 +9663,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "pick_for_me": _pick_for_me,
            "worked": _worked,
            "sums_more": _sums_more,
+           "life_when": _life_when,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

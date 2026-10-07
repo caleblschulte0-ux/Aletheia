@@ -6101,7 +6101,8 @@ def _interpret(transcript: str) -> dict:
                            r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
                            m.group("thing") or m.group("thing2") or ""):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+                     r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: please)?", low)
     if m:
         put = _where_he_put(m.group("thing"))
@@ -6111,7 +6112,8 @@ def _interpret(transcript: str) -> dict:
         there = quick._place_where(m.group("thing"))
         if there:
             return {"command": None, "say": there}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for) (?:my |the )?"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+                     r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
                      r"(?: please)?", low)
     if m:
@@ -6127,6 +6129,11 @@ def _interpret(transcript: str) -> dict:
                         else f"I can't see where your {thing} is - I have no eyes in the room. ")
                        + "I can find files and places, and I can ring your phone if it's linked."}
 
+    # "I found my keys" (2026-10-07: to the planner).
+    m = re.fullmatch(r"(?:i )?found (?:my |the )?(?P<it>keys|phone|wallet|glasses|remote|bag|purse|shoes|charger|headphones|earbuds|passport|watch)(?: again)?!*", low)
+    if m:
+        them = "them" if m.group("it") in ("keys", "glasses", "shoes", "headphones", "earbuds") else "it"
+        return {"command": None, "say": f"Good. Tell me where you put {them} next time and I'll remember."}
     # A PHONE CALL is a door she does not have. "Call the dentist" waited
     # two minutes on her own model (2026-09-22) for a verb nothing here
     # owns; the honest answer names the three doors she does have.
@@ -7620,6 +7627,20 @@ def _interpret(transcript: str) -> dict:
         what = _as_he_said(text, m.group("what") or m.group("what2"))
         return {"command": {"kind": "list_add", "list": "meal plan",
                             "item": f"{said.capitalize()}: {what}" if said else what}, "say": None}
+    # HIS PLANS WITH A WHEN (2026-10-07: "I'm moving next month", "I start
+    # my new job on Monday", "my vacation is next week" each went to the
+    # planner). A note in his words; `quick._life_when` reads it back with
+    # the day he said it, because "next month" moves with the calendar.
+    _when = (r"(?:on |in |this |next |the )?(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+             r"|week|month|year|weekend|summer|winter|spring|fall|\d{1,2} (?:days|weeks|months)|the \d{1,2}(?:st|nd|rd|th)"
+             r"|" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{1,2}(?:st|nd|rd|th)?)?)(?: \d{4})?")
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:moving|going on (?:vacation|holiday|a trip|our trip|my trip|our honeymoon)"
+                    r"|flying to [a-z][a-z ]{1,25}?|driving to [a-z][a-z ]{1,25}?|having surgery"
+                    r"|starting (?:my |a )?(?:new job|school|college|classes|work)|retiring|graduating)(?: to [a-z][a-z ]{1,25}?)? " + _when, low) \
+            or re.fullmatch(r"(?:i|we) (?:start|begin) (?:my |our |a )?(?:new job|school|college|classes|work|the new job) " + _when, low) \
+            or re.fullmatch(r"(?:my|our) (?:vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon|flight to [a-z ]{2,20}?)"
+                            r" (?:is|starts|begins) " + _when, low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I GOT A HAIRCUT", "I need an oil change" (2026-10-07: both to the
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.

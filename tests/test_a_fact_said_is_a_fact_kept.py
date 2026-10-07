@@ -3674,5 +3674,44 @@ class DoorsAndLockingUp(unittest.TestCase):
             self.assertTrue(quick.answer("did I turn off the stove").startswith("Not that you've told me"))
 
 
+class HisPlansAndHowHeFeels(unittest.TestCase):
+    def test_an_interview_he_pencilled_in_is_his_interview(self):
+        import datetime as dt
+        from aletheia import quick
+        at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)).isoformat()
+        with mock.patch("aletheia.calendar.all_events", return_value=[{"title": "job interview", "start": at}]):
+            self.assertTrue(quick._interview_when().startswith("Your job interview is tomorrow"))
+        with mock.patch("aletheia.calendar.all_events", return_value=[{"title": "Stripe interview", "start": at}]):
+            self.assertTrue(quick._interview_when().startswith("Your interview with Stripe is"))
+
+    def test_a_plan_with_a_when_is_kept_and_read_with_the_day_he_said_it(self):
+        import datetime as dt
+        from aletheia import quick
+        for said in ("I'm moving next month", "I start my new job on Monday", "my vacation is next week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        got = voice._interpret("I'm going to call mom tomorrow")
+        self.assertFalse(got and (got.get("command") or {}).get("kind") == "note")
+        now = dt.datetime.now(dt.timezone.utc)
+        notes = [{"text": "I'm moving next month", "ts": (now - dt.timedelta(days=3)).isoformat()},
+                 {"text": "I start my new job on Monday", "ts": now.isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertTrue(quick.answer("when am I moving").startswith("You told me on "))
+            self.assertEqual(quick.answer("when do I start my new job"), "You told me today: you start your new job on Monday.")
+            self.assertIsNone(quick.answer("when is my surgery"))
+
+    def test_how_he_feels_gets_a_line(self):
+        from aletheia import quick
+        for said in ("I'm thirsty", "I'm cold", "I can't focus", "I'm running late", "I'm stuck in traffic",
+                     "I didn't get the job", "I quit my job"):
+            self.assertTrue(quick.answer(said), said)
+        with mock.patch.object(quick, "_interview_when", return_value="No interview on your calendar."):
+            self.assertEqual(quick.answer("I'm nervous about my interview"), "That's normal before your interview - it means you care.")
+        self.assertNotIn("before your money", quick.answer("I'm worried about money"))
+
+    def test_lost_and_found(self):
+        self.assertIn("no eyes in the room", voice._interpret("I lost my keys")["say"])
+        self.assertEqual(voice._interpret("I found my wallet")["say"], "Good. Tell me where you put it next time and I'll remember.")
+
+
 if __name__ == "__main__":
     unittest.main()
