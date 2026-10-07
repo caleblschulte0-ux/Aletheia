@@ -176,7 +176,7 @@ def _batch_tally(result: dict) -> dict:
     return tally
 
 
-def note_batch(result: dict, *, offered: int = 0, now: dt.datetime | None = None,
+def note_batch(result: dict, *, offered: int = 0, minutes: float = 0, now: dt.datetime | None = None,
                path=None) -> None:
     """Keep one finished batch's counts, a month of them. Never raises: the
     job hunt must not stop because a tally could not be written."""
@@ -189,8 +189,11 @@ def note_batch(result: dict, *, offered: int = 0, now: dt.datetime | None = None
         except (OSError, ValueError):
             rows = []
         rows = [r for r in rows if isinstance(r, dict) and str(r.get("at") or "") >= floor]
+        # HOW LONG IT TOOK: a day with one batch that found one is either a
+        # sparse board or one batch that ran all afternoon, and only the
+        # minutes tell those apart.
         rows.append({"at": stamp.strftime("%Y-%m-%dT%H:%M:%SZ"), "offered": int(offered or 0),
-                     **_batch_tally(result)})
+                     "minutes": int(round(float(minutes or 0))), **_batch_tally(result)})
         target.parent.mkdir(parents=True, exist_ok=True)
         stateio.write_json_atomic(target, rows)
     except Exception:

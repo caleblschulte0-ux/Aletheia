@@ -70,6 +70,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -1183,6 +1184,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     board search, never under a test's own finder.
     """
     policy.ensure_not_halted()
+    began = time.monotonic()
     role = " ".join(str(role or "").split())
     count = max(1, min(int(count), MAX_JOBS))
     stage = stager or apply_run.stage
@@ -1562,7 +1564,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     # The counts, and how many openings the search handed it, kept for the
     # published funnel: "why so few today" is answered by these.
     from aletheia import hunt_funnel
-    hunt_funnel.note_batch(result, offered=len(pages))
+    hunt_funnel.note_batch(result, offered=len(pages), minutes=(time.monotonic() - began) / 60)
     return result
 
 
