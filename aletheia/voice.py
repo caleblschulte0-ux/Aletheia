@@ -1874,6 +1874,8 @@ def _named_list_said(low: str, text: str) -> dict | None:
         return {"command": {"kind": "list_new", "list": m.group("sort")}, "say": None}
     m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?:grocery |shopping |packing |to-?do |to do |todo |check ?)?"
                       r"list (?:called|named|for) " + name_, low)
+         # "Start a list of movies to watch" (2026-10-07: to the planner).
+         or re.fullmatch(r"(?:make|start|create|begin|keep) (?:me )?(?:a )?(?:new )?list of " + name_, low)
          or re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?" + name_ + r" list", low))
     if m:
         named = re.sub(r"^(?:the|my|our|a) ", "", m.group("name"))
@@ -2424,6 +2426,17 @@ def _interpret(transcript: str) -> dict:
                      r"(?:it|that|this|that list|this list|the list)", low)
     if m:
         name, _last = _the_named_list_just_used()
+        try:
+            from aletheia import lists as _lists
+            gone = bool(name) and not _lists.exists(name)
+        except Exception:  # noqa: BLE001
+            gone = False
+        if gone:
+            # "Delete my packing list", then "add Dune to it" put Dune on
+            # the list he had just deleted (2026-10-07).
+            item = _as_he_said(transcript, m.group("w"))
+            return {"command": None,
+                    "say": f"Which list? Your {name} list is deleted. Say \"add {item} to my\" and the list's name."}
         if name:
             return {"command": {"kind": "list_add", "list": name, "item": _as_he_said(transcript, m.group("w"))},
                     "say": None}

@@ -1918,5 +1918,24 @@ class WhatsMyLockerComboCase(unittest.TestCase):
             self.assertIsNone(quick.answer("what are my chances"))
 
 
+
+class AListOfMoviesCase(unittest.TestCase):
+    """2026-10-07: "start a list of movies to watch" went to the planner, and
+    "add Dune to it" put Dune on the packing list he had just deleted."""
+
+    def test_a_list_of_things(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("start a list of movies to watch")["command"],
+                         {"kind": "list_new", "list": "movies to watch"})
+
+    def test_it_is_not_a_deleted_list(self):
+        from aletheia import voice, lists
+        with mock.patch.object(voice, "_the_named_list_just_used", return_value=("packing", True)), \
+                mock.patch.object(lists, "exists", return_value=False):
+            out = voice._interpret("add dune to it")
+        self.assertIsNone(out["command"])
+        self.assertIn("deleted", out["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
