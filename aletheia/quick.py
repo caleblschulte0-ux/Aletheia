@@ -1790,6 +1790,20 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
         r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
         r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great))$")),
+    # Good news, a good mood, a birthday, a loss (2026-10-07: every one to a
+    # model, and with none "I can't think just now" to "my dog died").
+    ("life_news", re.compile(
+        r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |pretty |very |super )?"
+        # Not "I'm good": that is as often "no thanks" as a mood.
+        r"(?P<good>great|amazing|awesome|happy|fantastic|wonderful|excited|better|much better)(?: today| now)?!*$"
+        r"|^(?:i|we) (?P<win>got the job|got (?:a |the |my )?(?:raise|promotion|offer|job offer|new job)|got promoted|got hired"
+        r"|passed (?:my |the )?(?:test|exam|driving test|interview|class|bar|boards)|got engaged|got married|graduated"
+        r"|finished (?:my |the )?(?:degree|marathon|race)|bought a (?:house|home|car)|closed on (?:the|our|my) house)(?: today)?!*$"
+        r"|^(?:i'?m|i am|we'?re|we are) (?P<win2>getting married|engaged|having a baby|pregnant|expecting)!*$"
+        r"|^(?:it'?s|today is|today's) my (?P<celebrate>birthday|anniversary|wedding anniversary|work anniversary)(?: today)?!*$"
+        r"|^my (?P<loss>dog|cat|pet|bird|horse|grandma|grandmother|grandpa|grandfather|mom|mum|mother|dad|father|uncle|aunt"
+        r"|friend|brother|sister|husband|wife|partner|cousin|best friend) (?:just )?(?:died|passed away|passed)"
+        r"(?: today| yesterday| this morning| last night| this week)?$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
     # every sentence it already had.
@@ -1895,7 +1909,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5585,6 +5599,31 @@ def _feeling(text: str) -> str | None:
     return _FEELINGS.get(said)
 
 
+def _life_news(text: str) -> str | None:
+    """What he tells her about his life, answered the way a person would -
+    briefly, and without turning it into a task."""
+    g = _match_of("life_news", text)
+    if g.get("good"):
+        return "Glad to hear it."
+    if g.get("win") or g.get("win2"):
+        return "Congratulations - that's brilliant news."
+    if g.get("celebrate"):
+        which = g["celebrate"]
+        if which == "birthday":
+            try:
+                from aletheia import profile
+                known = bool(profile.answer("birthday"))
+            except Exception:  # noqa: BLE001
+                known = True
+            return "Happy birthday!" + ("" if known else
+                                        " Say \"my birthday is\" and the date, and I'll remember it for next year.")
+        return f"Happy {which}!"
+    if g.get("loss"):
+        return ("I'm so sorry. Take whatever time you need - I'll keep things running, "
+                "and anything that can wait will.")
+    return None
+
+
 def _related(word: str, which: str) -> str | None:
     try:
         from aletheia import dictionary
@@ -8423,6 +8462,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "time_units": lambda rest: _time_units(rest),
            "dur_convert": _dur_convert,
            "how_to": _how_to,
+           "life_news": _life_news,
            "constant": lambda rest: _CONSTANTS.get(rest.strip()),
            "fraction_pct": lambda rest: _fraction_pct(rest),
            "fun_fact": lambda rest: _pick(FUN_FACTS),

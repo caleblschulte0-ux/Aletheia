@@ -3023,5 +3023,16 @@ class DoNotDisturbIsQuiet(unittest.TestCase):
         self.assertTrue(both.startswith("Put away until") and "I'll keep quiet until" in both, both)
 
 
+class HisNewsHeardLikeAPerson(unittest.TestCase):
+    def test_good_and_sad_news_get_a_human_line(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("I feel great"), "Glad to hear it.")
+        self.assertTrue(quick.answer("I got the job").startswith("Congratulations"))
+        self.assertTrue(quick.answer("my dog died").startswith("I'm so sorry"))
+        self.assertEqual(quick.answer("today is my anniversary"), "Happy anniversary!")
+        self.assertNotEqual((quick.match("I'm good") or ("",))[0], "life_news")
+        self.assertEqual((quick.match("what's the news") or ("",))[0], "news")
+
+
 if __name__ == "__main__":
     unittest.main()
