@@ -4426,5 +4426,17 @@ class TheListTheBriefAndReplies(unittest.TestCase):
             self.assertTrue("repl" in got or "application records" in got, (said, got))
 
 
+class Capitals(unittest.TestCase):
+    """2026-10-07: "what's the capital of France" went to a model."""
+
+    def test_the_table(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's the capital of france"), "Paris.")
+        self.assertEqual(quick.answer("what is the capital of the united states"), "Washington, D.C.")
+        self.assertEqual(quick.answer("what's texas's capital"), "Austin.")
+        self.assertIn("Tbilisi", quick.answer("what's the capital of georgia"))
+        self.assertIsNone(quick.answer("what's the capital of narnia"))
+
+
 if __name__ == "__main__":
     unittest.main()

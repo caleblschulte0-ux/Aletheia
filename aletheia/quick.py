@@ -1983,6 +1983,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("constant", re.compile(
         r"^(?:what(?:'s| is|s) )?(?:the value of )?(?P<const>pi|the speed of light|the golden ratio|absolute zero|"
         r"the boiling point of water|the freezing point of water)(?: to (?:\d+|five|ten) (?:digits|decimal places))?\s*\??$")),
+    # "What's the capital of France" (2026-10-07: a model, and with none "I
+    # can't think just now"). A fixed table; a place not in it is a model's.
+    ("capital", re.compile(
+        r"^what(?:'s| is|s) the capital(?: city)? of (?:the )?(?P<cap>[a-z][a-z .']{2,30}?)\s*\??$"
+        r"|^what(?:'s| is|s) (?:the )?(?P<cap2>[a-z][a-z .']{2,30}?)(?:'s| s) capital(?: city)?\s*\??$")),
     # "How do I add a reminder" (2026-10-07: a model, and with none "I can't think just now").
     ("how_to", re.compile(
         r"^how (?:do|can|would|should) i (?P<howto>add|set|set up|make|create|start|put|cancel|delete|remove|turn off|stop|"
@@ -2177,7 +2182,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6252,6 +6257,51 @@ _CONSTANTS = {
     "the boiling point of water": "100 degrees Celsius, 212 Fahrenheit, at sea level.",
     "the freezing point of water": "0 degrees Celsius, 32 Fahrenheit.",
 }
+
+
+_CAPITALS = {
+    # countries
+    "afghanistan": "Kabul", "argentina": "Buenos Aires", "australia": "Canberra", "austria": "Vienna", "belgium": "Brussels",
+    "brazil": "Brasília", "canada": "Ottawa", "chile": "Santiago", "china": "Beijing", "colombia": "Bogotá", "cuba": "Havana",
+    "czech republic": "Prague", "czechia": "Prague", "denmark": "Copenhagen", "egypt": "Cairo", "england": "London",
+    "ethiopia": "Addis Ababa", "finland": "Helsinki", "france": "Paris", "germany": "Berlin", "ghana": "Accra",
+    "greece": "Athens", "hungary": "Budapest", "iceland": "Reykjavík", "india": "New Delhi", "indonesia": "Jakarta",
+    "iran": "Tehran", "iraq": "Baghdad", "ireland": "Dublin", "israel": "Jerusalem", "italy": "Rome", "jamaica": "Kingston",
+    "japan": "Tokyo", "kenya": "Nairobi", "mexico": "Mexico City", "morocco": "Rabat", "netherlands": "Amsterdam",
+    "new zealand": "Wellington", "nigeria": "Abuja", "north korea": "Pyongyang", "norway": "Oslo", "pakistan": "Islamabad",
+    "peru": "Lima", "philippines": "Manila", "poland": "Warsaw", "portugal": "Lisbon", "russia": "Moscow",
+    "saudi arabia": "Riyadh", "scotland": "Edinburgh", "singapore": "Singapore", "south africa": "Pretoria, Cape Town and Bloemfontein - it has three",
+    "south korea": "Seoul", "korea": "Seoul", "spain": "Madrid", "sweden": "Stockholm", "switzerland": "Bern",
+    "taiwan": "Taipei", "thailand": "Bangkok", "turkey": "Ankara", "ukraine": "Kyiv", "united kingdom": "London",
+    "uk": "London", "great britain": "London", "united states": "Washington, D.C.", "usa": "Washington, D.C.",
+    "us": "Washington, D.C.", "america": "Washington, D.C.", "venezuela": "Caracas", "vietnam": "Hanoi", "wales": "Cardiff",
+    # US states
+    "alabama": "Montgomery", "alaska": "Juneau", "arizona": "Phoenix", "arkansas": "Little Rock", "california": "Sacramento",
+    "colorado": "Denver", "connecticut": "Hartford", "delaware": "Dover", "florida": "Tallahassee", "georgia": "Atlanta",
+    "hawaii": "Honolulu", "idaho": "Boise", "illinois": "Springfield", "indiana": "Indianapolis", "iowa": "Des Moines",
+    "kansas": "Topeka", "kentucky": "Frankfort", "louisiana": "Baton Rouge", "maine": "Augusta", "maryland": "Annapolis",
+    "massachusetts": "Boston", "michigan": "Lansing", "minnesota": "Saint Paul", "mississippi": "Jackson",
+    "missouri": "Jefferson City", "montana": "Helena", "nebraska": "Lincoln", "nevada": "Carson City",
+    "new hampshire": "Concord", "new jersey": "Trenton", "new mexico": "Santa Fe", "new york": "Albany",
+    "north carolina": "Raleigh", "north dakota": "Bismarck", "ohio": "Columbus", "oklahoma": "Oklahoma City",
+    "oregon": "Salem", "pennsylvania": "Harrisburg", "rhode island": "Providence", "south carolina": "Columbia",
+    "south dakota": "Pierre", "tennessee": "Nashville", "texas": "Austin", "utah": "Salt Lake City", "vermont": "Montpelier",
+    "virginia": "Richmond", "washington": "Olympia", "washington state": "Olympia", "west virginia": "Charleston",
+    "wisconsin": "Madison", "wyoming": "Cheyenne",
+}
+
+
+def _capital(text: str) -> str | None:
+    """A capital from the fixed table; anything else is a model's question."""
+    g = _groups("capital", text)
+    place = " ".join(str(g.get("cap") or g.get("cap2") or "").replace(".", "").split())
+    city = _CAPITALS.get(place)
+    if not city:
+        return None
+    # "Georgia" is a state and a country (2026-10-07): say which.
+    if place == "georgia":
+        return "Atlanta, for the state - the country's capital is Tbilisi."
+    return city if city.endswith(".") else f"{city}."
 
 
 _HOW_TO = {
@@ -10449,6 +10499,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "dislikes": _dislikes,
            "married": _married,
            "promised": _promised,
+           "capital": _capital,
            "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),
