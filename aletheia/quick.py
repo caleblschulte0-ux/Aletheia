@@ -924,13 +924,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
-        r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
+        r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
+        r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
+    # "Is milk on my list" went to the planner (2026-10-07). The list is a
+    # store; whether a thing is on it is a read.
+    ("shopping_has", re.compile(
+        r"^(?:is|are) (?:there )?(?:any |some )?(?P<has>[a-z0-9][a-z0-9 '&-]{1,40}?) on (?:my|the) (?:shopping |grocery )?list\s*\??$"
+        r"|^(?:did i|have i) (?:put|add|added) (?:any |some )?(?P<has2>[a-z0-9][a-z0-9 '&-]{1,40}?) (?:on|to) (?:my|the) (?:shopping |grocery )?list\s*\??$"
+        r"|^how many (?:things|items) (?:are )?on (?:my|the) (?:shopping|grocery) list\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What notes do I have about Dana" (2026-10-07, to a model).
+        r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -983,7 +992,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "ran",
+                                           "has", "has2",
                                            "date_ahead", "date_ahead2", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
@@ -2559,6 +2569,27 @@ def _battery() -> str:
     return "The PC is " + said + "."
 
 
+def _shopping_has(item: str = "") -> str | None:
+    """Whether one thing is on his shopping list, or the list when no thing."""
+    from aletheia import intercom
+    try:
+        if not item:
+            return intercom.shopping_answer()
+        rows = intercom._shopping_items()
+    except Exception:
+        return None
+    want = " ".join(str(item).casefold().split())
+    stem = want[:-1] if len(want) > 3 and want.endswith("s") else want
+    hits = [str(r.get("need") or "") for r in rows
+            if stem and stem in " ".join(str(r.get("need") or "").casefold().split())]
+    if hits:
+        return f"Yes - {hits[0]} is on your shopping list."
+    if not rows:
+        return f"No - your shopping list is empty."
+    verb = "aren't" if want.endswith("s") and not want.endswith("ss") else "isn't"
+    return f"No, {item} {verb} on your shopping list."
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -3875,6 +3906,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
+           "shopping_has": lambda rest: _shopping_has(rest),
            "battery": lambda rest: _battery(),
            "free": _free,
            "next_meeting": lambda rest: _next_meeting(),

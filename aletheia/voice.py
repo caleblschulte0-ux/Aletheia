@@ -2995,7 +2995,10 @@ def _interpret(transcript: str) -> dict:
     # "Make a note that the roof leaks" waited two minutes on her own model
     # with every frontier off (2026-09-22); it is the same note.
     m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
-                 r"note that|note|write down that|write down|log)\s+(.+)", low)
+                 # "Note: buy a card for Dana" missed this (a colon, not a
+                 # space), reached the planner and was refused as SPENDING
+                 # (2026-10-07). Writing a line down commits nothing.
+                 r"note that|note|write down that|write down|log)(?:\s*:\s*|\s+)(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
     # "Remember that my landlord is Mr Okafor" is the same note. With every

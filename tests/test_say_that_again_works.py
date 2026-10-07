@@ -37,3 +37,20 @@ class TheBattery(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheListAndTheNotes(unittest.TestCase):
+    def test_is_it_on_my_list(self):
+        rows = [{"need": "milk"}, {"need": "eggs"}]
+        with mock.patch("aletheia.intercom._shopping_items", return_value=rows):
+            self.assertEqual(quick.answer("is milk on my list"), "Yes - milk is on your shopping list.")
+            self.assertEqual(quick.answer("are there any bananas on the list"),
+                             "No, bananas aren't on your shopping list.")
+
+    def test_a_note_with_a_colon_is_a_note(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("note: buy a birthday card for dana")["command"],
+                         {"kind": "note", "text": "buy a birthday card for dana"})
+
+    def test_notes_about_someone(self):
+        self.assertEqual(quick.match("what notes do i have about dana"), ("recall", "dana"))
