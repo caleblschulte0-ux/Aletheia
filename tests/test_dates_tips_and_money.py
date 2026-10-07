@@ -86,3 +86,23 @@ class AlarmsListsAndSmallThings(unittest.TestCase):
     def test_count_and_a_riddle(self):
         self.assertEqual(quick.answer("count to five"), "1, 2, 3, 4, 5.")
         self.assertIn("?", quick.answer("tell me a riddle"))
+
+
+class GoodMorningMentionsTheWeather(unittest.TestCase):
+    def test_when_she_can_read_it(self):
+        from aletheia import weather
+        with mock.patch("aletheia.quick._overnight", return_value="A quiet night."), \
+                mock.patch("aletheia.quick._focus", return_value="the day is yours"), \
+                mock.patch.object(weather, "where_he_is", return_value=("78701", "Austin")), \
+                mock.patch.object(weather, "forecast", return_value={"periods": [
+                    {"name": "Today", "temperature": 71, "shortForecast": "Mostly Sunny"}]}):
+            self.assertEqual(quick.answer("good morning"),
+                             "Good morning. A quiet night. Outside it's mostly sunny, 71 degrees.")
+
+    def test_never_an_error_in_a_greeting(self):
+        from aletheia import weather
+        with mock.patch("aletheia.quick._overnight", return_value="A quiet night."), \
+                mock.patch("aletheia.quick._focus", return_value="the day is yours"), \
+                mock.patch.object(weather, "where_he_is", return_value=("78701", "Austin")), \
+                mock.patch.object(weather, "forecast", side_effect=weather.WeatherUnavailable("down")):
+            self.assertEqual(quick.answer("good morning"), "Good morning. A quiet night.")

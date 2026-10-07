@@ -3895,6 +3895,19 @@ def _good_morning() -> str:
     focus = _focus()
     if focus and "the day is yours" not in focus:
         parts.append(focus)
+    # The weather, the way a person mentions it in the morning - only when
+    # she can actually read it; a greeting never recites an error.
+    try:
+        from aletheia import weather
+        code, _name = weather.where_he_is()
+        if code:
+            data = weather.forecast()
+            first = (data.get("periods") or [None])[0]
+            if first:
+                short = str(first.get("shortForecast") or "").strip().rstrip(".")
+                parts.append(f"Outside it's {short.lower()}, {first.get('temperature')} degrees.")
+    except Exception:
+        pass
     return " ".join(parts)
 
 
