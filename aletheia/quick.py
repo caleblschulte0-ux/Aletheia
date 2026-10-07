@@ -642,6 +642,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
         r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$")),
+    # "Do I have any meetings today" was answered "nothing coming up" - a
+    # different question - and "how busy am I this week" and "what's my
+    # first meeting tomorrow" went to the planner (2026-10-07).
+    ("agenda_more", re.compile(
+        r"^(?:do i have|have i got|is there) (?:any |an )?(?:meetings?|appointments?|events?|plans|calls?)"
+        r"(?: on)?(?: for)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^how (?:busy|booked|full) (?:am i|is my (?:day|week|calendar|schedule))(?: on)? (?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
+    ("first_meeting", re.compile(
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my first (?:meeting|appointment|event|call|thing)(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
     ("repo_wrong", re.compile(
         r"^what(?:'s| is|s)? (?:wrong|broken|failing|up|going on|the matter) with (?:the |my )?(?P<repo_wrong>[a-z0-9][a-z0-9 _.-]{1,40}?)"
         r"(?: pipeline| repo| project| bot)?\s*\??$"
@@ -2594,6 +2603,16 @@ def _cannot() -> str | None:
 
 
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _first_meeting(day: str = "today") -> str | None:
+    """The first thing on that day's calendar, from the same reading."""
+    said = _agenda(day)
+    if not said or said.startswith("Nothing on your calendar"):
+        return said
+    head, _, rest = said.partition(": ")
+    first = re.split(r",? and |, ", rest, maxsplit=1)[0].rstrip(".")
+    return f"{head}, first up: {first}."
 
 
 def _agenda(day: str = "today") -> str | None:
@@ -5004,6 +5023,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "capabilities": lambda rest: _capabilities(),
            "cannot": lambda rest: _cannot(),
            "agenda": lambda rest: _agenda(rest or "today"),
+           "agenda_more": lambda rest: _agenda(rest or "today"),
+           "first_meeting": lambda rest: _first_meeting(rest or "today"),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repo_wrong": _repo_wrong,

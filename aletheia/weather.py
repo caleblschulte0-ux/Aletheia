@@ -95,6 +95,12 @@ def _point(code: str) -> tuple[float, float, str]:
         place = (data.get("places") or [])[0]
         return (float(place["latitude"]), float(place["longitude"]),
                 f"{place['place name']}, {place['state abbreviation']}")
+    except OSError as exc:
+        # No network is not a wrong postcode, and saying it was sent him to
+        # correct a zip code that was fine (2026-10-07).
+        raise WeatherUnavailable(
+            "I couldn't reach the weather service just now - the internet may be down. "
+            "Everything else still works.") from exc
     except Exception as exc:
         raise WeatherUnavailable(
             f"I couldn't turn {code} into a place ({type(exc).__name__}). "

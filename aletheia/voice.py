@@ -3818,6 +3818,16 @@ def _interpret(transcript: str) -> dict:
                           r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
                           r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                           r"(?: at (?P<time>[\w: ]+?))?", low)
+    # "BLOCK OFF FRIDAY AFTERNOON" (2026-10-07: to the planner): a hold
+    # called Busy for that part of that day, the same reversible hold.
+    if not m:
+        b = re.fullmatch(r"(?:block|block off|block out|keep|hold) (?:my )?(?P<day>" + _cal_days + r")"
+                         r"(?: (?P<part>morning|afternoon|evening|night))?(?: free| clear| open)?", low)
+        if b:
+            held = _calendar_hold(text, "Busy", b.group("day"), b.group("part"), None)
+            if held:
+                held["command"]["minutes"] = 60 if not b.group("part") else (180 if b.group("part") != "night" else 120)
+                return held
     if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:

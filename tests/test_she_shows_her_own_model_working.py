@@ -115,8 +115,10 @@ class WhatAreYouDoingCase(unittest.TestCase):
         self.assertIn("so far", block["step"])
         self.assertIn("usually about a minute", block["step"])
         said = current_state.agent_words(block)
-        self.assertTrue(said.startswith("I'm thinking about thinking with my own model") or
-                        said.startswith("I'm thinking about"), said)
+        # Said once: "I'm thinking about thinking with my own model" was the
+        # lead and the step both saying it (2026-10-07).
+        self.assertTrue(said.startswith("I'm thinking with my own model about"), said)
+        self.assertNotIn("thinking about thinking", said)
 
     def test_brains_words_in_each_state(self):
         base = {"claude": {"resting_until": None}, "codex": {"resting_until": None},
