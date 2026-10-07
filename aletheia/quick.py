@@ -361,6 +361,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:give me )?(?:a |some )?synonyms? (?:for|of) (?P<syn2>[a-z][a-z'-]{1,30})\s*\??$")),
     ("antonym", re.compile(
         r"^(?:what(?:'s| is|s| are)? )?(?:the |an |some )?(?:opposite of|antonyms? (?:for|of)) (?P<ant>[a-z][a-z'-]{1,30})\s*\??$")),
+    ("weight", re.compile(
+        r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
     ("work_at", re.compile(
         r"^(?:where do i (?:work|go to school|study)|who do i work for|where(?:'s| is) my (?:work|job|office|school))\s*\??$")),
     ("after_that", re.compile(
@@ -2005,7 +2007,8 @@ def _logged(text: str) -> str | None:
         drink = g["logged_drink"]
         total, unit = 0.0, "glass"
         for at, said in rows:
-            m = re.match(rf"i (?:drank|had) (\w+) (glass(?:es)?|cups?|bottles?|mugs?|cans?) of {drink}\b", said)
+            # "Log 8 glasses of water" is kept as "8 glasses of water" (2026-10-07: not counted).
+            m = re.match(rf"(?:i (?:drank|had) )?(\w+) (glass(?:es)?|cups?|bottles?|mugs?|cans?) of {drink}\b", said)
             if m and at >= start and amount(m.group(1)):
                 total += amount(m.group(1))
                 unit = {"glasses": "glass"}.get(m.group(2), m.group(2) if m.group(2) == "glass" else m.group(2).rstrip("s"))
@@ -7834,6 +7837,25 @@ _REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat
                          r"one more time|i didn'?t (?:catch|hear) that)(?: please)?")
 
 
+def _weight() -> str | None:
+    """"What's my weight": the newest weight he told her, with when."""
+    said = re.compile(r"\bi(?: weigh| weighed| am|'m) (\d{2,3}(?:\.\d)?)(?: ?(pounds|lbs?|kg|kilos|kilograms))?", re.IGNORECASE)
+    for row in _notes():
+        text = str(row.get("text") or "")
+        m = said.search(text)
+        if m and (text.casefold().startswith("i weigh") or m.group(2)):
+            unit = {"lb": "pounds", "lbs": "pounds", "kilos": "kg", "kilograms": "kg"}.get((m.group(2) or "").casefold(),
+                                                                                      (m.group(2) or "").casefold())
+            when = ""
+            try:
+                from aletheia import speech
+                when = ", " + speech.humanize_time(str(row.get("ts") or row.get("at") or "")) if (row.get("ts") or row.get("at")) else ""
+            except Exception:
+                when = ""
+            return f"You told me you weigh {m.group(1)}{' ' + unit if unit else ''}{when}."
+    return None
+
+
 def _work_at() -> str | None:
     """"Where do I work": the note he made saying so. Nothing kept is left
     to whatever else might know (his profile), never answered "no"."""
@@ -8167,6 +8189,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "work_at": lambda rest: _work_at(),
+           "weight": lambda rest: _weight(),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

@@ -2560,5 +2560,24 @@ class RestartTheTimer(unittest.TestCase):
         self.assertGreater(left.total_seconds(), 9 * 60)
 
 
+
+class WeightWaterAndSpending(unittest.TestCase):
+    """2026-10-07: "I weigh 180" and "I spent 40 dollars on gas" went to the
+    planner, and "log 8 glasses of water" was not counted."""
+
+    def test_kept(self):
+        for said in ("I weigh 180", "I spent 40 dollars on gas", "i'm 82 kg"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("I'm 30")["command"] or {}).get("kind"), "note")
+
+    def test_read_back(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I weigh 180"}]):
+            self.assertEqual(quick.answer("what's my weight"), "You told me you weigh 180.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much do I weigh"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6949,6 +6949,13 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).
+    # Kept in his words; "what's my weight" reads the newest one back.
+    if re.fullmatch(r"i(?: weigh| weighed| am|'m) \d{2,3}(?:\.\d)?(?: ?(?:pounds|lbs?|kg|kilos|kilograms))?"
+                    r"(?: (?:today|now|this morning))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
+            or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
+                            r"(?: (?:today|yesterday|this week|last night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I work at Acme", "I go to school at UIC" (2026-10-07: to the planner).
     # Not "I work at 9 tomorrow" - that is a shift, not a place.
     m = re.fullmatch(r"i (?:work|am working|started working|go to school|study) (?:at|for) (?P<where>[a-z][a-z0-9&' .-]{1,40})", low)
