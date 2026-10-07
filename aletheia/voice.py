@@ -3695,6 +3695,11 @@ def _interpret(transcript: str) -> dict:
         plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", name)
         timer_words = (f"set a timer for {named_first.group('n')} {named_first.group('u')}"
                        + ("" if plain else f" for {name}"))
+    # "Set a timer for 5 minutes called tea" (2026-10-07: to the planner).
+    timer_words = re.sub(r"^((?:set|start) (?:a |an )?timer (?:for |of )?\d+\s*\w+) (?:called|named|labell?ed) "
+                         r"(?:the |my )?([a-z][a-z ]{1,24})$", r"\1 for \2", timer_words)
+    timer_words = re.sub(r"^(?:set|start) (?:a |an )?(\d+)[- ]?(second|sec|minute|min|hour|hr)s? timer (?:called|named|labell?ed) "
+                         r"(?:the |my )?([a-z][a-z ]{1,24})$", r"set a timer for \1 \2s for \3", timer_words)
     m = re.fullmatch(r"(?:set|start) (?:a |an )?timer (?:for |of )?"
                      r"(\d+)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
                      r"(?:\s+(to|for|so i can)\s+(.+))?", timer_words)
@@ -4233,6 +4238,19 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "stopwatch", "action": "stop"}, "say": None}
     if re.fullmatch(r"(?:reset|clear|restart) (?:the |my )?stopwatch", low):
         return {"command": {"kind": "stopwatch", "action": "reset"}, "say": None}
+    # "How long has it been" straight after the stopwatch (2026-10-07: to a
+    # model, which had no stopwatch to read).
+    if re.fullmatch(r"how long has it been(?: running| going)?|how long(?:'s| is) it been|what(?:'s| is) it at"
+                    r"|how much time (?:has passed|is on it)|what(?:'s| is) the time on it", low):
+        try:
+            from aletheia import converse, quick
+            rows = converse.recent(limit=2) or []
+            if any("stopwatch" in f"{r.get('he_asked') or ''} {r.get('she_answered') or ''}".casefold() for r in rows):
+                said = quick.answer("how long has the stopwatch been running")
+                if said:
+                    return {"command": None, "say": said}
+        except Exception:  # noqa: BLE001 - the planner still has it
+            pass
     # "CLEAR MY SHOPPING LIST" (2026-10-07: to the planner). Every row is
     # cancelled, never deleted, through the verb that already does it.
     if re.fullmatch(r"(?:clear|empty|wipe|reset|delete|delete everything on|clear out|empty out|get rid of|scrap) (?:my |the )?"

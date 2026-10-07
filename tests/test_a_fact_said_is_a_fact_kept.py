@@ -1937,5 +1937,24 @@ class AListOfMoviesCase(unittest.TestCase):
         self.assertIn("deleted", out["say"])
 
 
+
+class ATimerCalledTeaCase(unittest.TestCase):
+    """2026-10-07: "set a timer for 5 minutes called tea" went to the planner,
+    and "how long has it been" after the stopwatch went to a model."""
+
+    def test_called(self):
+        from aletheia import voice
+        for said in ("set a timer for 5 minutes called tea", "set a 5 minute timer called tea"):
+            with self.subTest(said=said):
+                self.assertIn("tea timer", voice._interpret(said)["command"]["text"])
+
+    def test_how_long_has_it_been(self):
+        from aletheia import voice, converse, quick
+        with mock.patch.object(converse, "recent", return_value=[{"he_asked": "start a stopwatch",
+                                                                   "she_answered": "Stopwatch started."}]), \
+                mock.patch.object(quick, "answer", return_value="Your stopwatch is at 2 minutes."):
+            self.assertEqual(voice._interpret("how long has it been")["say"], "Your stopwatch is at 2 minutes.")
+
+
 if __name__ == "__main__":
     unittest.main()
