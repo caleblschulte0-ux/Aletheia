@@ -1775,6 +1775,24 @@ def _undo_answer(cmd: dict) -> str:
 
 
 #: What he asks for by voice that can be taken straight back, by kind.
+_TASK_LEAD = re.compile(
+    r"^(?:call|phone|ring|email|text|message|write|pay|book|fix|send|check|finish|schedule|cancel|renew|"
+    r"return|pick up|drop off|clean|wash|mow|file|submit|apply|follow up|chase|ask|tell|order|buy|get|"
+    r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|take|make|do)\b")
+
+
+def task_parts(description: str) -> list[str]:
+    """"call mom, pay rent and buy stamps" -> the three things to do; one
+    item when it is not plainly a list of separate things to do."""
+    text = " ".join(str(description or "").split())
+    if "," not in text and " and " not in text:
+        return [text]
+    parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+", text) if p.strip()]
+    if len(parts) < 2 or not all(_TASK_LEAD.match(p.casefold()) for p in parts):
+        return [text]
+    return parts
+
+
 UNDOES_HIS_ASK = ("task_new", "shopping_add", "list_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
                   "remind_every",
                   "calendar_hold", "file_write", "note")
@@ -1817,13 +1835,20 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
     if kind == "task_new":
         from aletheia import tasks
         desc = str(command.get("description") or "").strip()
-        match = [t for t in tasks.all_tasks()
-                 if str(t.get("description") or "").strip().casefold() == desc.casefold()
-                 and t.get("status") not in ("DONE", "CANCELLED")]
-        if not match:
+        parts = task_parts(desc) if not command.get("deadline") else [desc]
+        gone = []
+        for part in (parts if len(parts) > 1 else [desc]):
+            match = [t for t in tasks.all_tasks()
+                     if str(t.get("description") or "").strip().casefold() == part.casefold()
+                     and t.get("status") not in ("DONE", "CANCELLED")]
+            if match:
+                tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
+                gone.append(part)
+        if not gone:
             return f"That task ({desc}) is already gone."
-        tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
-        return f"Undone: cancelled the task {desc}."
+        if len(gone) > 1:
+            return f"Undone: cancelled the tasks {speech.and_list(gone)}."
+        return f"Undone: cancelled the task {gone[0]}."
     if kind == "list_add":
         from aletheia import lists
         name = str(command.get("list") or "")
@@ -2516,6 +2541,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             raise act.Refused(f"I couldn't read {cmd['deadline']!r} as a day.")
         made = tasks_mod.set_deadline(found["id"], str(cmd["deadline"]))
         return f"moved — {_task_words(made)}"
+    if kind == "task_new" and len(task_parts(cmd["description"])) > 1 and not cmd.get("deadline"):
+        # "Add call mom, pay rent and buy stamps to my to do list" was ONE
+        # task with all three in it (2026-10-07). Each thing to do is its own.
+        made_parts = []
+        for part in task_parts(cmd["description"]):
+            slug = re.sub(r"[^a-z0-9]+", "-", part.lower()).strip("-")[:40] or "task"
+            taken = {t["id"] for t in tasks.all_tasks()}
+            while slug in taken:
+                slug = f"{slug}-2"
+            tasks.create(slug, part, goal=cmd.get("goal"), assigned_worker=cmd.get("worker"))
+            made_parts.append(part)
+        return f"{len(made_parts)} tasks queued — {speech.and_list(made_parts)}"
     if kind == "task_new":
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),

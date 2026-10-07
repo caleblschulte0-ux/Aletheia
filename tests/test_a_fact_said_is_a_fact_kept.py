@@ -60,5 +60,24 @@ class SmallOnes(unittest.TestCase):
         self.assertTrue(quick.answer("what's the date tomorrow").startswith("Tomorrow is"))
 
 
+
+
+class SeveralThingsToDoAreSeveralTasks(unittest.TestCase):
+    def test_a_list_of_things_to_do_splits(self):
+        from aletheia import intercom
+        self.assertEqual(intercom.task_parts("call mom, pay rent and buy stamps"),
+                         ["call mom", "pay rent", "buy stamps"])
+
+    def test_one_thing_with_an_and_in_it_stays_one(self):
+        from aletheia import intercom
+        for one in ("call mom and dad", "pay rent and utilities", "call the bank"):
+            self.assertEqual(intercom.task_parts(one), [one])
+
+    def test_the_receipt_counts_them(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("task_new", "3 tasks queued — call mom, pay rent and buy stamps")
+        self.assertEqual(said, "Added 3 tasks: call mom, pay rent and buy stamps.")
+
+
 if __name__ == "__main__":
     unittest.main()
