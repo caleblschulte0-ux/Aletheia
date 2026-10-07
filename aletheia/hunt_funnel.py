@@ -93,6 +93,25 @@ _ERROR_NAME = re.compile(r"^([A-Za-z_][A-Za-z0-9_]{2,60}(?:Error|Exception|Timeo
 
 _NET_CODE = re.compile(r"net::(ERR_[A-Z_]{2,40})")
 
+#: Any leading name before a colon - published only when it is the name of a
+#: real exception class, so an employer's name never is.
+_LEADING_NAME = re.compile(r"^([A-Z][A-Za-z0-9_]{2,60})\s*:")
+
+
+def _exception_names() -> set[str]:
+    """The names of every exception class this process has loaded. Most of
+    hers do not end in Error (DuplicateSubmission, PressNeverReached,
+    Halted), and live 2026-10-07 51 of 59 failures still read "other"."""
+    names, todo = set(), [BaseException]
+    while todo:
+        cls = todo.pop()
+        names.add(cls.__name__)
+        try:
+            todo.extend(cls.__subclasses__())
+        except TypeError:
+            continue
+    return names
+
 
 def _failed_bucket(record: dict) -> str:
     why = str(record.get("failure") or "")
@@ -106,6 +125,9 @@ def _failed_bucket(record: dict) -> str:
     named = _ERROR_NAME.match(why.strip())
     if named:
         return named.group(1)
+    leading = _LEADING_NAME.match(why.strip())
+    if leading and leading.group(1) != "Error" and leading.group(1) in _exception_names():
+        return leading.group(1)
     if re.match(r"^Error\s*:", why.strip()):
         # The browser library's own exception is called just "Error", and
         # it was most of the 52 "other" failures on 2026-10-07. Its network
@@ -118,6 +140,10 @@ def _failed_bucket(record: dict) -> str:
         # 2026-10-07, 54 of 74 failures read "other".
         wall = str(record.get("boundary") or "unknown").casefold()
         return "browser_" + re.sub(r"[^a-z0-9_]+", "_", wall)[:40]
+    if not why.strip():
+        # A record put down with no words: the last try's own words, if any.
+        last = str(record.get("last_failure") or "").strip()
+        return _failed_bucket({"failure": last}) if last else "no_reason_written"
     return "other"
 
 
