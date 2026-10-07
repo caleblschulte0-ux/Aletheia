@@ -1963,7 +1963,7 @@
       "id": "shorts.mailbox.answer",
       "description": "Answer the Shorts pipeline's three mailboxes from your PC - grade a held render from its frames, rewrite a held story's words, answer a text ask - writing only the answer files the pipeline already accepts from me",
       "provider": "github.api",
-      "status": "NEEDS_CONFIGURATION",
+      "status": "UNAVAILABLE",
       "risk_class": "low",
       "approval_policy": "registry_grant",
       "caller": "aletheia.runtime tick (guarded 'shorts_mailbox') launches python -m aletheia.shorts_mailbox once in each of his morning slots; python -m aletheia.shorts_mailbox once --force by hand",
