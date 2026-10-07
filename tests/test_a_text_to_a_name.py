@@ -306,5 +306,29 @@ class FreeTimeAskedEveryWay(unittest.TestCase):
         self.assertIn("can't cancel", voice._interpret("cancel my dentist appointment")["say"])
 
 
+class DoubleBooked(unittest.TestCase):
+    def events(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        day = dt.datetime.now(tz).date() + dt.timedelta(days=2)
+        at = lambda h, m=0: dt.datetime.combine(day, dt.time(h, m), tzinfo=tz).isoformat()
+        return [{"title": "Dentist", "start": at(15), "end": at(16)},
+                {"title": "Standup", "start": at(15, 30), "end": at(15, 45)},
+                {"title": "Gym", "start": at(18), "end": at(19)}]
+
+    def test_two_that_overlap_are_named(self):
+        from aletheia import calendar, quick
+        with mock.patch.object(calendar, "all_events", return_value=self.events()):
+            said = quick.answer("am i double booked")
+        self.assertTrue(said.startswith("Yes: Dentist and Standup overlap "), said)
+
+    def test_none_that_overlap(self):
+        from aletheia import calendar, quick
+        with mock.patch.object(calendar, "all_events", return_value=self.events()[2:]):
+            self.assertEqual(quick.answer("do i have any conflicts this week"),
+                             "No - nothing on your calendar overlaps in the next week.")
+
+
 if __name__ == "__main__":
     unittest.main()

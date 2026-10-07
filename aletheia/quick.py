@@ -761,6 +761,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:do i have|have i got|is there) (?:any |an )?(?:meetings?|appointments?|events?|plans|calls?)"
         r"(?: on)?(?: for)? (?P<day>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^how (?:busy|booked|full) (?:am i|is my (?:day|week|calendar|schedule))(?: on)? (?P<day2>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")),
+    # "AM I DOUBLE BOOKED" (2026-10-07: to the planner) - two events on his
+    # calendar that overlap, in the coming week.
+    ("double_booked", re.compile(
+        r"^(?:am i|are we) (?:double[- ]?booked|overbooked)(?: (?:this week|today|tomorrow))?\s*\??$"
+        r"|^(?:do i have|are there|any) (?:any )?(?:calendar )?(?:conflicts|clashes|overlaps|overlapping (?:meetings|events))"
+        r"(?: (?:on my calendar|this week|today|tomorrow))?\s*\??$")),
     # A DAY BY ITS DATE (2026-10-07: "what's on my calendar on the 15th"
     # and "what do I have on October 15" went to the planner).
     ("agenda_on", re.compile(
@@ -3128,6 +3134,40 @@ def _first_meeting(day: str = "today") -> str | None:
     head, _, rest = said.partition(": ")
     first = re.split(r",? and |, ", rest, maxsplit=1)[0].rstrip(".")
     return f"{head}, first up: {first}."
+
+
+def _double_booked() -> str | None:
+    """Events on his calendar that overlap in the next seven days."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    try:
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+                end = calendar.parse_time(event["end"]).astimezone(tz) if event.get("end") else \
+                    start + dt.timedelta(minutes=int(event.get("minutes") or 60))
+            except (KeyError, ValueError, TypeError):
+                continue
+            if now <= end and start <= now + dt.timedelta(days=7):
+                rows.append((start, end, str(event.get("title") or "something")[:60]))
+    except Exception:
+        return None
+    rows.sort()
+    clashes = []
+    for i, (start, end, title) in enumerate(rows):
+        for other_start, _other_end, other in rows[i + 1:]:
+            if other_start >= end:
+                break
+            when = start.strftime("%A at %I:%M %p").replace(" 0", " ").replace(":00 ", " ").lower().capitalize()
+            clashes.append(f"{title} and {other} overlap {when}")
+    if not clashes:
+        return "No - nothing on your calendar overlaps in the next week."
+    return "Yes: " + speech.and_list(clashes[:3]) + (f", and {len(clashes) - 3} more" if len(clashes) > 3 else "") + "."
 
 
 def _agenda_on(words: str) -> str | None:
@@ -6216,6 +6256,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
            "agenda_on": lambda rest: _agenda_on(rest),
+           "double_booked": lambda rest: _double_booked(),
            "how_many": lambda rest: _how_many(),
            "alerts": lambda rest: _alerts(),
            "repo_wrong": _repo_wrong,
