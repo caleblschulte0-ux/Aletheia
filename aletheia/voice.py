@@ -5851,6 +5851,15 @@ def _interpret(transcript: str) -> dict:
                      r"(?: today| this morning| tonight| just now| already)?", low)
     if m:
         return {"command": {"kind": "note", "text": f"took my {m.group('what')}"}, "say": None}
+    # MONEY BETWEEN PEOPLE (2026-10-07: "I owe Sam 20 dollars", "Sam paid me
+    # back" each to the planner). Said as a fact, it is a note in his words;
+    # "who do I owe" adds the notes up. Nothing here moves any money.
+    _amt = r"\$?\d+(?:\.\d{1,2})?(?: ?(?:dollars|bucks))?"
+    if re.fullmatch(r"(?:i owe [a-z][a-z ]{0,25}? " + _amt + r"|[a-z][a-z ]{0,25}? owes me " + _amt
+                    + r"|i (?:lent|loaned) [a-z][a-z ]{0,25}? " + _amt + r"|i borrowed " + _amt + r" from [a-z][a-z ]{0,25}?"
+                    + r"|i paid [a-z][a-z ]{0,25}? back(?: " + _amt + r")?|[a-z][a-z ]{0,25}? paid me back(?: " + _amt + r")?)"
+                    + r"(?: for [a-z][a-z ]{0,30})?", low) and not low.startswith(("you ", "she ", "thea ")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS DAY, LOGGED (2026-10-07: "I drank a glass of water", "I ran 3
     # miles", "I slept 7 hours" went to the planner). A note in his words
     # with the time on it; `quick._logged` adds today's or this week's up.

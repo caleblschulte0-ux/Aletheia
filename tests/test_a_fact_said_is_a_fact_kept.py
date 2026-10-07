@@ -898,5 +898,21 @@ class PutThatBack(unittest.TestCase):
         self.assertTrue(self.say("turn my reminders back on").startswith("Back on:"))
 
 
+class MoneyBetweenPeople(unittest.TestCase):
+    def test_said_is_noted(self):
+        for said in ("i owe sam 20 dollars", "jess owes me 15 for lunch", "sam paid me back", "i lent jess 40 dollars"):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"]["kind"], "note")
+
+    def test_added_up_and_settled(self):
+        notes = [{"text": "i paid sam back"}, {"text": "jess owes me 15 for lunch"}, {"text": "i owe sam 20 dollars"}]
+        with mock.patch.object(quick, "_notes", return_value=notes[1:]):
+            self.assertEqual(quick.answer("who do i owe money"), "You owe Sam $20. Jess owes you $15.")
+            self.assertEqual(quick.answer("how much do i owe sam"), "You owe Sam $20.")
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("who do i owe"), "You don't owe anybody that you've told me about. Jess owes you $15.")
+            self.assertEqual(quick.answer("does jess owe me money"), "Jess owes you $15.")
+
+
 if __name__ == "__main__":
     unittest.main()

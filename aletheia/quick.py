@@ -1402,6 +1402,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What notes do I have about Dana" (2026-10-07, to a model).
         r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What do I know about Sam" (2026-10-07: to a model).
+        r"|^what do (?:i|you|we) know about (?:the |my )?(?P<recall12>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What am I allergic to" (2026-10-07: to the planner, a turn after
         # "remember that I'm allergic to peanuts").
         r"|^what am i (?P<recall7>allergic) to\s*\??$|^what are my (?P<recall8>allergies)\s*\??$"
@@ -1409,6 +1411,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When does the plumber come" a turn after noting it (2026-10-07: to
     # the planner). A note answers it; no note is not "never" - his mail or
     # calendar may know - so that case goes on to a model.
+    # "Who do I owe money", "how much do I owe Sam", "who owes me" (2026-10-07:
+    # each to a model, a turn after "remember I owe Sam 20 dollars").
+    ("owed", re.compile(
+        r"^who (?:do i owe|owes me)(?: money| anything)?\s*\??$"
+        r"|^(?:do i owe|does) (?:anyone|anybody) (?:any )?(?:money|anything)(?: owe me(?: money)?)?\s*\??$"
+        r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
+        r"|^how much (?:do i owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: owe me)?\s*\??$"
+        r"|^(?:do i owe|does) (?P<owe_who>(?!anyone\b|anybody\b)[a-z][a-z ]{0,25}?)(?: owe me)?(?: (?:any )?money| anything)?\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
@@ -1753,7 +1763,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -3637,6 +3647,71 @@ def _tasks_done(when: str = "") -> str:
         return f"Nothing ticked off your list {when}."
     return (f"{speech.count_phrase(len(done), 'task')} done {when}: " + speech.and_list(done[:6])
             + (f", and {len(done) - 6} more" if len(done) > 6 else "") + ".")
+
+
+_MONEY = r"\$?(?P<amt>\d+(?:\.\d{1,2})?)(?: ?(?:dollars|bucks|usd|\$))?"
+
+
+def _ledger() -> dict:
+    """{person: amount} from his notes, oldest first: positive is owed TO
+    him, negative is what he owes. "Paid back" settles that direction."""
+    rows = list(reversed(_notes()))
+    out: dict[str, float] = {}
+    shown: dict[str, str] = {}
+    for row in rows:
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold().rstrip(".")
+        low = re.sub(r"^(?:remember(?: that)?|note(?: that)?) ", "", low)
+        m = (re.fullmatch(r"i owe (?P<who>[a-z][a-z ]{0,25}?) " + _MONEY + r"(?: for .+)?", low)
+             or re.fullmatch(r"i borrowed " + _MONEY + r" from (?P<who>[a-z][a-z ]{0,25}?)(?: for .+)?", low))
+        if m:
+            who = m.group("who")
+            out[who] = out.get(who, 0) - float(m.group("amt"))
+            shown[who] = who
+            continue
+        m = (re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) owes me " + _MONEY + r"(?: for .+)?", low)
+             or re.fullmatch(r"i (?:lent|loaned|gave) (?P<who>[a-z][a-z ]{0,25}?) " + _MONEY + r"(?: for .+)?", low))
+        if m and m.group("who") not in ("i", "you"):
+            who = m.group("who")
+            out[who] = out.get(who, 0) + float(m.group("amt"))
+            continue
+        m = re.fullmatch(r"i paid (?P<who>[a-z][a-z ]{0,25}?) back(?: " + _MONEY + r")?", low)
+        if m and out.get(m.group("who"), 0) < 0:
+            who = m.group("who")
+            out[who] = min(0.0, out[who] + float(m.group("amt"))) if m.group("amt") else 0.0
+            continue
+        m = re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) paid me back(?: " + _MONEY + r")?", low)
+        if m and out.get(m.group("who"), 0) > 0:
+            who = m.group("who")
+            out[who] = max(0.0, out[who] - float(m.group("amt"))) if m.group("amt") else 0.0
+    return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
+
+
+def _money(amount: float) -> str:
+    return f"${amount:,.0f}" if float(amount).is_integer() else f"${amount:,.2f}"
+
+
+def _owed(who: str = "") -> str:
+    """What he owes and is owed, from what he told her; never a guess."""
+    from aletheia import speech
+    ledger = _ledger()
+    who = " ".join(str(who or "").casefold().split())
+    if who:
+        name = who[:1].upper() + who[1:]
+        amount = ledger.get(who, 0)
+        if amount < 0:
+            return f"You owe {name} {_money(-amount)}."
+        if amount > 0:
+            return f"{name} owes you {_money(amount)}."
+        return f"Nothing between you and {name} that you've told me about."
+    if not ledger:
+        return "Nobody, as far as you've told me. Say \"I owe Sam 20 dollars\" and I'll keep track."
+    owe = [f"{k[:1].upper() + k[1:]} {_money(-v)}" for k, v in ledger.items() if v < 0]
+    owed = [f"{k[:1].upper() + k[1:]} owes you {_money(v)}" for k, v in ledger.items() if v > 0]
+    said = ["You owe " + speech.and_list(owe) + "." if owe else "You don't owe anybody that you've told me about."]
+    if owed:
+        said.append(speech.and_list(owed)[:1].upper() + speech.and_list(owed)[1:] + ".")
+    return " ".join(said)
 
 
 def _task_due(words: str) -> str | None:
@@ -7528,6 +7603,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rps": _rps,
            "place_where": lambda rest: _place_where(rest),
            "place_addr": lambda rest: _place_addr(rest),
+           "owed": lambda rest: _owed(rest),
            "birthdays": lambda rest: _birthdays_coming(rest),
            "birthday_when": lambda rest: _birthday_when(rest),
            "task_due": lambda rest: _task_due(rest),
