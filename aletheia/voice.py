@@ -4268,7 +4268,8 @@ def _interpret(transcript: str) -> dict:
                  r"(?:get |am |arrive |go |come )?(?:back )?(?:home|back|there|at work|to work|at the office|to the office|in"
                  r"|at the (?:store|gym|office|grocery store|doctor'?s?)|to the (?:store|gym|office|grocery store)"
                  r"|leave(?: work| home| the house| the office)?|out|$)$", low) \
-        or re.match(r"remind me (?:to|that) (.+?) when i leave(?: work| home| the house| the office)?$", low)
+        or re.match(r"remind me (?:to|that) (.+?) when i leave(?: work| home| the house| the office)?$", low) \
+        or re.match(r"remind me (?:to|that) (.+?) on (?:my|the) way (?:home|to work|back|out|in|to the [a-z]+)$", low)
     if m:
         return {"command": None,
                 "say": "I can't tell where you are yet, so a place can't set off a reminder. "
@@ -7463,6 +7464,12 @@ def _interpret(transcript: str) -> dict:
             "noisy", "messy", "quiet", "adults", "teenagers", "twins", "fighting", "sleeping", "playing", "screaming", "amazing",
             "awesome", "sweet", "funny", "spoiled", "growing", "fast", "late", "early", "here", "there", "back"}:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I GOT MARRIED IN 2018" (2026-10-07: to the planner, and "how long have
+    # I been married" to a model). A note with the year, which
+    # `quick._married` counts from.
+    if re.fullmatch(r"(?:i|we) (?:got|were|was) married (?:in|on|back in) (?:[a-z]+ (?:\d{1,2}(?:st|nd|rd|th)?,? )?)?(?:19|20)\d\d"
+                    r"|(?:i've|i have|we've|we have) been married (?:for |since )?(?:\d{1,2} years|(?:19|20)\d\d)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
     # his words is the writer that reader was missing.
@@ -7524,6 +7531,10 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
                      r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
                      r"|anniversary|account number|member(?:ship)? number|policy number"
+                     # "My flight number is UA 452" (2026-10-07: to the
+                     # planner) - held to a digit below.
+                     r"|(?P<coded>(?:flight|confirmation|booking|reservation|tracking|order|case|ticket|claim|seat|gate"
+                     r"|frequent flyer|rewards|loyalty|room|parking spot|spot) (?:number|code|#))"
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
                      # below, so "my budget is tight" stays how he feels.
@@ -7537,7 +7548,7 @@ def _interpret(transcript: str) -> dict:
                      # "My rent is 1500", "my car insurance is 120 a month"
                      # (2026-10-07: to the planner) - held to a number below.
                      r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)
-    if m and m.group("bill") and not re.search(r"\d", m.group("value")):
+    if m and (m.group("bill") or m.group("coded")) and not re.search(r"\d", m.group("value")):
         m = None
     # "My locker is 42" (2026-10-07: to the planner) - a locker with no
     # number in it is where he left something, not which one is his.

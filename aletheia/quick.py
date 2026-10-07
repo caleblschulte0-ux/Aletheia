@@ -1649,6 +1649,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what are|who are|what's|whats) (?:my|our) (?P<recall14>kids|children|grandkids|grandchildren)(?:'s|'|s)?(?: names?)?\s*\??$")),
     # "What foods don't I like", "do I like mushrooms" (2026-10-07: to a
     # model, a turn after "I don't like mushrooms").
+    # "How long have I been married" (2026-10-07: to a model, a turn after
+    # "I got married in 2018").
+    ("married", re.compile(r"^how long (?:have|has) (?:i|we|anna and i|my wife and i|my husband and i) been married\s*\??$"
+                           r"|^how many years (?:have i|have we) been married\s*\??$|^when did (?:i|we) get married\s*\??$")),
     ("dislikes", re.compile(
         r"^what (?:foods?|things?|food) (?:don't|do not|dont) i (?:like|eat)\s*\??$"
         r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what do i (?:not like|hate|dislike|not eat)\s*\??$"
@@ -2155,7 +2159,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -7685,6 +7689,32 @@ def _dislikes(text: str) -> str | None:
     return "You told me: " + speech.and_list(said[:5]) + "."
 
 
+def _married(text: str) -> str | None:
+    """How long he has been married, from his note naming the year (or the
+    anniversary with one). No year on file is a model's question."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when_asked = text.casefold().startswith("when")
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not re.search(r"\bmarried\b|\banniversary\b", low):
+            continue
+        m = re.search(r"\b(\d{1,2}) years\b", low)
+        if m and "been married" in low and not when_asked:
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        y = re.search(r"\b((?:19|20)\d\d)\b", low)
+        if not y or int(y.group(1)) > today.year:
+            continue
+        if when_asked:
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        years = today.year - int(y.group(1))
+        return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
+                if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
+    return None
+
+
 def _home() -> str | None:
     """Where he lives — the city AND the state, which is how it is said.
 
@@ -10354,6 +10384,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "memory_free": lambda rest: _memory_free(),
            "recall": _recall,
            "dislikes": _dislikes,
+           "married": _married,
            "recall_owned": _recall,
            "friction": lambda rest: _friction(),
            "replies": lambda rest: _replies(),

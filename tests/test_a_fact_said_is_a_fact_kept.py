@@ -4291,5 +4291,34 @@ class WhatHeDoesntEatAndHisKids(unittest.TestCase):
             self.assertIn("Emma", quick.answer("how many kids do i have"))
 
 
+class MarriedFlightNumbersAndTheWayHome(unittest.TestCase):
+    """2026-10-07: "I got married in 2018", "my flight number is UA 452" and
+    "remind me to get gas on the way home" all went to the planner."""
+
+    def _r(self, said):
+        from aletheia import voice
+        return voice._interpret(said) or {}
+
+    def test_writers(self):
+        for said in ("i got married in 2018", "we got married on june 12 2018", "my flight number is ua 452",
+                     "my confirmation code is x7k29"):
+            self.assertEqual((self._r(said).get("command") or {}).get("kind"), "note", said)
+        self.assertNotEqual((self._r("my flight number is unknown").get("command") or {}).get("kind"), "note")
+        r = self._r("remind me to get gas on the way home")
+        self.assertIsNone(r.get("command"))
+        self.assertIn("can't tell where you are", r.get("say"))
+
+    def test_how_long_married(self):
+        import datetime as dt
+        from unittest import mock
+        from aletheia import quick
+        year = dt.date.today().year - 5
+        with mock.patch.object(quick, "_notes", return_value=[{"text": f"I got married in {year}"}]):
+            said = quick.answer("how long have i been married")
+            self.assertIn("5 years", said)
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how long have i been married"))
+
+
 if __name__ == "__main__":
     unittest.main()
