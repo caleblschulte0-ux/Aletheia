@@ -665,6 +665,12 @@ def spoken_receipt(kind: str, detail: str, *,
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
         if body and body.group(1).startswith("you have no "):
             return body.group(1)[0].upper() + body.group(1)[1:] + "."
+        # A timer is "your 10-minute timer is up"; "stopped reminding you:
+        # your timer is up" read a cancelled timer as one that went off
+        # (2026-10-07).
+        timer = body and re.match(r"your (?P<what>.+? timer) is up\b", body.group(1))
+        if timer:
+            return f"Cancelled {_quoted('your ' + timer.group('what'))}."
         if body:
             return f"Stopped reminding you: {_quoted(body.group(1))}."
     if kind == "shopping_off":

@@ -1040,5 +1040,15 @@ class WhereANoteSaysItIs(unittest.TestCase):
             self.assertEqual(voice._interpret("where's my lease")["command"]["kind"], "file_find")
 
 
+
+class ACancelledTimerIsNotOneThatWentOff(unittest.TestCase):
+    def test_the_receipt_says_cancelled(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("reminder_off", "reminder r1 off — your 10-minute timer is up — today at 4:12 am")
+        self.assertEqual(said, "Cancelled your 10-minute timer.")
+        said = speech.spoken_receipt("reminder_off", "reminder r2 off — call the bank — today at 3 pm")
+        self.assertTrue(said.startswith("Stopped reminding you: call the bank"), said)
+
+
 if __name__ == "__main__":
     unittest.main()
