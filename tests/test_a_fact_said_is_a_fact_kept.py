@@ -3407,5 +3407,68 @@ class ADraftPutAway(unittest.TestCase):
                              {"kind": "deny", "id": "mail-1", "because": "draft discarded by voice"})
 
 
+class FocusAndNamedTimers(unittest.TestCase):
+    def test_a_focus_session_is_a_timer(self):
+        got = voice._interpret("start a focus session")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "your 25 minute focus timer is up"))
+        got = voice._interpret("start a focus session for 50 minutes")["command"]
+        self.assertEqual(got["text"], "your 50 minute focus timer is up")
+        self.assertEqual(voice._interpret("end the focus session")["command"],
+                         {"kind": "reminder_off", "which": "focus timer is up"})
+        with mock.patch("aletheia.intercom._reminder_schedules", return_value=[]):
+            self.assertEqual(voice._interpret("how long have I been focusing")["say"], "No focus session is running.")
+
+    def test_a_named_timer_is_cancelled_by_name(self):
+        self.assertEqual(voice._interpret("cancel the pasta timer")["command"],
+                         {"kind": "reminder_off", "which": "pasta timer is up"})
+        self.assertEqual(voice._interpret("stop the timer")["command"],
+                         {"kind": "reminder_off", "which": "timer is up"})
+
+
+class IdeasGoalsThanksAndAJournal(unittest.TestCase):
+    def test_said_is_kept_with_its_word_on_the_front(self):
+        cases = {
+            "I have an idea for a dog treat subscription": "Idea: a dog treat subscription",
+            "save this idea: a podcast about woodworking": "Idea: a podcast about woodworking",
+            "I want to learn Spanish": "I want to learn Spanish",
+            "I'd like to learn how to play guitar": "I want to learn how to play guitar",
+            "my goal this year is to run a marathon": "my goal this year is to run a marathon",
+            "I'm grateful for my family": "Grateful for my family",
+            "journal entry: today was rough but I got through it": "Journal: today was rough but I got through it",
+            "today was a good day": "Journal: today was a good day",
+            "I'm proud of finishing the deck": "Journal: I'm proud of finishing the deck",
+        }
+        for said, kept in cases.items():
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": kept}, said)
+        for to_her in ("I'm grateful for your help", "I'm proud of you", "I want to learn more about you"):
+            got = voice._interpret(to_her)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", to_her)
+
+    def test_read_back_by_what_he_asks(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        old = (now - dt.timedelta(days=9)).isoformat()
+        notes = [{"text": t, "ts": now.isoformat()} for t in (
+            "Idea: a podcast about woodworking", "Idea: a dog treat subscription", "I want to learn Spanish",
+            "my goal this year is to run a marathon", "Grateful for my family", "Journal: today was a good day")]
+        notes.append({"text": "Journal: a long week", "ts": old})
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what ideas have I had"),
+                             "Your ideas, newest first: a podcast about woodworking; a dog treat subscription.")
+            self.assertEqual(quick.answer("what do I want to learn"), "You want to learn Spanish.")
+            self.assertEqual(quick.answer("what are my goals"), "Your goals: to run a marathon.")
+            self.assertEqual(quick.answer("what am I grateful for"), "You're grateful for your family.")
+            self.assertEqual(quick.answer("what did I write in my journal today"), "Your journal from today: today was a good day.")
+            self.assertIn("a long week", quick.answer("read me my journal"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("No ideas kept yet", quick.answer("read me my ideas"))
+            self.assertEqual(quick.answer("what did I write in my journal yesterday"), "Nothing in your journal from yesterday.")
+
+    def test_procrastinating_gets_a_way_in(self):
+        from aletheia import quick
+        self.assertIn("focus session", quick.answer("I'm procrastinating"))
+
+
 if __name__ == "__main__":
     unittest.main()

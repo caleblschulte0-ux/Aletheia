@@ -3359,7 +3359,13 @@ def _interpret(transcript: str) -> dict:
             and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
                              r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
                              r"idea|ideas|plan|answer|answers|space|quiet|coffee break|drink|win|friend|friends|"
-                             r"date|haircut|change|reminder|timer|alarm|it|that|this|them|him|her)\b", m.group("item")):
+                             r"date|haircut|change|reminder|timer|alarm|it|that|this|them|him|her"
+                             # "I need motivation" went on the SHOPPING list (2026-10-07).
+                             r"|motivation|inspiration|encouragement|support|focus|energy|peace|patience|confidence|courage"
+                             r"|luck|love|attention|clarity|closure|sunshine|exercise|therapy|fresh air|a walk|walk|nap"
+                             r"|more time|more sleep|a minute|a moment|a sec|a second|a day|a week|a drink|a raise|raise"
+                             r"|a new job|new job|a job|work|motivating|cheering up|to vent|someone|somebody|company"
+                             r"|out|in|food|to eat|to sleep|to rest|to relax|relaxation|a vacation)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -3487,6 +3493,27 @@ def _interpret(transcript: str) -> dict:
     # whose words end "timer is up"; two running are asked about by name.
     if re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|kill|end|clear) (?:the |my |that |this )?timers?", low):
         return {"command": {"kind": "reminder_off", "which": "timer is up"}, "say": None}
+    # "Cancel the pasta timer" fell through to the planner (2026-10-07):
+    # a named timer is the reminder whose words end "<name> timer is up".
+    m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|kill|end|clear) (?:the |my |that )?"
+                     r"([a-z][a-z ]{0,20}?) timer", low)
+    if m and m.group(1) not in ("the", "my", "that", "this", "a"):
+        return {"command": {"kind": "reminder_off", "which": f"{m.group(1)} timer is up"}, "say": None}
+    # A focus session is a named timer (2026-10-07: "start a focus session",
+    # "help me focus" and "end the focus session" all reached the planner).
+    m = re.fullmatch(r"(?:start|begin|do|let'?s do|set up) (?:a |an |my )?(?:focus|pomodoro|deep work|work) "
+                     r"(?:session|block|timer|sprint)(?: for (\d{1,3}) (?:minutes?|mins?))?"
+                     r"|(?:help me focus|i need to focus|pomodoro)(?: for (\d{1,3}) (?:minutes?|mins?))?", low)
+    if m:
+        n = m.group(1) or m.group(2) or "25"
+        return _interpret(f"set a timer for focus for {n} minutes")
+    if re.fullmatch(r"(?:end|stop|cancel|finish|quit|kill) (?:the |my |this )?(?:focus|pomodoro|deep work) "
+                    r"(?:session|block|timer|sprint)|i'?m done focusing", low):
+        return {"command": {"kind": "reminder_off", "which": "focus timer is up"}, "say": None}
+    if re.fullmatch(r"how (?:long|much time)(?: is)?(?: left| remaining)?(?: have i been focusing| in (?:my|the|this) "
+                    r"(?:focus|pomodoro) (?:session|block)| on (?:my|the) focus(?: session)?)", low):
+        said = _timer_left(named="focus")
+        return {"command": None, "say": "No focus session is running." if said.startswith("You don't have") else said}
     m = re.match(r"(?:cancel|stop|delete|turn off|remove) (?:the |my |that )?"
                  r"reminder (?:about |for |to )?(.+)", low)
     if not m:
@@ -7033,6 +7060,33 @@ def _interpret(transcript: str) -> dict:
                     r"(?: pills?| tablets?| capsules?)?(?: (?:at|around|about) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?| just now| today"
                     r"| this morning| tonight| earlier)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HIS IDEAS, GOALS, THANKS AND JOURNAL (2026-10-07: "I have an idea
+    # for...", "I want to learn Spanish", "I'm grateful for my family",
+    # "journal entry: ..." each went to the planner). A note with a word on
+    # the front that `quick._kept` reads back; nothing addressed to her
+    # ("grateful for your help", "proud of you") is a journal line.
+    m = re.fullmatch(r"(?:i (?:just )?(?:have|had|got|'ve got) (?:an|a new|another) idea(?: for| about|:)? ?|"
+                     r"(?:save|keep|remember|note|write down|jot down) (?:this|an|my|a|the) (?:new )?idea(?: for| about)?:? ?|"
+                     r"(?:new )?idea: ?)(?P<idea>[a-z0-9].{3,200})", low)
+    if m:
+        return {"command": {"kind": "note", "text": "Idea: " + _as_he_said(text, m.group("idea"))}, "say": None}
+    m = re.fullmatch(r"i(?: want|'d like| would like| really want| need) to learn (?P<learn>(?!(?:more )?about you\b|what )[a-z].{1,80})", low)
+    if m:
+        return {"command": {"kind": "note", "text": "I want to learn " + _as_he_said(text, m.group("learn"))}, "say": None}
+    m = re.fullmatch(r"(?:my|one of my) (?:main |big |new )?(?:goals?|new year'?s resolutions?|resolutions?)"
+                     r"(?: (?:this|for this|for the) (?:year|month|week)| for (?:20\d\d|next year))? (?:is|are) (?P<goal>(?!to be honest)(?:to |\d).{2,150})", low)
+    if m and not re.fullmatch(r"(?:what|unclear|nothing|none|secret|private)\b.*", m.group("goal")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:i'?m |i am |i feel |feeling )?(?:really |so |very )?(?:grateful|thankful) (?:for|that) (?P<thanks>(?!you\b|your\b|that\b$|it\b$)[a-z].{1,150})", low)
+    if m:
+        return {"command": {"kind": "note", "text": "Grateful for " + _as_he_said(text, m.group("thanks"))}, "say": None}
+    m = re.fullmatch(r"(?:journal entry|dear diary|journal|diary entry|add to my journal|write in my journal|log in my journal)[:,]? (?P<entry>[a-z0-9].{3,400})"
+                     r"|(?P<day>today was (?:a |an )?(?:really |pretty |very |so )?(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|quiet|nice|terrible)(?: day)?(?: .{1,150})?)"
+                     r"|(?P<proud>i'?m (?:really |so )?proud (?:of (?!you\b|your\b)|that )[a-z].{2,150})", low)
+    if m:
+        entry = m.group("entry") or m.group("day") or m.group("proud")
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, entry)},
+                "say": None}
     # MONEY BETWEEN PEOPLE (2026-10-07: "I owe Sam 20 dollars", "Sam paid me
     # back" each to the planner). Said as a fact, it is a note in his words;
     # "who do I owe" adds the notes up. Nothing here moves any money.

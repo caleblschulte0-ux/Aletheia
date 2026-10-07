@@ -73,8 +73,11 @@ class HisPeopleAndHimselfCase(unittest.TestCase):
             said = quick.answer("what do you know about me")
         self.assertIn("first name: Caleb", said)
         self.assertIn("landlord: Dana", said)
+        # nothing kept anywhere - his notes count too, and an earlier test's
+        # note in the shared throwaway journal is not "nothing"
         with mock.patch("aletheia.profile.known", return_value={}), \
-             mock.patch("aletheia.memory.everything", return_value={}):
+             mock.patch("aletheia.memory.everything", return_value={}), \
+             mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIn("Nothing yet", quick.answer("what have you remembered about me"))
 
     def test_the_voice_layer_no_longer_looks_up_the_key_me(self):

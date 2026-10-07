@@ -1864,7 +1864,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
-        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)(?: today)?$"
+        r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick"
+        # "I'm procrastinating" (2026-10-07: to the planner)
+        r"|procrastinating|unmotivated|distracted|stuck)(?: today| again)?$"
         r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
@@ -1941,12 +1943,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # ANY "WHAT'S MY X" he told her in so many words (2026-10-07: "what's my
     # locker combo" paid a model to find "my locker combo is 12 34 56").
     # LAST, and silent when no note says "my X is": the model still answers.
+    ("kept", re.compile(
+        r"^(?:what (?:ideas have i (?:had|got|told you|saved|given you)|are my ideas|ideas do i have)"
+        r"|(?:read|show|tell|give) me (?:all )?my ideas|(?:list )?my ideas|what were my ideas)(?P<kept_idea>)\s*\??$"
+        r"|^what (?:do i want|did i say i wanted?|have i said i want(?:ed)?|was i wanting) to learn(?P<kept_learn>)\s*\??$"
+        r"|^(?:what (?:are|were) my (?:goals|resolutions|new year'?s resolutions)(?: (?:this|for this) year)?"
+        r"|(?:read|tell|remind) me (?:of )?my (?:goals|resolutions))(?P<kept_goal>)\s*\??$"
+        r"|^(?:what (?:am|have) i (?:been )?(?:grateful|thankful) for|(?:read|show|tell) me (?:what i'?m grateful for|my gratitude(?: list| journal)?))(?P<kept_thanks>)\s*\??$"
+        r"|^(?:(?:read|show|tell) me (?:what'?s in )?my (?:journal|diary)|what(?:'s| is) in my (?:journal|diary)"
+        r"|what did i (?:write|put|say) in my (?:journal|diary))(?P<kept_when> today| yesterday| this week)?(?P<kept_journal>)\s*\??$")),
     ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
     # LAST, so every specific door wins: "when does the trash go out",
     # "when is soccer", "when is the babysitter coming" read the note he
     # made saying so (2026-10-07: all to a model). None when no note does.
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
+        # the calendar's own words belong to the calendar's readers
+        r"(?!(?:meetings?|calls?|appointments?|events?|calendar|schedule)\b)(?!.* (?:today|tomorrow|tonight|this week)\s*\??$)"
         r"(?P<when_note>[a-z][a-z' ]{1,25}?)"
         r"(?: go out| come| happen| start| get picked up| picked up| collected| coming| coming over| arriving| here| day)?\s*\??$")),
 )
@@ -1996,7 +2009,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5732,6 +5745,11 @@ _FEELINGS = {
     "i cant sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
     "i need a break": "Take one. Say \"set a timer for 15 minutes\" and I'll tell you when it's up.",
     "motivate me": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
+    "procrastinating": ("Pick the smallest piece of it and do just that for five minutes. Say \"start a focus "
+                        "session\" and I'll time it."),
+    "unmotivated": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
+    "distracted": "Say \"start a focus session\" and I'll hold the time for you. Put the phone face down.",
+    "stuck": "Tell me what you're stuck on. Saying it out loud is half of it.",
     "say something nice": "You keep starting things most people only talk about. That counts for a lot.",
 }
 
@@ -8582,6 +8600,71 @@ def _lent(text: str) -> str | None:
     return f"You haven't told me you lent your {thing} to anybody."
 
 
+_KEPT = {
+    # which: (what his note starts with, what a row is called, said when none)
+    "idea": (r"idea: ", "idea", "No ideas kept yet. Say \"I have an idea for...\" and I'll hold on to it."),
+    "learn": (r"i want to learn ", "thing to learn", "You haven't told me anything you want to learn."),
+    "goal": (r"(?:my|one of my) (?:main |big |new )?(?:goals?|new year'?s resolutions?|resolutions?)\b", "goal",
+             "You haven't told me your goals. Say \"my goal this year is...\" and I'll keep it."),
+    "thanks": (r"grateful for ", "thing", "You haven't told me what you're grateful for yet."),
+    "journal": (r"journal: ", "journal entry", "Nothing in your journal yet. Say \"journal entry\" and what you want to keep."),
+}
+
+
+def _kept(text: str) -> str | None:
+    """His ideas, things to learn, goals, thanks and journal: the notes the
+    voice layer writes with a word on the front, newest first, read back in
+    his words with that word taken off."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "kept"), None)
+    g = found.groupdict() if found else {}
+    # the markers are empty groups: which one matched is which list
+    which = next((k for k in _KEPT if g.get("kept_" + k) is not None), None)
+    if which is None:
+        return None
+    start, noun, none = _KEPT[which]
+    when = (g.get("kept_when") or "").strip()
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    days = {"today": (today, today), "yesterday": (today - dt.timedelta(days=1),) * 2,
+            "this week": (today - dt.timedelta(days=today.weekday()), today)}.get(when)
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not re.match(start, said.casefold()):
+            continue
+        if days:
+            try:
+                day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            if not days[0] <= day <= days[1]:
+                continue
+        if which in ("idea", "journal"):
+            said = said.split(":", 1)[1].strip()
+        elif which == "thanks":
+            said = said[len("grateful for "):]
+        elif which == "goal":
+            said = re.sub(r"^(?:my|one of my) .{0,40}?\b(?:is|are) ", "", said, flags=re.I)
+        elif which == "learn":
+            said = said[len("i want to learn "):]
+        said = speech.as_she_says_it(said).rstrip(".")
+        if said.casefold() not in {r.casefold() for r in rows}:
+            rows.append(said)
+    if not rows:
+        return f"Nothing in your journal from {when}." if when else none
+    head = {"idea": "Your ideas", "learn": "You want to learn", "goal": "Your goals",
+            "thanks": "You're grateful for", "journal": "Your journal" + (f" from {when}" if when else "")}[which]
+    if which in ("learn", "thanks"):
+        out = f"{head} {speech.and_list(rows[:5])}"
+    else:
+        out = f"{head}, newest first: " + "; ".join(rows[:5]) if len(rows) > 1 else f"{head}: {rows[0]}"
+    if len(rows) > 5:
+        out += f"; and {len(rows) - 5} more"
+    return out + "."
+
+
 def _liked_how(text: str) -> str | None:
     """"How do I like my coffee": his note saying so. None when there is
     none - a taste is not a thing to guess at."""
@@ -9197,6 +9280,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "counted": _counted,
            "ate": _ate,
            "lent": _lent,
+           "kept": _kept,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,
