@@ -41,6 +41,7 @@ alive, and touches nothing.
 """
 from __future__ import annotations
 
+import re
 import datetime as dt
 import json
 import time
@@ -1278,7 +1279,17 @@ def agent_words(block: dict | None = None) -> str:
                 + " Nothing runs until you resume me.")
     if state == "IDLE":
         return "Nothing right now — I'm just here."
-    said = f"{_AGENT_LEAD[state]} {step or mission}".strip()
+    words = step or mission
+    if re.match(r"[a-z]+ing\b", words):
+        # The step is already a clause about her ("thinking with my own
+        # model about ...", "looking things up"): a lead in front made "I'm
+        # thinking about thinking with my own model" (2026-10-07).
+        said = f"I'm {words}"
+    elif state == "THINKING" and step and mission:
+        # "I'm thinking about a reply is on its way" was the other half.
+        said = f"I'm {mission} - {step}"
+    else:
+        said = f"{_AGENT_LEAD[state]} {words}".strip()
     return said.rstrip(".") + "."
 
 

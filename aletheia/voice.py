@@ -1912,6 +1912,22 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "MY NAME IS CALEB", "call me Cal" (2026-10-07: to the planner, while
+    # "what's my name" said "tell me and I'll remember it"). Two words or
+    # more is his full name; one is what to call him. A nickname never
+    # becomes the first name a form is filled with.
+    m = re.fullmatch(r"(?:my name is|my name's) (?P<name>[a-z][a-z.'-]*(?: [a-z][a-z.'-]*){0,3})"
+                     r"|(?:call me|you can call me|please call me) (?P<nick>[a-z][a-z.'-]*(?: [a-z][a-z.'-]*)?)", low)
+    if m and not re.match(r"(?:on|in|not|the|a|an|at|spelled|wrong|missing|still|also|now|being|already|me|it|that|this)\b",
+                          m.group("name") or m.group("nick")):
+        said = _as_he_said(text, m.group("name") or m.group("nick"))
+        said = said.title() if said.islower() else said
+        if m.group("name") and len(said.split()) >= 2:
+            return {"command": {"kind": "remember", "domain": "identity", "key": "full_name", "value": said},
+                    "say": None}
+        return {"command": {"kind": "remember", "domain": "identity", "key": "operator_name", "value": said},
+                "say": None}
+
     # "MY ZIP CODE IS 78701" (2026-10-07). The weather says "tell me your
     # postcode and I'll remember it", and telling her went to the planner.
     m = re.fullmatch(r"(?:my )?(?:zip|zip code|zipcode|postcode|postal code)(?: is|'s|:)? (\d{5}(?:-\d{4})?)"

@@ -606,6 +606,9 @@ def spoken_receipt(kind: str, detail: str, *,
         kept = re.match(r"remembered\s+([\w-]+)\.([\w-]+)\s*$", text)
         if kept:
             whose = "your " if kept.group(1) in ("identity", "preferences", "people") else ""
+            named = {"operator_name": "what to call you", "full_name": "full name"}.get(kept.group(2))
+            if named:
+                return f"Got it - I'll remember {'your ' if named == 'full name' else ''}{named}."
             return f"Got it - I'll remember {whose}{deslug(kept.group(2)).replace("_", " ")}."
     if kind == "task_done":
         marked = re.match(r"marked done\s*[—-]\s*(.+)", text)

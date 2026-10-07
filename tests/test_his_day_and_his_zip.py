@@ -59,3 +59,30 @@ class HisZip(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhatSheIsDoingIsASentence(unittest.TestCase):
+    def test_no_lead_jammed_onto_a_clause(self):
+        from aletheia import current_state
+        self.assertEqual(current_state.agent_words(
+            {"state": "THINKING", "mission": "answering you", "step": "a reply is on its way"}),
+            "I'm answering you - a reply is on its way.")
+        self.assertEqual(current_state.agent_words(
+            {"state": "ACTING", "mission": "x", "step": "filling the form at Stripe"}),
+            "I'm filling the form at Stripe.")
+
+
+class HisName(unittest.TestCase):
+    def test_full_name_and_what_to_call_him(self):
+        self.assertEqual(voice.interpret("my name is Caleb Schulte")["command"]["key"], "full_name")
+        got = voice.interpret("call me Cal")["command"]
+        self.assertEqual((got["key"], got["value"]), ("operator_name", "Cal"))
+        self.assertEqual(voice.interpret("my name is caleb")["command"]["value"], "Caleb")
+
+    def test_a_sentence_about_his_name_is_not_a_name(self):
+        for said in ("my name is on the list", "my name is spelled wrong"):
+            self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "remember", said)
+
+    def test_the_receipt(self):
+        self.assertEqual(speech.spoken_receipt("remember", "remembered identity.operator_name"),
+                         "Got it - I'll remember what to call you.")
