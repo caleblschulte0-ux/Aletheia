@@ -873,6 +873,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # it was paying a round trip to be read aloud. Deliberately without a
     # trailing clause: "what's my next meeting ABOUT" and "move my next
     # meeting" are different questions and belong to the planner.
+    # THE NEXT MEETING, IN DETAIL, AND THE SHAPE OF THE DAY (2026-10-07).
+    # "Who is my next meeting with", "where is my next meeting" and "how
+    # long is my day" all went to the planner - the calendar already holds
+    # the attendees, the place, and the first start and last end.
+    ("next_detail", re.compile(
+        r"^(?P<nd_who>who(?:'s| is|s)?) (?:my next (?:meeting|appointment|call) with|in my next (?:meeting|call))\s*\??$"
+        r"|^who am i meeting (?:with )?next\s*\??$"
+        r"|^(?P<nd_where>where(?:'s| is|s)?) my next (?:meeting|appointment|event)\s*\??$")),
+    ("day_span", re.compile(
+        r"^how (?:long|busy|full|packed) is my day(?: today| tomorrow)?\s*\??$"
+        r"|^when (?:does|do) my day (?:end|finish|wrap up)(?: today| tomorrow)?\s*\??$"
+        r"|^when(?:'s| is|s)? my last (?:meeting|appointment|event|call)(?: today| tomorrow)?\s*\??$"
+        r"|^when (?:am i|will i be) (?:done|finished|free) (?:today|for the day|tonight|tomorrow)\s*\??$")),
     ("next_meeting", re.compile(
         r"^what(?:'s| is|s)? my next (?:meeting|appointment|event)$"
         r"|^how long (?:until|till|before) my next (?:meeting|appointment|event)$"
@@ -1509,7 +1522,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "tip", "currency", "date_after"):
+        if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3203,7 +3216,10 @@ def _last_meeting(day: str = "today") -> str | None:
     if not rows:
         return f"Nothing on your calendar {label}."
     end, _start, title = max(rows)
-    return f"Your last thing {label} is {title}, done at {speech.humanize_time(end.isoformat())}."
+    # humanize_time says "today at 5:45 am", which is a second "today" in
+    # the same breath ("done at today at ..."). The day is already said.
+    clock = end.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    return f"Your last thing {label} is {title}, done at {clock}."
 
 
 def _double_booked() -> str | None:
@@ -4212,7 +4228,7 @@ def _free_at(text: str) -> str | None:
         return None                   # no calendar mirror: the model may know more
 
     def clock(t):
-        return t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        return t.astimezone(tz).strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
     when = clock(moment) + ("" if day == now.date() else
                             " tomorrow" if day == now.date() + dt.timedelta(days=1)
                             else f" on {day.strftime('%A')}")
@@ -4223,6 +4239,77 @@ def _free_at(text: str) -> str | None:
         return f"{'No' if busy_asked else 'Yes'}, you're free at {when}."
     start, end, title = sorted(clash)[0]
     return f"{'Yes' if busy_asked else 'No'} - you've got {title} from {clock(start)} to {clock(end)}."
+
+
+def _upcoming_events(now, until=None) -> list:
+    """(start, end, event) still ahead of now, soonest first; cancelled left out."""
+    from aletheia import calendar
+    rows = []
+    for event in calendar.all_events():
+        if event.get("status") == "CANCELLED":
+            continue
+        try:
+            start = calendar.parse_time(event["start"])
+            end = calendar.parse_time(event.get("end") or event["start"])
+        except (KeyError, ValueError, TypeError):
+            continue
+        if end > now and (until is None or start < until):
+            rows.append((start, end, event))
+    return sorted(rows, key=lambda r: r[0])
+
+
+def _next_detail(text: str) -> str | None:
+    """Who his next meeting is with, or where it is - from the event itself."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    try:
+        now = dt.datetime.now(localtime.operator_tz())
+        rows = [r for r in _upcoming_events(now) if r[0] >= now]
+    except Exception:
+        return None
+    if not rows:
+        return "Nothing on your calendar coming up."
+    start, _end, event = rows[0]
+    title = str(event.get("title") or "your next meeting").strip()
+    when = speech.humanize_time(start.isoformat())
+    if text.startswith("where"):
+        place = str(event.get("location") or "").strip()
+        if not place:
+            return f"Your next one is {title} {when}, and it doesn't say where."
+        return f"{title} {when} is at {place}."
+    people = [str(a).strip() for a in (event.get("attendees") or []) if str(a).strip()]
+    if not people:
+        return f"Your next one is {title} {when}, and it doesn't list anybody else."
+    return f"{title} {when}, with {speech.and_list(people[:6])}."
+
+
+def _day_span(text: str) -> str | None:
+    """When his day starts and ends on the calendar, and how many things fill it."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    try:
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        day = now.date() + dt.timedelta(days=1 if "tomorrow" in text else 0)
+        begin = dt.datetime.combine(day, dt.time(0), tz)
+        start_at = max(begin, now) if day == now.date() else begin
+        rows = [r for r in _upcoming_events(start_at, begin + dt.timedelta(days=1)) if r[0] >= begin]
+    except Exception:
+        return None
+    when = "tomorrow" if "tomorrow" in text else "today"
+    if not rows:
+        return (f"Nothing on your calendar {when}" + (" from here on" if when == "today" else "")
+                + " - you're free.")
+    def clock(t):
+        return t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    first, last_end = rows[0][0], max(r[1] for r in rows)
+    last = max(rows, key=lambda r: r[1])
+    title = str(last[2].get("title") or "").strip()
+    if text.startswith("when"):
+        return (f"Your last one {when} is {title}, ending at {clock(last_end)}." if title
+                else f"Your day ends at {clock(last_end)}.")
+    return (f"{speech.count_phrase(len(rows), 'thing')} on your calendar {when}, "
+            f"from {clock(first)} to {clock(last_end)}.")
 
 
 def _next_meeting() -> str | None:
@@ -6429,6 +6516,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "free_at": lambda rest: _free_at(rest),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
+           "next_detail": lambda rest: _next_detail(rest),
+           "day_span": lambda rest: _day_span(rest),
            "running": lambda rest: _running(),
            "mine": _mine,
            "call_me": lambda rest: _call_me(),

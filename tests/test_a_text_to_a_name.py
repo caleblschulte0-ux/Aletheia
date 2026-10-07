@@ -905,5 +905,41 @@ class CountingIsNotASubject(unittest.TestCase):
         self.assertIsNone(quick.match("when is it due"))
 
 
+
+class TheNextMeetingInDetail(unittest.TestCase):
+    def _events(self):
+        import datetime as dt
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        a = (now + dt.timedelta(minutes=30)).replace(microsecond=0)
+        return [{"title": "Design review", "start": a.isoformat(),
+                 "end": (a + dt.timedelta(hours=1)).isoformat(),
+                 "attendees": ["Dana", "Sam"], "location": "Room 4"}]
+
+    def test_who_and_where_come_from_the_event(self):
+        from aletheia import calendar, quick
+        with mock.patch.object(calendar, "all_events", return_value=self._events()):
+            self.assertIn("with Dana and Sam", quick.answer("who is my next meeting with"))
+            self.assertIn("at Room 4", quick.answer("where is my next meeting"))
+
+    def test_an_event_with_nobody_listed_says_so(self):
+        from aletheia import calendar, quick
+        events = self._events()
+        events[0]["attendees"] = []
+        with mock.patch.object(calendar, "all_events", return_value=events):
+            self.assertIn("doesn't list anybody", quick.answer("who is my next meeting with"))
+
+    def test_the_last_meeting_says_today_once(self):
+        from aletheia import calendar, quick
+        with mock.patch.object(calendar, "all_events", return_value=self._events()):
+            said = quick.answer("when's my last meeting today")
+        self.assertEqual(said.count("today"), 1, said)
+
+    def test_how_long_is_my_day_is_answered_from_the_calendar(self):
+        from aletheia import calendar, quick
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertIn("free", quick.answer("how long is my day"))
+
+
 if __name__ == "__main__":
     unittest.main()
