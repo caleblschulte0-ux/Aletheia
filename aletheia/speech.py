@@ -532,6 +532,16 @@ def clock_words(hhmm: str) -> str:
     return f"{twelve} {suffix}" if minute == 0 else f"{twelve}:{minute:02d} {suffix}"
 
 
+def _spoken_number(number: str) -> str:
+    """A phone number in the groups a person reads it in: 555 123 4567."""
+    digits = re.sub(r"\D", "", number)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) == 10:
+        return f"{digits[:3]} {digits[3:6]} {digits[6:]}"
+    return number
+
+
 def spoken_receipt(kind: str, detail: str, *,
                    now: dt.datetime | None = None) -> str:
     """One subsystem receipt, as a sentence.
@@ -541,6 +551,13 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "contact_add":
+        # "remembered Sam as 5551234567 — private contacts only, never the
+        # public repo": a log line, read out loud (2026-10-07).
+        got = re.match(r"remembered (.+?) as (.+?) —", text)
+        if got:
+            reach = [(_spoken_number(x) if "@" not in x else x) for x in got.group(2).split(" and ")]
+            return f"Got it - {got.group(1)}: {and_list(reach)}."
     if kind == "remind_at":
         when = ISO_TIME.search(text)
         what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)

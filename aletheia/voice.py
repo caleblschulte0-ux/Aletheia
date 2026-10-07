@@ -1927,6 +1927,34 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contact_add", "name": m.group(1).strip(),
                             "email": m.group(2).strip()}, "say": None}
 
+    # "SAM'S NUMBER IS 555 123 4567", "save mom's number as ...", "Dana's
+    # email is ..." (2026-10-07: all to the planner). His own number is the
+    # profile's, never a contact called "my".
+    _who = r"(?P<name>[a-z][a-z.-]*(?: [a-z][a-z.-]*){0,2}?)"
+    _num = r"(?P<phone>\+?\(?\d[\d ().-]{6,18}\d)"
+    _mail = r"(?P<email>\S+@\S+\.\S+|\S+ at \S+ dot \S+)"
+    m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? (?:phone )?(?:number|phone|cell|mobile)"
+                      r"(?: number)?(?: as| is| to|:)? " + _num, low)
+         or re.fullmatch(_who + r"'s (?:phone )?(?:number|phone|cell|mobile)(?: number)? is " + _num, low)
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?(?:phone )?(?:number|phone))? " + _num, low))
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
+                            if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
+                            "phone": m.group("phone")}, "say": None}
+    m = (re.fullmatch(r"(?:save|store|remember|put|add) " + _who + r"(?:'s)? email(?: address)?(?: as| is| to|:)? " + _mail, low)
+         or re.fullmatch(_who + r"'s email(?: address)? is " + _mail, low)
+         or re.fullmatch(r"add " + _who + r" to (?:my )?contacts(?: with| at| as)?(?: (?:the )?email(?: address)?)? " + _mail, low))
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a", "his", "her", "their", "our"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(text, m.group("name")).title()
+                            if m.group("name").islower() and text.islower() else _as_he_said(text, m.group("name")),
+                            "email": m.group("email")}, "say": None}
+    m = re.fullmatch(r"add " + _who + r" to (?:my )?contacts", low)
+    if m and m.group("name").split()[0] not in ("my", "your", "the", "a"):
+        name = _as_he_said(text, m.group("name"))
+        name = name.title() if name.islower() else name
+        return {"command": None,
+                "say": f"What's {name}'s number or email? Say \"{name}'s number is ...\" and I'll keep it."}
+
     # "what do you still need from me?" - SETUP. Not the bare "what do you
     # need from me": that is the brief's fourth question, about what is
     # waiting on him (approvals, applications stopped on his answers), and

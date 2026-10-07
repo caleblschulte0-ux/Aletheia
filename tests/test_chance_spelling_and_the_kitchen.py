@@ -168,3 +168,29 @@ class WhatIsDue(unittest.TestCase):
             self.assertIn("call the plumber", quick._due("this week", now))
         self.assertEqual(quick.match("what's due today")[0], "due")
         self.assertEqual(quick.match("what's overdue")[0], "due")
+
+
+class ANumberSaidIsAContact(unittest.TestCase):
+    def test_the_ways_he_says_it(self):
+        from aletheia import voice
+        for said, name in (("sam's number is 555 123 4567", "Sam"),
+                           ("save mom's cell as (555) 123 4567", "Mom"),
+                           ("add Dana Lee to my contacts with number 5551234567", "Dana Lee")):
+            got = voice.interpret(said)["command"]
+            self.assertEqual((got["kind"], got["name"]), ("contact_add", name), said)
+        self.assertEqual(voice.interpret("dana's email is dana@example.com")["command"]["email"], "dana@example.com")
+
+    def test_his_own_number_is_not_a_contact_called_my(self):
+        from aletheia import voice
+        self.assertNotEqual(voice.interpret("my number is 555 123 4567")["command"], None)
+        self.assertNotEqual((voice.interpret("my number is 555 123 4567")["command"] or {}).get("kind"), "contact_add")
+
+    def test_no_number_asks_for_one(self):
+        from aletheia import voice
+        self.assertIn("Sam's number", voice.interpret("add sam to my contacts")["say"])
+
+    def test_the_receipt_is_a_sentence(self):
+        from aletheia import speech
+        self.assertEqual(speech.spoken_receipt(
+            "contact_add", "remembered Sam as 5551234567 — private contacts only, never the public repo"),
+            "Got it - Sam: 555 123 4567.")
