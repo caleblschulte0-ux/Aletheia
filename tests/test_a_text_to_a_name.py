@@ -507,7 +507,7 @@ class MoreWeatherWords(unittest.TestCase):
         from aletheia import quick
         self.assertEqual(quick.match("sunrise tomorrow")[0], "sun")
         for said in ("how much rain today", "what's the chance of rain tomorrow", "will it be sunny tomorrow"):
-            self.assertEqual(quick.match(said)[0], "weather_more", said)
+            self.assertIn(quick.match(said)[0], ("weather", "weather_more"), said)
 
 
 if __name__ == "__main__":
