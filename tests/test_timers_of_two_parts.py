@@ -43,3 +43,35 @@ class AnAllergySaidAsAFact(unittest.TestCase):
     def test_im_is_read_back_as_youre(self):
         self.assertEqual(speech.as_she_says_it("i'm allergic to peanuts"), "you're allergic to peanuts")
         self.assertEqual(speech.as_she_says_it("I've got a dog"), "you've got a dog")
+
+
+class HisComputerAndHisWeek(unittest.TestCase):
+    def test_the_sentences_reach_their_readers(self):
+        for said in ("is my computer okay", "how's my computer doing", "check on my computer"):
+            self.assertEqual(quick.match(said)[0], "computer_ok", said)
+        for said in ("how was my week", "what did you do this week", "recap my week", "what happened this week"):
+            self.assertEqual(quick.match(said)[0], "week", said)
+
+    def test_a_week_lists_what_was_done(self):
+        from unittest import mock
+        rows = [{"what": f"Did thing {n}"} for n in range(5)]
+        with mock.patch.object(quick, "_on_day", side_effect=lambda back: rows if back == 0 else []), \
+                mock.patch.object(quick, "_tasks_done", return_value="2 tasks done this week: a and b."):
+            said = quick._week()
+        self.assertTrue(said.startswith("2 tasks done this week"))
+        self.assertIn("What I did this week: Did thing 2", said)
+        self.assertIn("2 other things", said)
+
+    def test_a_computer_with_a_full_drive_says_so_first(self):
+        from unittest import mock
+        from aletheia import machine
+        with mock.patch.object(machine, "memory", return_value={"total": 16 * 1024 ** 3, "available": 8 * 1024 ** 3}), \
+                mock.patch.object(machine, "disk", return_value={"total": 500 * 1024 ** 3, "free": 2 * 1024 ** 3}):
+            said = quick._computer_ok()
+        self.assertTrue(said.startswith("One thing: the drive is nearly full"), said)
+
+
+class HisZipSetAsAnOrder(unittest.TestCase):
+    def test_set_my_zip_to(self):
+        self.assertEqual(voice._interpret("set my zip to 57104")["command"],
+                         {"kind": "remember", "domain": "identity", "key": "postal_code", "value": "57104"})

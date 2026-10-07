@@ -331,6 +331,18 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # isn't something I can do" from her own model - the same machine
     # reading she makes before loading that model. An offer of ignorance
     # is a claim about ability, and it was false.
+    # HOW HIS COMPUTER IS, AND HOW HIS WEEK WENT (2026-10-07): "is my
+    # computer okay" and "how was my week" went to the planner. The first
+    # is three readings she already makes; the second is his finished tasks
+    # and her journal since Monday.
+    ("computer_ok", re.compile(
+        r"^(?:is|how(?:'s| is)) (?:my|the|this) (?:computer|pc|laptop|machine) (?:okay|ok|alright|all right|doing|holding up|healthy|running okay|running ok|running)"
+        r"(?: okay| ok| alright)?$|^(?:is )?(?:everything|anything) (?:okay|ok|wrong) with (?:my|the|this) (?:computer|pc|laptop|machine)$"
+        r"|^(?:check on|check|how about) (?:my|the|this) (?:computer|pc|laptop|machine)(?:'s health)?$")),
+    ("week", re.compile(
+        r"^how (?:was|is|has been|'s been|s been) my week(?: been| going| so far)?$"
+        r"|^what (?:did|have) (?:you|u|i|we) (?:do|done|get done|been doing|been up to) this week$"
+        r"|^what happened this week$|^(?:recap|sum up|summari[sz]e|review) (?:my |the |this )week$|^(?:my )?week in review$")),
     ("machine", re.compile(
         r"^how much (?:memory|ram|free memory)(?: is| do (?:i|we) have)?(?: free| left| available| used| in use)?"
         r"(?: on (?:this|the|my) (?:computer|machine|pc|laptop))?$"
@@ -5372,6 +5384,63 @@ def _machine() -> str:
     return said + "."
 
 
+def _computer_ok() -> str:
+    """Memory, disk and processor in one breath, leading with the verdict."""
+    from aletheia import machine
+    worries, readings = [], []
+    try:
+        found = machine.memory()
+        total, free = int(found.get("total") or 0), int(found.get("available") or 0)
+        if total:
+            readings.append(f"{machine.gigabytes(free)} of memory free")
+            if free < 2 * 1024 ** 3:
+                worries.append("memory is tight")
+    except Exception:
+        pass
+    try:
+        found = machine.disk()
+        total, free = int(found.get("total") or 0), int(found.get("free") or 0)
+        if total:
+            readings.append(f"{machine.gigabytes(free)} free on the drive")
+            if free < 10 * 1024 ** 3:
+                worries.append("the drive is nearly full")
+    except Exception:
+        pass
+    try:
+        import psutil
+        load = psutil.cpu_percent(interval=0.5)
+        readings.append(f"the processor at {load:.0f}%")
+        if load >= 90:
+            worries.append("the processor is maxed out")
+    except Exception:
+        pass
+    if not readings:
+        return "I can't read this computer's health right now."
+    from aletheia import speech
+    lead = ("It looks fine" if not worries
+            else "One thing: " + speech.and_list(worries) if len(worries) == 1
+            else "A few things: " + speech.and_list(worries))
+    return f"{lead} - {speech.and_list(readings)}."
+
+
+def _week() -> str:
+    """His tasks finished since Monday and what she did, from the stores."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    done = _tasks_done("this week")
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    rows = []
+    for back in range(today.weekday(), -1, -1):
+        try:
+            rows.extend(_on_day(back))
+        except Exception:
+            continue
+    mine = (_listed(rows, "this week").replace("This week: ", "What I did this week: ", 1) if rows
+            else "I have nothing in my journal for this week.")
+    yours = done if not done.startswith("Nothing ticked") else "You haven't ticked anything off this week."
+    return f"{yours} {mine}"
+
+
 def _memory_users() -> str:
     """The biggest programs by memory, and how much is free, in one breath."""
     from aletheia import machine, speech
@@ -5550,6 +5619,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repeat": lambda rest: _repeat(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
+           "computer_ok": lambda rest: _computer_ok(),
+           "week": lambda rest: _week(),
            "tasks_done": lambda rest: _tasks_done(rest),
            "task_top": lambda rest: _task_top(),
            "tasks_clear_done": lambda rest: ("Finished tasks are already off your list - I keep them only as a "

@@ -4244,6 +4244,7 @@ def _interpret(transcript: str) -> dict:
     # "MY ZIP CODE IS 80202": the weather asks for his postcode, and telling
     # her went to the planner. Five digits are a fact, not a plan.
     m = re.fullmatch(r"(?:my (?:zip|zip code|zipcode|postcode|postal code) is|my (?:zip|postcode)'s|"
+                     r"(?:set|change|update|make) my (?:zip|zip code|zipcode|postcode|postal code) (?:to|is)|"
                      r"i live in|i'm in|i am in) (\d{5}(?:-\d{4})?)", low)
     if m:
         return {"command": {"kind": "remember", "domain": "identity", "key": "postal_code",
