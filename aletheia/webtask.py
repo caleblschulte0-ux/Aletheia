@@ -129,6 +129,14 @@ SPENDS_BY_VERB = re.compile(
     # "Order more coffee" reached an approval (2026-09-23): "more", "another"
     # and "new" are how a person orders what they already buy.
     r"\border\s+(?:me\s+|us\s+)?(?:a|an|the|some|more|another|new|\d+)\b"
+    # "Order food", "order takeout", "order in" (2026-10-07: "can you order
+    # food" was answered a bare "Yes" with no money line, because nothing
+    # here named it).
+    r"|\border\s+(?:me\s+|us\s+|some\s+)?(?:food|takeout|take-out|takeaway|dinner|lunch|breakfast|groceries|delivery"
+    r"|pizza|sushi|chinese|thai|indian|tacos|burgers|coffee|in|online)\b"
+    r"|\border\s+(?:\w+\s+){0,3}(?:from|on|off|through)\s+(?:amazon|doordash|door\s?dash|uber\s?eats|grubhub|instacart"
+    r"|walmart|target|postmates|seamless|deliveroo|etsy|ebay)\b"
+    r"|\b(?:doordash|uber\s?eats|grubhub|instacart)\s+(?:me\s+|us\s+)?(?:a|an|some|the|\w+)\b"
     r"|\b(?:buy|get)\s+(?:me\s+|us\s+)?(?:more|another)\b"
     # "book a flight/hotel/room/car/ticket/ride" — a table is not a charge
     r"|\bbook\s+(?:me\s+)?(?:a|an|the|\d+)?\s*"
