@@ -1650,6 +1650,7 @@ def _interpret(transcript: str) -> dict:
                     r"|(list )?(my )?applications", low):
         return {"command": {"kind": "applications"}, "say": None}
     if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?(shopping|grocery) list"
+                    r"|how many (things|items) (are )?on (my |the )?(shopping |grocery )?list"
                     r"|what do i need (to buy|from the (shop|store|grocery store))"
                     r"|read (me )?(my |the )?(shopping|grocery) list"
                     # "What's on the grocery list" (2026-10-07: to a model).
@@ -1681,6 +1682,11 @@ def _interpret(transcript: str) -> dict:
                             r"(?:the |some |a |an )?(.+?)", low)
         if said and _on_the_shopping_list(said.group(1)):
             m = said
+        # A bare "remove milk" (2026-10-07: to the planner) - the same
+        # rule: only when milk is on the list.
+        bare = re.fullmatch(r"(?:remove|cross off|scratch|take off|delete) (?:the |some )?(.+?)", low)
+        if not m and bare and _on_the_shopping_list(bare.group(1)):
+            m = bare
     if not m:
         # "TAKE EGGS OFF" with no list named (2026-10-07: to the planner) -
         # only when that thing is on the list, the same store check.
@@ -1910,6 +1916,23 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "Remind you of what, and when? Say it whole - like \"remind me at 4 to call Sam\" "
                        "or \"remind me in an hour to check the oven\"."}
+    # "SET AN ALARM FOR 6AM EVERY DAY", "wake me up at 7 every weekday"
+    # (2026-10-07: to the planner). The repeating kinds, a wake-up's words.
+    m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) (?:at )?(?P<time>[\w: ]+?) "
+                     r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|daily|on weekdays|weekdays)", low)
+    if m and _spoken_time(m.group("time")):
+        hour, minute = map(int, _spoken_time(m.group("time")).split(":"))
+        if _is_bare_hour(m.group("time")) and hour == 12:
+            hour = 0
+        hhmm = f"{hour:02d}:{minute:02d}"
+        if "weekday" in m.group("when"):
+            return {"command": {"kind": "remind_weekly", "days": ["weekdays"], "time": hhmm, "text": "wake up"},
+                    "say": None}
+        if "weekend" in m.group("when"):
+            return {"command": {"kind": "remind_weekly", "days": ["weekend"], "time": hhmm, "text": "wake up"},
+                    "say": None}
+        return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up"}, "say": None}
+
     # "WAKE ME UP AT 6" and "SET A TIMER FOR TEN MINUTES" are reminders in
     # other clothes; both went to the planner. A timer is a reminder from
     # now; an alarm is a reminder at a clock time.

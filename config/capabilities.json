@@ -1869,6 +1869,17 @@
       "module": "aletheia.weather"
     },
     {
+      "id": "currency.convert",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "What an amount is worth in another currency, at today's published rate",
+      "caller": "aletheia.quick 'currency' pattern (voice, the phone and typed input: 'how much is 50 euros in dollars'); aletheia.fx.spoken",
+      "notes": "Registered and built 2026-10-07 from a no-model sweep: 'how much is 50 euros in dollars' went to a model, which cannot know today's rate and would answer from memory. The European Central Bank's daily reference rates, served by Frankfurter with NO KEY, cached for the day. When the service cannot be reached she says so and never offers a remembered rate. EXPERIMENTAL until it has answered once on his machine: the cloud session that built it could not reach the service through its proxy, so the live call is unproven.",
+      "module": "aletheia.fx"
+    },
+    {
       "id": "media.choose",
       "status": "NOT_BUILT",
       "risk_class": "low",
