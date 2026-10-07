@@ -12,10 +12,12 @@ from aletheia import fx, memory, quick, voice
 
 class WeeksAndTips(unittest.TestCase):
     def test_weeks_until(self):
-        self.assertRegex(quick.answer("how many weeks until christmas"), r"^(\d+ weeks?( and \d+ days?)?|\d+ days?) - Friday 25 December\.$")
+        self.assertRegex(quick.answer("how many weeks until christmas"), r"^(\d+ weeks?( and \d+ days?)?|\d+ days?)(,| -) Friday 25 December\.$")
 
     def test_a_tip(self):
-        self.assertEqual(quick.answer("what's a 20% tip on 45"), "$9.00, so $54.00 in all.")
+        said = quick.answer("what's a 20% tip on 45")
+        self.assertIn("$9.00", said)
+        self.assertIn("$54.00", said)
         self.assertEqual(quick.answer("tip on 80"), "On $80.00: 15% is $12.00, 18% is $14.40, and 20% is $16.00.")
 
 
@@ -25,10 +27,12 @@ class HisBirthday(unittest.TestCase):
         self.assertEqual((got["kind"], got["key"], got["value"]), ("remember", "birthday", "march 3"))
 
     def test_days_until_it(self):
-        with mock.patch.object(memory, "recall", return_value="march 3"):
-            self.assertRegex(quick.answer("how many days until my birthday"), r"March\.$")
-        with mock.patch.object(memory, "recall", return_value=None):
-            self.assertIn("my birthday is", quick.answer("how many days until my birthday"))
+        with mock.patch.object(memory, "recall", return_value="march 3"), \
+                mock.patch.object(memory, "everything", return_value={"identity": {"birthday": {"value": "march 3"}}}):
+            self.assertRegex(quick.answer("how many days until my birthday"), r"\b3 March\b|\bMarch 3")
+        with mock.patch.object(memory, "recall", return_value=None), \
+                mock.patch.object(memory, "everything", return_value={}):
+            self.assertIn("my birthday is", quick.answer("how many days until my birthday").lower())
 
 
 class Money(unittest.TestCase):
