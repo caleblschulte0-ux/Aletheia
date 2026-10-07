@@ -1274,7 +1274,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
-        r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
+        r"|^when (?:is|does|was) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What notes do I have about Dana" (2026-10-07, to a model).
@@ -6593,6 +6593,10 @@ def _follow_up(question: str) -> str | None:
             # named no day, so the day is ADDED (2026-10-07). Kept only if
             # the result is still a question a store answers - checked below.
             rebuilt = f"{prev} {new_words}"
+    # "And the second one" counts items she read out; it is never a new
+    # subject to put into the last question ("when is second one due").
+    if not rebuilt and re.search(r"\b(?:first|second|third|fourth|last|other|next) one\b|^(?:the )?(?:other|next)$", new_words):
+        return None
     if not rebuilt:
         shape = status_of(prev)
         subject = shape[1] if shape and shape[0] == "repo" else ""

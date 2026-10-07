@@ -892,5 +892,18 @@ class TwoTimers(unittest.TestCase):
         self.assertNotEqual((voice._interpret("cancel the first one").get("command") or {}).get("kind"), "reminder_off")
 
 
+
+class CountingIsNotASubject(unittest.TestCase):
+    def test_and_the_second_one_is_not_put_into_the_last_question(self):
+        from aletheia import converse, quick
+        turns = [{"he_asked": "when is my passport due", "she_answered": "x"}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertIsNone(quick.answer("and the second one"))
+
+    def test_when_is_it_due_names_nothing_to_recall(self):
+        from aletheia import quick
+        self.assertIsNone(quick.match("when is it due"))
+
+
 if __name__ == "__main__":
     unittest.main()
