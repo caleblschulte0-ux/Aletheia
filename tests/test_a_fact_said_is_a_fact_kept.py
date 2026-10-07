@@ -1156,5 +1156,12 @@ class DaysLeftInTheMonth(unittest.TestCase):
         self.assertNotIn(" 1 days", quick.answer("how many weeks left in the year"))
 
 
+class TheNameBeforeTheMessage(unittest.TestCase):
+    def test_send_mom_a_message_saying(self):
+        self.assertEqual(voice.interpret("send mom a message saying happy birthday")["command"],
+                         {"kind": "message_send", "to": "mom", "body": "happy birthday"})
+        self.assertEqual(voice.interpret("shoot jess a text saying running late")["command"]["to"], "jess")
+
+
 if __name__ == "__main__":
     unittest.main()

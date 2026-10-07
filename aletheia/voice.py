@@ -5270,6 +5270,10 @@ def _interpret(transcript: str) -> dict:
     m = re.match(r"(?:send (?:a )?(?:text|message)(?: to)?|text|message)\s+"
                  r"(.+?)\s+(?:that|saying|and say|telling (?:him|her|them)|:)"
                  r"\s+(.+)", low)
+    # "SEND MOM A MESSAGE SAYING HAPPY BIRTHDAY" - the name before the
+    # noun (2026-10-07: to the planner).
+    m = m or re.match(r"(?:send|shoot|drop) (?!an? )(.+?) an? (?:text|message|quick text|quick message)"
+                      r"\s+(?:that says|saying|that|telling (?:him|her|them)|:)\s+(.+)", low)
     if m:
         return {"command": {"kind": "message_send", "to": m.group(1).strip(),
                             "body": m.group(2).strip()}, "say": None}
