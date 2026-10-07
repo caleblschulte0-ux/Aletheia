@@ -5065,5 +5065,13 @@ class VisitsWeddingsAndPeopleOver(unittest.TestCase):
             self.assertIn("people over", quick.answer("what's happening friday"))
 
 
+class TheirClockInHis(unittest.TestCase):
+    def test_when_is_9am_in_london(self):
+        from aletheia import quick
+        said = quick.answer("when is 9am in london") or ""
+        self.assertTrue(said.startswith("9 am in London is "), said)
+        self.assertIn("your time", said)
+
+
 if __name__ == "__main__":
     unittest.main()

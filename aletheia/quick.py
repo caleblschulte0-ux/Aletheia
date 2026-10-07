@@ -906,7 +906,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<from>[a-z][a-z ]{1,20}?))? (?:to|in|into) (?P<to>[a-z][a-z ]{1,20}?)(?: time)?\s*\??$"
         # "When it's noon here, what time is it in Paris" (2026-10-07: to a model)
         r"|^(?:when|if) it(?:'s| is) (?P<t2>\d{1,2}(?::\d{2})? ?(?:am|pm)?|noon|midnight)(?: here| for me| my time)?,? "
-        r"what(?:'s| is)? (?:the )?time (?:is it )?in (?P<to2>[a-z][a-z ]{1,20}?)\s*\??$")),
+        r"what(?:'s| is)? (?:the )?time (?:is it )?in (?P<to2>[a-z][a-z ]{1,20}?)\s*\??$"
+        # "When is 9am in London", "what time is 9am London time for me"
+        # (2026-10-07: to a model) - their clock, said in his.
+        r"|^(?:when|what time) is (?P<t3>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight) (?:in )?(?P<from3>[a-z][a-z ]{1,20}?)(?: time)?"
+        r"(?: (?:here|for me|my time|in my time|where i am))?\s*\??$")),
     ("date_after", re.compile(
         r"^what(?:'s| is| date is| day is| will the date be)? (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
         r" (?P<unit>days?|weeks?|months?) (?:from|after) (?:today|now)\s*\??$"
@@ -2895,8 +2899,10 @@ def _time_convert(text: str) -> str | None:
         if re.fullmatch(r"\d{1,2}", bare):
             bare += " pm" if 1 <= int(bare) <= 7 else " am" if int(bare) <= 11 else " pm"
         g = {"t": bare, "to": g["to2"]}
+    if g.get("t3"):
+        g = {"t": g["t3"], "from": g["from3"], "to": ""}
     def zone_of(words):
-        key = " ".join(str(words or "").casefold().split())
+        key = re.sub(r"^in ", "", " ".join(str(words or "").casefold().split()))
         if key in ("", "here", "my time", "local", "local time", "mine"):
             return localtime.operator_tz(), "your time"
         name = _ZONES.get(key) or _ZONES.get(re.sub(r" time$", "", key))
