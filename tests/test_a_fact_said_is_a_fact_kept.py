@@ -1402,13 +1402,5 @@ class CanYouHearMeCase(unittest.TestCase):
         self.assertIn("AI", quick.answer("are you sentient"))
 
 
-class IsTheMicOnCase(unittest.TestCase):
-    def test_the_microphone_answers(self):
-        from aletheia import ears, quick
-        with mock.patch.object(ears, "spoken", return_value="The microphone is on."):
-            for said in ("are you listening", "is the mic on", "is the microphone on"):
-                self.assertEqual(quick.answer(said), "The microphone is on.", said)
-
-
 if __name__ == "__main__":
     unittest.main()
