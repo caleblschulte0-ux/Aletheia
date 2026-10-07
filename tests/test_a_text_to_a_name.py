@@ -696,5 +696,26 @@ class AddingMinutesSaysWhenNotHowLong(unittest.TestCase):
         self.assertTrue(said.startswith("Done - your timer for the pasta now goes off"), said)
 
 
+
+class HerIsThePersonJustNamed(unittest.TestCase):
+    def turns(self, asked):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[{"he_asked": asked, "she_answered": "Noted."}])
+
+    def test_her_birthday_and_her_number(self):
+        with self.turns("my sister's name is Jess"):
+            self.assertEqual(voice._with_the_person_named("her birthday is March 3"), "Jess's birthday is March 3")
+            self.assertEqual(voice._with_the_person_named("what's her number"), "what's Jess's number")
+            self.assertEqual(voice._with_the_person_named("text her happy birthday"), "text Jess happy birthday")
+
+    def test_nobody_named_leaves_the_sentence_alone(self):
+        with self.turns("what time is it"):
+            self.assertEqual(voice._with_the_person_named("what's her number"), "what's her number")
+
+    def test_a_relation_is_not_a_name(self):
+        with self.turns("what's my mom's number"):
+            self.assertEqual(voice._with_the_person_named("text her hi"), "text her hi")
+
+
 if __name__ == "__main__":
     unittest.main()

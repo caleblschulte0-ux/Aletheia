@@ -1601,7 +1601,55 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
+    transcript = _with_the_person_named(transcript)
     return _his_capitals(strip_wake_word(transcript), _no_reminder_about_a_pronoun(_interpret(transcript)))
+
+
+_NOT_A_NAME = {"my", "your", "his", "her", "its", "it", "that", "this", "what", "who", "today", "tomorrow",
+               "everyone", "nobody", "somebody", "someone", "the", "a", "an", "dad", "mom"} | _RELATIONS
+
+
+def _the_person_just_named() -> str:
+    """The one person his last few sentences named, or "". "My sister's name
+    is Jess", "save Jess's number": Jess. Never a guess between two."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=3) or []
+    except Exception:  # noqa: BLE001
+        return ""
+    for turn in reversed(turns):
+        said = " ".join(str(turn.get("he_asked") or "").split()).casefold()
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said)
+        found = re.search(r"\bname is ([a-z][a-z'-]{1,20})\b", said) \
+            or re.search(r"\b([a-z][a-z-]{1,20})'s (?:name|number|phone|email|birthday|address|anniversary)\b", said) \
+            or re.search(r"^(?:text|message|email|call|ring) ([a-z][a-z-]{1,20})\b", said)
+        if found and found.group(1) not in _NOT_A_NAME:
+            return found.group(1)
+    return ""
+
+
+def _with_the_person_named(transcript: str) -> str:
+    """"Her birthday is March 3", "what's her number", "text her happy
+    birthday" a turn after he named somebody (2026-10-07: the first went to
+    the planner, the second found "no contact for 'her'", the third texted
+    somebody called "her happy"). Only these shapes, and only when one
+    person was just named; otherwise the sentence is left exactly as said."""
+    low = " ".join(str(transcript or "").split())
+    shapes = (r"^((?:thea,? )?)(?:her|his) (number|phone(?: number)?|email(?: address)?|birthday|address|anniversary)( is .+)$",
+              r"^((?:thea,? )?what(?:'s| is|s) )(?:her|his) (number|phone(?: number)?|email(?: address)?|birthday|address)(\??)$",
+              r"^((?:thea,? )?(?:text|message|email) )(?:her|him) (.+)$")
+    for i, shape in enumerate(shapes):
+        m = re.match(shape, low, flags=re.IGNORECASE)
+        if not m:
+            continue
+        who = _the_person_just_named()
+        if not who:
+            return transcript
+        who = who[:1].upper() + who[1:]
+        if i == 2:
+            return f"{m.group(1)}{who} {m.group(2)}"
+        return f"{m.group(1)}{who}'s {m.group(2)}{m.group(3)}"
+    return transcript
 
 
 _PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing"}
