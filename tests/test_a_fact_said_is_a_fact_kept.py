@@ -4825,5 +4825,31 @@ class ANumberKeptAsANote(unittest.TestCase):
         self.assertIn("don't have a number", said)
 
 
+class SafeTemperaturesAndEggs(unittest.TestCase):
+    """The USDA's safe minimums and egg times are a table, said in words a room can hear."""
+
+    def test_chicken_and_pork(self):
+        from aletheia import quick
+        self.assertTrue(quick.answer("what temperature do i cook chicken to").startswith("165 degrees Fahrenheit"))
+        self.assertTrue(quick.answer("what temp should pork be").startswith("145 degrees Fahrenheit"))
+        self.assertNotIn("°", quick.answer("what's the safe temperature for ground beef"))
+
+    def test_eggs(self):
+        from aletheia import quick
+        self.assertIn("6 minutes", quick.answer("how long to soft boil an egg"))
+        self.assertIn("10 to 12", quick.answer("how long do i boil an egg"))
+
+    def test_a_holiday_is_still_a_countdown(self):
+        from aletheia import quick
+        self.assertIn("day", quick.answer("how long until christmas"))
+
+    def test_recommend_a_book_reads_his_reading_list(self):
+        from aletheia import lists, quick
+        with mock.patch.object(lists, "all_lists", return_value=[{"name": "reading"}]), \
+                mock.patch.object(lists, "kind_of", return_value="read"), \
+                mock.patch.object(lists, "items", return_value=["Dune"]):
+            self.assertEqual(quick.answer("recommend a book"), "From your reading list: Dune.")
+
+
 if __name__ == "__main__":
     unittest.main()

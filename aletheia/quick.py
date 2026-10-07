@@ -767,7 +767,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
         r"(?: (?:today|tomorrow))?\s*\??$")),
     ("until", re.compile(
-        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
+        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |(?:soft |hard |medium )?boil\b)"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
     # "What day is Thanksgiving" is asked for the DATE, so it leads with it.
     ("until_day", re.compile(
@@ -1869,7 +1869,23 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_watch>movie|film|show|something to watch|watch)(?: to watch)?(?: tonight)?\s*\??$"
         r"|^what (?:should|could|can) (?:i|we) (?P<pick_watch2>watch)(?: tonight| now| next)?\s*\??$"
         r"|^what (?:should|could|can) (?:i|we) (?P<pick_read>read)(?: next)?\s*\??$"
+        # "Recommend a book" (2026-10-07: to the planner) - off his reading list.
+        r"|^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_read2>book|read|novel)(?: to read)?(?: next)?\s*\??$"
         r"|^where (?:should|could|can|shall) (?:i|we) (?P<pick_eat>eat|go (?:to eat|for dinner|for lunch|out))(?: tonight| today| for dinner| for lunch)?\s*\??$")),
+    # "What temperature do I cook chicken to", "how long do I boil an egg"
+    # (2026-10-07: "I can't think just now"). The safe temperatures are the
+    # USDA's published minimums, the same every time - a table, not a guess.
+    ("cook_temp", re.compile(
+        r"^(?:what(?:'s| is)? (?:the )?(?:safe |internal |minimum )*(?:temp(?:erature)?|temp) (?:do i |should i |to )?(?:cook|for|of)"
+        r"|what (?:temp(?:erature)?|temp) (?:do i|should i|does|is) (?:cook )?)"
+        r" ?(?:a |an |the )?(?P<cook_temp>chicken|turkey|poultry|duck|ground beef|ground pork|ground turkey|ground chicken|burgers?|hamburgers?"
+        r"|pork(?: chops?| loin| tenderloin)?|ham|beef|steak|lamb|veal|roast|fish|salmon|tuna|shrimp|eggs?|leftovers|casseroles?)"
+        r"(?: breasts?| thighs?| wings?)?(?: cooked| done| safe)?(?: to| at)?\s*\??$"
+        r"|^what (?:temp(?:erature)?|internal temp(?:erature)?) (?:should|does|do) (?:a |an |the |my )?(?P<cook_temp2>chicken|turkey|pork|ham|beef"
+        r"|steak|lamb|fish|salmon|ground beef|burgers?|eggs?)(?: breasts?| thighs?| chops?)? (?:be|reach|need to be|have to be)"
+        r"(?: cooked)?(?: to| at)?\s*\??$"
+        r"|^how long (?:do i|should i|to|do you) (?P<egg_boil>soft |hard |medium )?boil (?:an? |the )?(?P<egg_kind>soft |hard |medium )?(?:boiled )?eggs?"
+        r"(?: for)?\s*\??$")),
     ("meal_plan", re.compile(
         r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
@@ -2215,7 +2231,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -5594,6 +5610,38 @@ def _planned_for(day: str) -> str | None:
     return speech.and_list(hits) if hits else None
 
 
+#: USDA safe minimum internal temperatures, Fahrenheit (rest 3 minutes where noted).
+_SAFE_TEMPS = (
+    (r"chicken|turkey|poultry|duck|ground turkey|ground chicken|leftovers|casserole", 165, ""),
+    (r"ground beef|ground pork|burger|hamburger", 160, ""),
+    (r"egg", 160, " for egg dishes - or until the yolk and white are firm"),
+    (r"pork|ham|beef|steak|lamb|veal|roast", 145, ", then rest it 3 minutes"),
+    (r"fish|salmon|tuna|shrimp", 145, ""),
+)
+
+
+def _cook_temp(text: str) -> str | None:
+    """A safe cooking temperature or how long to boil an egg, from a table."""
+    g = _groups("cook_temp", text)
+    if g.get("cook_temp") or g.get("cook_temp2"):
+        food = g.get("cook_temp") or g["cook_temp2"]
+        for pattern, f, tail in _SAFE_TEMPS:
+            if re.search(rf"\b(?:{pattern})", food):
+                c = round((f - 32) * 5 / 9)
+                return (f"{f} degrees Fahrenheit, {c} Celsius, inside at the thickest part{tail}. "
+                        "That's the USDA's safe minimum.")
+        return None
+    kind = (g.get("egg_boil") or g.get("egg_kind") or "").strip()
+    if kind == "soft":
+        return "About 6 minutes in boiling water for a soft-boiled egg, then into cold water."
+    if kind == "medium":
+        return "About 8 minutes in boiling water for a jammy middle, then into cold water."
+    if kind == "hard" or "boil" in str(text).casefold():
+        return ("About 10 to 12 minutes in boiling water for hard-boiled - 6 for soft, 8 for jammy - "
+                "then into cold water.")
+    return None
+
+
 def _pick_for_me(text: str) -> str | None:
     """Something to watch or read off his own list, or his favourite place
     to eat. None when he keeps nothing to pick from - then it is a question
@@ -5609,7 +5657,7 @@ def _pick_for_me(text: str) -> str | None:
             if m:
                 return f"How about {m.group(1).strip()}? You told me it's your favorite."
         return None
-    want = "read" if g.get("pick_read") else "watch"
+    want = "read" if g.get("pick_read") or g.get("pick_read2") else "watch"
     try:
         rows = [t for h in lists.all_lists() if lists.kind_of(h["name"]) == want for t in (lists.items(h["name"]) or [])]
     except Exception:
@@ -10644,6 +10692,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "cook_temp": lambda rest: _cook_temp(rest),
            "reminder_when": lambda rest: _reminder_when(rest),
            "until_mine": lambda rest: _when_mine(rest, until=True),
            "alarm_left": lambda rest: _alarm_left(),
