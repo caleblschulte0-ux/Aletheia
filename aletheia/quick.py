@@ -1419,7 +1419,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:which|what) (?:jobs|applications|apps|companies|employers|places) (?:have |has )?"
         r"(?:replied|written back|wrote back|got back|responded|gotten back)(?: to me)?(?: yet| so far)?$"
         r"|^who (?:has |have )?(?:replied|written back|wrote back|got back|responded)(?: to me)?(?: yet| so far)?$"
-        r"|^(?:any|anyone|has anybody|any employers?) (?:written|wrote|got|gotten) back(?: to me)?(?: yet)?$")),
+        r"|^(?:any|anyone|has anybody|any employers?) (?:written|wrote|got|gotten) back(?: to me)?(?: yet)?$"
+        # "Did anyone reply to my applications", "any updates on my job
+        # applications" (2026-10-07: to a model, which could not answer).
+        r"|^(?:did|has) (?:anyone|anybody|any (?:employers?|companies)) (?:replied|reply|respond|responded|gotten back|got back|get back)"
+        r" (?:to|on|about) (?:my |any of my )?(?:job )?(?:applications|apps)(?: yet)?$"
+        r"|^(?:any|are there any) (?:updates?|news|replies|word|responses) (?:on|about|from) (?:my |the )?(?:job )?(?:applications|apps)(?: yet| today)?$")),
     # Why she is slow is a question about who is thinking.
     ("slow", re.compile(
         r"^why (?:are|r) (?:you|u) (?:so |being )?slow(?: today| right now)?$"

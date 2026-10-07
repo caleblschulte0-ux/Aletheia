@@ -4404,6 +4404,9 @@ def _interpret(transcript: str) -> dict:
                     # said out loud, and it was the one that missed.
                     r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
                     r"what(?:'s| is|s)? on my (?:task|todo|to-do|to do) list|(?:my )?to(?:-| )?do list|"
+                    # "What's my to do list" (2026-10-07: searched memory for
+                    # "to do list" and said it had nothing).
+                    r"what(?:'s| is|s)? (?:my|the) (?:task|todo|to-do|to do) list|"
                     r"(?:read|show) (?:me )?my (?:todo|to-do|to do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
@@ -5363,6 +5366,8 @@ def _interpret(transcript: str) -> dict:
                     r"brief me|catch me up(?: on (?:today|everything|things))?"
                     # "What did I miss today" (2026-10-07: to the planner).
                     r"|what did i miss(?: today| this morning| while i was (?:out|gone|away|asleep)| overnight)?"
+                    # "What do I need to know today" (2026-10-07: to a model).
+                    r"|what do i need to know(?: today| this morning| for today)?|what should i know (?:today|this morning|for today)"
                     r"|give me (?:a |the )?(?:summary|rundown|run-down)"
                     r"|(?:sum (?:it|things) up|summari[sz]e (?:my day|today|things))(?: for me)?", low):
         return {"command": {"kind": "brief"}, "say": None}

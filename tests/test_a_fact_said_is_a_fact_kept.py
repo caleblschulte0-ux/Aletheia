@@ -4412,5 +4412,19 @@ class MeetingsPromisesPackagesAndWhereTheyLive(unittest.TestCase):
             self.assertIn("Denver", voice._interpret("where does my mom live")["say"])
 
 
+class TheListTheBriefAndReplies(unittest.TestCase):
+    """2026-10-07: "what's my to do list" searched memory for "to do list";
+    "what do I need to know today" and "did anyone reply to my applications"
+    went to a model."""
+
+    def test_routes(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("what's my to do list")["command"]["kind"], "tasks")
+        self.assertEqual(voice._interpret("what do i need to know today")["command"]["kind"], "brief")
+        for said in ("did anyone reply to my applications", "any updates on my job applications"):
+            got = quick.answer(said) or ""
+            self.assertTrue("repl" in got or "application records" in got, (said, got))
+
+
 if __name__ == "__main__":
     unittest.main()
