@@ -809,6 +809,24 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$"
         # THE OTHER WORD ORDER: "how many miles is 10 km", "how many pounds in 5 kg"
         r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c)$")),
+    # SUMS AND CALENDAR ARITHMETIC, 2026-10-07 with every model off: square
+    # roots, "how many ounces in a pound", "what day of the week was july 4
+    # 1990", "how many days between march 1 and april 15", "what time will it
+    # be in 3 hours". `reckon` answers or returns None, which sends the
+    # question on - the shapes here only decide who looks first.
+    ("reckon", re.compile(
+        r"^(?:what(?:'s| is|s)? |whats |calculate |work out )?(?:the )?(?:square|cube) root of -?[\d.,]+$"
+        r"|^(?:what(?:'s| is|s)? |whats )?-?[\d.,]+ (?:squared|cubed|to the power of -?[\d.,]+|to the -?[\d.,]+(?:th|st|nd|rd)?(?: power)?)$"
+        r"|^(?:what(?:'s| is|s)? |whats )?(?:half|a half|a third|one third|a quarter|one quarter|a fifth|a tenth|double|twice|triple"
+        r"|three quarters|two thirds) (?:of )?-?[\d.,]+$"
+        r"|^how many [a-z ]{1,14} (?:are |is )?(?:in|to|make|per) (?:a |an |one )?[\d.,]* ?[a-z ]{1,14}$"
+        r"|^(?:convert |what(?:'s| is|s) )?(?:[\d.,]+|a|an|one|half an?) (?:teaspoons?|tablespoons?|tsp|tbsp|cups?|pints?|quarts?"
+        r"|gallons?|ml|milli(?:liter|litre)s?|lit(?:er|re)s?|ounces?|oz|fl oz|fluid ounces?|grams?|g|stones?|kilos?)"
+        r" (?:to|in|into) [a-z ]{1,16}$"
+        r"|^what day(?: of the week)? (?:is|was|will|does|did|falls|is it on)(?: it)? .{3,40}$"
+        r"|^how many (?:days|weeks) (?:are there )?(?:between|from) .{3,30} (?:and|to|until|till) .{3,30}$"
+        r"|^what time (?:will it be|is it going to be|would it be|is it) in (?:an? |one )?(?:[\d.]+|half an?|a couple of"
+        r"|two|three|four|five|six|ten|twelve)? ?(?:hours?|minutes?|mins?)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name"
@@ -962,7 +980,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "reckon"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2385,6 +2403,11 @@ def _math(text: str) -> str | None:
     except (ValueError, ZeroDivisionError):
         return None
     return None
+
+
+def _reckon(text: str) -> str | None:
+    from aletheia import reckon
+    return reckon.answer(text)
 
 
 def _how_many() -> str | None:
@@ -3843,6 +3866,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "free": _free,
+           "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
            "mine": _mine,
