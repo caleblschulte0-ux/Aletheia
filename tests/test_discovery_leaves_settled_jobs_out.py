@@ -37,6 +37,18 @@ class TheSearchLeavesSettledJobsOut(unittest.TestCase):
         self.assertEqual(len(urls), 3)
         self.assertFalse(settled & set(urls))
 
+    def test_one_role_posted_in_many_cities_takes_one_slot(self):
+        """Live 2026-10-07: 50 of 180 slots went on copies of a role the
+        batch then threw away as the same job."""
+        copies = [{"title": "Operations Analyst", "company": "Acme",
+                   "apply_url": f"https://boards.example/acme/{city}", "location": city}
+                  for city in ("Austin", "Denver", "Boston", "Remote")]
+        others = [job(n, company=f"Co{n}") for n in range(4)]
+        found = self.search(copies + others, limit=4, skip=None)
+        titles = [(j["company"], j["title"]) for j in found["matches"]]
+        self.assertEqual(len(titles), 4)
+        self.assertEqual(titles.count(("Acme", "Operations Analyst")), 1)
+
     def test_a_skip_that_breaks_leaves_everything_in(self):
         everything = [job(n, company=f"Co{n}") for n in range(3)]
         found = self.search(everything, limit=3, skip=lambda j: 1 / 0)
