@@ -915,6 +915,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:run|ran|been run|build|built|go|gone)(?: today| yet| this morning| tonight| this week)?\s*\??$")),
     ("notes_list", re.compile(
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
+        # "What are my notes" told him she couldn't think (2026-10-07).
+        r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$|^(?:my|all my) notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
     ("recall", re.compile(

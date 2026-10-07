@@ -70,3 +70,19 @@ class HowLongLeftOnTheTimer(unittest.TestCase):
             out = voice._interpret(said) or {}
             self.assertIsNone(out.get("command"), said)
             self.assertTrue(out.get("say"), said)
+
+
+class ToDoListAndNotes(unittest.TestCase):
+    def test_to_do_list_is_the_task_list(self):
+        for said in ("what's on my to do list", "my to do list", "show me my to-do list"):
+            self.assertEqual(((voice._interpret(said) or {}).get("command") or {}).get("kind"),
+                             "tasks", said)
+
+    def test_add_to_my_to_do_list_is_a_task(self):
+        c = (voice._interpret("add call the bank to my to do list") or {}).get("command") or {}
+        self.assertEqual(c.get("kind"), "task_new")
+
+    def test_what_are_my_notes_is_the_notes_list(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "wifi is on the fridge"}]):
+            self.assertIn("fridge", quick.answer("what are my notes") or "")

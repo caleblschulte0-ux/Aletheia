@@ -1727,7 +1727,8 @@ def _interpret(transcript: str) -> dict:
                     # "Read me my tasks" is the same request with the verb
                     # said out loud, and it was the one that missed.
                     r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
-                    r"what(?:'s| is|s)? on my (?:task|todo|to-do) list|"
+                    r"what(?:'s| is|s)? on my (?:task|todo|to-do|to do) list|(?:my )?to(?:-| )?do list|"
+                    r"(?:read|show) (?:me )?my (?:todo|to-do|to do) list|"
                     r"what am i supposed to be doing)", low):
         return {"command": {"kind": "tasks"}, "say": None}
 
@@ -2091,6 +2092,10 @@ def _interpret(transcript: str) -> dict:
     # list. `add` was optional, so any sentence ENDING in "to the list"
     # was a write — and a question is never an instruction (the same rule
     # the spending door holds).
+    # "Add call the bank to my to do list" fell to the planner (2026-10-07).
+    m = re.fullmatch(r"(?:add|put|stick) (.+?) (?:on|to) (?:the |my )?(?:to ?do|to-do|task) list", low)
+    if m:
+        return _new_task(_as_he_said(transcript, m.group(1)).strip())
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
     if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
