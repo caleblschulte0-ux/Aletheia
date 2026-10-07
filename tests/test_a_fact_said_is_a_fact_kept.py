@@ -4459,7 +4459,8 @@ class UndoingARemovalPutsItBack(unittest.TestCase):
             turns = [{"he_asked": "remove everything from the list", "she_answered": said}]
             with mock.patch.object(converse, "recent", return_value=turns):
                 back = intercom._undo_his_last_ask()
-                self.assertIn("eggs and milk back", back)
+                # Added in the same instant, the two come back in either order.
+                self.assertRegex(back, r"(?:eggs and milk|milk and eggs) back")
                 self.assertEqual(intercom._undo_his_last_ask(), "That's already back on the shopping list.")
             self.assertEqual(sorted(r["need"] for r in intercom._shopping_items()), ["eggs", "milk"])
 
