@@ -310,6 +310,46 @@ _ASKS_FOR_TIME = (
     "grab some time", "chat this week", "connect this week", "your calendar",
 )
 
+#: An employer's next step that is a TASK, not a time: an online
+#: assessment, a recorded one-way video, a skills test. These carry a
+#: deadline and nobody chases them, so a missed one is a silent rejection.
+#: A one-way "video interview" says "interview", which used to send it down
+#: the scheduling path to be answered with times - so this is asked first.
+_ASSESSMENT_PHRASES = (
+    "complete the assessment", "complete an assessment", "complete your assessment",
+    "complete this assessment", "complete the online assessment", "online assessment",
+    "skills assessment", "invited to complete", "invitation to complete",
+    "one-way video", "one way video", "on-demand video interview", "on demand video interview",
+    "recorded video interview", "pre-recorded", "take-home", "take home assignment",
+    "skills test", "work sample",
+)
+_ASSESSMENT_HOSTS = re.compile(
+    r"https?://[^\s\"'<>]*(?:hirevue\.com|testgorilla\.com|codility\.com|hackerrank\.com|"
+    r"criteriacorp\.com|pymetrics\.|vervoe\.com|sparkhire\.com|willo\.video|harver\.com|"
+    r"canditech\.io|imocha\.io|mettl\.com|shl\.com|talentlms|wonderlic\.com|modernhire\.com)[^\s\"'<>]*",
+    re.I)
+
+
+def _assessment_links(text: str) -> list[str]:
+    seen: list[str] = []
+    for found in _ASSESSMENT_HOSTS.findall(text or ""):
+        link = found.rstrip(").,;]>")
+        if link not in seen:
+            seen.append(link)
+    return seen[:3]
+
+
+def _is_assessment(low_subject: str, fresh: str, text: str, *, acknowledges: bool) -> bool:
+    """A task they want done, from the subject, the words, or the platform's link."""
+    if _assessment_links(text):
+        return True
+    if _any_of(fresh, _ASSESSMENT_PHRASES) or _any_of(low_subject, _ASSESSMENT_PHRASES):
+        return True
+    # "Next step: Online Assessment" - the bare word counts in a subject that
+    # is not a thank-you, where it would be boilerplate about the process.
+    return "assessment" in low_subject and not acknowledges
+
+
 #: Softer wording that only counts when nothing says acknowledgement.
 #: "Thanks for applying — we'll be in touch about next steps" is an
 #: acknowledgement; "Next steps for your application" alone is a reply.
@@ -411,6 +451,14 @@ def _job_reply(event: dict) -> dict | None:
                 fresh = ru.fresh_text(text).casefold()[:4000]
                 declines = bool(ru._REJECT_TEXT.search(fresh)) or _any_of(fresh, _DECLINES)
                 asks = bool(calendly.find_scheduling_links(text) or calendly.find_availability_links(text))
+        if not text and hit is not None and ("assessment" in low or asks):
+            text = _body_of(event, subject)
+            if text:
+                from aletheia import reply_understanding as ru
+                fresh = ru.fresh_text(text).casefold()[:4000]
+        task = not declines and _is_assessment(low, fresh, text, acknowledges=acknowledges)
+        if task and (hit is not None or _any_of(low, _ABOUT_A_JOB) or _any_of(fresh, _ABOUT_A_JOB)):
+            return _they_sent_a_task(event, subject, text, hit)
         if hit is None:
             if asks and (_any_of(low, _ABOUT_A_JOB) or _any_of(fresh, _ABOUT_A_JOB)):
                 return _somebody_wants_to_talk(event, subject, sender, text)
@@ -450,6 +498,31 @@ def _job_reply(event: dict) -> dict | None:
         # Never break the beat over this. Same shape as every other handler
         # in this loop.
         return {"outcome": "error", "error_type": type(exc).__name__}
+
+
+def _they_sent_a_task(event: dict, subject: str, text: str, hit) -> dict:
+    """An assessment or a recorded video: his to do, so he hears it as
+    urgently as an interview, with the link. Never answered with times."""
+    url, entry = hit if hit is not None else ("", {})
+    company = entry.get("company") or _sender_name(event) or "An employer"
+    if entry.get("id"):
+        _heard_back(entry.get("id"), subject, "noted")
+    links = _assessment_links(text)
+    body = (f"{subject}" + (f" - about {entry.get('job_title')}" if entry.get("job_title") else "")
+            + ". It's a step only you can do, and these usually have a deadline."
+            + (f" Link: {links[0]}" if links else " The link is in the email."))
+    notifications.publish(
+        f"{company} sent you an assessment", body,
+        priority="URGENT", source="apply", about=notifications.NEEDS_YOU,
+        dedupe_key=f"job-task:{event.get('id')}",
+        related={"application": entry.get("id"), "event": event.get("id"), "url": url})
+    return {"application": entry.get("id"), "outcome": "assessment", "company": entry.get("company")}
+
+
+def _sender_name(event: dict) -> str:
+    sender = str((event.get("attributes") or {}).get("sender") or "")
+    name = sender.split("<")[0].strip().strip('"')
+    return name if name and "@" not in name else ""
 
 
 def _any_of(hay: str, words: tuple) -> bool:
