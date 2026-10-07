@@ -1918,11 +1918,15 @@ def _names_one_open_task(words: str) -> bool:
         return found is not None
     except Exception:
         return False
+
+
 def _named_list_said(low: str, text: str) -> dict | None:
     """One of his named lists, or None. Never raises."""
     from aletheia import lists
     name_ = r"(?P<name>[a-z][a-z' -]{1,30}?)"
-    if re.fullmatch(r"what (?:lists|other lists) do i have|what are my lists|(?:list|read me|show me) my lists", low):
+    if re.fullmatch(r"what (?:lists|other lists) do i have|what are my lists|(?:list|read me|show me) my lists"
+                    # "How many lists do I have" (2026-10-07: to a model).
+                    r"|how many lists (?:do i have|have i got|are there)|(?:do i have|have i got) any (?:other )?lists", low):
         return {"command": {"kind": "list_read"}, "say": None}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}

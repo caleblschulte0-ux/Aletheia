@@ -2579,5 +2579,28 @@ class WeightWaterAndSpending(unittest.TestCase):
             self.assertIsNone(quick.answer("how much do I weigh"))
 
 
+
+class TheHatIsAHat(unittest.TestCase):
+    """2026-10-07: "remove the hat" from a list holding "a hat" said
+    "Nothing matches 'the hat'"; "how many lists do I have" went to a model."""
+
+    def test_the_article_is_not_the_thing(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import lists
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(lists, "_path", side_effect=lambda n: Path(tmp) / f"{n}.json"):
+            try:
+                lists.create("packing")
+            except Exception:
+                pass
+            lists.add("packing", ["sunscreen", "a hat"])
+            gone, why = lists.take_off("packing", "the hat")
+            self.assertEqual((gone, why), (["a hat"], ""))
+            self.assertEqual(lists.take_off("packing", "the boots")[1], "There's nothing called the boots on your packing list.")
+
+    def test_how_many_lists(self):
+        self.assertEqual(voice._interpret("how many lists do I have")["command"], {"kind": "list_read"})
+
+
 if __name__ == "__main__":
     unittest.main()
