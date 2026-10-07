@@ -3386,6 +3386,20 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "research", "question": f"{m.group('what').strip()} near me"}, "say": None}
 
+    # "What files did I make today", "my recent files", "what did I
+    # download this week" (2026-10-07: to a model). His folders, newest
+    # first, cut to the window he named.
+    m = (re.fullmatch(r"(?:what|which) (?:files|documents|docs) (?:did i|have i) (?:make|made|save|saved|change|changed|edit|edited|"
+                      r"work on|worked on|create|created|touch|touched)(?P<since> today| yesterday| this week| recently| lately)?", low)
+         or re.fullmatch(r"(?:show me |what are |list )?(?:my )?(?:recent|latest|newest) (?:files|documents|docs)", low)
+         or re.fullmatch(r"what (?:did i|have i) (?:download|downloaded)(?P<since> today| yesterday| this week| recently| lately)?", low))
+    if m:
+        since = (m.groupdict().get("since") or " recently").strip().replace("lately", "recently")
+        command = {"kind": "file_find", "query": "", "since": since}
+        if "download" in low:
+            command["place"] = _a_place_she_knows("downloads") or "Downloads"
+        return {"command": command, "say": None}
+
     m = re.fullmatch(
         r"(?:what(?:'s| is|s)?|show me what(?:'s| is)?) (?:in|inside) "
         r"(?:my |the )?([a-z][a-z ]{2,20}?)(?: folder| directory)?\s*\??", low)

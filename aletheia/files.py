@@ -235,8 +235,26 @@ def _row(path: Path) -> dict:
     }
 
 
+#: "What files did I make today": how far back each word reaches.
+SINCE = ("today", "yesterday", "this week", "recently")
+
+
+def since_start(since: str, now: float | None = None) -> float | None:
+    """The epoch second a `since` word starts at, on his clock; None for none."""
+    import datetime as dt
+    from aletheia import localtime
+    word = " ".join(str(since or "").casefold().split())
+    if word not in SINCE:
+        return None
+    tz = localtime.operator_tz()
+    moment = dt.datetime.fromtimestamp(now, tz) if now is not None else dt.datetime.now(tz)
+    midnight = moment.replace(hour=0, minute=0, second=0, microsecond=0)
+    back = {"today": 0, "yesterday": 1, "this week": moment.weekday(), "recently": 2}[word]
+    return (midnight - dt.timedelta(days=back)).timestamp()
+
+
 def search(query: str = "", *, place: str = "",
-           limit: int = MAX_RESULTS) -> dict:
+           limit: int = MAX_RESULTS, since: str = "") -> dict:
     """Files whose names carry his words, newest first, AND how many there are.
 
     An empty query with a place is "what's in my downloads"; a query with
@@ -285,6 +303,9 @@ def search(query: str = "", *, place: str = "",
                 found.append(row)
         if budget[0] <= 0:
             ran_out = True
+    start = since_start(since)
+    if start is not None:
+        found = [row for row in found if row.get("modified", 0) >= start]
     # Real matches before coincidences, then newest first: the one he
     # last touched is the one he means. Without the first key, "lease"
     # spent three of its five spoken slots on "Greek Release Appeal".
@@ -300,7 +321,7 @@ def search(query: str = "", *, place: str = "",
         deduped.append(row)
     cut = max(1, int(limit or MAX_RESULTS))
     return {"files": deduped[:cut], "total": len(deduped), "capped": ran_out,
-            "query": query, "place": place}
+            "query": query, "place": place, "since": since if start is not None else ""}
 
 
 def find(query: str = "", *, place: str = "", limit: int = MAX_RESULTS) -> list[dict]:
@@ -529,11 +550,16 @@ def spoken(result, *, query: str = "", place: str = "", limit: int = 5) -> str:
         capped = bool(result.get("capped"))
         query = query or result.get("query") or ""
         place = place or result.get("place") or ""
+        since = str(result.get("since") or "")
     else:
         found, total, capped = list(result), len(list(result)), False
+        since = ""
 
     where = f" in {place}" if place else ""
     about = f" matching {query}" if query else ""
+    when = {"today": " changed today", "yesterday": " changed since yesterday",
+            "this week": " changed this week", "recently": " changed in the last few days"}.get(since, "")
+    about += when
     if not found:
         said = (f"I could not find anything{about}{where}. I looked in "
                 + speech.and_list(place_names()) + ".")

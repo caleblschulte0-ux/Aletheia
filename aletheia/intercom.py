@@ -146,7 +146,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # the one directory she owns and `file_read` needs a path he does not
     # have; between them there was no way to answer "what's in my
     # downloads" or "find that lease PDF" at all.
-    "file_find":     (set(), {"query", "place"}),
+    "file_find":     (set(), {"query", "place", "since"}),
     # How much is in one of his folders. Asked out loud she compiled a
     # two-step File Explorer plan and asked for approval to run it, while
     # holding every one of those numbers already.
@@ -2919,7 +2919,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import files as files_mod
         try:
             result = files_mod.search(str(cmd.get("query") or ""),
-                                      place=str(cmd.get("place") or ""))
+                                      place=str(cmd.get("place") or ""),
+                                      since=str(cmd.get("since") or ""))
         except files_mod.FilesError as exc:
             # Said in English: this is read out in a room.
             return str(exc)

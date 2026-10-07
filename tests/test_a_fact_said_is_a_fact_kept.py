@@ -225,5 +225,28 @@ class APluralDayIsEvery(unittest.TestCase):
         self.assertEqual((cmd["kind"], cmd["days"]), ("remind_weekly", ["monday"]))
 
 
+class WhatFilesHeMadeToday(unittest.TestCase):
+    def test_only_the_window_he_named(self):
+        import os
+        import time
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest import mock
+        from aletheia import files, intercom, voice
+        with TemporaryDirectory() as tmp:
+            old = Path(tmp) / "old plan.docx"
+            new = Path(tmp) / "budget.xlsx"
+            old.write_text("x")
+            new.write_text("x")
+            week_ago = time.time() - 10 * 86400
+            os.utime(old, (week_ago, week_ago))
+            cmd = voice._interpret("what files did i make today")["command"]
+            with mock.patch.object(files, "places", lambda: [("Documents", Path(tmp))]):
+                said = intercom.execute_command(cmd, {"repos": {}}, quote="test")
+        self.assertIn("1 file changed today", said)
+        self.assertIn("budget", said)
+        self.assertNotIn("old plan", said)
+
+
 if __name__ == "__main__":
     unittest.main()
