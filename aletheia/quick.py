@@ -1394,7 +1394,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
-        r"|^how (?:are|r) (?:you|u)(?: doing)?(?: today| this morning| tonight)?$"
+        r"|^how (?:are|r) (?:you|u)(?: doing| feeling| holding up)?(?: today| this morning| tonight)?$"
         r"|^how (?:you|u) doing$|^how goes it$")),
     # Coming and going. "I'm home" and "goodnight" went to the PLANNER and,
     # with nothing thinking, came back "I could not plan that".
