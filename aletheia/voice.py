@@ -6540,6 +6540,13 @@ def _interpret(transcript: str) -> dict:
                     r"thank you very much|ty|cheers|appreciate it|"
                     r"thanks thea|thank you thea)", low):
         return {"command": None, "say": "Any time."}
+    # "I'll do it later" (2026-10-07: to the planner, "I could not plan
+    # that"). Nothing to do: it stays where it is, and a nudge is one
+    # sentence away.
+    if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?ll|i will|i'?m gonna|i'?m going to) (?:do|get to|deal with|handle|look at) "
+                    r"(?:it|that|this|them) (?:later|tomorrow|tonight|in a bit|in a minute|another time|after)"
+                    r"|(?:maybe |ok(?:ay)? )?later|not (?:right )?now|not now,? (?:maybe )?later", low):
+        return {"command": None, "say": "No rush. Say \"remind me about that tonight\" if you want a nudge."}
     # "OK", "cool", "got it" with nothing waiting went to the planner and came
     # back "I could not plan that" (2026-10-07): a nod answered with an error.
     # With an approval pending, the yes/no rules above decide what it means.

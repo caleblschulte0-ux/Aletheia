@@ -336,6 +336,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What was the last thing you said" (2026-10-07: to a model).
         r"|what was the last thing (?:you|u) said|what did (?:you|u) (?:just )?tell me|repeat (?:your|the) last answer"
         r"|say (?:it|that) one more time|can you repeat that|could you repeat that"
+        # "Say that again slower" (2026-10-07: to the planner).
+        r"|(?:say (?:it|that) again|repeat (?:it|that)) (?:slower|more slowly|slowly)(?: please)?"
         # "Read it again" (2026-10-07: to the planner).
         r"|read (?:it|that|them) (?:again|back)|again please|one more time please"
         # A bare "what?" or "huh?" (2026-10-07: to a model).

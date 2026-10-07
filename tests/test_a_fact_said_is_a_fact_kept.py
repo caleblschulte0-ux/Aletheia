@@ -3122,5 +3122,17 @@ class WhatHeSaidHeSpent(unittest.TestCase):
             self.assertEqual(voice._interpret(asked)["command"], {"kind": "reminders"}, asked)
 
 
+class LaterAndSlower(unittest.TestCase):
+    def test_later_is_a_nod_not_a_plan(self):
+        for said in ("I'll do it later", "later", "not now", "I'll get to it tomorrow"):
+            got = voice._interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertTrue(got["say"].startswith("No rush."), said)
+
+    def test_slower_is_said_again(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("say that again slower")[0], "repeat")
+
+
 if __name__ == "__main__":
     unittest.main()
