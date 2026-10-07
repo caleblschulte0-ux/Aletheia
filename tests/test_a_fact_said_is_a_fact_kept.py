@@ -3927,7 +3927,7 @@ class SomebodyElsesThingsAreTheirs(unittest.TestCase):
     def test_their_appointment_is_titled_as_theirs(self):
         from aletheia import voice
         self.assertEqual(voice._interpret("max has a vet appointment friday at 3")["command"]["title"],
-                         "max's vet appointment")
+                         "Max's vet appointment")
         self.assertEqual(voice._interpret("i have a dentist appointment tomorrow at 2")["command"]["title"],
                          "dentist appointment")
 
@@ -5491,6 +5491,42 @@ class DoIHaveAnythingNamesIt(unittest.TestCase):
     def test_an_empty_day_still_gets_its_free_time(self):
         with mock.patch.object(quick, "_agenda_and_reminders", return_value="Nothing on your calendar Tuesday."):
             self.assertEqual(voice._interpret("do I have anything on tuesday")["command"]["kind"], "free_time")
+
+
+class AChildsWeekAndAWeeklyThree(unittest.TestCase):
+    """2026-10-07: "remind me to pick up Leo at 3 every weekday" was set for
+    3 am, Leo's appointment was held as "leo's", and "what does Leo have
+    this week" and "what am I making for dinner" went to a model."""
+
+    def test_a_bare_hour_every_week_is_the_afternoon(self):
+        for said in ("remind me to pick up Leo at 3 every weekday", "remind me every monday at 3 to call mom"):
+            self.assertEqual(voice._interpret(said)["command"]["time"], "15:00", said)
+        self.assertEqual(voice._interpret("remind me every monday at 8 to call mom")["command"]["time"], "08:00")
+        self.assertEqual(voice._interpret("remind me every monday at 3am to call mom")["command"]["time"], "03:00")
+
+    def test_their_appointment_is_held_under_their_name(self):
+        self.assertEqual(voice._interpret("Leo has a dentist appointment monday at 4")["command"]["title"],
+                         "Leo's dentist appointment")
+        self.assertEqual(voice._interpret("mom has a doctor appointment friday at 2")["command"]["title"],
+                         "mom's doctor appointment")
+
+    def test_what_does_leo_have_reads_his_lines(self):
+        from aletheia import calendar, localtime
+        soon = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=2)).replace(hour=16, minute=0, second=0, microsecond=0)
+        rows = [{"title": "Leo's dentist appointment", "start": soon.isoformat(), "end": (soon + dt.timedelta(hours=1)).isoformat()},
+                {"title": "Lunch with Sam", "start": soon.isoformat()}]
+        with mock.patch.object(calendar, "all_events", return_value=rows):
+            said = quick.answer("what does Leo have this week")
+            self.assertIn("Leo's dentist appointment", said)
+            self.assertNotIn("Sam", said)
+            self.assertIsNone(quick._event_detail("what does dana have this week"))
+
+    def test_what_am_i_making_for_dinner_reads_tonight(self):
+        from aletheia import lists
+        with mock.patch.object(lists, "items", return_value=["Monday: tacos"]), \
+                mock.patch.object(quick, "_planned_for", return_value="spaghetti") as planned:
+            self.assertEqual(quick.answer("what am I making for dinner"), "Spaghetti tonight.")
+            planned.assert_called_with("tonight")
 
 
 if __name__ == "__main__":

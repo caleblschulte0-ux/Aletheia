@@ -1992,7 +1992,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("meal_plan", re.compile(
         r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
-        r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$"
+        r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?:(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?)?\s*\??$"
         r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$")),
     ("meal_idea", re.compile(
         r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
@@ -2287,7 +2287,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what(?:'s| is)|which (?:day|is)) my (?P<ed_busy>busiest|quietest|least busy|freest) day(?: (?:this|next) week)?\s*\??$"
         # "What's after my 2pm", "what do I have after 3" (2026-10-07: to a model).
         r"|^what(?:'s| is| do i have| have i got)(?: on)? after (?:my |the )?(?P<ed_after>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
-        r"(?: (?:meeting|call|appointment|one))?(?: (?P<ed_after_day>today|tomorrow))?\s*\??$")),
+        r"(?: (?:meeting|call|appointment|one))?(?: (?P<ed_after_day>today|tomorrow))?\s*\??$"
+        # "What does Leo have this week" (2026-10-07: to a model, a turn
+        # after "Leo has a dentist appointment Monday at 4").
+        r"|^what (?:does|do) (?!(?:i|we|you|it|that|this|he|she|they)\b)(?P<ed_who>[a-z][a-z']{1,20}) have(?: going on| on| coming up)?"
+        r"(?: (?P<ed_who_when>today|tomorrow|this week|next week))?\s*\??$")),
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         # the calendar's own words belong to the calendar's readers
@@ -5421,6 +5425,19 @@ def _event_detail(text: str) -> str | None:
                 if start.date() == day and start.hour == hour and (not m.group(2) or start.minute == int(m.group(2))):
                     return f"{title[:1].upper() + title[1:]}, {speech.humanize_time(start.isoformat())}."
         return f"Nothing on your calendar at {g['ed_at']}."
+    if g.get("ed_who"):
+        # His calendar's lines that name them; None when none does - their
+        # week may be on a calendar of theirs she cannot see.
+        who = g["ed_who"]
+        when = g.get("ed_who_when") or "this week"
+        first = now.date() + dt.timedelta(days=1 if when == "tomorrow" else 7 - now.weekday() if when == "next week" else 0)
+        last = first if when in ("today", "tomorrow") else first + dt.timedelta(days=6)
+        hits = [(start, title) for start, _end, title in events
+                if first <= start.date() <= last and re.search(r"\b" + re.escape(who) + r"\b", title, re.IGNORECASE)]
+        if not hits:
+            return None
+        said = speech.and_list([f"{t[:1].upper() + t[1:]}, {speech.humanize_time(st.isoformat())}" for st, t in hits[:5]])
+        return said + "."
     if g.get("ed_after"):
         m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", g["ed_after"])
         hour = int(m.group(1)) % 12 + (12 if (m.group(3) == "pm" or (not m.group(3) and int(m.group(1)) < 8)) else 0)
@@ -5884,6 +5901,9 @@ def _meal_plan(text: str) -> str | None:
     from aletheia import lists, speech
     g = _groups("meal_plan", text)
     day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or "").strip()
+    # "What am I making for dinner" (2026-10-07: to a model) is tonight's.
+    if not day and re.match(r"what (?:am i|are we) ", text.casefold()):
+        day = "tonight"
     try:
         rows = lists.items("meal plan")
     except Exception:

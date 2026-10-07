@@ -1287,7 +1287,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
         title = own.group(1) or own.group(2)
     elif theirs and theirs.group(1).casefold() not in ("he", "she", "it", "who", "what", "that", "this", "there", "everyone",
                                                          "somebody", "someone", "nobody"):
-        title = f"{theirs.group(1)}'s {theirs.group(2)}"
+        # A name in its capitals ("Leo's", not "leo's"); "mom" stays a word.
+        from aletheia import quick
+        who = theirs.group(1)
+        who = who if who.casefold() in quick._relation_words() else who[:1].upper() + who[1:]
+        title = f"{who}'s {theirs.group(2)}"
     if time_words:
         hhmm = _spoken_time(time_words)
         if not hhmm:
@@ -3803,6 +3807,10 @@ def _interpret(transcript: str) -> dict:
             # says the hour back either way. A dead end here is the fast
             # lane removing an answer, which it may never do.
             return _to_the_planner(text)
+        # "Remind me every Monday at 3 to call mom" and "...pick up Leo at 3
+        # every weekday" were set for 3 am (2026-10-07). Nobody means that.
+        if m.group(2) and _is_bare_hour(m.group(2)) and int(hhmm[:2]) <= EARLIEST_BARE_HOUR:
+            hhmm = f"{int(hhmm[:2]) + 12:02d}{hhmm[2:]}"
         # "tuesday and thursday", "mon, wed and fri" — a list he says in one
         # breath. The planner's version of this came back as "Weekly
         # reminder Tue/Thu 6pm", which is a calendar entry, not a sentence.
