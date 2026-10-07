@@ -6903,6 +6903,12 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I work at Acme", "I go to school at UIC" (2026-10-07: to the planner).
+    # Not "I work at 9 tomorrow" - that is a shift, not a place.
+    m = re.fullmatch(r"i (?:work|am working|started working|go to school|study) (?:at|for) (?P<where>[a-z][a-z0-9&' .-]{1,40})", low)
+    if m and not re.search(r"\b(?:today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                            r"|morning|afternoon|evening|night|noon|home|the moment|now|it|that|this)\b", m.group("where")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The rent is due Friday" (2026-10-07: to the planner). A weekday is
     # only true this week, so the note keeps the date it meant.
     m = re.fullmatch(r"(?P<thing>(?:my|our|the) [a-z][a-z' ]{1,30}?) (?P<verb>expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |by )?"

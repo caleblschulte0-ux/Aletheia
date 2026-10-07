@@ -2474,5 +2474,19 @@ class TheForecastForADay(unittest.TestCase):
         self.assertIn("doesn't reach Sunday", weather._periods_for(self.PERIODS, "sunday"))
 
 
+
+class WhereHeWorks(unittest.TestCase):
+    """2026-10-07: "I work for Acme" and "where do I work" both went to the planner."""
+
+    def test_said_and_asked(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I work for Acme Corp")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("I work at 9 tomorrow")["command"] or {}).get("kind"), "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I work for Acme Corp"}]):
+            self.assertEqual(quick.answer("where do I work"), "You told me you work for Acme Corp.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("where do I work"))
+
+
 if __name__ == "__main__":
     unittest.main()

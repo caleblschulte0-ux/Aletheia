@@ -352,6 +352,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Who are my contacts" (2026-10-07: to a model)
         r"|^(?:who(?:'s| is| are)(?: in)? my contacts|(?:list|show me|read me|read|show) (?:all )?my contacts"
         r"|what contacts do i have|who do i have (?:saved|in my contacts))\s*\??$")),
+    # "Where do I work" after "I work at Acme" (2026-10-07: to a model).
+    ("work_at", re.compile(
+        r"^(?:where do i (?:work|go to school|study)|who do i work for|where(?:'s| is) my (?:work|job|office|school))\s*\??$")),
     ("person", re.compile(
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
@@ -7774,6 +7777,19 @@ _REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat
                          r"one more time|i didn'?t (?:catch|hear) that)(?: please)?")
 
 
+def _work_at() -> str | None:
+    """"Where do I work": the note he made saying so. Nothing kept is left
+    to whatever else might know (his profile), never answered "no"."""
+    said = re.compile(r"\bi (work|am working|started working|go to school|study) (at|for) (.+)", re.IGNORECASE)
+    for row in _notes():
+        m = said.search(str(row.get("text") or ""))
+        if m:
+            school = m.group(1).casefold() in ("go to school", "study")
+            verb = f"{m.group(1).casefold()} {m.group(2).casefold()}" if school else f"work {m.group(2).casefold()}"
+            return f"You told me you {verb} {m.group(3).strip().rstrip('.')}."
+    return None
+
+
 def _person(rest: str) -> str:
     """"Who is my landlord": the person remembered under that word."""
     from aletheia import memory
@@ -8093,6 +8109,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_when": _applied_when,
            "about_him": lambda rest: _about_him(),
            "person": _person,
+           "work_at": lambda rest: _work_at(),
            "who_named": lambda rest: _who_named(rest),
            "contacts_count": lambda rest: _contacts_count(),
            "repeat": lambda rest: _repeat(),
