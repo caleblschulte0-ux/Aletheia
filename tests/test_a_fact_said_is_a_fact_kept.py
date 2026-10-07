@@ -330,5 +330,21 @@ class PushItBackAnHour(unittest.TestCase):
         self.assertEqual(said, "Cancelled 1 reminder: call mom — today at 9 am.")
 
 
+class ContactsTheLongWayRound(unittest.TestCase):
+    def test_add_to_my_contacts_with_a_number(self):
+        from aletheia import voice
+        cmd = voice._interpret("add sam to my contacts, his number is 555 222 3333")["command"]
+        self.assertEqual((cmd["kind"], cmd["name"], cmd["phone"]), ("contact_add", "sam", "555 222 3333"))
+
+    def test_an_email_is_not_a_number(self):
+        from aletheia import voice
+        cmd = voice._interpret("add jo to my contacts with email jo@example.com")["command"]
+        self.assertEqual((cmd["kind"], cmd["email"]), ("contact_add", "jo@example.com"))
+
+    def test_who_are_my_contacts(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("who are my contacts")[0], "contacts_count")
+
+
 if __name__ == "__main__":
     unittest.main()

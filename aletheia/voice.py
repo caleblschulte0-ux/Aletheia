@@ -3805,6 +3805,16 @@ def _interpret(transcript: str) -> dict:
     if m and m.group(1) not in ("my", "your", "his", "her"):
         return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
                             "email": m.group(2).strip().rstrip(".")}, "say": None}
+    # "Add Sam to my contacts, his number is 555 222 3333" (2026-10-07: to
+    # the planner) - the same contact, said the long way round.
+    m = re.fullmatch(r"(?:add|save|put) ([a-z][a-z' -]{0,30}?) (?:to|in|into) (?:my )?(?:contacts|contact list|phone book|address book)"
+                     r",? (?:with |and )?(?:(?:his|her|their|the) )?(?:(?P<kind>(?:phone |cell |mobile )?(?:number|phone)|email(?: address)?|e-mail)"
+                     r"(?: is| as)? (?P<value>\+?[\d][\d ().-]{5,20}\d|\S+@\S+\.\S+|\S+ at \S+ dot \S+))", low)
+    if m and m.group(1) not in ("my", "your", "his", "her", "me"):
+        field = "email" if "mail" in m.group("kind") else "phone"
+        if (field == "email") == ("@" in m.group("value") or " at " in m.group("value")):
+            return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
+                                field: m.group("value").strip().rstrip(".")}, "say": None}
     # "MY BIRTHDAY IS MARCH 3RD 1995" (2026-10-07: to the planner). One
     # fact about him, kept in her memory, read by "how old am I".
     m = re.fullmatch(r"(?:my birthday is|my birthday's|i was born on|i was born|my date of birth is|my dob is) "

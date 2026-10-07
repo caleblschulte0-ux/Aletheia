@@ -1579,7 +1579,9 @@ def _contacts_answer(which: str = "") -> str:
             if phones:
                 return f"{name}'s number is {phones[0]}."
             if emails:
-                return f"I have an email for {name}, {emails[0]}, but no phone number."
+                # "What's Sam's email" was answered "I have an email for
+                # Sam ... but no phone number" - the answer second (2026-10-07).
+                return f"{name}'s email is {emails[0]}. I don't have a number for them."
             return f"I have {name} saved, but no number or email for them."
     if not rows:
         return "You have no contacts saved with me."

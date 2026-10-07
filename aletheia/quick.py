@@ -334,7 +334,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$")),
     ("contacts_count", re.compile(
-        r"^how many (?:contacts|people) (?:do i have|have i got|are in my contacts|have i saved|are saved)\s*\??$")),
+        r"^how many (?:contacts|people) (?:do i have|have i got|are in my contacts|have i saved|are saved)\s*\??$"
+        # "Who are my contacts" (2026-10-07: to a model)
+        r"|^(?:who(?:'s| is| are)(?: in)? my contacts|(?:list|show me|read me|read|show) (?:all )?my contacts"
+        r"|what contacts do i have|who do i have (?:saved|in my contacts))\s*\??$")),
     ("person", re.compile(
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
