@@ -467,7 +467,14 @@ def as_she_says_it(phrase: str) -> str:
     said = str(phrase or "")
     for pattern, replacement in _HIS_PRONOUNS:
         said = re.sub(pattern, replacement, said)
-    return said
+    # "The plumber comes tuesday": speech-to-text and a lowercased match
+    # both lose a day's capital. Days, and the months that are never also
+    # an ordinary word ("may" and "march" are), get theirs back.
+    return _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+
+
+_NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
+                         r"|june|july|august|september|october|november|december)\b")
 
 
 #: Words that should not start a file name: they describe whose it is,

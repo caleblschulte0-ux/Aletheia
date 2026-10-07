@@ -863,7 +863,7 @@ class NotesThatAnswerWhen(unittest.TestCase):
     def test_a_note_answers_when_the_plumber_comes(self):
         from aletheia import quick
         with mock.patch.object(quick, "_notes", return_value=[{"text": "the plumber comes tuesday"}]):
-            self.assertEqual(quick.answer("when does the plumber come"), "You told me: the plumber comes tuesday.")
+            self.assertEqual(quick.answer("when does the plumber come"), "You told me: the plumber comes Tuesday.")
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIsNone(quick.answer("when does the plumber come"))
 

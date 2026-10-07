@@ -1171,5 +1171,12 @@ class WhatHeDrives(unittest.TestCase):
             self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "note", said)
 
 
+class ADayKeepsItsCapital(unittest.TestCase):
+    def test_days_and_plain_months_but_not_may(self):
+        from aletheia import speech
+        self.assertEqual(speech.as_she_says_it("my mom may visit tuesday in june"),
+                         "your mom may visit Tuesday in June")
+
+
 if __name__ == "__main__":
     unittest.main()
