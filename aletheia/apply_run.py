@@ -285,6 +285,58 @@ def role_taken(company: str, job_title: str, url: str = "") -> dict | None:
     return None
 
 
+#: At most this many applications to one employer in `EMPLOYER_WINDOW_DAYS`,
+#: sent or waiting. Live 2026-09-23 SpaceX refused one outright: "you have
+#: exceeded our limit of 10 job applications during a 30-day period ... we
+#: strongly recommend that you carefully choose the roles for which you
+#: apply." Datadog, Okta, Affirm and Dutchie each turned down two or three
+#: in the same weeks. A recruiter who sees one name on six of her roles
+#: reads a spray, not a candidate, and the best of the six pays for it.
+#: Three still lets "Databricks BDR and Databricks AE" both go.
+EMPLOYER_LIMIT = 3
+EMPLOYER_WINDOW_DAYS = 30
+
+
+def _employer(company: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", str(company or "").casefold()).split())
+
+
+def employer_load(company: str, *, now: dt.datetime | None = None,
+                  days: int = EMPLOYER_WINDOW_DAYS) -> int:
+    """How many applications reached, or are waiting to reach, one employer
+    inside the window. A record she closed or that failed never reached them
+    and does not count; one url counts once however many places say so."""
+    who = _employer(company)
+    if not who:
+        return 0
+    now = now or dt.datetime.now(dt.timezone.utc)
+    since = (now - dt.timedelta(days=days)).isoformat()
+    urls: set[str] = set()
+    for url, entry in already_sent().items():
+        if (_employer(entry.get("company", "")) == who
+                and str(entry.get("at") or "") >= since):
+            urls.add(str(url))
+    for record in all_runs():
+        if record.get("state") in (CLOSED, "FAILED"):
+            continue
+        if _employer(record.get("company", "")) != who:
+            continue
+        when = str(record.get("submitted_at") or record.get("staged_at") or "")
+        if when >= since:
+            urls.add(str(record.get("url") or record.get("id") or ""))
+    return len(urls)
+
+
+def employer_full(company: str, *, now: dt.datetime | None = None) -> str:
+    """The reason to leave this employer alone for now, or "" when there is none."""
+    n = employer_load(company, now=now)
+    if n < EMPLOYER_LIMIT:
+        return ""
+    return (f"already {n} applications to {company} in the last "
+            f"{EMPLOYER_WINDOW_DAYS} days; the best of them stands a better "
+            "chance without more")
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()

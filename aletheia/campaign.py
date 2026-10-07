@@ -1278,6 +1278,13 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                                    "why": "the same job is already applied for or waiting"})
                 continue
             roles_seen.add(key)
+            # And not a fourth role at one employer this month. Counted
+            # before the form opens, and the pages already chosen in this
+            # run count too, so a batch cannot carry it past the limit.
+            crowded = apply_run.employer_full(page["company"])
+            if crowded:
+                duplicates.append({"url": page["url"], "title": title, "why": crowded})
+                continue
         # An opening she could not reach a form on twice today is left until
         # tomorrow, before a page is loaded for it. Live 2026-09-24 Aptiv's
         # J000698866 timed out on the same select box on every pass, every
@@ -1454,7 +1461,7 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                    f"{len(failed)} could not be reached, "
                    f"{len(needs_account)} on sites that want an account — for {', '.join(roles)!r}; "
                    f"passed over {len(passed_over)} as not realistic and "
-                   f"{len(duplicates)} already applied for or waiting; "
+                   f"{len(duplicates)} already applied for, waiting, or at an employer she has applied to enough this month; "
                    f"left {len(later)} unjudged for a later batch; "
                    "nothing submitted", actor=ACTOR)
     return {"role": role, "roles": roles, "resume": resume_path, "learned": sorted(learned),
