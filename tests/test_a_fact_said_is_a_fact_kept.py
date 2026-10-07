@@ -4807,5 +4807,23 @@ class ARemindersTimeAskedByName(unittest.TestCase):
             self.assertIn("can't", got["say"], said)
 
 
+class ANumberKeptAsANote(unittest.TestCase):
+    """"The plumber's number is ..." kept as a note answers "what's the plumber's number"."""
+
+    def test_the_note_is_the_answer(self):
+        from aletheia import contacts, intercom, quick
+        with mock.patch.object(contacts, "all_contacts", return_value=[]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "the plumber's number is 555 867 5309"}]):
+            said = intercom._contacts_answer("the plumber", "number")
+        self.assertIn("555 867 5309", said)
+
+    def test_a_note_without_a_number_is_not_one(self):
+        from aletheia import contacts, intercom, quick
+        with mock.patch.object(contacts, "all_contacts", return_value=[]), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "the plumber is coming friday"}]):
+            said = intercom._contacts_answer("the plumber", "number")
+        self.assertIn("don't have a number", said)
+
+
 if __name__ == "__main__":
     unittest.main()

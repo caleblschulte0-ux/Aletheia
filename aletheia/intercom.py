@@ -1874,6 +1874,22 @@ def _contacts_answer(which: str = "", asked: str = "") -> str:
                 return _contacts_answer(named, asked)
         rows = hits
         if not rows:
+            # "The plumber's number is 555 867 5309" kept as a NOTE, then
+            # "what's the plumber's number" said she had none and asked him
+            # to say exactly what he had said (2026-10-07). A note naming
+            # them with a number or an address in it is the answer.
+            try:
+                from aletheia import quick as _q_note, speech as _sp_note
+                wanted = [w for w in re.findall(r"[a-z0-9]+", needle) if w not in ("s", "the", "my", "our")]
+                for note in _q_note._notes():
+                    said = " ".join(str(note.get("text") or "").split())
+                    low_said = said.casefold()
+                    if wanted and all(re.search(rf"\b{re.escape(w)}", low_said) for w in wanted) \
+                            and re.search(r"\b(?:number|phone|cell|mobile|email|e-mail)\b", low_said) \
+                            and re.search(r"\d{3}|@", low_said):
+                        return f"You told me: {_sp_note.as_she_says_it(said).rstrip('.')}."
+            except Exception:  # noqa: BLE001 - the plain answer below still stands
+                pass
             # "I have no contact for 'dana'." (2026-10-07): quotes and his
             # lower case read out, and nothing said how to fix it.
             who = " ".join(str(which).split())
