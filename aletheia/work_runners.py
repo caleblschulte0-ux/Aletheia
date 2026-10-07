@@ -1259,15 +1259,28 @@ def _compose(it: dict, where: dict, now: dt.datetime) -> dict:
     # ledger with its undo; anything outward still becomes his approval. The
     # work item is the session the budget is charged to, so one item cannot
     # churn through a day's allowance.
+    #
+    # EVERY STEP'S ARGUMENTS BEFORE ANY STEP RUNS. A note needs its text, a task
+    # its id, a document its path: the words fill what they can, a model fills
+    # the rest from those same words, and only what neither can say is his. Done
+    # up front so a step that has to wait for a model or for him never leaves an
+    # earlier step half-done and repeated on the retry.
     session_id = f"work-{_task_id(it)}"
     broker = agent_session.Broker(catalog, audience="all", session=session_id)
-    said = []
-    unattended = []
+    filled = []
     for step in plan["steps"]:
         tool = catalog[step["tool"]]
-        args, missing = program_compose.fill_args(tool, {"title": text, "detail": text}, step.get("args"))
+        args, missing = _fill(tool, text, step.get("args"))
+        if missing is None:
+            return {"state": ws.BLOCKED_MODEL, "kind": "waiting", "not_before": _stamp(now + MODEL_RETRY),
+                    "reason": f"needs a model to work out what to give {tool.name} ({args})"[:300],
+                    "next": "try again when a model can think", "did": ""}
         if missing:
             return _his(it, {"why": f"{tool.name} needs {' and '.join(missing)}, which the work does not say"}, now)
+        filled.append((step, tool, args))
+    said = []
+    unattended = []
+    for step, tool, args in filled:
         decision = broker.check(agent_session.ToolRequest(tool.name, args))
         if decision.verdict == agent_session.RUN:
             outcome, result = agent_session.execute(tool, args, quote=f"work session: {text}"[:200])
@@ -1297,6 +1310,23 @@ def _compose(it: dict, where: dict, now: dt.datetime) -> dict:
     return {"state": ws.BLOCKED_USER, "kind": "completed", "reason": "done by a tool; confirm it to close the step",
             "next": "when Caleb marks the step done", "evidence": evidence,
             "did": f"did {_short(it, 80)}; the step closes when you say so"}
+
+
+def _fill(tool, text: str, given: dict | None) -> tuple[Any, list[str] | None]:
+    """(args, still_missing) for one step; (why, None) when only a model could say and none
+    can think right now - that is a wait for a model, not a question for him."""
+    from aletheia import program_compose, reasoner
+    task = {"title": text, "detail": text}
+    args, missing = program_compose.fill_args(tool, task, given)
+    if not missing:
+        return args, []
+    try:
+        args.update(program_compose.model_args(tool, task, args, missing))
+    except reasoner.ReasonerUnavailable as exc:
+        return str(exc)[:120] or "nobody can think right now", None
+    except Exception:  # noqa: BLE001 - an unusable answer leaves them missing, and missing is his
+        pass
+    return args, [m for m in missing if not str(args.get(m) or "").strip()]
 
 
 def _investigate(it: dict, where: dict, now: dt.datetime, *, kind: str = "reserved",

@@ -27,6 +27,7 @@ remember), never about what a life contains.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any
 
@@ -251,9 +252,25 @@ TOPIC_ARGS = ("question", "query", "request", "text", "idea", "what", "goal", "d
 PERSON_ARGS = ("to", "person", "recipient", "who", "contact")
 
 
+def mints_id(tool) -> bool:
+    """Does this tool CREATE the thing its `id` names? Only then may an id be made up:
+    `task_status` and `approve` take an id that must already exist, and a made-up one
+    there is a wrong answer, not a missing one."""
+    return str(tool.kind or tool.name).endswith("_new")
+
+
+def new_id(words: str) -> str:
+    """A lowercase-kebab id from the task's own words, with a short digest so two tasks
+    that start alike do not collide. The same words always give the same id, so a retry
+    finds the record its first attempt made instead of minting a second one."""
+    slug = "-".join(re.findall(r"[a-z0-9]+", words.lower()))[:40].strip("-") or "task"
+    return f"{slug}-{hashlib.sha256(words.encode('utf-8')).hexdigest()[:6]}"
+
+
 def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[str]]:
-    """(args, still_missing). Topic-shaped string arguments come from the task's words;
-    anything else must come from the step itself, a model, or Caleb."""
+    """(args, still_missing). Topic-shaped string arguments come from the task's words,
+    and a creating tool's new id is minted from them; anything else must come from the
+    step itself, a model (`model_args`), or Caleb."""
     schema = tool.input_schema or {}
     props = schema.get("properties") or {}
     args = {k: v for k, v in dict(given or {}).items() if k in props}
@@ -270,6 +287,8 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
             args[key] = who[:200]
         elif key in TOPIC_ARGS and stringy and "enum" not in prop and words_of_task:
             args[key] = words_of_task[:480]
+        elif key == "id" and stringy and "enum" not in prop and words_of_task and mints_id(tool):
+            args[key] = new_id(words_of_task)
         else:
             missing.append(key)
     return args, missing
@@ -292,7 +311,10 @@ def model_args(tool, task: dict, args: dict, missing: list[str], *, think=None) 
         got = value.get("args") if isinstance(value, dict) else None
         if not isinstance(got, dict):
             raise ValueError("args must be an object")
-        return {"args": {k: v for k, v in got.items() if k in missing and str(v).strip()}}
+        # A value outside the argument's own enum is dropped here rather than refused by the
+        # handler later: the argument is then still missing, and missing is a question for him.
+        return {"args": {k: v for k, v in got.items() if k in missing and str(v).strip()
+                         and ("enum" not in (props.get(k) or {}) or v in props[k]["enum"])}}
     if think is None:
         from aletheia import reasoning_gateway
         # Boring work is ROUTINE (her own model first). With no frontier model, though, the routine
