@@ -10556,8 +10556,23 @@ def _the_list() -> str | None:
     return _shopping()
 
 
-def _no_password() -> str:
-    from aletheia import voice
+def _no_password(text: str = "") -> str:
+    """The no-passwords line - unless her memory holds one he explicitly
+    asked her to keep, which is then read back as `_recall` would have."""
+    from aletheia import memory, voice
+    asked = [w for w in re.findall(r"[a-z0-9]+", _tidy(text)) if w not in _STOP_WORDS
+             and w not in ("password", "passcode", "passphrase", "remember", "know", "tell", "give", "read", "remind",
+                           "what", "whats", "is", "was", "the", "for", "to", "on", "of", "do", "you", "have")]
+    try:
+        held = memory.everything(max_chars=8000)
+    except Exception:  # noqa: BLE001
+        held = {}
+    for _domain, entries in held.items():
+        for key, row in entries.items():
+            label = key.replace("_", " ")
+            if re.search(r"pass(?:word|code|phrase)", label.casefold()) and all(w in label.casefold() for w in asked):
+                value = row.get("value") if isinstance(row, dict) else row
+                return f"{label[:1].upper() + label[1:]}: {value}."
     return voice._NO_PASSWORDS
 
 
@@ -11280,7 +11295,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "woke_usual": lambda text: _woke_usual(text),
            "reading": lambda text: _reading(text),
            "awake_for": lambda text: _awake_for(),
-           "no_password": lambda text: _no_password(),
+           "no_password": lambda text: _no_password(text),
            "arrived": lambda text: _arrived(text),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),

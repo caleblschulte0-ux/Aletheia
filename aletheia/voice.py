@@ -1270,6 +1270,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
+    # "Lunch with Jess at noon tomorrow" was held as "lunch with jess at
+    # noon" and read back "at noon at 12 pm" (2026-10-07): the time is the
+    # hold's, not its name's.
+    title = re.sub(r"\s+at (?:noon|midnight|\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?)$", "", str(title).strip(),
+                   flags=re.IGNORECASE) or title
     # "Max has a vet appointment friday at 3" was held as "max has a vet
     # appointment" (2026-10-07) and read back "Max has a vet appointment
     # is Friday". Somebody else's appointment is theirs: "Max's vet
@@ -7672,6 +7677,24 @@ def _interpret(transcript: str) -> dict:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
             return held
+    # "Add a meeting with the team on Thursday at 3 for an hour" (2026-10-07:
+    # to the planner). The length is said last; the rest is a hold as ever.
+    dur = re.fullmatch(r"(?P<rest>.+?) for (?P<d>an hour(?: and a half)?|half an hour|a half hour|an hour and a half"
+                       r"|(?:\d{1,3}|one|two|three|ninety|forty-five|thirty) (?:minutes?|mins?|hours?))", low)
+    if dur and re.match(r"(?:add|schedule|put|book|block|set up|i have|i've got|we have|pencil in)\b", dur.group("rest")):
+        again = _interpret(dur.group("rest"))
+        cmd = (again or {}).get("command") or {}
+        if cmd.get("kind") == "calendar_hold":
+            d = dur.group("d")
+            words = {"one": 1, "two": 2, "three": 3, "thirty": 30, "forty-five": 45, "ninety": 90}
+            n = re.match(r"(\d+|one|two|three|thirty|forty-five|ninety)", d)
+            minutes = (90 if "and a half" in d else 30 if "half" in d else 60 if d.startswith("an hour")
+                       else int(n.group(1)) * 60 if n and n.group(1).isdigit() and "hour" in d
+                       else int(n.group(1)) if n and n.group(1).isdigit()
+                       else words.get(n.group(1), 1) * (60 if "hour" in d else 1) if n else 60)
+            if 5 <= minutes <= 12 * 60:
+                return {**again, "command": {**cmd, "minutes": minutes,
+                                             "title": cmd.get("title") or ""}}
 
     # A FILE WITH TEXT HE ALREADY HAS: "write a file called notes.md with
     # hello". Reversible, in her workspace; the planner is for authoring.
