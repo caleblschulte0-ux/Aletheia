@@ -1561,7 +1561,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # 2026-10-07: sums said in words, each to a model with nothing to think
     # about. LAST, so every narrower pattern above keeps its sentence.
     ("arith", re.compile(
-        r"^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){2,6})$")),
+        r"^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){2,6})$"
+        # "What's 1000 divided by 3 rounded" (2026-10-07: to a model)
+        r"|^(?:what(?:'s| is|s)?|calculate|compute|how much is) (?P<expr2>[\d.,]+(?: (?:plus|minus|times|multiplied by|divided by|over|x|\+|-|\*|/) [\d.,]+){1,6}),?"
+        r" rounded(?: off| (?P<rdir>up|down))?(?: to (?:the nearest )?(?:(?P<rplaces>\d|one|two|three) decimal places?|(?:a )?whole number))?$")),
+    # "7 factorial", "12 dozen", "50 minus 15 percent" (2026-10-07: to a model)
+    ("arith_more", re.compile(
+        r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?P<fact>\d{1,2}) ?(?:factorial|!)$"
+        r"|^(?:what(?:'s| is|s)? |how much is |how many is )?(?P<dozen>[\d.]+|a|half a) dozen$"
+        r"|^(?:what(?:'s| is|s)? |how much is |calculate )?\$?(?P<base>[\d.,]+) (?P<pm>plus|minus|\+|-) (?P<pcent>[\d.]+) ?(?:%|percent)$")),
     ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
     ("average", re.compile(r"^(?:what(?:'s| is) )?(?:the )?(?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
     # 2026-10-07, each to the planner: "what percent is 30 of 120", "what's
@@ -1673,7 +1681,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "logged", "rps", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "logged", "rps", "arith_more", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -4472,7 +4480,8 @@ def _arith(text: str) -> str | None:
     four operators only, with ordinary precedence. Nothing is exec'd."""
     import ast
     import operator
-    expr = _match_of("arith", text).get("expr")
+    g = _match_of("arith", text)
+    expr = g.get("expr") or g.get("expr2")
     if not expr:
         return None
     for word, op in (("multiplied by", "*"), ("divided by", "/"), ("plus", "+"), ("minus", "-"),
@@ -4495,8 +4504,32 @@ def _arith(text: str) -> str | None:
         return "You can't divide by zero."
     except (SyntaxError, ValueError):
         return None
+    if g.get("expr2"):
+        import math
+        places = {"one": 1, "two": 2, "three": 3}.get(g.get("rplaces") or "", int(g["rplaces"]) if (g.get("rplaces") or "").isdigit() else 0)
+        scale = 10 ** places
+        value = (math.ceil(value * scale) if g.get("rdir") == "up" else math.floor(value * scale) if g.get("rdir") == "down"
+                 else round(value * scale)) / scale
+        return f"{_plain(int(value) if places == 0 else value)}."
     said = _number_said(value)
     return said[0].upper() + said[1:] + "."
+
+
+def _arith_more(text: str) -> str | None:
+    import math
+    g = _match_of("arith_more", text)
+    if g.get("fact"):
+        n = int(g["fact"])
+        return f"{math.factorial(n):,}." if n <= 20 else None
+    if g.get("dozen"):
+        n = {"a": 1.0, "half a": 0.5}.get(g["dozen"]) or float(g["dozen"])
+        return f"{_plain(n * 12)}."
+    if g.get("base"):
+        base = float(g["base"].replace(",", ""))
+        pct = float(g["pcent"])
+        value = base * (1 + pct / 100) if g["pm"] in ("plus", "+") else base * (1 - pct / 100)
+        return f"{_money(round(value, 2)) if '$' in text else _plain(round(value, 4))}."
+    return None
 
 
 def _prime(text: str) -> str | None:
@@ -7156,6 +7189,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "coin": lambda rest: _coin(),
            "card": lambda rest: _card(),
            "rps": _rps,
+           "arith_more": _arith_more,
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),
            "spell": lambda rest: _spell(rest),

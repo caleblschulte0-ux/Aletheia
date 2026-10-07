@@ -471,5 +471,15 @@ class SmallGames(unittest.TestCase):
             self.assertRegex(quick.answer("paper"), r"^(?:Rock|Paper|Scissors) - (?:a draw|you win|I win)\.$")
 
 
+class MoreSums(unittest.TestCase):
+    def test_each(self):
+        from aletheia import quick
+        for said, want in (("what's 50 minus 15 percent", "42.5."), ("what's 1000 divided by 3 rounded", "333."),
+                           ("what's 1000 divided by 3 rounded to 2 decimal places", "333.33."),
+                           ("how much is 12 dozen", "144."), ("what is 7 factorial", "5,040."),
+                           ("what's 80 plus 10%", "88.")):
+            self.assertEqual(quick.answer(said), want, said)
+
+
 if __name__ == "__main__":
     unittest.main()
