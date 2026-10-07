@@ -78,7 +78,7 @@ MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status",
 DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
     "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off", "contact_remove", "hold_release",
-    "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
+    "draft_discard", "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
     "apply_pause",
 })
 
@@ -89,7 +89,7 @@ IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "reminder_on", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
-    "contact_remove", "hold_release",
+    "contact_remove", "hold_release", "draft_discard",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -138,6 +138,7 @@ STORE_OF = {
     "contacts": "contacts", "contact_add": "contacts", "contact_remove": "contacts",
     "place_add": "places", "travel_time": "places",
     "watches": "watches", "watch_email_from": "watches",
+    "drafts": "mail", "draft_discard": "mail",
     "recall": "memory", "remember": "memory", "forget": "memory",
     "preference_set": "profile", "preferences": "profile",
     "projects": "plans", "plan_new": "plans", "plan_add_step": "plans",
@@ -714,7 +715,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     # never use.
     "making Word, Excel and PowerPoint files": ("doc_make",),
     "email": ("email_check", "email_read", "email_draft", "thread_draft", "thread_send",
-              "thread_status", "thread_followup"),
+              "thread_status", "thread_followup", "drafts", "draft_discard"),
     "texting people": ("message_send", "texts_read"),
     "posting to Instagram": ("instagram_post", "instagram_posts"),
     "your interviews": ("interview_window_set", "interview_status"),

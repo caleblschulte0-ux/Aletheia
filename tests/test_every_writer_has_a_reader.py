@@ -145,6 +145,8 @@ READER_FOR = {
     # A hold makes that time busy: "when am I free" says so, and names it.
     "calendar_hold": "calendar_find_free",
     "hold_release": "calendar_find_free",
+    # A draft put away is gone from "what drafts do I have".
+    "draft_discard": "drafts",
     # His "handled" on a red project is read back by the brief and by "is
     # anything broken": the fault is said as handled, not as red.
     "fault_ack": "brief",

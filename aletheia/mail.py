@@ -667,7 +667,8 @@ def held_drafts() -> list[dict]:
             d = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists():
+        if isinstance(d, dict) and d.get("held") and not path.with_suffix(".sent.json").exists() \
+                and not path.with_suffix(".refused.json").exists():
             # `created` is to the second; two drafts in one second (a pursuit
             # pass writes several) are ordered by the nanosecond stamp the
             # writer put in the record. A draft written before that existed
@@ -682,6 +683,36 @@ def held_drafts() -> list[dict]:
                                       int(d.get("created_ns") or 0),
                                       int(d.get("_written") or 0),
                                       str(d.get("id") or "")), reverse=True)
+
+
+def discard(which: str = "", *, via: str = "operator") -> tuple[dict | None, str]:
+    """Put one HELD draft away unsent: (the draft, "") or (None, why).
+
+    "Delete the draft" went to the planner and "cancel the draft" was
+    prepared as cancelling a SUBSCRIPTION called draft (2026-10-07). A held
+    draft asks for nothing and reaches nobody, so putting it away is his to
+    say and hers to do; the file is kept and marked, the way a refused one
+    is, so nothing he wrote is lost. A draft with an approval waiting is
+    the approval's to deny, not this."""
+    rows = [d for d in held_drafts() if not d.get("superseded_by")]
+    wanted = [w for w in re.findall(r"[a-z0-9']+", str(which or "").casefold())
+              if w not in ("the", "a", "an", "that", "this", "my", "draft", "email", "e-mail", "to", "about", "one", "last")]
+    if wanted:
+        rows = [d for d in rows if all(w in " ".join(str(d.get(k) or "") for k in ("to", "to_name", "subject", "body")).casefold()
+                                       for w in wanted)]
+    if not rows:
+        return None, ("There's no draft waiting." if not wanted else "No draft matches that.")
+    if len(rows) > 1 and wanted:
+        from aletheia import speech
+        return None, "Which one - " + speech.or_list([f"{d.get('subject')!r} to {d.get('to_name') or d.get('to')}"
+                                                    for d in rows[:4]]) + "?"
+    d = rows[0]
+    (MAIL_DIR / f"{d['id']}.refused.json").write_text(json.dumps(
+        {"id": d["id"], "outcome": "discarded", "by": via,
+         "at": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}, indent=2) + "\n", encoding="utf-8")
+    journal.append("action", "mail:discard", f"put away the draft {d.get('subject')!r} to {d.get('to_name') or d.get('to')}"
+                   " - not sent", actor=ACTOR)
+    return d, ""
 
 
 def drafts_ledger() -> list[dict]:
