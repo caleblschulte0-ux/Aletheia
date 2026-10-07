@@ -947,6 +947,33 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
     ("status_of", _STATUS),
+    # 2026-10-07, every one to a model with nothing to think about:
+    ("sun", re.compile(
+        r"^(?:what time|when) (?:is|does|will) (?:the )?(?P<sun>sunset|sunrise|sun (?:set|rise|go down|come up))(?: (?P<sunday>today|tonight|tomorrow))?$"
+        r"|^when(?:'s| is) (?P<sun2>sunset|sunrise)(?: (?P<sunday2>today|tonight|tomorrow))?$"
+        r"|^what time(?: is it| does it get) (?P<sun3>dark|light)(?: (?P<sunday3>today|tonight|tomorrow))?$")),
+    ("moon", re.compile(
+        r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
+        r"|^what phase is the moon(?: in)?(?: tonight| today)?$"
+        r"|^is (?:it|there) a full moon(?: tonight| today)?$|^when(?:'s| is) the next (?:full|new) moon$")),
+    ("discount", re.compile(
+        r"^what(?:'s| is|s)? (?P<off>[\d.]+) ?(?:%|percent) off (?:of )?\$?(?P<price>[\d.,]+)(?: dollars| bucks)?$"
+        r"|^\$?(?P<price2>[\d.,]+)(?: dollars)? (?:with|at|minus) (?P<off2>[\d.]+) ?(?:%|percent) off$")),
+    ("split", re.compile(
+        r"^(?:split|divide) \$?(?P<bill>[\d.,]+)(?: dollars| bucks)? (?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
+        r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$")),
+    ("area", re.compile(
+        r"^(?:what(?:'s| is) the )?(?:square footage|area) of (?:a )?(?P<w>[\d.]+) by (?P<l>[\d.]+)(?: room| foot room)?$"
+        r"|^how many square feet is (?:a )?(?P<w2>[\d.]+) by (?P<l2>[\d.]+)(?: room)?$")),
+    ("year_left", re.compile(
+        r"^how many (?P<unit>days|weeks|months) (?:are )?(?:left|remaining) (?:in|of|until the end of) (?:the|this) year$")),
+    ("weekday_of", re.compile(
+        r"^what day (?:of the week )?(?:was|is|will be|falls on|did) (?!it\b|today\b|tomorrow\b)(?P<wd>.+?)(?: (?:fall on|on|be))?$")),
+    ("days_between", re.compile(
+        r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
+    ("time_diff", re.compile(
+        r"^what(?:'s| is) the time difference (?:with|to|between (?:me|here|us) and) (?P<tz>[a-z][a-z .'-]{1,40})$"
+        r"|^how many hours (?:ahead|behind) is (?P<tz2>[a-z][a-z .'-]{1,40})$")),
 )
 
 
@@ -962,7 +989,8 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "sun", "moon", "discount", "split", "area", "year_left",
+                    "weekday_of", "days_between", "time_diff"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2387,6 +2415,168 @@ def _math(text: str) -> str | None:
     return None
 
 
+def _groups(name: str, text: str) -> dict:
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == name), None)
+    return {k: v for k, v in (found.groupdict() if found else {}).items() if v}
+
+
+def _sun(text: str) -> str | None:
+    from aletheia import weather
+    g = _groups("sun", text)
+    said = g.get("sun") or g.get("sun2") or g.get("sun3") or ""
+    which = "rise" if any(w in said for w in ("rise", "come up", "light")) else "set"
+    when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or ""
+    return weather.spoken_sun(which, "tomorrow" if when == "tomorrow" else "")
+
+
+def _moon(text: str) -> str:
+    """The phase from the synodic month; no service, and right to a day."""
+    import datetime as dt
+    synodic = 29.530588853
+    ref = dt.datetime(2000, 1, 6, 18, 14, tzinfo=dt.timezone.utc)     # a new moon
+    now = dt.datetime.now(dt.timezone.utc)
+    age = ((now - ref).total_seconds() / 86400) % synodic
+    names = ((1.0, "a new moon"), (6.4, "a waxing crescent"), (8.4, "a first quarter moon"),
+             (13.8, "a waxing gibbous"), (15.8, "a full moon"), (21.1, "a waning gibbous"),
+             (23.1, "a last quarter moon"), (28.5, "a waning crescent"), (synodic, "a new moon"))
+    phase = next(n for limit, n in names if age < limit)
+    low = _tidy(text)
+    if "next full" in low or "next new" in low:
+        target = 14.77 if "full" in low else 0.0
+        ahead = (target - age) % synodic or synodic
+        day = (now + dt.timedelta(days=ahead)).date()
+        return (f"The next {'full' if 'full' in low else 'new'} moon is around "
+                f"{day.strftime('%A')} the {_ordinal_day(day.day)} of {day.strftime('%B')}.")
+    if low.startswith("is "):
+        return "Yes, it's a full moon." if phase == "a full moon" else f"No - it's {phase}."
+    return f"It's {phase}."
+
+
+def _ordinal_day(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _money(v: float) -> str:
+    return f"${v:,.2f}".replace(".00", "")
+
+
+def _discount(text: str) -> str | None:
+    g = _groups("discount", text)
+    try:
+        off = float(g.get("off") or g.get("off2"))
+        price = float((g.get("price") or g.get("price2")).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    if not 0 <= off <= 100:
+        return None
+    saved = price * off / 100
+    return f"{_money(price - saved)} - you save {_money(saved)}."
+
+
+_WAYS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+
+
+def _split(text: str) -> str | None:
+    g = _groups("split", text)
+    try:
+        bill = float((g.get("bill") or g.get("bill2")).replace(",", ""))
+        raw = g.get("ways") or g.get("ways2")
+        ways = int(raw) if raw.isdigit() else _WAYS[raw]
+    except (AttributeError, KeyError, ValueError):
+        return None
+    if ways < 2:
+        return None
+    return f"{_money(round(bill / ways, 2))} each."
+
+
+def _area(text: str) -> str | None:
+    g = _groups("area", text)
+    try:
+        w, l = float(g.get("w") or g.get("w2")), float(g.get("l") or g.get("l2"))
+    except (TypeError, ValueError):
+        return None
+    area = w * l
+    return f"{int(area) if area.is_integer() else round(area, 2):,} square feet."
+
+
+def _year_left(text: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("year_left", text)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    days = (dt.date(today.year, 12, 31) - today).days
+    unit = g.get("unit")
+    if unit == "days":
+        return f"{days} days left in {today.year}."
+    if unit == "weeks":
+        return f"{days // 7} weeks and {days % 7} days left in {today.year}." if days % 7 else \
+            f"{days // 7} weeks left in {today.year}."
+    return f"{12 - today.month} full months after this one, in {today.year}."
+
+
+def _a_date(words: str, today):
+    """A date said with its year ("july 4 2020") or without (the next one)."""
+    import datetime as dt
+    w = " ".join(str(words or "").casefold().replace(",", " ").split()).strip(" ?.")
+    w = re.sub(r"^(?:on |the )", "", w)
+    m = re.fullmatch(r"([a-z]+) (\d{1,2})(?:st|nd|rd|th)?(?: (\d{4}))?|(\d{1,2})(?:st|nd|rd|th)? of ([a-z]+)(?: (\d{4}))?", w)
+    if m:
+        month_word = m.group(1) or m.group(5)
+        day = int(m.group(2) or m.group(4))
+        year = m.group(3) or m.group(6)
+        months = ("january", "february", "march", "april", "may", "june", "july", "august",
+                  "september", "october", "november", "december")
+        month = next((i for i, n in enumerate(months, 1) if len(month_word) >= 3 and n.startswith(month_word)), None)
+        if month:
+            try:
+                if year:
+                    return dt.date(int(year), month, day)
+                d = dt.date(today.year, month, day)
+                return d if d >= today else dt.date(today.year + 1, month, day)
+            except ValueError:
+                return None
+    if w in ("today", "now"):
+        return today
+    try:
+        return _named_date(w, today)
+    except Exception:
+        return None
+
+
+def _weekday_of(text: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("weekday_of", text)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    words = g.get("wd", "")
+    if words.strip() in ("it", "today", "it today", "tomorrow", "it tomorrow"):
+        return None                       # the "date" pattern's question
+    day = _a_date(words, today)
+    if day is None:
+        return None
+    tense = "was" if day < today else "is"
+    return f"{day.strftime('%B')} {day.day}, {day.year} {tense} a {day.strftime('%A')}."
+
+
+def _days_between(text: str) -> str | None:
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("days_between", text)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    a, b = _a_date(g.get("d1"), today), _a_date(g.get("d2"), today)
+    if a is None or b is None:
+        return None
+    if b < a and not re.search(r"\d{4}", g.get("d2", "")):
+        b = b.replace(year=b.year + 1) if not (b.month == 2 and b.day == 29) else b
+    days = abs((b - a).days)
+    return f"{days} day{'s' if days != 1 else ''}."
+
+
+def _time_diff(text: str) -> str | None:
+    g = _groups("time_diff", text)
+    return _time_in(g.get("tz") or g.get("tz2") or "")
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3771,6 +3961,15 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "sun": lambda rest: _sun(rest),
+           "moon": lambda rest: _moon(rest),
+           "discount": lambda rest: _discount(rest),
+           "split": lambda rest: _split(rest),
+           "area": lambda rest: _area(rest),
+           "year_left": lambda rest: _year_left(rest),
+           "weekday_of": lambda rest: _weekday_of(rest),
+           "days_between": lambda rest: _days_between(rest),
+           "time_diff": lambda rest: _time_diff(rest),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,
