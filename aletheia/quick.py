@@ -2574,6 +2574,11 @@ def _birthday_when(who: str) -> str | None:
     for shown, month, day in _birthday_notes():
         if re.sub(r"^your ", "", shown.casefold()) == who:
             return _birthday_line(shown, month, day)
+    rel = _relation_for_name(who)
+    if rel:
+        for shown, month, day in _birthday_notes():
+            if re.sub(r"^your ", "", shown.casefold()) == rel:
+                return _birthday_line(shown[:1].upper() + shown[1:], month, day)
     return _fact_q(f"when is {who}'s birthday")
 
 
@@ -6275,6 +6280,27 @@ def _notes_list() -> str:
     if len(rows) > 5:
         out += f"; and {len(rows) - 5} more"
     return out + "."
+
+
+def _relation_for_name(name: str) -> str | None:
+    """The other way round: "Dana" -> "sister", when a note of his says
+    "my sister's name is Dana". Asked "when is Dana's birthday" after
+    telling her his sister's birthday, she said he never had."""
+    who = " ".join(str(name or "").casefold().split())
+    if not who or not re.fullmatch(r"[a-z][a-z' -]{1,40}", who):
+        return None
+    n = re.escape(who)
+    rel = r"(?P<rel>[a-z][a-z' ]{1,24}?)"
+    shapes = (rf"^(?:my|our) {rel}(?:'s| s)? name is {n}\.?$",
+              rf"^(?:my|our) {rel} is (?:called |named ){n}\.?$",
+              rf"^{n} is (?:my|our) (?:new |older |younger |little |big |best )?{rel}\.?$")
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        for shape in shapes:
+            m = re.match(shape, said)
+            if m:
+                return m.group("rel")
+    return None
 
 
 def _name_for_relation(relation: str) -> str | None:

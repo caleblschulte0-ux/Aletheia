@@ -21,7 +21,7 @@ class APhoneCallCase(unittest.TestCase):
                 out = voice.interpret(said)
                 self.assertIsNone(out["command"])
                 self.assertIn("can't place phone calls", out["say"])
-                self.assertIn(who, out["say"])
+                self.assertIn(who, out["say"].casefold())
                 self.assertIn("text or email", out["say"])
 
     def test_his_capitals_come_back(self):

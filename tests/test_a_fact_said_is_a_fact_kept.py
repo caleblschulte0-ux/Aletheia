@@ -1775,5 +1775,19 @@ class WhatShouldItSayCase(unittest.TestCase):
             self.assertEqual(voice._interpret("saying the meeting moved to 3")["command"]["kind"], "email_draft")
 
 
+
+class HerNameAndHerBirthdayCase(unittest.TestCase):
+    """2026-10-07: "my sister's name is Dana", "my sister's birthday is
+    march 3", then "when is Dana's birthday" - she said he never told her."""
+
+    def test_a_name_finds_the_relation_he_named(self):
+        from aletheia import quick
+        notes = [{"text": "my sister's birthday is march 3"}, {"text": "my sister's name is Dana"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick._relation_for_name("Dana"), "sister")
+            self.assertIn("3 March", quick._birthday_when("Dana") or "")
+            self.assertIsNone(quick._relation_for_name("Sam"))
+
+
 if __name__ == "__main__":
     unittest.main()

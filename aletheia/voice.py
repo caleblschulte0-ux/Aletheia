@@ -4358,7 +4358,7 @@ def _interpret(transcript: str) -> dict:
         # A name said all in lower case is still a name (2026-10-07:
         # "dana's email is ..." saved "dana" beside "Dana" from her number).
         name = _as_he_said(transcript, m.group(1)).strip()
-        return {"command": {"kind": "contact_add", "name": name.title() if name.islower() else name,
+        return {"command": {"kind": "contact_add", "name": name.title() if name.islower() and name not in _RELATIONS else name,
                             "phone": m.group(2).strip()}, "say": None}
     m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:email|e-mail|email address) is "
                      r"(\S+@\S+\.\S+|\S+ at \S+ dot \S+)", low)
@@ -4366,7 +4366,7 @@ def _interpret(transcript: str) -> dict:
         # A name said all in lower case is still a name (2026-10-07:
         # "dana's email is ..." saved "dana" beside "Dana" from her number).
         name = _as_he_said(transcript, m.group(1)).strip()
-        return {"command": {"kind": "contact_add", "name": name.title() if name.islower() else name,
+        return {"command": {"kind": "contact_add", "name": name.title() if name.islower() and name not in _RELATIONS else name,
                             "email": m.group(2).strip().rstrip(".")}, "say": None}
     # "Delete Sam from my contacts" (2026-10-07: to the planner).
     m = re.fullmatch(r"(?:delete|remove|take|drop|get rid of) ([a-z][a-z' -]{0,30}?) (?:from|out of|off) (?:my )?"
@@ -5348,6 +5348,8 @@ def _interpret(transcript: str) -> dict:
         # "Call my dentist" offered to "text or email dentist".
         if re.match(r"(?:call|phone|ring|dial|give|facetime|video) .*\bmy " + re.escape(m.group("who")), low):
             who = f"your {who}"
+        elif re.match(r"(?:call|phone|ring|dial|give|facetime|video) .*\bthe " + re.escape(m.group("who")), low):
+            who = f"the {who}"
         number = ""
         try:
             from aletheia import contacts as _contacts, speech as _speech
