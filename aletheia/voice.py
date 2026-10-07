@@ -2576,7 +2576,8 @@ def _interpret(transcript: str) -> dict:
                            r"appointment|calendar|alarm|timer|that|it|this|them|everything|all|too|also|well)\b", m.group("item")):
         if _TASK_VERB.match(m.group("item")):
             return _new_task(_as_he_said(text, m.group("item")))
-        if not _might_be_several(m.group("item")):
+        # "Add eggs and butter" (2026-10-07: to the planner) is a plain list.
+        if not _might_be_several(m.group("item")) or _a_plain_list(m.group("item")):
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
 

@@ -1885,6 +1885,11 @@ def _undo_his_last_ask() -> str | None:
             continue
         if kind not in UNDOES_HIS_ASK:
             return None
+        if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
+                and "Added to" not in str(turn.get("she_answered") or ""):
+            # "Add milk" with milk already there added nothing; undoing it
+            # must not take off the milk he put there before.
+            return "That added nothing - it was already on your shopping list, so I've left it there."
         return _reverse_his_ask(kind, command)
     return None
 
@@ -2122,6 +2127,14 @@ def _one_shopping_item(which: str):
     if not hits:
         return None, (f"Nothing on your shopping list matching {which!r}."
                       if rows else "Nothing on your shopping list.")
+    # "Add milk" twice, then "I bought milk": "Which one — milk or milk?"
+    # (2026-10-07). The thing named exactly is the one meant, and two
+    # rows saying the same thing are one thing.
+    exact = [w for w in hits if " ".join(str(w.get("need", "")).split()).casefold() == needle]
+    if exact:
+        hits = exact
+    if len({" ".join(str(w.get("need", "")).split()).casefold() for w in hits}) == 1:
+        return hits[0], ""
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str(w.get("need") or w["id"])[:50]
@@ -2576,6 +2589,13 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "task_done":
         from aletheia import tasks as tasks_mod
         found, why = _one_task(cmd["which"])
+        if found is None and str(why).startswith("Nothing"):
+            # "Mark milk done" with milk on the shopping list and no task
+            # about it (2026-10-07): the thing he means is the one there.
+            item, _not = _one_shopping_item(cmd["which"])
+            if item is not None:
+                execute_command({"kind": "shopping_off", "item": str(item.get("need") or "")}, fleet, quote=quote)
+                return f"Took it off your shopping list: {item.get('need')}."
         if found is None:
             return why
         tasks_mod.set_status(found["id"], "COMPLETED",
@@ -3666,15 +3686,24 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 swapped = str(cmd["replaces"])
             except Exception:  # noqa: BLE001
                 swapped = ""
-        added = []
+        added, already = [], []
+        on_it = {" ".join(str(r.get("need", "")).split()).casefold() for r in _shopping_items()}
         for item in shopping_items_of(cmd["item"]):
+            # "Add milk" with milk already on it made two milks (2026-10-07).
+            if " ".join(item.split()).casefold() in on_it and not swapped:
+                already.append(item)
+                continue
+            on_it.add(" ".join(item.split()).casefold())
             slug = _re.sub(r"[^a-z0-9]+", "-", item.lower()).strip("-")[:30]
             workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
                                        need=item, budget=budget)
             added.append(str(workflow["need"]))
         if swapped:
             return f"Swapped {swapped} for {speech.and_list(added)} on the shopping list."
-        return f"Added to the shopping list: {speech.and_list(added)}."
+        if not added:
+            return f"Already on your shopping list: {speech.and_list(already)}."
+        return (f"Added to the shopping list: {speech.and_list(added)}."
+                + (f" Already on it: {speech.and_list(already)}." if already else ""))
     if kind == "contacts":
         return _contacts_answer(cmd.get("which", ""))
     if kind == "watches":
@@ -3715,6 +3744,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if found is None:
             raise act.Refused(why)
         shopping.cancel(found["id"])
+        same = " ".join(str(found.get("need", "")).split()).casefold()
+        for row in _shopping_items():
+            if row.get("id") != found["id"] and " ".join(str(row.get("need", "")).split()).casefold() == same:
+                shopping.cancel(row["id"])
         return f"shopping item {found['id']} off — {found['need']}"
     if kind == "subscriptions":
         from aletheia import subscriptions

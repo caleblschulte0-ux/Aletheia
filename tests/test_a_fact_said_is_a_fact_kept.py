@@ -581,3 +581,38 @@ class TheListHeMeant(unittest.TestCase):
         self.assertIn("Mom's number is", said)
         with mock.patch.object(contacts, "resolve", side_effect=KeyError("no")):
             self.assertIn("text or email your dentist", voice._interpret("call my dentist")["say"])
+
+
+class OneMilkNotTwo(unittest.TestCase):
+    """"Add milk" twice made two milks, and "I bought milk" then asked
+    "Which one - milk or milk?"; "mark milk done" looked only at tasks."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import shopping
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        names = [n for n in dir(shopping) if n.isupper() and isinstance(getattr(shopping, n), Path)]
+        for name in names:
+            patcher = mock.patch.object(shopping, name, Path(self.tmp.name) / name.lower())
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def say(self, said):
+        from aletheia import intercom, speech
+        cmd = voice._interpret(said)
+        if not cmd.get("command"):
+            return cmd.get("say")
+        return speech.spoken_receipt(cmd["command"]["kind"],
+                                     intercom.execute_command(cmd["command"], {"repos": {}}, quote=said))
+
+    def test_twice_is_once(self):
+        self.assertEqual(self.say("add milk"), "Added to the shopping list: milk.")
+        self.assertEqual(self.say("add milk"), "Already on your shopping list: milk.")
+        self.assertEqual(self.say("add eggs and milk"),
+                         "Added to the shopping list: eggs. Already on it: milk.")
+        self.assertIn("milk", self.say("i bought milk"))
+        self.assertIn("eggs", self.say("mark eggs done"))
+        from aletheia import intercom
+        self.assertEqual(intercom._shopping_items(), [])

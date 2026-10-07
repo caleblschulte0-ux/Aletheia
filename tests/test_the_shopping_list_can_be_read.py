@@ -79,7 +79,9 @@ class TheStoreAnswers(unittest.TestCase):
                          "Took it off your shopping list: milk.")
 
     def test_two_that_match_is_a_question(self):
-        rows = [item("milk"), item("milk chocolate")]
+        # Neither is called just "milk"; a row named exactly that would be
+        # the one meant, and that is not a guess.
+        rows = [item("oat milk"), item("milk chocolate")]
         with mock.patch.object(shopping, "all_workflows", return_value=rows):
             with self.assertRaises(act.Refused) as caught:
                 self.run_it({"kind": "shopping_off", "item": "milk"})
