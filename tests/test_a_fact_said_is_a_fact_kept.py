@@ -2678,5 +2678,24 @@ class AddABirthday(unittest.TestCase):
         self.assertEqual(voice.interpret("add mom's birthday june 3")["command"]["kind"], "note")
 
 
+
+class WhatHisBirthdaySettles(unittest.TestCase):
+    """2026-10-07: his sign, the weekday he was born, how old he'll be and a
+    reminder on his birthday all went to a model with the date on file."""
+
+    def test_from_the_date_on_file(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(5, 5, 1995)):
+            self.assertEqual(quick.answer("what's my zodiac sign"), "Taurus - your birthday is May 5.")
+            self.assertEqual(quick.answer("what day was I born"), "You were born on a Friday.")
+            self.assertIn("when you turn", quick.answer("how old will I be on my birthday"))
+            got = voice._interpret("remind me on my birthday to celebrate")["command"]
+            self.assertEqual((got["kind"], got["text"]), ("remind_at", "celebrate"))
+            self.assertIn("-05-05T09:00", got["at"])
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(12, 25, None)):
+            self.assertTrue(quick.answer("what's my sign").startswith("Capricorn"))
+            self.assertIn("not the year", quick.answer("what day was I born"))
+
+
 if __name__ == "__main__":
     unittest.main()

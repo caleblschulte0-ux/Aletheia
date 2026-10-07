@@ -3409,6 +3409,23 @@ def _interpret(transcript: str) -> dict:
         if ((got or {}).get("command") or {}).get("kind") in ("note", "remember"):
             return got
 
+    # "Remind me on my birthday to celebrate" (2026-10-07: to the planner):
+    # the date is on file, so it is a reminder on that date.
+    m = re.fullmatch(r"remind me (?:on|for) my (?:next )?birthday (?P<rest>(?:at [\w: ]+ )?(?:to|that|about) .+)", low)
+    if m:
+        try:
+            from aletheia import quick
+            held = quick._birthday_on_file()
+        except Exception:  # noqa: BLE001
+            held = None
+        if not held:
+            return {"command": None, "say": "I don't have your birthday. Say \"my birthday is March 3rd\" and then ask again."}
+        import datetime as dt
+        month = dt.date(2000, held[0], 1).strftime("%B").lower()
+        got = _interpret(f"remind me on {month} {held[1]} {_as_he_said(text, m.group('rest'))}")
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return got
+
     # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
     # "what time is that reminder", "remind me to text dad too" (the same
     # time), and "change call mom to call grandma" (the same time, new words).

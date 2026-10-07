@@ -578,7 +578,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
         r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
         r"|how long (?:until|till|before) my birthday|when(?:'s| is|s) my next birthday"
-        r"|how many days (?:until|till|to|before) my next birthday)\s*\??$")),
+        r"|how many days (?:until|till|to|before) my next birthday"
+        # "How old will I be on my birthday" (2026-10-07: to a model).
+        r"|how old (?:will i be|am i going to be|will i turn|do i turn)(?: on my (?:next )?birthday| next)?)\s*\??$")),
+    # "What's my zodiac sign", "what day was I born" (2026-10-07: to a model).
+    ("born_facts", re.compile(
+        r"^(?:what(?:'s| is|s) my (?P<born_q>zodiac sign|star sign|sign|astrological sign|zodiac)"
+        r"|what (?P<born_q2>day)(?: of the week)? was i born(?: on)?)\s*\??$")),
     # DEADLINES HE SET. "Add a task to renew my license by Friday" stores a
     # real deadline; "what's due this week" and "what's overdue" told him she
     # couldn't think (2026-10-07).
@@ -1860,7 +1866,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2836,6 +2842,31 @@ def _birthday() -> str:
         return (f"You're {age}. Your birthday is {when}" +
                 ("." if away == 0 else f", when you turn {turning}."))
     return f"Your birthday is {when}."
+
+
+_ZODIAC = ((1, 20, "Capricorn"), (2, 19, "Aquarius"), (3, 21, "Pisces"), (4, 20, "Aries"), (5, 21, "Taurus"),
+           (6, 21, "Gemini"), (7, 23, "Cancer"), (8, 23, "Leo"), (9, 23, "Virgo"), (10, 23, "Libra"),
+           (11, 22, "Scorpio"), (12, 22, "Sagittarius"), (12, 32, "Capricorn"))
+
+
+def _born_facts(which: str) -> str:
+    """His sign, or the weekday he was born, from the birthday on file."""
+    import datetime as dt
+    held = _birthday_on_file()
+    if not held:
+        return "I don't have your birthday. Say \"my birthday is March 3rd, 1995\" and I'll remember it."
+    month, day, year = held
+    if which == "day":
+        if not year:
+            return "I have your birthday but not the year. Say \"my birthday is\" with the year and I'll know."
+        try:
+            return f"You were born on a {dt.date(year, month, day).strftime('%A')}."
+        except ValueError:
+            return "I couldn't work that out from the birthday I have."
+    sign = next(name for m, d, name in _ZODIAC if (month, day) < (m, d))
+    return f"{sign} - your birthday is {dt.date(2000, month, day).strftime('%B')} {day}."
+
+
 def _calendar_fact(what: str) -> str | None:
     """A fact about the calendar itself: yesterday's date, the week number,
     the length of a month, whether this is a leap year."""
@@ -8205,6 +8236,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "about_him": lambda rest: _about_him(),
            "person": _person,
            "work_at": lambda rest: _work_at(),
+           "born_facts": lambda rest: _born_facts("day" if rest == "day" else "sign"),
            "weight": lambda rest: _weight(),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
