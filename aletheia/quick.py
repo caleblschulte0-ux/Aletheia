@@ -1391,9 +1391,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?P<her>how old are (?:you|u)|who (?:made|built|created|programmed) (?:you|u)"
         r"|are (?:you|u) (?:a robot|a bot|an ai|ai|human|a person|real|alive|a real person|sentient|conscious|self aware"
         r"|self-aware)"
-        # "Can you hear me" answered with the registry's line about the room
-        # microphone (2026-10-07). He was heard; that is the answer.
-        r"|can (?:you|u) hear me(?: now| okay| ok| alright)?"
         r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me)"
         # "Are you ChatGPT", "how smart are you", "do you love me" (2026-10-07).
         r"|are (?:you|u) (?:chatgpt|chat gpt|claude|siri|alexa|gpt|google|gemini|cortana|jarvis)"
@@ -5109,8 +5106,6 @@ def _about_her(text: str) -> str:
     if re.search(r"sleep|rest|tired|breaks?|asleep|awake", asked):
         return ("No - I keep running on your PC around the clock, and do the quiet work while you sleep. "
                 "If the PC is off or asleep, so am I.")
-    if re.match(r"can (?:you|u) hear", asked):
-        return "Yes, I hear you."
     if re.search(r"sentient|conscious|self", asked):
         return ("No - I'm an AI. I don't have feelings or awareness; I keep your lists, reminders and calendar "
                 "and think with the models on your subscriptions.")
