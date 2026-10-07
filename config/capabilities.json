@@ -102,7 +102,7 @@
       "approval_policy": "none",
       "caller": "pulse.yml (6-hourly) and CLI",
       "verification": "pulse names every registry repo or records why not",
-      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret â€” today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
+      "notes": "verified live on main 2026-08-25: reads commits, workflow outcomes, state files and vitals for every PUBLIC fleet repo using the default GITHUB_TOKEN. Only private repos need the FLEET_TOKEN secret — today that is etsy_maker alone, which the pulse records honestly as a 404 rather than omitting.",
       "module": "aletheia.pulse"
     },
     {
@@ -232,7 +232,7 @@
       "approval_policy": "registry_grant",
       "caller": "aletheia.act CLI and intercom 'dispatch' commands",
       "verification": "next pulse shows the run",
-      "notes": "gated by front_door in config/fleet.json â€” default grants only Aletheia's own workflows"
+      "notes": "gated by front_door in config/fleet.json — default grants only Aletheia's own workflows"
     },
     {
       "id": "github.issue.create",
@@ -260,7 +260,7 @@
       "status": "NEEDS_CONFIGURATION",
       "risk_class": "medium",
       "approval_policy": "registry_grant",
-      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) â€” static partition, one executor per command",
+      "caller": "intercom.yml on exchange/commands pushes (cloud kinds) + the Core's sync loop on the PC (LOCAL_KINDS: browse_read, browse_shot) — static partition, one executor per command",
       "verification": "every command gets a committed .result.json receipt",
       "notes": "executor built and tested (15 command kinds incl. halt/resume/approve/deny/remember/tasks); needs the operator to create the ChatGPT Project per exchange/INTERCOM.md",
       "module": "aletheia.intercom"
@@ -283,7 +283,7 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.computer.execute â€” reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
+      "caller": "aletheia.computer.execute — reachable through the local Core's POST /api/computer and the CLI; every run needs an approval bound to that exact plan",
       "module": "aletheia.computer",
       "verification": "run computer-6c7d4dd6357b, 2026-08-26T18:57Z: approval phase7-notepad-live-2 APPROVED by the operator in the Command Center; open_app/wait/focus/set_text all verified, typed text read back through UIA and matched exactly; 33 hermetic tests + tests/test_core_computer.py",
       "notes": "Live-verified on the operator's Windows 11 PC 2026-08-26. Two rounds of real acceptance found and fixed: PowerShell mangling the harness's embedded Python; set_edit_text absent on Win11's Document control (UIA Value pattern fallback with read-back verification); a window match that could reach operator documents (plans now scope to their own scratch file). Approvals remain operator_always, sha256-bound to the exact plan, consumed once even on failure."
@@ -319,7 +319,7 @@
       "status": "AVAILABLE",
       "risk_class": "read",
       "approval_policy": "none",
-      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL â€” runs on the PC) and voice; runtime poll each Core beat (>=300s apart) turns new unread into private bus events and exact-match reply correlation — ambiguity refused, never guessed",
+      "caller": "aletheia.mail.check_unread via intercom kind email_check (LOCAL — runs on the PC) and voice; runtime poll each Core beat (>=300s apart) turns new unread into private bus events and exact-match reply correlation — ambiguity refused, never guessed",
       "verification": "live on the operator's PC 2026-08-26: IMAP login as openrangeinteractive@gmail.com succeeded, 185 unread listed via mail.check_unread; credentials in ~/.aletheia/mail.json (never the repo)",
       "notes": "Configured 2026-08-26 with an operator-supplied Gmail app password (revocable at myaccount.google.com/apppasswords).",
       "module": "aletheia.mail"
@@ -331,7 +331,7 @@
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved â€” the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
+      "caller": "intercom kind 'thread_send' and aletheia.conversations.send_approved (a conversation message he approved, hash-bound, sent once); aletheia.mail.send_approved — the Core delivers every APPROVED draft each sync tick; drafts come from voice ('Thea, email X that ...'), the intercom kind email_draft, or the Command Center",
       "verification": "live end to end on the operator's PC 2026-08-26: draft mail-a1e1957d0f -> operator_always approval decided with the operator's own word ('Approved', quoted in the decision) -> SMTP delivery -> exactly-once .sent receipt -> the message verified PRESENT in the inbox by independent IMAP read. Plus tests/test_mail.py (15) on the content-bound approval discipline.",
       "notes": "Credentials in ~/.aletheia/mail.json (app password, revocable). Every send remains operator_always, bound to the sha256 of the exact draft.",
       "module": "aletheia.mail"
@@ -458,7 +458,7 @@
     },
     {
       "id": "core.serve",
-      "description": "The local Core V0: persistent service on your PC â€” the internal API every surface shares, the one Thea page it serves at the root, and the ambient fleet wall behind it; loopback unauthenticated, anything remote needs a minted token and TLS",
+      "description": "The local Core V0: persistent service on your PC — the internal API every surface shares, the one Thea page it serves at the root, and the ambient fleet wall behind it; loopback unauthenticated, anything remote needs a minted token and TLS",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "medium",
@@ -475,7 +475,7 @@
       "status": "AVAILABLE",
       "risk_class": "low",
       "approval_policy": "none",
-      "caller": "aletheia.core.start_sync_loop â€” on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
+      "caller": "aletheia.core.start_sync_loop — on by default when `python -m aletheia.core` runs inside a cloned repo; degrades honestly (loop OFF, /api/sync says why) outside one",
       "verification": "tests/test_sync.py + tests/test_core_sync.py drive the full round trip against a real local bare repo, including push races, rebase-conflict abort, receipt idempotency, and a dead remote",
       "notes": "Live on the operator's Windows PC since 2026-08-26 and self-evidencing: the Core's own checkpoint commits land in this repo (193 in one day), and on 2026-08-27T04:38:46Z it pulled merge 095bbfde, journaled 'code updated (12 files) — restarting to run it', and the supervisor relaunched it onto the new code — back serving 6 seconds later. (Registry said NEEDS_CONFIGURATION until 2026-08-27; that was stale — the blocker it named, the operator starting it, was cleared the day before.)",
       "module": "aletheia.sync"
@@ -522,8 +522,8 @@
       "risk_class": "low",
       "approval_policy": "none",
       "caller": "interface/voice.js (Web Speech API, the ambient wall) and interface/thea-app.js via thea.js (the one Thea page, PC and phone alike) -> POST /api/voice -> voice.interpret -> the same run_command gates as every channel",
-      "verification": "tests/test_voice.py: 15 tests â€” wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
-      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (Â§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
+      "verification": "tests/test_voice.py: 15 tests — wake word, halt/resume, spoken URLs ('example dot com'), approve refuses to guess between two pending, unrecognized speech becomes a journaled note (never a guessed action), endpoint round trip on a live Core",
+      "notes": "NEEDS_CONFIGURATION until the Core runs on the PC and the operator clicks the mic indicator once (browser permission). Ears/mouth are the browser's own (Chrome/Edge); the interpreter is deterministic on purpose - unmatched speech is journaled and said so, never guessed (§104). ChatGPT Voice remains the away-from-home channel. 2026-08-26: the PC's mic endpoint was found MUTED in Windows — the likely cause of the wall mic's silent failure; unmuted, and voice_room --check now reports mute honestly.",
       "module": "aletheia.voice"
     },
     {
@@ -540,14 +540,14 @@
     },
     {
       "id": "browser.interact",
-      "description": "Act on a web page â€” click, type, select, submit â€” inside your own authenticated session",
+      "description": "Act on a web page — click, type, select, submit — inside your own authenticated session",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "high",
       "approval_policy": "operator_always",
-      "caller": "aletheia.browse.interact â€” refuses without an APPROVED approval, before the browser opens",
+      "caller": "aletheia.browse.interact — refuses without an APPROVED approval, before the browser opens",
       "verification": "tested end to end: an approved run fills a form, selects an option and submits it; unapproved, denied, malformed and halted runs are all refused",
-      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (Â§61). 2026-09-03: the primitive checked only that its approval was APPROVED, never that the approval was issued for THIS url and THESE steps — so any approved id authorized any browser action, and an approval to click 'Next' on one site could be handed to a plan that pressed 'Place order' on another. The errand layer did its own hash check and was safe; nothing else was. Authorization now lives in the primitive (browse.approval_action = 'browser.interact:' + sha256 of {url, steps}), where a caller cannot forget it. work_session already minted approvals in exactly this shape; errands now do too.",
+      "notes": "never bypasses authentication: the operator signs in once via 'python -m aletheia.browse login <url>' into a dedicated persistent profile (cache/browser-profile, gitignored). Permission to read a page is never permission to press its buttons (§61). 2026-09-03: the primitive checked only that its approval was APPROVED, never that the approval was issued for THIS url and THESE steps — so any approved id authorized any browser action, and an approval to click 'Next' on one site could be handed to a plan that pressed 'Place order' on another. The errand layer did its own hash check and was safe; nothing else was. Authorization now lives in the primitive (browse.approval_action = 'browser.interact:' + sha256 of {url, steps}), where a caller cannot forget it. work_session already minted approvals in exactly this shape; errands now do too.",
       "module": "aletheia.browse"
     },
     {
