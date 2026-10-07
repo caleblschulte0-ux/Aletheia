@@ -2969,5 +2969,16 @@ class DoneWithIt(unittest.TestCase):
         self.assertEqual((quick.match("how many tasks did I finish this week") or ("",))[0], "tasks_done")
 
 
+class DeleteTheTaskByName(unittest.TestCase):
+    def test_the_task_word_reaches_the_store(self):
+        from aletheia import intercom
+        self.assertEqual(voice._interpret("delete the task called call the vet")["command"],
+                         {"kind": "task_change", "which": "call the vet", "drop": True})
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[{"id": "t1", "description": "water plants", "status": "QUEUED"}]):
+            found, why = intercom._one_task("call the vet")
+        if found is None and why.startswith("Nothing"):
+            self.assertNotIn("'", why)
+
+
 if __name__ == "__main__":
     unittest.main()

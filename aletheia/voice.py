@@ -4291,8 +4291,12 @@ def _interpret(transcript: str) -> dict:
     if m and m.group("w") not in ("it", "that", "this", "everything", "all") \
             and not re.search(r" (?:task|one|item)(?: from (?:my|the) (?:task )?list)?$", low) \
             and not re.search(r"\b(?:first|second|third|last|latest|newest|oldest|next|other)\b", m.group("w")) \
-            and _names_one_open_task(m.group("w")):
-        return {"command": {"kind": "task_change", "which": m.group("w"), "drop": True}, "say": None}
+            and (_names_one_open_task(m.group("w"))
+                 # "Delete the task call the vet" (2026-10-07: to the planner) says it is
+                 # a task; the store answers which one, or that none matches.
+                 or re.match(r"(?:delete|remove|drop|cancel|scrap) (?:the |my )?task (?:called |named )?", low)):
+        which = re.sub(r"^(?:called|named) ", "", m.group("w"))
+        return {"command": {"kind": "task_change", "which": which, "drop": True}, "say": None}
 
     # A THING ON THE SHOPPING LIST, TICKED OFF (2026-10-07): "check off
     # milk" marked a TASK called milk done, and "got the milk" / "bought

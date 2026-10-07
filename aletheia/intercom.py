@@ -2496,7 +2496,8 @@ def _one_task(which: str):
         best = max((n for n, _t in scored), default=0)
         hits = [t for n, t in scored if n == best and n > 0]
     if not hits:
-        return None, f"Nothing open matching {which!r}."
+        # "Nothing open matching 'call the vet'" read its quote marks out (2026-10-07).
+        return None, f"Nothing on your list matches {str(which).strip()}."
     if len(hits) > 1:
         return None, ("Which one — "
                       + speech.or_list([str(t.get("description") or t["id"])[:50]
