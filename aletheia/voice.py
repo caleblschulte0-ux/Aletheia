@@ -7201,6 +7201,20 @@ def _interpret(transcript: str) -> dict:
             found, _why = _ic._one_reminder(_as_he_said(text, m.group("what")))
         except Exception:
             found = None
+        if hhmm and found is not None and found.get("kind") == "daily":
+            # "Change my pill reminder to 9" when it repeats daily (2026-10-07:
+            # it became a one-off at 9 PM and the 8 am one was switched off).
+            # Still daily; a bare hour keeps the half of the day it was in.
+            said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+            hour, minute = map(int, hhmm.split(":"))
+            try:
+                was = int(str(found.get("time") or "0:0").split(":")[0])
+            except ValueError:
+                was = 0
+            if _is_bare_hour(m.group("time")) and was >= 12 and hour < 12:
+                hour += 12
+            return {"command": {"kind": "remind_daily", "time": f"{hour:02d}:{minute:02d}", "text": said_text,
+                                "replaces": said_text}, "say": None}
         if hhmm and found is not None:
             said_text = str((found.get("command") or {}).get("text") or m.group("what"))
             return {"command": {"kind": "remind_at", "at": _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group("time"))),

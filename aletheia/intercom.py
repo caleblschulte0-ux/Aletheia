@@ -289,7 +289,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # personal-OS verbs (2026-08-26): PC-private state, so all LOCAL_KINDS
     # `replaces` is the text of the reminder this one moves ("make that 4").
     "remind_at":       ({"at", "text"}, {"replaces"}),
-    "remind_daily":    ({"time", "text"}, {"tz", "every"}),
+    "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
     # "Every hour", "every 30 minutes": within the day, from now.
     "remind_every":    ({"minutes", "text"}, set()),
@@ -3835,11 +3835,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid
+        moved = ""
+        if cmd.get("replaces"):
+            # "Change my pill reminder to 9": the daily one moves, and the
+            # old time goes off (never deleted) so he is not reminded twice.
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None:
+                scheduler.set_enabled(found["id"], False)
+                moved = " (moved)"
         sid = "remind-daily-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="daily", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"])
-        return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}"
+        return f"daily reminder {sid} set for {cmd['time']} — {cmd['text'][:80]!r}{moved}"
     if kind == "remind_weekly" and cmd.get("every") not in (None, 1, "1"):
         # "EVERY OTHER MONDAY", "every 2 weeks": one day, the interval kind.
         from aletheia import scheduler

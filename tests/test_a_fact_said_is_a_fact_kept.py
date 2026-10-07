@@ -4749,5 +4749,38 @@ class HowOldIsSamTurning(unittest.TestCase):
             self.assertTrue((quick.answer("how old is sam turning") or "").startswith("Sam is "))
 
 
+class ADailyReminderMovedStaysDaily(unittest.TestCase):
+    """"Change my pill reminder to 9" on a daily 8 am reminder is daily at 9 am, not 9 pm today."""
+
+    def test_it_stays_daily_in_the_same_half_of_the_day(self):
+        from aletheia import intercom, voice
+        daily = {"id": "r", "kind": "daily", "enabled": True, "time": "08:00",
+                 "command": {"kind": "notify_operator", "text": "take my pills"}}
+        with mock.patch.object(intercom, "_one_reminder", return_value=(daily, "")):
+            got = voice.interpret("change my pill reminder to 9")["command"]
+        self.assertEqual(got, {"kind": "remind_daily", "time": "09:00", "text": "take my pills",
+                               "replaces": "take my pills"})
+
+    def test_an_evening_one_stays_in_the_evening(self):
+        from aletheia import intercom, voice
+        daily = {"id": "r", "kind": "daily", "enabled": True, "time": "20:00",
+                 "command": {"kind": "notify_operator", "text": "take my pills"}}
+        with mock.patch.object(intercom, "_one_reminder", return_value=(daily, "")):
+            self.assertEqual(voice.interpret("move my pill reminder to 9")["command"]["time"], "21:00")
+
+    def test_the_old_time_goes_off_when_the_new_one_is_set(self):
+        from aletheia import intercom, scheduler
+        daily = {"id": "old", "kind": "daily", "enabled": True, "time": "08:00",
+                 "command": {"kind": "notify_operator", "text": "take my pills"}}
+        with mock.patch.object(intercom, "_one_reminder", return_value=(daily, "")), \
+                mock.patch.object(scheduler, "set_enabled") as off, \
+                mock.patch.object(scheduler, "create") as made:
+            said = intercom.execute_command({"kind": "remind_daily", "time": "09:00", "text": "take my pills",
+                                             "replaces": "take my pills"}, {}, quote="test")
+        off.assert_called_once_with("old", False)
+        self.assertEqual(made.call_args.kwargs["time"], "09:00")
+        self.assertIn("moved", str(said))
+
+
 if __name__ == "__main__":
     unittest.main()
