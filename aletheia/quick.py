@@ -1439,6 +1439,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # each to a model, a turn after "remember I owe Sam 20 dollars").
     ("owed", re.compile(
         r"^who (?:do i owe|owes me)(?: money| anything)?\s*\??$"
+        r"|^(?:does|do) (?:anyone|anybody) (?:still )?owe me(?: (?:any )?(?:money|anything))?\s*\??$"
         r"|^(?:do i owe|does) (?:anyone|anybody) (?:any )?(?:money|anything)(?: owe me(?: money)?)?\s*\??$"
         r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
         r"|^how much (?:do i owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: owe me)?\s*\??$"
@@ -1796,6 +1797,8 @@ def match(question: str) -> tuple[str, str] | None:
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
+            return name, text
+        if name == "owed":
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3833,11 +3836,19 @@ def _ledger() -> dict:
     return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
 
 
-def _owed(who: str = "") -> str:
-    """What he owes and is owed, from what he told her; never a guess."""
+def _owed(question: str = "") -> str:
+    """What he owes and is owed, from what he told her; never a guess.
+
+    "Who owes me money" opened with "You don't owe anybody" (2026-10-07):
+    the half he asked about comes first, and only that half when he asked
+    one way round."""
     from aletheia import speech
     ledger = _ledger()
-    who = " ".join(str(who or "").casefold().split())
+    g = _groups("owed", question) if question else {}
+    who = " ".join(str(g.get("owe_who") or g.get("owe_amt") or "").casefold().split())
+    low = _tidy(question or "")
+    to_me = bool(re.search(r"\bowes? me\b", low)) and not re.search(r"\bdo i owe\b", low)
+    by_me = bool(re.search(r"\b(?:do i (?:still )?owe|what do i owe)\b", low)) and not to_me
     if who:
         name = who[:1].upper() + who[1:]
         amount = ledger.get(who, 0)
@@ -3846,13 +3857,24 @@ def _owed(who: str = "") -> str:
         if amount > 0:
             return f"{name} owes you {_money(amount)}."
         return f"Nothing between you and {name} that you've told me about."
-    if not ledger:
-        return "Nobody, as far as you've told me. Say \"I owe Sam 20 dollars\" and I'll keep track."
     owe = [f"{k[:1].upper() + k[1:]} {_money(-v)}" for k, v in ledger.items() if v < 0]
     owed = [f"{k[:1].upper() + k[1:]} owes you {_money(v)}" for k, v in ledger.items() if v > 0]
+    owed_line = (speech.and_list(owed)[:1].upper() + speech.and_list(owed)[1:] + ".") if owed else ""
+    # When the half he asked about is empty, the other half is still worth
+    # a sentence: "nobody - but you owe Jo $5".
+    if to_me:
+        if owed_line:
+            return owed_line
+        return ("Nobody owes you anything that you've told me about. "
+                + ("You owe " + speech.and_list(owe) + "." if owe
+                   else "Say \"I lent Sam 20 dollars\" and I'll keep track."))
+    if by_me and owe:
+        return "You owe " + speech.and_list(owe) + "."
+    if not owe and not owed:
+        return "Nobody, as far as you've told me. Say \"I owe Sam 20 dollars\" and I'll keep track."
     said = ["You owe " + speech.and_list(owe) + "." if owe else "You don't owe anybody that you've told me about."]
-    if owed:
-        said.append(speech.and_list(owed)[:1].upper() + speech.and_list(owed)[1:] + ".")
+    if owed_line:
+        said.append(owed_line)
     return " ".join(said)
 
 

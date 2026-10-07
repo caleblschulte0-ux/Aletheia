@@ -908,7 +908,8 @@ class MoneyBetweenPeople(unittest.TestCase):
     def test_added_up_and_settled(self):
         notes = [{"text": "i paid sam back"}, {"text": "jess owes me 15 for lunch"}, {"text": "i owe sam 20 dollars"}]
         with mock.patch.object(quick, "_notes", return_value=notes[1:]):
-            self.assertEqual(quick.answer("who do i owe money"), "You owe Sam $20. Jess owes you $15.")
+            # He asked who HE owes: that half alone (2026-10-07).
+            self.assertEqual(quick.answer("who do i owe money"), "You owe Sam $20.")
             self.assertEqual(quick.answer("how much do i owe sam"), "You owe Sam $20.")
         with mock.patch.object(quick, "_notes", return_value=notes):
             self.assertEqual(quick.answer("who do i owe"), "You don't owe anybody that you've told me about. Jess owes you $15.")
@@ -1850,6 +1851,22 @@ class LunchWithSamTomorrowCase(unittest.TestCase):
     def test_a_day_is_not_a_person(self):
         from aletheia import voice
         self.assertNotIn("Tomorrow", str(voice.interpret("call tomorrow").get("say") or ""))
+
+
+
+class WhoOwesMeCase(unittest.TestCase):
+    """2026-10-07: "who owes me money" opened with "You don't owe anybody",
+    and "does anyone owe me money" went to a model."""
+
+    def test_the_half_he_asked_about(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_ledger", return_value={"sam": 20, "jo": -5}):
+            self.assertEqual(quick._owed("who owes me money"), "Sam owes you $20.")
+            self.assertEqual(quick._owed("who do i owe"), "You owe Jo $5.")
+            self.assertIn("Sam owes you $20", quick._owed("does anyone owe me money"))
+        with mock.patch.object(quick, "_ledger", return_value={"jo": -5}):
+            self.assertTrue(quick._owed("who owes me money").startswith("Nobody owes you"))
+        self.assertEqual(quick.match("does anyone owe me money")[0], "owed")
 
 
 if __name__ == "__main__":
