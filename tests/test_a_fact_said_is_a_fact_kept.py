@@ -2245,5 +2245,18 @@ class RemindMeAboutTheDentistCase(unittest.TestCase):
         self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "the car"))
 
 
+
+class HolidaysInNovemberCase(unittest.TestCase):
+    """2026-10-07: "is Monday a holiday" and "what holidays are in November"
+    went to the planner, and Veterans Day was not a holiday she knew."""
+
+    def test_matched(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("is monday a holiday"), ("holiday_next", "monday"))
+        self.assertEqual(quick.match("what holidays are in november"), ("holiday_next", "november"))
+        self.assertIn("Veterans Day", quick._holiday_next("november"))
+        self.assertTrue(quick.answer("when is veterans day").endswith("from now."))
+
+
 if __name__ == "__main__":
     unittest.main()

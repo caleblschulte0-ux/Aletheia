@@ -613,7 +613,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:when is|when's|what day is|what day's|what day does|which day is) (?P<until2>christmas|new year(?:'s)?(?: day| eve)?|halloween|thanksgiving|"
         r"valentine'?s(?: day)?|easter|the fourth of july|july 4th|independence day|labou?r day|memorial day|"
         r"mlk day|martin luther king day|presidents'? day|president's day|mother'?s day|father'?s day|"
-        r"columbus day|indigenous peoples'? day)(?: on| fall on| this year)?\s*\??$")),
+        r"columbus day|indigenous peoples'? day|veterans'? day|veteran's day|juneteenth|st\.? patrick'?s day"
+        r"|saint patrick'?s day)(?: on| fall on| this year)?\s*\??$")),
     # "What's the date tomorrow", "what was yesterday's date", "what week is
     # it", "how many days in February" (2026-10-07, all to a model).
     # THE NEXT HOLIDAY (2026-10-07: "what holiday is next" and "is today a
@@ -633,7 +634,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("holiday_next", re.compile(
         r"^(?:what(?:'s| is|s) the next (?:holiday|public holiday|federal holiday|big holiday)"
         r"|what holiday is (?:next|coming up)|when(?:'s| is|s) the next (?:holiday|public holiday|federal holiday))\s*\??$"
-        r"|^is (?P<holiday_on>today|tomorrow|it) a (?:holiday|public holiday|federal holiday)(?: today)?\s*\??$"
+        r"|^is (?P<holiday_on>today|tomorrow|it|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+        r" a (?:holiday|public holiday|federal holiday|bank holiday)(?: today)?\s*\??$"
+        # "What holidays are in November" (2026-10-07: to a model).
+        r"|^(?:what|which|are there any|any) holidays? (?:are |is )?(?:there )?(?:in|this) (?P<holiday_month>january|february|march"
+        r"|april|may|june|july|august|september|october|november|december|month)\s*\??$"
         # "What holidays are coming up" (2026-10-07: to a model)
         r"|^(?:what|which) (?P<holiday_list>holidays) (?:are )?(?:coming up|are next|are left(?: this year)?|do we have coming up)\s*\??$"
         r"|^(?:what are the |list the )?(?P<holiday_list2>upcoming|next (?:few|three|3)) holidays\s*\??$")),
@@ -1825,7 +1830,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1926,7 +1931,11 @@ _NAMED_DAYS = {"christmas": (12, 25), "christmas day": (12, 25), "christmas eve"
                "new year's eve": (12, 31), "new years eve": (12, 31), "halloween": (10, 31),
                "valentine's": (2, 14), "valentine's day": (2, 14), "valentines day": (2, 14),
                "the fourth of july": (7, 4), "fourth of july": (7, 4), "july 4th": (7, 4), "july fourth": (7, 4),
-               "independence day": (7, 4)}
+               "independence day": (7, 4),
+               # "What holidays are in November" left out Veterans Day (2026-10-07).
+               "veterans day": (11, 11), "veterans' day": (11, 11), "veteran's day": (11, 11),
+               "juneteenth": (6, 19), "st patrick's day": (3, 17), "saint patrick's day": (3, 17),
+               "st. patrick's day": (3, 17), "st patricks day": (3, 17)}
 _MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august",
            "september", "october", "november", "december")
 
@@ -1937,7 +1946,8 @@ OFF_SWITCH = ("Say \"stop\" or \"halt\" and nothing I do runs until you say \"re
 
 _HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's Day", "Easter", "Mother's Day",
                   "Memorial Day", "Father's Day", "Independence Day", "Labor Day", "Columbus Day", "Halloween",
-                  "Thanksgiving", "Christmas Eve", "Christmas", "New Year's Eve")
+                  "Thanksgiving", "Christmas Eve", "Christmas", "New Year's Eve", "Veterans Day", "Juneteenth",
+                  "St Patrick's Day")
 
 
 _COUNT_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
@@ -2077,10 +2087,26 @@ def _holiday_next(which: str = "") -> str | None:
     dated = sorted((d, name) for name in _HOLIDAY_NAMES if (d := _named_date(name, today)) is not None)
     if not dated:
         return None
-    if which in ("today", "it", "tomorrow"):
-        day = today + dt.timedelta(days=1 if which == "tomorrow" else 0)
+    months = ("january", "february", "march", "april", "may", "june", "july", "august", "september",
+              "october", "november", "december")
+    if which in months or which == "month":
+        month = today.month if which == "month" else months.index(which) + 1
+        said_month = months[month - 1].capitalize()
+        inside = [(d, n) for d, n in dated if d.month == month and (d - today).days < 366]
+        if not inside:
+            return f"No holidays I know of in {said_month}."
+        from aletheia import speech
+        return f"In {said_month}: " + speech.and_list(
+            [f"{n} on {d.strftime('%A')} {d.day}" for d, n in sorted(inside)]) + "."
+    weekdays = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    if which in ("today", "it", "tomorrow") or which in weekdays:
+        if which in weekdays:
+            # "Is Monday a holiday" (2026-10-07: to the planner): the coming one.
+            day = today + dt.timedelta(days=(weekdays.index(which) - today.weekday()) % 7)
+        else:
+            day = today + dt.timedelta(days=1 if which == "tomorrow" else 0)
         on = [name for d, name in dated if d == day]
-        said = "today" if day == today else "tomorrow"
+        said = "today" if day == today else "tomorrow" if day == today + dt.timedelta(days=1) else which.capitalize()
         if on:
             return f"Yes - {said} is {on[0]}."
         when, name = next((d, n) for d, n in dated if d > day)
