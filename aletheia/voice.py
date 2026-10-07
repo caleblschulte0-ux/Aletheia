@@ -2643,7 +2643,7 @@ def _interpret(transcript: str) -> dict:
     # CREATE a task by voice and had no verb for reading the list.
     if re.fullmatch(r"(?:what (?:are|r) my tasks|what'?s? on my (?:list|plate)|"
                     r"my tasks|list (?:my )?tasks|what do i (?:have|need|still have) to do(?: today| now| still)?|"
-                    r"what(?:'s| is|s)? left to do|todo list|"
+                    r"what(?:'s| is|s)? left to do(?: today)?|what(?:'s| is|s)? left (?:for|on my list) today|todo list|"
                     # "task list" and a bare "tasks" made a TASK called
                     # "list", because `task <words>` is the create verb.
                     r"tasks?|task list|the task list|"

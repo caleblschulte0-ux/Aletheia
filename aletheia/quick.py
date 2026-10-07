@@ -307,7 +307,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "I can't think just now"). The thread holds his words too.
     ("asked_last", re.compile(
         r"^what (?:did|was it) i (?:just )?(?:ask|asked|say|said)(?: (?:you|u))?(?: (?:just now|a second ago|before that|earlier))?$"
-        r"|^what was my (?:last )?question$|^what was i (?:just )?(?:asking|saying)$")),
+        r"|^what was my (?:last )?question$|^what was i (?:just )?(?:asking|saying)$"
+        r"|^what was the last thing i (?:asked|said|told)(?: (?:you|u))?$")),
+    # "What did we talk about" (2026-10-07: to the planner) - the thread
+    # she keeps, read back in his words.
+    ("talked_about", re.compile(
+        r"^what (?:did|have) we (?:just )?(?:talk(?:ed)? about|discuss(?:ed)?)(?: so far)?$"
+        r"|^what were we (?:just )?(?:talking about|discussing)$|^recap (?:our|the|this) conversation$")),
     ("repeat", re.compile(
         r"^(?:say that again|repeat that|come again|what did (?:you|u) just say|what was that|"
         r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say)$")),
@@ -1393,7 +1399,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("feeling", re.compile(
         r"^(?:i(?:'m| am)|im|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)$"
-        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day)$")),
+        r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day"
+        r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation)$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
     # every sentence it already had.
@@ -3719,6 +3726,8 @@ _FEELINGS = {
 def _feeling(text: str) -> str | None:
     g = _match_of("feeling", text)
     said = (g.get("feel") or g.get("feel2") or "").strip()
+    if "pep talk" in said or "motivation" in said:
+        said = "motivate me"
     if said.startswith(("i'm having", "im having")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
@@ -5777,6 +5786,30 @@ def _asked_last() -> str:
     return "You haven't asked me anything yet this conversation."
 
 
+def _talked_about() -> str:
+    """The last few things he asked, in his words, oldest first."""
+    try:
+        from aletheia import converse
+        turns = converse._thread()
+    except Exception:
+        turns = []
+    said, seen = [], set()
+    for turn in reversed(turns or []):
+        asked = re.sub(r"^(?:thea|aletheia),? ", "", " ".join(str(turn.get("you") or "").split()),
+                       flags=re.IGNORECASE).rstrip(" ?.!")
+        if not asked or asked.casefold() in seen or \
+                any(n in ("talked_about", "asked_last") and p.match(_tidy(asked)) for n, p in PATTERNS):
+            continue
+        seen.add(asked.casefold())
+        said.append(f"\u201c{asked}\u201d")
+        if len(said) == 4:
+            break
+    if not said:
+        return "We haven't talked about anything yet this conversation."
+    from aletheia import speech
+    return "You asked me " + speech.and_list(list(reversed(said))) + "."
+
+
 #: Asking her to say it again, so the thread can step past those turns.
 _REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat|say (?:that|it) again|"
                          r"what did (?:you|u) (?:just )?say|come again|pardon|sorry,? what|what was that|say again|"
@@ -6087,6 +6120,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "contacts_count": lambda rest: _contacts_count(),
            "repeat": lambda rest: _repeat(),
            "asked_last": lambda rest: _asked_last(),
+           "talked_about": lambda rest: _talked_about(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),
            "computer_ok": lambda rest: _computer_ok(),

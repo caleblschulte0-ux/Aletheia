@@ -239,5 +239,21 @@ class WhereHeLivesAndHisClock(unittest.TestCase):
         self.assertEqual(quick.answer("round 3.14159 to 2 decimals"), "3.14.")
 
 
+class TheConversationReadBack(unittest.TestCase):
+    def test_what_we_talked_about_is_his_own_words(self):
+        from aletheia import converse, quick
+        turns = [{"you": "thea, add milk to my list"}, {"you": "what's the weather"},
+                 {"you": "what's the weather"}, {"you": "what did we talk about"}]
+        with mock.patch.object(converse, "_thread", return_value=turns):
+            self.assertEqual(quick.answer("what did we talk about"),
+                             "You asked me \u201cadd milk to my list\u201d and \u201cwhat's the weather\u201d.")
+        with mock.patch.object(converse, "_thread", return_value=turns[:3]):
+            self.assertEqual(quick.answer("what was the last thing i asked"), "You asked: \u201cwhat's the weather.\u201d")
+
+    def test_a_pep_talk(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("give me a pep talk"), quick.answer("motivate me"))
+
+
 if __name__ == "__main__":
     unittest.main()
