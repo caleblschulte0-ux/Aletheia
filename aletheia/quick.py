@@ -1409,6 +1409,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # a number need randomness, not a model; spelling a word he said is its
     # letters; cups and spoons are a table.
     ("coin", re.compile(r"^(?:flip|toss) a coin$|^heads or tails$|^coin (?:flip|toss)$")),
+    # Small games (2026-10-07: "pick a card" and "rock paper scissors" went
+    # to the planner, which queued them for later).
+    ("card", re.compile(r"^(?:pick|draw|deal me|give me) a (?:random )?card(?: any card)?$|^pick a card,? any card$")),
+    ("rps", re.compile(r"^(?:let'?s play |play )?rock,? paper,? (?:or )?scissors(?:,? (?P<rps>rock|paper|scissors))?$"
+                       r"|^(?P<rps2>rock|paper|scissors)!?$")),
     ("dice", re.compile(r"^roll (?:a |the )?(?P<what>\d+|two|three|four|five|six)? ?(?:dice|die|d6)$")),
     ("pick_number", re.compile(r"^(?:pick|choose|give me|think of) a (?:random )?number"
                                r"(?: (?:between|from) (?P<what>\d+ (?:and|to) \d+))?$")),
@@ -1580,7 +1585,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick)(?: today)?$"
         r"|^(?P<feel2>i can'?t sleep|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
-        r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation)$")),
+        r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile)$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
     # every sentence it already had.
@@ -1668,7 +1673,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "race", "logged", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "logged", "rps", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -4597,6 +4602,7 @@ _FEELINGS = {
     "i cant sleep": "Try putting the screen down for a bit. If something's on your mind, tell me and I'll note it so it waits till morning.",
     "i need a break": "Take one. Say \"set a timer for 15 minutes\" and I'll tell you when it's up.",
     "motivate me": "You've started harder things than whatever this is. Pick the smallest piece and do just that.",
+    "say something nice": "You keep starting things most people only talk about. That counts for a lot.",
 }
 
 
@@ -4605,6 +4611,8 @@ def _feeling(text: str) -> str | None:
     said = (g.get("feel") or g.get("feel2") or "").strip()
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
+    if said in ("cheer me up", "make me smile"):
+        said = "say something nice"
     if said.startswith(("i'm having", "im having", "i had a")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
@@ -6162,6 +6170,34 @@ def _due(when: str = "", now=None) -> str | None:
     return f"{speech.count_phrase(len(rows), 'task')} {lead}: {speech.and_list([line(r) for r in rows[:5]])}."
 
 
+def _card() -> str:
+    import secrets
+    rank = secrets.choice(("Ace", "2", "3", "4", "5", "6", "7", "8", "9", "10", "Jack", "Queen", "King"))
+    return f"The {rank} of {secrets.choice(('hearts', 'diamonds', 'clubs', 'spades'))}."
+
+
+def _rps(text: str) -> str:
+    """One round. His throw when he named one; otherwise hers alone."""
+    import secrets
+    g = _groups("rps", text)
+    his = g.get("rps") or g.get("rps2")
+    if g.get("rps2"):
+        # A bare "paper" is a throw only right after she asked for one.
+        try:
+            from aletheia import converse
+            last = str((converse.recent(limit=1) or [{}])[-1].get("she_answered") or "")
+        except Exception:
+            last = ""
+        if "rock, paper or scissors" not in last.casefold():
+            return None
+    if not his:
+        return "Say rock, paper or scissors, and I'll throw mine at the same time."
+    mine = secrets.choice(("rock", "paper", "scissors"))
+    beats = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
+    result = "a draw" if his == mine else "you win" if beats[his] == mine else "I win"
+    return f"{mine.capitalize()} - {result}."
+
+
 def _coin() -> str:
     import secrets
     return secrets.choice(("Heads.", "Tails."))
@@ -7118,6 +7154,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "due": lambda rest: _due(rest),
            "leap_year": lambda rest: _leap_year(rest),
            "coin": lambda rest: _coin(),
+           "card": lambda rest: _card(),
+           "rps": _rps,
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),
            "spell": lambda rest: _spell(rest),

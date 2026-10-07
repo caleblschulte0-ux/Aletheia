@@ -456,5 +456,20 @@ class HerOwnHoldsCanBeMovedAndCancelled(unittest.TestCase):
             self.assertEqual(voice._one_of_her_holds("dentist"), (None, ""))
 
 
+class SmallGames(unittest.TestCase):
+    def test_a_card(self):
+        from aletheia import quick
+        self.assertRegex(quick.answer("pick a card"), r"^The (?:Ace|\d+|Jack|Queen|King) of (?:hearts|diamonds|clubs|spades)\.$")
+
+    def test_a_bare_throw_only_after_she_asked(self):
+        from unittest import mock
+        from aletheia import converse, quick
+        with mock.patch.object(converse, "recent", return_value=[]):
+            self.assertIsNone(quick.answer("paper"))
+        asked = [{"he_asked": "rock paper scissors", "she_answered": "Say rock, paper or scissors, and I'll throw mine at the same time."}]
+        with mock.patch.object(converse, "recent", return_value=asked):
+            self.assertRegex(quick.answer("paper"), r"^(?:Rock|Paper|Scissors) - (?:a draw|you win|I win)\.$")
+
+
 if __name__ == "__main__":
     unittest.main()
