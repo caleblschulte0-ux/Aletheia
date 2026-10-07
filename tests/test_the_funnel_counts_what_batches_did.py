@@ -98,3 +98,17 @@ class WhatBatchesDid(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HowLongABatchTook(unittest.TestCase):
+    """One batch that found one is either a sparse board or a batch that ran
+    all afternoon; the minutes tell them apart."""
+
+    def test_minutes_are_kept_and_summed_by_day(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "tallies.json"
+            hunt_funnel.note_batch(result(ready=[{}]), offered=90, minutes=95.4, now=NOW, path=path)
+            hunt_funnel.note_batch(result(), offered=10, minutes=12.2, now=NOW, path=path)
+            rows = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual([r["minutes"] for r in rows], [95, 12])
+            self.assertEqual(hunt_funnel.batches(rows, now=NOW)["2026-10-07"]["minutes"], 107)
