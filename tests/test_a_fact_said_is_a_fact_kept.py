@@ -1969,5 +1969,20 @@ class AQuarterToFiveCase(unittest.TestCase):
         self.assertEqual(voice._a_clock_said("at a quarter past six"), "at 6:15")
 
 
+
+class WhatAndShhCase(unittest.TestCase):
+    """2026-10-07: a bare "what?" went to a model, and "shh" to the planner."""
+
+    def test_what_is_say_that_again(self):
+        from aletheia import quick
+        for said in ("what?", "huh", "wait what"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "repeat")
+
+    def test_shh_is_quiet(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("shh")["command"]["kind"], "notify_snooze")
+
+
 if __name__ == "__main__":
     unittest.main()

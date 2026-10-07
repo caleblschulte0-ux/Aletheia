@@ -5365,7 +5365,7 @@ def _interpret(transcript: str) -> dict:
                      r"silent mode)(?: mode)?(?: for (?P<n>\d+) (?P<unit>minutes?|mins?|hours?|hrs?))?"
                      r"|(?:don'?t|do not) (?:disturb|bother|interrupt) me(?: for (?P<n2>\d+) (?P<unit2>minutes?|mins?|hours?|hrs?))?"
                      # "Shut up", "be quiet", "stop talking" (2026-10-07: to the planner).
-                     r"|(?:quiet|hush|shush|mute your notifications|be quiet|shut up|stop talking|quiet down|zip it)"
+                     r"|(?:quiet|hush|shush|sh+|mute your notifications|be quiet|shut up|stop talking|quiet down|zip it)"
                      r"(?: for (?P<n3>\d+) (?P<unit3>minutes?|mins?|hours?|hrs?))?"
                      r"|(?:snooze|pause) (?:your |the |all )?(?:notifications|notices|alerts)(?: for (?P<n4>\d+) (?P<unit4>minutes?|mins?|hours?|hrs?))?"
                      # "I'm in a meeting", "I'm driving" (2026-10-07: to the planner):

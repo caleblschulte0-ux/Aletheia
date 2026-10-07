@@ -332,7 +332,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"sorry,? what|pardon|say again|one more time|i didn'?t (?:catch|hear) that|what did (?:you|u) say"
         # "What was the last thing you said" (2026-10-07: to a model).
         r"|what was the last thing (?:you|u) said|what did (?:you|u) (?:just )?tell me|repeat (?:your|the) last answer"
-        r"|say (?:it|that) one more time|can you repeat that|could you repeat that)\??$")),
+        r"|say (?:it|that) one more time|can you repeat that|could you repeat that"
+        # A bare "what?" or "huh?" (2026-10-07: to a model).
+        r"|what|huh|eh|wait what|hm what)\??$")),
     # "Who is my landlord" came back from her own model as "no lease or
     # rental info connected here" - a capability she has, denied. The
     # person is remembered or he is asked, in words, never a model's guess.
