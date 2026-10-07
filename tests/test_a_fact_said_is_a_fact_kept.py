@@ -100,5 +100,22 @@ class ATimerJustSetIsStillItsLength(unittest.TestCase):
         self.assertIn("timer is up", intercom._reminder_words(spec, receipt=True))
 
 
+class WhatHeHasIncludesHisReminders(unittest.TestCase):
+    def test_an_empty_calendar_still_says_the_reminder(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_agenda", return_value="Nothing on your calendar tomorrow."), \
+                mock.patch.object(quick, "_reminders_on", return_value="1 reminder tomorrow: 12 pm, call Jenna."):
+            self.assertEqual(quick._agenda_and_reminders("tomorrow"),
+                             "Nothing on your calendar tomorrow, but 1 reminder tomorrow: 12 pm, call Jenna.")
+
+    def test_no_reminders_leaves_the_calendar_answer_alone(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_agenda", return_value="Tomorrow: dentist at 3 pm."), \
+                mock.patch.object(quick, "_reminders_on", return_value="No reminders tomorrow."):
+            self.assertEqual(quick._agenda_and_reminders("tomorrow"), "Tomorrow: dentist at 3 pm.")
+
+
 if __name__ == "__main__":
     unittest.main()

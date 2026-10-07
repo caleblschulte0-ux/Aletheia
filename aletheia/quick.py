@@ -3606,6 +3606,24 @@ def _agenda(day: str = "today") -> str | None:
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
 
 
+def _agenda_and_reminders(day: str) -> str | None:
+    """A day's calendar, and the reminders that go off on it. "What do I
+    have tomorrow" said "Nothing on your calendar tomorrow" with a reminder
+    to call his sister at noon sitting in the store (2026-10-07)."""
+    said = _agenda(day)
+    if said is None or day not in ("today", "tomorrow", *_WEEKDAYS):
+        return said
+    try:
+        reminders = _reminders_on(day)
+    except Exception:
+        reminders = None
+    if not reminders or reminders.startswith("No reminders"):
+        return said
+    if said.startswith("Nothing on your calendar"):
+        return said.rstrip(".") + ", but " + reminders[0].lower() + reminders[1:]
+    return said + " " + reminders
+
+
 def _last_reply_on_record(days: int = 14) -> str:
     """" The last was DevRev, on Tuesday." - or "" when there is none."""
     try:
@@ -6928,7 +6946,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "approvals": lambda rest: _approvals(),
            "capabilities": lambda rest: _capabilities(),
            "cannot": lambda rest: _cannot(),
-           "agenda": lambda rest: _agenda(rest or "today"),
+           "agenda": lambda rest: _agenda_and_reminders(rest or "today"),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
            "recall_when": lambda rest: (lambda said: None if not said or said.startswith("I have nothing") else said)(_recall(rest)),
