@@ -211,3 +211,24 @@ class TheWrongVerbAndTheWrongHour(unittest.TestCase):
     def test_the_high_and_when_it_gets_dark(self):
         self.assertEqual(quick.match("what's the high today"), ("weather", "today"))
         self.assertEqual(quick.match("when does it get dark")[0], "sun")
+
+
+class TheItHeJustHeard(unittest.TestCase):
+    """"Cancel it" and "what's on it" mean what she just said (2026-10-07)."""
+
+    def turn(self, said, answered):
+        return mock.patch("aletheia.converse.recent",
+                          return_value=[{"at": "", "he_asked": said, "she_answered": answered}])
+
+    def test_cancel_it_after_one_reminder_was_read_out(self):
+        with self.turn("what reminders do i have", "1 reminder: call the vet — today at 5 pm."), \
+                mock.patch("aletheia.policy.all_approvals", return_value=[]), \
+                mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
+            self.assertEqual(voice._interpret("cancel it")["command"],
+                             {"kind": "reminder_off", "which": "call the vet"})
+
+    def test_whats_on_it_after_the_shopping_list(self):
+        with self.turn("take the eggs off", "Took it off your shopping list: eggs."):
+            self.assertEqual(voice._interpret("what's on it")["command"], {"kind": "shopping_list"})
+        with self.turn("add socks to my packing list", "Added to your packing list: socks."):
+            self.assertEqual(voice._interpret("what's on it")["command"], {"kind": "list_read", "list": "packing"})

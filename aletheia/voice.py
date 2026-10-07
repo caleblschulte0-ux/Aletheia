@@ -1095,6 +1095,19 @@ def _last_ask_kind() -> str:
         return ""
 
 
+def _previous_turn() -> tuple[str, str]:
+    """(what he said, what she answered) for the last exchange. Never raises."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=1)
+    except Exception:
+        return "", ""
+    if not turns:
+        return "", ""
+    return (" ".join(str(turns[-1].get("he_asked") or "").split()),
+            " ".join(str(turns[-1].get("she_answered") or "").split()))
+
+
 def _last_ask_is_undoable() -> bool:
     """Was his last ask a task, a list item, a reminder, a hold or a file -
     the things "cancel it" can take straight back?"""
@@ -1726,6 +1739,15 @@ def _interpret(transcript: str) -> dict:
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
                     r"|(list )?(my )?applications", low):
         return {"command": {"kind": "applications"}, "say": None}
+    # "WHAT'S ON IT" right after the shopping list was touched (2026-10-07:
+    # to a model, with "it" lost). The list the last exchange was about.
+    if re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that) (?:back|out)|read it|what'?s left(?: on it)?", low):
+        said, answered = _previous_turn()
+        if re.search(r"\b(?:shopping|grocery) list\b", f"{said} {answered}", re.IGNORECASE):
+            return {"command": {"kind": "shopping_list"}, "say": None}
+        named = re.search(r"\byour ([a-z][a-z' -]{1,30}?) list\b", answered, re.IGNORECASE)
+        if named:
+            return {"command": {"kind": "list_read", "list": named.group(1)}, "say": None}
     # HIS OWN NAMED LISTS (2026-10-07: "make a list called packing", "add
     # socks to my packing list" and "what's on my packing list" went to the
     # planner). A list with a name of its own - never shopping, tasks or
@@ -3757,6 +3779,13 @@ def _interpret(transcript: str) -> dict:
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
+            # "What reminders do I have" - "1 reminder: call the vet" - then
+            # "cancel it" said "Nothing is waiting for approval" (2026-10-07).
+            # The one reminder she just read out is the "it".
+            _said, answered = _previous_turn()
+            one = re.match(r"1 (?:reminder|alarm|timer): (.+?) (?:—|-) ", answered)
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) and one:
+                return {"command": {"kind": "reminder_off", "which": one.group(1)}, "say": None}
             # "Remember that my car is in spot 14" then "forget that" said
             # "Okay - nothing was waiting" and KEPT the note (2026-10-07).
             # With nothing pending, "that" is the note he just made.
