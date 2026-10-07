@@ -1638,7 +1638,20 @@ def interpret(transcript: str) -> dict:
     somebody writes gets it for free.
     """
     transcript = _with_the_person_named(transcript)
-    return _his_capitals(strip_wake_word(transcript), _no_reminder_about_a_pronoun(_interpret(transcript)))
+    return _his_capitals(strip_wake_word(transcript),
+                         _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
+
+
+def _no_password_in_a_note(said: dict) -> dict:
+    """"Note that the wifi password is hunter2" answered "Noted." and kept
+    "[redacted]" (2026-10-07) - `sensitivity` blanks a password out of
+    everything she writes. Said instead of faked, the way "my wifi password
+    is" already was."""
+    cmd = (said or {}).get("command") or {}
+    if cmd.get("kind") == "note" and re.search(r"\bpass(?:word|code|phrase)\b.{0,30}\b(?:is|are|=|:)\s*\S",
+                                               str(cmd.get("text") or ""), re.IGNORECASE):
+        return {"command": None, "say": _NO_PASSWORDS}
+    return said
 
 
 _NOT_A_NAME = {"my", "your", "his", "her", "its", "it", "that", "this", "what", "who", "today", "tomorrow",
