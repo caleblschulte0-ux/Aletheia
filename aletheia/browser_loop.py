@@ -778,10 +778,38 @@ def _say_boundary(kind: str, url: str, **bits) -> str:
     return str(bits.get("say") or kind)
 
 
+_APPLY_WORD = re.compile(r"\bapply\b|\bapplication\b", re.I)
+
+#: What a dead end held, as one of these words and nothing else.
+DEAD_ENDS = ("empty_page", "apply_elsewhere", "apply_not_taken", "no_apply")
+
+
+def dead_end(obs: dict | None) -> str:
+    """What a page with no way forward actually held, in a word.
+
+    Live 2026-10-07 "no way forward" was the month's largest stop and
+    nothing said whether those postings had no Apply at all, an Apply that
+    leads to another site, or an Apply she saw and did not take - three
+    different fixes. Counts of this word are all that is published."""
+    targets = [t for t in (obs or {}).get("targets") or [] if t.get("role") in ps.PRESS_ROLES]
+    if not targets:
+        return "empty_page"
+    here = str((obs or {}).get("url") or "")
+    applies = [t for t in targets if _APPLY_WORD.search(str(t.get("label") or ""))]
+    if not applies:
+        return "no_apply"
+    if all(t.get("href") and str(t["href"]).startswith("http") and not _same_site(str(t["href"]), here)
+           for t in applies):
+        return "apply_elsewhere"
+    return "apply_not_taken"
+
+
 def _stop(record: dict, state: str, kind: str, obs: dict | None, step: str = "", **bits) -> dict:
     url = (obs or {}).get("url") or record.get("start_url") or ""
     boundary = {"kind": kind, "url": url, "page_state": (obs or {}).get("state", ""),
                 "step": step, "say": _say_boundary(kind, url, **bits)}
+    if kind == "NO_WAY_FORWARD" and obs:
+        boundary["dead_end"] = dead_end(obs)
     boundary.update({k: v for k, v in bits.items()
                      if k in ("questions", "via", "why", "because", "mail", "site_said",
                               "question") and v})

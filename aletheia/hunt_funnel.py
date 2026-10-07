@@ -440,6 +440,10 @@ def _stuck_cause(boundary: dict) -> str:
         return "no_code_box"
     if step.startswith("tell me what to press"):
         return "unclear_button"
+    held = str(boundary.get("dead_end") or "")
+    if held in ("empty_page", "apply_elsewhere", "apply_not_taken", "no_apply"):
+        # What the dead end held, one fixed word (browser_loop.DEAD_ENDS).
+        return f"nothing_to_press_on_{state}+{held}"
     return "nothing_to_press_on_" + state
 
 
