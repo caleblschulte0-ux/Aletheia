@@ -1113,7 +1113,11 @@ def _interpret(transcript: str) -> dict:
                     r"turn (yourself )?off|turn off (yourself|aletheia|thea)|"
                     r"shut (yourself|aletheia|thea) down|"
                     r"go to sleep|go offline|power (yourself )?down|"
-                    r"close the window|see you later)", low):
+                    # NOT "see you later" (2026-10-07): it shut her down
+                    # until he opened her again, while "goodbye" and "see
+                    # you" said she would keep at it. A farewell is not an
+                    # off switch; `quick`'s farewell answers it.
+                    r"close the window)", low):
         return {"command": {"kind": "close", "reason": f"by voice: {transcript!r}"},
                 "say": None}
     # The mirror, for completeness. He can rarely SAY this one: when she is
@@ -2832,6 +2836,21 @@ def _interpret(transcript: str) -> dict:
                     r"thank you very much|ty|cheers|appreciate it|"
                     r"thanks thea|thank you thea)", low):
         return {"command": None, "say": "Any time."}
+    # "OK", "cool", "got it" with nothing waiting went to the planner and came
+    # back "I could not plan that" (2026-10-07): a nod answered with an error.
+    # With an approval pending, the yes/no rules above decide what it means.
+    if re.fullmatch(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all right|sounds good|"
+                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do)(?: thanks| thea)?", low) \
+            and not any(a.get("state") == "PENDING" for a in policy.all_approvals()):
+        return {"command": None, "say": "Okay."}
+    # Said TO her about her. A line, not a model call; a complaint is the one
+    # worth a question back, because it is a defect report.
+    if re.fullmatch(r"(?:you(?:'re| are) (?:awesome|great|the best|amazing|a lifesaver|smart|good)|good job|"
+                    r"nice work|well done|good girl|love you|i love you)(?: thea)?", low):
+        return {"command": None, "say": "Thanks - that's nice to hear."}
+    if re.fullmatch(r"(?:you suck|you(?:'re| are) (?:useless|stupid|dumb|terrible|bad|annoying|wrong again)|"
+                    r"that(?:'s| is| was) (?:wrong|useless|terrible|not what i (?:asked|meant|wanted)))(?: thea)?", low):
+        return {"command": None, "say": "Sorry. Tell me what I got wrong and I'll fix it."}
 
     m = re.match(r"(?:add a task|new task|task)\s*(?:to|:)?\s+(.+)", low)
     if m:
