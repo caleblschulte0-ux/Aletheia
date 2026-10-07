@@ -135,7 +135,7 @@ class SmallThingsWithNoModel(unittest.TestCase):
         from aletheia import quick
         rows = [{"text": "I parked on level 3"}, {"text": "buy milk"}, {"text": "I parked on level 1"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
-            self.assertEqual(quick.answer("where did i park"), "You told me: I parked on level 3.")
+            self.assertEqual(quick.answer("where did i park"), "You parked on level 3.")
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIn("haven't told me", quick.answer("where's my car"))
         self.assertEqual(voice._interpret("I parked on level 3")["command"],

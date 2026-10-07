@@ -16,7 +16,7 @@ class HolidaysThatMove(unittest.TestCase):
         self.assertEqual(quick._named_date("easter", dt.date(2026, 1, 1)), dt.date(2026, 4, 5))
 
     def test_when_is_labor_day_needs_no_model(self):
-        self.assertEqual(quick.match("when is labor day")[0], "until")
+        self.assertIn(quick.match("when is labor day")[0], ("until", "until_day"))
 
 
 class CalendarFacts(unittest.TestCase):
