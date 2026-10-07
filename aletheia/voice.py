@@ -3023,6 +3023,36 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "contacts"}, "say": None}
     if re.fullmatch(r"who do i have (saved|on file)", low):
         return {"command": {"kind": "contacts"}, "say": None}
+    # SOMEBODY'S ADDRESS (2026-10-07): "what's mom's address" read back
+    # her phone number - a different question answered confidently - and
+    # "mom lives at 12 Oak Street" went to the planner. A contact has no
+    # address field; a note in his words does, and is what this reads.
+    m = (re.fullmatch(r"(?:my |our )?(?P<who>[a-z][a-z' ]{1,25}?)(?:'s| s|s)? (?:lives at|lives on|address is|new address is)"
+                      r" (?P<addr>\d.{3,80})", low))
+    if m and not re.match(r"(?:i|he|she|it|they|who|where|what|this|that|the|my|our|work|home|office)\b", m.group("who")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = (re.fullmatch(r"what(?:'s| is|s) (?:the )?(?P<who>(?!the\b|this\b|that\b|your\b|its\b|their\b|his\b|her\b)[a-z][a-z' ]{1,30}?)"
+                      r"(?:'s| s) (?:home |mailing |street )?address", low)
+         or re.fullmatch(r"where does (?P<who>(?!he\b|she\b|it\b|that\b|this\b)[a-z][a-z' ]{1,30}?) live(?: now)?", low))
+    if m and not _is_about_himself(m.group("who")):
+        who = m.group("who").strip()
+        bare = re.sub(r"^(?:my|our) ", "", who)
+        from aletheia import quick
+        asked = [[w for w in re.findall(r"[a-z0-9]+", bare) if w != "s"]]
+        # "What's my wife's address" when he said "Sarah lives at ...".
+        named = quick._name_for_relation(who) if who.startswith(("my ", "our ")) else None
+        if named:
+            asked.append(re.findall(r"[a-z0-9]+", named.casefold()))
+        for words in asked:
+            for row in quick._notes():
+                said = " ".join(str(row.get("text") or "").split())
+                low_said = said.casefold()
+                if words and all(re.search(rf"\b{re.escape(w)}", low_said) for w in words) \
+                        and re.search(r"\b(?:lives (?:at|on|in)|address is)\b", low_said):
+                    return {"command": None, "say": f"You told me: {speech.as_she_says_it(said).rstrip('.')}."}
+        his = "your " + bare if who.startswith(("my ", "our ")) or bare in _RELATIONS else bare.title()
+        says = re.sub(r"^your ", "my ", his)
+        return {"command": None, "say": f"I don't have {his}'s address. Say \"{says} lives at\" and the address, and I'll keep it."}
     m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
                      r"address|details)", low)
     # "What's MY email" is a question about HIM, and this pattern captured
@@ -3034,6 +3064,7 @@ def _interpret(transcript: str) -> dict:
     # "What's my locker number" looked up a contact called "my locker"
     # (2026-10-07): a thing with a number is not a person.
     if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)) \
+            and m.group(1).strip() not in ("the", "a", "an", "your", "their", "this", "that", "its", "his", "her") \
             and not re.match(r"(?:new|up|happening|going on|the latest|latest|good) in\b", m.group(1)) \
             and not re.search(r"\b(?:locker|account|member(?:ship)?|policy|license|licence|plate|wifi|wi-fi|gate|door"
                               r"|garage|room|seat|flight|confirmation|order|tracking|case|ticket|insurance|social security"
@@ -7311,6 +7342,10 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|now|this morning))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
             or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I STARTED READING THE HOBBIT" (2026-10-07: to the planner); "what am
+    # I reading" reads it back until he finishes it.
+    if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I START WORK AT 9", "my commute is 30 minutes" (2026-10-07: to the
     # planner). Notes in his words; "what time do I start work" reads the

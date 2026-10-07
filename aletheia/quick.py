@@ -393,6 +393,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
+    ("off_lists", re.compile(
+        r"^what (?P<off_w>movies |shows |films |tv shows )?have i (?:watched|seen|finished watching)(?: lately| recently| this year| so far)?\s*\??$"
+        r"|^what (?P<off_r>books )?have i (?:read|finished reading)(?: lately| recently| this year| so far)?\s*\??$"
+        r"|^how many (?P<off_n>books|movies|shows|films) have i (?:read|watched|seen|finished)(?P<off_y> this year| so far)?\s*\??$"
+        r"|^what was the last (?P<off_l>book|movie|show|film) i (?:read|watched|saw|finished)\s*\??$"
+        r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -1938,7 +1944,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8330,6 +8336,51 @@ def _leave_for_work() -> str | None:
             "from what you've told me. That's without traffic.")
 
 
+def _off_lists(text: str) -> str | None:
+    """What came off his watch and reading lists, and what he says he is
+    reading - "what have I watched", "how many books have I read this
+    year", "what am I reading" (2026-10-07: all to a model). Read from his
+    own lists and notes; None when he keeps no such list and said nothing."""
+    import datetime as dt
+    from aletheia import lists, speech
+    g = _groups("off_lists", text)
+    low = _tidy(text)
+    if g.get("off_now") is not None or re.match(r"^what (?:book )?am i", low):
+        for row in _notes():
+            m = re.match(r"i(?:'ve| have)? (?:just )?(?:started|begun|began|am|'m) (?:reading|on) (?P<b>.+?)\.?$",
+                         " ".join(str(row.get("text") or "").split()), re.I)
+            if m:
+                book = m.group("b")
+                finished = any(re.match(rf"i (?:just )?(?:finished|read) {re.escape(book.casefold())}\b",
+                                        str(r.get("text") or "").casefold()) for r in _notes())
+                read = {t.casefold() for name in (h["name"] for h in lists.all_lists() if lists.kind_of(h["name"]) == "read")
+                        for t, _at in lists.done_items(name)}
+                if not finished and book.casefold() not in read:
+                    return f"You told me you started {book}."
+                break
+        return None
+    noun = g.get("off_n") or g.get("off_l") or ""
+    want = "read" if (g.get("off_r") is not None or noun == "book" or noun == "books"
+                      or re.search(r"\bread\b", low)) else "watch"
+    done = [(t, at) for h in lists.all_lists() if lists.kind_of(h["name"]) == want for t, at in lists.done_items(h["name"])]
+    if not any(lists.kind_of(h["name"]) == want for h in lists.all_lists()):
+        return None
+    done.sort(key=lambda r: r[1], reverse=True)
+    verb = "read" if want == "read" else "watched"
+    if g.get("off_l"):
+        if not done:
+            return f"Nothing's come off your {'reading' if want == 'read' else 'watch'} list yet."
+        return f"{done[0][0]}, from your list."
+    if g.get("off_y") or "this year" in low:
+        year = str(dt.date.today().year)
+        done = [r for r in done if r[1].startswith(year)]
+    if g.get("off_n"):
+        return f"{speech.count_phrase(len(done), noun.rstrip('s'))}{' this year' if 'this year' in low else ''}, off your list."
+    if not done:
+        return f"Nothing's come off your {'reading' if want == 'read' else 'watch'} list yet."
+    return f"You've {verb} {speech.and_list([t for t, _ in done[:6]])}" + (f" and {len(done) - 6} more." if len(done) > 6 else ".")
+
+
 def _did_count(text: str) -> str | None:
     """"How many times did I walk the dog today": his notes saying he did,
     counted for the day, week or month he named. Never a guess."""
@@ -8871,6 +8922,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "lent": _lent,
            "went": _went,
            "did_count": _did_count,
+           "off_lists": _off_lists,
            "work_hours": _work_hours,
            "cost_mine": _cost_mine,
            "liked_how": _liked_how,

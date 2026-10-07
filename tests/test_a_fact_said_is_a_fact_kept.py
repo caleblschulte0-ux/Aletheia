@@ -3202,5 +3202,50 @@ class MonthsInOtherYears(unittest.TestCase):
         self.assertIn(quick.answer("yes or no"), ("Yes.", "No."))
 
 
+class WatchedAndRead(unittest.TestCase):
+    def test_finishing_a_thing_on_a_list_takes_it_off_and_it_is_counted(self):
+        import datetime as dt
+        import tempfile
+        from pathlib import Path
+        from aletheia import intercom, lists, quick
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(lists, "private_dir", side_effect=lambda name: Path(tmp) / name), \
+                mock.patch.object(intercom, "_one_task", return_value=(None, "Nothing open matching that.")), \
+                mock.patch.object(intercom, "_one_shopping_item", return_value=(None, "")):
+            (Path(tmp) / "lists").mkdir()
+            lists.create("watch")
+            lists.add("watch", ["Dune", "Arrival"])
+            lists.create("reading")
+            lists.add("reading", ["The Hobbit"])
+            said = intercom.execute_command({"kind": "task_done", "which": "dune"}, None, quote="I finished Dune")
+            self.assertEqual(said, "Nice - took it off your watch list: Dune.")
+            self.assertEqual(lists.items("watch"), ["Arrival"])
+            lists.take_off("reading", "the hobbit")
+            self.assertEqual(quick.answer("what have I watched"), "You've watched Dune.")
+            self.assertEqual(quick.answer("what was the last book I read"), "The Hobbit, from your list.")
+            self.assertEqual(quick.answer("how many books have I read this year"), "1 book this year, off your list.")
+            now = dt.datetime.now(dt.timezone.utc).isoformat()
+            with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading Dune Messiah", "ts": now}]):
+                self.assertEqual(quick.answer("what am I reading"), "You told me you started Dune Messiah.")
+            with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading The Hobbit", "ts": now}]):
+                self.assertIsNone(quick.answer("what am I reading"))
+
+
+class SomebodysAddress(unittest.TestCase):
+    def test_an_address_is_never_answered_with_a_phone_number(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("Mom lives at 12 Oak Street")["command"],
+                         {"kind": "note", "text": "Mom lives at 12 Oak Street"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            said = voice._interpret("what's mom's address")["say"]
+            self.assertIn("don't have your mom's address", said)
+            self.assertNotIn("number", said)
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "Mom lives at 12 Oak Street", "ts": now}]):
+            self.assertEqual(voice._interpret("what's my mom's address")["say"], "You told me: Mom lives at 12 Oak Street.")
+            self.assertEqual(voice._interpret("where does mom live")["say"], "You told me: Mom lives at 12 Oak Street.")
+
+
 if __name__ == "__main__":
     unittest.main()

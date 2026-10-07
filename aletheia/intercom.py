@@ -2907,6 +2907,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if item is not None:
                 execute_command({"kind": "shopping_off", "item": str(item.get("need") or "")}, fleet, quote=quote)
                 return f"Took it off your shopping list: {item.get('need')}."
+            # "I finished Dune" with Dune on his watch list (2026-10-07: it
+            # stayed there, noted as if it were news). Only a line that IS
+            # the thing he named - never a word inside another line.
+            from aletheia import lists as lists_mod
+            wanted = re.sub(r"^(?:a|an|the|my) ", "", " ".join(str(cmd["which"]).casefold().split()))
+            for held in lists_mod.all_lists():
+                lines = lists_mod.items(held["name"]) or []
+                if any(re.sub(r"^(?:a|an|the|my) ", "", " ".join(line.casefold().split())) == wanted for line in lines):
+                    taken, _why = lists_mod.take_off(held["name"], str(cmd["which"]))
+                    if taken:
+                        return f"Nice - took it off your {held['name']} list: {speech.and_list(taken)}."
             # "I finished the report" with no task about it said "Nothing
             # open matching 'report'" and kept nothing (2026-10-07). Said as
             # a fact, it is kept as one, so "when did I finish" can answer.
