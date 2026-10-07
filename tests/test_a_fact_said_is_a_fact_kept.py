@@ -5371,5 +5371,28 @@ class WhatHeTakesAndWhatTheDoctorSaid(unittest.TestCase):
             self.assertIn("no due date", quick.answer("when do i need to pick up my prescription"))
 
 
+class MoneyHeReadOffHisBank(unittest.TestCase):
+    def test_a_balance_he_told_her(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("my checking account has 2400")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my checking account has 2400"}]):
+            self.assertEqual(quick.balances_told(),
+                             "There's no bank connected, but you told me: your checking account has 2400.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.balances_told())
+
+    def test_whats_left_on_a_loan_is_not_a_person(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how much do i owe on my car")[0], "loan_left")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i owe 12000 on my car"}]):
+            self.assertEqual(quick.answer("how much do i owe on my car"), "You told me: you owe 12000 on your car.")
+
+    def test_how_much_did_i_get_paid(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("i got paid 1800 today")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i got paid 1800 today"}]):
+            self.assertTrue(quick._pay("how much did i get paid").startswith("You told me you got paid $1,800"))
+
+
 if __name__ == "__main__":
     unittest.main()

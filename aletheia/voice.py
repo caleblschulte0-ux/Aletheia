@@ -8008,7 +8008,9 @@ def _interpret(transcript: str) -> dict:
                     r"|when(?:'s| is) (?:my )?(?:next )?pay ?day|when do i (?:next )?get paid(?: next)?"
                     # "How many days until payday" (2026-10-07: to a model).
                     r"|how (?:many days|long) (?:is it )?(?:until|till|til|to) (?:my )?(?:next )?(?:pay ?day|paycheck|i get paid)"
-                    r"|when did i (?:last )?get paid(?: last)?", low.rstrip("?")):
+                    r"|when did i (?:last )?get paid(?: last)?"
+                    # "How much did I get paid" (2026-10-07: to a model, after "I got paid 1800 today").
+                    r"|how much (?:did i (?:get paid|make|earn)|was my (?:last )?(?:paycheck|pay ?check))(?: today| this week| last time)?", low.rstrip("?")):
         from aletheia import quick
         told = quick._pay(low)
         if told:
@@ -8382,6 +8384,19 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:from|on|off) [a-z][a-z0-9.' -]{1,25}?)?(?: today| yesterday| last night| this morning| online)?"
                     r"(?:,? (?:it'?s|and it'?s|it is) (?:arriving|coming|due|getting here) [a-z0-9 ]{2,25})?", low) \
             and not re.search(r"\b(?:you|thea)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My checking account has 2400" (2026-10-07: to the planner). A
+    # balance he read off his bank, kept in his words with the time - there
+    # is no bank connected, so this is the only balance she can hold.
+    if re.fullmatch(r"(?:my |i have (?:about |around )?\$?[\d,.]+k?(?: dollars| bucks)? in (?:my )?)"
+                    r"(?:checking|savings|bank|checking account|savings account|bank account|401k|ira|brokerage(?: account)?)"
+                    r"(?: account)?(?: (?:has|is at|has got|balance is|is) (?:about |around )?\$?[\d,.]+k?(?: dollars| bucks)?(?: in it)?)?", low) \
+            and re.search(r"\d", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I owe 12000 on my car" (2026-10-07: to the planner) - what is left
+    # on a loan, kept in his words.
+    if re.fullmatch(r"i (?:still )?owe (?:about |around )?\$?[\d,.]+k?(?: dollars| bucks)? on (?:my |the )?(?:car|truck|house|mortgage|student loans?|loan|credit card|card)"
+                    r"|i (?:just )?got paid \$?[\d,.]+k?(?: dollars| bucks)?(?: today| yesterday| this week)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The doctor said I have the flu" (2026-10-07: to the planner). What
     # someone he deals with told him, kept in his words; "what did the

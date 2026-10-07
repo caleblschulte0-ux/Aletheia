@@ -521,6 +521,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When did I get to work" (2026-10-07: to a model, after "I'm at work").
     ("arrived", re.compile(
         r"^(?:when|what time) did i (?:get|arrive|make it) (?:to |at )?(?P<arrived>work|the office|home|school|the gym)\s*\??$")),
+    # "How much do I owe on my car" answered about a person called "On My
+    # Car" (2026-10-07). What is left on a loan, from his note.
+    ("loan_left", re.compile(
+        r"^how much (?:do i (?:still )?owe|is left|do i have left|is still owed) on (?:my |the )?(?P<loan>car|truck|house|mortgage|student loans?|loan|credit card|card)\s*\??$"
+        r"|^what(?:'s| is) (?:left on|the balance on|my balance on) (?:my |the )?(?P<loan2>car|truck|house|mortgage|student loans?|loan|credit card|card)(?: loan)?\s*\??$")),
     ("role_said", re.compile(
         r"^what did (?:the|my|our) (?P<role_said>" + _ROLES_WHO_TELL + r") (?:say|tell me|tell us|think|recommend|want me to do)\s*\??$")),
     ("woke_usual", re.compile(
@@ -2333,7 +2338,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -9814,6 +9819,13 @@ def _pay(question: str) -> str | None:
     from aletheia import speech
     low = _tidy(question or "")
     notes = [(" ".join(str(r.get("text") or "").split()), r) for r in _notes()]
+    if re.search(r"\bhow much (?:did i|was my)\b", low):
+        for t, r in notes:
+            m = _PAID_NOTE.match(t.casefold()) and re.search(r"\$?(\d[\d,.]*)(k)?", t)
+            if m:
+                amount = float(m.group(1).replace(",", "")) * (1000 if m.group(2) else 1)
+                return f"You told me you got paid {_money(amount)} {speech.humanize_time(str(r.get('ts') or ''))}."
+        return None
     if re.search(r"\bwhen did i\b", low):
         paid = [(t, r) for t, r in notes if _PAID_NOTE.match(t.casefold())]
         if not paid:
@@ -10454,6 +10466,41 @@ def _arrived(text: str) -> str | None:
             continue
         return f"At {at.strftime('%I:%M %p').lstrip('0').lower()} - that's when you told me you were {'home' if word == 'home' else 'at ' + place}."
     return None
+
+
+def _loan_left(text: str) -> str:
+    """What he told her is left on a loan, with when he said it."""
+    from aletheia import speech
+    g = _groups("loan_left", text)
+    loan = (g.get("loan") or g.get("loan2") or "").strip()
+    stem = re.sub(r"s$", "", loan.split()[-1])
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.match(r"i (?:still )?owe .*\bon (?:my |the )?(?:[a-z]+ )?" + re.escape(stem), said, re.I) \
+                or re.match(r"(?:my |the )?(?:[a-z]+ )?" + re.escape(stem) + r"(?: loan)? (?:balance )?(?:is|has) ", said, re.I) and re.search(r"\d", said):
+            when = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"You told me{' ' + when if when else ''}: {speech.as_she_says_it(said).rstrip('.')}."
+    return (f"You haven't told me what's left on your {loan}. There's no bank connected - "
+            f"say \"I owe\" and the amount \"on my {loan}\" and I'll keep it.")
+
+
+def balances_told() -> str | None:
+    """Balances he read off his bank and told her ("my checking account has
+    2400"), newest per account, with when - the only balances she can hold
+    with no bank connected. None when he told her none."""
+    from aletheia import speech
+    seen, said_back = set(), []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"(?:my |i have (?:about |around )?\$?[\d,.]+k?(?: dollars| bucks)? in (?:my )?)(?P<acct>checking|savings|bank|401k|ira|brokerage)", said, re.I)
+        if not m or not re.search(r"\d", said) or m.group("acct").casefold() in seen:
+            continue
+        seen.add(m.group("acct").casefold())
+        when = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+        said_back.append(speech.as_she_says_it(said).rstrip(".") + (f" ({when})" if when else ""))
+    if not said_back:
+        return None
+    return "There's no bank connected, but you told me: " + speech.and_list(said_back[:4]) + "."
 
 
 def _role_said(text: str) -> str | None:
@@ -11305,6 +11352,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "the_list": lambda text: _the_list(),
            "tasks_verb": lambda text: _tasks_verb(text),
            "role_said": lambda text: _role_said(text),
+           "loan_left": lambda text: _loan_left(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),

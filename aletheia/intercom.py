@@ -4358,6 +4358,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said = (f"You haven't got any accounts recorded, so I have no "
                     f"{about} to report. There's no bank connected - "
                     f"I can only hold what you or I record.")
+            if about == "balance":
+                # "My checking account has 2400" is a note (2026-10-07), and
+                # this said nothing was recorded one breath later.
+                try:
+                    from aletheia import quick as _quick
+                    said = _quick.balances_told() or said
+                except Exception:  # noqa: BLE001
+                    pass
         else:
             said = (f"Assets {worth['assets']:,.2f}, liabilities "
                     f"{worth['liabilities']:,.2f}, net {worth['net']:,.2f} "
