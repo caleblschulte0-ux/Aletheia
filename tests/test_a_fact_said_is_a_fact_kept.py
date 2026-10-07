@@ -2830,5 +2830,23 @@ class CallsHeMade(unittest.TestCase):
             self.assertIn(" days, since ", quick.answer("how long since january 1"))
 
 
+class WhenHeSlept(unittest.TestCase):
+    def test_wake_and_bed_times_are_kept(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I woke up at 7")["command"], {"kind": "note", "text": "I woke up at 7"})
+        notes = [{"text": "I went to bed at 11 last night"}, {"text": "I woke up at 6:30"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what time did I wake up"), "You told me you woke up at 6:30.")
+            self.assertEqual(quick.answer("when did I go to bed last night"), "You told me you went to bed at 11 last night.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("I went to bed at 11", quick.answer("what time did I go to bed"))
+
+    def test_a_drink_count_needs_no_verb_but_needs_a_day(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("a cup of coffee", quick.answer("how many cups of coffee today"))
+        self.assertNotEqual((quick.match("how many cups of water") or ("",))[0], "logged")
+
+
 if __name__ == "__main__":
     unittest.main()

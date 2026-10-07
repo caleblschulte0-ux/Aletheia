@@ -370,6 +370,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("ate", re.compile(
         r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
         r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
+    ("woke", re.compile(
+        r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
+        r"(?: today| this morning| last night| yesterday)?\s*\??$")),
     ("weight", re.compile(
         r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
     ("work_at", re.compile(
@@ -657,7 +660,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "I drank a glass of water", "I ran 3 miles" are added up here.
     ("logged", re.compile(
         r"^how (?:much|many (?:glasses|cups|bottles|mugs|cans)(?: of)?) (?P<logged_drink>water|coffee|tea|soda|beer|wine|juice|milk)"
-        r" (?:have i (?:had|drunk|drank)|did i (?:have|drink))(?P<logged_w> today| this week)?\s*\??$"
+        r"(?: (?:have i (?:had|drunk|drank)|did i (?:have|drink))(?P<logged_w> today| this week)?|(?P<logged_w5> today| this week))\s*\??$"
         r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
         r"(?P<logged_w2> today| this week)?\s*\??$"
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
@@ -1877,7 +1880,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "syn", "syn2", "ant",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "woke", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2008,7 +2011,7 @@ def _logged(text: str) -> str | None:
     g = _groups("logged", text)
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
-    window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or g.get("logged_w4")
+    window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or g.get("logged_w4") or g.get("logged_w5")
               or (" this week" if g.get("logged_dur") else " today")).strip()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if window == "this week":
@@ -2034,7 +2037,9 @@ def _logged(text: str) -> str | None:
                 total += amount(m.group(1))
                 unit = {"glasses": "glass"}.get(m.group(2), m.group(2) if m.group(2) == "glass" else m.group(2).rstrip("s"))
         if not total:
-            return f"You haven't told me about any {drink} {when}. Say \"I drank a glass of {drink}\" and I'll keep count."
+            # "Say 'I drank a glass of coffee'" (2026-10-07): a cup is what coffee comes in.
+            vessel = {"coffee": "cup", "tea": "cup", "beer": "can", "soda": "can"}.get(drink, "glass")
+            return f"You haven't told me about any {drink} {when}. Say \"I drank a {vessel} of {drink}\" and I'll keep count."
         plural = {"glass": "glasses"}.get(unit, unit + "s")
         return f"{_plain(total)} {unit if total == 1 else plural} of {drink} {when}."
     if g.get("logged_move"):
@@ -8008,6 +8013,28 @@ def _ate(text: str) -> str | None:
     return f"You told me you had {speech.and_list(hits)} {named}."
 
 
+def _woke(act: str) -> str:
+    """"What time did I wake up": the newest note saying when he did."""
+    from aletheia import speech
+    said = {"wake up": "woke up", "get up": "got up", "go to bed": "went to bed", "go to sleep": "went to sleep",
+            "fall asleep": "fell asleep"}.get(act.strip(), act.strip())
+    kin = ("woke up", "got up") if said in ("woke up", "got up") else ("went to bed", "went to sleep", "fell asleep")
+    for row in _notes():
+        text = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"i (" + "|".join(kin) + r") (?:at |around |about )?(.+?)\.?$", text, re.IGNORECASE)
+        if not m:
+            continue
+        at, day = re.match(r"(.+?)(?: (today|this morning|last night|yesterday))?$", m.group(2)).groups()
+        when = f" {day.casefold()}" if day else ""
+        if not day and row.get("ts"):
+            try:
+                when = ", told me " + speech.humanize_time(str(row["ts"]))
+            except Exception:
+                when = ""
+        return f"You told me you {m.group(1).casefold()} at {at}{when}."
+    return f"You haven't told me. Say \"I {said} at {7 if kin[0] == 'woke up' else 11}\" and I'll remember it."
+
+
 def _weight() -> str | None:
     """"What's my weight": the newest weight he told her, with when."""
     said = re.compile(r"\bi(?: weigh| weighed| am|'m) (\d{2,3}(?:\.\d)?)(?: ?(pounds|lbs?|kg|kilos|kilograms))?", re.IGNORECASE)
@@ -8364,6 +8391,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weight": lambda rest: _weight(),
            "counted": _counted,
            "ate": _ate,
+           "woke": lambda rest: _woke(rest),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

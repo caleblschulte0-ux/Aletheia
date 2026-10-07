@@ -7154,6 +7154,12 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:ate|just ate) (?!it\b|that\b|this\b|nothing\b)[a-z0-9][a-z0-9' ,&-]{1,50}?"
                             r"(?: (?:today|yesterday|this morning|tonight|last night))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I woke up at 7", "I went to bed at 11" (2026-10-07: to the planner).
+    # Kept in his words; "what time did I wake up" reads the newest back.
+    if re.fullmatch(r"i (?:woke up|got up|went to bed|went to sleep|fell asleep) (?:at |around |about )?"
+                    r"\d{1,2}(?::\d{2})?(?: ?(?:am|pm|a\.m\.|p\.m\.))?"
+                    r"(?: (?:today|this morning|last night|yesterday))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).
     # Kept in his words; "what's my weight" reads the newest one back.
     if re.fullmatch(r"i(?: weigh| weighed| am|'m) \d{2,3}(?:\.\d)?(?: ?(?:pounds|lbs?|kg|kilos|kilograms))?"
