@@ -1229,5 +1229,19 @@ class ANamedTimerByItsName(unittest.TestCase):
                                 "remind_at")
 
 
+
+class MyAppointmentIsCase(unittest.TestCase):
+    def test_my_appointment_is_friday_is_a_hold(self):
+        from aletheia import voice
+        got = voice._interpret("my dentist appointment is friday at 2")
+        self.assertEqual(got["command"]["kind"], "calendar_hold")
+        self.assertEqual(got["command"]["title"], "dentist appointment")
+
+    def test_a_question_is_not_a_hold(self):
+        from aletheia import voice
+        got = voice._interpret("when is my dentist appointment") or {}
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "calendar_hold")
+
+
 if __name__ == "__main__":
     unittest.main()

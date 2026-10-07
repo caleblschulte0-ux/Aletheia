@@ -5960,6 +5960,17 @@ def _interpret(transcript: str) -> dict:
             if held and 15 <= minutes <= 12 * 60:
                 held["command"]["minutes"] = minutes
                 return held
+    if not m:
+        # "MY DENTIST APPOINTMENT IS FRIDAY AT 2" (2026-10-07: to the
+        # planner) - the same thing as "I have a dentist appointment friday
+        # at 2", said the other way round.
+        mine = re.fullmatch(r"(?:my|the|our) (?P<what>[a-z][a-z' ]{1,30}? (?:appointment|appt|meeting|interview|call|lunch|dinner"
+                            r"|class|game|flight|haircut|checkup|check-up|surgery|exam|test|recital|practice))"
+                            r" (?:is|'s) (?P<when>.{3,40})", low)
+        if mine and re.search(r"\d|" + _cal_days, mine.group("when")):
+            again = _interpret(f"i have a {mine.group('what')} {mine.group('when')}")
+            if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                return again
     if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
