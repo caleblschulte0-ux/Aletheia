@@ -885,7 +885,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
-        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u) have|waiting|for me|held))?\s*\??$"
+        r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u|i) have|waiting|for me|held))?\s*\??$"
         r"|^what(?:'s| is|s) (?:in|on) (?:my |your |the )?drafts?\s*\??$"
         r"|^how many (?:emails? |drafts? )?(?:are |do (?:you|u) have )?(?:in|on|held in) (?:my |the |your )?drafts?(?: folder)?\s*\??$"
         r"|^how many drafts (?:do (?:you|u) have|are (?:there|held|waiting))\s*\??$"
