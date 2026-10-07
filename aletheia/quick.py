@@ -130,6 +130,9 @@ _STATUS = re.compile(
     # said "I have nothing on Barkly" while the pulse held its row)
     r"|^(?:what(?:'s| is|s)? )?(?:the |my )?(?P<repo5>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
     r" (?:status|health)(?: today| now| right now)?$"
+    # "What's new with Barkly" (2026-10-07: to the planner) - the same row.
+    r"|^what(?:'s| is|s)? (?:new|happening|going on|the latest) (?:with|on|in) (?:the |my )?(?P<repo6>[a-z0-9][a-z0-9 _.-]{1,40}?)"
+    r"(?: pipeline| repo| project| bot)?$"
     r"|^why (?:is|are) (?:the |my )?(?P<repo4>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
     r" (?:red|failing|broken|down|unhealthy|not healthy|in trouble)(?: right now| today)?$")
 
@@ -560,6 +563,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("today", re.compile(
         r"^what (?:did|have) (?:you|u) (?:do|done)(?: today)?$"
         r"|^what have (?:you|u) been doing$"
+        # "What did you do while I was gone" (2026-10-07: to the planner).
+        r"|^what (?:did|have) (?:you|u) (?:do|done|been doing|been up to) while i was (?:gone|away|out|asleep|sleeping|at work)$"
+        r"|^what have (?:you|u) been up to(?: today)?$"
         r"|^what did (?:you|u) get done(?: today)?$"
         # A part of the day (2026-09-24, offline: "I can't think just now")
         r"|^what (?:did|have) (?:you|u) (?:do|done|get done|been doing) (?P<day_part>this morning|this afternoon|this evening|tonight|earlier|earlier today|so far today)$"
@@ -1043,7 +1049,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?:using|eating|hogging|taking) (?:the |my |all the )?(?:cpu|processor)\s*\??$"
         r"|^(?:why is|why's) (?:the |my |this )?(?:pc|computer|machine) (?:so )?slow\s*\??$"
         r"|^how busy is (?:the |my |this )?(?:cpu|processor|pc|computer)\s*\??$"
-        r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$")),
+        r"|^what(?:'s| is|s)? (?:the )?cpu (?:at|usage|load)\s*\??$"
+        # "What's my cpu at" (2026-10-07: to the planner).
+        r"|^what(?:'s| is|s)? my cpu(?: at| usage| load| doing)?\s*\??$|^how much cpu (?:am i|is it|are we) using\s*\??$")),
     ("drafts", re.compile(
         r"^(?:what|which)(?: emails?| notes?)? (?:have (?:you|u)|did (?:you|u)) draft(?:ed)?(?: for me)?\s*\??$"
         r"|^(?:any|what|list|show me|read me) (?:my |your |the )?drafts?(?: (?:do (?:you|u|i) have|waiting|for me|held))?\s*\??$"
@@ -1079,6 +1087,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many notes (?:do i have|have i got|are there)$|^(?:my|all my) notes$|^(?:do i have )?any notes$|^what(?:'s| is| are) (?:in )?my notes$"
         # "What are my notes" told him she couldn't think (2026-10-07).
         r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$"
+        # "What did I write down" (2026-10-07: to the planner).
+        r"|^what (?:did|have) i (?:write|written|jot|jotted|note|noted) down\s*\??$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
         r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
@@ -1110,7 +1120,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What notes do I have about Dana" (2026-10-07, to a model).
-        r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What am I allergic to" (2026-10-07: to the planner, a turn after
+        # "remember that I'm allergic to peanuts").
+        r"|^what am i (?P<recall7>allergic) to\s*\??$|^what are my (?P<recall8>allergies)\s*\??$"
+        r"|^do i have any (?P<recall9>allergies)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
     ("note_search", re.compile(
         r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
@@ -1317,7 +1331,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4789,6 +4803,11 @@ def _status_of(text: str) -> str | None:
             return _doing()
         else:
             said = current_state.repo_words(subject)
+            if said is None:
+                # A project she carries for him is not always a repository
+                # the pulse names: "how's Barkly going" answered nothing
+                # while its charter held the next step (2026-10-07).
+                said = _project_next(subject)
             if said is None and _no_pulse():
                 # "Is the trader running" with the pulse unwritten went to a
                 # model that knows no trader (2026-09-23 night sweep).

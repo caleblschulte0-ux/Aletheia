@@ -4066,7 +4066,16 @@ def _interpret(transcript: str) -> dict:
         name = " ".join(w[:1].upper() + w[1:] if w.islower() else w for w in name.split())
         key = "full_name" if len(name.split()) >= 2 else "operator_name"
         return {"command": {"kind": "remember", "domain": "identity", "key": key, "value": name}, "say": None}
+    # "DELETE ALL MY NOTES" is not done on one sentence (2026-10-07: to the
+    # planner): one note at a time, each forgotten by its words.
+    if re.fullmatch(r"(?:delete|forget|erase|clear|remove|wipe) (?:all|every one of|everything in) (?:of )?(?:my |the |your )?notes"
+                    r"|(?:clear|wipe|empty) (?:my |the |your )?notes", low):
+        return {"command": None,
+                "say": "I won't wipe every note on one sentence. Say \"forget\" and what the note says, "
+                       "or \"delete my last note\", and I'll take them off one at a time."}
     m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
+                 # "Write a note that the car needs oil" (2026-10-07: to the planner).
+                 r"(?:write|leave|add) (?:me )?a note(?: that| saying| of|:)?|"
                  # "Note: buy a card for Dana" missed this (a colon, not a
                  # space), reached the planner and was refused as SPENDING
                  # (2026-10-07). Writing a line down commits nothing.

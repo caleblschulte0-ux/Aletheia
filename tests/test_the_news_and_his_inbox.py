@@ -159,3 +159,32 @@ class TheSmallerOnes(unittest.TestCase):
         self.assertEqual(quick.match("how are you doing today")[0], "greeting")
         self.assertEqual(quick.match("when is my next birthday")[0], "birthday")
         self.assertEqual(quick.match("how much time is left")[0], "timer_left")
+
+
+class WhatHeAsksAfter(unittest.TestCase):
+    """Same pass, the second half."""
+
+    def test_the_ways_he_asks_what_she_did(self):
+        for said in ("what did you do while i was gone", "what have you been up to"):
+            with self.subTest(said=said):
+                self.assertEqual(quick.match(said)[0], "today")
+
+    def test_his_cpu_his_notes_and_his_allergies(self):
+        self.assertEqual(quick.match("what's my cpu at")[0], "cpu")
+        self.assertEqual(quick.match("what did i write down")[0], "notes_list")
+        self.assertEqual(quick.match("what am i allergic to"), ("recall", "allergic"))
+
+    def test_a_note_written(self):
+        self.assertEqual(voice._interpret("write a note that the car needs oil")["command"],
+                         {"kind": "note", "text": "the car needs oil"})
+
+    def test_every_note_at_once_is_not_one_sentence(self):
+        got = voice._interpret("delete all my notes")
+        self.assertIsNone(got["command"])
+        self.assertIn("one at a time", got["say"])
+
+    def test_a_project_the_pulse_does_not_name_is_its_charter(self):
+        from aletheia import current_state
+        with mock.patch.object(current_state, "repo_words", return_value=None), \
+                mock.patch.object(quick, "_project_next", return_value="Next on Barkly, and it's mine: ship it."):
+            self.assertEqual(quick.answer("what's new with barkly"), "Next on Barkly, and it's mine: ship it.")
