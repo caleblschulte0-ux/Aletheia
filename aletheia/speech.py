@@ -578,12 +578,22 @@ def spoken_receipt(kind: str, detail: str, *,
         # A timer and an alarm are said as what they are: "I'll remind you
         # at 12:29 am: your 10-minute timer is up" is a reminder ABOUT a
         # timer, read back to someone who just started one (2026-10-07).
-        timer = what and re.fullmatch(r"your (\d[\w -]{0,30}?) timer is up", what.group(1).strip())
+        timer = what and re.fullmatch(r"your ((?:\d|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve"
+                                      r"|fifteen|twenty|thirty|forty|fifty|sixty|ninety)[\w -]{0,30}?) timer is up",
+                                      what.group(1).strip())
         if when and timer:
             span = re.sub(r"(\d+)( and a half)?[- ](minute|hour|second)\b",
                           lambda g: f"{g.group(1)}{g.group(2) or ''} {g.group(3)}"
                                     f"{'' if g.group(1) == '1' and not g.group(2) else 's'}", timer.group(1))
+            # "your ten-minute timer" (his own number word kept): "ten minutes".
+            span = re.sub(r"\b([a-z]+)[- ](minute|hour|second)\b",
+                          lambda g: g.group(0) if g.group(1) in ("and", "half", "a") else
+                          f"{g.group(1)} {g.group(2)}{'' if g.group(1) == 'one' else 's'}", span)
             span = re.sub(r"\b(hours?) (\d)", r"\1 and \2", span)
+            # "your 10 minute eggs timer" is the eggs timer: its name follows.
+            named = re.fullmatch(r"(.*\b(?:minutes?|hours?|seconds?)) (?!and\b)([a-z][a-z ]*)", span)
+            if named:
+                span = f"{named.group(1)} for the {named.group(2)}"
             return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."

@@ -198,5 +198,18 @@ class MealsAndMeetings(unittest.TestCase):
         self.assertEqual(got["from_day"], got["to_day"])
 
 
+class ATimerReceiptSaysWhatItIs(unittest.TestCase):
+    def say(self, words):
+        from aletheia import speech
+        return speech.spoken_receipt("remind_at", f"reminder r1 set for 2030-01-01T12:00:00+00:00 — '{words}'")
+
+    def test_a_named_timer(self):
+        self.assertTrue(self.say("your 10 minute eggs timer is up").startswith("Timer set for 10 minutes for the eggs - "))
+
+    def test_his_own_number_word(self):
+        self.assertTrue(self.say("your ten-minute timer is up").startswith("Timer set for ten minutes - "))
+        self.assertTrue(self.say("your one-minute timer is up").startswith("Timer set for one minute - "))
+
+
 if __name__ == "__main__":
     unittest.main()
