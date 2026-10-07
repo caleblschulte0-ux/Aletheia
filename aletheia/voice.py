@@ -5953,6 +5953,44 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
+    # "Push my 2pm back an hour" (2026-10-07: to the planner). Her own hold
+    # moves by that much, the same length; anything else is said plainly.
+    m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
+                     r"(?P<dir>back|forward|up|later|earlier) (?:by )?(?P<n>an?|half an|\d{1,3}) "
+                     r"(?P<u>hours?|minutes?|mins?)", low)
+    if m and (m.group("what") in ("it", "that", "this", "them", "everything", "all")
+              or "reminder" in m.group("what") or "alarm" in m.group("what") or "timer" in m.group("what")):
+        m = None  # her own reminder: moved further down
+    if m and not _names_one_open_task(m.group("what")):
+        import datetime as dt
+        n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
+        delta = dt.timedelta(hours=n) if m.group("u").startswith("hour") else dt.timedelta(minutes=n)
+        if m.group("dir") in ("forward", "up", "earlier"):
+            delta = -delta
+        hold, why = _one_of_her_holds(m.group("what"))
+        if hold:
+            from aletheia import calendar as _cal_push
+            was = _cal_push.parse_time(hold["start"])
+            ends = _cal_push.parse_time(hold["end"]) if hold.get("end") else was + dt.timedelta(hours=1)
+            return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": (was + delta).isoformat(),
+                                "minutes": max(5, int((ends - was).total_seconds() // 60)),
+                                "replaces": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+        return {"command": None,
+                "say": "I can't move things on your calendar yet - I can only add holds to it. "
+                       "Move it in your calendar, and if you want a hold at the new time, tell me when."}
+    # "I can't make it to my 3pm" (2026-10-07: to the planner).
+    m = re.fullmatch(r"i (?:can't|cannot|can not|won't|will not) make (?:it to )?(?:my |the )"
+                     r"(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?)(?: (?:today|tomorrow|tonight))?", low)
+    if m and m.group("what") not in ("it", "deadline", "rent", "payment", "it in time"):
+        hold, why = _one_of_her_holds(m.group("what"))
+        if hold:
+            return {"command": None,
+                    "say": f'That one is a hold of mine. Say "cancel my {m.group("what")}" and I\'ll take it off.'}
+        return {"command": None,
+                "say": "I can't change things on your calendar yet - I can only add holds to it, so cancel it there. "
+                       "If someone should hear you can't make it, say \"email\" or \"text\" and who, and what to say."}
     # "MOVE MY DENTIST APPOINTMENT TO FRIDAY" (2026-10-07: to the planner,
     # which has no door to his calendar's events). Said plainly, unless the
     # words pick out one of his tasks, which can be moved.

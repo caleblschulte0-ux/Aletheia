@@ -4634,5 +4634,40 @@ class TheWifiPasswordAndShoeSizeAskedOtherWays(unittest.TestCase):
             self.assertIn("11", quick._fact_q("what size shoe do i wear") or "")
 
 
+class PushedBackAndCantMakeIt(unittest.TestCase):
+    """"Push my 2pm back an hour" moves her own hold; "I can't make it to my 3pm" is answered."""
+
+    HOLD = {"title": "Meeting with sam", "start": "2030-01-02T14:00:00+00:00", "end": "2030-01-02T15:00:00+00:00"}
+
+    def test_her_hold_moves_back_by_the_hour(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_one_of_her_holds", return_value=(self.HOLD, "")):
+            got = voice.interpret("push my 2pm back an hour")
+        command = got["command"]
+        self.assertEqual(command["kind"], "calendar_hold")
+        self.assertTrue(command["start"].startswith("2030-01-02T15:00"))
+        self.assertEqual(command["minutes"], 60)
+        self.assertEqual(command["replaces"], self.HOLD["start"])
+
+    def test_his_own_event_is_said_plainly(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_one_of_her_holds", return_value=(None, "")):
+            got = voice.interpret("push my dentist appointment back 30 minutes")
+        self.assertIsNone(got["command"])
+        self.assertIn("can't move", got["say"])
+
+    def test_cant_make_it_is_answered_without_a_model(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_one_of_her_holds", return_value=(None, "")):
+            got = voice.interpret("i can't make it to my 3pm")
+        self.assertIsNone(got["command"])
+        self.assertIn("calendar", got["say"])
+
+    def test_cant_make_rent_is_not_a_calendar_answer(self):
+        from aletheia import voice
+        got = voice.interpret("i can't make rent") or {}
+        self.assertNotIn("calendar", str(got.get("say") or ""))
+
+
 if __name__ == "__main__":
     unittest.main()
