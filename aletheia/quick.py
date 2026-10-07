@@ -412,10 +412,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how many times (?:did|have) i (?P<dc_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|call|visit|pay"
         r"|take|charge|empty|fill|refill)(?:ed|d)? (?P<dc_o>[a-z][a-z' ]{1,40}?)(?P<dc_when> today| this week| this month| yesterday)?\s*\??$")),
     ("cost_mine", re.compile(
-        r"^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
+        # "How much do I spend on bills a month" (2026-10-07: to a model) -
+        # first, so "bills" is never read as one bill called that.
+        r"^how much (?:do (?:i|we) (?:spend|pay) (?:on|for) (?:my |our )?|are my |is my )(?:monthly )?(?P<cost_bills2>bills|expenses)"
+        r"(?: (?:in total|altogether|total))?(?: (?:a|each|per|every) month| monthly)?\s*\??$"
+        r"|^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
-        r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)\s*\??$")),
+        r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
@@ -9494,6 +9498,33 @@ _PAID_NOTE = re.compile(r"^i (?:just )?got (?:my )?(?:paid|paycheck|pay ?check)"
 _PER_YEAR = {"hour": 2080, "week": 52, "two weeks": 26, "other week": 26, "month": 12, "year": 1}
 
 
+def _next_payday(said: str):
+    """The next date a pay note names - "on the 15th and the 30th", "on the
+    1st", "every Friday", "the last day of the month". None for any other
+    shape (every other Friday has no anchor), never a guess."""
+    import calendar as _calmod
+    import datetime as dt
+    from aletheia import localtime
+    low = str(said or "").casefold()
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    days = [int(d) for d in re.findall(r"\b(\d{1,2})(?:st|nd|rd|th)\b", low) if 1 <= int(d) <= 31]
+    last = bool(re.search(r"\blast (?:day|business day)\b|\bend of (?:the|every) month\b", low))
+    if days or last:
+        found = []
+        for ahead in range(3):
+            year, month = today.year + (today.month - 1 + ahead) // 12, (today.month - 1 + ahead) % 12 + 1
+            size = _calmod.monthrange(year, month)[1]
+            for d in days + ([size] if last else []):
+                found.append(dt.date(year, month, min(d, size)))
+        coming = sorted(x for x in found if x >= today)
+        return coming[0] if coming else None
+    weekday = re.search(r"\bevery (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+    if weekday and not re.search(r"\bother\b", low):
+        want = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(weekday.group(1))
+        return today + dt.timedelta(days=(want - today.weekday()) % 7)
+    return None
+
+
 def _pay(question: str) -> str | None:
     """His pay, from what he told her: how much (worked out to a year, a
     month or a week when he asks one), when it comes, when it last came.
@@ -9506,9 +9537,19 @@ def _pay(question: str) -> str | None:
         if not paid:
             return None
         return f"You told me you got paid {speech.humanize_time(str(paid[0][1].get('ts') or ''))}."
-    if re.search(r"\bwhen\b|pay ?day", low):
+    if re.search(r"\bwhen\b|pay ?day|until i get paid|until my paycheck", low):
         hit = next((t for t, _ in notes if _PAY_WHEN.match(t.casefold())), None)
-        return f"You told me: {speech.as_she_says_it(hit).rstrip('.')}." if hit else None
+        if not hit:
+            return None
+        told = f"You told me: {speech.as_she_says_it(hit).rstrip('.')}."
+        nxt = _next_payday(hit)
+        if nxt is None:
+            return told
+        import datetime as dt
+        from aletheia import localtime
+        days = (nxt - dt.datetime.now(localtime.operator_tz()).date()).days
+        when = "today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days"
+        return f"Next payday is {nxt.strftime('%A')} the {_ordinal(nxt.day)}, {when}. {told}"
     hit = None
     for t, _ in notes:
         m = _PAY_AMOUNT.search(t.casefold())
@@ -9776,16 +9817,27 @@ def _cost_mine(text: str) -> str | None:
     from aletheia import speech
     g = _groups("cost_mine", text)
     rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()]
-    if g.get("cost_bills"):
-        bills, seen = [], set()
+    if g.get("cost_bills") or g.get("cost_bills2"):
+        bills, seen, total, whole = [], set(), 0.0, True
         for said in rows:
             m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
             if m and m.group("k") not in seen:
                 seen.add(m.group("k"))
                 bills.append(speech.as_she_says_it(said).rstrip(".").removeprefix("your ").removeprefix("Your "))
+                n = re.search(r"\$?(\d[\d,]*(?:\.\d+)?)", m.group("v"))
+                if not n:
+                    whole = False
+                    continue
+                amount = float(n.group(1).replace(",", ""))
+                v = m.group("v")
+                total += (amount / 12 if re.search(r"\b(?:year|annual|yearly)\b", v)
+                          else amount * 52 / 12 if re.search(r"\bweek(?:ly)?\b", v) else amount)
         if not bills:
             return None
-        return f"From what you've told me: your {speech.and_list(bills)}."
+        listed = f"From what you've told me: your {speech.and_list(bills)}."
+        if g.get("cost_bills2") and whole:
+            return f"About {_money(round(total))} a month. {listed}"
+        return listed
     thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or "").casefold().split())
     # "How much do I spend on groceries a month" (2026-10-07: to a model,
     # with "I spent 60 on groceries" kept): what he told her he spent.

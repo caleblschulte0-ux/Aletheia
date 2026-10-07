@@ -4870,5 +4870,33 @@ class WeightLostAndTheGoal(unittest.TestCase):
                              "10 pounds to go: you told me 185, and your goal is 175.")
 
 
+class PaydayAndBillsAddedUp(unittest.TestCase):
+    def test_the_next_payday_from_days_of_the_month(self):
+        import datetime as dt
+        from aletheia import localtime, quick
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        got = quick._next_payday("i get paid on the 15th and the 30th")
+        self.assertGreaterEqual(got, today)
+        self.assertIn(got.day, (15, 28, 29, 30))
+        self.assertLessEqual((got - today).days, 31)
+
+    def test_every_other_friday_has_no_anchor(self):
+        from aletheia import quick
+        self.assertIsNone(quick._next_payday("i get paid every other friday"))
+
+    def test_how_many_days_until_payday(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i get paid every friday"}]):
+            said = voice.interpret("how many days until payday")["say"]
+        self.assertTrue(said.startswith("Next payday is Friday"), said)
+
+    def test_bills_a_month_are_added_up(self):
+        from aletheia import quick
+        notes = [{"text": "my rent is 1500"}, {"text": "my electric bill is 120"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertTrue(quick.answer("how much do i spend on bills a month").startswith("About $1,620 a month."))
+            self.assertTrue(quick.answer("what are my bills this month").startswith("From what you've told me"))
+
+
 if __name__ == "__main__":
     unittest.main()

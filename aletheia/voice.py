@@ -7844,6 +7844,8 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"how much (?:do i|money do i) (?:make|earn|get paid|bring home)(?: (?:an? |per )(?:hour|week|month|year))?"
                     r"|what(?:'s| is) my (?:yearly |annual |monthly |weekly )?(?:income|salary|pay)(?: (?:a|per) (?:year|month|week))?"
                     r"|when(?:'s| is) (?:my )?(?:next )?pay ?day|when do i (?:next )?get paid(?: next)?"
+                    # "How many days until payday" (2026-10-07: to a model).
+                    r"|how (?:many days|long) (?:is it )?(?:until|till|til|to) (?:my )?(?:next )?(?:pay ?day|paycheck|i get paid)"
                     r"|when did i (?:last )?get paid(?: last)?", low.rstrip("?")):
         from aletheia import quick
         told = quick._pay(low)
