@@ -1490,6 +1490,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("age_of", re.compile(
         r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b)[a-z][a-z'-]{1,20})?)"
         r"(?: be| turn| be turning)?(?: this year| next)?\s*\??$")),
+    ("took_today", re.compile(
+        r"^(?:did|have) i (?:take|taken|had|have) (?:my )?(?:morning |evening |night |daily )?(?P<took>medicine|meds|medication|pills?|vitamins?"
+        r"|insulin|inhaler|antibiotics?|[a-z]+ pills?)(?: today| this morning| tonight| yet| already)?\s*\??$"
+        r"|^when did i (?:last )?take my (?P<took2>medicine|meds|medication|pills?|vitamins?|insulin)\s*\??$")),
     ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
         r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
@@ -1618,7 +1622,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "since2", "born", "age_of",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -2163,6 +2167,29 @@ def _birthday_on_file():
         return None
     return month, int(day), int(m.group(3)) if m.group(3) else None
 
+
+
+def _took_today(what: str) -> str:
+    """Whether he told her he took it today, and when - from his notes."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    stem = re.sub(r"(?:s|ation)$", "", str(what or "").strip().casefold())
+    stems = {stem, "med", "medicine", "pill"} if stem in ("med", "medicine", "medic", "pill") else {stem}
+    for row in _notes():
+        said = str(row.get("text") or "").casefold()
+        if not re.search(r"\btook\b", said) or not any(re.search(rf"\b{re.escape(x)}", said) for x in stems):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        if at.date() == today:
+            return f"Yes - you told me you took your {what} at {clock} today."
+        return (f"Not that you've told me today. The last time was {speech.humanize_time(at.isoformat())}." )
+    return f"You haven't told me you took your {what} today. Say \"I took my {what}\" when you do and I'll keep track."
 
 
 def _age_of(who: str) -> str | None:
@@ -6898,6 +6925,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "reckon": lambda rest: _reckon(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
+           "took_today": lambda rest: _took_today(rest),
            "pct_of": lambda rest: _pct_of(rest),
            "fraction_dec": lambda rest: _fraction_dec(rest),
            "roman": lambda rest: _roman(rest),

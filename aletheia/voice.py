@@ -652,6 +652,11 @@ def _not_a_file(said: str) -> bool:
     # "Find a time for lunch" is the calendar.
     if re.match(r"(?:a |some )?time (?:for|to)\b", low):
         return True
+    # "Do I have any alarms" searched his files for "alarms" (2026-10-07).
+    # Her own stores are never a file.
+    if re.fullmatch(r"(?:any |my |the )?(?:alarms?|reminders?|timers?|meetings?|appointments?|events?|plans|tasks?|to-?dos?|"
+                    r"bills?|subscriptions?|deadlines?)(?: set| today| tomorrow| this week| coming up| due)?", low):
+        return True
     # "Find me customer success jobs in Denver" is a job search, whatever
     # else the sentence says (2026-09-22: it read Desktop and Downloads).
     if re.search(r"\b(?:jobs?|openings|positions|roles|vacancies|careers|hiring)\b", low):
@@ -3400,6 +3405,8 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "calendar_find_free", "when": when}, "say": None}
         return _to_the_planner(text)
 
+    if re.fullmatch(r"(?:do i have|have i got|are there|is there) (?:any |an? )?(?:alarms?|reminders?|timers?)(?: set| running| on)?(?: for (?:today|tomorrow))?", low):
+        return {"command": {"kind": "reminders"}, "say": None}
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
         r"(?:a |an |any |my |the )?(?:files? |documents? )?"
@@ -5351,6 +5358,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "file_write", "path": name,
                             "text": _as_he_said(text, m.group("body").strip())}, "say": None}
 
+    # HIS MEDICINE, TAKEN (2026-10-07: "I took my medicine" and "did I take
+    # my medicine" both went to the planner). A note with the time on it is
+    # the record; `quick` reads today's back.
+    m = re.fullmatch(r"(?:i )?(?:just |already )?(?:took|had|taken|have taken|'ve taken) (?:my )?(?:morning |evening |night |daily )?"
+                     r"(?P<what>medicine|meds|medication|pills?|vitamins?|insulin|inhaler|antibiotics?|[a-z]+ pills?)"
+                     r"(?: today| this morning| tonight| just now| already)?", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"took my {m.group('what')}"}, "say": None}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.

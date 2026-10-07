@@ -1406,5 +1406,25 @@ class PricesOnAMarketAreLookedUp(unittest.TestCase):
         self.assertNotEqual(ask("what's the price of milk").get("question"), "milk stock price today")
 
 
+
+class DidITakeMyMedicine(unittest.TestCase):
+    def test_taking_it_is_a_note_and_the_question_reads_today(self):
+        import datetime as dt
+        from aletheia import quick, voice
+        self.assertEqual(voice.interpret("i took my medicine")["command"], {"kind": "note", "text": "took my medicine"})
+        now = dt.datetime.now(dt.timezone.utc)
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "took my medicine", "ts": now.isoformat()}]):
+            self.assertTrue(quick.answer("did i take my meds today").startswith("Yes"))
+        old = (now - dt.timedelta(days=2)).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "took my medicine", "ts": old}]):
+            self.assertTrue(quick.answer("did i take my medicine").startswith("Not that you've told me today"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me", quick.answer("did i take my vitamins"))
+
+    def test_any_alarms_is_the_reminders_not_a_file(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("do i have any alarms")["command"], {"kind": "reminders"})
+
+
 if __name__ == "__main__":
     unittest.main()
