@@ -5394,5 +5394,19 @@ class MoneyHeReadOffHisBank(unittest.TestCase):
             self.assertTrue(quick._pay("how much did i get paid").startswith("You told me you got paid $1,800"))
 
 
+class AHoldsLengthAndItsName(unittest.TestCase):
+    def test_a_time_is_not_part_of_the_name(self):
+        from aletheia import voice
+        got = voice.interpret("i have lunch with jess at noon tomorrow")["command"]
+        self.assertEqual(got["title"], "lunch with jess")
+
+    def test_a_length_said_last(self):
+        from aletheia import voice
+        got = voice.interpret("schedule a call with sam friday at 2 for 30 minutes")["command"]
+        self.assertEqual((got["kind"], got["title"], got["minutes"]), ("calendar_hold", "call with sam", 30))
+        self.assertEqual(voice.interpret("i have a meeting tomorrow at 10 for 2 hours")["command"]["minutes"], 120)
+        self.assertIsNone(voice.interpret("remind me to stretch for 10 minutes")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()
