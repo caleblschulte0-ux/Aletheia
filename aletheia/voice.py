@@ -1238,13 +1238,23 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         return {}
     if not recent:
         recent = [{"he_asked": _previous_ask()}]
-    for turn in reversed(recent):
+    for at in range(len(recent) - 1, -1, -1):
+        turn = recent[at]
         said = " ".join(str(turn.get("he_asked") or "").split())
         said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
         if not said or _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
             continue
         try:
             from aletheia import quick
+            # "At 2pm" answering her "When should I remind you to call the
+            # bank?" is that whole reminder; read alone it is nothing, and
+            # "move it to 3" two turns later found no reminder (2026-10-07).
+            before = " ".join(str(recent[at - 1].get("she_answered") or "").split()) if at else ""
+            rebuilt = _answering_her(said.casefold().rstrip(".?!"), answered=before) if before else None
+            if rebuilt and (rebuilt.get("command") or {}).get("kind") == kind:
+                cmd = rebuilt["command"]
+                if cmd.get(needs):
+                    return cmd
             if quick.match(said):
                 continue                          # a question she answered from her stores
             cmd = (interpret(f"thea {said}") or {}).get("command") or {}
@@ -1755,11 +1765,13 @@ _HER_QUESTIONS = (
 )
 
 
-def _answering_her(low: str) -> dict | None:
-    """His short answer to the question she just asked, as the whole ask."""
+def _answering_her(low: str, answered: str | None = None) -> dict | None:
+    """His short answer to the question she just asked, as the whole ask.
+    `answered` is what she said before it, when that is not the last turn."""
     if len(low.split()) > 6:
         return None
-    _said, answered = _previous_turn()
+    if answered is None:
+        _said, answered = _previous_turn()
     for question, template, kind in _HER_QUESTIONS:
         m = re.match(question, answered or "")
         if not m:
@@ -4783,6 +4795,11 @@ def _interpret(transcript: str) -> dict:
             one = re.match(r"1 (?:reminder|alarm|timer): (.+?) (?:—|-) ", answered)
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) and one:
                 return {"command": {"kind": "reminder_off", "which": one.group(1)}, "say": None}
+            # The reminder he set a turn or two ago, with a question between.
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low):
+                recent_reminder = _recent_reminder_ask()
+                if recent_reminder.get("text"):
+                    return {"command": {"kind": "reminder_off", "which": recent_reminder["text"]}, "say": None}
             # "Remember that my car is in spot 14" then "forget that" said
             # "Okay - nothing was waiting" and KEPT the note (2026-10-07).
             # With nothing pending, "that" is the note he just made.

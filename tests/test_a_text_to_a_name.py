@@ -1001,5 +1001,29 @@ class TheTripAskedAnotherWay(unittest.TestCase):
         self.assertEqual(quick.match("what's open")[0], "windows")
 
 
+
+class AReminderSetByAnsweringHer(unittest.TestCase):
+    TURNS = [
+        {"he_asked": "remind me to call the bank",
+         "she_answered": "When should I remind you to call the bank? Say a time, like \"at 3\" or \"tomorrow morning\"."},
+        {"he_asked": "at 2pm", "she_answered": "I'll remind you today at 2 pm: call the bank."},
+        {"he_asked": "what's the weather", "she_answered": "Sunny."},
+    ]
+
+    def test_move_it_finds_the_reminder_his_answer_set(self):
+        from aletheia import converse, voice
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: self.TURNS[-limit:]):
+            found = voice._recent_reminder_ask()
+        self.assertEqual(found.get("text"), "call the bank")
+
+    def test_cancel_it_takes_that_reminder_off(self):
+        from aletheia import converse, policy, voice
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: self.TURNS[-limit:]), \
+                mock.patch.object(policy, "all_approvals", return_value=[]), \
+                mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
+            cmd = voice._interpret("cancel it")["command"]
+        self.assertEqual(cmd, {"kind": "reminder_off", "which": "call the bank"})
+
+
 if __name__ == "__main__":
     unittest.main()
