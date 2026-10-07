@@ -6738,9 +6738,11 @@ def _interpret(transcript: str) -> dict:
                 "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
                        "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
     # "Note to self buy stamps" kept "to self buy stamps" (2026-10-07).
-    m = re.match(r"(?:(?:make a |take a |a )?note to (?:my)?self(?: that)?|make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
+    m = re.match(r"(?:(?:make a |take a |a )?note to (?:my)?self(?: that)?|make a note(?: that| of| to(?! (?:my)?self)|:)?|take a note(?: that|:)?|jot down(?: that)?|"
                  # "Write a note that the car needs oil" (2026-10-07: to the planner).
-                 r"(?:write|leave|add) (?:me )?a note(?: that| saying| of|:)?|"
+                 r"(?:write|leave|add|save|create|make) (?:me )?a (?:new )?note(?: that| saying| of| to(?! (?:my)?self)|:)?|"
+                 # "Add to my notes that ...", "new note: ..." (2026-10-07: to the planner).
+                 r"(?:add|put|save|write|stick) (?:this |that |it )?(?:to|in|into|on) my notes(?: that|:)?|new note(?: that|:)?|"
                  # "Note: buy a card for Dana" missed this (a colon, not a
                  # space), reached the planner and was refused as SPENDING
                  # (2026-10-07). Writing a line down commits nothing.

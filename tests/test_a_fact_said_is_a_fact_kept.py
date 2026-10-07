@@ -2334,5 +2334,19 @@ class WhichTuesdayIsAnswered(unittest.TestCase):
             self.assertEqual(voice._interpret("both")["command"], {"kind": "reminder_off", "which": "all reminders"})
 
 
+
+class EveryWayToSayANote(unittest.TestCase):
+    """2026-10-07: "add to my notes that ...", "new note: ..." went to the planner."""
+
+    def test_notes(self):
+        for said, kept in (("add to my notes that the wifi password is on the router", "the wifi password is on the router"),
+                           ("put in my notes the gym opens at 6", "the gym opens at 6"),
+                           ("save a note: call the vet", "call the vet"),
+                           ("make a note to buy stamps", "buy stamps"),
+                           ("new note: dentist is dr kim", "dentist is dr kim")):
+            with self.subTest(said=said):
+                self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": kept})
+
+
 if __name__ == "__main__":
     unittest.main()
