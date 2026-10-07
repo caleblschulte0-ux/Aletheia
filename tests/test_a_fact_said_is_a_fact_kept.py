@@ -3361,5 +3361,20 @@ class HisFamilyAndHisHouse(unittest.TestCase):
         self.assertEqual(quick.match("what time do I pick up Leo"), ("when_do_i", "pick up leo"))
 
 
+class PluralsAndPercentOff(unittest.TestCase):
+    def test_plurals_by_rule_or_by_list_and_never_guessed(self):
+        from aletheia import quick
+        for asked, said in (("what's the plural of mouse", "Mice."), ("plural of box", "Boxes."),
+                            ("what's the plural of city", "Cities."), ("what's the plural of cat", "Cats."),
+                            ("what's the plural of stomach", "Stomachs."),
+                            ("what's the plural of moose", "Moose - it's the same in the plural.")):
+            self.assertEqual(quick.answer(asked), said, asked)
+        self.assertIsNone(quick.answer("what's the plural of hoof"))
+
+    def test_percent_off_asked_as_how_much(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("how much is 20 percent off 80"), "$64 - you save $16.")
+
+
 if __name__ == "__main__":
     unittest.main()

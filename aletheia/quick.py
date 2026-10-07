@@ -1737,8 +1737,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
         r"|^what phase is the moon(?: in)?(?: tonight| today)?$"
         r"|^is (?:it|there) a full moon(?: tonight| today)?$|^when(?:'s| is) the next (?:full|new) moon$")),
+    # "What's the plural of moose" (2026-10-07: to a model).
+    ("plural", re.compile(r"^what(?:'s| is|s)? the plural (?:of|for) (?:an? )?(?P<plural>[a-z]{2,20})\s*\??$"
+                          r"|^(?:what(?:'s| is) )?(?:the )?plural (?:of|for) (?:an? )?(?P<plural2>[a-z]{2,20})\s*\??$")),
     ("discount", re.compile(
-        r"^what(?:'s| is|s)? (?P<off>[\d.]+) ?(?:%|percent) off (?:of )?\$?(?P<price>[\d.,]+)(?: dollars| bucks)?$"
+        r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?P<off>[\d.]+) ?(?:%|percent) off (?:of )?\$?(?P<price>[\d.,]+)(?: dollars| bucks)?$"
         r"|^\$?(?P<price2>[\d.,]+)(?: dollars)? (?:with|at|minus) (?P<off2>[\d.]+) ?(?:%|percent) off$")),
     # ARITHMETIC ON HER LAST ANSWER (2026-10-07): "what's 20% tip on 45",
     # then "split it three ways" - and "square root of 144", then "and
@@ -1985,7 +1988,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8725,6 +8728,45 @@ def _body(text: str) -> str | None:
     return f"{'Down' if pounds > 0 else 'Up'} about {abs(pounds):.0f} pounds since {first}, from what you've told me."
 
 
+_IRREGULAR_PLURALS = {
+    "moose": "moose", "deer": "deer", "sheep": "sheep", "fish": "fish", "series": "series", "species": "species",
+    "aircraft": "aircraft", "bison": "bison", "salmon": "salmon", "trout": "trout", "mouse": "mice", "louse": "lice",
+    "goose": "geese", "tooth": "teeth", "foot": "feet", "man": "men", "woman": "women", "child": "children",
+    "person": "people", "ox": "oxen", "cactus": "cacti", "fungus": "fungi", "nucleus": "nuclei", "octopus": "octopuses",
+    "criterion": "criteria", "phenomenon": "phenomena", "analysis": "analyses", "crisis": "crises", "thesis": "theses",
+    "axis": "axes", "basis": "bases", "diagnosis": "diagnoses", "knife": "knives", "wife": "wives", "life": "lives",
+    "leaf": "leaves", "half": "halves", "wolf": "wolves", "calf": "calves", "shelf": "shelves", "loaf": "loaves",
+    "thief": "thieves", "elf": "elves", "self": "selves", "roof": "roofs", "chef": "chefs", "belief": "beliefs",
+    "chief": "chiefs", "cliff": "cliffs", "potato": "potatoes", "tomato": "tomatoes", "hero": "heroes", "echo": "echoes",
+    "veto": "vetoes", "piano": "pianos", "photo": "photos", "radio": "radios", "zoo": "zoos", "video": "videos",
+    "datum": "data", "medium": "media", "bacterium": "bacteria", "curriculum": "curricula", "index": "indexes",
+    "appendix": "appendices", "die": "dice", "bus": "buses", "quiz": "quizzes", "alumnus": "alumni", "virus": "viruses",
+    "campus": "campuses", "focus": "focuses", "radius": "radii", "stimulus": "stimuli", "syllabus": "syllabuses",
+    "stomach": "stomachs", "monarch": "monarchs", "epoch": "epochs", "tech": "techs", "patriarch": "patriarchs",
+}
+
+
+def _plural(text: str) -> str | None:
+    """A plural by the ordinary rules, or from the list of ones that break
+    them. A word the rules would guess at (most -f, -o, -us, -is, -on
+    endings) is left to a model rather than guessed."""
+    g = _groups("plural", text)
+    word = str(g.get("plural") or g.get("plural2") or "").casefold()
+    if not word:
+        return None
+    said = _IRREGULAR_PLURALS.get(word)
+    if not said:
+        if re.search(r"(?:f|fe|o|us|is|on|um|ix|ex|a)$", word):
+            return None
+        if re.search(r"(?:s|x|z|ch|sh)$", word):
+            said = word + "es"
+        elif re.search(r"[^aeiou]y$", word):
+            said = word[:-1] + "ies"
+        else:
+            said = word + "s"
+    return f"{said[:1].upper() + said[1:]}." if said != word else f"{word[:1].upper() + word[1:]} - it's the same in the plural."
+
+
 def _when_note(text: str) -> str | None:
     """The newest note naming the thing with a day or a time in it."""
     from aletheia import speech
@@ -9153,6 +9195,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "body": _body,
            "their_fact": _their_fact,
            "when_note": _when_note,
+           "plural": _plural,
            "when_do_i": lambda rest: _when_mine(rest),
            "meds": _meds,
            "work_hours": _work_hours,
