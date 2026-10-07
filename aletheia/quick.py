@@ -310,7 +310,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("asked_last", re.compile(
         r"^what (?:did|was it) i (?:just )?(?:ask|asked|say|said)(?: (?:you|u))?(?: (?:just now|a second ago|before that|earlier))?$"
         r"|^what was my (?:last )?question$|^what was i (?:just )?(?:asking|saying)$"
-        r"|^what was the last thing i (?:asked|said|told)(?: (?:you|u))?$")),
+        r"|^what was the last thing i (?:asked|said|told)(?: (?:you|u))?$"
+        # "What was the first thing I asked you today" (2026-10-07: to a model).
+        r"|^what was the (?P<first>first) thing i (?:asked|said|told)(?: (?:you|u))?(?: today| this morning)?$")),
     # "What did we talk about" (2026-10-07: to the planner) - the thread
     # she keeps, read back in his words.
     ("talked_about", re.compile(
@@ -1603,7 +1605,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "weather_in"):
             return name, text
         if name in ("until_weeks", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -6422,6 +6424,23 @@ def _about_him() -> str:
     return "Here's what I have: " + speech.and_list(facts[:12]) + "."
 
 
+def _about_the_talk(asked: str) -> bool:
+    """A turn about the conversation itself - "what did I ask", "say that
+    again", "thanks", "slower" - which is never the thing he means when he
+    asks what he asked or what she said (2026-10-07: "what did I ask you
+    earlier" answered "thanks", and "say that again" repeated that)."""
+    low = " ".join(re.sub(r"^(?:thea|aletheia),? ", "", str(asked or ""), flags=re.IGNORECASE).casefold().split()).rstrip(" ?.!")
+    if not low:
+        return True
+    if _REPEAT_ASK.fullmatch(low) or any(n in ("talked_about", "asked_last", "repeat") and p.match(_tidy(low))
+                                         for n, p in PATTERNS):
+        return True
+    return bool(re.fullmatch(r"(?:thanks?(?: you)?(?: (?:so|very) much)?|thank u|ty|cheers|ok(?:ay)?|cool|got it|nice|great|"
+                             r"alright|all right|sounds good|perfect|awesome|never ?mind|nevermind|"
+                             r"(?:a (?:little |bit )?)?(?:slower|faster|louder|quieter)(?: please)?|"
+                             r"(?:talk|speak) (?:slower|faster|louder|quieter|up)|yes|no|yeah|nope|sure)", low))
+
+
 def _repeat() -> str:
     """Her last sentence, from the thread, said again."""
     # It read a key the thread never had ("she_said"), so "repeat that" said
@@ -6433,8 +6452,7 @@ def _repeat() -> str:
     except Exception:
         turns = []
     for turn in reversed(turns or []):
-        asked = " ".join(str(turn.get("you") or "").casefold().split()).rstrip("?.!")
-        if _REPEAT_ASK.fullmatch(re.sub(r"^(?:thea|aletheia),? ", "", asked)):
+        if _about_the_talk(str(turn.get("you") or "")):
             continue                   # "repeat that" twice says the same thing twice
         said = str(turn.get("her") or "").strip()
         if said:
@@ -6442,17 +6460,31 @@ def _repeat() -> str:
     return "I haven't said anything yet this conversation."
 
 
-def _asked_last() -> str:
-    """His last sentence before this one, from the thread, in his words."""
+def _asked_last(first: bool = False) -> str:
+    """His last sentence before this one (or the first of today's), from
+    the thread, in his words."""
     try:
         from aletheia import converse
         turns = converse._thread()
     except Exception:
         turns = []
-    for turn in reversed(turns or []):
+    if first:
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+
+        def on_today(turn):
+            try:
+                return dt.datetime.fromisoformat(str(turn.get("at") or "").replace("Z", "+00:00")).astimezone(tz).date() == today
+            except ValueError:
+                return True
+        dated = [t for t in turns or [] if on_today(t)]
+        turns = dated
+    for turn in (turns if first else reversed(turns or [])):
         asked = " ".join(str(turn.get("you") or "").split())
         bare = re.sub(r"^(?:thea|aletheia),? ", "", asked, flags=re.IGNORECASE)
-        if not bare or next((n for n, p in PATTERNS if n == "asked_last" and p.match(_tidy(bare))), None):
+        if _about_the_talk(bare):
             continue
         return f"You asked: \u201c{bare.rstrip().rstrip('.')}.\u201d"
     return "You haven't asked me anything yet this conversation."
@@ -6469,8 +6501,7 @@ def _talked_about() -> str:
     for turn in reversed(turns or []):
         asked = re.sub(r"^(?:thea|aletheia),? ", "", " ".join(str(turn.get("you") or "").split()),
                        flags=re.IGNORECASE).rstrip(" ?.!")
-        if not asked or asked.casefold() in seen or \
-                any(n in ("talked_about", "asked_last") and p.match(_tidy(asked)) for n, p in PATTERNS):
+        if not asked or asked.casefold() in seen or _about_the_talk(asked):
             continue
         seen.add(asked.casefold())
         said.append(f"\u201c{asked}\u201d")
@@ -6791,7 +6822,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_named": lambda rest: _who_named(rest),
            "contacts_count": lambda rest: _contacts_count(),
            "repeat": lambda rest: _repeat(),
-           "asked_last": lambda rest: _asked_last(),
+           "asked_last": lambda rest: _asked_last(first=" first thing " in f" {rest} "),
            "talked_about": lambda rest: _talked_about(),
            "sent_today": lambda rest: _sent_today(),
            "machine": lambda rest: _machine(),

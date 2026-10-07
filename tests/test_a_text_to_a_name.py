@@ -1361,5 +1361,21 @@ class AnAppointmentToldNotAsked(unittest.TestCase):
         self.assertTrue(cmd["text"].startswith("dentist appointment"))
 
 
+
+class TheTalkAboutTheTalkIsSteppedOver(unittest.TestCase):
+    THREAD = [{"you": "what's my next meeting", "her": "Nothing coming up."},
+              {"you": "what time is it", "her": "4:47 am."},
+              {"you": "thanks", "her": "Any time."},
+              {"you": "what did i ask you earlier", "her": "You asked: what time is it."}]
+
+    def test_earlier_first_and_again(self):
+        from aletheia import converse, quick
+        with mock.patch.object(converse, "_thread", return_value=self.THREAD):
+            self.assertIn("what time is it", quick.answer("what did i ask you earlier"))
+            self.assertIn("what's my next meeting", quick.answer("what was the first thing i asked you today"))
+            self.assertEqual(quick.answer("say that again"), "I said: 4:47 am.")
+            self.assertNotIn("thanks", quick.answer("what have we talked about"))
+
+
 if __name__ == "__main__":
     unittest.main()
