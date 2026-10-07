@@ -1,5 +1,5 @@
 {
-  "revision": 120,
+  "revision": 121,
   "providers": [
     {
       "id": "aletheia.local",
@@ -1867,6 +1867,17 @@
       "caller": "aletheia.quick 'weather' and 'weather_in' patterns (so voice, the phone and typed input); aletheia.weather.spoken",
       "notes": "Registered 2026-09-08 from the same audit. 'What's the weather' is one of the most ordinary things anybody asks an assistant and it was a 25-80s round trip ending in nothing. Answered instantly and counted now. || 2026-09-08 BUILT and PROVEN LIVE on his machine: 'Right now in Hartford, SD: Slight Chance Showers And Thunderstorms then Partly Sunny, 83 degrees.' 0.54s cold, 0.01s cached. NO API KEY ANYWHERE - the US National Weather Service serves anyone sending a User-Agent, and api.zippopotam.us turns his postcode into a point. That matters for the reason doctext gives about itself: a feature needing a key somebody has to remember to obtain is a capability that says AVAILABLE on one machine. His postcode was already on file (57033), so the answer needs nothing from him. US ONLY, and it says so rather than reaching for a provider it cannot verify - a confident forecast for the wrong Hartford is worse than none, and there are at least four. 'Tomorrow' is arithmetic on the period list, not a word match: the service says Today/Tonight/Wednesday, so 'tomorrow' matched nothing and the first draft answered with TODAY's forecast under today's label. || 2026-10-07: a town by NAME ('what's the weather in Chicago' went to the planner) - Open-Meteo's free geocoder, US only, the largest town of that name unless he names the state, and the answer always says which town it read.",
       "module": "aletheia.weather"
+    },
+    {
+      "id": "dictionary.define",
+      "status": "EXPERIMENTAL",
+      "risk_class": "read",
+      "approval_policy": "none",
+      "provider": "aletheia.local",
+      "description": "Say what a word means, from a public dictionary",
+      "caller": "aletheia.quick 'define' pattern (so voice, the phone and typed input); aletheia.dictionary.spoken",
+      "notes": "Built 2026-10-07: 'define serendipity' and 'what does ubiquitous mean' went to the planner. The Free Dictionary API (api.dictionaryapi.dev, Wiktionary-derived), no key and no account; two senses at most, in the dictionary's own words, and a word it lacks is said to be unknown rather than filled in by a model. 'What does that mean' is about what she just said and is not looked up. EXPERIMENTAL until proven on his machine: the build container's proxy refuses the host, so it has only been run against a recorded entry.",
+      "module": "aletheia.dictionary"
     },
     {
       "id": "news.read",

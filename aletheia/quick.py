@@ -907,6 +907,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tomorrow|monday|tuesday|wednesday|thursday"
         r"|friday|saturday|sunday)\s*\??$|^do i have any reminders (?:for |on )?(?P<reminders_on3>today|tomorrow"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+    # A WORD'S MEANING (2026-10-07): "define serendipity" and "what does
+    # ubiquitous mean" went to the planner. Not "what does that mean",
+    # which is about what she just said.
+    ("define", re.compile(
+        r"^(?:define|definition of|what(?:'s| is) the (?:definition|meaning) of|look up the word|what is the word)"
+        r" (?:the word )?(?!life\s*\??$)(?P<define>[a-z][a-z'-]{1,30}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
+        r"|^what does (?:the word )?(?!(?:that|this|it|he|she|they|you|u|that word|this word)\b)"
+        r"(?P<define2>[a-z][a-z'-]{1,30}) mean\s*\??$")),
     ("weather_in", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?(?:weather|forecast|temperature)(?: like| going to be like| looking like| doing)?"
         r"|how(?:'s| is) the weather(?: looking)?|weather|is it (?:raining|snowing|cold|hot|warm|nice)"
@@ -1376,7 +1384,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "define", "define2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -3596,6 +3604,14 @@ def _feeling(text: str) -> str | None:
     if said.startswith(("i'm having", "im having")):
         return "I'm sorry - rough days end. Tell me one thing I can take off your plate and I'll do it."
     return _FEELINGS.get(said)
+def _define(word: str) -> str | None:
+    try:
+        from aletheia import dictionary
+        return dictionary.spoken(word)
+    except Exception:
+        return None
+
+
 def _weather_in(text: str) -> str | None:
     """The forecast for a town he names, said with the town it read."""
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "weather_in"), None)
@@ -5806,6 +5822,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
            "weather_in": lambda rest: _weather_in(rest),
+           "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
            "reminders_on": lambda rest: _reminders_on(rest),
            "greeting": lambda rest: _greeting(),
