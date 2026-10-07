@@ -123,15 +123,39 @@ def host_refusals(*, hours: float = HOST_REFUSAL_HOURS, runs: list[dict] | None 
     floor = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=float(hours))).strftime("%Y-%m-%dT%H:%M:%SZ")
     out: dict[str, int] = {}
     for record in (all_runs() if runs is None else runs):
-        if record.get("state") != REJECTED:
+        if record.get("state") == REJECTED:
+            when = str(record.get("rejected_at") or record.get("staged_at") or "")
+        elif _left_at_the_sites_wall(record):
+            when = str(record.get("closed_at") or record.get("staged_at") or "")
+        else:
             continue
-        when = str(record.get("rejected_at") or record.get("staged_at") or "")
         if when < floor:
             continue
         host = (urlsplit(str(record.get("url") or "")).hostname or "").removeprefix("www.")
-        if host:
+        if host and not any(host == h or host.endswith("." + h) for h in ADAPTER_HOSTS):
             out[host] = out.get(host, 0) + 1
     return out
+
+
+#: The walls the general browser leaves an application at that belong to
+#: the SITE, in `browser_mission`'s own words: the next posting on it meets
+#: the same page. "You said no", a closed posting and a question of his are
+#: about one job, never the site.
+_SITE_WALLS = ("no way forward on the page", "she was going in circles", "the page broke",
+               "a human check", "a sign-in")
+
+
+def _left_at_the_sites_wall(record: dict) -> bool:
+    """A CLOSED record the general browser left at a wall of the site's.
+
+    Live 2026-10-07 the month's closures held 71 left with "no way forward
+    on the page", 14 going in circles, 13 at a human check and 11 where the
+    page broke - each one a batch's minutes spent on a site that had
+    already stopped her on an earlier posting that same day."""
+    if record.get("state") != CLOSED or str(record.get("closed_kind") or "") != "left":
+        return False
+    why = str(record.get("closed_because") or "").casefold()
+    return any(wall in why for wall in _SITE_WALLS)
 
 
 def refusing_host(url: str, *, at_least: int = HOST_REFUSALS_ENOUGH, hours: float = HOST_REFUSAL_HOURS,
@@ -142,7 +166,7 @@ def refusing_host(url: str, *, at_least: int = HOST_REFUSALS_ENOUGH, hours: floa
     n = int((host_refusals(hours=hours) if refusals is None else refusals).get(host, 0)) if host else 0
     if n < max(1, int(at_least)):
         return ""
-    return (f"{host} refused {n} of her applications in the last {int(hours)} hours; "
+    return (f"{host} refused or stopped {n} of her applications in the last {int(hours)} hours; "
             "leaving that site alone until tomorrow")
 
 
