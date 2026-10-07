@@ -441,5 +441,34 @@ class OtherWaysToAskTheSameThing(unittest.TestCase):
             self.assertEqual(voice._interpret(said)["command"], {"kind": "money"}, said)
 
 
+
+class WhenIsMyDentist(unittest.TestCase):
+    def test_a_question_is_never_a_note_about_somebody_called_when(self):
+        self.assertNotEqual((voice._interpret("when is my dentist").get("command") or {}).get("kind"), "note")
+        self.assertEqual(voice._interpret("dana is my sister")["command"]["kind"], "note")
+
+    def test_it_reads_the_calendar_by_who_it_is_with(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(quick.match("when is my next dentist")[0], "when_mine")
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+        with mock.patch.object(quick, "_coming", return_value=[(at, "Dentist with Dr Lee", "calendar")]):
+            self.assertTrue(quick._when_mine("dentist").startswith("Dentist with Dr Lee is"))
+
+
+class SixAmIsMorning(unittest.TestCase):
+    def test_a_glued_am_is_still_am(self):
+        self.assertFalse(voice._is_bare_hour("6am"))
+        self.assertTrue(voice._is_bare_hour("6"))
+        self.assertIn("T06:00", voice._interpret("put gym on my calendar tomorrow at 6am")["command"]["start"])
+
+
+class MessagesAndFacetime(unittest.TestCase):
+    def test_phone_only_things_say_so(self):
+        for said in ("read my messages", "do i have voicemail", "what did dana text me"):
+            self.assertIn("stay on your phone", voice._interpret(said)["say"], said)
+        self.assertIn("can't place phone calls", voice._interpret("facetime sam")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

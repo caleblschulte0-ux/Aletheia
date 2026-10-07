@@ -143,7 +143,9 @@ def _is_bare_hour(text: str) -> bool:
     t = " ".join(str(text or "").lower().replace(".", "").split())
     if not t or t in ("noon", "midday", "midnight"):
         return False
-    return "am" not in t.split() and "pm" not in t.split()
+    # "6am" glued to its number is still am: "put gym on my calendar tomorrow
+    # at 6am" was held at six in the EVENING (2026-10-07).
+    return not re.search(r"(?:^|[\d\s])(?:am|pm)\b", t)
 
 
 # The hours as people say them out loud, and the two names for a time
@@ -1503,7 +1505,11 @@ _BARE_VERBS = (
     (r"(?:set|make) (?:an |me an )?alarm",
      'For what time? Say "wake me up at 6".'),
     (r"(?:did (?:anyone|anybody|someone|somebody) call(?: me)?|any missed calls|who called(?: me)?|missed calls"
-     r"|(?:read|check) (?:me )?my (?:texts|text messages)|any (?:new )?(?:texts|text messages))",
+     r"|(?:read|check) (?:me )?my (?:texts|text messages)|any (?:new )?(?:texts|text messages)"
+     # 2026-10-07, each to the planner (and voicemail to a FILE search).
+     r"|(?:read|check) (?:me )?my (?:messages|voicemails?)|any (?:new )?(?:messages|voicemails?)"
+     r"|do i have (?:any )?(?:new )?(?:voicemails?|messages|texts)"
+     r"|what did [a-z]+(?: [a-z]+)? (?:text|message) me(?: about)?)",
      "I can't see your phone's calls or texts - they stay on your phone. "
      "I can read your email, and texts that reach your Google Voice number."),
 )
@@ -3898,7 +3904,7 @@ def _interpret(transcript: str) -> dict:
     # A PHONE CALL is a door she does not have. "Call the dentist" waited
     # two minutes on her own model (2026-09-22) for a verb nothing here
     # owns; the honest answer names the three doors she does have.
-    m = re.fullmatch(r"(?:call|phone|ring|ring up|dial|give (?:a )?call to) "
+    m = re.fullmatch(r"(?:call|phone|ring|ring up|dial|give (?:a )?call to|facetime|video call|video chat with) "
                      r"(?:my |the )?(?P<who>[a-z][a-z .'-]{1,40}?)"
                      r"(?: for me| now| please| back)?", low)
     if m and _is_a_person_to_ring(m.group("who")):
@@ -4689,7 +4695,10 @@ def _interpret(transcript: str) -> dict:
             r"accountant|cousin|aunt|uncle|niece|nephew|fiancee?|grandmother|grandfather|stepmom|stepdad|"
             r"mother-in-law|father-in-law|sister-in-law|brother-in-law|ex|kid|child|pet|dog|cat|recruiter|"
             r"mechanic|barber|therapist|trainer|coach|teacher|tutor|realtor|agent|plumber|electrician)", m.group("rel"))) \
-            and m.group("who").split()[0] not in ("this", "that", "it", "he", "she", "they", "who", "what", "there", "here"):
+            and m.group("who").split()[0] not in ("this", "that", "it", "he", "she", "they", "who", "what", "there", "here",
+                                          # "When is my dentist" was filed as a note about
+                                          # somebody called When (2026-10-07).
+                                          "when", "where", "why", "how", "which", "whose", "whats", "wheres", "whens"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # AN ALLERGY, SAID AS ONE (2026-10-07): "I'm allergic to peanuts" went
     # to the planner, while "what am I allergic to" reads notes. A note in
