@@ -757,6 +757,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$"
         # "How much sleep will I get" (2026-10-07: to a model) is the same sum.
         r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$")),
+    ("until_mine", re.compile(
+        r"^how long (?:is it )?(?:until|till|til|before) (?:my |the |our )?(?P<until_mine>(?:(?:[a-z][a-z' ]{0,30}? )?"
+        r"(?:appointment|appt|interview|reservation|flight|party|game|class|haircut|dentist|doctor|vet|shift|practice)"
+        r"|(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
+        r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow))?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) )"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
@@ -1296,6 +1301,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When is my dentist" names the appointment by who it is with (2026-10-07).
         r"|dentist|doctor|therapist|haircut|checkup|check-up|vet|physio|massage|exam|test|shift|practice)"
         r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow|this week|next))?\s*\??$")),
+    # "What time is lunch with Jess", "how long until lunch with Jess"
+    # (2026-10-07: to a model) - a meal or a coffee named by who it is with.
+    ("when_with", re.compile(
+        r"^(?:what time|when)(?:'s| is) (?:my |the |our )?(?P<when_with>(?:lunch|dinner|breakfast|brunch|coffee|drinks)"
+        r" with [a-z][a-z' ]{1,30}?)(?: (?:today|tomorrow))?\s*\??$")),
     # "What's my dentist appointment" (2026-10-07: to a model) - only the
     # words that are always an appointment; "what's my flight" may be a number.
     ("when_mine_what", re.compile(
@@ -2225,7 +2235,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
-                                           "place", "place2", "place3")
+                                           "place", "place2", "place3", "when_with", "until_mine")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -8191,9 +8201,11 @@ def _alarm_left() -> str:
     return f"Your alarm goes off {speech.humanize_time(at.isoformat())} - {span} from now."
 
 
-def _when_mine(what: str) -> str | None:
+def _when_mine(what: str, until: bool = False) -> str | None:
     """"What time is my dentist appointment": the soonest event or reminder
-    naming it, said with when. Every word he named must be in it."""
+    naming it, said with when. Every word he named must be in it. With
+    `until`, how long from now first ("how long until lunch with Jess")."""
+    import datetime as dt
     from aletheia import speech
     words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold())
              if w not in _STOP_WORDS and w not in ("s", "with", "at", "for")]
@@ -8205,12 +8217,22 @@ def _when_mine(what: str) -> str | None:
         low = text.casefold()
         if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             when = speech.humanize_time(at.isoformat())
+            if until:
+                left = int((at - dt.datetime.now(dt.timezone.utc)).total_seconds() // 60)
+                if left < 0:
+                    return None
+                d, h, m = left // 1440, (left % 1440) // 60, left % 60
+                span = (speech.count_phrase(m, "minute") if left < 60
+                        else speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(m, 'minute')}" if m and h < 3 else "")
+                        if left < 1440
+                        else speech.count_phrase(d, "day") + (f" and {speech.count_phrase(h, 'hour')}" if h and d < 3 else ""))
+                return f"{span[:1].upper() + span[1:]} - {text.rstrip('.')} is {when}."
             if store == "calendar":
                 return f"{text[:1].upper() + text[1:]} is {when}."
             return f"You have a reminder {when}: {text.rstrip('.')}."
     # A note he told her: "the dentist is the 15th at 10" before there was a
     # calendar hold for it (2026-10-07: to the planner, with the note held).
-    for row in _notes():
+    for row in ([] if until else _notes()):
         said = " ".join(str(row.get("text") or "").split())
         if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", said.casefold()) for w in words) \
                 and re.search(r"\d|day\b|tomorrow|tonight|noon", said.casefold()):
@@ -10591,6 +10613,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "define": lambda rest: _define(rest),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
+           "when_with": lambda rest: _when_mine(rest),
+           "until_mine": lambda rest: _when_mine(rest, until=True),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),
            "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),

@@ -4685,5 +4685,29 @@ class TheWholeListSaidOtherWays(unittest.TestCase):
         self.assertEqual(voice.interpret("check off the milk")["command"], {"kind": "task_done", "which": "milk"})
 
 
+class LunchWithSomeoneByName(unittest.TestCase):
+    """"What time is lunch with Jess" and "how long until lunch with Jess" read the calendar."""
+
+    def _coming(self):
+        import datetime as dt
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=2, minutes=30)
+        return [(at, "lunch with jess", "calendar")]
+
+    def test_what_time(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_coming", side_effect=self._coming):
+            self.assertTrue((quick.answer("what time is lunch with jess") or "").startswith("Lunch with jess is "))
+
+    def test_how_long_until(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_coming", side_effect=self._coming):
+            got = quick.answer("how long until lunch with jess") or ""
+        self.assertTrue(got.startswith("2 hours and 29 minutes") or got.startswith("2 hours and 30 minutes"), got)
+
+    def test_a_holiday_is_still_counted_in_days(self):
+        from aletheia import quick
+        self.assertIn("day", quick.answer("how long until christmas") or "")
+
+
 if __name__ == "__main__":
     unittest.main()
