@@ -1306,7 +1306,9 @@ def _the_task_just_added() -> str:
         return ""
     for turn in reversed(turns or []):
         answered = " ".join(str(turn.get("she_answered") or "").split())
-        found = re.match(r"Added a task: (.+?)(?: due [A-Z][a-z]+day)?\.(?:\s|$)", answered) \
+        # The receipt says ", due Friday" (and ", due 20 October") since
+        # 2026-10-07; the task is the words before it.
+        found = re.match(r"Added a task: (.+?)(?:,? due [^.]+)?\.(?:\s|$)", answered) \
             or re.match(r"Moved: (.+?) due ", answered) \
             or re.match(r"(.+?) is due .+ now\.(?:\s|$)", answered) \
             or re.match(r"Renamed .+? to (.+?)\.(?:\s|$)", answered)
@@ -3725,7 +3727,11 @@ def _interpret(transcript: str) -> dict:
                          r"(?: one| task)?", low)
          or re.fullmatch(r"(?:i(?:'ve)? )?(?:finished|completed) (?:the )?(.+?)"
                          r"(?: one| task)?", low)
-         or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low))
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(.+?)(?: one| task)?", low)
+         # "The second one is done" after she read the list (2026-10-07: to
+         # the planner). Counting only - "the dishwasher is done" is a machine.
+         or re.fullmatch(r"(?:the )?(first|second|third|fourth|fifth|last|top|1st|2nd|3rd|4th|5th) (?:one|task|thing)"
+                         r"(?:'s| is| was)? (?:done|finished|complete[d]?|taken care of)", low))
     if m:
         which = (m.group(1) or "").strip()
         if which and which not in ("it", "that", "them", "everything"):

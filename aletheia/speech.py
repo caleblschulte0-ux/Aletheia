@@ -733,7 +733,7 @@ def spoken_receipt(kind: str, detail: str, *,
         if named:
             # "pay rent due Friday" heard as one run; the pause is a comma.
             said = re.sub(r"(?<=[a-z0-9)])\s+(due (?:today|tonight|tomorrow|on |by |in |next |this |"
-                          r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|[a-z]+ \d))",
+                          r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|[a-z]+ \d|\d))",
                           r", \1", named.group(1).strip(), flags=re.IGNORECASE)
             return f"Added a task: {said}."
         slug = re.search(r"task ([a-z0-9-]+) queued", text)

@@ -1531,5 +1531,18 @@ class DueTomorrowSaysTheDayOnceCase(unittest.TestCase):
         self.assertEqual(said, "1 thing due tomorrow: call the bank.")
 
 
+class TheSecondOneIsDoneCase(unittest.TestCase):
+    def test_counting_ticks_off(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("the second one is done")["command"], {"kind": "task_done", "which": "second"})
+        self.assertNotEqual((voice._interpret("the dishwasher is done")["command"] or {}).get("kind"), "task_done")
+
+    def test_the_task_just_added_with_a_due_date(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "add a task", "she_answered": "Added a task: renew my passport, due 20 October."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice._the_task_just_added(), "renew my passport")
+
+
 if __name__ == "__main__":
     unittest.main()
