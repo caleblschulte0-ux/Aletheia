@@ -30,3 +30,12 @@ class ANod(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ANodIsSilentInTheRoom(unittest.TestCase):
+    def test_typed_it_gets_okay_heard_it_gets_nothing(self):
+        from aletheia import policy, voice
+        with mock.patch.object(policy, "all_approvals", return_value=[]):
+            self.assertEqual(voice.interpret("got it")["say"], "Okay.")
+            self.assertFalse(voice.worth_answering("got it"))
+            self.assertFalse(voice.worth_answering("ok"))

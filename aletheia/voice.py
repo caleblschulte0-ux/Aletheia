@@ -919,6 +919,13 @@ right well like just really actually thing things please thanks thank
 """.split())
 
 
+#: A nod: "ok", "cool", "got it". Typed, it gets "Okay." back instead of a
+#: planner error; heard by the room, it is the commonest television noise
+#: there is, so `worth_answering` keeps it SILENT.
+_A_NOD = re.compile(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all right|sounds good|"
+                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do)(?: thanks| thea)?")
+
+
 def worth_answering(said: str) -> bool:
     """Did a person actually ask her something?
 
@@ -938,7 +945,8 @@ def worth_answering(said: str) -> bool:
         if (got.get("command") or {}).get("kind") not in (None, "intent"):
             return True
         if got.get("say") and not got.get("command"):
-            return True          # a turn she already knows how to end
+            # A nod is answered when typed and silent in the room.
+            return not _A_NOD.fullmatch(text.lower().strip(" .!,"))
     except Exception:
         return True              # never silent because something broke
     try:
@@ -2851,8 +2859,7 @@ def _interpret(transcript: str) -> dict:
     # "OK", "cool", "got it" with nothing waiting went to the planner and came
     # back "I could not plan that" (2026-10-07): a nod answered with an error.
     # With an approval pending, the yes/no rules above decide what it means.
-    if re.fullmatch(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all right|sounds good|"
-                    r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do)(?: thanks| thea)?", low) \
+    if _A_NOD.fullmatch(low) \
             and not any(a.get("state") == "PENDING" for a in policy.all_approvals()):
         return {"command": None, "say": "Okay."}
     # Said TO her about her. A line, not a model call; a complaint is the one
