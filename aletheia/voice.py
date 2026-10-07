@@ -2599,7 +2599,8 @@ def _shopping_just_said() -> bool:
 
 
 def _onto_the_named_list(low: str) -> dict | None:
-    if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list", low):
+    if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list"
+                                                       r"|what'?s on the list|read (?:me )?the list", low):
         return None                               # he named a list himself
     name, last = _the_named_list_just_used()
     if not name:
@@ -2621,8 +2622,8 @@ def _onto_the_named_list(low: str) -> dict | None:
     if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
             and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
         return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
-    if re.fullmatch(r"what'?s on (?:it|there)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
-                    r"|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
+    if re.fullmatch(r"what'?s on (?:it|there|the list)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
+                    r"|read (?:me )?the list|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
         return {"command": {"kind": "list_read", "list": name}, "say": None}
     # Emptying it needs it to be the very last thing said.
     if last and re.fullmatch(r"(?:delete|clear|empty|scrap|wipe) (?:it|the list|this list|that list)(?: out)?", low):

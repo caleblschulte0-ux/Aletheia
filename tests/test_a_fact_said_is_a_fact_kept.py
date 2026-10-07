@@ -5258,5 +5258,30 @@ class AnniversariesAndGiftLists(unittest.TestCase):
         self.assertIn("by the weather", got["say"])
 
 
+class TheListAndItsVerbs(unittest.TestCase):
+    def test_what_do_i_need_to_return(self):
+        from aletheia import quick, tasks
+        rows = [{"id": "t1", "description": "return the shoes", "status": "OPEN"},
+                {"id": "t2", "description": "call the bank", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=rows), \
+                mock.patch.object(tasks, "is_his", return_value=True):
+            self.assertEqual(quick.answer("what do i need to return"), "Return the shoes.")
+            self.assertIsNone(quick.answer("what do i need to renew"))
+
+    def test_the_list_is_the_named_one_he_was_just_on(self):
+        from aletheia import quick, voice
+        with mock.patch.object(voice, "_the_named_list_just_used", return_value=("packing", True)):
+            self.assertIsNone(quick.answer("what's on the list"))
+            self.assertEqual(voice.interpret("what's on the list")["command"], {"kind": "list_read", "list": "packing"})
+        with mock.patch.object(voice, "_the_named_list_just_used", return_value=("", False)), \
+                mock.patch.object(quick, "_shopping", return_value="shopping"):
+            self.assertEqual(quick.answer("what's on the list"), "shopping")
+
+    def test_going_shopping_reads_the_list(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("i'm going grocery shopping")[0], "shopping")
+        self.assertEqual(quick.match("what do we need from the store")[0], "shopping")
+
+
 if __name__ == "__main__":
     unittest.main()
