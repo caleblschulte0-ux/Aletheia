@@ -1430,18 +1430,32 @@ def _reminders_answer(which: str = "") -> str:
     """"What reminders do I have" — from the store, with no model."""
     from aletheia import speech
     rows = _reminder_schedules()
+    noun = "reminder"
     if which:
         needle = which.casefold()
+        noun = {"wake up": "alarm", "timer is up": "timer"}.get(needle, "reminder")
         rows = [r for r in rows
                 if needle in str((r.get("command") or {}).get("text", "")).casefold()]
         if not rows:
+            if noun != "reminder":
+                return f"You have no {noun}s set."
             return f"No reminder matching {which!r}."
     if not rows:
         return "You have no reminders set."
     rows = _soonest_first(rows)
-    said = speech.and_list([_reminder_words(r) for r in rows[:5]])
+    said = speech.and_list([_alarm_words(r, alone=noun == "alarm") for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
-    return f"{speech.count_phrase(len(rows), 'reminder')}: {said}{more}."
+    return f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+
+
+def _alarm_words(spec: dict, *, alone: bool = True) -> str:
+    """A reminder as he would say it, and an alarm as its time: "tomorrow
+    at 6:30 am" in a list of alarms, "alarm — tomorrow at 6:30 am" among
+    reminders; never "wake up — tomorrow at 6:30 am"."""
+    words = _reminder_words(spec)
+    if str((spec.get("command") or {}).get("text") or "").strip().casefold() == "wake up":
+        words = re.sub(r"^wake up\s*([—-])\s*", "" if alone else r"alarm \1 ", words, flags=re.IGNORECASE)
+    return words
 
 
 def _until_next_reminder(sort: str = "reminder") -> str:
@@ -1692,11 +1706,14 @@ def _one_reminder(which: str):
         return None, (f"None of your reminders is about {which}. "
                       + _reminder_list_words(rows))
     if len(hits) > 1:
+        # Soonest first, the order a person would list them in - and the
+        # order "the first one" counts in when he answers.
+        hits = _soonest_first(hits)
         labels = [str((r.get("command") or {}).get("text") or r["id"])[:50] for r in hits[:4]]
         if len(set(labels)) < len(labels):
             # "Which one - wake up or wake up?" names nothing he can choose
             # between; when the words are the same, the time is the name.
-            labels = [_reminder_words(r) for r in hits[:4]]
+            labels = [_alarm_words(r) for r in hits[:4]]
         return None, "Which one — " + speech.or_list(labels) + "?"
     return hits[0], ""
 

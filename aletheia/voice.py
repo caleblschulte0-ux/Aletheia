@@ -2339,7 +2339,7 @@ def _interpret(transcript: str) -> dict:
     # the plumber": his last sentence was a bare ask, so this one is what it
     # was missing. After the two switches, which nothing may stand in front
     # of; before everything else, or "call the plumber" is a phone call.
-    filled = _fills_a_bare_ask(text, low)
+    filled = _fills_a_bare_ask(text, low) or _answers_which(low)
     if filled:
         return filled
     # RESTARTING HER is the third switch. "Restart yourself" reached the
@@ -2875,6 +2875,11 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:what are |show me |read me )?my (?:recurring|repeating|regular) reminders"
                     # "How many reminders do I have" (2026-10-07: to a model)
                     r"|how many (?:reminders|alarms|timers) (?:do i have|have i got|are (?:there|set|running))(?: set| running| on)?", low):
+        # "What alarms do I have" was answered "2 reminders: wake up -
+        # tomorrow at 6:30 am and wake up - ...": asked about alarms, it
+        # says alarms.
+        if re.search(r"\balarms?\b", low) and not re.search(r"\b(?:reminders?|timers?)\b", low):
+            return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.
@@ -3803,6 +3808,8 @@ def _interpret(transcript: str) -> dict:
         return _to_the_planner(text)
 
     if re.fullmatch(r"(?:do i have|have i got|are there|is there) (?:any |an? )?(?:alarms?|reminders?|timers?)(?: set| running| on)?(?: for (?:today|tomorrow))?", low):
+        if re.search(r"\balarms?\b", low):
+            return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
         return {"command": {"kind": "reminders"}, "say": None}
     m = re.fullmatch(
         r"(?:find|look for|search for|do i have|have i got) "
@@ -6191,6 +6198,52 @@ _NOT_AN_ANSWER = re.compile(
 
 def _bare_kind(m) -> str:
     return next(k for k in ("remind", "task", "note", "shop") if m.group(k))
+
+
+def _answers_which(low: str) -> dict | None:
+    """"Cancel my alarm" -> "Which one - 6:30 or 7:15?" -> "the 7:15 one":
+    his sentence is the choice she asked for, so it is the same command
+    naming that one. It went to the planner, which had not heard the
+    question. None unless her last answer asked "Which one" and his last
+    full sentence compiles to a command that names its thing."""
+    said = low.strip().rstrip(".!")
+    if not said or said.endswith("?") or len(said.split()) > 6:
+        return None
+    try:
+        from aletheia import converse
+        last = (converse.recent(limit=1) or [{}])[-1]
+    except Exception:
+        return None
+    if not re.search(r"\bWhich one\b", str(last.get("she_answered") or "")):
+        return None
+    prev = _previous_ask()
+    if not prev or prev.casefold().rstrip(".!?") == said:
+        return None
+    try:
+        cmd = (interpret(f"thea {prev}") or {}).get("command") or {}
+    except Exception:
+        return None
+    if "which" not in cmd:
+        return None
+    from aletheia import speech
+    where = speech.ordinal_index(said)
+    if where is not None:
+        # "The first one" counts in the list she just read out, not in
+        # whatever order the store keeps them.
+        asked = re.sub(r"^.*?\bWhich one\b\s*[—-]?\s*", "", str(last.get("she_answered") or ""))
+        options = [o.strip() for o in re.split(r",\s*(?:or\s+)?|\s+or\s+", asked.rstrip("?. "))
+                   if o.strip()]
+        if not 0 <= where < len(options):
+            return {"command": {**cmd, "which": said}, "say": None}
+        said = options[where].casefold()
+    answer = re.sub(r"^(?:(?:no|oh|um|i mean|it's|its|it is|that's|the)[ ,]+)+", "", said)
+    answer = re.sub(r"\s+(?:one|alarm|reminder)$", "", answer).strip()
+    if not answer:
+        return None
+    if cmd.get("kind") in ("reminder_off", "reminder_on") and re.search(r"\d", answer):
+        # The words already matched both; the time is what tells them apart.
+        answer = f"{cmd['which']} {answer}".strip()
+    return {"command": {**cmd, "which": answer}, "say": None}
 
 
 def _fills_a_bare_ask(text: str, low: str) -> dict | None:

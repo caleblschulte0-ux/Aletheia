@@ -1048,5 +1048,29 @@ class HisTextsReadBack(unittest.TestCase):
                 self.assertEqual((voice.interpret(said) or {}).get("command"), cmd)
 
 
+class TheAnswerToWhichOne(unittest.TestCase):
+    """"Cancel my alarm" -> "Which one - 6:30 or 7:15?" -> "the 7:15 one"
+    went to the planner, which had not heard the question."""
+
+    def said(self, he, she, now):
+        from aletheia import converse
+        turns = [{"he_asked": he, "she_answered": she}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            return (voice.interpret(now) or {}).get("command")
+
+    def test_a_time_or_a_count_names_the_one(self):
+        asked = "Which one — tomorrow at 6:30 am or tomorrow at 7:15 am?"
+        self.assertEqual(self.said("cancel my alarm", asked, "the 7:15 one"),
+                         {"kind": "reminder_off", "which": "wake up 7:15"})
+        self.assertEqual(self.said("cancel my alarm", asked, "the second one"),
+                         {"kind": "reminder_off", "which": "wake up tomorrow at 7:15 am"})
+        self.assertEqual(self.said("cancel the call reminder", "Which one — call mom or call dad?", "dad"),
+                         {"kind": "reminder_off", "which": "dad"})
+
+    def test_without_her_question_nothing_changes(self):
+        self.assertNotEqual((self.said("cancel my alarm", "Alarm off: tomorrow at 6:30 am.", "the 7:15 one")
+                             or {}).get("kind"), "reminder_off")
+
+
 if __name__ == "__main__":
     unittest.main()

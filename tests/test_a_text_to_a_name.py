@@ -1430,7 +1430,7 @@ class DidITakeMyMedicine(unittest.TestCase):
 
     def test_any_alarms_is_the_reminders_not_a_file(self):
         from aletheia import voice
-        self.assertEqual(voice.interpret("do i have any alarms")["command"], {"kind": "reminders"})
+        self.assertEqual(voice.interpret("do i have any alarms")["command"]["kind"], "reminders")
 
 
 

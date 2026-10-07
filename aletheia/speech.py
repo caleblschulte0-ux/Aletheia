@@ -706,6 +706,9 @@ def spoken_receipt(kind: str, detail: str, *,
         if timer:
             return f"Cancelled {_quoted('your ' + timer.group('what'))}."
         if body:
+            alarm = re.match(r"wake up\s*[—-]\s*(.+)$", body.group(1).strip(), re.IGNORECASE)
+            if alarm:
+                return f"Alarm off: {alarm.group(1).strip()}."
             return f"Stopped reminding you: {_quoted(body.group(1))}."
     if kind == "shopping_off":
         body = re.search(r"off\s*[—-]\s*(.+)$", text)
