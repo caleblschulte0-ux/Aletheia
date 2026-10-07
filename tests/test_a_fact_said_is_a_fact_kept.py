@@ -2179,5 +2179,34 @@ class WhatHappenedThisMorningCase(unittest.TestCase):
             self.assertEqual(quick._notes_day("today"), "No notes from today.")
 
 
+
+class TwoAtFiveCase(unittest.TestCase):
+    """2026-10-07: two reminders at 5, "cancel the 5 o'clock reminder" said
+    none was about 5 o'clock, and "cancel both" was a subscription called "both"."""
+
+    def test_both(self):
+        from aletheia import voice
+        asked = "You have 2 reminders at 5 pm: call Jo or call the bank. Which one, or all of them?"
+        with mock.patch.object(voice, "_previous_turn", return_value=("cancel the 5 o'clock reminder", asked)):
+            for said in ("both", "cancel both", "all of them"):
+                with self.subTest(said=said):
+                    self.assertEqual(voice._interpret(said)["command"], {"kind": "reminder_off", "which": "all at 17:00"})
+
+    def test_both_is_never_a_service(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_previous_turn", return_value=("", "")):
+            self.assertNotEqual((voice._interpret("cancel both")["command"] or {}).get("kind"), "subscription_cancel")
+
+    def test_the_clock_names_two(self):
+        from aletheia import intercom
+        rows = [{"id": "a", "kind": "once", "at": "2026-10-07T22:00:00+00:00", "command": {"text": "call Jo"}},
+                {"id": "b", "kind": "once", "at": "2026-10-07T22:00:00+00:00", "command": {"text": "call the bank"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+                mock.patch.object(intercom, "_reminder_clock", return_value="17:00"):
+            found, why = intercom._one_reminder("5 o'clock")
+        self.assertIsNone(found)
+        self.assertIn("Which one, or all of them?", why)
+
+
 if __name__ == "__main__":
     unittest.main()

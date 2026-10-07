@@ -1678,6 +1678,15 @@ def _one_reminder(which: str):
                 timed = worded or timed
             if len(timed) == 1:
                 return timed[0], ""
+            if not rest:
+                # Two at 5 pm and "cancel the 5 o'clock reminder" said "None
+                # of your reminders is about 5 o'clock" (2026-10-07) - naming
+                # both. The clock is right and only the choice is left.
+                timed = _soonest_first(timed)
+                when = speech.clock_words(_reminder_clock(timed[0]) or "")
+                labels = [str((r.get("command") or {}).get("text") or r["id"])[:50] for r in timed[:4]]
+                return None, (f"You have {speech.count_phrase(len(timed), 'reminder')} at {when}: "
+                              f"{speech.or_list(labels)}. Which one, or all of them?")
             rows = timed
             needle = rest
         else:
@@ -3760,6 +3769,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for row in rows:
                 scheduler.set_enabled(row["id"], False)
             return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), cmd['which'][4:].rstrip('s'))}: "
+                    + speech.and_list([_reminder_words(r) for r in rows[:4]]))
+        # "All of them" to "2 reminders are at 5 pm ... Which one, or all of
+        # them?": every reminder at that time, each disabled.
+        at = re.fullmatch(r"all at (\d{2}:\d{2})", " ".join(str(cmd["which"]).split()))
+        if at:
+            rows = [r for r in _reminder_schedules() if _reminder_clock(r) == at.group(1)]
+            if not rows:
+                return f"reminder none off — you have nothing set for {speech.clock_words(at.group(1))}"
+            for row in rows:
+                scheduler.set_enabled(row["id"], False)
+            return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), 'reminder')}: "
                     + speech.and_list([_reminder_words(r) for r in rows[:4]]))
         found, why = _one_reminder(cmd["which"])
         if found is None:

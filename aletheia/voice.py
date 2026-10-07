@@ -2483,6 +2483,14 @@ def _interpret(transcript: str) -> dict:
     # you to email Sam?" - "tomorrow at 2" went to the planner, as did "ten
     # minutes" after "For how long?". The question and the answer are one
     # sentence, put back together; kept only if it becomes that command.
+    # "Both" / "all of them" to "You have 2 reminders at 5 pm: ... Which one, or
+    # all of them?" (2026-10-07: "cancel both" was a subscription called "both").
+    if re.fullmatch(r"(?:cancel |turn off |delete |remove |stop )?(?:both|all of them|them all|both of them|all|them both"
+                    r"|all three|all of those|both please|all of them please)", low):
+        _said, answered = _previous_turn()
+        at = re.search(r"reminders at (.+?): .+Which one, or all of them\?", answered or "")
+        if at and _spoken_time(at.group(1)):
+            return {"command": {"kind": "reminder_off", "which": f"all at {_spoken_time(at.group(1))}"}, "say": None}
     answered = _answering_her(low)
     if answered:
         return answered
@@ -5117,6 +5125,8 @@ def _interpret(transcript: str) -> dict:
     # service to cancel.
     _HERS_NOT_A_SERVICE = re.compile(
         r"\b(?:that|it|the pending one|approval|approvals|reminder|reminders"
+        # "Cancel both" was a subscription called "both" (2026-10-07).
+        r"|both|all|them|those|these|everything|the rest"
         r"|alarm|alarms|timer|timers|task|tasks|note|notes|meeting|meetings"
         r"|appointment|appointments|event|events|schedule|agenda"
         # Plans with a person are not services either. "Cancel lunch with
