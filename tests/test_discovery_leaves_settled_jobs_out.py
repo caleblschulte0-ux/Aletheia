@@ -187,3 +187,40 @@ class ASystemThatNeverLetsHerIn(_Stores):
         self.assertEqual(campaign.walled_systems(rows, now=NOW), {})
         self.assertEqual(campaign.walled_systems(self.walled(campaign.WALLED_AFTER), now=NOW),
                          {"smartrecruiters": campaign.WALLED_AFTER})
+
+
+class TheBatchsOwnDuplicateChecksComeFirst(_Stores):
+    """Live 2026-10-07 107 of a day's 450 openings were turned away after the
+    cut as the same job or a fourth role at one employer."""
+
+    def ledger(self, entries):
+        patcher = mock.patch.object(apply_run, "already_sent", return_value=entries)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_a_role_only_the_sent_ledger_remembers_is_left_out(self):
+        self.runs([])
+        self.ledger({"u-old": {"company": "Acme", "job_title": "Partner Manager",
+                               "at": "2026-08-01T00:00:00Z"}})
+        skip = campaign.settled_already(now=NOW)
+        self.assertTrue(skip({"apply_url": "u-new", "company": "Acme", "title": "Partner Manager"}))
+        self.assertFalse(skip({"apply_url": "u-new", "company": "Acme", "title": "Data Analyst"}))
+
+    def test_an_employer_at_its_limit_is_left_out(self):
+        self.ledger({f"u{n}": {"company": "Busy Co", "job_title": f"Role {n}",
+                               "at": "2026-10-01T00:00:00Z"} for n in range(2)})
+        self.runs([{"state": "NEEDS_YOU", "url": "u-wait", "company": "Busy Co", "job_title": "Role 9",
+                    "staged_at": "2026-10-06T00:00:00Z"}])
+        skip = campaign.settled_already(now=NOW)
+        self.assertTrue(skip({"apply_url": "u-x", "company": "Busy Co.", "title": "Another Role"}))
+        self.assertFalse(skip({"apply_url": "u-y", "company": "Quiet Co", "title": "Another Role"}))
+        self.assertEqual(apply_run.full_employers(now=NOW),
+                         {apply_run._employer("Busy Co")})
+        self.assertTrue(apply_run.employer_full("Busy Co", now=NOW))
+
+    def test_old_sends_do_not_fill_an_employer(self):
+        self.ledger({f"u{n}": {"company": "Busy Co", "job_title": f"Role {n}",
+                               "at": "2026-08-01T00:00:00Z"} for n in range(5)})
+        self.runs([])
+        self.assertFalse(campaign.settled_already(now=NOW)(
+            {"apply_url": "u-x", "company": "Busy Co", "title": "Another Role"}))
