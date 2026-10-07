@@ -2602,5 +2602,27 @@ class TheHatIsAHat(unittest.TestCase):
         self.assertEqual(voice._interpret("how many lists do I have")["command"], {"kind": "list_read"})
 
 
+
+class TheReminderJustSet(unittest.TestCase):
+    """2026-10-07: "what time is that reminder", "and remind me to text dad
+    too" and "change call mom to call grandma" all went to the planner."""
+
+    SPEC = {"kind": "once", "at": "2026-10-07T23:00:00+00:00", "command": {"text": "call mom"}}
+
+    def test_asked_about_added_to_and_renamed(self):
+        with mock.patch.object(voice, "_the_reminder_just_set", return_value=self.SPEC):
+            self.assertTrue(voice._interpret("what time is that reminder")["say"].startswith("That's "))
+            self.assertEqual(voice._interpret("and remind me to text dad too")["command"],
+                             {"kind": "remind_at", "at": self.SPEC["at"], "text": "text dad"})
+            self.assertEqual(voice._interpret("change call mom to call grandma")["command"],
+                             {"kind": "remind_at", "at": self.SPEC["at"], "text": "call grandma", "replaces": "call mom"})
+            # A time is a move, not new words.
+            self.assertNotEqual((voice._interpret("change it to 7")["command"] or {}).get("text"), "7")
+
+    def test_nothing_just_set(self):
+        with mock.patch.object(voice, "_the_reminder_just_set", return_value=None):
+            self.assertIsNone(voice._interpret("and remind me to text dad too")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()

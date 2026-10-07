@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import threading
 
 from aletheia import capabilities, policy, speech, tasks
 
@@ -1419,6 +1420,31 @@ def _last_ask_is_undoable() -> bool:
     return False
 
 
+_LOOKING_BACK = threading.local()
+
+
+def _the_reminder_just_set() -> dict | None:
+    """The reminder his last few asks set, as it stands now, or None.
+
+    Looking back re-reads his earlier sentences through `interpret`, which
+    would ask this again for each of them; once is the whole question."""
+    if getattr(_LOOKING_BACK, "busy", False):
+        return None
+    _LOOKING_BACK.busy = True
+    try:
+        asked = _recent_reminder_ask()
+    finally:
+        _LOOKING_BACK.busy = False
+    if not asked.get("text"):
+        return None
+    try:
+        from aletheia import intercom
+        found, _why = intercom._one_reminder(str(asked["text"]))
+    except Exception:  # noqa: BLE001
+        return None
+    return found if found and found.get("kind") == "once" else None
+
+
 def _recent_reminder_ask(turns: int = 4) -> dict:
     return _recent_ask_of("remind_at", "text", turns)
 
@@ -2676,8 +2702,13 @@ def _interpret(transcript: str) -> dict:
         if ((got or {}).get("command") or {}).get("kind") == "remind_at":
             return got
     # "And remind me to email Sam too" (2026-10-07: to the planner).
-    also = re.fullmatch(r"(?:and|also|oh and|and also) (remind me .+?)(?: too| as well| also)?", low)
+    also = re.fullmatch(r"(?:and|also|oh and|and also) (remind me .+?)( too| as well| also)?", low)
     if also:
+        # "Too" may mean the same time as the one just set: asked that way first.
+        if also.group(2):
+            got = ((_interpret(also.group(1) + also.group(2)) or {}).get("command") or {})
+            if got.get("kind") == "remind_at" and not re.search(r" (?:too|as well|also)$", str(got.get("text") or "")):
+                return {"command": got, "say": None}
         return _interpret(also.group(1))
     lead = re.fullmatch(r"((?:every|each|tomorrow|tonight|today|on|at|this|in) [a-z0-9: ]{1,40}?),? "
                         r"remind me (to|about|that) (.+)", low)
@@ -3357,6 +3388,27 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "undo"}, "say": None}
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
+
+    # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
+    # "what time is that reminder", "remind me to text dad too" (the same
+    # time), and "change call mom to call grandma" (the same time, new words).
+    just = _the_reminder_just_set() if re.search(r"\b(?:reminder|it|that|too|as well|also|change|make)\b", low) else None
+    if just:
+        at = str(just.get("at") or "")
+        words = str((just.get("command") or {}).get("text") or "")
+        if re.fullmatch(r"(?:what time is|when is|when's) (?:that|the|my|this) reminder(?: set)?(?: for)?"
+                        r"|(?:what time|when) (?:did you set|is) (?:it|that) (?:set )?for|when does (?:it|that) go off", low):
+            return {"command": None, "say": f"That's {speech.humanize_time(at)}: {words}."}
+        m = re.fullmatch(r"(?:and )?(?:also )?remind me to (?P<what>.+?) (?:too|as well|also)", low)
+        if m and at:
+            return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group("what"))}, "say": None}
+        m = re.fullmatch(r"(?:no,? |actually,? )?(?:change|make) (?:it|that|the reminder )?(?P<old>.+?) (?:to|into) (?P<new>[a-z].+)", low)
+        if m and at and m.group("old").strip() in (words.casefold(), "it", "that") \
+                and not _spoken_time(m.group("new").replace("at ", "")) \
+                and not re.match(r"(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                                 r"|morning|afternoon|evening|noon|midnight|\d)", m.group("new")):
+            return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group("new")),
+                                "replaces": words}, "say": None}
 
     # reminders — before email so "remind me to email bob" stays a reminder
     #
