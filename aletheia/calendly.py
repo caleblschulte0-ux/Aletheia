@@ -62,6 +62,33 @@ def find_scheduling_links(text: str) -> list[str]:
     return out
 
 
+#: An applicant-tracking system's "enter your availability" page. Not a slot
+#: picker: the candidate paints the hours he is free and the recruiter books
+#: from them, so the Calendly walker cannot press anything here. Both of his
+#: first two interview invites (Via and Northspyre, 2026-09-25 and 10-06)
+#: were this shape, and both sat unanswered because nothing recognised it.
+_AVAILABILITY_PATH = re.compile(r"^/availability/[0-9a-f]{16,}", re.I)
+AVAILABILITY_HOSTS = ("greenhouse.io",)
+
+
+def find_availability_links(text: str) -> list[str]:
+    """Every "enter your availability" link in the text, once each, with the
+    tracking query left off (it is the same page without it)."""
+    out: list[str] = []
+    for raw in _LINK.findall(str(text or "")):
+        url = raw.rstrip(".,;:!?")
+        parts = urlsplit(url)
+        host = (parts.hostname or "").casefold()
+        if not any(host == h or host.endswith("." + h) for h in AVAILABILITY_HOSTS):
+            continue
+        if not _AVAILABILITY_PATH.match(parts.path or ""):
+            continue
+        clean = f"{parts.scheme}://{parts.netloc}{parts.path}"
+        if clean not in out:
+            out.append(clean)
+    return out
+
+
 def _local(stamp: str, zone: ZoneInfo) -> dt.datetime:
     value = dt.datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
     if value.tzinfo is None:

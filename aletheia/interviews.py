@@ -251,6 +251,58 @@ def reply_text(*, his_name: str, company: str, chosen: dict | None, offers: list
 
 # ---- the act ---------------------------------------------------------------------
 
+def _availability_page(url: str, event: dict, entry: dict, *, company: str, window: dict, busy,
+                       now: dt.datetime, marker=None, notify=None, filler=None) -> dict:
+    """An "enter your availability" page: the recruiter books from the hours
+    he paints, so the answer is the page, not an email (a written reply to
+    someone who asked for the page is what she produced for Via, and it was
+    the wrong answer). She paints his window on every free weekday and sends
+    it under the interviews grant (`availability_page.mark`); whatever stops
+    her, he is told it NEEDS HIM, with the link and the days to mark, so
+    finishing it is one tap. Never raises past `consider`'s guard."""
+    from aletheia import availability_page, notifications
+    try:
+        done = (filler or availability_page.mark)(url, window=window, busy=busy, now=now)
+    except Exception as exc:
+        done = {"state": "failed", "why": type(exc).__name__}
+    state = str(done.get("state") or "failed")
+    def day_words(dates):
+        # "%-d" does not exist on Windows, which is where this runs.
+        return [f"{day:%A} {day:%b} {day.day}" for day in map(dt.date.fromisoformat, dates)]
+    if entry.get("id"):
+        try:
+            from aletheia import apply_run
+            (marker or apply_run.mark)(entry["id"], "interview",
+                                       note=("sent his availability on their scheduling page" if state == "sent"
+                                             else "asked for his availability on their scheduling page"))
+        except Exception:
+            pass
+    if state == "sent":
+        days = day_words(done.get("days") or [])
+        sentence = (f"{company} asked for your availability, so I sent them {window_words(window)} on "
+                    f"{', '.join(days)}. They book the interview from those times; watch for their invite.")
+        title, priority, about = f"{company} has your interview times", "IMPORTANT", notifications.FINISHED
+    else:
+        offers = offer_slots(now=now, window=window, busy=busy, count=5)
+        days = [said_when(o["start"], window).split(" ")[0] for o in offers]
+        why = {"needs_grant": "sending it needs your interviews switch on",
+               "unconfirmed": "I pressed Submit and the page did not confirm it"}.get(
+                   state, str(done.get("why") or "the page did not work the way I expected"))
+        sentence = (f"{company} wants to interview you and asked for your availability. I could not send it "
+                    f"myself ({why}). Mark {window_words(window)}"
+                    + (f" on {', '.join(days)}" if days else " on the weekdays you are free")
+                    + f" here: {url}")
+        title, priority, about = f"{company} wants to interview you", "URGENT", notifications.NEEDS_YOU
+    (notify or notifications.publish)(
+        title, sentence, priority=priority, source="interviews", about=about,
+        dedupe_key=f"interview:{entry.get('id')}:{event.get('id')}",
+        related={"application": entry.get("id"), "url": url})
+    journal.append("action" if state == "sent" else "event", "interviews", sentence.split(" here: ")[0],
+                   actor=ACTOR)
+    return {"state": "availability_sent" if state == "sent" else "availability_page", "url": url,
+            "days": days, "fill": state}
+
+
 def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: dict, busy, now: dt.datetime,
                    known: dict, marker=None, notify=None, booker=None, calendar_writer=None) -> dict:
     """Book the employer's scheduling link in his window; put it on his
@@ -322,7 +374,7 @@ def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: 
 
 def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.datetime | None = None,
              busy=None, drafter=None, holder=None, marker=None, notify=None, known: dict | None = None,
-             booker=None, calendar_writer=None) -> dict:
+             booker=None, calendar_writer=None, filler=None) -> dict:
     """An employer's ask for time, acted on when the switch is on. Never raises."""
     state = status()
     if not state["on"]:
@@ -348,6 +400,10 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
             return _book_the_link(links[0], event, entry, company=company, window=window, busy=busy,
                                   now=now, known=known, marker=marker, notify=notify, booker=booker,
                                   calendar_writer=calendar_writer)
+        pages = calendly.find_availability_links(text) if text else []
+        if pages:
+            return _availability_page(pages[0], event, entry, company=company, window=window, busy=busy,
+                                      now=now, marker=marker, notify=notify, filler=filler)
         proposed: list[dict] = []
         if text:
             from aletheia import reply_understanding as ru

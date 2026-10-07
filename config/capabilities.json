@@ -943,9 +943,9 @@
       "risk_class": "medium",
       "approval_policy": "registry_grant",
       "status": "EXPERIMENTAL",
-      "caller": "aletheia.interviews.consider (an employer's reply carrying a scheduling link) -> aletheia.calendly.book; the Schedule press is made only under the interviews standing grant",
+      "caller": "aletheia.interviews.consider (an employer's reply carrying a scheduling link) -> aletheia.calendly.book, or (a Greenhouse 'enter your availability' page) -> aletheia.availability_page.mark; the Schedule or Submit press is made only under the interviews standing grant",
       "notes": "His words, 2026-09-24: 'If someone sends us a Calendly link, she can put 1 to 2.30 p.m. Central on there. And as long as she puts it on the calendar, the Open Range Interactive Calendar, I'm fine with that.' Deterministic: the page is walked by the shape Calendly renders (day buttons, data-start-time slots, Next, name and email, Schedule), the slot is the first open weekday time inside his window (13:00-14:30 America/Chicago by default) his own calendar has free, and outside the window she books nothing. EXPERIMENTAL until a real booking is seen; tests cover a fixture page.",
-      "verification": "tests/test_a_calendly_link_is_booked_in_his_window.py (fixture page in Chromium); no live booking yet"
+      "verification": "tests/test_a_calendly_link_is_booked_in_his_window.py (fixture page in Chromium); tests/test_a_polite_subject_is_not_an_answer.py (availability page: a scripted grid, never a live Greenhouse page); no live booking or availability submission yet"
     },
     {
       "id": "attention.policy",
