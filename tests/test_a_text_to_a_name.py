@@ -157,5 +157,17 @@ class SitesAndLookups(unittest.TestCase):
         self.assertEqual(voice._interpret("look up pizza places")["command"], {"kind": "research", "question": "pizza places"})
 
 
+class HisMoneyAskedOtherWays(unittest.TestCase):
+    def test_bills_and_what_he_pays(self):
+        for said in ("how much am i paying for netflix", "what bills are due", "how much do i spend on subscriptions a month"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "subscriptions"}, said)
+
+    def test_a_price_in_the_world_is_not_his_tracker(self):
+        self.assertNotEqual((voice._interpret("how much is netflix").get("command") or {}).get("kind"), "subscriptions")
+
+    def test_a_card_balance_is_his_money(self):
+        self.assertEqual(voice._interpret("what's my credit card balance")["command"], {"kind": "money"})
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3295,7 +3295,15 @@ def _interpret(transcript: str) -> dict:
                 "say": None}
 
     if re.fullmatch(r"(?:what am i paying for|my subscriptions?|"
-                    r"what subscriptions do i have)", low):
+                    r"what subscriptions do i have"
+                    # "How much am I paying for Netflix", "what bills are due" (2026-10-07:
+                    # to the planner) - the tracker answers both.
+                    r"|how much (?:is my|am i paying for|do i pay for) (?:my )?(?:netflix|spotify|hulu|disney plus|disney\+"
+                    r"|youtube premium|youtube tv|amazon prime|prime|hbo max|max|apple music|icloud|peacock|paramount plus"
+                    r"|chatgpt|claude|xbox game pass|game pass|playstation plus|audible|my gym|the gym)(?: a month| per month| monthly)?"
+                    r"|what (?:bills|payments|subscriptions) (?:are|is) (?:due|coming up|renewing)(?: soon| this month| this week)?"
+                    r"|(?:what|which) bills do i have|my bills|what do i pay (?:each|every|a) month"
+                    r"|how much (?:do i|am i) (?:spend(?:ing)?|pay(?:ing)?) on subscriptions(?: a month| per month| each month)?)", low):
         return {"command": {"kind": "subscriptions"}, "say": None}
 
     # "What's my BANK balance" and "what do I have IN THE BANK" reached no
@@ -3310,7 +3318,11 @@ def _interpret(transcript: str) -> dict:
                     r"|how much (?:do i have|money is there)"
                     r"(?: in (?:my|the) bank| in the bank)?"
                     r"|what are my (?:accounts|balances)"
-                    r"|my (?:accounts|balances))", low):
+                    r"|my (?:accounts|balances)"
+                    # "What's my credit card balance" (2026-10-07: to the planner).
+                    r"|what(?:'s| is|s) (?:my|the) (?:credit card|checking|savings|card|account) balance"
+                    r"|how much (?:is|do i have) (?:in|on) (?:my )?(?:checking|savings|credit card)(?: account)?"
+                    r"|how much do i owe(?: on my (?:credit )?card)?)", low):
         return {"command": {"kind": "money"}, "say": None}
 
     # AND THE SAME INVENTED SENTENCE CAME BACK FOR SPENDING. The comment
