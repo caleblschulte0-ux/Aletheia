@@ -3122,6 +3122,14 @@ def _interpret(transcript: str) -> dict:
             command["part"] = m.group("part")
         return {"command": command, "say": None}
 
+    # "Anything this evening", "do I have anything this afternoon"
+    # (2026-10-07: to the planner) - that part of today's free time.
+    m = re.fullmatch(r"(?:do i have |have i got |is there )?anything (?:on |planned |happening )?"
+                     r"(?:this (?P<part>morning|afternoon|evening)|(?P<tonight>tonight))\s*\??", low)
+    if m:
+        return {"command": {"kind": "free_time", "day": _spoken_day("today"),
+                            "part": m.group("part") or "tonight"}, "say": None}
+
     # "AM I FREE FRIDAY AT 10" - a moment, not a day (2026-10-07: to the
     # planner). Either order, and a bare "at 10" is today, or tomorrow once
     # it has passed. A bare hour gets the same no-small-hours rule as a

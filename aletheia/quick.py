@@ -400,7 +400,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how productive (?:was i|have i been|am i)(?P<what3> today| yesterday| this week)?\s*\??$")),
     ("task_top", re.compile(
         r"^what(?:'s| is|s)? my (?:most important|top|biggest|first|highest priority|number one|main) (?:task|thing|priority)(?: today)?$"
-        r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$")),
+        r"|^what(?:'s| is|s)? my (?:top )?priority(?: today)?$"
+        r"|^what(?:'s| is|s)? my most (?:urgent|pressing) (?:task|thing)(?: today)?$")),
     ("tasks_clear_done", re.compile(
         r"^(?:clear|delete|remove|get rid of|clean up) (?:all )?(?:my |the )?(?:completed|finished|done|old) tasks$")),
     # HER WORK, ASKED ABOUT (2026-10-07). "Is anything stuck" answers "say
@@ -762,7 +763,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Show me my calendar for next week" planned for 73 s and died on a
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
-        r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$")),
+        r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
+        # "Am I free this weekend" (2026-10-07: to the planner).
+        r"|^am i (?:free|busy) (?P<day11>this weekend|the weekend|this week|next week)$")),
     # "Do I have any meetings today" was answered "nothing coming up" - a
     # different question - and "how busy am I this week" and "what's my
     # first meeting tomorrow" went to the planner (2026-10-07).
@@ -784,6 +787,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:on |for )?(?P<agenda_on>the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
         r"|september|october|november|december))?|(?:january|february|march|april|may|june|july|august|september|october"
         r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
+    # "When am I done today", "when's my last meeting" (2026-10-07: to the planner).
+    ("last_meeting", re.compile(
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow))?\s*\??$"
+        r"|^(?:when|what time) (?:am i|will i be) (?:done|finished|free)(?: for the day)?(?: (?P<lastday2>today|tomorrow))?\s*\??$"
+        r"|^what time do i (?:finish|get done|wrap up)(?: (?P<lastday3>today|tomorrow))?\s*\??$")),
     ("first_meeting", re.compile(
         r"^(?:what(?:'s| is|s)?|when(?:'s| is)?) my first (?:meeting|appointment|event|call|thing)(?:(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("repo_wrong", re.compile(
@@ -1325,7 +1333,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                        r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$"
                        # "What tasks are due this week", "show me my overdue tasks" (2026-10-07).
                        r"|^(?:what|which) (?:tasks|things) (?:are|r) (?:due (?P<what4>today|tomorrow|this week|soon)|(?P<what5>overdue))$"
-                       r"|^(?:show me|list|read me|what are|tell me) (?:my |the )?(?P<what6>overdue) (?:tasks|things|items)$")),
+                       r"|^(?:show me|list|read me|what are|tell me) (?:my |the )?(?P<what6>overdue) (?:tasks|things|items)$"
+                       r"|^(?:any|what are my|do i have any) deadlines(?: (?P<what7>today|tomorrow|this week|soon))?$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
     ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
                                 r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
@@ -1500,7 +1509,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "weeks", "due", "due2",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "born",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -1511,7 +1520,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
-                                           "applied_on", "applied_on2", "applied_on3", "what3",
+                                           "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
                                            "place", "place2", "place3")
                      if captured.get(k)), "")
@@ -3158,6 +3167,35 @@ def _first_meeting(day: str = "today") -> str | None:
     head, _, rest = said.partition(": ")
     first = re.split(r",? and |, ", rest, maxsplit=1)[0].rstrip(".")
     return f"{head}, first up: {first}."
+
+
+def _last_meeting(day: str = "today") -> str | None:
+    """The last thing on that day's calendar and when it ends."""
+    import datetime as dt
+    from aletheia import calendar, localtime, speech
+    tz = localtime.operator_tz()
+    tomorrow = str(day).strip() == "tomorrow"
+    when = dt.datetime.now(tz).date() + dt.timedelta(days=1 if tomorrow else 0)
+    try:
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+                end = calendar.parse_time(event["end"]).astimezone(tz) if event.get("end") else \
+                    start + dt.timedelta(minutes=int(event.get("minutes") or 60))
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start.date() == when:
+                rows.append((end, start, str(event.get("title") or "something")[:60]))
+    except Exception:
+        return None
+    label = "tomorrow" if tomorrow else "today"
+    if not rows:
+        return f"Nothing on your calendar {label}."
+    end, _start, title = max(rows)
+    return f"Your last thing {label} is {title}, done at {speech.humanize_time(end.isoformat())}."
 
 
 def _double_booked() -> str | None:
@@ -6358,6 +6396,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda": lambda rest: _agenda(rest or "today"),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
+           "last_meeting": lambda rest: _last_meeting(rest or "today"),
            "agenda_on": lambda rest: _agenda_on(rest),
            "days_since": lambda rest: _days_since(rest),
            "weekend_q": lambda rest: _weekend_q(),

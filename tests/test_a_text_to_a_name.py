@@ -585,5 +585,35 @@ class HowHeIs(unittest.TestCase):
         self.assertEqual(quick.match("what did i accomplish this week")[0], "tasks_done")
 
 
+
+class WhenAmIDone(unittest.TestCase):
+    def test_the_last_thing_today_and_when_it_ends(self):
+        import datetime as dt
+        from aletheia import calendar, localtime, quick
+        tz = localtime.operator_tz()
+        day = dt.datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+        rows = [{"title": "Standup", "start": (day + dt.timedelta(hours=9)).isoformat(),
+                 "end": (day + dt.timedelta(hours=9, minutes=15)).isoformat()},
+                {"title": "Review", "start": (day + dt.timedelta(hours=16)).isoformat(),
+                 "end": (day + dt.timedelta(hours=17)).isoformat()}]
+        with mock.patch.object(calendar, "all_events", return_value=rows):
+            said = quick._last_meeting("today")
+        self.assertTrue(said.startswith("Your last thing today is Review, done at"), said)
+        self.assertEqual(quick.match("when am i done today")[0], "last_meeting")
+
+    def test_other_ways_to_ask(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("am i free this weekend")[0], "agenda")
+        self.assertEqual(quick.match("what's my most urgent task")[0], "task_top")
+        self.assertEqual(quick.match("any deadlines this week")[0], "due")
+
+
+
+class AnythingThisEvening(unittest.TestCase):
+    def test_a_part_of_today(self):
+        self.assertEqual(voice._interpret("anything this evening")["command"]["part"], "evening")
+        self.assertEqual(voice._interpret("do i have anything tonight")["command"]["part"], "tonight")
+
+
 if __name__ == "__main__":
     unittest.main()
