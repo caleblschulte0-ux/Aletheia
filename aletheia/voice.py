@@ -1445,6 +1445,12 @@ def _interpret(transcript: str) -> dict:
         # untouched and still reaches the thing that really cancels.
         m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
+    if not m:
+        # "CANCEL MY ALARM": an alarm is a reminder that says "wake up", and
+        # setting one was instant while cancelling it reached the planner.
+        if re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
+                        r"(?:the |my |that |all )?(?:my )?alarms?(?: for (?:tomorrow|the morning|[\w: ]+))?", low):
+            return {"command": {"kind": "reminder_off", "which": "wake up"}, "say": None}
     if m:
         return {"command": {"kind": "reminder_off", "which": m.group(1).strip()},
                 "say": None}
@@ -1905,6 +1911,20 @@ def _interpret(transcript: str) -> dict:
         # week'" — the fast lane removing an ANSWER rather than latency,
         # which is the one thing it may never do. The planner resolves the
         # date and compiles the same command; it just costs a round trip.
+
+    # "MOM'S NUMBER IS 605 555 0123": "text mom" says "Tell me the number
+    # once and I'll remember it", and telling her went to the planner
+    # (2026-10-07). Same for an email address.
+    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:phone |cell |mobile |cell phone )?(?:number|phone) is "
+                     r"(\+?[\d][\d ().-]{5,20}\d)", low)
+    if m and m.group(1) not in ("my", "your", "his", "her"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
+                            "phone": m.group(2).strip()}, "say": None}
+    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:email|e-mail|email address) is "
+                     r"(\S+@\S+\.\S+|\S+ at \S+ dot \S+)", low)
+    if m and m.group(1) not in ("my", "your", "his", "her"):
+        return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
+                            "email": m.group(2).strip().rstrip(".")}, "say": None}
 
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)

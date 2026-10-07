@@ -34,3 +34,28 @@ class TheRoom(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TellingHerANumber(unittest.TestCase):
+    def cmd(self, said):
+        return (voice._interpret(said) or {}).get("command") or {}
+
+    def test_moms_number_is_a_contact(self):
+        c = self.cmd("mom's number is 605 555 0123")
+        self.assertEqual((c.get("kind"), c.get("name"), c.get("phone")),
+                         ("contact_add", "mom", "605 555 0123"))
+
+    def test_an_email_address_is_a_contact(self):
+        c = self.cmd("my sister's email is dana@example.com")
+        self.assertEqual((c.get("kind"), c.get("name"), c.get("email")),
+                         ("contact_add", "sister", "dana@example.com"))
+
+    def test_the_confirmation_is_a_sentence(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("contact_add", "remembered mom as 6055550123 — private contacts "
+                                                    "only, never the public repo")
+        self.assertEqual(said, "Got it - Mom: 605-555-0123.")
+
+    def test_cancel_my_alarm(self):
+        self.assertEqual(self.cmd("cancel my alarm"), {"kind": "reminder_off", "which": "wake up"})
+        self.assertNotEqual(self.cmd("cancel my gym membership").get("kind"), "reminder_off")

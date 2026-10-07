@@ -541,6 +541,23 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "contact_add":
+        # "remembered mom as 6055550123 — private contacts only, never the
+        # public repo" was read out verbatim: a log line, a run of digits,
+        # and a promise about a repository he never asked about.
+        got = re.match(r"remembered (.+?) as (.+?)\s+[—-]", text)
+        if got:
+            who = got.group(1).strip()
+            who = who[:1].upper() + who[1:]
+            said = []
+            for part in got.group(2).split(" and "):
+                digits = re.sub(r"\D", "", part)
+                if "@" not in part and len(digits) == 10:
+                    part = f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+                elif "@" not in part and len(digits) == 11 and digits[0] == "1":
+                    part = f"{digits[1:4]}-{digits[4:7]}-{digits[7:]}"
+                said.append(part.strip())
+            return f"Got it - {who}: {and_list(said)}."
     if kind == "remind_at":
         when = ISO_TIME.search(text)
         what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
