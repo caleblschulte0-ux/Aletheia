@@ -2885,6 +2885,11 @@ def _interpret(transcript: str) -> dict:
                      r"(?:it|that|this|that list|this list|the list)", low)
     if m:
         name, _last = _the_named_list_just_used()
+        if name == "gift" and low.endswith(" the list"):
+            # "Add perfume to Anna's gift list", then "add milk to the list"
+            # put milk on the GIFT list (2026-10-07). A gift line names who
+            # it is for; "the list" on its own is still his shopping list.
+            name = None
         try:
             from aletheia import lists as _lists
             gone = bool(name) and not _lists.exists(name)
@@ -7435,6 +7440,17 @@ def _interpret(transcript: str) -> dict:
                 "say": "I can't tell where you are, so I can't remind you when you get somewhere. "
                        f"I can do it at a time - say \"remind me at 6 to {what}\"."}
 
+    # "Remind me to bring an umbrella if it rains" (2026-10-07: to the
+    # planner). A reminder fires on the clock; nothing she runs watches the
+    # sky for one, so say that and offer the morning instead.
+    m = re.fullmatch(r"remind me (?:to )?(?P<what>.+?) (?:if|when) it(?:'s| is)? (?:going to |gonna |supposed to )?"
+                     r"(?:rains?|raining|snows?|snowing|storms?|stormy|cold|hot|freezing|windy|sunny)(?: tomorrow| today| later)?", low)
+    if m:
+        what = _as_he_said(transcript, m.group("what").strip())
+        return {"command": None,
+                "say": "I can't set a reminder off by the weather - nothing I run watches it for one. "
+                       f"I can remind you in the morning anyway: say \"remind me tomorrow at 7 to {what}\"."}
+
     # "CHANGE MY 3PM REMINDER TO 4PM", "move my pill reminder to 9"
     # (2026-10-07: to the planner). The one-off reminder he names - by its
     # time or its words - on the same day, at the new time.
@@ -8284,10 +8300,13 @@ def _interpret(transcript: str) -> dict:
     # is for; "what gift ideas do I have for my sister" reads it back.
     m = re.fullmatch(r"(?:add (?:a )?|save (?:a )?|new )?gift idea for (?P<who>(?:my )?[a-z][a-z' ]{1,25}?)[:,-]? (?P<what>[a-z0-9].{1,60})"
                      r"|(?P<what2>[a-z0-9][a-z0-9 '-]{1,40}?) (?:would be|is|could be|might be) a (?:good|great|nice|perfect) "
-                     r"(?:gift|present)(?: idea)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas))?", low)
-    if m and not re.match(r"(?:it|that|this|what)\b", m.group("what") or m.group("what2")):
+                     r"(?:gift|present)(?: idea)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas))?"
+                     # "Add perfume to Anna's gift list" (2026-10-07: to the planner).
+                     r"|(?:add|put) (?P<what3>[a-z0-9][a-z0-9 '-]{1,40}?) (?:to|on) (?:(?P<who3>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)"
+                     r"|my gift (?:list|ideas) for (?P<who4>(?:my )?[a-z][a-z' ]{1,25}?))", low)
+    if m and not re.match(r"(?:it|that|this|what)\b", m.group("what") or m.group("what2") or m.group("what3")):
         what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
-        who = _as_he_said(text, m.group("who") or m.group("who2"))
+        who = _as_he_said(text, m.group("who") or m.group("who2") or m.group("who3") or m.group("who4"))
         return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
     # HIS MEAL PLAN (2026-10-07: "add chicken to my meal plan for monday"
     # went to the planner). A line "Monday: chicken" on the list called
@@ -8338,6 +8357,13 @@ def _interpret(transcript: str) -> dict:
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "It's my anniversary on May 5" (2026-10-07: to the planner) is "my
+    # anniversary is May 5", the shape every date reader already reads.
+    m = re.fullmatch(r"(?:it'?s|it is) (?P<whose>my|our|[a-z]+'s|my [a-z]+'s) (?P<what>anniversary|birthday|wedding anniversary)"
+                     r" (?:on|is on|is) (?P<when>" + SPOKEN_DATE + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)", low)
+    if m:
+        return {"command": {"kind": "note",
+                            "text": _as_he_said(text, f"{m.group('whose')} {m.group('what')} is {m.group('when')}")}, "say": None}
     # "I'm going to the gym after work" (2026-10-07: to the planner). A plan
     # for later today is a note in his words, not a reminder he didn't ask for.
     if re.fullmatch(r"(?:i'?m|i am|i'?ll be|i will be) (?:going|heading|gonna go|going to go) (?:to )?(?:the )?"

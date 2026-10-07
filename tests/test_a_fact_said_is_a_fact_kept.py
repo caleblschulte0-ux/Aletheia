@@ -5226,5 +5226,37 @@ class WhenHeGotThere(unittest.TestCase):
         self.assertEqual(quick.match("how much time until my next meeting")[0], "next_meeting")
 
 
+class AnniversariesAndGiftLists(unittest.TestCase):
+    def test_its_my_anniversary_on_a_date(self):
+        from aletheia import voice
+        got = voice.interpret("it's my anniversary on may 5")["command"]
+        self.assertEqual(got, {"kind": "note", "text": "my anniversary is may 5"})
+
+    def test_no_year_says_so(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "our anniversary is May 5"}]):
+            said = quick.answer("how many years have we been married")
+        self.assertIn("not the year", said)
+
+    def test_a_possessive_gift_list(self):
+        from aletheia import voice
+        got = voice.interpret("add perfume to anna's gift list")["command"]
+        self.assertEqual((got["list"], got["item"]), ("gift", "perfume for anna"))
+        self.assertEqual(voice.interpret("put a scarf on my gift list for my sister")["command"]["item"],
+                         "a scarf for my sister")
+
+    def test_the_list_after_a_gift_is_still_shopping(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_the_named_list_just_used", return_value=("gift", None)):
+            got = voice.interpret("add milk to the list")["command"]
+        self.assertNotEqual(got.get("list"), "gift")
+
+    def test_weather_reminders_say_what_she_cannot_watch(self):
+        from aletheia import voice
+        got = voice.interpret("remind me to bring an umbrella if it rains")
+        self.assertIsNone(got["command"])
+        self.assertIn("by the weather", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

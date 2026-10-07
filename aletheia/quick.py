@@ -2222,6 +2222,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|what did i (?:write|put|say) in my (?:journal|diary))(?P<kept_when> today| yesterday| this week)?(?P<kept_journal>)\s*\??$")),
     ("gift_for", re.compile(
         r"^what (?:gift ideas|gifts|presents|present ideas) (?:do i have|have i (?:got|saved|kept)|did i (?:save|have)) for (?P<gift_for>(?:my )?[a-z][a-z' ]{1,25}?)\s*\??$"
+        r"|^what(?:'s| is|s) on (?:(?P<gift_for3>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)|my gift (?:list|ideas) for (?P<gift_for4>(?:my )?[a-z][a-z' ]{1,25}?))\s*\??$"
         r"|^what (?:should|could|can) i (?:get|buy|give) (?P<gift_for2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas|the holidays|our anniversary))?\s*\??$")),
     ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!(?:busiest|quietest|least busy|freest) day\b)(?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
     # LAST, so every specific door wins: "when does the trash go out",
@@ -8168,11 +8169,14 @@ def _married(text: str) -> str | None:
     from aletheia import localtime, speech
     today = dt.datetime.now(localtime.operator_tz()).date()
     when_asked = text.casefold().startswith("when")
+    no_year = None
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
         if not re.search(r"\bmarried\b|\banniversary\b", low):
             continue
+        if no_year is None and "anniversary" in low and not re.search(r"\b(?:19|20)\d\d\b", low):
+            no_year = said
         m = re.search(r"\b(\d{1,2}) years\b", low)
         if m and "been married" in low and not when_asked:
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
@@ -8184,6 +8188,11 @@ def _married(text: str) -> str | None:
         years = today.year - int(y.group(1))
         return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
                 if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
+    if no_year:
+        # "Our anniversary is May 5" names the day and not the year
+        # (2026-10-07: "how many years have we been married" went to a model).
+        return (f"You told me: {speech.as_she_says_it(no_year).rstrip('.')}. But not the year, so I can't say how long. "
+                "Say \"we got married in\" and the year, and I'll know.")
     return None
 
 
@@ -10221,7 +10230,7 @@ def _gift_for(text: str) -> str | None:
     is None; asked for the ideas he SAVED, none is the answer."""
     from aletheia import lists, speech
     g = _groups("gift_for", text)
-    who = " ".join(str(g.get("gift_for") or g.get("gift_for2") or "").split())
+    who = " ".join(str(g.get("gift_for") or g.get("gift_for2") or g.get("gift_for3") or g.get("gift_for4") or "").split())
     name = re.sub(r"^my ", "", who)
     if not name or name in ("you", "it", "that", "them", "him", "her"):
         return None
@@ -10233,10 +10242,12 @@ def _gift_for(text: str) -> str | None:
     hits = [r for r in rows if re.search(rf"\bfor (?:my )?(?:{re.escape(name)}|{re.escape(alias or name)})\b", r, re.I)]
     if hits:
         said = [re.sub(rf"\s+for (?:my )?(?:{re.escape(name)}|{re.escape(alias or name)})\b.*$", "", r, flags=re.I) for r in hits]
-        return f"Your gift ideas for {speech.as_she_says_it(who)}: {speech.and_list(said)}."
+        shown = speech.as_she_says_it(who) if who.startswith("my ") or who in _relation_words() else _named(who)
+        return f"Your gift ideas for {shown}: {speech.and_list(said)}."
     if g.get("gift_for2"):
         return None
-    return f"You haven't saved any gift ideas for {speech.as_she_says_it(who)}. Say \"gift idea for {who}\" and what it is."
+    shown = speech.as_she_says_it(who) if who.startswith("my ") or who in _relation_words() else _named(who)
+    return f"You haven't saved any gift ideas for {shown}. Say \"gift idea for {who}\" and what it is."
 
 
 def _liked_how(text: str) -> str | None:
