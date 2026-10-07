@@ -5408,5 +5408,25 @@ class AHoldsLengthAndItsName(unittest.TestCase):
         self.assertIsNone(voice.interpret("remind me to stretch for 10 minutes")["command"])
 
 
+class RenamingAndRepeatingHolds(unittest.TestCase):
+    def test_rename_my_thursday_meeting(self):
+        import datetime as dt
+        from aletheia import calendar, localtime, voice
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        thursday = today + dt.timedelta(days=(3 - today.weekday()) % 7 or 7)
+        start = dt.datetime.combine(thursday, dt.time(15, 0), tzinfo=tz).isoformat()
+        hold = {"status": "TENTATIVE", "source": "hold:x", "title": "meeting with the team", "start": start}
+        with mock.patch.object(calendar, "all_events", return_value=[hold]):
+            got = voice.interpret("rename my thursday meeting to standup")["command"]
+        self.assertEqual((got["title"], got["was_title"], got["replaces"]), ("standup", "meeting with the team", start))
+
+    def test_every_week_is_said_plainly(self):
+        from aletheia import voice
+        got = voice.interpret("put gym on my calendar every monday at 6")
+        self.assertIsNone(got["command"])
+        self.assertIn("one at a time", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

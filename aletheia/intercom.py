@@ -242,7 +242,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "thread_followup": ({"thread"}, set()),
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
-    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces", "was_title"}),
     "hold_release":  ({"title", "start"}, set()),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
@@ -754,7 +754,8 @@ KIND_NOTES: dict[str, str] = {
         'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
         'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
         'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
-        'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
+        'his own hold with the same title that this one moves ("make it 8"); was_title is that hold\'s old '
+        'title when this renames it ("rename my Thursday meeting to standup"). It refuses when it '
         'clashes and says with what.'),
     "place_add": (
         'Remember where one of his places is: "my work address is 5 Market St", "the gym is at 20 Oak '
@@ -3588,7 +3589,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if cmd.get("replaces"):
             try:
                 from aletheia import calendar as _calendar
-                old_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["replaces"]), cmd.get("thread") or "")
+                old_id = calendar_reasoning.hold_id(cmd.get("was_title") or cmd["title"], str(cmd["replaces"]),
+                                                    cmd.get("thread") or "")
                 old = _calendar.load(old_id)
                 if old and old.get("status") != "CANCELLED":
                     calendar_reasoning.release_hold(old_id, why="moved: he gave it a new time")
@@ -3600,7 +3602,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                                        location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
         if not held.get("event"):
             if old:
-                calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
+                calendar_reasoning.hold(cmd.get("was_title") or cmd["title"], str(old["start"]), str(old["end"]),
                                         location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
         # "Block off 2 to 4" was confirmed as "at 2 pm" alone (2026-10-07):
@@ -3612,6 +3614,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         when = calendar_reasoning.human(held['event']['start'])
         if until and " at " in when:
             when = when.replace(" at ", " from ", 1)
+        if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):
+            return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
+                    "tentative, on your calendar here only.")
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
                 f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only.")

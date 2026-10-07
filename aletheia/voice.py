@@ -1816,6 +1816,15 @@ def _one_of_her_holds(words: str):
     said = " ".join(str(words or "").casefold().split())
     said = re.sub(r"^(?:my|the|our) ", "", said)
     said = re.sub(r" (?:today|tomorrow)$", "", said)
+    # "My Thursday meeting", "the 3pm on Friday" (2026-10-07): a weekday
+    # narrows it to holds on that day.
+    weekday = re.search(r"\b(?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:'s)?\b", said)
+    if weekday:
+        mine = [(s, e) for s, e in mine if s.strftime("%A").casefold() == weekday.group(1)]
+        said = " ".join(re.sub(r"\b(?:on )?" + weekday.group(1) + r"(?:'s)?\b", " ", said).split()) or "meeting"
+    if said in ("meeting", "appointment", "call", "thing", "hold", "one") and weekday:
+        hits = mine
+        return (hits[0][1], "") if len(hits) == 1 else (None, "more than one" if hits else "")
     clock = re.fullmatch(r"(\d{1,2})(?::(\d\d))?\s*(am|pm|o'?clock)?(?: (?:meeting|appointment|call|one|thing))?", said)
     if clock:
         hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
@@ -6114,6 +6123,34 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:has|is at|is on|just hit|hit) (?:about |around |over )?"
                     r"\d[\d,]*k?(?: thousand)? miles(?: on it)?(?: now)?", low):
         return {"command": {"kind": "note", "text": low}, "say": None}
+    # "Put gym on my calendar every Monday at 6" (2026-10-07: to the
+    # planner). Her holds are one at a time; a weekly reminder is what she
+    # can do every week, offered in words he can say back.
+    m = re.fullmatch(r"(?:put|add|schedule|block(?: off)?|pencil in) (?:a |an |my )?(?P<what>[a-z][a-z' ]{1,30}?)(?: on| to| in)?(?: my| the)?"
+                     r"(?: calendar)? every (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|day|weekday|week)"
+                     r"(?: (?:at|from) (?P<t>[0-9: ]{1,5}(?:am|pm)?|noon))?", low)
+    if m:
+        what, day = _as_he_said(text, m.group("what")), m.group("day")
+        when = f"every {day.capitalize() if day not in ('day', 'weekday', 'week') else day}" + (f" at {m.group('t').strip()}" if m.group("t") else "")
+        return {"command": None,
+                "say": f"I can only pencil things in one at a time, not every week. I can remind you {when} - "
+                       f"say \"remind me {when} to {what}\"."}
+    # "Rename my Thursday meeting to standup" (2026-10-07: to the planner).
+    # Her own hold, the same time and length, under the new name.
+    m = re.fullmatch(r"(?:rename|retitle|change the name of|call) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,40}?) (?:to|as) "
+                     r"(?P<new>[a-z0-9][a-z0-9 ,.'&-]{1,60})", low)
+    if m and not _names_one_open_task(m.group("what")):
+        hold, why = _one_of_her_holds(m.group("what"))
+        if hold:
+            import datetime as dt
+            from aletheia import calendar as _cal_name
+            was = _cal_name.parse_time(hold["start"])
+            ends = _cal_name.parse_time(hold["end"]) if hold.get("end") else was + dt.timedelta(hours=1)
+            return {"command": {"kind": "calendar_hold", "title": _as_he_said(text, m.group("new")), "start": was.isoformat(),
+                                "minutes": max(5, int((ends - was).total_seconds() // 60)),
+                                "replaces": hold["start"], "was_title": hold["title"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
     # "Push my 2pm back an hour" (2026-10-07: to the planner). Her own hold
     # moves by that much, the same length; anything else is said plainly.
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
