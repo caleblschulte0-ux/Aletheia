@@ -2899,6 +2899,24 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?alarm (?:to|for|until) (?P<time>[\w: ]+?)", low)
     if m:
         return _moved_alarm(m.group("time"))
+    # HOW FAST SHE TALKS (2026-10-07: "slower" and "talk slower" went to the
+    # planner). Bare "slower"/"faster" are about her voice only when nothing
+    # else could be meant; music has its own words.
+    if re.fullmatch(r"(?:(?:talk|speak|go|say it|read)(?: a (?:little|bit|lot))? (?:slower|more slowly|slowly)"
+                    r"|slow (?:down|it down)(?: (?:when|while) (?:you )?(?:talk|speak)(?:ing)?)?|slower(?: please)?"
+                    r"|(?:you(?:'re| are) )?talking too fast|(?:can|could) you (?:talk|speak) (?:slower|more slowly))(?: please)?", low):
+        return {"command": {"kind": "speaking_pace", "action": "slower"}, "say": None}
+    if re.fullmatch(r"(?:(?:talk|speak|go|read)(?: a (?:little|bit|lot))? (?:faster|quicker|more quickly)"
+                    r"|speed up(?: (?:when|while) (?:you )?(?:talk|speak)(?:ing)?)?|faster(?: please)?"
+                    r"|(?:you(?:'re| are) )?talking too slow(?:ly)?|(?:can|could) you (?:talk|speak) (?:faster|quicker))(?: please)?", low):
+        return {"command": {"kind": "speaking_pace", "action": "faster"}, "say": None}
+    if re.fullmatch(r"(?:talk|speak) (?:normally|at (?:a )?normal speed|at your normal speed|normal(?: speed)?)"
+                    r"|(?:go back to |reset )(?:your )?normal (?:talking )?speed|normal speed(?: please)?", low):
+        return {"command": {"kind": "speaking_pace", "action": "normal"}, "say": None}
+    # "Speak up": her voice is already at full volume; the PC's is his.
+    if re.fullmatch(r"speak up|talk louder|speak louder|(?:can|could) you (?:speak|talk) (?:up|louder)|i can'?t hear you", low):
+        return {"command": {"kind": "music", "action": "volume_up"}, "say": None}
+
     # HIS STOPWATCH (2026-10-07: "start a stopwatch" went to the planner).
     if re.fullmatch(r"(?:start|begin|set|run) (?:a |the |my )?stopwatch(?: now| for me)?|stopwatch(?: start| go)", low):
         return {"command": {"kind": "stopwatch", "action": "start"}, "say": None}

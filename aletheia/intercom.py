@@ -365,6 +365,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # HIS STOPWATCH - counts up until he says stop (a timer counts down).
     "stopwatch":       ({"action"}, set()),
     "stopwatch_read":  (set(), set()),
+    # HOW FAST SHE TALKS - his word, read by both of her voices.
+    "speaking_pace":      ({"action"}, set()),
+    "speaking_pace_read": (set(), set()),
     "subscriptions":   (set(), set()),
     # `about` says which half of the same store he asked about — balance
     # or spending — so the empty-store answer does not report a balance to
@@ -507,6 +510,11 @@ KIND_NOTES: dict[str, str] = {
         '"stop the stopwatch". A countdown is a timer (remind_at), not this.'),
     "stopwatch_read": (
         'What his stopwatch says right now - "how long has the stopwatch been running".'),
+    "speaking_pace": (
+        'How fast she talks out loud: action is slower, faster or normal. '
+        '"Talk slower", "speak faster", "talk normally".'),
+    "speaking_pace_read": (
+        'How fast she is talking now - "how fast are you talking".'),
     "list_off": (
         'Take a line off one of his named lists, or "everything" to clear '
         'it. Lines are marked done, not deleted.'),
@@ -790,6 +798,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "meet", "recall", "forget", "handle", "travel_time", "shopping_add",
                "shopping_list", "shopping_off", "contacts", "watches",
                "list_new", "list_add", "list_read", "list_off", "stopwatch", "stopwatch_read",
+               "speaking_pace", "speaking_pace_read",
                "subscriptions", "money", "car", "projects", "authority_status", "setup_status",
                # the desktop and the sandbox are both on his PC
                "computer_do", "do_task",
@@ -824,6 +833,7 @@ READ_ONLY_KINDS = frozenset({
     "note", "notify_check", "free_time", "brief", "subscriptions", "money",
     # Reads public job boards. Prepares nothing, sends nothing.
     "jobs", "tasks", "reminders", "shopping_list", "applications", "list_read", "stopwatch_read",
+    "speaking_pace_read",
     "contacts", "watches",
     "projects", "car", "recall", "travel_time", "browse_read", "browse_shot",
     # how his long missions stand and what they wait on changes nothing
@@ -897,6 +907,8 @@ ROUTINE_KINDS = frozenset({
     "list_new", "list_add", "list_off",
     # His stopwatch: one small record of his own, reset by one word.
     "stopwatch",
+    # How fast she talks: one number of his, put back by "talk normally".
+    "speaking_pace",
     # Writes one file inside her own workspace: reversible, reaches
     # nobody, and the workspace keeps the previous version. Same tier as
     # `file_write`, which it sits beside.
@@ -1135,6 +1147,7 @@ KIND_ENUMS: dict[str, dict[str, object]] = {
     "plan_set": {"state": _enum("aletheia.plans", "PLAN_STATES")},
     "plan_step": {"state": _enum("aletheia.plans", "STEP_STATES")},
     "stopwatch": {"action": _enum("aletheia.stopwatch", "ACTIONS")},
+    "speaking_pace": {"action": _enum("aletheia.speaking_pace", "ACTIONS")},
 }
 
 
@@ -3471,6 +3484,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "stopwatch_read":
         from aletheia import stopwatch
         return stopwatch.spoken()
+    if kind == "speaking_pace":
+        from aletheia import speaking_pace
+        return speaking_pace.act(str(cmd["action"]))
+    if kind == "speaking_pace_read":
+        from aletheia import speaking_pace
+        return speaking_pace.spoken()
     if kind in ("list_new", "list_add", "list_read", "list_off"):
         return _named_list(kind, cmd)
     if kind == "shopping_off":

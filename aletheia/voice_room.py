@@ -228,10 +228,11 @@ def sapi_speak(text: str) -> None:
     A sentence that cannot be stopped is not a sentence he can talk over.
     """
     import subprocess
+    from aletheia import speaking_pace
     script = (
         "Add-Type -AssemblyName System.Speech; "
         "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
-        "$s.Rate = 1; $s.Speak([Console]::In.ReadToEnd())"
+        f"$s.Rate = {int(speaking_pace.sapi_rate())}; $s.Speak([Console]::In.ReadToEnd())"
     )
     child = proc.popen(
         ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],

@@ -1003,6 +1003,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|(?:read|give|tell) (?:me )?(?:the )?(?:headlines|news)(?: today)?|(?:the |today's )?(?:headlines|news)(?: today)?"
         r"|what(?:'s| is|s) happening in the world(?: today)?|what(?:'s| are) the (?:top )?headlines(?: today)?"
         r"|any news(?: today)?|anything in the news)$")),
+    ("speaking_pace", re.compile(
+        r"^how fast (?:are you|do you) (?:talking|talk|speaking|speak)$|^what speed (?:are you|do you) (?:talking|talk|speaking|speak) at$")),
     ("stopwatch", re.compile(
         r"^how long (?:has|is) (?:the |my )?stopwatch(?: been)?(?: running| going| on)?$"
         r"|^what(?:'s| is|s)? (?:on )?(?:the |my )?stopwatch(?: at| say| showing)?$|^(?:check )?(?:the |my )?stopwatch$")),
@@ -4716,6 +4718,11 @@ def _weather_detail(what: str, when: str = "") -> str | None:
         return None
 
 
+def _speaking_pace() -> str:
+    from aletheia import speaking_pace
+    return speaking_pace.spoken()
+
+
 def _stopwatch() -> str | None:
     from aletheia import stopwatch
     return stopwatch.spoken()
@@ -6112,6 +6119,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "wind": lambda rest: _weather_detail("wind", rest),
            "news": lambda rest: _news(),
            "stopwatch": lambda rest: _stopwatch(),
+           "speaking_pace": lambda rest: _speaking_pace(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
            "weather_in": lambda rest: _weather_in(rest),
@@ -6196,6 +6204,7 @@ _STORE_QUESTION = {
     "list_new": "what's on my packing list", "list_add": "what's on my packing list",
     "list_off": "what's on my packing list", "list_read": "what lists do I have",
     "stopwatch": "how long has the stopwatch been running", "stopwatch_read": "how long has the stopwatch been running",
+    "speaking_pace": "how fast are you talking", "speaking_pace_read": "how fast are you talking",
     "notes_list": "read me my notes", "note": "read me my notes", "drafts": "what drafts do you have",
     "applied_to": "what did you apply to", "applied_on": "what did you apply to",
     "notify_count": "what's waiting on me", "outcomes": "what did you apply to",

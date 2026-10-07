@@ -351,6 +351,7 @@ SAID_AS = {
     "shopping_add": "put {item} on your list",
     "list_add": "put {item} on your {list} list",
     "stopwatch": "your stopwatch: {action}",
+    "speaking_pace": "talking {action}",
     "plan_step": "moved a step of {slug}",
     "notify_operator": "raised a notice: {text}",
     "remind_at": "set a reminder: {text}",

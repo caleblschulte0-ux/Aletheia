@@ -86,7 +86,7 @@ DESTRUCTIVE_KINDS = frozenset({
 IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
-    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch",
+    "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -126,6 +126,7 @@ STORE_OF = {
     "shopping_list": "shopping", "shopping_add": "shopping", "shopping_off": "shopping",
     "list_new": "lists", "list_add": "lists", "list_read": "lists", "list_off": "lists",
     "stopwatch": "stopwatch", "stopwatch_read": "stopwatch",
+    "speaking_pace": "speaking_pace", "speaking_pace_read": "speaking_pace",
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
@@ -744,6 +745,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
                     "media_captions", "media_convert"),
     "putting workers on something": ("agents", "agent_new", "agent_stop",
                                      "agents_pause"),
+    "talking slower or faster": ("speaking_pace", "speaking_pace_read"),
 }
 
 #: Reachable, but not things a person asks FOR: switches, plumbing and the

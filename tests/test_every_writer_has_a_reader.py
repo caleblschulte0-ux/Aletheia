@@ -49,6 +49,7 @@ READER_FOR = {
     "list_add": "list_read",
     "list_off": "list_read",
     "stopwatch": "stopwatch_read",
+    "speaking_pace": "speaking_pace_read",
     "remind_at": "reminders",
     "remind_daily": "reminders",
     "remind_weekly": "reminders",
