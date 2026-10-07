@@ -7532,6 +7532,41 @@ def _interpret(transcript: str) -> dict:
         what = _as_he_said(text, m.group("what") or m.group("what2"))
         who = _as_he_said(text, m.group("who") or m.group("who2"))
         return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
+    # HIS MEAL PLAN (2026-10-07: "add chicken to my meal plan for monday"
+    # went to the planner). A line "Monday: chicken" on the list called
+    # meal plan; "what am I having for dinner monday" reads the day back.
+    _wd = r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|tonight|tomorrow"
+    m = re.fullmatch(r"(?:add|put) (?P<what>[a-z0-9][a-z0-9 ,'&-]{1,50}?) (?:to|on|in) (?:my |the |our )?meal plan"
+                     r"(?: (?:for|on) (?P<day>" + _wd + r"))?(?: night)?"
+                     r"|(?:for |on )?(?P<day2>" + _wd + r")(?: night)?(?:'s dinner is| dinner is| we'?re having| i'?m (?:having|making)) (?P<what2>[a-z0-9][a-z0-9 ,'&-]{1,50})", low)
+    if m:
+        import datetime as _dt
+        from aletheia import localtime
+        said = m.group("day") or m.group("day2") or ""
+        if said in ("today", "tonight", "tomorrow"):
+            day = _dt.datetime.now(localtime.operator_tz()).date() + _dt.timedelta(days=1 if said == "tomorrow" else 0)
+            said = day.strftime("%A").lower()
+        what = _as_he_said(text, m.group("what") or m.group("what2"))
+        return {"command": {"kind": "list_add", "list": "meal plan",
+                            "item": f"{said.capitalize()}: {what}" if said else what}, "say": None}
+    # "I GOT A HAIRCUT", "I need an oil change" (2026-10-07: both to the
+    # planner). A service he had is a note "when did I last get a haircut"
+    # reads; one he needs is a task to get it.
+    m = re.fullmatch(r"i (?:just |finally )?(?:got|had|have had|'ve had|got done) (?P<svc>" + _quick._SERVICES + r")"
+                     r"(?: done)?(?: today| yesterday| this morning| last week| earlier)?", low)
+    if m:
+        # "get a haircut" on his list is ticked off; the note is kept either way
+        svc = re.sub(r"^(?:a|an|my|the) ", "", m.group("svc"))
+        if _names_one_open_task("get " + svc):
+            return {"command": {"kind": "task_done", "which": "get " + svc}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"i(?: really)?(?: need| should get| have to get| need to get| gotta get| am due for|'m due for) (?P<svc>" + _quick._SERVICES + r")"
+                     r"(?: soon| this week| sometime)?", low)
+    if m:
+        svc = _as_he_said(text, m.group("svc"))
+        if not re.match(r"(?:a|an|my|the) ", svc, re.I):
+            svc = ("an " if svc[:1].lower() in "aeiou" else "a ") + svc
+        return _new_task(f"get {svc}")
     # "I watched Oppenheimer" (2026-10-07: to the planner) - "what movies
     # have I watched" reads it back with his watch list.
     if re.fullmatch(r"i (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"

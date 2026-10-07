@@ -154,6 +154,11 @@ _DRUGS = (r"ibuprofen|advil|motrin|tylenol|acetaminophen|paracetamol|aspirin|ale
           r"|lisinopril|metformin|amoxicillin|prednisone|adderall|zoloft|lexapro|wellbutrin|xanax|levothyroxine"
           r"|atorvastatin|lipitor|omeprazole|insulin|antihistamines?|antacids?|cough syrup|allergy pills?|painkillers?")
 
+# Things done TO him, which he says he got or had: "I got a haircut".
+_SERVICES = (r"(?:a |an |my |the )?(?:haircut|hair cut|trim|oil change|flu shot|flu jab|covid (?:shot|booster|vaccine)|booster"
+             r"|tetanus shot|massage|checkup|check-up|physical|manicure|pedicure|car wash|eye exam|teeth cleaning|dental cleaning"
+             r"|tune-?up|inspection|blood test|blood work|mammogram|colonoscopy|tattoo|facial|wax)")
+
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in
     # crisis must never be filed as a work item "for when the big models
@@ -1607,7 +1612,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
-        r"(?P<did_today> today| yet| this morning| this week)?\s*\??$")),
+        r"(?P<did_today> today| yet| this morning| this week)?\s*\??$"
+        # "When did I last get a haircut" (2026-10-07: to a model). Only a
+        # service: "when did I get that email" belongs to the mail.
+        r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
+        r"|^(?:did|have) i (?:already )?(?P<did_v4>get|got|gotten|have|had) (?P<did_o4>" + _SERVICES + r")"
+        r"(?P<did_today2> today| yet| this morning| this week)?\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
@@ -1730,6 +1740,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What should I have for dinner" (2026-10-07: "I can't think just
     # now"). A suggestion is not a fact, so it is said as one - and what
     # he told her he likes comes first.
+    ("pick_for_me", re.compile(
+        r"^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_watch>movie|film|show|something to watch|watch)(?: to watch)?(?: tonight)?\s*\??$"
+        r"|^what (?:should|could|can) (?:i|we) (?P<pick_watch2>watch)(?: tonight| now| next)?\s*\??$"
+        r"|^what (?:should|could|can) (?:i|we) (?P<pick_read>read)(?: next)?\s*\??$"
+        r"|^where (?:should|could|can|shall) (?:i|we) (?P<pick_eat>eat|go (?:to eat|for dinner|for lunch|out))(?: tonight| today| for dinner| for lunch)?\s*\??$")),
+    ("meal_plan", re.compile(
+        r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
+        r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
+        r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$"
+        r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$")),
     ("meal_idea", re.compile(
         r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
         r"|^what(?:'s| is) for (?P<meal2>breakfast|lunch|dinner|supper)(?: tonight| today)?$"
@@ -2018,7 +2038,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -4244,7 +4264,7 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
+_PAST = {"get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
          "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
 
 
@@ -4277,9 +4297,10 @@ def _did_last(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     g = _groups("did_last", text)
-    verb = (g.get("did_v") or g.get("did_v2") or "").strip()
-    thing = (g.get("did_o") or g.get("did_o2") or "").strip()
-    window = (g.get("did_today") or "").strip()
+    verb = (g.get("did_v") or g.get("did_v2") or g.get("did_v3") or g.get("did_v4") or "").strip()
+    thing = (g.get("did_o") or g.get("did_o2") or g.get("did_o3") or g.get("did_o4") or "").strip()
+    window = (g.get("did_today") or g.get("did_today2") or "").strip()
+    service = bool(g.get("did_v3") or g.get("did_v4"))
     if not verb or not thing:
         return None
     if re.search(r"\b(?:email|emails|mail|message|messages|text|texts|call|calls|reply|replies|package|parcel)\b", thing) \
@@ -4293,7 +4314,7 @@ def _did_last(text: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if not re.search(r"\bi (?:just )?" + re.escape(past) + r"\b", low) or not all(
+        if not re.search(r"\bi (?:just )?" + ("(?:got|had|gotten)" if service else re.escape(past)) + r"\b", low) or not all(
                 re.search(r"\b" + re.escape(w), low) for w in words):
             continue
         try:
@@ -4312,9 +4333,34 @@ def _did_last(text: str) -> str | None:
                 return f"Yes - you told me {told}, {when}."
             return f"Not today that you've told me. The last time was {when}."
         return f"You told me {told} - that was {when}."
+    if service:
+        # "I got a haircut" ticked off the task "get a haircut" rather than
+        # writing a note: the task's own close is when it happened.
+        try:
+            from aletheia import tasks
+            done = [t for t in tasks.all_tasks() if str(t.get("status") or "").upper() in ("DONE", "COMPLETED")
+                    and str(t.get("description") or "").casefold().startswith("get ")
+                    and all(re.search(r"\b" + re.escape(w), str(t.get("description") or "").casefold()) for w in words)]
+        except Exception:
+            done = []
+        done.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+        if done and done[0].get("updated_at"):
+            when = speech.humanize_time(str(done[0]["updated_at"]))
+            if window in ("today", "yet", "this morning"):
+                try:
+                    day = dt.datetime.fromisoformat(str(done[0]["updated_at"]).replace("Z", "+00:00")).astimezone(tz).date()
+                except ValueError:
+                    day = None
+                if day != dt.datetime.now(tz).date():
+                    return f"Not today that you've told me. The last time was {when}."
+            got = re.sub(r"^get ", "got ", str(done[0]["description"]).strip(), flags=re.I)
+            got = re.sub(r"\bmy\b", "your", got)
+            if window in ("today", "yet", "this morning"):
+                return f"Yes - you {got}, {when}."
+            return f"You {got} {when} - you ticked it off your list."
     say = f"I {past} {thing}"
     return (f"Not that you've told me. Say \"{say}\" when you do and I'll keep track."
-            if g.get("did_v2") else
+            if g.get("did_v2") or g.get("did_v4") else
             f"You haven't told me. Say \"{say}\" when you do and I'll keep track.")
 
 
@@ -4971,10 +5017,78 @@ _MEALS = {
 }
 
 
+def _planned_for(day: str) -> str | None:
+    """The meal plan's line for one day ("Monday: chicken"), or None."""
+    import datetime as dt
+    from aletheia import lists, localtime
+    try:
+        rows = lists.items("meal plan") or []
+    except Exception:
+        return None
+    if day in ("today", "tonight", "tomorrow"):
+        when = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
+        day = when.strftime("%A").lower()
+    hits = [r.split(":", 1)[1].strip() for r in rows if r.casefold().startswith(day + ":")]
+    from aletheia import speech
+    return speech.and_list(hits) if hits else None
+
+
+def _pick_for_me(text: str) -> str | None:
+    """Something to watch or read off his own list, or his favourite place
+    to eat. None when he keeps nothing to pick from - then it is a question
+    a model can think about (2026-10-07: "recommend a movie" with Arrival on
+    his watch list went to the planner)."""
+    import secrets
+    from aletheia import lists
+    g = _groups("pick_for_me", text)
+    if g.get("pick_eat"):
+        for row in _notes():
+            m = re.search(r"\bmy fav(?:ou?rite)? (?:restaurant|place to eat|takeout|takeaway) is (.+?)\.?$",
+                          str(row.get("text") or ""), re.I)
+            if m:
+                return f"How about {m.group(1).strip()}? You told me it's your favorite."
+        return None
+    want = "read" if g.get("pick_read") else "watch"
+    try:
+        rows = [t for h in lists.all_lists() if lists.kind_of(h["name"]) == want for t in (lists.items(h["name"]) or [])]
+    except Exception:
+        return None
+    if not rows:
+        return None
+    pick = secrets.choice(rows)
+    return f"From your {'reading' if want == 'read' else 'watch'} list: {pick}." + (
+        f" There {'is' if len(rows) == 2 else 'are'} {len(rows) - 1} more on it." if len(rows) > 1 else "")
+
+
+def _meal_plan(text: str) -> str | None:
+    """His meal plan, or one day of it, from the list he keeps."""
+    from aletheia import lists, speech
+    g = _groups("meal_plan", text)
+    day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or "").strip()
+    try:
+        rows = lists.items("meal plan")
+    except Exception:
+        return None
+    if rows is None:
+        # no plan kept: "what am I having for dinner tomorrow" is not ours
+        return None if day else "You don't have a meal plan yet. Say \"add chicken to my meal plan for Monday\"."
+    if day and day != "this week":
+        planned = _planned_for(day)
+        said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow"}.get(day, f"on {day.capitalize()}")
+        return f"{planned[:1].upper() + planned[1:]} {said}." if planned else f"Nothing on your meal plan {said}."
+    if not rows:
+        return "Your meal plan is empty."
+    return f"Your meal plan: {'; '.join(rows[:7])}" + (f"; and {len(rows) - 7} more." if len(rows) > 7 else ".")
+
+
 def _meal_idea(meal: str) -> str:
     """One idea, from what he told her he likes when he told her anything."""
     import secrets
     meal = {"supper": "dinner", "tea": "dinner"}.get(str(meal or "dinner").strip(), str(meal or "dinner").strip())
+    if meal == "dinner":
+        planned = _planned_for("today")
+        if planned:
+            return f"Your meal plan says {planned}."
     for row in _notes():
         said = str(row.get("text") or "")
         liked = re.search(r"\bmy fav(?:ou?rite)? (?:food|meal|dinner|dish) is (.+?)\.?$", said, re.IGNORECASE)
@@ -9344,6 +9458,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "lent": _lent,
            "kept": _kept,
            "gift_for": _gift_for,
+           "meal_plan": _meal_plan,
+           "pick_for_me": _pick_for_me,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

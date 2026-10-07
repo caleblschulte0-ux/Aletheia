@@ -3517,5 +3517,54 @@ class GiftsWatchedWeighedAndTheWeek(unittest.TestCase):
         self.assertEqual(quick.match("what were my notes from yesterday"), ("notes_day", "yesterday"))
 
 
+class ServicesMealPlansAndPicks(unittest.TestCase):
+    def test_a_service_he_had_or_needs(self):
+        import datetime as dt
+        from aletheia import quick
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]), \
+             mock.patch("aletheia.intercom._open_tasks", return_value=[]):
+            self.assertEqual(voice._interpret("I got a haircut")["command"], {"kind": "note", "text": "I got a haircut"})
+            got = voice._interpret("I'm due for an oil change")["command"]
+            self.assertEqual((got["kind"], got["description"]), ("task_new", "get an oil change"))
+        # with the task on his list, having it done ticks it off
+        rows = [{"id": "get-a-haircut", "description": "get a haircut", "status": "PENDING"}]
+        with mock.patch("aletheia.intercom._open_tasks", return_value=rows):
+            self.assertEqual(voice._interpret("I got a haircut")["command"], {"kind": "task_done", "which": "get haircut"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I got a haircut", "ts": now}]):
+            self.assertTrue(quick.answer("when did I last get a haircut").startswith("You told me you got a haircut"))
+        done = [{"id": "get-a-haircut", "description": "get a haircut", "status": "COMPLETED", "updated_at": now}]
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch("aletheia.tasks.all_tasks", return_value=done):
+            self.assertTrue(quick.answer("when did I last get a haircut").startswith("You got a haircut "))
+            self.assertTrue(quick.answer("did I get a haircut today").startswith("Yes - you got a haircut"))
+        # a service only: an email is the mail's
+        self.assertIsNone(quick.match("when did I get that email"))
+
+    def test_a_meal_plan_by_the_day(self):
+        from aletheia import quick
+        self.assertEqual(voice._interpret("add chicken to my meal plan for monday")["command"],
+                         {"kind": "list_add", "list": "meal plan", "item": "Monday: chicken"})
+        self.assertEqual(voice._interpret("tuesday dinner is pasta")["command"]["item"], "Tuesday: pasta")
+        with mock.patch("aletheia.lists.items", return_value=["Monday: chicken", "Tuesday: pasta"]):
+            self.assertEqual(quick.answer("what am I having for dinner monday"), "Chicken on Monday.")
+            self.assertEqual(quick.answer("what's for dinner friday"), "Nothing on your meal plan on Friday.")
+            self.assertEqual(quick.answer("what's on the meal plan"), "Your meal plan: Monday: chicken; Tuesday: pasta.")
+        with mock.patch("aletheia.lists.items", return_value=None):
+            self.assertIsNone(quick.answer("what am I having for dinner tomorrow"))
+
+    def test_picked_off_his_own_lists(self):
+        from aletheia import quick
+        with mock.patch("aletheia.lists.all_lists", return_value=[{"name": "watch"}]), \
+             mock.patch("aletheia.lists.kind_of", return_value="watch"), \
+             mock.patch("aletheia.lists.items", return_value=["Arrival"]):
+            self.assertEqual(quick.answer("recommend a movie"), "From your watch list: Arrival.")
+        with mock.patch("aletheia.lists.all_lists", return_value=[]):
+            self.assertIsNone(quick.answer("what should I watch tonight"))
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my favorite restaurant is Olive Garden"}]):
+            self.assertEqual(quick.answer("where should we eat tonight"), "How about Olive Garden? You told me it's your favorite.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("where should we eat tonight"))
+
+
 if __name__ == "__main__":
     unittest.main()
