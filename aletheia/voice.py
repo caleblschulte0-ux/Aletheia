@@ -1141,6 +1141,13 @@ def _interpret(transcript: str) -> dict:
                     r"(lift|cancel|clear) the halt|"
                     r"turn yourself back on)", low):
         return {"command": {"kind": "resume"}, "say": None}
+    # THE ANSWER TO HER QUESTION. "Add a task" -> "What's the task?" -> "call
+    # the plumber": his last sentence was a bare ask, so this one is what it
+    # was missing. After the two switches, which nothing may stand in front
+    # of; before everything else, or "call the plumber" is a phone call.
+    filled = _fills_a_bare_ask(text, low)
+    if filled:
+        return filled
     # RESTARTING HER is the third switch. "Restart yourself" reached the
     # planner, which is forbidden from emitting it, so it compiled
     # something else. Whole sentences only, and never "restart the music".
@@ -3044,6 +3051,12 @@ def _interpret(transcript: str) -> dict:
     if m:
         word = m.group(1)
         return {"command": None, "say": f"{word.capitalize()}: " + ", ".join(c.upper() for c in word if c.isalpha()) + "."}
+    # A BARE "SET A REMINDER" / "ADD A TASK" / "TAKE A NOTE" went to the
+    # planner, which with no model kept the sentence "for later" (2026-10-07).
+    # She asks for the rest, and his next sentence fills it (above).
+    bare = _BARE_ASK.fullmatch(low)
+    if bare:
+        return {"command": None, "say": _BARE_QUESTION[_bare_kind(bare)]}
 
     # "Thanks" is not a question and has no store behind it, so it does
     # not belong in `quick` — but it went to the PLANNER, which is 25-80
@@ -3262,7 +3275,10 @@ def _interpret(transcript: str) -> dict:
         key = "full_name" if len(name.split()) >= 2 else "operator_name"
         return {"command": {"kind": "remember", "domain": "identity", "key": key, "value": name}, "say": None}
     m = re.match(r"(?:make a note(?: that| of|:)?|take a note(?: that|:)?|jot down(?: that)?|"
-                 r"note that|note|write down that|write down|log)\s+(.+)", low)
+                 # "Note: buy a card for Dana" missed this (a colon, not a
+                 # space), reached the planner and was refused as SPENDING
+                 # (2026-10-07). Writing a line down commits nothing.
+                 r"note that|note|write down that|write down|log)(?:\s*:\s*|\s+)(.+)", low)
     if m:
         return {"command": {"kind": "note", "text": m.group(1).strip()}, "say": None}
     # "Remember that my landlord is Mr Okafor" is the same note. With every
@@ -3315,6 +3331,72 @@ def _interpret(transcript: str) -> dict:
     # refusing to think). If no provider is available, `intent` degrades to
     # exactly the honest answer this branch used to give.
     return {"command": {"kind": "intent", "text": text}, "say": None}
+
+
+_BARE_ASK = re.compile(
+    r"(?:can you |could you |please |i want to |i need to |let'?s )?"
+    r"(?:(?P<remind>set (?:a |me a )?reminder|remind me|create a reminder|new reminder|add a reminder)"
+    r"|(?P<task>add a task|new task|create a task|add something to my (?:to ?do|task) list|add a to ?do)"
+    r"|(?P<note>take a note|make a note|new note|create a note|write something down|jot something down)"
+    r"|(?P<shop>add (?:something )?to (?:my |the )?shopping list|new shopping list|start a shopping list))"
+    r"(?: for me| please)?")
+
+_BARE_QUESTION = {
+    "remind": "Sure - what should I remind you about, and when?",
+    "task": "What's the task?",
+    "note": "Go ahead - what should the note say?",
+    "shop": "What should I put on the shopping list?",
+}
+
+#: A sentence that is plainly not the thing she asked for: a question, or him
+#: changing his mind.
+_NOT_AN_ANSWER = re.compile(
+    r"(?:what|when|where|who|why|how|is|are|do|does|did|can|could|will|would|should|am)\b"
+    r"|(?:never ?mind|forget it|cancel|no|nothing|stop)\b")
+
+
+def _bare_kind(m) -> str:
+    return next(k for k in ("remind", "task", "note", "shop") if m.group(k))
+
+
+def _fills_a_bare_ask(text: str, low: str) -> dict | None:
+    """His sentence, as the thing his last bare ask was missing - or None."""
+    if not low or text.rstrip().endswith("?") or _NOT_AN_ANSWER.match(low) or _BARE_ASK.fullmatch(low):
+        return None
+    if re.match(r"(?:remind me|add|note|remember|put|set)\b", low):
+        return None                 # a whole ask of its own; the patterns below read it
+    before = _BARE_ASK.fullmatch(_previous_ask().casefold().rstrip(".?!"))
+    if not before:
+        # "Set a reminder" -> "stretch" -> "When should I remind you?" -> "at 6":
+        # the what came a turn ago, and this is the when.
+        try:
+            from aletheia import converse
+            last = (converse.recent(limit=1) or [{}])[-1]
+        except Exception:
+            return None
+        if str(last.get("she_answered") or "").startswith(_ASK_WHEN):
+            what = str(last.get("he_asked") or "").strip().rstrip(".")
+            again = _interpret(f"remind me to {what} {text.strip().rstrip('.')}")
+            if ((again or {}).get("command") or {}).get("kind") in ("remind_at", "remind_daily", "remind_weekly"):
+                return again
+        return None
+    kind = _bare_kind(before)
+    said = text.strip().rstrip(".")
+    said = re.sub(r"^(?:(?:%s)\b[\s,]*)" % "|".join(WAKE_WORDS), "", said, flags=re.IGNORECASE) or said
+    if kind == "task":
+        return _new_task(said)
+    if kind == "note":
+        return {"command": {"kind": "note", "text": said}, "say": None}
+    if kind == "shop":
+        return {"command": {"kind": "shopping_add", "item": said}, "say": None}
+    again = _interpret("remind me " + (said if re.match(r"(?:to|that|at|in|on|tomorrow|today|every) ", low)
+                                       else "to " + said))
+    if ((again or {}).get("command") or {}).get("kind") in ("remind_at", "remind_daily", "remind_weekly"):
+        return again
+    return {"command": None, "say": _ASK_WHEN + " Say a time, like 'at 5' or 'tomorrow morning'."}
+
+
+_ASK_WHEN = "When should I remind you?"
 
 
 #: One definition, in `speech`, because `intercom` resolves tasks with the

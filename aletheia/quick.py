@@ -694,6 +694,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? next (?:on|in) my (?:schedule|day)\s*\??$"
         r"|^(?:my )?next (?:meeting|appointment)$"
         r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
+    # "What's my battery" became a memory lookup for 'battery' (2026-10-07).
+    # `power.status` has read it on every beat since the night the laptop
+    # slept mid-batch.
+    ("battery", re.compile(
+        r"^(?:what(?:'s| is|s)? (?:my |the )?(?:battery|battery level|battery at|charge)"
+        r"|how much (?:battery|charge)(?: do i have| is left| have i got| left)?|battery(?: level| status)?"
+        r"|(?:am i|is (?:the|my) (?:pc|laptop|computer)) (?:plugged in|charging|on battery)"
+        r"|how(?:'s| is) (?:my |the )?battery(?: doing)?)\s*\??$")),
     ("version", re.compile(
         r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
@@ -774,7 +782,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
-        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
+        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
+        # "Should I bring an umbrella" and "what's the temperature" went to
+        # a model (2026-10-07). They are the forecast, asked sideways.
+        r"|^(?:should i|do i need to|do i need an?) (?:bring|take|grab|pack)? ?(?:an? )?(?:umbrella|jacket|coat|raincoat|sunscreen)"
+        r"(?: (?P<weather4>today|tonight|tomorrow))?$"
+        r"|^(?:what(?:'s| is|s)? the temperature|how (?:hot|cold|warm|chilly) is it|what temperature is it)"
+        r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
+        r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|windy|sunny|cold|hot|warm)"
+        r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -945,13 +961,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What are my notes" told him she couldn't think (2026-10-07).
         r"|^what(?: are|'re| r)? (?:my|your|the) notes\s*\??$|^(?:my|all my) notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
-        r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
+        r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
+        r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
+    # "Is milk on my list" went to the planner (2026-10-07). The list is a
+    # store; whether a thing is on it is a read.
+    ("shopping_has", re.compile(
+        r"^(?:is|are) (?:there )?(?:any |some )?(?P<has>[a-z0-9][a-z0-9 '&-]{1,40}?) on (?:my|the) (?:shopping |grocery )?list\s*\??$"
+        r"|^(?:did i|have i) (?:put|add|added) (?:any |some )?(?P<has2>[a-z0-9][a-z0-9 '&-]{1,40}?) (?:on|to) (?:my|the) (?:shopping |grocery )?list\s*\??$"
+        r"|^how many (?:things|items) (?:are )?on (?:my|the) (?:shopping|grocery) list\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+        r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What notes do I have about Dana" (2026-10-07, to a model).
+        r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -996,7 +1021,7 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "weeks", "due", "due2",
@@ -1004,7 +1029,8 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "ran",
+                                           "has", "has2",
                                            "date_ahead", "date_ahead2", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
@@ -2723,6 +2749,37 @@ def _next_meeting() -> str | None:
     return f"{title} {when}." if title else f"You've got something {when}."
 
 
+def _battery() -> str:
+    """The PC's power, in the words `power.words` already says it with."""
+    from aletheia import power
+    state = power.status()
+    if not state.get("known"):
+        return "I can't read the battery on this machine - it's read on Windows only."
+    said = power.words(state)
+    return "The PC is " + said + "."
+
+
+def _shopping_has(item: str = "") -> str | None:
+    """Whether one thing is on his shopping list, or the list when no thing."""
+    from aletheia import intercom
+    try:
+        if not item:
+            return intercom.shopping_answer()
+        rows = intercom._shopping_items()
+    except Exception:
+        return None
+    want = " ".join(str(item).casefold().split())
+    stem = want[:-1] if len(want) > 3 and want.endswith("s") else want
+    hits = [str(r.get("need") or "") for r in rows
+            if stem and stem in " ".join(str(r.get("need") or "").casefold().split())]
+    if hits:
+        return f"Yes - {hits[0]} is on your shopping list."
+    if not rows:
+        return f"No - your shopping list is empty."
+    verb = "aren't" if want.endswith("s") and not want.endswith("ss") else "isn't"
+    return f"No, {item} {verb} on your shopping list."
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -3831,13 +3888,28 @@ def _about_him() -> str:
 
 def _repeat() -> str:
     """Her last sentence, from the thread, said again."""
+    # It read a key the thread never had ("she_said"), so "repeat that" said
+    # "I haven't said anything yet" after every answer she ever gave
+    # (2026-10-07). The thread keeps "you" and "her", in full.
     try:
         from aletheia import converse
-        turns = converse.recent(limit=1)
+        turns = converse._thread()
     except Exception:
         turns = []
-    said = str((turns[-1] if turns else {}).get("she_said") or "").strip()
-    return f"I said: {said}" if said else "I haven't said anything yet this conversation."
+    for turn in reversed(turns or []):
+        asked = " ".join(str(turn.get("you") or "").casefold().split()).rstrip("?.!")
+        if _REPEAT_ASK.fullmatch(re.sub(r"^(?:thea|aletheia),? ", "", asked)):
+            continue                   # "repeat that" twice says the same thing twice
+        said = str(turn.get("her") or "").strip()
+        if said:
+            return f"I said: {said}"
+    return "I haven't said anything yet this conversation."
+
+
+#: Asking her to say it again, so the thread can step past those turns.
+_REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat|say (?:that|it) again|"
+                         r"what did (?:you|u) (?:just )?say|come again|pardon|sorry,? what|what was that|say again|"
+                         r"one more time|i didn'?t (?:catch|hear) that)(?: please)?")
 
 
 def _person(rest: str) -> str:
@@ -4038,6 +4110,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
+           "shopping_has": lambda rest: _shopping_has(rest),
+           "battery": lambda rest: _battery(),
            "free": _free,
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
