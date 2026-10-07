@@ -959,6 +959,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                           r"|(?:convert|what(?:'s| is|s)?) (?:[\d.]+|half a|a half) (?:fluid ounces?|fl oz|teaspoons?|tsp"
                           r"|tablespoons?|tbsp|ounces?|oz|cups?|pints?|quarts?|gallons?|millilit(?:er|re)s?|ml|lit(?:er|re)s?) "
                           r"(?:to|in|into) ).{1,30})$")),
+    # "HOW MUCH TIME IS LEFT ON MY TIMER" (2026-10-07: to the planner). A
+    # timer is a one-off reminder whose words end "timer is up"; the time
+    # left is arithmetic on its due time.
+    ("timer_left", re.compile(r"^(?:how (?:much (?:time|longer)|long)(?: is)? (?:left|remaining|to go)? ?(?:on|for) (?:my|the) timers?"
+                              r"|how much (?:time is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
+                              r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer)$")),
     # Found live 2026-09-14 from his phone: "give me a status update on how
     # applying to jobs is going" went to the PLANNER, and with Claude and
     # ChatGPT out came back "I could not plan that: ReasonerUnavailable".
@@ -3179,6 +3185,49 @@ def _rain(when: str = "") -> str | None:
         return None
 
 
+def _timer_left(now=None) -> str | None:
+    """Time left on every timer still running, soonest first."""
+    import datetime as dt
+    try:
+        from aletheia import scheduler
+        specs = scheduler.all_schedules()
+    except Exception:
+        return None
+    now = now or dt.datetime.now(dt.timezone.utc)
+    running = []
+    for spec in specs:
+        text = str((spec.get("command") or {}).get("text") or "")
+        if spec.get("kind") != "once" or not spec.get("enabled") or "timer is up" not in text:
+            continue
+        try:
+            at = scheduler.next_occurrence(spec, now)
+        except Exception:
+            continue
+        if at is not None:
+            running.append((at, text))
+    if not running:
+        return "No timer running."
+    running.sort()
+
+    def left(at) -> str:
+        seconds = int((at - now).total_seconds())
+        if seconds < 60:
+            return f"{max(seconds, 1)} second{'s' if seconds != 1 else ''}"
+        hours, minutes = divmod((seconds + 30) // 60, 60)
+        bits = []
+        if hours:
+            bits.append(f"{hours} hour{'s' if hours != 1 else ''}")
+        if minutes:
+            bits.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+        return " and ".join(bits) or "under a minute"
+
+    def name(text: str) -> str:
+        found = re.search(r"your (.+?) timer is up", text)
+        return f"your {found.group(1)} timer" if found else "your timer"
+    lines = [f"{left(at)} left on {name(text)}" for at, text in running[:3]]
+    return lines[0][0].upper() + "; ".join(lines)[1:] + "."
+
+
 def _coin() -> str:
     import secrets
     return secrets.choice(("Heads.", "Tails."))
@@ -3893,6 +3942,7 @@ def _good_morning() -> str:
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "rain": lambda rest: _rain(rest),
+           "timer_left": lambda rest: _timer_left(),
            "coin": lambda rest: _coin(),
            "dice": lambda rest: _dice(rest),
            "pick_number": lambda rest: _pick_number(rest),

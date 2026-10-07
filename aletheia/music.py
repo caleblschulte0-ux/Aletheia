@@ -82,7 +82,7 @@ def open_player() -> tuple[bool, str]:
     if player_running():
         return True, "already open"
     if sys.platform != "win32":
-        return False, "this only works on his Windows machine"
+        return False, "Spotify only opens on your Windows PC, and this isn't it"
     try:
         # proc: visible-by-design — Spotify is the window he asked for.
         subprocess.Popen(

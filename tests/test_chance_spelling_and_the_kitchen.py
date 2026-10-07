@@ -90,3 +90,32 @@ class SpellingAndTheKitchen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TimersVolumeAndAppointments(unittest.TestCase):
+    def test_time_left_on_a_timer(self):
+        import datetime as dt
+        from aletheia import scheduler
+        now = dt.datetime(2026, 10, 7, 12, tzinfo=dt.timezone.utc)
+        specs = [{"version": 1, "id": "remind-1", "kind": "once", "enabled": True,
+                  "command": {"kind": "notify_operator", "text": "your 10-minute timer is up"},
+                  "created_at": "2026-10-07T00:00:00Z", "updated_at": "2026-10-07T00:00:00Z",
+                  "at": "2026-10-07T12:09:50Z"}]
+        with mock.patch.object(scheduler, "all_schedules", return_value=specs):
+            self.assertEqual(quick._timer_left(now), "10 minutes left on your 10-minute timer.")
+        with mock.patch.object(scheduler, "all_schedules", return_value=[]):
+            self.assertEqual(quick._timer_left(now), "No timer running.")
+        self.assertEqual(quick.match("how much time is left on my timer")[0], "timer_left")
+
+    def test_turn_up_the_volume(self):
+        from aletheia import voice
+        self.assertEqual(voice.interpret("turn up the volume")["command"]["action"], "volume_up")
+        self.assertEqual(voice.interpret("turn down the music a bit")["command"]["action"], "volume_down")
+
+    def test_an_appointment_on_a_day_is_a_hold(self):
+        from aletheia import voice
+        got = voice.interpret("add dentist appointment friday at 2")["command"]
+        self.assertEqual((got["kind"], got["title"]), ("calendar_hold", "dentist appointment"))
+        self.assertIn("T14:00", got["start"])
+        self.assertNotEqual(voice.interpret("book a dentist appointment friday at 2")["command"]["kind"],
+                            "calendar_hold")

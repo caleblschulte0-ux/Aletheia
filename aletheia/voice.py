@@ -2419,11 +2419,12 @@ def _interpret(transcript: str) -> dict:
     # minutes on her own model for want of it (2026-09-22).
     m = re.fullmatch(r"(?:turn (?:the |it )?(?:volume |sound )?(?P<dir>up|down)(?: a (?:bit|little|notch))?|"
                      r"(?:volume|sound) (?P<dir2>up|down)(?: a (?:bit|little|notch))?|"
+                     r"turn (?P<dir3>up|down) the (?:volume|sound|music)(?: a (?:bit|little|notch))?|"
                      r"(?P<louder>louder|turn it up|make it louder)|(?P<quieter>quieter|softer|make it quieter)|"
                      r"(?P<mute>mute(?: it| the sound| the music| the volume)?|shut it up|silence it)|"
                      r"(?P<unmute>unmute(?: it)?|sound back on))(?: please)?", low)
     if m:
-        direction = m.group("dir") or m.group("dir2")
+        direction = m.group("dir") or m.group("dir2") or m.group("dir3")
         action = ("volume_up" if direction == "up" or m.group("louder")
                   else "volume_down" if direction == "down" or m.group("quieter")
                   else "mute")
@@ -2975,6 +2976,14 @@ def _interpret(transcript: str) -> dict:
                       r"(?: at (?P<time>[\w: ]+?))?", low)
          or re.fullmatch(r"hold (?:on |this )?(?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                          r"(?: at (?P<time>[\w: ]+?))? for (?P<title>.+)", low))
+    # "ADD DENTIST APPOINTMENT FRIDAY AT 2" (2026-10-07: to the planner)
+    # names no calendar, and an appointment, meeting or dinner on a day
+    # is nothing else. Not "book": that is somebody else's diary.
+    m = m or re.fullmatch(r"(?:add|schedule|put|pencil in|set up) (?:a |an |my )?"
+                          r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
+                          r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
+                          r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
+                          r"(?: at (?P<time>[\w: ]+?))?", low)
     if m and (m.group("day") or m.group("time")):
         held = _calendar_hold(text, m.group("title"), m.group("day") or "today", m.group("part"), m.group("time"))
         if held:
