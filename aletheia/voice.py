@@ -3700,6 +3700,16 @@ def _interpret(transcript: str) -> dict:
                         r"(?: already| now)?", low)
     if m and _on_the_shopping_list(m.group("w")) and not _names_one_open_task(m.group("w")):
         return {"command": {"kind": "shopping_off", "item": m.group("w").strip()}, "say": None}
+    # "I GOT EVERYTHING" back from the store (2026-10-07: to the planner).
+    # The whole list, and only when there is one to clear.
+    if re.fullmatch(r"(?:i )?(?:got|bought|picked up|grabbed) (?:everything|it all|all of it|all of them|all that)"
+                    r"(?: on (?:the|my) (?:shopping |grocery )?list)?(?: already| now)?", low):
+        try:
+            from aletheia import intercom
+            if intercom._shopping_items():
+                return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
+        except Exception:  # noqa: BLE001 - unreadable goes to the planner as before
+            pass
     # "Did I add milk" is "is milk on the list" (2026-10-07: to the planner).
     m = re.fullmatch(r"did i (?:already )?(?:add|put) (?:the |some )?(?P<w>[a-z][a-z' ]{1,30}?)"
                      r"(?: (?:to|on) (?:the|my) (?:shopping |grocery )?list)?", low)

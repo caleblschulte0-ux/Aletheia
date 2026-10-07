@@ -1544,5 +1544,14 @@ class TheSecondOneIsDoneCase(unittest.TestCase):
             self.assertEqual(voice._the_task_just_added(), "renew my passport")
 
 
+class IGotEverythingCase(unittest.TestCase):
+    def test_back_from_the_store_clears_the_list(self):
+        from aletheia import intercom, voice
+        with mock.patch.object(intercom, "_shopping_items", return_value=[{"need": "eggs"}]):
+            self.assertEqual(voice._interpret("i got everything")["command"], {"kind": "shopping_off", "item": "everything"})
+        with mock.patch.object(intercom, "_shopping_items", return_value=[]):
+            self.assertNotEqual((voice._interpret("i got everything")["command"] or {}).get("kind"), "shopping_off")
+
+
 if __name__ == "__main__":
     unittest.main()
