@@ -3541,6 +3541,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause|restart) (?:the |my |that )?timers?", low):
         return {"command": None, "say": "I can't pause a timer - it goes off at a set time. I can cancel it, "
                                          "or add minutes: say \"add 5 minutes\"."}
+    # "Remind me in 10" and "a timer for 20" (2026-10-07: to the planner):
+    # a bare number of a kitchen timer is minutes.
+    bare = re.fullmatch(r"(remind me in|(?:set|start) (?:a |me a )?timer for|timer for) (\d{1,3})( (?:to|about|that) .+)?", low)
+    if bare and 1 <= int(bare.group(2)) <= 180:
+        return _interpret(f"{bare.group(1)} {bare.group(2)} minutes{bare.group(3) or ''}")
     m = re.fullmatch(r"(?:set|start) (?:a |me a )?timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|timer(?: for)? (half an|\w+) (minutes?|mins?|hours?|seconds?)"
                      r"|remind me in (half an|\w+) (minutes?|mins?|hours?)", low)

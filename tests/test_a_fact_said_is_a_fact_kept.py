@@ -2148,5 +2148,16 @@ class WhatCanICallYouCase(unittest.TestCase):
                 self.assertEqual(quick.match(said)[0], "her_name")
 
 
+
+class ABareNumberIsMinutesCase(unittest.TestCase):
+    """2026-10-07: "remind me in 10" and "20" after "For how long?" went to the planner."""
+
+    def test_minutes(self):
+        from aletheia import voice
+        self.assertIn("10-minute", voice._interpret("remind me in 10")["command"]["text"])
+        self.assertEqual(voice._interpret("remind me in 10 to check the laundry")["command"]["text"], "check the laundry")
+        self.assertIn("20-minute", voice._interpret("set a timer for 20")["command"]["text"])
+
+
 if __name__ == "__main__":
     unittest.main()
