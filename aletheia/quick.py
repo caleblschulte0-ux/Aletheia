@@ -655,12 +655,21 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("time_in", re.compile(
         r"^what(?:'s| is|s)? the time (?:in|at) (?P<time_in>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^what time is it (?:in|at|over in) (?P<time_in2>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
-        r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+        r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$"
+        # "How far ahead is Tokyo", "what's the time difference with London"
+        # (2026-10-07: to a model) - the same answer says how far.
+        r"|^how (?:far|many hours) (?:ahead|behind) (?:of (?:me|us) )?is (?P<time_in4>[a-z][a-z .'-]{1,40}?)\s*\??$"
+        r"|^what(?:'s| is|s)? the time difference (?:with|to|between (?:me|here|us) and) (?P<time_in5>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+    # "What time is it there" after asking about a place (2026-10-07).
+    ("time_there", re.compile(r"^(?:what(?:'s| is) the time|what time is it) (?:there|over there)(?: now| right now)?\s*\??$")),
     # A CLOCK TIME IN ANOTHER ZONE (2026-10-07: "convert 3pm est to pst",
     # "what's 9am in london" went to the planner).
     ("time_convert", re.compile(
         r"^(?:convert |what(?:'s| is|s) |what time is )?(?P<t>\d{1,2}(?::\d{2})? ?(?:am|pm)|noon|midnight)"
-        r"(?: (?P<from>[a-z][a-z ]{1,20}?))? (?:to|in|into) (?P<to>[a-z][a-z ]{1,20}?)(?: time)?\s*\??$")),
+        r"(?: (?P<from>[a-z][a-z ]{1,20}?))? (?:to|in|into) (?P<to>[a-z][a-z ]{1,20}?)(?: time)?\s*\??$"
+        # "When it's noon here, what time is it in Paris" (2026-10-07: to a model)
+        r"|^(?:when|if) it(?:'s| is) (?P<t2>\d{1,2}(?::\d{2})? ?(?:am|pm)?|noon|midnight)(?: here| for me| my time)?,? "
+        r"what(?:'s| is)? (?:the )?time (?:is it )?in (?P<to2>[a-z][a-z ]{1,20}?)\s*\??$")),
     ("date_after", re.compile(
         r"^what(?:'s| is| date is| day is| will the date be)? (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
         r" (?P<unit>days?|weeks?|months?) (?:from|after) (?:today|now)\s*\??$"
@@ -1673,7 +1682,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
-                                           "time_in3", "date_of", "date_of2", "date_of3",
+                                           "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "define", "define2", "need_q", "who_named", "coming", "coming2", "coming3", "coming4", "coming5", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
@@ -2159,6 +2168,15 @@ _ZONES = {
 }
 
 
+def _time_there() -> str | None:
+    """The clock in the place he just asked about."""
+    prev = _previous_ask(questions_only=True)
+    found = match(prev) if prev else None
+    if found and found[0] in ("time_in", "weather_in") and found[1]:
+        return _time_in(found[1])
+    return None
+
+
 def _time_convert(text: str) -> str | None:
     """A clock time in one zone, said in another. His own zone when he names
     only one. A zone she does not know goes on to a model."""
@@ -2166,6 +2184,11 @@ def _time_convert(text: str) -> str | None:
     from zoneinfo import ZoneInfo
     from aletheia import localtime
     g = _groups("time_convert", text)
+    if g.get("t2"):
+        bare = g["t2"].strip()
+        if re.fullmatch(r"\d{1,2}", bare):
+            bare += " pm" if 1 <= int(bare) <= 7 else " am" if int(bare) <= 11 else " pm"
+        g = {"t": bare, "to": g["to2"]}
     def zone_of(words):
         key = " ".join(str(words or "").casefold().split())
         if key in ("", "here", "my time", "local", "local time", "mine"):
@@ -7129,6 +7152,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "calendar_fact": lambda rest: _calendar_fact(rest),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
+           "time_there": lambda rest: _time_there(),
            "date_of": _date_of,
            "overnight": lambda rest: _overnight(),
            "updated": lambda rest: _updated(),

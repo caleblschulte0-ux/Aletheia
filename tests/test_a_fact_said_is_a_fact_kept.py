@@ -416,5 +416,22 @@ class HisDayLoggedAndAddedUp(unittest.TestCase):
             self.assertEqual(quick.answer("did i work out today"), "Not that you've told me today.")
 
 
+class TheClockElsewhereAskedOtherWays(unittest.TestCase):
+    def test_how_far_ahead(self):
+        from aletheia import quick
+        self.assertIn("in Tokyo", quick.answer("how far ahead is tokyo"))
+        self.assertIn("in Paris", quick.answer("what's the time difference with paris"))
+
+    def test_there_is_the_place_just_asked_about(self):
+        from unittest import mock
+        from aletheia import quick
+        with mock.patch.object(quick, "_previous_ask", return_value="what's the time in london"):
+            self.assertIn("in London", quick.answer("what time is it there"))
+
+    def test_when_its_noon_here(self):
+        from aletheia import quick
+        self.assertRegex(quick.answer("when it's noon here what time is it in paris"), r"in Paris\.$")
+
+
 if __name__ == "__main__":
     unittest.main()
