@@ -289,5 +289,25 @@ class CatchMeUpWithNoFleetReadingStillTellsHisDay(unittest.TestCase):
         self.assertTrue(said.startswith("Nothing needs you right now. 1 task open. Next: call the bank."), said)
 
 
+class SumsOnSumsAndDistances(unittest.TestCase):
+    def test_round_that(self):
+        from unittest import mock
+        from aletheia import converse, quick
+        turns = [{"he_asked": "what's 100 divided by 7", "she_answered": "14.2857."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(quick.answer("round that"), "14.")
+            self.assertEqual(quick.answer("round it to 2 decimal places"), "14.29.")
+            self.assertEqual(quick.answer("round it up"), "15.")
+
+    def test_degrees_with_no_scale_said(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 72 degrees in celsius"), "22.2 degrees Celsius.")
+
+    def test_a_race_is_a_distance_not_a_journey(self):
+        from aletheia import quick, voice
+        self.assertEqual(quick.answer("how far is a 5k in miles"), "A 5K is 5 kilometers, about 3.11 miles.")
+        self.assertNotEqual((voice._interpret("how far is a 5k in miles").get("command") or {}).get("kind"), "travel_time")
+
+
 if __name__ == "__main__":
     unittest.main()

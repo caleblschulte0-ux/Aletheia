@@ -1167,12 +1167,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What's a 20% tip on 45" (2026-10-07, to a model that wasn't there).
         r"|^(?:what(?:'s| is|s)? (?:a )?|how much is (?:a )?)(?P<tip>[\d.]+) ?(?:%|percent) tip (?:on|for) (?:a )?(?:\$)?(?P<bill>[\d.,]+)(?: dollars| bucks)?(?: bill| tab| check)?$"
         r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
-        r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>[\d.,]+) (?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
+        r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>-?[\d.,]+) (?:degrees? )?(?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
         r"kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)"
         r" (?:to|in|into) (?P<to>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|"
         r"meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$"
         # THE OTHER WORD ORDER: "how many miles is 10 km", "how many pounds in 5 kg"
-        r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$")),
+        r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$"
+        # "What's 72 degrees in Celsius" (2026-10-07: to a model) - the
+        # scale it is FROM is the other one.
+        r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg>-?[\d.,]+) degrees? (?:to|in|into) (?P<deg_to>celsius|fahrenheit|c|f)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name|zip|zip code|postcode|postal code"
@@ -1475,7 +1478,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:and |now |then |ok |okay )?(?:(?P<op>times|multiplied by|x|divided by|over|plus|minus|add|subtract|take away|less) "
         r"(?P<n>\d[\d,]*(?:\.\d+)?)"
         r"|(?:split|divide) (?:it|that|the total|the bill|that total) (?:(?:between|among|by|for) )?(?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: ways| people)?"
-        r"|(?P<half>half|double|halve|square) (?:it|that))\s*\??$")),
+        r"|(?P<half>half|double|halve|square) (?:it|that)"
+        # "Round that" after 14.2857 (2026-10-07: to the planner).
+        r"|(?P<round>round) (?:it|that)(?: off| up| down)?(?: to (?:the nearest )?(?:(?P<places>\d|one|two|three) decimal places?"
+        r"|(?:a |the nearest )?(?P<whole>whole number|dollar|cent|integer|ten|hundred)))?)\s*\??$")),
+    # "How far is a 5k in miles" was a journey to a place called "a 5k
+    # in miles" (2026-10-07).
+    ("race", re.compile(
+        r"^how (?:far|long|many (?:miles|km|kilometers|kilometres)) is (?:a |an )?(?P<race>\d{1,3} ?k|\d{1,3} ?km|half marathon|marathon|"
+        r"\d{1,3} ?(?:mile|miler))(?: run| race)?(?: in (?:miles|km|kilometers|kilometres))?$")),
     ("split", re.compile(
         r"^(?:split|divide) \$?(?P<bill>[\d.,]+)(?: dollars| bucks)? (?P<ways>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
         r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
@@ -1628,7 +1639,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("until_weeks", "age_in", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
+        if name in ("until_weeks", "age_in", "race", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
@@ -3809,6 +3820,9 @@ def _math(text: str) -> str | None:
         def vol(u):
             u = re.sub(r"(?<=[a-z])s$", "", u) if u not in ("fl oz",) else u
             return volume.get(u)
+        if g.get("deg"):
+            dst = g["deg_to"].lower()
+            g = dict(g, n=g["deg"], to=dst, **{"from": "celsius" if dst in ("fahrenheit", "f") else "fahrenheit"})
         n = num({"a": "1", "an": "1", "one": "1"}.get(str(g.get("n") or g.get("n2")).lower(), g.get("n") or g.get("n2")))
         src, dst = (g.get("from") or g.get("from2")).lower(), (g.get("to") or g.get("to2")).lower()
         if src in ("fahrenheit", "f") and dst in ("celsius", "c"):
@@ -4012,6 +4026,25 @@ def _on_the_last(text: str) -> str | None:
             return None
         each = round(value / ways, 2)
         return f"{_money(each) if dollars else _plain(each)} each."
+    if g.get("round"):
+        if g.get("whole") == "cent":
+            places = 2
+        elif g.get("whole") in ("ten", "hundred"):
+            places = -1 if g["whole"] == "ten" else -2
+        else:
+            raw_places = g.get("places") or "0"
+            places = int(raw_places) if raw_places.isdigit() else {"one": 1, "two": 2, "three": 3}[raw_places]
+        if re.search(r"\bup\b", text):
+            import math
+            result = math.ceil(value * 10 ** places) / 10 ** places
+        elif re.search(r"\bdown\b", text):
+            import math
+            result = math.floor(value * 10 ** places) / 10 ** places
+        else:
+            result = round(value, places)
+        if places <= 0:
+            result = int(result)
+        return f"{_money(result) if dollars else _plain(result)}."
     if g.get("half"):
         result = {"half": value / 2, "halve": value / 2, "double": value * 2, "square": value * value}[g["half"]]
     else:
@@ -4025,6 +4058,25 @@ def _on_the_last(text: str) -> str | None:
         result = (value * n if op in ("times", "multiplied by", "x") else value / n if op in ("divided by", "over")
                   else value + n if op in ("plus", "add") else value - n)
     return f"{_money(round(result, 2)) if dollars else _plain(result)}."
+
+
+def _race(text: str) -> str | None:
+    """A race distance in both units."""
+    race = _groups("race", text).get("race", "").replace(" ", "")
+    if race in ("halfmarathon",):
+        km = 21.0975
+    elif race == "marathon":
+        km = 42.195
+    elif m := re.fullmatch(r"(\d{1,3})(?:k|km)", race):
+        km = float(m.group(1))
+    elif m := re.fullmatch(r"(\d{1,3})(?:mile|miler)", race):
+        miles = int(m.group(1))
+        return f"{miles} mile{'s' if miles != 1 else ''} is about {_plain(round(miles * 1.609344, 2))} kilometers."
+    else:
+        return None
+    miles = round(km / 1.609344, 2)
+    name = {"halfmarathon": "A half marathon", "marathon": "A marathon"}.get(race, f"A {race.upper().replace('KM', 'K')}")
+    return f"{name} is {_plain(round(km, 2))} kilometers, about {_plain(miles)} miles."
 
 
 def _plain(v: float) -> str:
@@ -6956,6 +7008,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "focus": lambda rest: _focus(),
            "outcomes": _outcomes,
            "until": _until,
+           "race": lambda rest: _race(rest),
            "age_in": lambda rest: _age_in(_groups("age_in", rest).get("age_year", ""),
                                           _groups("age_in", rest).get("age_n", "")),
            "until_day": lambda rest: _until(rest, which_day=True),

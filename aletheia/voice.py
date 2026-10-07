@@ -4028,7 +4028,9 @@ def _interpret(transcript: str) -> dict:
     # "How far is Chicago" (2026-10-07: to the planner). A place, not a
     # thing in the sky: "how far is the moon" is a question for a model.
     m = re.fullmatch(r"how far (?:away )?is (?:it to )?(.+?)(?: from here| from me| from home)?", low)
-    if m and not re.search(r"\b(?:moon|sun|mars|venus|jupiter|space|star|stars|galaxy|horizon|that|it|this)\b", m.group(1)):
+    if m and not re.search(r"\b(?:moon|sun|mars|venus|jupiter|space|star|stars|galaxy|horizon|that|it|this)\b", m.group(1)) \
+            and not re.search(r"\b(?:\d+ ?k|\d+ ?km|marathon|in (?:miles|km|kilometers|kilometres|feet|meters))\b", m.group(1)):
+        # "How far is a 5k in miles" is a distance, not a journey (2026-10-07).
         return {"command": {"kind": "travel_time", "place": m.group(1).strip()},
                 "say": None}
 
