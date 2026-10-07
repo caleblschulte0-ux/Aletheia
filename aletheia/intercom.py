@@ -279,6 +279,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz", "every"}),
     "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
+    # "Every hour", "every 30 minutes": within the day, from now.
+    "remind_every":    ({"minutes", "text"}, set()),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
     # so "remind me every monday to take out the trash" compiled to a
@@ -492,6 +494,10 @@ KIND_NOTES: dict[str, str] = {
         '("the bins", "the gym one"); she finds the one reminder that '
         'matches and asks him which if two do. It is DISABLED, not '
         'deleted, so it can be put back.'),
+    "remind_every": (
+        'A reminder that repeats within the day - "every hour to drink '
+        'water", "every 30 minutes". minutes is 15 to 720; the first one '
+        'is that long from now.'),
     "remind_monthly": (
         'A reminder that repeats once a month - "on the 1st of every month '
         'to pay rent". day is the day of the month, 1-31 (a short month '
@@ -745,7 +751,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
-               "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+               "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
                "reminders", "reminder_off", "notify_snooze",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "notify_operator",
@@ -834,7 +840,7 @@ ROUTINE_KINDS = frozenset({
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
-    "plan_set", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+    "plan_set", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
     "project_new", "project_step", "project_drop",
@@ -1294,6 +1300,11 @@ def _reminder_words(spec: dict) -> str:
         return f"{text} — {speech.humanize_time(str(spec.get('at') or ''))}"
     if spec["kind"] == "interval":
         minutes = int(spec.get("every_minutes") or 0)
+        if minutes < 1440:
+            hours, mins = divmod(minutes, 60)
+            span = ("every hour" if minutes == 60 else f"every {hours} hours" if not mins and hours
+                    else "every half hour" if minutes == 30 else f"every {minutes} minutes")
+            return f"{text} — {span}"
         weeks, days = divmod(minutes // 1440, 7)
         span = (f"every {weeks} weeks" if weeks > 1 and not days else "every week" if weeks == 1 and not days
                 else "every other day" if minutes == 2880 else f"every {minutes // 1440} days")
@@ -1672,6 +1683,7 @@ def _undo_answer(cmd: dict) -> str:
 
 #: What he asks for by voice that can be taken straight back, by kind.
 UNDOES_HIS_ASK = ("task_new", "shopping_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+                  "remind_every",
                   "calendar_hold", "file_write", "note")
 
 
@@ -1722,7 +1734,7 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         except act.Refused as exc:
             return f"I couldn't take {item} off the list: {speech.plainly(str(exc))}"
         return f"Undone: took {item} back off the shopping list."
-    if kind in ("remind_at", "remind_daily", "remind_weekly", "remind_monthly"):
+    if kind in ("remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"):
         from aletheia import scheduler
         text = str(command.get("text") or "").strip()
         found, why = _one_reminder(text)
@@ -3009,6 +3021,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="interval", every_minutes=every * 1440, anchor=anchor)
         return f"reminder {sid} set every {every} days from {anchor} — {cmd['text'][:80]!r}"
+    if kind == "remind_every":
+        from aletheia import scheduler
+        import datetime as _dt, uuid as _uuid
+        minutes = int(cmd["minutes"])
+        if not 15 <= minutes <= 720:
+            raise act.Refused("I can repeat a reminder every 15 minutes to every 12 hours within the day.")
+        sid = "remind-every-" + _uuid.uuid4().hex[:8]
+        anchor = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="interval", every_minutes=minutes, anchor=anchor.isoformat())
+        return f"reminder {sid} set every {minutes} minutes from {anchor.isoformat()} — {cmd['text'][:80]!r}"
     if kind == "remind_monthly":
         from aletheia import scheduler
         import uuid as _uuid

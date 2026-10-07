@@ -691,6 +691,21 @@ _SPAN = (r"(?P<span>(?:every|each) (?:month|other day|other week|other (?P<oday>
 _MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
 
 
+def _every_minutes(low: str) -> int | None:
+    """"every hour" -> 60, "every 2 hours" -> 120, "every half hour" -> 30,
+    "every 45 minutes" -> 45. None for "every few hours": a guess."""
+    m = re.search(r"every (?:(?P<n>\d+|two|three|four|couple of|other) )?(?P<unit>hours?|minutes?|mins?)\b"
+                  r"|every (?P<half>half an? hour|half hour)", low)
+    if not m:
+        return None
+    if m.group("half"):
+        return 30
+    said = m.group("n")
+    n = (1 if said is None else 2 if said in ("two", "couple of", "other") else 3 if said == "three"
+         else 4 if said == "four" else int(said))
+    return n * 60 if m.group("unit").startswith("hour") else n
+
+
 def _a_repeat(low: str, text: str) -> dict | None:
     """A reminder that repeats monthly, every N days or every N weeks."""
     at = r"(?: at (?P<time>[\w: ]+?))?"
@@ -2354,11 +2369,14 @@ def _interpret(transcript: str) -> dict:
                       r"(?:hour|hours|minutes?|mins?|half hour)(?: or so)?", low)
          or re.fullmatch(r"remind me every (?:(?:\d+|few|couple of|half an?|other) )?(?:hour|hours|minutes?|mins?|half hour)"
                          r"(?: or so)? (?:to |that )(?P<what>.+)", low))
+    if m and _every_minutes(low):
+        return {"command": {"kind": "remind_every", "minutes": _every_minutes(low),
+                            "text": _as_he_said(transcript, m.group("what").strip())}, "say": None}
     if m:
         what = _as_he_said(transcript, m.group("what"))
         return {"command": None,
-                "say": f"I can't repeat a reminder within the day yet - daily and weekly I can. "
-                       f"Say 'remind me every day at 9 to {what}' and I'll set that."}
+                "say": f"How often - every hour, every two hours? Say it with a number, like "
+                       f"'remind me every 2 hours to {what}', and I'll set it."}
 
     # "DELETE THE LAST TASK" planned for a minute on her own model for want
     # of a verb: the newest open task, cancelled, said back by name.

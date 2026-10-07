@@ -3914,6 +3914,7 @@ _STORE_QUESTION = {
     "reminders": "what reminders do I have", "remind_at": "what reminders do I have",
     "remind_daily": "what reminders do I have", "remind_weekly": "what reminders do I have",
     "remind_monthly": "what reminders do I have",
+    "remind_every": "what reminders do I have",
     "shopping_list": "what's on the shopping list", "shopping_add": "what's on the shopping list",
     "notes_list": "read me my notes", "note": "read me my notes", "drafts": "what drafts do you have",
     "applied_to": "what did you apply to", "applied_on": "what did you apply to",

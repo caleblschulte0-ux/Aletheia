@@ -133,3 +133,32 @@ class ItReallySchedules(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WithinTheDay(unittest.TestCase):
+    def test_every_hour_and_every_half_hour(self):
+        self.assertEqual(voice.interpret("remind me every hour to drink water")["command"],
+                         {"kind": "remind_every", "minutes": 60, "text": "drink water"})
+        self.assertEqual(voice.interpret("remind me to stretch every 30 minutes")["command"]["minutes"], 30)
+
+    def test_every_few_hours_asks_for_a_number(self):
+        got = voice.interpret("remind me every few hours to drink water")
+        self.assertIsNone(got["command"])
+        self.assertIn("every 2 hours", got["say"])
+
+    def test_it_is_an_interval_starting_that_long_from_now(self):
+        made = {}
+
+        def create(sid, command, **kw):
+            made.update(kw)
+            return {}
+        with mock.patch.object(scheduler, "create", create):
+            said = intercom.execute_command({"kind": "remind_every", "minutes": 60, "text": "drink water"}, {})
+        self.assertEqual((made["kind"], made["every_minutes"]), ("interval", 60))
+        self.assertEqual(speech.spoken_receipt("remind_every", said),
+                         "Every hour from now I'll remind you: drink water.")
+
+    def test_too_often_is_refused(self):
+        from aletheia import act
+        with self.assertRaises(act.Refused):
+            intercom.execute_command({"kind": "remind_every", "minutes": 5, "text": "x"}, {})

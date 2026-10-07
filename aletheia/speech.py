@@ -558,6 +558,16 @@ def spoken_receipt(kind: str, detail: str, *,
                     f"Every other {day}" if (n, unit) == (2, "weeks") and day else f"Every {n} {unit}")
             return (f"{lead}, starting {humanize_time(when.group(0), now)}, I'll remind you: "
                     f"{_quoted(what.group(1))}.")
+    if kind == "remind_every":
+        # "reminder remind-every-9f2 set every 60 minutes from 2026-10-07T04:00:00+00:00 — 'drink water'"
+        span = re.search(r"set every (\d+) minutes", text)
+        what = re.search(r"[—-]\s*'(.+?)'\s*$", text) or re.search(r"'(.+?)'", text)
+        if span and what:
+            n = int(span.group(1))
+            hours, mins = divmod(n, 60)
+            lead = ("Every hour" if n == 60 else "Every half hour" if n == 30
+                    else f"Every {hours} hours" if hours and not mins else f"Every {n} minutes")
+            return f"{lead} from now I'll remind you: {_quoted(what.group(1))}."
     if kind == "remind_monthly":
         # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
         when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
