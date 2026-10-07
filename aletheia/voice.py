@@ -2585,7 +2585,9 @@ def _interpret(transcript: str) -> dict:
                     # "When's my next reminder", "what are my reminders" (2026-10-07: to a model)
                     r"|(?:what are|show(?: me)?|read(?: me)?|tell me) (?:all )?(?:my |the )?(?:reminders|alarms|timers)"
                     r"|what reminders (?:have i (?:got|set)|did i set)"
-                    r"|(?:what are |show me |read me )?my (?:recurring|repeating|regular) reminders", low):
+                    r"|(?:what are |show me |read me )?my (?:recurring|repeating|regular) reminders"
+                    # "How many reminders do I have" (2026-10-07: to a model)
+                    r"|how many (?:reminders|alarms|timers) (?:do i have|have i got|are (?:there|set|running))(?: set| running| on)?", low):
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.

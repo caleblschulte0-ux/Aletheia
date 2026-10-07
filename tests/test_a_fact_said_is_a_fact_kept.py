@@ -164,5 +164,12 @@ class RemindersAreReadSoonestFirst(unittest.TestCase):
         self.assertEqual([r["id"] for r in intercom._soonest_first(rows)], ["t-sooner", "t-later"])
 
 
+class HowManyRemindersIsTheReminderList(unittest.TestCase):
+    def test_counted_from_the_store(self):
+        from aletheia import voice
+        for said in ("how many reminders do i have", "how many timers are running"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "reminders", said)
+
+
 if __name__ == "__main__":
     unittest.main()
