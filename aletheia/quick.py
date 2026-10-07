@@ -674,6 +674,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? next (?:on|in) my (?:schedule|day)\s*\??$"
         r"|^(?:my )?next (?:meeting|appointment)$"
         r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
+    # "What's my battery" became a memory lookup for 'battery' (2026-10-07).
+    # `power.status` has read it on every beat since the night the laptop
+    # slept mid-batch.
+    ("battery", re.compile(
+        r"^(?:what(?:'s| is|s)? (?:my |the )?(?:battery|battery level|battery at|charge)"
+        r"|how much (?:battery|charge)(?: do i have| is left| have i got| left)?|battery(?: level| status)?"
+        r"|(?:am i|is (?:the|my) (?:pc|laptop|computer)) (?:plugged in|charging|on battery)"
+        r"|how(?:'s| is) (?:my |the )?battery(?: doing)?)\s*\??$")),
     ("version", re.compile(
         r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
@@ -2541,6 +2549,16 @@ def _next_meeting() -> str | None:
     return f"{title} {when}." if title else f"You've got something {when}."
 
 
+def _battery() -> str:
+    """The PC's power, in the words `power.words` already says it with."""
+    from aletheia import power
+    state = power.status()
+    if not state.get("known"):
+        return "I can't read the battery on this machine - it's read on Windows only."
+    said = power.words(state)
+    return "The PC is " + said + "."
+
+
 def _version() -> str | None:
     """Which code she is running, and whether the tree has moved past it."""
     from aletheia import running
@@ -3649,13 +3667,28 @@ def _about_him() -> str:
 
 def _repeat() -> str:
     """Her last sentence, from the thread, said again."""
+    # It read a key the thread never had ("she_said"), so "repeat that" said
+    # "I haven't said anything yet" after every answer she ever gave
+    # (2026-10-07). The thread keeps "you" and "her", in full.
     try:
         from aletheia import converse
-        turns = converse.recent(limit=1)
+        turns = converse._thread()
     except Exception:
         turns = []
-    said = str((turns[-1] if turns else {}).get("she_said") or "").strip()
-    return f"I said: {said}" if said else "I haven't said anything yet this conversation."
+    for turn in reversed(turns or []):
+        asked = " ".join(str(turn.get("you") or "").casefold().split()).rstrip("?.!")
+        if _REPEAT_ASK.fullmatch(re.sub(r"^(?:thea|aletheia),? ", "", asked)):
+            continue                   # "repeat that" twice says the same thing twice
+        said = str(turn.get("her") or "").strip()
+        if said:
+            return f"I said: {said}"
+    return "I haven't said anything yet this conversation."
+
+
+#: Asking her to say it again, so the thread can step past those turns.
+_REPEAT_ASK = re.compile(r"(?:can you |could you |please )?(?:repeat that|repeat|say (?:that|it) again|"
+                         r"what did (?:you|u) (?:just )?say|come again|pardon|sorry,? what|what was that|say again|"
+                         r"one more time|i didn'?t (?:catch|hear) that)(?: please)?")
 
 
 def _person(rest: str) -> str:
@@ -3842,6 +3875,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "shopping": lambda rest: _shopping(),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
+           "battery": lambda rest: _battery(),
            "free": _free,
            "next_meeting": lambda rest: _next_meeting(),
            "running": lambda rest: _running(),
