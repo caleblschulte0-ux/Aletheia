@@ -757,7 +757,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?P<weather>today|tonight|tomorrow|this (?:morning|afternoon|evening)"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:is|will) it (?:going to )?(?:rain|snow) (?P<weather2>today|tonight|tomorrow)$"
-        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$")),
+        r"|^weather(?: (?P<weather3>today|tonight|tomorrow))?$"
+        # "Should I bring an umbrella" and "what's the temperature" went to
+        # a model (2026-10-07). They are the forecast, asked sideways.
+        r"|^(?:should i|do i need to|do i need an?) (?:bring|take|grab|pack)? ?(?:an? )?(?:umbrella|jacket|coat|raincoat|sunscreen)"
+        r"(?: (?P<weather4>today|tonight|tomorrow))?$"
+        r"|^(?:what(?:'s| is|s)? the temperature|how (?:hot|cold|warm|chilly) is it|what temperature is it)"
+        r"(?: out(?:side)?| right now| now)?(?: (?P<weather5>today|tonight|tomorrow))?$"
+        r"|^(?:is it|will it be) (?:going to be )?(?:raining|rainy|snowing|windy|sunny|cold|hot|warm)"
+        r"(?: out(?:side)?)?(?: (?P<weather6>today|tonight|tomorrow))?$")),
     ("greeting", re.compile(
         r"^(?:hi|hello|hey|yo|hiya|howdy|hey there|hi there)$"
         r"|^good (?:morning|afternoon|evening)$"
@@ -984,7 +992,7 @@ def match(question: str) -> tuple[str, str] | None:
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
-                                           "weather2", "weather3",
+                                           "weather2", "weather3", "weather4", "weather5", "weather6",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9",
