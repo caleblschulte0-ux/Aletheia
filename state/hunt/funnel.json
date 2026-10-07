@@ -96,8 +96,8 @@
       "sent": 0
     },
     "2026-09-22": {
-      "filled": 18,
-      "found": 65,
+      "filled": 17,
+      "found": 64,
       "interviews": 0,
       "rejections": 0,
       "replies": 4,
@@ -208,16 +208,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 23,
-      "found": 30,
+      "filled": 28,
+      "found": 41,
       "interviews": 0,
       "rejections": 0,
       "replies": 1,
-      "sent": 12
+      "sent": 14
     }
   },
-  "generated_at": "2026-10-07T17:08:55Z",
-  "sent_all_time": 246,
+  "generated_at": "2026-10-07T18:15:59Z",
+  "sent_all_time": 248,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -262,18 +262,19 @@
     }
   },
   "totals": {
-    "filled": 354,
-    "found": 645,
+    "filled": 358,
+    "found": 655,
     "interviews": 2,
     "rejections": 3,
     "replies": 32,
-    "sent": 246
+    "sent": 248
   },
   "waiting": {
     "asked_about": {
+      "address": 1,
       "demographic": 5,
       "on_site": 1,
-      "other": 6,
+      "other": 7,
       "travel": 1
     },
     "closed": {
@@ -288,22 +289,22 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
-      "not_a_form": 38,
+      "not_a_form": 44,
       "not_realistic": 75
     },
-    "failed": 60,
+    "failed": 59,
     "failed_because": {
       "ApplyError": 2,
       "TargetClosedError": 3,
       "browser_spending": 2,
-      "other": 52,
+      "other": 51,
       "submit_would_not_click": 1
     },
     "his_ok": {
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 10,
+    "needs_answer": 11,
     "oldest_days": 24,
     "to_send": 0
   },

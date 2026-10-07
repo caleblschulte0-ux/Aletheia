@@ -731,6 +731,49 @@ class TheRoutineDecisionIsSmallEnoughForHerFastModel(OwnRoom):
 
 
 
+class AnApplyOnTheSamePageIsAWayForward(OwnRoom):
+    """Live 2026-10-07: 53 job postings stopped at the first look with
+    "nothing on it moves toward the goal" - an Apply drawn as a link to the
+    page's own fragment was being thrown away as a link back."""
+
+    def obs(self, href):
+        return {"url": "https://jobs.example/careers/analyst", "state": ps.CONTENT,
+                "targets": [{"id": "t1", "role": "link", "label": "Apply now", "href": href}],
+                "_refs": {"t1": "#apply-btn"}}
+
+    def test_an_apply_link_to_this_pages_own_fragment_is_pressed(self):
+        from aletheia import job_skill
+        for href in ("https://jobs.example/careers/analyst#", "https://jobs.example/careers/analyst#apply"):
+            obs = self.obs(href)
+            found = browser_loop.way_forward(obs, "apply for this job", job_skill.SKILL, {}, tried=set(),
+                                             visited={"https://jobs.example/careers/analyst"})
+            self.assertIsNotNone(found, href)
+            self.assertEqual(found["label"], "Apply now")
+
+    def test_a_link_to_this_very_page_is_still_going_back(self):
+        self.assertTrue(browser_loop.goes_back("https://jobs.example/a", "https://jobs.example/a"))
+        self.assertTrue(browser_loop.goes_back("https://jobs.example/list", "https://jobs.example/a",
+                                               {"https://jobs.example/list"}))
+        self.assertTrue(browser_loop.goes_back("https://jobs.example/list#x", "https://jobs.example/a",
+                                               {"https://jobs.example/list"}))
+        self.assertFalse(browser_loop.goes_back("https://jobs.example/a#apply", "https://jobs.example/a#top",
+                                                {"https://jobs.example/a"}))
+        self.assertFalse(browser_loop.goes_back("", "https://jobs.example/a"))
+
+    def test_the_model_is_shown_the_same_pages_apply_and_may_pick_it(self):
+        obs = self.obs("https://jobs.example/careers/analyst#")
+        record = bm.open_mission("apply for this job", obs["url"])
+        shown = {}
+
+        def decide(goal, page, history):
+            shown["targets"] = [t["id"] for t in page["targets"]]
+            return {"target": "t1", "sure": True, "by": "test"}
+        picked = browser_loop._ask_model(decide, "apply for this job", obs, record,
+                                         visited={"https://jobs.example/careers/analyst"})
+        self.assertEqual(shown["targets"], ["t1"])
+        self.assertIsNotNone(picked)
+
+
 class SheDoesNotGoRoundInCircles(OwnRoom):
     def test_a_model_pick_back_to_a_visited_page_is_refused(self):
         obs = {"url": "https://books.example/catalogue/category/books_1/index.html", "state": ps.CONTENT,
