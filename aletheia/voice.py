@@ -1773,7 +1773,13 @@ def _interpret(transcript: str) -> dict:
     # different answer than the same question typed, which `quick` answers
     # from his profile. Only the bare possessive is his: "my wife's
     # number" really is a contact, and its capture is "my wife".
-    if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)):
+    # "What's my locker number" looked up a contact called "my locker"
+    # (2026-10-07): a thing with a number is not a person.
+    if m and len(m.group(1)) < 40 and not _is_about_himself(m.group(1)) \
+            and not re.search(r"\b(?:locker|account|member(?:ship)?|policy|license|licence|plate|wifi|wi-fi|gate|door"
+                              r"|garage|room|seat|flight|confirmation|order|tracking|case|ticket|insurance|social security"
+                              r"|passport|employee|student|customer|reference|serial|model|pin|bank|routing|card|apartment"
+                              r"|unit|house|street|home|work|office|zip|postal|post)$", m.group(1)):
         return {"command": {"kind": "contacts", "which": m.group(1).strip()},
                 "say": None}
     # "APPLY TO JOBS FOR ME" is a sentence he will say, and it went to the
@@ -3766,6 +3772,11 @@ def _interpret(transcript: str) -> dict:
                      r"(?: please)?", low)
     if m:
         thing = m.group("thing")
+        if thing == "car":
+            # Where he parked is a note she keeps (2026-10-07: "where's my
+            # car" was refused for want of eyes while the note sat there).
+            from aletheia import quick
+            return {"command": None, "say": quick._parked()}
         return {"command": None,
                 "say": (f"I can't see where your {thing} are - I have no eyes in the room. "
                         if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
@@ -4581,6 +4592,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I won't wipe every note on one sentence. Say \"forget\" and what the note says, "
                        "or \"delete my last note\", and I'll take them off one at a time."}
+    # "DELETE EVERYTHING YOU KNOW ABOUT ME" (2026-10-07: to the planner).
+    # The same rule, for what she remembers about him.
+    if re.fullmatch(r"(?:delete|forget|erase|wipe|clear|remove) (?:everything|all|anything) (?:you know|you remember|you have|you've got"
+                    r"|you've learned|you have stored|you've saved) (?:about|on) me|(?:wipe|clear|erase) your memory"
+                    r"|forget (?:everything|all of it|me)", low):
+        return {"command": None,
+                "say": "I won't forget everything about you on one sentence. Say \"what do you know about me\", "
+                       "then \"forget\" and the thing, one at a time."}
     # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
     # planner). The same rule: his whole list is not one sentence's to undo.
     if re.fullmatch(r"(?:delete|remove|clear|wipe|cancel|drop) (?:all|every one of|everything on) (?:of )?(?:my |the )?"

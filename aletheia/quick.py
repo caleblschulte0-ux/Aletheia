@@ -4679,6 +4679,10 @@ def _fact_q(text: str) -> str | None:
         return voice._NO_PASSWORDS
     wanted = [w for w in re.findall(r"[a-z0-9]+", key.casefold().replace("'s", ""))
               if w not in _STOP_WORDS and w not in ("favorite", "favourite", "fave")]
+    # "My locker is 42" answers "what's my locker number": the kind of thing
+    # (number, code) is often left unsaid when he tells her.
+    named = [w for w in wanted if w not in ("number", "combination", "code", "size", "name")]
+    wanted = named or wanted
     for row in _notes():
         said = str(row.get("text") or "")
         low = said.casefold()

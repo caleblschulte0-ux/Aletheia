@@ -123,5 +123,24 @@ class WhatToWear(unittest.TestCase):
         self.assertNotEqual(quick.match("do i need milk")[0], "weather")
 
 
+class ThingsWithNumbers(unittest.TestCase):
+    def test_a_locker_is_not_a_contact(self):
+        from aletheia import quick
+        self.assertNotEqual((voice._interpret("what's my locker number").get("command") or {}).get("kind"), "contacts")
+        self.assertEqual(voice._interpret("what's my mom's number")["command"], {"kind": "contacts", "which": "my mom"})
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my locker is 42"}]):
+            self.assertEqual(quick.answer("what's my locker number"), "You told me: my locker is 42.")
+
+    def test_where_the_car_is_reads_where_he_parked(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_parked", return_value="Level 3."):
+            self.assertEqual(voice._interpret("where's my car")["say"], "Level 3.")
+
+    def test_everything_about_him_is_not_one_sentence(self):
+        got = voice._interpret("delete everything you know about me")
+        self.assertIsNone(got["command"])
+        self.assertIn("one at a time", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
