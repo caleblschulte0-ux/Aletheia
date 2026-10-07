@@ -549,7 +549,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is) (?:on )?(?:for )?(?P<coming2>tonight)\s*\??$|^what am i doing (?P<coming3>tonight|this evening)\s*\??$"
         r"|^what do i have (?:on |going on )?(?P<coming4>tonight|this evening)\s*\??$")),
     ("meetings_count", re.compile(
-        r"^how many (?:meetings|appointments|events) (?:do i have|are on my calendar|have i got)"
+        r"^how many (?:meetings|appointments|events)(?: (?:do i have|are on my calendar|have i got))?"
         r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
     # "How long until my alarm" (2026-10-07: to the planner).
     ("alarm_left", re.compile(

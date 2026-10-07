@@ -2809,7 +2809,10 @@ def _interpret(transcript: str) -> dict:
                       # "read me my latest note" is the newest note, not a file
                       # called "latest" (2026-10-07).
                       "last", "latest", "newest", "recent", "most", "new")
-            for w in m.group("what").split()):
+            for w in m.group("what").split()) \
+            and not re.search(r"\b(?:called|named|about)$", m.group("what")):
+        # "Find a file called notes" searched for "a file called" (2026-10-07);
+        # the name is after "called", which the finder below reads.
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group("what"))},
                 "say": None}
@@ -2850,6 +2853,9 @@ def _interpret(transcript: str) -> dict:
         r"(?:find|look for|search for|do i have|have i got) "
         r"(?:a |an |any |my |the )?(?:files? |documents? )?"
         r"(?:called |named |about )?(.+?)\s*\??", low)
+    # "Find me 30 minutes tomorrow" is time on his calendar, not a file.
+    if m and re.match(r"(?:me )?(?:an hour|half an hour|\d{1,3} minutes|\d hours?|some time|a slot|time)\b", m.group(1)):
+        m = None
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group(1))},
@@ -3053,6 +3059,28 @@ def _interpret(transcript: str) -> dict:
                     hour += 12
                 return {"command": {"kind": "free_time", "day": day_iso, "at": f"{hour:02d}:{minute:02d}"},
                         "say": None}
+
+    # "WHAT TIME AM I FREE TOMORROW", "find me 30 minutes tomorrow", "do I
+    # have time for lunch", "when's my next free hour" (2026-10-07: the
+    # planner, and "find me 30 minutes" searched his FILES). The day's free
+    # time, for as long as he says.
+    m = re.fullmatch(r"(?:what times? (?:am i|are we) free|when(?:'s| is) my next (?:free (?:hour|slot|time|window)|opening)"
+                     r"|find (?:me )?(?P<span>an hour|half an hour|\d{1,3} minutes|\d hours?|some time|a slot|time)"
+                     r"|when can i (?:fit in|squeeze in|fit) (?:a |an )?[a-z' ]{2,30}?|do i have time for (?:a |an )?[a-z' ]{2,30}?)"
+                     r"(?: (?:on |this )?(?P<when>today|tomorrow|tonight|(?:tomorrow |this )?(?:morning|afternoon|evening)"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??", low)
+    if m:
+        day, part = _spoken_when(m.group("when") or "today")
+        if day:
+            command = {"kind": "free_time", "day": day}
+            if part:
+                command["part"] = part
+            span = m.group("span") or ""
+            minutes = (60 if span == "an hour" else 30 if span == "half an hour"
+                       else int(span.split()[0]) * (60 if "hour" in span else 1) if span[:1].isdigit() else None)
+            if minutes:
+                command["minutes"] = minutes
+            return {"command": command, "say": None}
 
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
@@ -3569,6 +3597,8 @@ def _interpret(transcript: str) -> dict:
 
     if re.fullmatch(r"cancel (?:my |the )?(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?|noon)"
                     r"(?: (?:today|tomorrow|meeting|appointment|call))?", low) \
+            or re.fullmatch(r"cancel (?:my |the )?[a-z' ]{2,30}? (?:appointment|meeting|lunch|dinner|call)"
+                            r"(?: (?:today|tomorrow|on [a-z]+|this [a-z]+))?", low) \
             or re.fullmatch(r"(?:clear|empty|wipe|cancel everything on) (?:my |the )?(?:calendar|schedule|day)"
                             r"(?: for)?(?: (?:today|tomorrow|this week|monday|tuesday|wednesday|thursday|friday"
                             r"|saturday|sunday))?|cancel (?:all )?(?:my )?(?:meetings|appointments)(?: (?:today|tomorrow))?", low):

@@ -291,5 +291,20 @@ class HisCalendarByDateAndBlocks(unittest.TestCase):
         self.assertEqual(quick.match("what's my first meeting")[0], "first_meeting")
 
 
+class FreeTimeAskedEveryWay(unittest.TestCase):
+    def test_time_on_his_calendar_is_not_a_file(self):
+        got = voice._interpret("find me 30 minutes tomorrow")["command"]
+        self.assertEqual((got["kind"], got["minutes"]), ("free_time", 30))
+        for said in ("what time am i free tomorrow", "when's my next free hour", "do i have time for lunch",
+                     "when can i fit in a workout tomorrow"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "free_time", said)
+
+    def test_a_file_called_something_is_searched_by_its_name(self):
+        self.assertEqual(voice._interpret("find a file called notes")["command"], {"kind": "file_find", "query": "notes"})
+
+    def test_an_appointment_she_cannot_cancel(self):
+        self.assertIn("can't cancel", voice._interpret("cancel my dentist appointment")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
