@@ -1214,14 +1214,50 @@ def _the_task_just_added() -> str:
     return ""
 
 
-def _last_ask_is_undoable() -> bool:
-    """Was his last ask a task, a list item, a reminder, a hold or a file -
-    the things "cancel it" can take straight back?"""
+def _only_asked(said: str, command: dict) -> bool:
+    """Was that turn only a question - answered from her stores, a reader,
+    or a wh-question nobody could plan? Such a turn is stepped over when
+    "it" is looked for."""
     try:
-        from aletheia import intercom
-        return _last_ask_kind() in intercom.UNDOES_HIS_ASK
+        from aletheia import intercom, quick
+        kind = str((command or {}).get("kind") or "")
+        if kind and kind in intercom.READ_ONLY_KINDS:
+            return True
+        if quick.match(said):
+            return True
+        return kind in ("intent", "") and bool(re.match(
+            r"(?:what|when|where|who|why|how|which|is|are|do|does|did|can|could|will|would)\b", said.casefold()))
     except Exception:
         return False
+
+
+def _last_ask_is_undoable() -> bool:
+    """Was his last ask a task, a list item, a reminder, a hold or a file -
+    the things "cancel it" can take straight back? A question between
+    ("who is it with") is stepped over."""
+    try:
+        from aletheia import converse, intercom
+        turns = converse.recent(limit=4) or []
+    except Exception:
+        return False
+    if not turns:
+        try:
+            from aletheia import intercom
+            return _last_ask_kind() in intercom.UNDOES_HIS_ASK
+        except Exception:
+            return False
+    for turn in reversed(turns):
+        said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", " ".join(str(turn.get("he_asked") or "").split()), flags=re.I)
+        if not said:
+            continue
+        try:
+            command = (interpret(f"thea {said}") or {}).get("command") or {}
+        except Exception:
+            return False
+        if _only_asked(said, command):
+            continue
+        return str(command.get("kind") or "") in intercom.UNDOES_HIS_ASK
+    return False
 
 
 def _recent_reminder_ask(turns: int = 4) -> dict:

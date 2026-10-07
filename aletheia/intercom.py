@@ -1802,6 +1802,10 @@ def _undo_his_last_ask() -> str | None:
         kind = str(command.get("kind") or "")
         if kind == "undo":
             continue                        # his previous undo; look one further back
+        # A QUESTION in between changes nothing: "put lunch on Friday",
+        # "who is it with", "cancel it" means the lunch (2026-10-07).
+        if voice._only_asked(said, command):
+            continue
         if kind not in UNDOES_HIS_ASK:
             return None
         return _reverse_his_ask(kind, command)

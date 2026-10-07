@@ -1232,5 +1232,23 @@ class NoIMeantMilk(unittest.TestCase):
         self.assertEqual(said, "Swapped eggs for milk on the shopping list.")
 
 
+
+class CancelItStepsOverAQuestion(unittest.TestCase):
+    def test_the_hold_before_the_question_is_it(self):
+        from aletheia import converse, policy, voice
+        turns = [{"he_asked": "add a task to call sam", "she_answered": "Added a task: call sam."},
+                 {"he_asked": "what's on my list", "she_answered": "1 thing on your list: call sam."}]
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]), \
+                mock.patch.object(policy, "all_approvals", return_value=[]):
+            self.assertTrue(voice._last_ask_is_undoable())
+            self.assertEqual(voice.interpret("cancel it")["command"], {"kind": "undo"})
+
+    def test_a_question_alone_is_not_undoable(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "what's the weather", "she_answered": "Sunny."}]
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]):
+            self.assertFalse(voice._last_ask_is_undoable())
+
+
 if __name__ == "__main__":
     unittest.main()
