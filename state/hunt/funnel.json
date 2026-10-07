@@ -199,18 +199,18 @@
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 2
+      "sent": 3
     }
   },
-  "generated_at": "2026-10-07T15:05:43Z",
-  "sent_all_time": 236,
+  "generated_at": "2026-10-07T15:36:03Z",
+  "sent_all_time": 237,
   "totals": {
     "filled": 357,
     "found": 643,
     "interviews": 2,
     "rejections": 3,
     "replies": 31,
-    "sent": 236
+    "sent": 237
   },
   "waiting": {
     "closed": {
@@ -239,7 +239,7 @@
     },
     "his_ok": {},
     "needs_account": 0,
-    "needs_answer": 11,
+    "needs_answer": 10,
     "oldest_days": 24,
     "to_send": 0
   },
