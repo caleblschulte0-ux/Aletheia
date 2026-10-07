@@ -3102,6 +3102,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "file_write", "path": name,
                             "text": _as_he_said(text, m.group("body").strip())}, "say": None}
 
+    # WHERE HE PARKED. "I parked on level 3" went to the planner and
+    # "where did I park" to a model (2026-10-07). It is a note, in his
+    # words, and `quick` reads the newest one back.
+    m = re.fullmatch(r"(?:i(?:'ve| have)? parked|i'm parked|my car is(?: parked)?|the car is(?: parked)?)"
+                     r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".
     # "Make a note that the roof leaks" waited two minutes on her own model

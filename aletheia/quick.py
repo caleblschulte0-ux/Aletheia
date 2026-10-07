@@ -947,6 +947,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
     ("status_of", _STATUS),
+    # 2026-10-07: powers, roots, a joke and where he parked, each to a model.
+    ("power", re.compile(
+        r"^what(?:'s| is|s)? (?P<base>[\d.]+) (?:to the power of|to the|raised to(?: the power of)?|\^) (?P<exp>\d{1,3})(?:st|nd|rd|th)?(?: power)?$"
+        r"|^what(?:'s| is|s)? (?P<sq>[\d.]+) (?P<sqw>squared|cubed)$"
+        r"|^what(?:'s| is|s)? (?:the )?(?P<rootw>square|cube) root of (?P<root>[\d.,]+)$")),
+    ("joke", re.compile(r"^(?:tell me|say|got|know|give me) (?:a |another |any )?(?:good |funny |dad )?jokes?$"
+                        r"|^(?:make me laugh|tell me something funny)$")),
+    ("parked", re.compile(r"^where (?:did i|have i) park(?:ed)?(?: the car| my car)?$"
+                          r"|^where(?:'s| is) (?:my|the) car(?: parked)?$")),
 )
 
 
@@ -962,7 +971,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "power"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2387,6 +2396,57 @@ def _math(text: str) -> str | None:
     return None
 
 
+def _power(text: str) -> str | None:
+    """2 to the power of 10, 7 squared, the square root of 144."""
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "power"), None)
+    if not found:
+        return None
+    g = {k: v for k, v in found.groupdict().items() if v}
+    try:
+        if "root" in g:
+            n = float(g["root"].replace(",", ""))
+            value = n ** 0.5 if g["rootw"] == "square" else n ** (1 / 3)
+        elif "sq" in g:
+            value = float(g["sq"]) ** (2 if g["sqw"] == "squared" else 3)
+        else:
+            value = float(g["base"]) ** int(g["exp"])
+    except (ValueError, OverflowError):
+        return None
+    if value > 1e15:
+        return None
+    if abs(value - round(value)) < 1e-9:
+        return f"{int(round(value)):,}."
+    return f"About {value:.4g}."
+
+
+#: Short, clean, and said in one breath. Picked with `secrets` so two in a
+#: row are not the same predictable order.
+JOKES = (
+    "I told my computer I needed a break, and it said no problem - it would go to sleep.",
+    "Why don't scientists trust atoms? Because they make up everything.",
+    "I'm reading a book about anti-gravity. It's impossible to put down.",
+    "Why did the scarecrow win an award? He was outstanding in his field.",
+    "What do you call a fake noodle? An impasta.",
+    "I used to hate facial hair, but then it grew on me.",
+    "Why can't a bicycle stand up by itself? It's two tired.",
+    "Parallel lines have so much in common. It's a shame they'll never meet.",
+)
+
+
+def _joke() -> str:
+    import secrets
+    return secrets.choice(JOKES)
+
+
+def _parked() -> str:
+    """The newest note that says where the car is."""
+    for row in _notes():
+        said = str(row.get("text") or "")
+        if re.search(r"\b(?:parked|my car is|the car is)\b", said, re.IGNORECASE):
+            return f"You told me: {said.rstrip('.')}."
+    return "You haven't told me where you parked. Say 'I parked on level 3' next time and I'll remember."
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3771,6 +3831,9 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "power": lambda rest: _power(rest),
+           "joke": lambda rest: _joke(),
+           "parked": lambda rest: _parked(),
            "good_morning": lambda rest: _good_morning(),
            "status": lambda rest: _status(),
            "why_not": _why_not,

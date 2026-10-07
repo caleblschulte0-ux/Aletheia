@@ -7,6 +7,7 @@ hours and 30 minutes" all fell to the planner.
 """
 import datetime as dt
 import unittest
+from unittest import mock
 
 from aletheia import local_planner, voice
 
@@ -116,3 +117,26 @@ class TheOtherWaysOfAsking(unittest.TestCase):
         for said in ("how many unread emails do i have", "check my inbox", "any unread emails"):
             with self.subTest(said=said):
                 self.assertEqual(voice._interpret(said)["command"]["kind"], "email_check")
+
+
+class SmallThingsWithNoModel(unittest.TestCase):
+    def test_powers_and_roots(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 2 to the power of 10"), "1,024.")
+        self.assertEqual(quick.answer("what is 7 squared"), "49.")
+        self.assertEqual(quick.answer("what's the square root of 144"), "12.")
+        self.assertIsNone(quick.answer("what's 2 to the 1000"))
+
+    def test_a_joke_is_one_of_hers(self):
+        from aletheia import quick
+        self.assertIn(quick.answer("tell me a joke"), quick.JOKES)
+
+    def test_where_he_parked_is_his_newest_note(self):
+        from aletheia import quick
+        rows = [{"text": "I parked on level 3"}, {"text": "buy milk"}, {"text": "I parked on level 1"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("where did i park"), "You told me: I parked on level 3.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me", quick.answer("where's my car"))
+        self.assertEqual(voice._interpret("I parked on level 3")["command"],
+                         {"kind": "note", "text": "I parked on level 3"})
