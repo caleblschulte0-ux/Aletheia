@@ -1395,5 +1395,12 @@ class AVolumeLevelIsPressedCase(unittest.TestCase):
                 music.set_volume(30, sleep=lambda _s: None)
 
 
+class CanYouHearMeCase(unittest.TestCase):
+    def test_heard_is_the_answer(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("can you hear me"), "Yes, I hear you.")
+        self.assertIn("AI", quick.answer("are you sentient"))
+
+
 if __name__ == "__main__":
     unittest.main()
