@@ -2305,5 +2305,34 @@ class MyRemindersAreAllOfThem(unittest.TestCase):
             self.assertTrue(why.startswith("You have 2 reminders. Which one: "))
 
 
+
+class WhichTuesdayIsAnswered(unittest.TestCase):
+    """2026-10-07: "Which Tuesday?" dropped the time he gave, and "the 13th"
+    in answer went to the planner. Same for "Which reminder?"."""
+
+    ASKED = ("Which Tuesday — the 13th, or the week after on the 20th? "
+             "Say 'remind me on the 13th at noon to call the bank' and it's set.")
+
+    def test_the_time_travels_in_the_offer(self):
+        said = voice._interpret("remind me next tuesday at noon to call the bank")["say"] or ""
+        if said.startswith("Which Tuesday"):
+            self.assertIn("at noon to call the bank", said)
+
+    def test_the_answer_sets_it(self):
+        for answer, day in (("the 13th", "13"), ("the first one", "13"), ("the week after", "20"), ("20th", "20")):
+            with self.subTest(answer=answer), \
+                 mock.patch.object(voice, "_previous_turn", return_value=("remind me next tuesday", self.ASKED)):
+                got = voice._interpret(answer)["command"]
+                self.assertEqual(got["kind"], "remind_at")
+                self.assertIn(f"-{day}T12:00", got["at"])
+                self.assertEqual(got["text"], "call the bank")
+
+    def test_which_reminder_is_answered(self):
+        asked = "You have 2 reminders. Which one: call mom — today at 5 pm or feed the cat — today at 6 pm?"
+        with mock.patch.object(voice, "_previous_turn", return_value=("delete my reminder", asked)):
+            self.assertEqual(voice._interpret("the call mom one")["command"], {"kind": "reminder_off", "which": "call mom"})
+            self.assertEqual(voice._interpret("both")["command"], {"kind": "reminder_off", "which": "all reminders"})
+
+
 if __name__ == "__main__":
     unittest.main()

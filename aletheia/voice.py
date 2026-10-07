@@ -2498,6 +2498,37 @@ def _interpret(transcript: str) -> dict:
         at = re.search(r"reminders at (.+?): .+Which one, or all of them\?", answered or "")
         if at and _spoken_time(at.group(1)):
             return {"command": {"kind": "reminder_off", "which": f"all at {_spoken_time(at.group(1))}"}, "say": None}
+        # "Delete my reminder" - "You have 2 reminders. Which one: ...?" - "both".
+        if re.match(r"You have \d+ reminders\. Which one: ", answered or ""):
+            return {"command": {"kind": "reminder_off", "which": "all reminders"}, "say": None}
+    _said, answered = _previous_turn()
+    # "Delete my reminder" - "Which one: call mom ... or feed the cat ...?" -
+    # "feed the cat" / "the cat one" (2026-10-07): the one he named, if it
+    # is one she listed.
+    which = re.match(r"You have \d+ reminders\. Which one: (.+)\?$", answered or "")
+    if which:
+        named = re.sub(r"^(?:cancel|delete|remove|turn off|stop)\s+|^the\s+|\s+one$|\s+reminder$", "", low).strip()
+        named = re.sub(r"^the\s+|\s+one$", "", named).strip()
+        if len(named) >= 3 and named in which.group(1).casefold():
+            return {"command": {"kind": "reminder_off", "which": named}, "say": None}
+    # "Remind me next Tuesday at noon to call the bank" - "Which Tuesday - the
+    # 13th, or the week after on the 20th?" - "the 13th" / "the first one" /
+    # "the week after" (2026-10-07: the answer went to the planner).
+    pick = re.match(r"Which \w+ — the (\d+\w\w), or the week after on the (\d+\w\w)\? "
+                    r"Say 'remind me on the \d+\w\w(.*?)' and it's set", answered or "")
+    if pick and len(low.split()) <= 6:
+        soon, later, rest = pick.groups()
+        day = None
+        if re.search(r"\b" + soon[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:first|sooner|earlier|this|coming|this one|that one)\b", low):
+            day = soon
+        if re.search(r"\b" + later[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:second|later|after|following|other)\b", low):
+            day = later if day is None or "after" in low or "second" in low else day
+        if day:
+            got = _interpret(f"remind me on the {day}{rest}")
+            if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+                return got
     answered = _answering_her(low)
     if answered:
         return answered
@@ -3642,8 +3673,12 @@ def _interpret(transcript: str) -> dict:
             # the answer is one breath and not a guess about what to say.
             soon = re.search(r"the (\d+\w\w)", asked).group(1)
             what = _as_he_said(text, m.group("text").strip())
+            # The time he gave travels too (2026-10-07: "next tuesday at
+            # noon" was offered back as the 13th with no noon in it).
+            when = (f" at {m.group('time').strip()}" if m.group("time")
+                    else f" in the {m.group('part')}" if m.group("part") else "")
             return {"command": None,
-                    "say": f"{asked} Say 'remind me on the {soon} to {what}' and it's set."}
+                    "say": f"{asked} Say 'remind me on the {soon}{when} to {what}' and it's set."}
         day_iso = _spoken_day(m.group("day"))
         part_time = {"morning": "09:00", "afternoon": "14:00", "evening": "19:00", "night": "21:00"}.get(
             m.group("part") or "")
