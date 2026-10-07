@@ -1510,10 +1510,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
-        r"|vaccinate|deworm|descale|defrost) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|vaccinate|deworm|descale|defrost|call|visit) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
-        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week)?\s*\??$")),
     ("recall_when", re.compile(
         r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
@@ -4064,6 +4064,29 @@ _PAST = {"give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "c
          "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
 
 
+def _past_of(verb: str) -> str:
+    """"call" -> "called", the same rule `_did_last` reads his notes by."""
+    return _PAST.get(verb) or (verb if verb.endswith("ed") else
+                               verb + "d" if verb.endswith("e") else
+                               verb[:-1] + "ied" if verb.endswith("y") and verb[-2:-1] not in "aeiou" else verb + "ed")
+
+
+def _base_verb(past: str) -> str | None:
+    """"called" -> "call", "dropped off" -> "drop off": the form "when did I
+    last ..." is asked in, found by running `_past_of` backwards - None when
+    no candidate gives the word back."""
+    head, _, tail = past.partition(" ")
+    for base, said in _PAST.items():
+        if said == past:
+            return base
+    for cand in (head[:-1], head[:-2], head[:-3], head[:-3] + "y"):
+        base = f"{cand} {tail}".strip()
+        # Only a verb "when did I last" knows: "chang" would give "changed" back too.
+        if cand and (_past_of(cand) == head or cand + cand[-1:] + "ed" == head) and _groups("did_last", f"when did i last {base} it"):
+            return base
+    return None
+
+
 def _did_last(text: str) -> str | None:
     """When he last said he did a thing, from his notes. Never a guess: no
     note is "not that you've told me", and how to tell her."""
@@ -4078,9 +4101,7 @@ def _did_last(text: str) -> str | None:
     if re.search(r"\b(?:email|emails|mail|message|messages|text|texts|call|calls|reply|replies|package|parcel)\b", thing) \
             and verb in ("get", "mail", "mailed"):
         return None
-    past = _PAST.get(verb) or (verb if verb.endswith("ed") else
-                              verb + "d" if verb.endswith("e") else
-                              verb[:-1] + "ied" if verb.endswith("y") and verb[-2:-1] not in "aeiou" else verb + "ed")
+    past = _past_of(verb)
     base = re.sub(r"(?:ied)$", "y", past)
     words = [w for w in re.findall(r"[a-z0-9']+", thing.casefold())
              if w not in ("the", "my", "our", "his", "her", "a", "an", "some", "its")]
@@ -5105,6 +5126,13 @@ def _days_since(words: str) -> str | None:
     today = dt.datetime.now(localtime.operator_tz()).date()
     day = _a_date(words, today)
     if day is None:
+        # "How long since I called mom" (2026-10-07: a model): a thing he
+        # did, read from his notes the way "when did I last" is.
+        m = re.fullmatch(r"(?:i |you )?(?:last )?(?P<v>[a-z]+(?:ed| up| off)|fed|gave|cut) (?P<o>[a-z][a-z' ]{1,40})", words.strip())
+        if m:
+            base = _base_verb(m.group("v"))
+            if base:
+                return _did_last(f"when did i last {base} {m.group('o')}")
         return None
     if day > today and not re.search(r"\d{4}", words):
         # "Since January 1" is the one that has passed.

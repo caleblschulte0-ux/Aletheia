@@ -2813,5 +2813,22 @@ class SunriseAskedAsAThing(unittest.TestCase):
             self.assertEqual(quick.answer("when's the sunset"), "set|")
 
 
+class CallsHeMade(unittest.TestCase):
+    def test_a_call_is_kept_and_counted_from(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I called mom")["command"], {"kind": "note", "text": "I called mom"})
+        self.assertEqual(quick._base_verb("trimmed"), "trim")
+        self.assertEqual(quick._base_verb("changed"), "change")
+        three = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3)).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I called mom", "ts": three}]):
+            for asked in ("when did I last call mom", "how long since I called mom"):
+                said = quick.answer(asked)
+                self.assertTrue(said.startswith("You told me you called mom - that was"), (asked, said))
+            self.assertTrue(quick.answer("did I call mom today").startswith("Not today"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn(" days, since ", quick.answer("how long since january 1"))
+
+
 if __name__ == "__main__":
     unittest.main()

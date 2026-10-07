@@ -1186,7 +1186,10 @@ def _birthday_reminder(m) -> dict:
 #: finished a task, took his pills) is matched before this is reached.
 _DONE_VERBS = ("changed|gave|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
-               "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted")
+               "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
+               # "I called mom" (2026-10-07: to the planner). A call he made is
+               # his to tell her; "when did I last call mom" reads it back.
+               "|called|visited")
 
 
 def _new_task(raw: str) -> dict:
