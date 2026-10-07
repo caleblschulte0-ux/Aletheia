@@ -51,3 +51,46 @@ class ATownByName(unittest.TestCase):
     def test_his_own_forecast_is_untouched(self):
         self.assertEqual(quick.match("what's the weather")[0], "weather")
         self.assertEqual(quick.match("what's the weather like tomorrow")[0], "weather")
+
+
+class WhenIsHisThing(unittest.TestCase):
+    def setUp(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        self.rows = [(now + dt.timedelta(hours=30), "Dentist", "calendar"),
+                     (now + dt.timedelta(hours=26), "call the recruiter back", "reminder"),
+                     (now + dt.timedelta(days=3), "Meeting with Dana", "calendar")]
+        p = mock.patch.object(quick, "_coming", return_value=self.rows)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_the_named_thing_not_the_generic_noun(self):
+        said = quick.answer("what time is my dentist appointment")
+        self.assertTrue(said.startswith("Dentist is "), said)
+
+    def test_with_whom(self):
+        self.assertTrue(quick.answer("when is my meeting with dana").startswith("Meeting with Dana is "))
+
+    def test_a_reminder_counts(self):
+        self.assertIn("You have a reminder", quick.answer("when is my call with the recruiter"))
+
+    def test_nothing_by_that_name_says_where_it_looked(self):
+        self.assertIn("on your calendar or in your reminders", quick.answer("when is my flight"))
+
+    def test_the_older_readers_keep_their_sentences(self):
+        self.assertEqual(quick.match("when is my next meeting")[0], "next_meeting")
+        self.assertEqual(quick.match("when is my interview")[0], "interview_when")
+        self.assertIsNone(quick.match("when are my meetings today"))
+
+
+class HisRemindersOnADay(unittest.TestCase):
+    def test_only_that_days_reminders(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        tomorrow = (dt.datetime.now(tz) + dt.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+        rows = [(tomorrow, "take my pills", "reminder"), (tomorrow + dt.timedelta(days=1), "gym", "reminder"),
+                (tomorrow, "Dentist", "calendar")]
+        with mock.patch.object(quick, "_coming", return_value=rows):
+            said = quick.answer("what are my reminders for tomorrow")
+        self.assertEqual(said, "1 reminder tomorrow: 9 am, take my pills.")

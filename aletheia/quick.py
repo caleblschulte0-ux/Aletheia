@@ -894,6 +894,19 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # SOMEWHERE ELSE (2026-10-07): "what's the weather like in Chicago"
     # went to the planner. Before the pattern for his own weather, which
     # would otherwise never see the town.
+    # WHEN IS HIS THING, BY ITS NAME (2026-10-07): "what time is my dentist
+    # appointment" and "what are my reminders for tomorrow" went to the
+    # planner. Her calendar and her reminders hold both answers.
+    ("when_mine", re.compile(
+        r"^(?:what time|when|what day)(?:'s| is) my (?P<when_mine>(?:[a-z][a-z' ]{0,30}? )?"
+        r"(?:appointment|appt|meeting|call|interview|dinner|lunch|breakfast|class|game|flight|party|reservation|session|visit)"
+        r"(?: (?:with|at|for) [a-z][a-z' ]{1,30}?)?)(?: (?:today|tomorrow|this week|next))?\s*\??$")),
+    ("reminders_on", re.compile(
+        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
+        r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tomorrow|monday|tuesday|wednesday|thursday"
+        r"|friday|saturday|sunday)\s*\??$|^do i have any reminders (?:for |on )?(?P<reminders_on3>today|tomorrow"
+        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("weather_in", re.compile(
         r"^(?:what(?:'s| is|s)? (?:the )?(?:weather|forecast|temperature)(?: like| going to be like| looking like| doing)?"
         r"|how(?:'s| is) the weather(?: looking)?|weather|is it (?:raining|snowing|cold|hot|warm|nice)"
@@ -1363,7 +1376,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -4617,6 +4630,86 @@ def _rain(when: str = "") -> str | None:
         return None
 
 
+def _coming(now=None) -> list[tuple]:
+    """(when, what, which store) for every calendar event and reminder
+    still ahead, soonest first. Never raises."""
+    import datetime as dt
+    now = now or dt.datetime.now(dt.timezone.utc)
+    rows = []
+    try:
+        from aletheia import calendar
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start >= now - dt.timedelta(minutes=30):
+                rows.append((start, str(event.get("title") or "").strip(), "calendar"))
+    except Exception:
+        pass
+    try:
+        from aletheia import scheduler
+        for spec in scheduler.all_schedules():
+            if not spec.get("enabled"):
+                continue
+            text = str((spec.get("command") or {}).get("text") or "").strip()
+            try:
+                at = scheduler.next_occurrence(spec, now)
+            except Exception:
+                continue
+            if at is not None and text:
+                rows.append((at, text, "reminder"))
+    except Exception:
+        pass
+    rows.sort(key=lambda r: r[0])
+    return rows
+
+
+_WHEN_NOUNS = frozenset({"appointment", "appt", "meeting", "call", "interview", "dinner", "lunch", "breakfast",
+                         "class", "game", "flight", "party", "reservation", "session", "visit"})
+
+
+def _when_mine(what: str) -> str | None:
+    """"What time is my dentist appointment": the soonest event or reminder
+    naming it, said with when. Every word he named must be in it."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold())
+             if w not in _STOP_WORDS and w not in ("s", "with", "at", "for")]
+    named = [w for w in words if w.rstrip("s") not in _WHEN_NOUNS]
+    words = named or words                    # "my dentist appointment" is the dentist
+    if not words:
+        return None
+    for at, text, store in _coming():
+        low = text.casefold()
+        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
+            when = speech.humanize_time(at.isoformat())
+            if store == "calendar":
+                return f"{text[:1].upper() + text[1:]} is {when}."
+            return f"You have a reminder {when}: {text.rstrip('.')}."
+    return (f"I don't see anything about {what.strip()} on your calendar or in your reminders. "
+            "If it's booked, tell me when and I'll put it on your calendar.")
+
+
+def _reminders_on(day: str) -> str | None:
+    """His reminders and alarms that go off on the day he names."""
+    import datetime as dt
+    from aletheia import localtime, voice
+    iso = voice._spoken_day(day)
+    if not iso:
+        return None
+    tz = localtime.operator_tz()
+    rows = [(at.astimezone(tz), text) for at, text, store in _coming() if store == "reminder"
+            and at.astimezone(tz).date().isoformat() == iso]
+    if not rows:
+        return f"No reminders {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}."
+    said = [f"{at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}, {text.rstrip('.')}" for at, text in rows[:6]]
+    from aletheia import speech
+    lead = f"{speech.count_phrase(len(rows), 'reminder')} {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}: "
+    return lead + "; ".join(said) + (f"; and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
+
+
 def _timer_left(now=None) -> str | None:
     """Time left on every timer still running, soonest first."""
     import datetime as dt
@@ -5713,6 +5806,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
            "weather_in": lambda rest: _weather_in(rest),
+           "when_mine": lambda rest: _when_mine(rest),
+           "reminders_on": lambda rest: _reminders_on(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
