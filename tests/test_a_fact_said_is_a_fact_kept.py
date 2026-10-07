@@ -2056,5 +2056,20 @@ class TheGateCodeCase(unittest.TestCase):
             self.assertEqual(quick.answer("what's the gate code"), "You told me: the gate code is 4471.")
 
 
+
+class RemoveThatCase(unittest.TestCase):
+    """2026-10-07: "add bread to the shopping list" then "remove that" went
+    to the planner."""
+
+    def test_that_is_what_he_just_did(self):
+        from aletheia import voice
+        with mock.patch.object(voice, "_last_ask_is_undoable", return_value=True):
+            for said in ("remove that", "actually take it off", "delete that", "take that off the list"):
+                with self.subTest(said=said):
+                    self.assertEqual(voice._interpret(said)["command"], {"kind": "undo"})
+        with mock.patch.object(voice, "_last_ask_is_undoable", return_value=False):
+            self.assertNotEqual((voice._interpret("remove that")["command"] or {}).get("kind"), "undo")
+
+
 if __name__ == "__main__":
     unittest.main()

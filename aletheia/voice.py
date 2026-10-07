@@ -2950,6 +2950,12 @@ def _interpret(transcript: str) -> dict:
         said = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(.+?) off", low)
         if said and _on_the_shopping_list(said.group(1)):
             m = said
+    if m and m.group(1).strip() in ("that", "it", "this", "them", "those"):
+        # "Take that off the list" bought "that" off the list (2026-10-07):
+        # a pronoun is the thing he just added, or nothing she can name.
+        if _last_ask_is_undoable():
+            return {"command": {"kind": "undo"}, "say": None}
+        m = None
     if m:
         # "Take the plumber one off my list": "my list" is his task list
         # too, so a thing that is a task and not a grocery is the task.
@@ -6226,6 +6232,12 @@ def _interpret(transcript: str) -> dict:
         if moved:
             return moved
 
+    # "Add bread to the shopping list" - "remove that" (2026-10-07: to the
+    # planner). Straight after an ask she can take back, "that" is it.
+    if re.fullmatch(r"(?:actually |oh |wait |no,? )?(?:remove|delete|scratch|drop|get rid of|take) (?:that|it)"
+                    r"(?: off| out| back off| back out)?(?: (?:of |from )?(?:the |my )?list)?(?: please)?", low) \
+            and _last_ask_is_undoable():
+        return {"command": {"kind": "undo"}, "say": None}
     # "UNDO THAT" is his word over her own ledger (bottom rung, 2026-09-24:
     # it went to nobody). A study verdict's "undo the change" is matched
     # further down and is a different verb.
