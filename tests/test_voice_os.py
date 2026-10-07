@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import (contacts, events, intercom, notifications, scheduler,
+from aletheia import (contacts, events, intercom, localtime, notifications, scheduler,
                       voice)
 from aletheia.fleet import load_fleet
 
@@ -129,9 +129,9 @@ class TestSpokenTimeParsing(unittest.TestCase):
 
     def test_days(self):
         import datetime as dt
-        self.assertEqual(voice._spoken_day("today"), dt.date.today().isoformat())
+        self.assertEqual(voice._spoken_day("today"), localtime.today().isoformat())
         self.assertEqual(voice._spoken_day("tomorrow"),
-                         (dt.date.today() + dt.timedelta(days=1)).isoformat())
+                         (localtime.today() + dt.timedelta(days=1)).isoformat())
         self.assertEqual(voice._spoken_day("2026-09-01"), "2026-09-01")
         self.assertIsNone(voice._spoken_day("someday"))
 

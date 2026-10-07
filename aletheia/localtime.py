@@ -54,6 +54,18 @@ def operator_tz() -> ZoneInfo:
     return ZoneInfo(operator_timezone())
 
 
+def now() -> dt.datetime:
+    """This moment on HIS clock, as an aware datetime."""
+    return dt.datetime.now(operator_tz())
+
+
+def today() -> dt.date:
+    """HIS calendar day. `date.today()` is the PROCESS's day: in a UTC container or an
+    Actions runner it is already tomorrow from seven in the evening in Chicago, so
+    "tomorrow" said then was read as the day after."""
+    return now().date()
+
+
 def parse_utc(value: str) -> dt.datetime:
     """An ISO-8601 string (Z or offset) as an aware datetime in UTC."""
     parsed = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
