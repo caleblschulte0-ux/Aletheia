@@ -1610,5 +1610,14 @@ class RemindMeInAMonthCase(unittest.TestCase):
         self.assertEqual(self._at("remind me to book flights in two months", now), ("2027-01-15", "book flights"))
 
 
+class AnythingFromTheStoreCase(unittest.TestCase):
+    def test_the_store_is_the_shopping_list_not_an_item(self):
+        from aletheia import quick
+        for said in ("do I need anything from the store", "what do I need to pick up at the store",
+                     "what's on my grocery list"):
+            self.assertEqual(quick.match(said)[0], "shopping", said)
+        self.assertNotEqual((quick.match("what do I need to pick up") or ("",))[0], "shopping")
+
+
 if __name__ == "__main__":
     unittest.main()
