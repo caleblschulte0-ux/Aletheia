@@ -2026,7 +2026,7 @@ def _named_list(kind: str, cmd: dict) -> str:
         if not held:
             return "You don't have any lists of your own yet. Say \"make a list called packing\" to start one."
         return ("Your lists: " + speech.and_list(
-            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing')})" for h in held]) + ".")
+            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing') if h['open'] else 'empty'})" for h in held]) + ".")
     if not lists.is_named_list(name):
         raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
                           "each have their own words.")

@@ -376,5 +376,13 @@ class HolidaysAndWorkdays(unittest.TestCase):
         self.assertRegex(said, r"^\d+ weekdays between now and Friday 25 December")
 
 
+class APackingListForATrip(unittest.TestCase):
+    def test_the_sort_is_the_name(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("make a packing list for my trip")["command"],
+                         {"kind": "list_new", "list": "packing"})
+        self.assertEqual(voice._interpret("start a list for the camping trip")["command"]["list"], "camping trip")
+
+
 if __name__ == "__main__":
     unittest.main()

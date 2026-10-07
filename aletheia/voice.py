@@ -1606,11 +1606,20 @@ def _named_list_said(low: str, text: str) -> dict | None:
         return {"command": {"kind": "list_read"}, "say": None}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
+    # "Make a packing list for my trip" made a list called "my trip"
+    # (2026-10-07): the sort of list he named is its name; "for my trip" is
+    # what it is for.
+    m = re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?P<sort>packing|gift|wish|reading|movie|bucket|chore)"
+                     r" list for .{2,40}", low)
+    if m and lists.is_named_list(m.group("sort")):
+        return {"command": {"kind": "list_new", "list": m.group("sort")}, "say": None}
     m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?:grocery |shopping |packing |to-?do |todo |check ?)?"
                       r"list (?:called|named|for) " + name_, low)
          or re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?" + name_ + r" list", low))
-    if m and lists.is_named_list(m.group("name")):
-        return {"command": {"kind": "list_new", "list": _as_he_said(text, m.group("name"))}, "say": None}
+    if m:
+        named = re.sub(r"^(?:the|my|our|a) ", "", m.group("name"))
+        if lists.is_named_list(named):
+            return {"command": {"kind": "list_new", "list": _as_he_said(text, named)}, "say": None}
     m = re.fullmatch(r"(?:add|put|stick|throw) (?P<item>.+?) (?:to|on|onto|in) (?:my |the )" + name_ + r" list", low)
     # "Add paper towels to costco" (2026-10-07: to the planner) names a list
     # he HAS without saying "list"; only an existing one counts.
