@@ -1077,7 +1077,7 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
     # one application (`apply_run.role_taken`); live 2026-10-07 the batch
     # threw away the copies only after the cut, and 50 of 180 slots went on
     # them. The first copy keeps its place; the rest make room.
-    matches, b, w, held = [], 0, 0, set()
+    matches, b, w, in_window = [], 0, 0, set()
     while len(matches) < cap and (b < len(board) or w < len(beyond)):
         if w < len(beyond) and (len(matches) % 3 == 2 or b >= len(board)):
             job = beyond[w]
@@ -1086,9 +1086,9 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             job = board[b]
             b += 1
         key = _one_role(job)
-        if key and key in held:
+        if key and key in in_window:
             continue
-        held.add(key)
+        in_window.add(key)
         matches.append(job)
     discovered = [job for job in matches if job.get("found_by") == "web search"]
     on_their_sites = [job for job in matches if job.get("found_by") == "company site"]
