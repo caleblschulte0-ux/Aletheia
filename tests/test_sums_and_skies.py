@@ -29,7 +29,7 @@ class TheSky(unittest.TestCase):
     def test_no_postcode_is_the_weather_sentence(self):
         with mock.patch.object(weather, "where_he_is", return_value=("", "where you live")), \
                 mock.patch.object(weather.stateio, "read_json", side_effect=FileNotFoundError):
-            self.assertIn("postcode", quick.answer("when is sunset"))
+            self.assertIn("zip code", quick.answer("when is sunset"))
 
     def test_the_moon(self):
         self.assertTrue(quick.answer("what's the moon phase").startswith("It's a"))
