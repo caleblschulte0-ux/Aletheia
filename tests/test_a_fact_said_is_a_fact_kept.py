@@ -5303,5 +5303,17 @@ class ThingsOnTheirWay(unittest.TestCase):
             self.assertIsNone(quick.answer("when are my shoes arriving"))
 
 
+class BigNumbersAndBareTemperatures(unittest.TestCase):
+    def test_a_scale_word(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 2 million times 3"), "6,000,000.")
+        self.assertEqual(quick.answer("what's 1 billion divided by 365"), "2,739,726.03.")
+
+    def test_a_bare_number_into_a_named_scale(self):
+        from aletheia import quick
+        self.assertEqual(quick.answer("what's 98.6 in celsius"), "37 degrees Celsius.")
+        self.assertEqual(quick.answer("what's 20 in fahrenheit"), "68 degrees Fahrenheit.")
+
+
 if __name__ == "__main__":
     unittest.main()

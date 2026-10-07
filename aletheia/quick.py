@@ -1559,7 +1559,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? |how much is |calculate )?(?P<pct>[\d.]+) ?(?:%|percent) of (?:\$)?(?P<of>[\d.,]+)(?P<pct_money> dollars| bucks)?$"
         # "What's a 20% tip on 45" (2026-10-07, to a model that wasn't there).
         r"|^(?:what(?:'s| is|s)? (?:a )?|how much is (?:a )?)(?P<tip>[\d.]+) ?(?:%|percent) tip (?:on|for) (?:a )?(?:\$)?(?P<bill>[\d.,]+)(?: dollars| bucks)?(?: bill| tab| check)?$"
-        r"|^what(?:'s| is|s)? (?P<a>[\d.,]+) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/) (?P<b>[\d.,]+)$"
+        # "What's 1 billion divided by 365" (2026-10-07: to a model).
+        r"|^what(?:'s| is|s)? (?P<a>[\d.,]+(?: (?:thousand|million|billion|trillion))?) (?P<op>plus|minus|times|divided by|over|x|\+|-|\*|/)"
+        r" (?P<b>[\d.,]+(?: (?:thousand|million|billion|trillion))?)$"
         # "What is 2+2", "5*3" - the symbol with no spaces (2026-10-07: to a model).
         r"|^(?:what(?:'s| is|s)? |calculate )?(?P<a2>[\d.]+) ?(?P<op2>\+|\*|/|x|×) ?(?P<b2>[\d.]+)\s*\??$"
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<n>-?[\d.,]+) (?:degrees? )?(?P<from>miles?|km|kilometers?|kilometres?|pounds?|lbs?|"
@@ -1570,7 +1572,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?P<to2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?) (?:is|are|in|make|equals?|to) (?P<n2>[\d.,]+|a|an|one) ?(?P<from2>miles?|km|kilometers?|kilometres?|pounds?|lbs?|kg|kilograms?|feet|foot|ft|meters?|metres?|inches|inch|cm|centimeters?|fahrenheit|celsius|f|c|cups?|tablespoons?|tbsp|teaspoons?|tsp|ounces?|oz|fluid ounces?|fl oz|ml|milliliters?|millilitres?|liters?|litres?|gallons?|quarts?|pints?|grams?|g|yards?|yds?)$"
         # "What's 72 degrees in Celsius" (2026-10-07: to a model) - the
         # scale it is FROM is the other one.
-        r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg>-?[\d.,]+) degrees? (?:to|in|into) (?P<deg_to>celsius|fahrenheit|c|f)$")),
+        r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg>-?[\d.,]+) degrees? (?:to|in|into) (?P<deg_to>celsius|fahrenheit|c|f)$"
+        # "What's 98.6 in celsius" (2026-10-07: to a model) - the scale named in full.
+        r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg2>-?[\d.,]+) (?:to|in|into) (?P<deg_to2>celsius|fahrenheit)$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name|zip|zip code|postcode|postal code"
@@ -5640,7 +5644,8 @@ def _math(text: str) -> str | None:
         g.update(a=g["a2"], op={"×": "x"}.get(g["op2"], g["op2"]), b=g["b2"])
 
     def num(s: str) -> float:
-        return float(str(s).replace(",", ""))
+        digits, _, scale = str(s).replace(",", "").partition(" ")
+        return float(digits) * {"thousand": 1e3, "million": 1e6, "billion": 1e9, "trillion": 1e12}.get(scale, 1)
 
     def said(v: float) -> str:
         # "100 divided by 7" was read out as "14.28571429" (2026-10-07).
@@ -5691,9 +5696,9 @@ def _math(text: str) -> str | None:
         def vol(u):
             u = re.sub(r"(?<=[a-z])s$", "", u) if u not in ("fl oz",) else u
             return volume.get(u)
-        if g.get("deg"):
-            dst = g["deg_to"].lower()
-            g = dict(g, n=g["deg"], to=dst, **{"from": "celsius" if dst in ("fahrenheit", "f") else "fahrenheit"})
+        if g.get("deg") or g.get("deg2"):
+            dst = (g.get("deg_to") or g["deg_to2"]).lower()
+            g = dict(g, n=g.get("deg") or g["deg2"], to=dst, **{"from": "celsius" if dst in ("fahrenheit", "f") else "fahrenheit"})
         n = num({"a": "1", "an": "1", "one": "1"}.get(str(g.get("n") or g.get("n2")).lower(), g.get("n") or g.get("n2")))
         src, dst = (g.get("from") or g.get("from2")).lower(), (g.get("to") or g.get("to2")).lower()
         if src in ("fahrenheit", "f") and dst in ("celsius", "c"):
