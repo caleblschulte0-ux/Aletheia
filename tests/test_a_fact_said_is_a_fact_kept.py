@@ -2038,5 +2038,23 @@ class AReminderAskedInTwoHalvesCase(unittest.TestCase):
         self.assertIsNone(voice._answering_her("what time is it", "What should I remind you about at 5? Just say it."))
 
 
+
+class TheGateCodeCase(unittest.TestCase):
+    """2026-10-07: "the gate code is 4471" went to the planner, and "what's
+    our room number" to a model with "the hotel room number is 312" kept."""
+
+    def test_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("the gate code is 4471")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("the wifi password is hunter2")["command"] or {}).get("kind"), "note")
+
+    def test_read_back(self):
+        from aletheia import quick
+        notes = [{"text": "the hotel room number is 312"}, {"text": "the gate code is 4471"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what's our room number"), "You told me: the hotel room number is 312.")
+            self.assertEqual(quick.answer("what's the gate code"), "You told me: the gate code is 4471.")
+
+
 if __name__ == "__main__":
     unittest.main()

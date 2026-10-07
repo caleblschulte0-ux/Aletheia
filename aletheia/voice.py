@@ -6429,6 +6429,13 @@ def _interpret(transcript: str) -> dict:
             unit = unit.rstrip("s")
         lead = "" if unit in ("miles", "mile", "k", "km") else "for "
         return {"command": {"kind": "note", "text": f"I {past} {lead}{n} {unit}"}, "say": None}
+    # "THE GATE CODE IS 4471" (2026-10-07: to the planner). A code or
+    # number of his, told as a fact about "the" thing, is a note in his
+    # words; a password still is not (`_no_password_in_a_note`).
+    if re.fullmatch(r"(?:the|our) [a-z][a-z' ]{1,25}? (?:code|combo|combination|number|extension|locker|room number"
+                    r"|gate code|door code|access code) is [a-z0-9#*][a-z0-9#* -]{0,24}", low) \
+            and re.search(r"\d", low) and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.
