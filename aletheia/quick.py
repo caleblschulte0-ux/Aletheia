@@ -10346,8 +10346,15 @@ def _arrived(text: str) -> str | None:
     said_it = re.compile(r"^(?:(?:i'?m|i am) (?:just |now |finally )?(?:at |back |back at |here at |in at )?"
                          r"|(?:i'?ve |i have |i )?(?:just |finally )?(?:got|arrived|made it|got back)(?: to| at)? )"
                          r"(?:the )?" + re.escape(word) + r"\b", re.I)
-    for row in _notes():
-        said = " ".join(str(row.get("text") or "").split())
+    # "I'm home" is answered "Welcome back" and kept as a turn of the
+    # conversation rather than a note, so the conversation is read too.
+    try:
+        from aletheia import converse
+        turns = [{"text": t.get("you"), "ts": t.get("at")} for t in reversed(converse._thread())]
+    except Exception:  # noqa: BLE001
+        turns = []
+    for row in sorted(list(_notes()) + turns, key=lambda r: str(r.get("ts") or ""), reverse=True):
+        said = re.sub(r"^(?:hey |ok |okay )?thea,? ", "", " ".join(str(row.get("text") or "").split()), flags=re.I)
         if not said_it.match(said):
             continue
         try:
@@ -10355,7 +10362,7 @@ def _arrived(text: str) -> str | None:
         except ValueError:
             continue
         if at.date() != today:
-            return None
+            continue
         return f"At {at.strftime('%I:%M %p').lstrip('0').lower()} - that's when you told me you were {'home' if word == 'home' else 'at ' + place}."
     return None
 
