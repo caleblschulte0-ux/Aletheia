@@ -2363,5 +2363,38 @@ class ATaskSaidInPassing(unittest.TestCase):
             self.assertNotEqual((voice._interpret("emailed Sam")["command"] or {}).get("kind"), "task_done")
 
 
+
+class HerHoldIsNotASubscription(unittest.TestCase):
+    """2026-10-07: "cancel my haircut" after she pencilled it in was a
+    subscription cancellation; "move my haircut to 11" went to the planner."""
+
+    HOLD = {"title": "haircut", "start": "2026-10-08T10:00:00-05:00", "end": "2026-10-08T11:00:00-05:00"}
+
+    def test_cancel_and_move(self):
+        with mock.patch.object(voice, "_one_of_her_holds",
+                               side_effect=lambda w: (self.HOLD, "") if "haircut" in w else (None, "")):
+            self.assertEqual(voice._interpret("cancel my haircut")["command"],
+                             {"kind": "hold_release", "title": "haircut", "start": self.HOLD["start"]})
+            got = voice._interpret("move my haircut to 11")["command"]
+            self.assertEqual((got["kind"], got["replaces"]), ("calendar_hold", self.HOLD["start"]))
+            self.assertIn("T11:00", got["start"])
+            self.assertEqual(voice._interpret("cancel netflix")["command"]["kind"], "subscription_cancel")
+
+
+class ADueDayIsKeptAsADate(unittest.TestCase):
+    """2026-10-07: "the rent is due friday" went to the planner, and "when
+    are my library books due" to a model."""
+
+    def test_a_weekday_becomes_its_date(self):
+        got = voice._interpret("the rent is due friday")["command"]
+        self.assertEqual(got["kind"], "note")
+        self.assertRegex(got["text"], r"^the rent is due Friday \d{1,2} [A-Z][a-z]+$")
+        self.assertEqual(voice._interpret("my library books are due tomorrow")["command"]["kind"], "note")
+
+    def test_the_question_in_the_plural(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("when are my library books due")[0], "task_due")
+
+
 if __name__ == "__main__":
     unittest.main()

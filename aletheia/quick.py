@@ -1434,7 +1434,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_due", re.compile(
         r"^when(?:'s| is) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<due>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)? due\s*\??$"
         r"|^when do i (?:need|have) to (?P<due2>[a-z][a-z0-9 '-]{1,40}?)(?: by)?\s*\??$"
-        r"|^what(?:'s| is) the (?:deadline|due date) (?:for|on) (?:my |the )?(?P<due3>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)?\s*\??$")),
+        r"|^what(?:'s| is) the (?:deadline|due date) (?:for|on) (?:my |the )?(?P<due3>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)?\s*\??$"
+        # "When are my library books due" (2026-10-07: to a model).
+        r"|^when are (?:my |the |our )?(?!(?:they|those|these)\b)(?P<due4>[a-z0-9][a-z0-9 '-]{1,40}?) due(?: back)?\s*\??$")),
     ("place_addr", re.compile(
         r"^what(?:'s| is|s) (?:my |the )(?P<place_a>(?!email\b|e-mail\b|ip\b|web\b|mac\b|mailing\b)[a-z][a-z' ]{0,30}?) address\s*\??$")),
     ("recall", re.compile(
@@ -1835,7 +1837,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bday", "meal", "meal2", "meal3", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",

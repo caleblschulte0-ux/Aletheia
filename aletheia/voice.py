@@ -5247,6 +5247,13 @@ def _interpret(transcript: str) -> dict:
     # words pick out one of his tasks, which can be moved.
     m = re.fullmatch(r"(?:move|reschedule|push|shift|bump) (?:my |the )?(?P<what>.*?(?:appointment|meeting|call|lunch|dinner"
                      r"|breakfast|interview|\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock))(?: with [a-z' ]+?)?)(?: back)? (?:to|till|until|for) .+", low)
+    # "Move my haircut to 11" after she pencilled the haircut in (2026-10-07:
+    # to the planner) - any word that names one of her own holds.
+    if not m:
+        m = re.fullmatch(r"(?:move|reschedule|push|shift|bump) (?:my |the )?(?P<what>[a-z][a-z' ]{1,30}?)(?: back)? "
+                         r"(?:to|till|until) .+", low)
+        if m and not _one_of_her_holds(m.group("what"))[0]:
+            m = None
     if m and not _names_one_open_task(m.group("what")):
         hold, why = _one_of_her_holds(m.group("what"))
         to = re.search(r" (?:to|till|until|for) (?P<when>.+)$", low)
@@ -5298,6 +5305,14 @@ def _interpret(transcript: str) -> dict:
                      r"(?: membership| subscription| plan)?", low)
     if (m and 2 <= len(m.group(1)) <= 60
             and not _HERS_NOT_A_SERVICE.search(m.group(1))):
+        # "Cancel my haircut" after she pencilled it in (2026-10-07: it was
+        # prepared as cancelling a SUBSCRIPTION called haircut). Her own
+        # hold that the words name is the thing.
+        hold, why = _one_of_her_holds(m.group(1))
+        if hold:
+            return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
         return {"command": {"kind": "subscription_cancel",
                             "subscription": m.group(1).strip()}, "say": None}
 
@@ -6811,9 +6826,18 @@ def _interpret(transcript: str) -> dict:
     # his words, and "when did I last change the oil" reads it back.
     if re.fullmatch(r"i (?:just )?(?:" + _DONE_VERBS + r") (?:the |my |our |his |her |a |an |some )?[a-z][a-z' ]{1,50}"
                     r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
-            or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs out|is due|renews|ends) (?:on |in )?"
+            or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The rent is due Friday" (2026-10-07: to the planner). A weekday is
+    # only true this week, so the note keeps the date it meant.
+    m = re.fullmatch(r"(?P<thing>(?:my|our|the) [a-z][a-z' ]{1,30}?) (?P<verb>expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |by )?"
+                     r"(?P<day>today|tomorrow|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+    if m and _spoken_day(m.group("day")):
+        import datetime as dt
+        on = dt.date.fromisoformat(_spoken_day(m.group("day"))[:10])
+        dated = f"{m.group('thing')} {m.group('verb')} {on.strftime('%A')} {on.day} {on.strftime('%B')}"
+        return {"command": {"kind": "note", "text": _as_he_said(text, dated)}, "say": None}
 
     # Unrecognized by the patterns above — which is not the same as
     # unrecognizable. Until 2026-08-27 this branch journaled the sentence
