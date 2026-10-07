@@ -365,5 +365,16 @@ class AContactCanBeTakenOut(unittest.TestCase):
         self.assertEqual(speech.spoken_receipt("contact_remove", said), "You have no contact called nobody-at-all.")
 
 
+class HolidaysAndWorkdays(unittest.TestCase):
+    def test_holidays_coming_up_are_listed(self):
+        from aletheia import quick
+        self.assertTrue(quick.answer("what holidays are coming up").startswith("Coming up: "))
+
+    def test_weekdays_until_counts_monday_to_friday(self):
+        from aletheia import quick
+        said = quick.answer("how many weekdays until christmas")
+        self.assertRegex(said, r"^\d+ weekdays between now and Friday 25 December")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -597,7 +597,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("holiday_next", re.compile(
         r"^(?:what(?:'s| is|s) the next (?:holiday|public holiday|federal holiday|big holiday)"
         r"|what holiday is (?:next|coming up)|when(?:'s| is|s) the next (?:holiday|public holiday|federal holiday))\s*\??$"
-        r"|^is (?P<holiday_on>today|tomorrow|it) a (?:holiday|public holiday|federal holiday)(?: today)?\s*\??$")),
+        r"|^is (?P<holiday_on>today|tomorrow|it) a (?:holiday|public holiday|federal holiday)(?: today)?\s*\??$"
+        # "What holidays are coming up" (2026-10-07: to a model)
+        r"|^(?:what|which) (?P<holiday_list>holidays) (?:are )?(?:coming up|are next|are left(?: this year)?|do we have coming up)\s*\??$"
+        r"|^(?:what are the |list the )?(?P<holiday_list2>upcoming|next (?:few|three|3)) holidays\s*\??$")),
+    # "How many weekdays until Christmas" (2026-10-07: to a model)
+    ("workdays_until", re.compile(
+        r"^how many (?:weekdays|work ?days|working days|business days|school days) (?:are there )?(?:until|till|to|before|left (?:until|till|before)) "
+        r"(?:the )?(?P<workdays>[a-z0-9][a-z0-9' ]{2,30}?)\s*\??$")),
     ("calendar_fact", re.compile(
         r"^(?:what(?:'s| is|s| was)? the date|what date is it|what date was it) (?P<cal>tomorrow|yesterday)\s*\??$"
         r"|^what (?:was|is) (?P<cal2>yesterday|tomorrow)(?:'s)? date\s*\??$"
@@ -1652,7 +1659,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3",
-                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
+                                           "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "holiday_on", "holiday_list", "holiday_list2", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
@@ -1767,6 +1774,19 @@ _HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's D
                   "Thanksgiving", "Christmas Eve", "Christmas", "New Year's Eve")
 
 
+def _workdays_until(words: str) -> str | None:
+    """Monday-to-Friday days from tomorrow up to (not including) the date."""
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when = _named_date(words, today) or _his_date(words, today)
+    if when is None or when <= today:
+        return None
+    days = sum(1 for n in range(1, (when - today).days) if (today + dt.timedelta(days=n)).weekday() < 5)
+    said = when.strftime("%A %d %B").replace(" 0", " ")
+    return f"{days} weekday{'s' if days != 1 else ''} between now and {said}, not counting today or that day."
+
+
 def _holiday_next(which: str = "") -> str | None:
     """The next holiday, or whether today or tomorrow is one."""
     import datetime as dt
@@ -1783,6 +1803,10 @@ def _holiday_next(which: str = "") -> str | None:
             return f"Yes - {said} is {on[0]}."
         when, name = next((d, n) for d, n in dated if d > day)
         return f"No. The next one is {name}, {when.strftime('%A')} {when.day} {when.strftime('%B')}."
+    if which == "list":
+        from aletheia import speech
+        said = [f"{name} on {d.strftime('%A')} {d.day} {d.strftime('%B')}" for d, name in dated[:3]]
+        return f"Coming up: {speech.and_list(said)}."
     when, name = dated[0]
     away = (when - today).days
     lead = "today" if away == 0 else "tomorrow" if away == 1 else f"in {away} days"
@@ -7131,7 +7155,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "news": lambda rest: _news(),
            "stopwatch": lambda rest: _stopwatch(),
            "stopwatch_it": lambda rest: _stopwatch_running(),
-           "holiday_next": lambda rest: _holiday_next(rest),
+           "holiday_next": lambda rest: _holiday_next("list" if rest in ("holidays", "upcoming") or rest.startswith("next") else rest),
+           "workdays_until": _workdays_until,
            "speaking_pace": lambda rest: _speaking_pace(),
            "weather": lambda rest: _weather(rest),
            "weather_more": lambda rest: _weather_more(rest),
