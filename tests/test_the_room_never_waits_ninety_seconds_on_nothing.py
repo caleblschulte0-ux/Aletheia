@@ -562,7 +562,7 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
         (patched, not a PATH strip): four fell through that a store settles."""
         for s, name in (("what did we talk about earlier", "asked_on"),
                         ("what have we discussed today", "asked_on"),
-                        ("what's the wifi password", "fact_q"),
+                        ("what's the wifi password", "no_password"),
                         ("how many jobs are left to apply to", "jobs_left"),
                         ("what's left to apply for", "jobs_left")):
             self.assertEqual((quick.match(s) or ("",))[0], name, s)

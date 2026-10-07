@@ -168,6 +168,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"just want to|really want to) (?:die|dying|kill(?:ing)? myself|end(?:ing)? (?:it all|my life)|hurt(?:ing)? myself|be dead)$"
         r"|^(?:i'm|im|i am|i feel|feeling) (?:suicidal|thinking about suicide)$"
         r"|^i don'?t want to (?:live|be alive|be here) anymore$")),
+    # "What's my password for Netflix" said "I don't have anything
+    # remembered about password for netflix" (2026-10-07), as if one could
+    # be. She never keeps a password; said the same way every time.
+    ("no_password", re.compile(
+        r"^(?:what(?:'s| is|s| was)|tell me|give me|read me|do you (?:know|have|remember)|remind me(?: of)?) (?:my |the |our )?"
+        r"(?:[a-z0-9][a-z0-9 '-]{0,30} )?(?:password|passcode|passphrase)(?: (?:for|to|on) (?:my |the |our )?[a-z0-9][a-z0-9 '-]{0,30})?\s*\??$")),
     # `down` marks the alternatives that ask whether she is STOPPED, so
     # the answer can agree with the question. Without it "are you
     # running" and "you there" -- the two most natural ways to ask --
@@ -502,6 +508,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: today| this morning| yesterday| last time)?\s*\??$")),
     # "How long have I been awake" (2026-10-07: to a model, after "I woke up at 6:30").
     ("awake_for", re.compile(r"^how long (?:have i been|am i) (?:awake|up)(?: for| today| now)?\s*\??$")),
+    # "When did I get to work" (2026-10-07: to a model, after "I'm at work").
+    ("arrived", re.compile(
+        r"^(?:when|what time) did i (?:get|arrive|make it) (?:to |at )?(?P<arrived>work|the office|home|school|the gym)\s*\??$")),
     ("woke_usual", re.compile(
         r"^(?:what time|when) do i (?:usually|normally|typically|tend to) (?:wake up|get up|go to bed|go to sleep|fall asleep)\s*\??$"
         r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$")),
@@ -1090,7 +1099,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s| does) (?P<day12>monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this weekend|next weekend)"
         r"(?: looking like| look like)$"
         # "Is anything happening Saturday" (2026-10-07: to the planner).
-        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up|going on)|(?:is (?:there )?|(?:do i have|have i got) )?anything(?: (?:on|happening|coming up|planned|going on))?|what have i got on"
+        r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up|going on)|(?:is (?:there )?|(?:do i have|have i got) (?!anything(?: on| planned| scheduled| going on)? (?:today|tomorrow)$))?anything(?: (?:on|happening|coming up|planned|going on))?|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
         r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s| does)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
@@ -1243,7 +1252,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when (?:am i|will i be) (?:done|finished|free) (?:today|for the day|tonight|tomorrow)\s*\??$")),
     ("next_meeting", re.compile(
         r"^what(?:'s| is|s)? my next (?:meeting|appointment|event)$"
-        r"|^how long (?:until|till|before) my next (?:meeting|appointment|event)$"
+        r"|^how (?:long|much time)(?: is there)? (?:until|till|before) my next (?:meeting|appointment|event)$"
         r"|^when(?:'s| is)? my next (?:meeting|appointment|event)$"
         r"|^do i have (?:any )?(?:meetings|appointments)(?: coming up| today)?$"
         r"|^what(?:'s| is|s)? (?:next |coming up )?on my (?:calendar|schedule|agenda)$"
@@ -2297,7 +2306,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -10325,6 +10334,37 @@ def _reading(text: str) -> str:
     return f"You haven't told me your {named}. Say \"my {named} was\" and the number, and I'll keep it."
 
 
+def _arrived(text: str) -> str | None:
+    """When he said he got somewhere today ("I'm at work", "I got home"),
+    from the time on the note. None when he didn't say: a model may know."""
+    import datetime as dt
+    from aletheia import localtime
+    place = (_groups("arrived", text).get("arrived") or "").strip()
+    word = re.sub(r"^the ", "", place)
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    said_it = re.compile(r"^(?:(?:i'?m|i am) (?:just |now |finally )?(?:at |back |back at |here at |in at )?"
+                         r"|(?:i'?ve |i have |i )?(?:just |finally )?(?:got|arrived|made it|got back)(?: to| at)? )"
+                         r"(?:the )?" + re.escape(word) + r"\b", re.I)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not said_it.match(said):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if at.date() != today:
+            return None
+        return f"At {at.strftime('%I:%M %p').lstrip('0').lower()} - that's when you told me you were {'home' if word == 'home' else 'at ' + place}."
+    return None
+
+
+def _no_password() -> str:
+    from aletheia import voice
+    return voice._NO_PASSWORDS
+
+
 def _awake_for() -> str:
     """Since the time he said he woke up today, or how to tell her."""
     import datetime as dt
@@ -11040,6 +11080,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "woke_usual": lambda text: _woke_usual(text),
            "reading": lambda text: _reading(text),
            "awake_for": lambda text: _awake_for(),
+           "no_password": lambda text: _no_password(),
+           "arrived": lambda text: _arrived(text),
            "synonym": lambda rest: _related(rest, "synonyms"),
            "antonym": lambda rest: _related(rest, "antonyms"),
            "after_that": lambda rest: _after_that(),

@@ -5195,5 +5195,36 @@ class HisNumbersReadBack(unittest.TestCase):
             self.assertIn("haven't told me when you woke up", quick.answer("how long have i been awake"))
 
 
+class APasswordIsAskedForEveryWay(unittest.TestCase):
+    """"What's my password for Netflix" said nothing was remembered, as if it could be."""
+
+    def test_every_phrasing_gets_the_same_line(self):
+        from aletheia import quick, voice
+        for asked in ("what's my password for netflix", "what's my netflix password",
+                      "what is the password for the wifi", "remind me of my bank password"):
+            self.assertEqual(quick.answer(asked), voice._NO_PASSWORDS, asked)
+
+    def test_a_combination_is_not_a_password(self):
+        from aletheia import quick
+        self.assertNotEqual(quick.match("what's my locker combination")[0], "no_password")
+
+
+class WhenHeGotThere(unittest.TestCase):
+    """"When did I get to work" went to a model after "I'm at work"."""
+
+    def test_the_time_on_the_note(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I'm at work", "ts": now}]):
+            self.assertIn("you told me you were at work", quick.answer("when did i get to work"))
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i work at acme", "ts": now}]):
+            self.assertIsNone(quick.answer("when did i get to work"))
+
+    def test_time_until_the_next_meeting(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("how much time until my next meeting")[0], "next_meeting")
+
+
 if __name__ == "__main__":
     unittest.main()
