@@ -75,7 +75,7 @@ MAIL_KINDS = frozenset({"email_check", "email_read", "thread_status"})
 #: an interface can ask before offering them as one-tap buttons.
 DESTRUCTIVE_KINDS = frozenset({
     "file_delete", "forget", "halt", "close", "agent_stop", "agents_pause",
-    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off", "contact_remove",
+    "shopping_off", "reminder_off", "notify_clear", "screen_record_stop", "list_off", "contact_remove", "hold_release",
     "subscription_cancel", "chatgpt_off", "eyes_off", "mic_off", "project_drop",
     "apply_pause",
 })
@@ -87,7 +87,7 @@ IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
     "open", "reminder_off", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
-    "contact_remove",
+    "contact_remove", "hold_release",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
 })
@@ -166,7 +166,7 @@ STORE_OF = {
     "mission_confirm": "programs", "mission_activity": "programs",
     "thread_draft": "conversations", "thread_status": "conversations", "thread_send": "conversations",
     "thread_followup": "conversations", "calendar_propose": "conversations",
-    "calendar_find_free": "calendar", "calendar_hold": "calendar",
+    "calendar_find_free": "calendar", "calendar_hold": "calendar", "hold_release": "calendar",
 }
 
 #: Argument shapes the bare grammar cannot say. Everything not listed is
@@ -716,7 +716,7 @@ SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "posting to Instagram": ("instagram_post", "instagram_posts"),
     "your interviews": ("interview_window_set", "interview_status"),
     "your calendar and the weather": ("free_time", "meet", "calendar_find_free",
-                                      "calendar_hold", "calendar_propose"),
+                                      "calendar_hold", "hold_release", "calendar_propose"),
     "people you know": ("contacts", "contact_add", "contact_remove", "watch_email_from",
                         "watches"),
     "remembering things": ("remember", "recall", "forget", "note"),

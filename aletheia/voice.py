@@ -1431,6 +1431,44 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
                         "replaces": previous["text"]}, "say": None}
 
 
+def _one_of_her_holds(words: str):
+    """(hold, why-not): the one tentative hold SHE pencilled in that his
+    words name - by its time ("my 2pm") or its title ("meeting with sam").
+    Only her own holds: an event on his live calendar is never one."""
+    import datetime as dt
+    try:
+        from aletheia import calendar, localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(dt.timezone.utc)
+        mine = []
+        for event in calendar.all_events():
+            if event.get("status") != "TENTATIVE" or not str(event.get("source") or "").startswith("hold:"):
+                continue
+            start = calendar.parse_time(event["start"])
+            if start > now:
+                mine.append((start.astimezone(tz), event))
+    except Exception:
+        return None, ""
+    said = " ".join(str(words or "").casefold().split())
+    said = re.sub(r"^(?:my|the|our) ", "", said)
+    said = re.sub(r" (?:today|tomorrow)$", "", said)
+    clock = re.fullmatch(r"(\d{1,2})(?::(\d\d))?\s*(am|pm|o'?clock)?(?: (?:meeting|appointment|call|one|thing))?", said)
+    if clock:
+        hour, minute = int(clock.group(1)), int(clock.group(2) or 0)
+        hits = [(s, e) for s, e in mine if s.minute == minute and s.hour % 12 == hour % 12
+                and (clock.group(3) not in ("am", "pm") or (s.hour >= 12) == (clock.group(3) == "pm"))]
+    else:
+        title = re.sub(r"^(?:appointment|meeting|call)(?: with)? ", "", said)
+        title = re.sub(r" (?:appointment|meeting|call|thing|hold)$", "", title)
+        keys = [w for w in re.findall(r"[a-z0-9']+", title) if w not in ("with", "the", "a", "my")]
+        hits = [(s, e) for s, e in mine if keys and all(k in str(e.get("title") or "").casefold() for k in keys)]
+    if len(hits) == 1:
+        return hits[0][1], ""
+    if len(hits) > 1:
+        return None, "more than one"
+    return None, ""
+
+
 def _moved_hold(time_words: str) -> dict | None:
     """"Make it 8" after "put dinner with Sam on my calendar Friday at 7"
     (2026-10-07: to the planner): the hold he just made, same day, the new
@@ -4368,6 +4406,17 @@ def _interpret(transcript: str) -> dict:
         r"|today|tonight|tomorrow|this (?:morning|afternoon|evening)|monday|tuesday|wednesday"
         r"|thursday|friday|saturday|sunday|weekend|lunch|dinner|breakfast|call|plans)\b", re.IGNORECASE)
 
+    m = re.fullmatch(r"(?:cancel|delete|remove) (?:my |the )?(?P<w>(?:meeting|appointment|call|lunch|dinner|coffee|hold) with [a-z' ]{2,30}?)"
+                     r"(?: (?:today|tomorrow|on [a-z]+))?", low)
+    if m:
+        hold, why = _one_of_her_holds(m.group("w"))
+        if hold:
+            return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+        return {"command": None,
+                "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
+                       "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
     if re.fullmatch(r"cancel (?:my |the )?(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?|noon)"
                     r"(?: (?:today|tomorrow|meeting|appointment|call))?", low) \
             or re.fullmatch(r"cancel (?:my |the )?[a-z' ]{2,30}? (?:appointment|meeting|lunch|dinner|call)"
@@ -4375,6 +4424,14 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:clear|empty|wipe|cancel everything on) (?:my |the )?(?:calendar|schedule|day)"
                             r"(?: for)?(?: (?:today|tomorrow|this week|monday|tuesday|wednesday|thursday|friday"
                             r"|saturday|sunday))?|cancel (?:all )?(?:my )?(?:meetings|appointments)(?: (?:today|tomorrow))?", low):
+        named = re.sub(r"^cancel (?:my |the )?", "", low)
+        hold, why = _one_of_her_holds(named) if low.startswith("cancel") else (None, "")
+        if hold:
+            # "Cancel my meeting with Sam" after she pencilled it in (2026-10-07):
+            # her own hold is hers to take off.
+            return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
@@ -4384,6 +4441,26 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:move|reschedule|push|shift|bump) (?:my |the )?(?P<what>.*?(?:appointment|meeting|call|lunch|dinner"
                      r"|breakfast|interview|\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock))(?: with [a-z' ]+?)?)(?: back)? (?:to|till|until|for) .+", low)
     if m and not _names_one_open_task(m.group("what")):
+        hold, why = _one_of_her_holds(m.group("what"))
+        to = re.search(r" (?:to|till|until|for) (?P<when>.+)$", low)
+        if hold and to and _spoken_time(to.group("when").replace("at ", "")):
+            # "Move my 2pm to 3" after she pencilled it in (2026-10-07): her own
+            # hold, same day, the new time, the same length.
+            import datetime as dt
+            from aletheia import calendar as _cal, localtime
+            tz = localtime.operator_tz()
+            was = _cal.parse_time(hold["start"]).astimezone(tz)
+            ends = _cal.parse_time(hold["end"]).astimezone(tz) if hold.get("end") else was + dt.timedelta(hours=1)
+            words = to.group("when").replace("at ", "")
+            hour, minute = map(int, _spoken_time(words).split(":"))
+            if _is_bare_hour(words) and was.hour >= 12 and hour < 12:
+                hour += 12
+            new = was.replace(hour=hour, minute=minute)
+            return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
+                                "minutes": max(5, int((ends - was).total_seconds() // 60)),
+                                "replaces": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
         return {"command": None,
                 "say": "I can't move things on your calendar yet - I can only add holds to it. "
                        "Move it in your calendar, and if you want a hold at the new time, tell me when."}

@@ -555,6 +555,12 @@ def spoken_receipt(kind: str, detail: str, *,
     improvement and never a fabrication.
     """
     text = str(detail or "").strip()
+    if kind == "hold_release":
+        gone = re.match(r"hold (\S+) released\s*[—-]\s*(.+)$", text)
+        if gone and gone.group(1) != "none":
+            return f"Took {gone.group(2).strip()} off your calendar."
+        if gone:
+            return gone.group(2)[:1].upper() + gone.group(2)[1:] + "."
     if kind == "contact_remove":
         gone = re.match(r"contact (\S+) removed\s*[—-]\s*(.+)$", text)
         if gone and gone.group(1) != "none":

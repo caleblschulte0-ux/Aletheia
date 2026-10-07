@@ -433,5 +433,28 @@ class TheClockElsewhereAskedOtherWays(unittest.TestCase):
         self.assertRegex(quick.answer("when it's noon here what time is it in paris"), r"in Paris\.$")
 
 
+class HerOwnHoldsCanBeMovedAndCancelled(unittest.TestCase):
+    def run_it(self, said):
+        from aletheia import intercom, speech, voice
+        cmd = voice._interpret(said)
+        if not cmd.get("command"):
+            return cmd.get("say")
+        return speech.spoken_receipt(cmd["command"]["kind"],
+                                     intercom.execute_command(cmd["command"], {"repos": {}}, quote="test"))
+
+    def test_move_then_cancel(self):
+        self.assertIn("Pencilled in", self.run_it("put a meeting with quinn on my calendar on saturday at 2"))
+        self.assertIn("3 pm", self.run_it("move my meeting with quinn to 3"))
+        self.assertIn("off your calendar", self.run_it("cancel my meeting with quinn"))
+        self.assertIn("can't cancel", self.run_it("cancel my meeting with quinn"))
+
+    def test_his_live_calendar_is_never_touched(self):
+        from unittest import mock
+        from aletheia import calendar, voice
+        live = {"id": "e1", "title": "dentist", "start": "2099-01-01T15:00:00+00:00", "status": "CONFIRMED", "source": "google"}
+        with mock.patch.object(calendar, "all_events", return_value=[live]):
+            self.assertEqual(voice._one_of_her_holds("dentist"), (None, ""))
+
+
 if __name__ == "__main__":
     unittest.main()

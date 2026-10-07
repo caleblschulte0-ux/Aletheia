@@ -236,6 +236,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
     "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces"}),
+    "hold_release":  ({"title", "start"}, set()),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
     # for a .docx and rows for a .xlsx.
@@ -734,6 +735,10 @@ KIND_NOTES: dict[str, str] = {
         'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
         'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
         'clashes and says with what.'),
+    "hold_release": (
+        'Take one of HER OWN tentative holds off his calendar model - one she pencilled in, never an '
+        'event of his live calendar: "cancel my meeting with Sam" after she held it. title and start '
+        'are the hold\'s own. Released, not deleted: its history is kept.'),
     "calendar_propose": (
         'Offer times to the other person in a conversation: "suggest some times to the landlord next '
         'week". thread is who it is with; when the stretch of days; minutes; location. It drafts the '
@@ -778,7 +783,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "message_send", "music",
                # her conversations and his calendar model are private state on the PC
                "thread_draft", "thread_status", "thread_send", "thread_followup",
-               "calendar_find_free", "calendar_hold", "calendar_propose",
+               "calendar_find_free", "calendar_hold", "hold_release", "calendar_propose",
                # research only READS pages, but it reads them with the
                # operator's browser, so it belongs to the PC runner
                "research",
@@ -961,7 +966,7 @@ ROUTINE_KINDS = frozenset({
     # nobody. Every one of them that would SEND waits on its own hash-bound
     # approval (email.send / email.followup), so this tier authorizes writing
     # it down and nothing past that.
-    "thread_draft", "thread_followup", "calendar_hold", "calendar_propose",
+    "thread_draft", "thread_followup", "calendar_hold", "hold_release", "calendar_propose",
     # Deleting and moving keep a version FIRST, so both are undoable. A
     # delete that cannot lose anything is a shelf, not a shredder.
     "file_delete", "file_move",
@@ -3019,6 +3024,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said += " Pencilled in already: " + speech.and_list(
                 [f"{h['title']} {calendar_reasoning.human(h['start'])}" for h in held[:3]]) + "."
         return said
+    if kind == "hold_release":
+        from aletheia import calendar as _calendar, calendar_reasoning
+        event_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["start"]))
+        try:
+            held = _calendar.load(event_id)
+        except (OSError, ValueError):
+            held = None
+        if not held or held.get("status") == "CANCELLED":
+            return f"hold none released — there's no hold for {cmd['title']} at that time"
+        calendar_reasoning.release_hold(event_id, why="released: he cancelled it")
+        return f"hold {event_id} released — {held.get('title')} {calendar_reasoning.human(held['start'])}"
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
         import datetime as _dt
