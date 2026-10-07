@@ -4459,7 +4459,8 @@ class UndoingARemovalPutsItBack(unittest.TestCase):
             turns = [{"he_asked": "remove everything from the list", "she_answered": said}]
             with mock.patch.object(converse, "recent", return_value=turns):
                 back = intercom._undo_his_last_ask()
-                self.assertIn("eggs and milk back", back)
+                # Added in the same instant, the two come back in either order.
+                self.assertRegex(back, r"(?:eggs and milk|milk and eggs) back")
                 self.assertEqual(intercom._undo_his_last_ask(), "That's already back on the shopping list.")
             self.assertEqual(sorted(r["need"] for r in intercom._shopping_items()), ["eggs", "milk"])
 
@@ -4948,6 +4949,28 @@ class HealthAndSeveralTimesADay(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=[]):
             said = quick.answer("when can i take more tylenol")
         self.assertIn("won't guess at a dose", said)
+
+
+class DidIFinishIt(unittest.TestCase):
+    def test_a_note_says_yes(self):
+        from aletheia import quick, tasks
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "i finished the report"}]), \
+                mock.patch.object(tasks, "all_tasks", return_value=[]):
+            self.assertTrue(quick.answer("did i finish the report").startswith("Yes - you told me you finished the report"))
+
+    def test_an_open_task_says_not_yet(self):
+        from aletheia import quick, tasks
+        task = {"id": "t", "description": "clean the garage", "status": "PENDING"}
+        with mock.patch.object(quick, "_notes", return_value=[]), \
+                mock.patch.object(tasks, "all_tasks", return_value=[task]), \
+                mock.patch.object(tasks, "is_his", return_value=True):
+            self.assertEqual(quick.answer("did i finish cleaning the garage"),
+                             "Not yet - clean the garage is still open on your list.")
+
+    def test_a_thing_no_store_knows_is_left_for_a_model(self):
+        from aletheia import quick, tasks
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch.object(tasks, "all_tasks", return_value=[]):
+            self.assertIsNone(quick._did_finish("the mail"))
 
 
 if __name__ == "__main__":

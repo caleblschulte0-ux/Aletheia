@@ -411,6 +411,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_count", re.compile(
         r"^how many times (?:did|have) i (?P<dc_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|call|visit|pay"
         r"|take|charge|empty|fill|refill)(?:ed|d)? (?P<dc_o>[a-z][a-z' ]{1,40}?)(?P<dc_when> today| this week| this month| yesterday)?\s*\??$")),
+    # "Did I finish the report" (2026-10-07: to the planner) - his list and
+    # what he told her he finished.
+    ("did_finish", re.compile(
+        r"^(?:did|have) i (?:finish(?:ed)?|complete(?:d)?|wrap(?:ped)? up) (?:the |my )?(?P<did_finish>[a-z0-9][a-z0-9' ]{1,40}?)"
+        r"(?: done| finished)?(?: yet| already| today| this week)?\s*\??$")),
     # "What did I add to the list today" (2026-10-07: to the planner).
     ("shop_added", re.compile(
         r"^what (?:did i|have i|did we|have we) (?:add|added|put)(?: on| to)? (?:to |on )?(?:my |the |our )?(?:shopping |grocery )?list"
@@ -2272,7 +2277,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
-                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when")
+                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -4477,6 +4482,43 @@ def _tasks() -> str:
         # next first; a long one still names the next.
         return f"{lead}: {speech.and_list(names)}."
     return lead + (f". Next: {what[:130].rstrip('.')}." if what else ".")
+
+
+def _did_finish(what: str) -> str | None:
+    """"Did I finish the report": a task of his ticked off, or a note that
+    he finished it - and an open task by that name is a plain no. None when
+    neither store knows the thing at all, so nothing is guessed."""
+    import datetime as dt
+    from aletheia import speech, tasks
+    what = " ".join(str(what or "").casefold().split())
+    words = [w for w in re.findall(r"[a-z0-9]+", what) if w not in ("the", "my", "a", "an", "it", "that")]
+    if not words or what in ("it", "that", "everything", "anything"):
+        return None
+
+    # "Did I finish cleaning the garage" is the task "clean the garage".
+    stems = [w[:-3] if len(w) > 5 and w.endswith("ing") else w.rstrip("s") for w in words]
+
+    def names(text: str) -> bool:
+        low = str(text or "").casefold()
+        return all(re.search(rf"\b{re.escape(w)}", low) for w in stems)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"i(?:'ve| have)? (?:just )?(?:finished|completed|wrapped up|did|done) (.+)", said, re.IGNORECASE)
+        if m and names(m.group(1)):
+            when = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"Yes - you told me you finished {speech.as_she_says_it(m.group(1)).rstrip('.')}" + (f", {when}." if when else ".")
+    try:
+        rows = [t for t in tasks.all_tasks() if tasks.is_his(t) and names(t.get("description"))]
+    except Exception:
+        return None
+    done = [t for t in rows if str(t.get("status") or "").upper() == "COMPLETED"]
+    if done:
+        t = max(done, key=lambda t: str(t.get("updated_at") or ""))
+        when = speech.humanize_time(str(t.get("updated_at") or "")) if t.get("updated_at") else ""
+        return f"Yes - you ticked off {str(t.get('description') or '').rstrip('.')}" + (f" {when}." if when else ".")
+    if rows:
+        return f"Not yet - {str(rows[0].get('description') or '').rstrip('.')} is still open on your list."
+    return None
 
 
 def _tasks_done(when: str = "") -> str:
@@ -10827,6 +10869,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "did_finish": lambda rest: _did_finish(rest),
            "shop_added": lambda rest: _shop_added(rest),
            "cook_temp": lambda rest: _cook_temp(rest),
            "reminder_when": lambda rest: _reminder_when(rest),
