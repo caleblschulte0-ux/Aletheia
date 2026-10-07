@@ -1649,7 +1649,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When does it get dark" (2026-10-07: to the planner).
         r"|^when (?:does|will) it get (?P<sun4>dark|light)(?: (?P<sunday4>today|tonight|tomorrow))?$"
         # "Sunrise tomorrow", "what time is sunrise tomorrow" (2026-10-07: to the planner).
-        r"|^(?:what time is |what time's )?(?P<sun5>sunset|sunrise)(?: (?:time )?(?P<sunday5>today|tonight|tomorrow))?$")),
+        # "What's the sunrise tomorrow", "when's the sunset" (2026-10-07: a memory search).
+        r"|^(?:what time is |what time's |what(?:'s| is|s) |when(?:'s| is) )?(?:the )?(?P<sun5>sunset|sunrise)"
+        r"(?: (?:time )?(?P<sunday5>today|tonight|tomorrow))?$")),
     ("moon", re.compile(
         r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
         r"|^what phase is the moon(?: in)?(?: tonight| today)?$"

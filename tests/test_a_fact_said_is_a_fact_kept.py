@@ -2805,5 +2805,13 @@ class WhatHeAte(unittest.TestCase):
             self.assertTrue(quick.answer("what did I have for breakfast").startswith("You didn't tell me"))
 
 
+class SunriseAskedAsAThing(unittest.TestCase):
+    def test_the_sunrise_is_the_sun_not_a_note(self):
+        from aletheia import quick, weather
+        with mock.patch.object(weather, "spoken_sun", side_effect=lambda which, when: f"{which}|{when}"):
+            self.assertEqual(quick.answer("what's the sunrise tomorrow"), "rise|tomorrow")
+            self.assertEqual(quick.answer("when's the sunset"), "set|")
+
+
 if __name__ == "__main__":
     unittest.main()
