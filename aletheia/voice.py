@@ -1357,6 +1357,25 @@ def _known_person_first(rest: str) -> tuple[str, str] | None:
     return None
 
 
+def _same_ask_again() -> str | None:
+    """"Another one" after a joke, a fact, a coin or a pick: the same ask
+    answered again, a different answer where it has more than one. None
+    when the last ask was not one of those."""
+    from aletheia import quick as _q
+    asked, answered = _previous_turn()
+    if not asked or (_q.match(asked) or ("",))[0] not in ("joke", "fun_fact", "coin", "dice", "pick_number",
+                                                          "meal_idea", "pick_for_me", "quote", "riddle"):
+        return None
+    if _q.match(asked)[0] in ("coin", "dice", "pick_number"):
+        return _q.answer(asked)          # a toss is fair only if it may repeat
+    said = None
+    for _try in range(6):
+        said = _q.answer(asked)
+        if said and said.strip() != str(answered or "").strip():
+            break
+    return said
+
+
 def _previous_turn() -> tuple[str, str]:
     """(what he said, what she answered) for the last exchange. Never raises."""
     try:
@@ -2069,7 +2088,9 @@ _A_NOD = re.compile(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all rig
                     r"perfect|awesome|good|fine|sure|hmm+|mm+|right|understood|noted|will do|"
                     # "Wait" and "hold on" went to the planner (2026-10-07).
                     r"wait|hold on|hang on|one sec(?:ond)?|just a (?:sec|second|minute|moment)|"
-                    r"give me a (?:sec|second|minute|moment))(?: thanks| thea| please)?")
+                    r"give me a (?:sec|second|minute|moment)|"
+                    # "Nothing" said after she asked what to do (2026-10-07: to the planner).
+                    r"nothing|nothing else|nothing right now|that's all|that's it|that is all)(?: thanks| thea| please)?")
 _NO_PASSWORDS = ("I don't keep passwords - anything that looks like one is blanked out of "
                  "everything I write down, so I couldn't read it back to you. "
                  "Your password manager is the place for it.")
@@ -3178,6 +3199,10 @@ def _interpret(transcript: str) -> dict:
                     r"(?: please| for me| now)*", low):
         if _job_hunt_is_the_context():
             return {"command": {"kind": "apply_campaign", "count": 5}, "say": None}
+        # "Flip a coin", "again" (2026-10-07): the toss, not a question.
+        said = _same_ask_again() if re.fullmatch(r"(?:do (?:that|it) )?again(?: please)?", low) else None
+        if said:
+            return {"command": None, "say": said}
         try:
             from aletheia import friction
             friction.record("question", "what 'keep going' meant", asked=transcript, source="voice")
@@ -4420,6 +4445,17 @@ def _interpret(transcript: str) -> dict:
     # to tick something off, so a bare "did" may not start this — only
     # "I did". The past-tense statements ("finished the passport one")
     # stand on their own because nobody asks a question that way.
+    # HIS WORK DAY, LOGGED (2026-10-07: "I'm starting work" went to the
+    # planner and "I'm done with work for the day" looked for a TASK called
+    # "work for the day"). A note at the moment he says it; "how long did I
+    # work today" subtracts the two.
+    if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:starting work|starting my (?:work ?day|shift)|clocking in|logging on(?: for work)?"
+                    r"|at work(?: now)?|on the clock)(?: now)?|(?:i )?(?:just )?(?:clocked in|started work|got to work)(?: now)?", low):
+        return {"command": {"kind": "note", "text": "started work"}, "say": None}
+    if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:all )?(?:done|finished|through|off) (?:with |for )?(?:work|the day|my shift|my work ?day)"
+                    r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
+                    r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
+        return {"command": {"kind": "note", "text": "finished work"}, "say": None}
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(.+?)"
                       r"(?: one| task)? (?:as )?(?:done|complete[d]?|finished)",
                       low)
@@ -5369,6 +5405,14 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:add|put|stick) (.+?) (?:on|to) (?:the |my )?(?:to ?do|to-do|task) list", low)
     if m:
         return _new_task(_as_he_said(transcript, m.group(1)).strip())
+    # "Add call the bank to my list for tomorrow" (2026-10-07: to the
+    # planner) - the day goes on the task as its deadline.
+    m = re.fullmatch(r"(?:add|put|stick) (?P<what>.+?) (?:on|to) (?:the |my )?(?P<todo>(?:to ?do|to-do|task) )?list"
+                     r" (?P<day>(?:for |by |on |due )?(?:today|tonight|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday"
+                     r"|thursday|friday|saturday|sunday)))", low)
+    if m and (m.group("todo") or _TASK_VERB.match(m.group("what"))):
+        day = re.sub(r"^(?:for|due) ", "", m.group("day"))
+        return _new_task(_as_he_said(transcript, m.group("what")).strip() + " " + day)
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
     if m and re.match(r"buy (?:some |more )?\S", m.group(1)):
@@ -6684,6 +6728,23 @@ def _interpret(transcript: str) -> dict:
     if _A_NOD.fullmatch(low) \
             and not any(a.get("state") == "PENDING" for a in policy.all_approvals()):
         return {"command": None, "say": "Okay."}
+    # "ANOTHER ONE" after a joke, a fact, a coin or a pick (2026-10-07: to
+    # the planner). The same ask again, and a different answer when the
+    # ask has more than one.
+    if re.fullmatch(r"(?:another(?: one)?|one more(?: time)?|tell me another(?: one)?|again|do it again|"
+                    r"another (?:joke|fact|fun fact|one please)|one more please|more)(?: thea| please)?", low):
+        said = _same_ask_again()
+        if said:
+            return {"command": None, "say": said}
+    # Small talk with one honest line each (2026-10-07: all to the planner).
+    if re.fullmatch(r"sing (?:me )?(?:a song|something)(?: thea)?", low):
+        return {"command": None, "say": "I'd better not - I can't carry a tune. Say \"play some music\" and I'll put something on."}
+    if re.fullmatch(r"do you (?:dream|sleep|eat|have feelings|get tired|get bored)", low):
+        return {"command": None, "say": "No - I'm software running on your PC. I keep going while you sleep, which is the useful part."}
+    if re.fullmatch(r"what(?:'s| is) the meaning of life", low):
+        return {"command": None, "say": "Forty-two, if you ask a book. If you ask me: the people you love and the things you build."}
+    if re.fullmatch(r"are you (?:busy|free|available)(?: right now| now)?(?: thea)?", low):
+        return {"command": None, "say": "Never too busy for you. What do you need?"}
     # Said TO her about her. A line, not a model call; a complaint is the one
     # worth a question back, because it is a defect report.
     if re.fullmatch(r"(?:you(?:'re| are) (?:awesome|great|the best|amazing|a lifesaver|smart|good)|good job|"

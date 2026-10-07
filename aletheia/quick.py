@@ -333,6 +333,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("asked_last", re.compile(
         r"^what (?:did|was it) i (?:just )?(?:ask|asked|say|said)(?: (?:you|u))?(?: (?:just now|a second ago|before that|earlier))?$"
         r"|^what was my (?:last )?question$|^what was i (?:just )?(?:asking|saying)$"
+        # "Where was I" (2026-10-07: to a model) - the thread picks up here.
+        r"|^where (?:was i|were we)$|^what (?:was i|were we) (?:doing|talking about)$"
         r"|^what was the last thing i (?:asked|said|told)(?: (?:you|u))?$"
         # "What was the first thing I asked you today" (2026-10-07: to a model).
         r"|^what was the (?P<first>first) thing i (?:asked|said|told)(?: (?:you|u))?(?: today| this morning)?$")),
@@ -410,6 +412,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
+    ("worked", re.compile(
+        r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
+        r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
     ("off_lists", re.compile(
         r"^what (?P<off_w>movies |shows |films |tv shows )?have i (?:watched|seen|finished watching)(?: lately| recently| this year| so far)?\s*\??$"
         r"|^what (?P<off_r>books )?have i (?:read|finished reading)(?: lately| recently| this year| so far)?\s*\??$"
@@ -2038,7 +2043,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8553,6 +8558,50 @@ _END_NOTE = re.compile(r"^(?:i (?:get off|finish|leave|clock out)(?: work)?(?: a
 _COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
 
 
+def _worked(text: str) -> str | None:
+    """Hours at work from his "started work" and "finished work" notes, day
+    by day on his clock; a day still open counts to now. None when he never
+    logged a start - his hours may be somewhere a model can read."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("worked", text)
+    when = (g.get("worked") or g.get("worked2") or " today").strip()
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    today = now.date()
+    first = {"yesterday": today - dt.timedelta(days=1), "this week": today - dt.timedelta(days=today.weekday())}.get(when, today)
+    last = today - dt.timedelta(days=1) if when == "yesterday" else today
+    marks = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        if said not in ("started work", "finished work"):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if first <= at.date() <= last:
+            marks.append((at, said))
+    if not any(s == "started work" for _a, s in marks):
+        return None if when == "today" and not marks else f"You didn't tell me you started work {when}."
+    marks.sort()
+    total, start, still = 0.0, None, False
+    for at, said in marks:
+        if said == "started work":
+            start = start or at
+        elif start:
+            total += (at - start).total_seconds()
+            start = None
+    if start:
+        end = now if start.date() == today else start.replace(hour=23, minute=59)
+        total += (end - start).total_seconds()
+        still = start.date() == today
+    minutes = int(total // 60)
+    amount = (speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else "")
+              if minutes >= 60 else speech.count_phrase(minutes, "minute"))
+    return f"{amount} {when}" + (", and you're still at it." if still else ".")
+
+
 def _work_hours(text: str) -> str | None:
     """"What time do I start work": his note saying so, in his words."""
     from aletheia import speech
@@ -9460,6 +9509,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "gift_for": _gift_for,
            "meal_plan": _meal_plan,
            "pick_for_me": _pick_for_me,
+           "worked": _worked,
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,

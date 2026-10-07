@@ -3566,5 +3566,42 @@ class ServicesMealPlansAndPicks(unittest.TestCase):
             self.assertIsNone(quick.answer("where should we eat tonight"))
 
 
+class HisWorkDayAndTalkingToHer(unittest.TestCase):
+    def test_a_work_day_is_logged_and_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        self.assertEqual(voice._interpret("I'm starting work")["command"], {"kind": "note", "text": "started work"})
+        self.assertEqual(voice._interpret("I'm done with work for the day")["command"], {"kind": "note", "text": "finished work"})
+        self.assertEqual(voice._interpret("clocking out")["command"], {"kind": "note", "text": "finished work"})
+        now = dt.datetime.now(dt.timezone.utc)
+        notes = [{"text": "finished work", "ts": (now - dt.timedelta(minutes=5)).isoformat()},
+                 {"text": "started work", "ts": (now - dt.timedelta(hours=3, minutes=35)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how long did I work today"), "3 hours and 30 minutes today.")
+        with mock.patch.object(quick, "_notes", return_value=notes[1:]):
+            self.assertIn("still at it", quick.answer("how many hours have I worked today"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how long did I work today"))
+
+    def test_a_task_added_to_the_list_for_a_day(self):
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]):
+            got = voice._interpret("add call the bank to my list for tomorrow")["command"]
+        self.assertEqual((got["kind"], got["description"]), ("task_new", "call the bank"))
+        self.assertRegex(got["deadline"], r"^\d{4}-\d{2}-\d{2}$")
+
+    def test_another_one_is_the_same_ask_again(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("tell me a joke", "first joke")):
+            said = voice._interpret("another one")["say"]
+        self.assertTrue(said and said != "first joke")
+        with mock.patch.object(voice, "_previous_turn", return_value=("flip a coin", "Heads.")):
+            self.assertIn(voice._interpret("again")["say"], ("Heads.", "Tails."))
+        for said in ("sing me a song", "do you dream", "are you busy", "nothing"):
+            self.assertIsNone(voice._interpret(said)["command"], said)
+
+    def test_where_was_i_is_the_thread(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("where was I")[0], "asked_last")
+
+
 if __name__ == "__main__":
     unittest.main()
