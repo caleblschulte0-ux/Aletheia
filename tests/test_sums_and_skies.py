@@ -68,3 +68,44 @@ class CalendarArithmetic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AMomentNotADay(unittest.TestCase):
+    def test_am_i_free_at_a_time_compiles_with_the_time(self):
+        from aletheia import voice
+        cmd = voice._interpret("am i free friday at 10")["command"]
+        self.assertEqual((cmd["kind"], cmd["at"]), ("free_time", "10:00"))
+        self.assertEqual(voice._interpret("am i free at 3 on friday")["command"]["at"], "15:00")
+
+    def test_the_answer_is_about_that_moment(self):
+        from aletheia import calendar as cal, intercom
+        event = {"title": "Dentist", "status": "CONFIRMED"}
+        with mock.patch.object(cal, "conflicts", return_value=[event]):
+            said = intercom.free_time_answer({"day": "2026-10-09", "at": "10:00", "tz": "America/Chicago"})
+        self.assertEqual(said, "No - you have Dentist then (10 am on Friday).")
+        with mock.patch.object(cal, "conflicts", return_value=[]), \
+                mock.patch.object(cal, "all_events", return_value=[{"start": "2026-10-01T09:00:00-05:00"}]):
+            said = intercom.free_time_answer({"day": "2026-10-09", "at": "19:30", "tz": "America/Chicago"})
+        self.assertTrue(said.startswith("Yes, you're free at 7:30 pm on Friday."), said)
+
+
+class TheConnectionIsTried(unittest.TestCase):
+    def test_is_my_internet_working_asks_the_connection(self):
+        from aletheia import machine, voice
+        self.assertNotEqual(voice._interpret("is my internet working")["command"]["kind"], "setup_status")
+        with mock.patch.object(machine, "internet_reachable", return_value=True):
+            self.assertTrue(quick.answer("is my internet working").startswith("Yes"))
+        with mock.patch.object(machine, "internet_reachable", return_value=False):
+            self.assertTrue(quick.answer("is my wifi down").startswith("No"))
+
+
+class HisNotes(unittest.TestCase):
+    def test_search_and_delete_the_last(self):
+        from aletheia import voice
+        rows = [{"text": "milk is out"}, {"text": "the plumber comes friday"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("plumber comes friday", quick.answer("search my notes for the plumber"))
+            self.assertEqual(voice._interpret("delete my last note")["command"],
+                             {"kind": "forget", "about": "milk is out"})
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(voice._interpret("delete my last note")["say"], "You don't have any notes.")

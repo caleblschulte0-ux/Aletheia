@@ -338,10 +338,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is) (?:my|this computer's|the|this machine's) ip(?: address)?$"
         r"|^what ip(?: address)? (?:am i on|is this|do i have)$")),
     ("internet", re.compile(
-        r"^(?:is|do (?:i|we) have) (?:the |an )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
+        # "Is MY internet working" read out a capability about offline
+        # models instead (2026-10-07).
+        r"^(?:is|do (?:i|we) have) (?:the |an |my |our )?(?:internet|wifi|wi-fi|network|connection)(?: connection)?"
         r"(?: working| up| on| down| connected| okay| ok)?$"
         r"|^(?:am i|are we|are you) (?:online|connected|on the internet)$"
-        r"|^(?:is|has) the (?:internet|wifi|wi-fi) (?:down|out|gone|back)$")),
+        r"|^(?:is|has) (?:the|my|our) (?:internet|wifi|wi-fi) (?:down|out|gone|back)$"
+        r"|^(?:does|is) (?:the |my )?(?:internet|wifi|wi-fi) (?:work|working)$|^can you (?:get|reach) online$")),
     ("windows", re.compile(
         r"^what(?:'s| is| are)? (?:apps?|programs?|windows?)(?: are| is)? (?:open|running|up)"
         r"(?: right now| now| on (?:this|the|my) (?:computer|machine|pc|laptop|screen))?$"
@@ -673,7 +676,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? the next thing (?:on|in) my (?:calendar|schedule|day)\s*\??$"
         r"|^what(?:'s| is|s)? next (?:on|in) my (?:schedule|day)\s*\??$"
         r"|^(?:my )?next (?:meeting|appointment)$"
-        r"|^what(?:'s| is|s)? my schedule(?: today)?$")),
+        r"|^what(?:'s| is|s)? my schedule(?: today)?$"
+        # "What time is my next appointment" (2026-10-07: to a model).
+        r"|^what time is my next (?:meeting|appointment|event|call)$"
+        r"|^when do i have to (?:be somewhere|leave) next$|^where do i have to be next$")),
     ("version", re.compile(
         r"^what version are (?:you|u) on$|^what version are (?:you|u) running$"
         r"|^what code are (?:you|u) running$|^what(?:'s| is|s)? your version$"
@@ -923,6 +929,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when (?:is|does|was) (?:my |the )?(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         r"|^(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$")),
+    # "Search my notes for the plumber" (2026-10-07: to the planner).
+    ("note_search", re.compile(
+        r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
+        r"|^(?:find|look up) (?P<note_q2>.{2,40}?) in (?:my |the )?notes$"
+        r"|^what did i (?:note|write down|jot down) about (?P<note_q3>.{2,40})$")),
     ("can_you", re.compile(
         r"^(?:can|could) (?:you|u) (?P<what>.{3,120})$"
         r"|^(?:are|r) (?:you|u) able to (?P<what2>.{3,120})$"
@@ -989,7 +1000,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "sun", "moon", "discount", "split", "area", "year_left",
+        if name in ("math", "farewell", "note_search", "sun", "moon", "discount", "split", "area", "year_left",
                     "weekday_of", "days_between", "time_diff"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
@@ -2418,6 +2429,12 @@ def _math(text: str) -> str | None:
 def _groups(name: str, text: str) -> dict:
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == name), None)
     return {k: v for k, v in (found.groupdict() if found else {}).items() if v}
+
+
+def _note_search(text: str) -> str | None:
+    g = _groups("note_search", text)
+    words = (g.get("note_q") or g.get("note_q2") or g.get("note_q3") or "").strip()
+    return _recall(re.sub(r"^(?:the|my|a|an) ", "", words)) if words else None
 
 
 def _sun(text: str) -> str | None:
@@ -3962,6 +3979,7 @@ def _good_morning() -> str:
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "sun": lambda rest: _sun(rest),
+           "note_search": lambda rest: _note_search(rest),
            "moon": lambda rest: _moon(rest),
            "discount": lambda rest: _discount(rest),
            "split": lambda rest: _split(rest),

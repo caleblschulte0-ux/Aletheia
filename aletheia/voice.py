@@ -1883,6 +1883,28 @@ def _interpret(transcript: str) -> dict:
             command["purpose"] = m.group(2).strip()
         return {"command": command, "say": None}
 
+    # "AM I FREE FRIDAY AT 10" - a moment, not a day (2026-10-07: to the
+    # planner). Either order, and a bare "at 10" is today, or tomorrow once
+    # it has passed. A bare hour gets the same no-small-hours rule as a
+    # reminder.
+    m = (re.fullmatch(r"(?:am i|are we) (?:free|busy|available) (?:on |this )?(?P<day>[a-z]+) at (?P<time>[\w: ]+?)\s*\??", low)
+         or re.fullmatch(r"(?:am i|are we) (?:free|busy|available) at (?P<time>[\w: ]+?)(?: (?:on |this )?(?P<day>[a-z]+))?\s*\??", low))
+    if m:
+        hhmm = _spoken_time(m.group("time"))
+        day_word = m.group("day") or ""
+        if hhmm and not _ambiguous_next_weekday(day_word):
+            if day_word:
+                day_iso = _spoken_day(day_word)
+            else:
+                at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group("time")))
+                day_iso, hhmm = at[:10], at[11:16]
+            if day_iso:
+                hour, minute = map(int, hhmm.split(":"))
+                if day_word and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+                    hour += 12
+                return {"command": {"kind": "free_time", "day": day_iso, "at": f"{hour:02d}:{minute:02d}"},
+                        "say": None}
+
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
@@ -1928,7 +1950,12 @@ def _interpret(transcript: str) -> dict:
                      r"(?:set ?up|configured|connected|hooked up|working|ready)(?: yet)?"
                      r"|(?:have|did) (?:you|i|we) (?:set ?up|configured|connected) "
                      r"(?:my |the |your )?(?P<what2>[a-z][a-z ]{1,30}?)(?: yet)?", low)
-    if m and (m.group("what") or m.group("what2")) not in ("you", "u", "it", "everything", "all"):
+    # "Is my internet working" is a question about the connection, which
+    # `quick` answers by trying it - not the setup step "thinking with no
+    # internet" (2026-10-07).
+    if m and (m.group("what") or m.group("what2")) not in ("you", "u", "it", "everything", "all",
+                                                            "internet", "wifi", "wi-fi", "network",
+                                                            "connection", "internet connection"):
         return {"command": {"kind": "setup_status",
                             "about": _as_he_said(transcript, m.group("what") or m.group("what2"))},
                 "say": None}
@@ -2989,6 +3016,16 @@ def _interpret(transcript: str) -> dict:
         name = m.group("name") if "." in m.group("name") else m.group("name") + ".txt"
         return {"command": {"kind": "file_write", "path": name,
                             "text": _as_he_said(text, m.group("body").strip())}, "say": None}
+
+    # "Delete my last note" (2026-10-07: to the planner). The newest note,
+    # by its own words, through the same `forget` the rest of her memory
+    # uses - the journal keeps it and a tombstone hides it.
+    if re.fullmatch(r"(?:delete|remove|forget|scratch|erase|undo) (?:my |the |that )?(?:last|latest|most recent|newest) note", low):
+        from aletheia import quick
+        newest = next(iter(quick._notes(limit=1)), None)
+        if not newest:
+            return {"command": None, "say": "You don't have any notes."}
+        return {"command": {"kind": "forget", "about": str(newest.get("text") or "").strip()}, "say": None}
 
     # LONGEST ALTERNATIVE FIRST. Python's alternation takes the first that
     # matches, so "note" won and the note read "that Dana called".

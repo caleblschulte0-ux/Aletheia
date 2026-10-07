@@ -316,7 +316,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "announce_set":    ({"on"}, {"quiet_from", "quiet_until"}),
     # `part` is morning/afternoon/evening. He says it constantly and it
     # used to be dropped in silence — see `_free_sentence`.
-    "free_time":       ({"day"}, {"tz", "minutes", "part"}),
+    "free_time":       ({"day"}, {"tz", "minutes", "part", "at"}),
     # Either an email or a phone, and at least one of them - a contact she
     # cannot reach is not a contact. `email` stopped being required when
     # texting needed a number: `contacts.create` had supported phones all
@@ -1745,6 +1745,8 @@ def free_time_answer(cmd: dict) -> str:
     tz = cmd.get("tz") or localtime.operator_timezone()
     minutes = int(cmd.get("minutes", 30))
     day = _dt.date.fromisoformat(cmd["day"])
+    if cmd.get("at"):
+        return _free_at(cal, day, str(cmd["at"]), minutes, tz)
     part = str(cmd.get("part") or "").strip().lower()
     if part in ("evening", "tonight", "night"):
         # "Am I free Friday evening" answered "nothing free - I only look at
@@ -1773,6 +1775,27 @@ def free_time_answer(cmd: dict) -> str:
     # Only when it is COMPLETELY empty. A quiet week is a fact about his
     # week; nothing at all, ever, is a fact about the connection.
     return said + _nothing_on_it_at_all(cal, day)
+
+
+def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:
+    """"Am I free Friday at 10": yes or no for THAT time, and what is in it.
+
+    Asked about one moment, it answers about that moment - not with the
+    day's working-hours windows, which say nothing about 7 pm.
+    """
+    import datetime as _dt
+    from zoneinfo import ZoneInfo
+    hour, minute = map(int, hhmm.split(":"))
+    start = _dt.datetime.combine(day, _dt.time(hour, minute), tzinfo=ZoneInfo(tz))
+    end = start + _dt.timedelta(minutes=minutes)
+    when = (start.strftime("%I:%M %p").lstrip("0").replace(":00", "").replace("AM", "am").replace("PM", "pm")
+            + " on " + start.strftime("%A"))
+    busy = cal.conflicts(start.isoformat(), end.isoformat())
+    if busy:
+        first = busy[0]
+        title = str(first.get("title") or "something")
+        return f"No - you have {title} then ({when})."
+    return f"Yes, you're free at {when}." + _nothing_on_it_at_all(cal, day)
 
 
 #: How far either side of the day in question counts as "his calendar has
