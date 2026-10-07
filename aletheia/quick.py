@@ -4913,7 +4913,9 @@ def _recall(words: str) -> str | None:
             if len(found) >= 5:
                 break
     if not found:
-        return f"I have nothing about {words} on file - tell me and I'll remember it."
+        # "What am I allergic to" read back "nothing about allergic".
+        shown = {"allergic": "allergies", "allergic to": "allergies"}.get(str(words).strip(), words)
+        return f"I have nothing about {shown} on file - tell me and I'll remember it."
     said = speech.and_list(found[:4])
     return said[:1].upper() + said[1:] + "."
 

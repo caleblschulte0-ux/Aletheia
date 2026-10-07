@@ -470,5 +470,22 @@ class MessagesAndFacetime(unittest.TestCase):
         self.assertIn("can't place phone calls", voice._interpret("facetime sam")["say"])
 
 
+
+class TheTimeBetweenTheThingAndTheRepeat(unittest.TestCase):
+    def test_pills_at_9pm_every_day(self):
+        self.assertEqual(voice._interpret("remind me to take my pills at 9pm every day")["command"],
+                         {"kind": "remind_daily", "time": "21:00", "text": "take my pills"})
+
+    def test_stretch_at_8_every_weekday(self):
+        cmd = voice._interpret("remind me to stretch at 8 every weekday")["command"]
+        self.assertEqual((cmd["time"], cmd["text"]), ("08:00", "stretch"))
+
+
+class RememberIsNotTheFact(unittest.TestCase):
+    def test_the_verb_stays_out_of_the_note(self):
+        self.assertEqual(voice.interpret("Remember Dana's birthday is March 3")["command"],
+                         {"kind": "note", "text": "Dana's birthday is March 3"})
+
+
 if __name__ == "__main__":
     unittest.main()

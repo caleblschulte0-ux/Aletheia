@@ -1617,6 +1617,16 @@ def _interpret(transcript: str) -> dict:
                         r"remind me (to|about|that) (.+)", low)
     if lead:
         return _interpret(f"remind me {lead.group(1)} {lead.group(2)} {lead.group(3)}")
+    # "Remind me to take my pills at 9pm every day" was a DAILY reminder at
+    # 9 am whose text was "take my pills at 9pm" (2026-10-07): the time sat
+    # between the thing and the repeat, where no branch looks for it. Said
+    # in the order every branch reads.
+    tail = re.fullmatch(r"remind me (to|about) (.+?) at ((?:\d{1,2}(?::\d{2})? ?(?:am|pm|a\.m\.|p\.m\.)?)|noon|midnight)"
+                        r" ((?:every|each) [a-z ]{3,30}|daily|on weekdays|weekdays)", low)
+    if tail:
+        repeat = {"daily": "every day", "on weekdays": "every weekday", "weekdays": "every weekday"}.get(
+            tail.group(4), tail.group(4))
+        return _interpret(f"remind me {repeat} at {tail.group(3)} {tail.group(1)} {tail.group(2)}")
 
     # THE KILL SWITCH HAS TO CATCH THE SENTENCE HE WOULD ACTUALLY SAY.
     #
@@ -4714,17 +4724,20 @@ def _interpret(transcript: str) -> dict:
     # a number, someone's name or birthday - so "my head is killing me"
     # and "my computer is slow" are never filed as facts. His own name,
     # address, email, phone and birthday have their own patterns.
+    # "Remember Dana's birthday is March 3" kept "remember" inside the note
+    # and inside the name (2026-10-07). The verb is not the fact.
+    fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
     m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
                      r"|gate code|door code|garage code|locker (?:number|combination)|license plate|plate number"
-                     r"|anniversary|account number|member(?:ship)? number|policy number) (?:is|are) (?P<value>.{1,80})", low)
+                     r"|anniversary|account number|member(?:ship)? number|policy number) (?:is|are) (?P<value>.{1,80})", fact_low)
     if m and not re.search(r"\b(?:what|who|when|where|why|how|not|wrong)\b", m.group("key") + " " + m.group("value")[:12]) \
-            and not low.startswith(("what", "who", "when", "where", "how", "why")):
+            and not fact_low.startswith(("what", "who", "when", "where", "how", "why")):
         if re.search(r"pass(?:word|code|phrase)", m.group("key")):
             # `sensitivity` blanks a password out of every record she
             # keeps, so a note would read back "[redacted]". Said, not faked.
             return {"command": None, "say": _NO_PASSWORDS}
-        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "Delete my last note" (2026-10-07: to the planner). The newest note,
     # by its own words, through the same `forget` the rest of her memory
     # uses - the journal keeps it and a tombstone hides it.
