@@ -1250,5 +1250,15 @@ class CancelItStepsOverAQuestion(unittest.TestCase):
             self.assertFalse(voice._last_ask_is_undoable())
 
 
+
+class BlockingTimeForSomething(unittest.TestCase):
+    def test_the_hold_is_called_what_it_is_for(self):
+        from aletheia import voice
+        cmd = voice.interpret("block out tomorrow morning for deep work")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"], cmd["minutes"]), ("calendar_hold", "Deep work", 180))
+        self.assertIn("T09:00", cmd["start"])
+        self.assertEqual(voice.interpret("block off friday")["command"]["minutes"], 480)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -5228,11 +5228,16 @@ def _interpret(transcript: str) -> dict:
     # called Busy for that part of that day, the same reversible hold.
     if not m:
         b = re.fullmatch(r"(?:block|block off|block out|keep|hold) (?:my )?(?P<day>" + _cal_days + r")"
-                         r"(?: (?P<part>morning|afternoon|evening|night))?(?: free| clear| open)?", low)
+                         r"(?: (?P<part>morning|afternoon|evening|night))?(?: free| clear| open)?"
+                         # "Block out tomorrow morning for deep work" (2026-10-07: to the planner).
+                         r"(?: (?:for|to do|to) (?P<what>[a-z][a-z' ]{1,30}))?", low)
         if b:
-            held = _calendar_hold(text, "Busy", b.group("day"), b.group("part"), None)
+            what = re.sub(r"^(?:the|my|some) ", "", (b.group("what") or "").strip())
+            held = _calendar_hold(text, (what[:1].upper() + what[1:]) if what else "Busy", b.group("day"),
+                                  b.group("part"), None)
             if held:
-                held["command"]["minutes"] = 60 if not b.group("part") else (180 if b.group("part") != "night" else 120)
+                # A whole day blocked is the working day, nine to five.
+                held["command"]["minutes"] = 480 if not b.group("part") else (180 if b.group("part") != "night" else 120)
                 return held
         # "BLOCK 2 HOURS TOMORROW MORNING FOR FOCUS" (2026-10-07: to the
         # planner): the same hold, for as long as he says, called what it is for.
