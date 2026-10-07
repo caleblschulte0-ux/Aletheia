@@ -1363,5 +1363,19 @@ class AWeekBeforeTheBirthdayHeJustAskedAboutCase(unittest.TestCase):
             self.assertEqual(seen[-1], "remind me a week before dana's birthday", before)
 
 
+class HaveIHeardFromCase(unittest.TestCase):
+    def test_his_mail_from_them(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "answer", return_value=None):
+            for said in ("have i heard from dana", "anything from dana", "did i hear back from dana"):
+                cmd = voice._interpret(said)["command"]
+                self.assertEqual((cmd["kind"], cmd.get("which")), ("email_read", "dana"), said)
+
+    def test_his_job_record_answers_first(self):
+        from aletheia import quick, voice
+        with mock.patch.object(quick, "answer", return_value="Gong wrote back Tuesday."):
+            self.assertEqual(voice._interpret("did i hear back from gong")["command"]["kind"], "intent")
+
+
 if __name__ == "__main__":
     unittest.main()

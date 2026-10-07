@@ -4068,6 +4068,27 @@ def _interpret(transcript: str) -> dict:
                 "say": ("I won't take permission to send emails in your name by voice - anything in the room "
                         "could say it. Type it: python -m aletheia.conversations grant \"" + text.strip() + "\"")}
 
+    # "HAVE I HEARD FROM DANA", "did I hear back from Gong", "anything from
+    # Dana" (2026-10-07: to the planner). His mail from them, the same read
+    # as "any emails from Dana"; a conversation she keeps answers below.
+    m = re.fullmatch(r"(?:have i heard|did i hear|have we heard|did we hear|anything|any news)(?: back)?(?: yet)? from "
+                     r"(?P<who>[a-z][a-z' .&-]{1,30}?)(?: yet)?", low)
+    if m and m.group("who") not in ("work", "anyone", "anybody", "them", "they", "you", "him", "her"):
+        # An employer on his job record is the fast lane's to answer.
+        try:
+            from aletheia import quick
+            if quick.answer(text):
+                return {"command": {"kind": "intent", "text": text}, "say": None}
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            from aletheia import conversations
+            kept = conversations.resolve_thread(m.group("who"))
+        except Exception:  # noqa: BLE001
+            kept = None
+        if kept:
+            return {"command": {"kind": "thread_status", "which": m.group("who")}, "say": None}
+        return {"command": {"kind": "email_read", "which": m.group("who")}, "say": None}
     # "Did they reply", "did the landlord get back to me", "any word from the
     # recruiter": read from the conversation she keeps, not guessed.
     m = re.fullmatch(r"(?:did|has|have) (.+?) (?:replied|reply|respond|responded|(?:gotten|got|get) back(?: to (?:me|us))?|"
