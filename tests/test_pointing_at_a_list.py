@@ -73,7 +73,7 @@ class PointingAtATaskCase(unittest.TestCase):
     def test_an_unknown_phrase_still_says_so(self):
         found, why = self._find("the helicopter one")
         self.assertIsNone(found)
-        self.assertIn("Nothing open", why)
+        self.assertIn("Nothing on your list matches", why)
 
     def test_the_refusal_is_sayable(self):
         """It is read out in a room, so no identifiers and no brackets."""
