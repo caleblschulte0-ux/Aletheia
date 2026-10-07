@@ -6522,8 +6522,11 @@ _STORE_QUESTION = {
 }
 
 
-def _previous_ask(skip_follow_ups: bool = True) -> str:
-    """His last full sentence from the thread (never a follow-up itself)."""
+def _previous_ask(skip_follow_ups: bool = True, questions_only: bool = False) -> str:
+    """His last full sentence from the thread (never a follow-up itself).
+    `questions_only` steps over sentences no store answers: "what's the
+    weather", "my zip is 78701", "what about tomorrow" means the weather
+    (2026-10-07: it went to the planner, rebuilt from the zip)."""
     try:
         from aletheia import converse
         turns = converse.recent(limit=4)
@@ -6535,6 +6538,8 @@ def _previous_ask(skip_follow_ups: bool = True) -> str:
         if not said:
             continue
         if skip_follow_ups and (_FOLLOW_UP.match(said) or _LIST_THEM.match(said)):
+            continue
+        if questions_only and not match(said):
             continue
         return said
     return ""
@@ -6565,7 +6570,7 @@ def _follow_up(question: str) -> str | None:
     if not m:
         return None
     new_words = m.group("x").strip()
-    prev = _previous_ask()
+    prev = _previous_ask(questions_only=True)
     if not prev:
         return None
     rebuilt = ""
@@ -6589,6 +6594,14 @@ def _follow_up(question: str) -> str | None:
             # "And in Tokyo?" after "what time is it in london": the "in" is
             # already in the sentence, so it is not said twice.
             rebuilt = prev.replace(subject, re.sub(r"^(?:in |at |for |on )?(?:the |my )?", "", new_words), 1)
+        elif " in " not in f" {prev} ":
+            # "What time is it" then "and in Tokyo" / "how about London":
+            # the place is ADDED - kept only when the result is a question
+            # about a place, so "how about pizza" stays with a model.
+            place = re.sub(r"^in ", "", new_words)
+            tried = f"{prev} in {place}"
+            if (match(tried) or ("", ""))[0] in ("time_in", "time_in2", "time_in3", "weather_in"):
+                rebuilt = tried
     if not rebuilt or rebuilt == prev or not match(rebuilt):
         return None
     return answer(rebuilt)

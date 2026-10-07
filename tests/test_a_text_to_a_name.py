@@ -717,5 +717,29 @@ class HerIsThePersonJustNamed(unittest.TestCase):
             self.assertEqual(voice._with_the_person_named("text her hi"), "text Mom hi")
 
 
+
+class WhatAboutTomorrow(unittest.TestCase):
+    def turns(self, *asked):
+        from aletheia import converse
+        return mock.patch.object(converse, "recent", return_value=[{"he_asked": a, "she_answered": "ok"} for a in asked])
+
+    def test_a_statement_in_between_is_stepped_over(self):
+        from aletheia import quick
+        with self.turns("what's on my calendar", "my zip is 78701"), \
+                mock.patch.object(quick, "_agenda", side_effect=lambda day: f"agenda {day}"):
+            self.assertEqual(quick.answer("what about tomorrow"), "agenda tomorrow")
+
+    def test_a_place_is_added_to_the_time(self):
+        from aletheia import quick
+        with self.turns("what time is it"):
+            self.assertIn("Tokyo", quick.answer("and in tokyo"))
+            self.assertIn("London", quick.answer("how about london"))
+
+    def test_a_thing_that_is_not_a_place_stays_with_a_model(self):
+        from aletheia import quick
+        with self.turns("what time is it"):
+            self.assertIsNone(quick.answer("what about pizza"))
+
+
 if __name__ == "__main__":
     unittest.main()
