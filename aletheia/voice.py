@@ -7580,6 +7580,19 @@ def _interpret(transcript: str) -> dict:
             and m.group("who").split()[0] not in ("who", "what", "he", "she", "they", "it", "this", "that", "somebody",
                                                   "someone", "nobody", "everyone", "i", "you", "where", "why", "when", "how"):
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "MIKE GAVE BACK MY DRILL" / "I GOT MY DRILL BACK" (2026-10-07: to the
+    # planner, and "who has my drill" went on naming Mike). The return is a
+    # note too; the newest note about the thing is the one `quick._lent` reads.
+    m = (re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:gave|brought|handed) (?:back )?(?:my|our) "
+                      r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: back)?", fact_low)
+         or re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) returned (?:my|our) (?P<thing>[a-z][a-z' ]{1,25})", fact_low)
+         or re.fullmatch(r"i got (?:my|our) (?P<thing>[a-z][a-z' ]{1,25}?) back(?: from (?P<who>[a-z][a-z' ]{1,25}))?", fact_low))
+    if m and (m.group("who") or "mike") .split()[0] not in ("who", "what", "he", "she", "they", "it", "this", "that", "i", "you",
+                                                          "where", "why", "when", "how", "nobody", "somebody", "someone") \
+            and not re.search(r"\d|\b(?:money|dollars?|bucks|cash|call|hug|word|heart|life|job|time|confidence|attitude)\b",
+                              m.group("thing")) \
+            and (" back" in fact_low or "returned" in fact_low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "I LIKE MY COFFEE BLACK" (2026-10-07: to the planner) - how he takes
     # something he eats or drinks, read back by "how do I like my coffee".
     if re.fullmatch(r"i (?:like|take|have|drink|want|prefer) my (?:coffee|tea|steak|burgers?|eggs|toast|latte|martini|whiskey"

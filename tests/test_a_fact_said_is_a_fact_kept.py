@@ -4236,5 +4236,29 @@ class OrderingFoodSpendsMoney(unittest.TestCase):
             self.assertIn("permanent", said)
 
 
+class AThingLentComesBack(unittest.TestCase):
+    """2026-10-07: "mike gave back my drill" went to the planner, and "who has
+    my drill" went on naming Mike."""
+
+    def test_the_return_is_kept_and_read(self):
+        from aletheia import voice
+        for said in ("mike gave back my drill", "mike returned my drill", "i got my drill back",
+                     "sam gave my ladder back"):
+            r = voice._interpret(said)
+            self.assertEqual((r or {}).get("command", {}).get("kind"), "note", said)
+        for said in ("my brother gave me a hug back", "she gave back my keys", "i got my confidence back"):
+            r = voice._interpret(said)
+            self.assertNotEqual((r or {}).get("command", {}).get("kind"), "note", said)
+
+    def test_the_newest_note_wins(self):
+        from unittest import mock
+        from aletheia import quick
+        rows = [{"text": "Mike gave back my drill"}, {"text": "I lent my drill to Mike"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("got it back", quick.answer("who has my drill"))
+        with mock.patch.object(quick, "_notes", return_value=rows[1:]):
+            self.assertIn("lent", quick.answer("who has my drill"))
+
+
 if __name__ == "__main__":
     unittest.main()

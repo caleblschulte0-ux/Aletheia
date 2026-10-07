@@ -9427,7 +9427,10 @@ def _lent(text: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if re.search(rf"\b{re.escape(stem)}", low) and re.search(r"\b(?:lent|loaned|gave|handed|borrowed|has|took)\b", low):
+        if re.search(rf"\b{re.escape(stem)}", low) and re.search(r"\b(?:lent|loaned|gave|handed|borrowed|has|took|returned)\b"
+                                                               r"|\bback\b", low):
+            if re.search(r"\bback\b|\breturned\b", low):
+                return f"You got it back - you told me: {speech.as_she_says_it(said).rstrip('.')}."
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     return f"You haven't told me you lent your {thing} to anybody."
 
