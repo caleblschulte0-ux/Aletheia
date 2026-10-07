@@ -771,5 +771,49 @@ class HowLongUntilIt(unittest.TestCase):
                              "Your next alarm goes off in 24 hours and 30 minutes.")
 
 
+class ListsSpokenToAsIt(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import converse, lists, shopping
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        for mod, name in ((shopping, "SHOP_DIR"),):
+            p = mock.patch.object(mod, name, root / "shop")
+            p.start()
+            self.addCleanup(p.stop)
+        p = mock.patch.object(lists, "private_dir", side_effect=lambda sub: root / sub)
+        p.start()
+        self.addCleanup(p.stop)
+        self.turns = []
+        p = mock.patch.object(converse, "recent", side_effect=lambda limit=3: self.turns[-limit:])
+        p.start()
+        self.addCleanup(p.stop)
+
+    def say(self, said):
+        from aletheia import intercom, speech
+        cmd = voice._interpret(said)
+        out = cmd.get("say") if not cmd.get("command") else speech.spoken_receipt(
+            cmd["command"]["kind"], intercom.execute_command(cmd["command"], {"repos": {}}, quote=said))
+        self.turns.append({"he_asked": said, "she_answered": out})
+        return out
+
+    def test_it_is_the_list_just_made(self):
+        self.say("make a grocery list")
+        self.assertEqual(self.say("add apples to it"), "Added to the shopping list: apples.")
+        self.assertIn("weekend list", self.say("make a to do list for the weekend"))
+        self.assertEqual(self.say("add mow the lawn to it"), "Added to your weekend list: mow the lawn.")
+        self.assertIn("And your shopping list has 1 thing", self.say("what lists do i have"))
+
+    def test_delete_means_the_list(self):
+        self.say("make a list called weekend")
+        self.say("add mow the lawn to my weekend list")
+        self.assertIn("Deleted your weekend list", self.say("delete my weekend list"))
+        self.assertNotIn("weekend", self.say("what lists do i have"))
+        self.assertIn("empty", self.say("clear my packing list") + self.say("make a list called weekend")
+                      + self.say("what's on my weekend list"))
+
+
 if __name__ == "__main__":
     unittest.main()

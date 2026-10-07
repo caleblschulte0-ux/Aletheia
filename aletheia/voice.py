@@ -1753,7 +1753,7 @@ def _named_list_said(low: str, text: str) -> dict | None:
                      r" list for .{2,40}", low)
     if m and lists.is_named_list(m.group("sort")):
         return {"command": {"kind": "list_new", "list": m.group("sort")}, "say": None}
-    m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?:grocery |shopping |packing |to-?do |todo |check ?)?"
+    m = (re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a )?(?:new )?(?:grocery |shopping |packing |to-?do |to do |todo |check ?)?"
                       r"list (?:called|named|for) " + name_, low)
          or re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?" + name_ + r" list", low))
     if m:
@@ -1776,8 +1776,11 @@ def _named_list_said(low: str, text: str) -> dict | None:
          # the receipt says cleared, which is what happened.
          or re.fullmatch(r"(?:clear|empty|wipe|delete|get rid of|scrap|throw out) (?:out )?(?:my |the )" + name_ + r" list(?P<item>)", low))
     if m and lists.is_named_list(m.group("name")):
+        # "Delete my weekend list" emptied it and left an empty list behind
+        # (2026-10-07); delete, scrap and get rid of mean the list itself.
+        whole = not m.group("item") and re.match(r"(?:delete|get rid of|scrap|throw out)\b", low)
         return {"command": {"kind": "list_off", "list": _as_he_said(text, m.group("name")),
-                            "item": m.group("item") or "everything"}, "say": None}
+                            "item": m.group("item") or ("the list" if whole else "everything")}, "say": None}
     m = re.fullmatch(r"(?:what(?:'s| is|s)? on |what(?:'s| is|s)? in |read (?:me )?|show (?:me )?|how many things are on )?"
                      r"(?:my |the )" + name_ + r" list", low)
     if m and lists.is_named_list(m.group("name")) and m.group("name") not in ("whole", "full", "entire"):
@@ -2050,6 +2053,19 @@ def _the_named_list_just_used(turns: int = 3) -> tuple[str, bool]:
     return "", False
 
 
+def _shopping_just_said() -> bool:
+    """Was the shopping list what his last exchange was about? Never raises."""
+    try:
+        from aletheia import converse
+        rows = converse.recent(limit=1) or []
+    except Exception:  # noqa: BLE001
+        return False
+    if not rows:
+        return False
+    both = f"{rows[-1].get('he_asked') or ''} {rows[-1].get('she_answered') or ''}".casefold()
+    return bool(re.search(r"\b(?:shopping|grocery) list\b", both))
+
+
 def _onto_the_named_list(low: str) -> dict | None:
     if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list", low):
         return None                               # he named a list himself
@@ -2206,6 +2222,18 @@ def _interpret(transcript: str) -> dict:
     on_list = _onto_the_named_list(low)
     if on_list:
         return on_list
+    # "Make a grocery list", "add apples to it" (2026-10-07: to the
+    # planner). "It" is the list he was just on: his named one, or the
+    # shopping list when that was what the last turn was about.
+    m = re.fullmatch(r"(?:add|put|stick|throw) (?P<w>[a-z][a-z0-9' ,-]{1,60}?) (?:to|on|onto|in) "
+                     r"(?:it|that|this|that list|this list|the list)", low)
+    if m:
+        name, _last = _the_named_list_just_used()
+        if name:
+            return {"command": {"kind": "list_add", "list": name, "item": _as_he_said(transcript, m.group("w"))},
+                    "say": None}
+        if _shopping_just_said():
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group("w"))}, "say": None}
     # "Set another one for 10 minutes" / "another timer for the rice"
     # (2026-10-07: to the planner) is a new timer like the first.
     another = re.fullmatch(r"(?:set |start |make )?another (?:one|timer)(?: for| of)? (.+)", low)

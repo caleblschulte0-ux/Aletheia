@@ -2093,10 +2093,15 @@ def _named_list(kind: str, cmd: dict) -> str:
     name = " ".join(str(cmd.get("list") or "").split())
     if kind == "list_read" and not name:
         held = lists.all_lists()
+        shopping = len(_shopping_items())
+        # "What lists do I have" left out the one with the apples on it.
+        also = f" And your shopping list has {speech.count_phrase(shopping, 'thing')}." if shopping else ""
         if not held:
+            if shopping:
+                return f"Just your shopping list, with {speech.count_phrase(shopping, 'thing')} on it."
             return "You don't have any lists of your own yet. Say \"make a list called packing\" to start one."
         return ("Your lists: " + speech.and_list(
-            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing') if h['open'] else 'empty'})" for h in held]) + ".")
+            [f"{h['name']} ({speech.count_phrase(h['open'], 'thing') if h['open'] else 'empty'})" for h in held]) + "." + also)
     if not lists.is_named_list(name):
         raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
                           "each have their own words.")
@@ -2109,6 +2114,12 @@ def _named_list(kind: str, cmd: dict) -> str:
         if not added:
             return f"That's already on your {name} list."
         return f"Added to your {name} list: {speech.and_list(added)}."
+    if kind == "list_off" and str(cmd["item"]).strip().lower() in ("the list", "the whole list", "the list itself"):
+        had = lists.drop(name)
+        if had is None:
+            return f"You don't have a {name} list."
+        return (f"Deleted your {name} list" + (f" and the {speech.count_phrase(had, 'thing')} on it" if had else "")
+                + f". Say \"make a list called {name}\" to start it again.")
     if kind == "list_off":
         clearing = str(cmd["item"]).strip().lower() in SHOPPING_EVERYTHING
         taken, why = lists.take_off(name, str(cmd["item"]))

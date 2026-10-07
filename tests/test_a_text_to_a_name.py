@@ -83,8 +83,12 @@ class ListsAndBills(unittest.TestCase):
         self.assertEqual(voice._interpret("delete the shopping list")["command"],
                          {"kind": "shopping_off", "item": "everything"})
         with mock.patch("aletheia.lists.is_named_list", return_value=True):
-            self.assertEqual(voice._interpret("delete the packing list")["command"],
+            # Clearing empties a named list; deleting takes the list itself
+            # away (kept in the file, marked deleted) - 2026-10-07.
+            self.assertEqual(voice._interpret("clear the packing list")["command"],
                              {"kind": "list_off", "list": "packing", "item": "everything"})
+            self.assertEqual(voice._interpret("delete the packing list")["command"],
+                             {"kind": "list_off", "list": "packing", "item": "the list"})
 
 
 class HerName(unittest.TestCase):

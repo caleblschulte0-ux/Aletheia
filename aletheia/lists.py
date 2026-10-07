@@ -27,14 +27,27 @@ def _path(name: str):
     return private_dir("lists") / f"{slug_of(name)}.json"
 
 
-def _load(name: str) -> dict | None:
+def _load(name: str, *, deleted: bool = True) -> dict | None:
     path = _path(name)
     if not path.is_file():
         return None
     try:
-        return read_json(path)
+        held = read_json(path)
     except ValueError:
         return None
+    return held if deleted or not held.get("deleted") else None
+
+
+def drop(name: str) -> int | None:
+    """Delete a list: marked deleted, never removed, so nothing he wrote is
+    lost. Returns how many lines it had open, or None when there is none."""
+    held = _load(name, deleted=False)
+    if held is None:
+        return None
+    held["deleted"] = True
+    held["updated_at"] = utcnow()
+    write_json_atomic(_path(name), held)
+    return sum(1 for i in held["items"] if not i.get("done"))
 
 
 def is_named_list(name: str) -> bool:
@@ -43,14 +56,22 @@ def is_named_list(name: str) -> bool:
 
 
 def exists(name: str) -> bool:
-    return _load(name) is not None
+    return _load(name, deleted=False) is not None
 
 
 def create(name: str) -> tuple[dict, bool]:
-    """(the list, whether it was new)."""
+    """(the list, whether it was new). A deleted list made again comes back
+    empty, its old lines kept in the file as done."""
     if not is_named_list(name):
         raise ValueError(f"{name!r} is not a list of its own")
     held = _load(name)
+    if held is not None and held.get("deleted"):
+        held.pop("deleted", None)
+        for item in held["items"]:
+            item["done"] = True
+        held["updated_at"] = utcnow()
+        write_json_atomic(_path(name), held)
+        return held, True
     if held is not None:
         return held, False
     value = {"version": 1, "name": " ".join(str(name).split()), "items": [], "created_at": utcnow(),
@@ -77,7 +98,7 @@ def add(name: str, items: list[str]) -> list[str]:
 
 def items(name: str) -> list[str] | None:
     """The open lines, or None when there is no such list."""
-    held = _load(name)
+    held = _load(name, deleted=False)
     if held is None:
         return None
     return [i["text"] for i in held["items"] if not i.get("done")]
@@ -85,7 +106,7 @@ def items(name: str) -> list[str] | None:
 
 def take_off(name: str, which: str) -> tuple[list[str], str]:
     """(lines taken off, why-not). "everything" clears the list."""
-    held = _load(name)
+    held = _load(name, deleted=False)
     if held is None:
         return [], f"You don't have a {name} list."
     needle = " ".join(str(which or "").casefold().split())
@@ -115,6 +136,8 @@ def all_lists() -> list[dict]:
         try:
             held = read_json(path)
         except ValueError:
+            continue
+        if held.get("deleted"):
             continue
         out.append({"name": held.get("name") or path.stem,
                     "open": sum(1 for i in held.get("items") or [] if not i.get("done"))})
