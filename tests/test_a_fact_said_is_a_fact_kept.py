@@ -4030,5 +4030,17 @@ class HisWorkDayKept(unittest.TestCase):
         self.assertEqual(quick.match("what's after my 2pm")[0], "event_detail")
 
 
+class OneHonestLineForHowHeFeels(unittest.TestCase):
+    """2026-10-07: "my sister had a baby", "I'm sick of this" and "give me a
+    compliment" went to the planner or a model."""
+
+    def test_lines(self):
+        from aletheia import quick
+        self.assertIn("congratulations to your sister", quick.answer("my sister had a baby"))
+        self.assertIn("frustrating", quick.answer("i'm sick of this"))
+        self.assertIn("Rest up", quick.answer("i'm sick"))
+        self.assertIn("starting things", quick.answer("give me a compliment"))
+
+
 if __name__ == "__main__":
     unittest.main()

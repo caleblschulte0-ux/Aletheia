@@ -1952,9 +1952,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick"
         # "I'm procrastinating" (2026-10-07: to the planner)
         r"|procrastinating|unmotivated|distracted|stuck|thirsty|cold|freezing|hot|nervous|scared|worried|running late|stuck in traffic"
-        r"|late)(?: today| again| now| right now)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
+        r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
         r"|^(?P<feel2>i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
+        r"|give me a compliment|compliment me|say something nice about me"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
         r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
         r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great))$")),
@@ -1975,7 +1976,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:it'?s|today is|today's) my (?P<celebrate>birthday|anniversary|wedding anniversary|work anniversary)(?: today)?!*$"
         r"|^my (?P<loss>dog|cat|pet|bird|horse|grandma|grandmother|grandpa|grandfather|mom|mum|mother|dad|father|uncle|aunt"
         r"|friend|brother|sister|husband|wife|partner|cousin|best friend) (?:just )?(?:died|passed away|passed)"
-        r"(?: today| yesterday| this morning| last night| this week)?$")),
+        r"(?: today| yesterday| this morning| last night| this week)?$"
+        # "My sister had a baby" (2026-10-07: to the planner).
+        r"|^my (?P<theirs>mom|mum|mother|dad|father|sister|brother|son|daughter|wife|husband|partner|friend|best friend|cousin"
+        r"|aunt|uncle|grandma|grandpa|boss|niece|nephew|neighbou?r) (?P<their_news>had a baby|had her baby|is pregnant|got engaged"
+        r"|got married|graduated|got (?:a |the |her |his )?(?:new )?job|got (?:a |the )?promotion|got promoted|bought a (?:house|home|car)"
+        r"|turned \d{1,3}|is having a baby|had twins)(?: today| yesterday| this week)?!*$")),
     # 2026-10-07: the weather asked sideways, each to a model while the
     # forecast was one call away. LAST, so the main weather pattern keeps
     # every sentence it already had.
@@ -6211,8 +6217,10 @@ def _feeling(text: str) -> str | None:
     said = (g.get("feel") or g.get("feel2") or "").strip()
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
-    if said in ("cheer me up", "make me smile"):
+    if said in ("cheer me up", "make me smile", "give me a compliment", "compliment me", "say something nice about me"):
         said = "say something nice"
+    if re.match(r"(?:frustrated|annoyed|angry|mad|pissed off|fed up|sick of|so done)", said):
+        return "That sounds frustrating. Tell me what's going wrong, and if it's something I can fix or take off you, I will."
     if re.match(r"i(?:'ve| have)|i (?:don'?t|do not) feel", said):
         said = "sick"
     if re.match(r"i can'?t concentrate", said):
@@ -6255,6 +6263,8 @@ def _life_news(text: str) -> str | None:
         return "I'm sorry. That one stings, and it's their loss. When you're ready, we'll go again."
     if g.get("quit"):
         return "That's a big step. Tell me what's next when you know, and I'll keep track of it."
+    if g.get("theirs"):
+        return f"That's lovely news - congratulations to your {g['theirs']}."
     if g.get("loss"):
         return ("I'm so sorry. Take whatever time you need - I'll keep things running, "
                 "and anything that can wait will.")
