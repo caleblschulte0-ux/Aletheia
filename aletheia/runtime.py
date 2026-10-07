@@ -295,6 +295,8 @@ _DECLINES = (
     "no longer under consideration", "not moving forward", "not be moving forward",
     "unfortunately", "regret to inform", "decided to move forward with",
     "other candidates", "not selected", "decided not to", "pursue other",
+    "unable to move forward", "not to proceed", "not proceed with", "no longer available",
+    "position has been filled", "direction that better fits",
 )
 
 #: An employer asking for time, unmistakably. These BEAT an acknowledgement
@@ -390,9 +392,25 @@ def _job_reply(event: dict) -> dict | None:
                 fresh = ru.fresh_text(text).casefold()[:4000]
                 if hit is None:
                     hit = _match_ledger(fresh, sender, ledger, body=True)
-                asks = asks or _any_of(fresh, _ASKS_FOR_TIME) or bool(calendly.find_scheduling_links(text))
-                declines = declines or bool(ru._REJECT_TEXT.search(fresh))
+                asks = (asks or _any_of(fresh, _ASKS_FOR_TIME) or bool(calendly.find_scheduling_links(text))
+                        or bool(calendly.find_availability_links(text)))
+                declines = declines or bool(ru._REJECT_TEXT.search(fresh)) or _any_of(fresh, _DECLINES)
                 might = might or _any_of(fresh, _MIGHT_WANT_TIME)
+        elif hit is not None and acknowledges and not (asks or declines):
+            # A POLITE SUBJECT IS NOT AN ANSWER. Measured on his inbox
+            # 2026-10-06: Klaviyo, Asana, Instacart, Typeform and Affirm all
+            # said no under "Thank you for applying" / "Thanks for your
+            # interest", so every one was filed as an acknowledgement and the
+            # funnel counted 3 rejections against 230 applications. The body
+            # is read; a decline in it is a decline. It is upgraded to an ask
+            # for time ONLY by a scheduling link, because acknowledgements
+            # say "we'll reach out to schedule an interview" as boilerplate.
+            text = _body_of(event, subject)
+            if text:
+                from aletheia import calendly, reply_understanding as ru
+                fresh = ru.fresh_text(text).casefold()[:4000]
+                declines = bool(ru._REJECT_TEXT.search(fresh)) or _any_of(fresh, _DECLINES)
+                asks = bool(calendly.find_scheduling_links(text) or calendly.find_availability_links(text))
         if hit is None:
             if asks and (_any_of(low, _ABOUT_A_JOB) or _any_of(fresh, _ABOUT_A_JOB)):
                 return _somebody_wants_to_talk(event, subject, sender, text)
