@@ -6641,7 +6641,11 @@ def _timer_left(now=None) -> str | None:
 
     def name(text: str) -> str:
         found = re.search(r"your (.+?) timer is up", text)
-        return f"your {found.group(1)} timer" if found else "your timer"
+        if not found:
+            return "your timer"
+        # A named one is "the eggs timer" - the same words voice uses.
+        called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", found.group(1))
+        return f"the {called.group(1)} timer" if called else f"your {found.group(1)} timer"
     lines = [f"{left(at)} left on {name(text)}" for at, text in running[:3]]
     return lines[0][0].upper() + "; ".join(lines)[1:] + "."
 

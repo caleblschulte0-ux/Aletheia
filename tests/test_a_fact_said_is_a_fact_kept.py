@@ -851,7 +851,7 @@ class TimersByName(unittest.TestCase):
              mock.patch.object(scheduler, "next_occurrence",
                                side_effect=lambda spec, now: __import__("datetime").datetime.fromisoformat(spec["at"])):
             self.assertEqual(voice._interpret("how long on the pasta")["say"],
-                             "10 minutes left on your 10 minute pasta timer.")
+                             "10 minutes left on the pasta timer.")
             self.assertTrue(voice._interpret("how long left on the rice")["say"].startswith("You don't have a rice timer."))
             cmd = voice._interpret("add 2 minutes to the pasta timer")["command"]
             self.assertEqual(cmd["replaces"], "your 10 minute pasta timer is up")
@@ -1215,6 +1215,18 @@ class ARecipeIsASearch(unittest.TestCase):
     def test_find_me_a_recipe(self):
         self.assertEqual(voice.interpret("find me a recipe for chicken")["command"],
                          {"kind": "research", "question": "chicken recipe"})
+
+
+class ANamedTimerByItsName(unittest.TestCase):
+    def test_more_on_the_pizza_only_when_there_is_one(self):
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=20)
+        with mock.patch.object(voice, "_running_once", return_value=[(at, "your 25 minute pizza timer is up")]):
+            got = voice._interpret("add 5 minutes to the pizza")["command"]
+            self.assertEqual(got["kind"], "remind_at")
+            self.assertEqual(got["text"], "your 25 minute pizza timer is up")
+        with mock.patch.object(voice, "_running_once", return_value=[]):
+            self.assertNotEqual((voice._interpret("add 10 minutes to my meeting")["command"] or {}).get("kind"),
+                                "remind_at")
 
 
 if __name__ == "__main__":

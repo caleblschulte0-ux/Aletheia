@@ -210,7 +210,7 @@ class ATimerWithAName(unittest.TestCase):
         soon = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=9, seconds=30)).isoformat()
         spec = {"kind": "once", "at": soon, "command": {"text": "your 10 minute eggs timer is up"}}
         with mock.patch.object(intercom, "_reminder_schedules", return_value=[spec]):
-            self.assertEqual(voice._timer_left(), "9 minutes left on your 10 minute eggs timer.")
+            self.assertEqual(voice._timer_left(), "9 minutes left on the eggs timer.")
 
     def test_a_length_alone_is_still_a_timer(self):
         self.assertEqual(voice._interpret("set a timer for ten minutes")["command"]["kind"], "remind_at")

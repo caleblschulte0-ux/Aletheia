@@ -1030,7 +1030,11 @@ def _timer_left(now=None, named: str = "") -> str:
         amount = (speech.count_phrase(int(seconds), "second") if seconds < 60
                   else speech.count_phrase(minutes, "minute") if minutes < 60
                   else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))
-        line = (seconds, f"{amount} left on your {m.group(1)} timer")
+        # "10 minutes left on your 10 minute eggs timer": a named timer is
+        # the eggs timer, and its length is already in the amount.
+        called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", m.group(1))
+        line = (seconds, f"{amount} left on the {called.group(1)} timer" if called
+                else f"{amount} left on your {m.group(1)} timer")
         if named and not re.search(r"\b" + re.escape(named) + r"\b", m.group(1)):
             others.append(line)
             continue
@@ -3965,14 +3969,23 @@ def _interpret(transcript: str) -> dict:
                      # "Add 2 minutes to the pasta timer" (2026-10-07: to the planner).
                      r"|(?:add|put) (?P<n5>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?(?P<unit5>minutes?|mins?)"
                      r" (?:to|on) (?:the |my )?(?P<named>[a-z][a-z ]{1,25}?) timer", low)
+    if not m:
+        # "Add 5 minutes to the pizza" - no word "timer", so only when a
+        # running timer is called that (2026-10-07: to the planner).
+        bare = re.fullmatch(r"(?:add|put|give) (?P<n5>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?"
+                            r"(?P<unit5>minutes?|mins?) (?:to|on) (?:the |my )?(?P<named>[a-z][a-z ]{1,25}?)", low)
+        if bare and any(re.search(r"\b" + re.escape(bare.group("named")) + r"\b", words)
+                        for _at, words in _running_once("timer is up")):
+            m = bare
     if m:
         words = {"a": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30}
-        n = m.group("n") or m.group("n2") or m.group("n3") or m.group("n4") or m.group("n5")
-        unit = m.group("unit") or m.group("unit2") or m.group("unit3") or m.group("unit4") or m.group("unit5") or "minutes"
+        g = m.groupdict()
+        n = g.get("n") or g.get("n2") or g.get("n3") or g.get("n4") or g.get("n5")
+        unit = g.get("unit") or g.get("unit2") or g.get("unit3") or g.get("unit4") or g.get("unit5") or "minutes"
         count = int(n) if n.isdigit() else words[n]
         if unit.startswith("sec"):
             return {"command": None, "say": "I can add whole minutes to a timer, not seconds."}
-        return _more_on_the_timer(count, named=m.group("named") or "")
+        return _more_on_the_timer(count, named=g.get("named") or "")
     m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?"
                      r"(?P<was>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?alarm"
                      r"(?: (?:for|at) (?P<was2>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?))? (?:to|for|until) (?P<time>[\w: ]+?)", low)
