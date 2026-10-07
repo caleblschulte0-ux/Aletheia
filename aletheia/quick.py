@@ -288,7 +288,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^where have i applied(?: so far| this week| today)?$"
         r"|^(?:who|what) have (?:you|u) applied (?:to|for)(?: for me)?(?: so far| this week| today)?$"
         r"|^(?:what|who|where) did (?:you|u|we) apply(?: (?:to|for))?(?: for me)?(?: this week| so far)?$"
-        r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$")),
+        r"|^(?:list|show me|name) (?:the |my )?(?:companies|employers|places) (?:i|you|u|we)(?:'ve| have)? applied to$"
+        # "Which companies did you apply to" (2026-10-07: to the planner).
+        r"|^(?:what|which) (?:companies|employers|places|jobs) did (?:you|u|we|i) apply (?:to|for)(?: for me)?(?: so far)?$")),
     ("applied_when", re.compile(
         r"^when did (?:i|you|u|we) apply (?:to|for|at) (?:the |my )?(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
         r"(?: (?:job|role|position|application|opening))?\s*\??$"

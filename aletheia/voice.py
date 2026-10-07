@@ -1929,7 +1929,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(what|which) (jobs?|applications?) have i applied (to|for)"
                     r"|what have i applied (to|for)"
                     r"|(what|which) (jobs?|applications?) did (you|u) apply (to|for)"
-                    r"|(list )?(my )?applications", low):
+                    r"|(list )?(my )?applications|(show|read|tell)( me)? (my|the) (job )?applications", low):
         return {"command": {"kind": "applications"}, "say": None}
     # "WHAT'S ON IT" right after the shopping list was touched (2026-10-07:
     # to a model, with "it" lost). The list the last exchange was about.

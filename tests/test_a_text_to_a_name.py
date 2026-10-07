@@ -353,5 +353,14 @@ class FilesByName(unittest.TestCase):
         self.assertIn("groceries", voice._interpret("make a word document called groceries")["say"])
 
 
+class HisApplicationsAskedOtherWays(unittest.TestCase):
+    def test_show_me_my_applications(self):
+        self.assertEqual(voice._interpret("show me my applications")["command"], {"kind": "applications"})
+
+    def test_which_companies_did_you_apply_to(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("which companies did you apply to")[0], "applied_to")
+
+
 if __name__ == "__main__":
     unittest.main()
