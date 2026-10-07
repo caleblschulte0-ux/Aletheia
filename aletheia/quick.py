@@ -1274,6 +1274,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("riddle", re.compile(r"^(?:tell me|give me|do you have|got|know) (?:a |another |any )?riddles?$")),
     ("count_to", re.compile(r"^count (?:to|up to) (?P<what>\d{1,2}|ten|five|three|twenty)$")),
     ("alarm_q", re.compile(r"^what time (?:did i set|is) my alarm(?: set)?(?: for)?$|^when(?:'s| is) my alarm(?: set for)?$"
+                           r"|^when (?:does|will) my (?:next )?alarm go off$|^what(?:'s| is) my alarm set (?:for|to)$|^is my alarm (?:set|on)$"
                            r"|^(?:did i set|do i have) an alarm(?: (?:set|for tomorrow))?$")),
     # "HOW DO I TURN YOU OFF": the switch is his, and it is one word.
     ("off_switch", re.compile(r"^how (?:do|can) i (?:turn (?:you|u) off|stop (?:you|u)|shut (?:you|u) (?:off|down|up)|pause (?:you|u)"

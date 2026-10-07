@@ -83,3 +83,9 @@ class SmallerReads(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=[{"text": "my gate code is 4321"}]):
             self.assertEqual(quick.answer("what's my last note"), "Your last note: your gate code is 4321.")
         self.assertEqual(voice._interpret("read me my latest note")["command"]["kind"], "intent")
+
+
+class HisAlarmAskedEveryWay(unittest.TestCase):
+    def test_the_phrasings_reach_the_alarm_reader(self):
+        for said in ("when does my alarm go off", "is my alarm set", "what's my alarm set for"):
+            self.assertEqual(quick.match(said)[0], "alarm_q", said)
