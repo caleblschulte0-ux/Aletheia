@@ -113,9 +113,11 @@ class TheFullSentenceStillWorksCase(_Threaded):
             self.assertEqual(self.item("add milk to the shopping list"), "milk")
 
     def test_several_things_at_once_still_go_to_the_planner(self):
-        """"Macaroni and cheese" is one thing; splitting would guess."""
+        """"Peanut butter eggs and bread" might be one long name; splitting
+        would guess. (A run of things that are each a thing on their own -
+        "eggs milk and bread" - is a spoken list, and goes on.)"""
         with self.thread("add milk to the shopping list"):
-            self.assertNotEqual(self.kind("add eggs milk and bread too"),
+            self.assertNotEqual(self.kind("add peanut butter eggs and bread too"),
                                 "shopping_add")
 
     def test_a_task_said_mid_run_is_still_a_task(self):
