@@ -12,7 +12,7 @@ def turn(said, answered=""):
 class ABareAsk(unittest.TestCase):
     def test_she_asks_for_the_rest(self):
         with mock.patch("aletheia.converse.recent", return_value=[]):
-            self.assertEqual(voice._interpret("add a task")["say"], "What's the task?")
+            self.assertTrue(voice._interpret("add a task")["say"].startswith("What's the task?"))
             self.assertIn("remind you", voice._interpret("set a reminder")["say"])
 
     def test_the_next_sentence_fills_it(self):

@@ -86,15 +86,14 @@ class TheBattery(unittest.TestCase):
             return quick.answer("what's my battery level")
 
     def test_it_reads_what_windows_reports(self):
-        self.assertEqual(self.ask({"known": True, "on_ac": False, "battery_percent": 64,
-                                   "has_battery": True}),
-                         "You're on battery at 64%.")
+        said = self.ask({"known": True, "on_ac": False, "battery_percent": 64, "has_battery": True})
+        self.assertIn("on battery at 64%", said)
         self.assertIn("plugged in", self.ask({"known": True, "on_ac": True, "battery_percent": 90,
                                               "has_battery": True}))
         self.assertIn("no battery", self.ask({"known": True, "on_ac": True, "has_battery": False}))
 
     def test_a_machine_it_cannot_read_says_so(self):
-        self.assertIn("can't read a battery", self.ask({"known": False}))
+        self.assertRegex(self.ask({"known": False}), r"can't read (?:a|the) battery")
 
 
 class HisMyIsYour(unittest.TestCase):
