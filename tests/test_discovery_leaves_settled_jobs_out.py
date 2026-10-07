@@ -43,7 +43,7 @@ class TheSearchLeavesSettledJobsOut(unittest.TestCase):
         self.assertEqual(len(found["matches"]), 3)
 
 
-class WhatCountsAsSettled(unittest.TestCase):
+class _Stores(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.dir.cleanup)
@@ -62,6 +62,8 @@ class WhatCountsAsSettled(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
+
+class WhatCountsAsSettled(_Stores):
     def test_sent_waiting_and_closed_are_settled_and_failed_is_not(self):
         self.runs([
             {"state": "SUBMITTED", "url": "u-sent", "company": "A", "job_title": "Analyst"},
@@ -112,3 +114,25 @@ class WhatCountsAsSettled(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkHeWillNotDoIsLeftOutByItsTitle(_Stores):
+    """Live 2026-10-07: a batch spent 39 of its 90 openings on jobs titled
+    sales, and every one was turned away after the cut by the same rule."""
+
+    def skip_with(self, not_wanted):
+        self.runs([])
+        with mock.patch.object(campaign.profile, "known", return_value={"work_not_wanted": not_wanted}):
+            return campaign.settled_already(now=NOW)
+
+    def test_a_sales_title_is_left_out_when_he_said_no_sales(self):
+        skip = self.skip_with("definitely don't wanna do sales, no cold calling")
+        self.assertTrue(skip({"apply_url": "u1", "company": "A", "title": "Account Executive"}))
+        self.assertTrue(skip({"apply_url": "u2", "company": "A", "title": "Inbound SDR"}))
+        self.assertFalse(skip({"apply_url": "u3", "company": "A", "title": "Sales Operations Analyst"}),
+                         "the work behind a sales team is not selling")
+        self.assertFalse(skip({"apply_url": "u4", "company": "A", "title": "Project Coordinator"}))
+
+    def test_his_own_words_decide_it(self):
+        skip = self.skip_with("")
+        self.assertFalse(skip({"apply_url": "u1", "company": "A", "title": "Account Executive"}))

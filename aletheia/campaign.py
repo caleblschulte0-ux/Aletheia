@@ -194,12 +194,22 @@ def settled_already(*, since: str = "", now: dt.datetime | None = None):
     passed = {url for url, row in _passed_read().items()
               if isinstance(row, dict) and str(row.get("at") or "") >= str(since or "")}
     unreachable = _unreachable_read()
+    try:
+        known = profile.known()
+    except Exception:
+        known = {}
 
     def skip(job: dict) -> bool:
         url = str(job.get("apply_url") or job.get("url") or "").strip()
         if url and (url in urls or url in passed or unreachable_today(url, store=unreachable, now=now)):
             return True
         company, title = str(job.get("company") or ""), str(job.get("title") or "")
+        # WORK HE SAID HE WILL NOT DO, BY ITS TITLE. Live 2026-10-07 the second
+        # batch spent 39 of its 90 openings on jobs titled sales, and every one
+        # was turned away by the same rule after the cut. His own words decide
+        # it (`work_not_wanted`), so the day he changes them this follows.
+        if title.strip() and job_fit.unwanted_reason(title, "", known):
+            return True
         return bool(company.strip() and title.strip()
                     and apply_run.role_key(company, title) in roles)
     return skip
