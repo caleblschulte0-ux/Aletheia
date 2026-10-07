@@ -1039,8 +1039,14 @@ def _timer_left(now=None, named: str = "") -> str:
         # "10 minutes left on your 10 minute eggs timer": a named timer is
         # the eggs timer, and its length is already in the amount.
         called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", m.group(1))
-        line = (seconds, f"{amount} left on the {called.group(1)} timer" if called
-                else f"{amount} left on your {m.group(1)} timer")
+        # "15 minutes left on your 10-minute timer" after "add 5 minutes"
+        # (2026-10-07): a length it has outgrown is not its name any more.
+        length = re.fullmatch(r"(\d+)[- ](minute|hour)s?", m.group(1))
+        if length and seconds > int(length.group(1)) * (3600 if length.group(2) == "hour" else 60) + 30:
+            line = (seconds, f"{amount} left on your timer")
+        else:
+            line = (seconds, f"{amount} left on the {called.group(1)} timer" if called
+                    else f"{amount} left on your {m.group(1)} timer")
         if named and not re.search(r"\b" + re.escape(named) + r"\b", m.group(1)):
             others.append(line)
             continue

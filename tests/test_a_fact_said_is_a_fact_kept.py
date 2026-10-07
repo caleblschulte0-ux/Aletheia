@@ -1315,5 +1315,16 @@ class TheHoldWhereItIsNowCase(unittest.TestCase):
             self.assertEqual(voice._hold_as_it_is_now(held)["start"], held["start"])
 
 
+class AnExtendedTimerCase(unittest.TestCase):
+    def test_a_length_it_outgrew_is_not_said(self):
+        from aletheia import intercom, voice
+        at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=15)).isoformat()
+        spec = {"kind": "once", "at": at, "command": {"text": "your 10-minute timer is up"}}
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[spec]):
+            said = voice._timer_left()
+        self.assertNotIn("10-minute", said)
+        self.assertIn("15 minutes left", said)
+
+
 if __name__ == "__main__":
     unittest.main()
