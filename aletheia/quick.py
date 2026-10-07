@@ -789,6 +789,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^why (?:is|does) (?:this|it|everything) (?:take|taking) so long$"
         r"|^what(?:'s| is) taking so long$|^who(?:'s| is) (?:thinking|answering)(?: right now)?$"
         r"|^(?:are|r) (?:you|u) (?:using|on) (?:your own|the local) (?:model|brain)$"
+        # "What model are you" (2026-10-07: to a model, which cannot say).
+        r"|^what (?:model|ai|llm|brain) (?:are|r) (?:you|u)$|^what are (?:you|u) running on$"
         # Who is thinking is a fact she holds; asked with every frontier off,
         # her own model said "Sonnet 5" and "I'm running on Claude right now
         # - nothing's down" (2026-09-22). The line is the brains line.
@@ -917,6 +919,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what notes do (?:you|u) have(?: for me)?$|^(?:list|read me|read back|show me) (?:my |your |the )?notes$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$")),
+    # Questions about HER, each to a model that knows nothing she does not
+    # (2026-10-07).
+    ("about_her", re.compile(
+        r"^(?P<her>how old are (?:you|u)|who (?:made|built|created|programmed) (?:you|u)"
+        r"|are (?:you|u) (?:a robot|a bot|an ai|ai|human|a person|real|alive|a real person)"
+        r"|do (?:you|u) remember me|do (?:you|u) know (?:who i am|me))$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -972,7 +980,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell", "arith", "prime", "average", "round_to", "time_units", "fraction_pct"):
+        if name in ("math", "farewell", "about_her", "arith", "prime", "average", "round_to", "time_units", "fraction_pct"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2496,6 +2504,20 @@ def _fraction_pct(text: str) -> str | None:
     return f"{_number_said(100 * int(g['num']) / int(g['den']))} percent."
 
 
+def _about_her(text: str) -> str:
+    asked = _match_of("about_her", text).get("her", "")
+    if asked.startswith("how old"):
+        return "Not old - you're still building me, and I get a little better most days."
+    if asked.startswith("who"):
+        return ("You did - I'm your own assistant, running on your PC. I think with Claude or ChatGPT "
+                "when they're available, and with a small model of my own when they're not.")
+    if asked.startswith("are"):
+        return "I'm an AI - your own assistant, running on your PC. Not a person."
+    known = _about_him()
+    return ("Yes. " + known) if known and not known.startswith("Nothing") else \
+        "I don't know much about you yet - tell me your name and I'll remember it."
+
+
 def _how_many() -> str | None:
     """The counts, for the question the old answer was really answering."""
     from aletheia import self_knowledge, speech
@@ -3880,6 +3902,7 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "about_her": lambda rest: _about_her(rest),
            "arith": lambda rest: _arith(rest),
            "prime": lambda rest: _prime(rest),
            "average": lambda rest: _average(rest),

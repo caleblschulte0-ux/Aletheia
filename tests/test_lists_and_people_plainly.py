@@ -49,3 +49,17 @@ class SumsInWords(unittest.TestCase):
         self.assertEqual(quick.answer("how many minutes in 3 hours"), "180 minutes.")
         self.assertEqual(quick.answer("how many days in a year"), "365 days, 366 in a leap year.")
         self.assertEqual(quick.answer("what is 3/4 as a percent"), "75 percent.")
+
+
+class AboutHer(unittest.TestCase):
+    def test_questions_about_her_have_her_answers(self):
+        self.assertIn("AI", quick.answer("are you a robot"))
+        self.assertTrue(quick.answer("who made you").startswith("You did"))
+        self.assertTrue(quick.answer("how old are you"))
+        self.assertEqual(quick.match("what model are you")[0], "slow")
+
+    def test_do_you_remember_me_is_not_a_lookup_of_me(self):
+        from unittest import mock
+        with mock.patch.object(quick, "_about_him", return_value="Your name is Caleb."):
+            self.assertEqual(quick.answer("do you remember me"), "Yes. Your name is Caleb.")
+        self.assertEqual(quick.match("do you remember the plumber")[0], "recall")
