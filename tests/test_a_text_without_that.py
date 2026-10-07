@@ -32,3 +32,14 @@ class TheNameEndsWhereTheMessageStarts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheWeatherAskedSideways(unittest.TestCase):
+    def test_each_reads_the_forecast_for_the_day_he_said(self):
+        from aletheia import weather
+        with mock.patch.object(weather, "spoken", side_effect=lambda when="": f"[{when}]"):
+            for said, day in (("what's the weather on saturday", "saturday"), ("will it snow", ""),
+                              ("how hot will it be today", "today"), ("what should i wear tomorrow", "tomorrow"),
+                              ("do i need a jacket", ""), ("what's the forecast", "")):
+                with self.subTest(said=said):
+                    self.assertEqual(quick.answer(said), f"[{day}]")

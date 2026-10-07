@@ -948,6 +948,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
     ("status_of", _STATUS),
+    # 2026-10-07: the weather asked sideways, each to a model while the
+    # forecast was one call away. LAST, so the main weather pattern keeps
+    # every sentence it already had.
+    ("weather_more", re.compile(
+        r"^(?:what(?:'s| is|s)? )?(?:the )?(?:weather|forecast)(?: like)? (?:on|for) (?P<wm>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what(?:'s| is|s)? the forecast(?: (?P<wm2>today|tonight|tomorrow))?$"
+        r"|^(?:is|will) it (?:going to )?(?:rain|snow|storm)(?: later)?$"
+        r"|^how (?:hot|cold|warm) (?:will it be|is it going to be|is it)(?: outside)?(?: (?P<wm3>today|tonight|tomorrow))?$"
+        r"|^what should i wear(?: (?P<wm4>today|tonight|tomorrow))?$"
+        r"|^do i need (?:a jacket|a coat|sunscreen|boots)(?: (?P<wm5>today|tonight|tomorrow))?$")),
 )
 
 
@@ -963,7 +973,7 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
-        if name in ("math", "farewell"):
+        if name in ("math", "farewell", "weather_more"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "mine",
                                            "free", "free2", "free3",
@@ -2386,6 +2396,14 @@ def _math(text: str) -> str | None:
     except (ValueError, ZeroDivisionError):
         return None
     return None
+
+
+def _weather_more(text: str) -> str | None:
+    found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "weather_more"), None)
+    if not found:
+        return None
+    day = next((v for k, v in found.groupdict().items() if v), "")
+    return _weather(day)
 
 
 def _how_many() -> str | None:
@@ -3850,6 +3868,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "hunting_for": lambda rest: _hunting_for(),
            "work_wants": lambda rest: _work_wants(),
            "weather": lambda rest: _weather(rest),
+           "weather_more": lambda rest: _weather_more(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
