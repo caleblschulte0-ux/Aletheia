@@ -3287,5 +3287,39 @@ class HerDayAndHisWeek(unittest.TestCase):
         self.assertTrue(recollection._something_she_did(dict(entry, text="done — Took it off your list: milk.")))
 
 
+class HisBodyAndHisMedicine(unittest.TestCase):
+    def notes(self, *said, days_apart=0):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        return [{"text": t, "ts": (now - dt.timedelta(days=i * days_apart)).isoformat()} for i, t in enumerate(said)]
+
+    def test_said_is_kept(self):
+        for said in ("I'm 6 feet tall", "I want to lose 10 pounds", "I slept badly", "I took ibuprofen at 2",
+                     "my emergency contact is my mom", "my prescription is lisinopril 10mg"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I need to refill my prescription")["command"]["kind"], "task_new")
+
+    def test_height_bmi_and_weight_lost_are_arithmetic_on_his_notes(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.notes("I weigh 180", "I'm 6 feet tall", "I weigh 190",
+                                                                        days_apart=7)):
+            self.assertEqual(quick.answer("how tall am I"), "You told me: you're 6 feet tall.")
+            self.assertEqual(quick.answer("what's my BMI"), "About 24.4, from the height and weight you told me.")
+            self.assertTrue(quick.answer("how much weight have I lost").startswith("Down about 10 pounds since"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("your height and your weight", quick.answer("what's my BMI"))
+
+    def test_a_medicine_by_name_is_dated_by_the_time_he_said(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=self.notes("I took ibuprofen at 2")):
+            self.assertEqual(quick.answer("when did I last take ibuprofen"), "You told me you took ibuprofen at 2 today.")
+            self.assertEqual(quick.answer("did I take ibuprofen today"), "Yes - you told me you took ibuprofen at 2 today.")
+        with mock.patch.object(quick, "_notes", return_value=self.notes("my prescription is lisinopril 10mg")):
+            self.assertEqual(quick.answer("what medications do I take"), "You told me: your prescription is lisinopril 10mg.")
+            self.assertEqual(quick.answer("what's my prescription"), "You told me: your prescription is lisinopril 10mg.")
+        with mock.patch.object(quick, "_notes", return_value=self.notes("my emergency contact is my mom")):
+            self.assertEqual(quick.answer("who's my emergency contact"), "Your emergency contact is your mom.")
+
+
 if __name__ == "__main__":
     unittest.main()

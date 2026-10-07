@@ -1145,7 +1145,7 @@ _TASK_VERB = re.compile(
     r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|sort|organize|organise|vacuum|take out|bring|replace|feed|prepare|study|research|cook|buy|clear out|tidy|"
     # "Add write the report to my list" went on the SHOPPING list (2026-10-07).
     r"write|draft|plan|go to|practi[cs]e|prep|start|learn|figure out|find|reply to|respond to|answer|confirm|"
-    r"register|sign up|fill out|complete|repair|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
+    r"register|sign up|fill out|complete|repair|refill|re-fill|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) )\b")
 
 
@@ -6971,6 +6971,13 @@ def _interpret(transcript: str) -> dict:
                      r"(?: today| this morning| tonight| just now| already)?", low)
     if m:
         return {"command": {"kind": "note", "text": f"took my {m.group('what')}"}, "say": None}
+    # "I took ibuprofen at 2" (2026-10-07: to the planner) - a medicine by
+    # name, in his words with the time he said.
+    from aletheia import quick as _quick
+    if re.fullmatch(r"(?:i )?(?:just )?(?:took|had|have taken|'ve taken) (?:my |an? |some |one |two |\d+ )?(?:" + _quick._DRUGS + r")"
+                    r"(?: pills?| tablets?| capsules?)?(?: (?:at|around|about) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?| just now| today"
+                    r"| this morning| tonight| earlier)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # MONEY BETWEEN PEOPLE (2026-10-07: "I owe Sam 20 dollars", "Sam paid me
     # back" each to the planner). Said as a fact, it is a note in his words;
     # "who do I owe" adds the notes up. Nothing here moves any money.
@@ -7066,6 +7073,9 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:monthly |weekly |daily |grocery |food |step |calorie |water |reading |savings )?(?:budget|goal)"
                      r"|goal weight|target weight|bedtime|employee (?:id|number)|student (?:id|number)"
                      r"|insurance(?: company| provider)?|pharmacy|gym"
+                     # "My emergency contact is my mom", "my prescription is
+                     # lisinopril 10mg" (2026-10-07: to the planner).
+                     r"|emergency contact|prescriptions?|medications?|meds|daily medication"
                      # "My rent is 1500", "my car insurance is 120 a month"
                      # (2026-10-07: to the planner) - held to a number below.
                      r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)
@@ -7342,6 +7352,17 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|now|this morning))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
             or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HIS BODY, SAID (2026-10-07: "I'm 6 feet tall", "I want to lose 10
+    # pounds" and "I slept badly" each went to the planner). Notes in his
+    # words; "how tall am I", "what's my BMI" and "how much weight have I
+    # lost" read them.
+    if re.fullmatch(r"(?:i'?m|i am) (?:about |around )?(?:\d(?:'| foot| feet| ft)(?: ?\d{1,2}(?:\"|''| inches| in)?)?|\d{3} ?cm|1\.\d\d ?m)(?: tall)?"
+                    r"|my height is (?:about |around )?(?:\d(?:'| foot| feet| ft)(?: ?\d{1,2}(?:\"|''| inches| in)?)?|\d{3} ?cm|1\.\d\d ?m)"
+                    r"|i (?:want|need|'d like|would like|am trying|'m trying) to (?:lose|gain|drop|put on) \d{1,3} (?:pounds|lbs?|kg|kilos)"
+                    r"(?: by [a-z0-9 ]{2,20}| this year| this month)?"
+                    r"|i slept (?:badly|terribly|poorly|well|great|fine|ok|okay|awful|horribly|like a baby|like crap|like garbage)"
+                    r"(?: last night)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I STARTED READING THE HOBBIT" (2026-10-07: to the planner); "what am
     # I reading" reads it back until he finishes it.

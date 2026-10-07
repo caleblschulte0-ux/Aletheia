@@ -148,6 +148,12 @@ _KITCHEN_UNIT = r"(?!dollars?\b|bucks\b|euros?\b|pounds?\b|percent\b)[a-z]{2,12}
 _QTY = (r"(?:\d+ (?:and )?\d+/\d+|\d+/\d+|\d+(?:\.\d+)?(?: and (?:a |one )?(?:half|quarter|third|three quarters|two thirds))?"
         r"|(?:a |one )?(?:half|quarter|third))")
 
+# Medicines he names by name, shared with `voice`'s note for taking one.
+_DRUGS = (r"ibuprofen|advil|motrin|tylenol|acetaminophen|paracetamol|aspirin|aleve|naproxen|excedrin|benadryl|claritin"
+          r"|zyrtec|allegra|melatonin|nyquil|dayquil|sudafed|mucinex|tums|pepto|imodium|prilosec|zantac|pepcid"
+          r"|lisinopril|metformin|amoxicillin|prednisone|adderall|zoloft|lexapro|wellbutrin|xanax|levothyroxine"
+          r"|atorvastatin|lipitor|omeprazole|insulin|antihistamines?|antacids?|cough syrup|allergy pills?|painkillers?")
+
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in
     # crisis must never be filed as a work item "for when the big models
@@ -404,6 +410,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
     ("weight", re.compile(
         r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
+    ("body", re.compile(
+        r"^(?P<body>how tall am i|what(?:'s| is) my height|what(?:'s| is) my bmi|what(?:'s| is) my body mass index"
+        r"|how much weight (?:have i|did i) (?:lost|lose|gained|gain)(?: so far)?|how(?:'s| is| am i doing (?:on|with)) my weight(?: loss)?(?: goal)?)\s*\??$")),
+    ("meds", re.compile(
+        r"^what (?:medications?|medicines?|meds|prescriptions?|pills) (?:do i take|am i on|am i taking|do i have)\s*\??$"
+        r"|^what(?:'s| is| are) my (?:medications?|meds|prescriptions?)\s*\??$")),
     ("work_at", re.compile(
         r"^(?:where do i (?:work|go to school|study)|who do i work for|where(?:'s| is) my (?:work|job|office|school))\s*\??$")),
     ("after_that", re.compile(
@@ -1763,9 +1775,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b)[a-z][a-z'-]{1,20})?)"
         r"(?: be| turn| be turning)?(?: this year| next)?\s*\??$")),
     ("took_today", re.compile(
-        r"^(?:did|have) i (?:take|taken|had|have) (?:my )?(?:morning |evening |night |daily )?(?P<took>medicine|meds|medication|pills?|vitamins?"
-        r"|insulin|inhaler|antibiotics?|[a-z]+ pills?)(?: today| this morning| tonight| yet| already)?\s*\??$"
-        r"|^when did i (?:last )?take my (?P<took2>medicine|meds|medication|pills?|vitamins?|insulin)\s*\??$")),
+        r"^(?:did|have) i (?:take|taken|had|have) (?:my |any |an? |some )?(?:morning |evening |night |daily )?(?P<took>medicine|meds|medication|pills?|vitamins?"
+        r"|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")(?: today| this morning| tonight| yet| already)?\s*\??$"
+        # "When did I last take ibuprofen" (2026-10-07: to a model).
+        r"|^when did i (?:last )?(?:take|have) (?:my |an? |some |the )?(?P<took2>medicine|meds|medication|pills?|vitamins?|insulin|" + _DRUGS + r")"
+        r"(?: last)?\s*\??$")),
     ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
         r"^how many days (?:are there )?(?:between|from) (?P<d1>.+?) (?:and|to|until) (?P<d2>.+)$")),
@@ -1953,7 +1967,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2749,10 +2763,30 @@ def _took_today(what: str) -> str:
         except ValueError:
             continue
         clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        # "I took ibuprofen at 2" - the time he said, not when he said it.
+        told_at = re.search(r"\bat (\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)\s*$", said)
+        if told_at:
+            clock = told_at.group(1)
         if at.date() == today:
-            return f"Yes - you told me you took your {what} at {clock} today."
+            return f"Yes - you told me you took {'' if (re.fullmatch(_DRUGS, what.casefold()) and what != 'insulin') else 'your '}{what} at {clock} today."
         return (f"Not that you've told me today. The last time was {speech.humanize_time(at.isoformat())}." )
-    return f"You haven't told me you took your {what} today. Say \"I took my {what}\" when you do and I'll keep track."
+    # A medicine by name is not "your ibuprofen".
+    yours = "" if re.fullmatch(_DRUGS, str(what or "").casefold()) and what not in ("insulin",) else "your "
+    mine = "" if not yours else "my "
+    return f"You haven't told me you took {yours}{what} today. Say \"I took {mine}{what}\" when you do and I'll keep track."
+
+
+def _took_asked(text: str) -> str:
+    """"Did I take ...": yes or no first. "When did I last take ...": the
+    when, with no "Yes" in front of an answer to a question that was not
+    a yes-or-no (2026-10-07)."""
+    g = _groups("took_today", text)
+    said = _took_today(g.get("took") or g.get("took2") or "")
+    if g.get("took2"):
+        said = re.sub(r"^Yes - you told me", "You told me", said)
+        said = re.sub(r"^Not that you've told me today\. The last time was", "The last time you told me was", said)
+        said = re.sub(r" today\. Say ", ". Say ", said)
+    return said
 
 
 def _birthday_notes() -> list[tuple[str, int, int]]:
@@ -8610,6 +8644,85 @@ def _woke(act: str) -> str:
     return f"You haven't told me. Say \"I {said} at {7 if kin[0] == 'woke up' else 11}\" and I'll remember it."
 
 
+_HEIGHT = re.compile(r"(?:i'?m|i am|my height is) (?:about |around )?(?:(?P<ft>\d)(?:'| foot| feet| ft) ?(?:(?P<inch>\d{1,2})(?:\"|''| inches| in)?)?"
+                     r"|(?P<cm>\d{3}) ?cm|(?P<m>1\.\d\d) ?m)\b")
+_WEIGHED = re.compile(r"^i(?: weigh| weighed| am|'m) (?P<n>\d{2,3}(?:\.\d)?)(?: ?(?P<u>pounds|lbs?|kg|kilos|kilograms))?")
+
+
+def _height_m() -> tuple[float, str] | None:
+    """(metres, as he said it) from the newest note giving his height."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = _HEIGHT.match(said.casefold())
+        if m:
+            if m.group("ft"):
+                metres = (int(m.group("ft")) * 12 + int(m.group("inch") or 0)) * 0.0254
+            elif m.group("cm"):
+                metres = int(m.group("cm")) / 100
+            else:
+                metres = float(m.group("m"))
+            return metres, said
+    return None
+
+
+def _weights() -> list[tuple[str, float]]:
+    """(when, kg) for every weight he told her, newest first."""
+    out = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = _WEIGHED.match(said)
+        if m and (said.startswith("i weigh") or m.group("u")):
+            n = float(m.group("n"))
+            out.append((str(row.get("ts") or ""), n if (m.group("u") or "").startswith(("kg", "kilo")) else n * 0.4536))
+    return out
+
+
+def _body(text: str) -> str | None:
+    """Height, BMI and weight lost, from what he told her - and the
+    arithmetic said as arithmetic, never as medical advice."""
+    from aletheia import speech
+    asked = _tidy(text)
+    if "tall" in asked or "height" in asked:
+        h = _height_m()
+        if not h:
+            return "You haven't told me your height. Say \"I'm 5 foot 10\" and I'll remember it."
+        return f"You told me: {speech.as_she_says_it(h[1]).rstrip('.')}."
+    if "bmi" in asked or "body mass" in asked:
+        h, w = _height_m(), _weights()
+        missing = [x for x, have in (("your height", h), ("your weight", w)) if not have]
+        if missing:
+            return f"I need {speech.and_list(missing)} for that - tell me and I'll work it out."
+        bmi = w[0][1] / (h[0] ** 2)
+        return f"About {bmi:.1f}, from the height and weight you told me."
+    w = _weights()
+    if len(w) < 2:
+        return ("I only have one weight from you so far - tell me again as it changes and I'll keep track."
+                if w else "You haven't told me your weight yet. Say \"I weigh\" and the number.")
+    pounds = (w[-1][1] - w[0][1]) / 0.4536
+    first = speech.humanize_time(w[-1][0]) if w[-1][0] else "the first time"
+    if abs(pounds) < 0.5:
+        return f"About the same as {first}, from what you've told me."
+    return f"{'Down' if pounds > 0 else 'Up'} about {abs(pounds):.0f} pounds since {first}, from what you've told me."
+
+
+def _meds(text: str = "") -> str | None:
+    """What he told her he takes: "my prescription is ...", "I take ..."."""
+    from aletheia import speech
+    found, seen = [], set()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.match(r"(?:my|our) (?:daily )?(?:prescriptions?|medications?|meds) (?:is|are) ", low) \
+                or re.match(r"i take (?:my )?[a-z]", low) and re.search(_DRUGS + r"|\bmg\b|pills?|tablets?|daily|every (?:day|morning|night)", low):
+            key = re.sub(r"\W+", " ", low)
+            if key not in seen:
+                seen.add(key)
+                found.append(speech.as_she_says_it(said).rstrip("."))
+    if not found:
+        return None
+    return "You told me: " + speech.and_list(found[:4]) + "."
+
+
 def _weight() -> str | None:
     """"What's my weight": the newest weight he told her, with when."""
     said = re.compile(r"\bi(?: weigh| weighed| am|'m) (\d{2,3}(?:\.\d)?)(?: ?(pounds|lbs?|kg|kilos|kilograms))?", re.IGNORECASE)
@@ -8664,7 +8777,8 @@ def _person(rest: str) -> str:
         for row in _notes():
             m = said.search(str(row.get("text") or ""))
             if m:
-                return f"Your {who} is {m.group(1).strip().rstrip('.')}."
+                # "My emergency contact is my mom" is "your mom" said back.
+                return f"Your {who} is {re.sub(r'^(?:my|our) ', 'your ', m.group(1).strip().rstrip('.'), flags=re.I)}."
             m = other.search(str(row.get("text") or ""))
             if m:
                 name = m.group(1).strip()
@@ -8975,6 +9089,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "went": _went,
            "did_count": _did_count,
            "off_lists": _off_lists,
+           "body": _body,
+           "meds": _meds,
            "work_hours": _work_hours,
            "cost_mine": _cost_mine,
            "liked_how": _liked_how,
@@ -9059,7 +9175,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "days_left": lambda rest: _days_left(rest),
            "next_meeting": lambda rest: _next_meeting(),
            "next_detail": lambda rest: _next_detail(rest),
-           "took_today": lambda rest: _took_today(rest),
+           "took_today": lambda text: _took_asked(text),
            "pct_of": lambda rest: _pct_of(rest),
            "fraction_dec": lambda rest: _fraction_dec(rest),
            "roman": lambda rest: _roman(rest),
