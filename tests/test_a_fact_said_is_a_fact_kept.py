@@ -2752,5 +2752,18 @@ class ATaskClosedInHisWords(unittest.TestCase):
             self.assertEqual(voice._interpret("how many is that")["say"], "2.")
 
 
+
+class AlarmAtSeven(unittest.TestCase):
+    """2026-10-07: "alarm at 7" and "7am alarm" went to the planner."""
+
+    def test_the_noun_with_a_time(self):
+        for said, clock in (("alarm at 7", "T07:00"), ("7am alarm", "T07:00"), ("6:30 alarm tomorrow", "T06:30")):
+            with self.subTest(said=said):
+                got = voice._interpret(said)["command"]
+                self.assertEqual((got["kind"], got["text"]), ("remind_at", "wake up"))
+                self.assertIn(clock, got["at"])
+        self.assertEqual(voice._interpret("turn on my alarm")["command"], {"kind": "reminder_on", "which": "all alarms"})
+
+
 if __name__ == "__main__":
     unittest.main()

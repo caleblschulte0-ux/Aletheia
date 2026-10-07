@@ -3467,6 +3467,17 @@ def _interpret(transcript: str) -> dict:
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
             return got
 
+    # "Alarm at 7", "7am alarm", "alarm for 6:30 tomorrow" (2026-10-07: to
+    # the planner) - the bare noun with a time is "set an alarm for" it.
+    m = re.fullmatch(r"(?:an? )?alarm (?:at|for) (?P<t>.+)|(?:an? )?(?P<t2>\d{1,2}(?::\d\d)?\s*(?:am|pm|a\.m\.|p\.m\.)?)"
+                     r" alarm(?P<when> tomorrow| today| tonight)?", low)
+    if m:
+        got = _interpret(f"set an alarm for {m.group('t') or (m.group('t2') + (m.group('when') or ''))}")
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return got
+    if re.fullmatch(r"turn (?:my |the )?alarms? (?:back )?on|turn on (?:my |the )?alarms?", low):
+        return {"command": {"kind": "reminder_on", "which": "all alarms"}, "say": None}
+
     # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
     # "what time is that reminder", "remind me to text dad too" (the same
     # time), and "change call mom to call grandma" (the same time, new words).
