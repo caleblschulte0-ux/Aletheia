@@ -1753,6 +1753,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("place_where", re.compile(
         r"^(?:where(?:'s| is) (?:my |the )?|what(?:'s| is|s) the address (?:of|for) (?:my |the )?)(?P<place_w>[a-z][a-z' ]{1,30}?)\s*\??$"
         r"|^what(?:'s| is|s) (?:my |the )(?P<place_w2>[a-z][a-z' ]{1,30}?) address\s*\??$")),
+    # ANY "WHAT'S MY X" he told her in so many words (2026-10-07: "what's my
+    # locker combo" paid a model to find "my locker combo is 12 34 56").
+    # LAST, and silent when no note says "my X is": the model still answers.
+    ("fact_any", re.compile(r"^what(?:'s| is|s| are) my (?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
 )
 
 
@@ -1824,7 +1828,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part",
-                                           "place", "place2", "place3")
+                                           "place", "place2", "place3", "fact_any")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -6438,6 +6442,20 @@ def _fact_q(text: str) -> str | None:
     return f"You haven't told me {who}'s {g['factk']}. Tell me once and I'll remember it."
 
 
+def _fact_any(thing: str) -> str | None:
+    """The newest note saying "my <thing> is ...", in his words; None
+    otherwise, so nothing is answered that a note does not settle."""
+    thing = " ".join(str(thing or "").casefold().split())
+    if not thing or "password" in thing or "passcode" in thing:
+        return None
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.match(rf"^(?:that )?my {re.escape(thing)}s? (?:is|are|=) \S", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _recall(words: str) -> str | None:
     """What he told her about `words`: his notes and her memory, by the
     words themselves. Nothing matching is said as nothing - never guessed."""
@@ -7908,6 +7926,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "meal_idea": lambda rest: _meal_idea(rest),
            "parked": lambda rest: _parked(),
            "fact_q": lambda rest: _fact_q(rest),
+           "fact_any": lambda rest: _fact_any(rest),
            "help": lambda rest: HELP,
            "sun": lambda rest: _sun(rest),
            "note_search": lambda rest: _note_search(rest),

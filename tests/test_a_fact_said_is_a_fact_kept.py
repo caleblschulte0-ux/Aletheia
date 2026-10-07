@@ -1904,5 +1904,19 @@ class AndAddATaskCase(unittest.TestCase):
         self.assertTrue(intents._asks_to_spend("and buy me a pizza"))
 
 
+
+class WhatsMyLockerComboCase(unittest.TestCase):
+    """2026-10-07: "what's my locker combo" paid a model to find the note
+    "my locker combo is 12 34 56"."""
+
+    def test_a_note_in_so_many_words(self):
+        from aletheia import quick
+        notes = [{"text": "my locker combo is 12 34 56"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("what's my locker combo"), "You told me: your locker combo is 12 34 56.")
+            # Nothing said is nothing answered: the model still gets it.
+            self.assertIsNone(quick.answer("what are my chances"))
+
+
 if __name__ == "__main__":
     unittest.main()
