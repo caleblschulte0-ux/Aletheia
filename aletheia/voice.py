@@ -2066,14 +2066,21 @@ def _a_polite_ask(transcript: str) -> str:
     return said[:len(said) - len(bare)] + rest
 
 
+def sensitivity_where() -> str:
+    from aletheia import sensitivity
+    return sensitivity.WHERE_IT_IS
+
+
 def _no_password_in_a_note(said: dict) -> dict:
     """"Note that the wifi password is hunter2" answered "Noted." and kept
     "[redacted]" (2026-10-07) - `sensitivity` blanks a password out of
     everything she writes. Said instead of faked, the way "my wifi password
     is" already was."""
     cmd = (said or {}).get("command") or {}
+    from aletheia import sensitivity
     if cmd.get("kind") == "note" and re.search(r"\bpass(?:word|code|phrase)\b.{0,30}\b(?:is|are|=|:)\s*\S",
-                                               str(cmd.get("text") or ""), re.IGNORECASE):
+                                               str(cmd.get("text") or ""), re.IGNORECASE) \
+            and sensitivity.carries_secret(str(cmd.get("text") or "")):
         return {"command": None, "say": _NO_PASSWORDS}
     return said
 
@@ -6249,7 +6256,7 @@ def _interpret(transcript: str) -> dict:
             m = None
     if m and not re.search(r"\b(?:what|who|when|where|why|how|not|wrong)\b", m.group("key") + " " + m.group("value")[:12]) \
             and not fact_low.startswith(("what", "who", "when", "where", "how", "why")):
-        if re.search(r"pass(?:word|code|phrase)", m.group("key")):
+        if re.search(r"pass(?:word|code|phrase)", m.group("key")) and not re.match(sensitivity_where(), m.group("value")):
             # `sensitivity` blanks a password out of every record she
             # keeps, so a note would read back "[redacted]". Said, not faked.
             return {"command": None, "say": _NO_PASSWORDS}

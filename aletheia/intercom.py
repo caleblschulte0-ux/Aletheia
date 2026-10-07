@@ -1528,7 +1528,10 @@ def _forget_note(about: str) -> str:
     try:
         from aletheia import journal, quick
         words = [w for w in re.findall(r"[a-z0-9']+", str(about or "").casefold())
-                 if w not in ("my", "the", "about", "what", "you", "know", "everything")]
+                 # "Forget where I parked" names the note by its question
+                 # (2026-10-07: "nothing remembered about where I parked").
+                 if w not in ("my", "the", "about", "what", "you", "know", "everything",
+                              "where", "when", "which", "who", "how", "that")]
         if not words:
             return ""
         for row in quick._notes():

@@ -1648,5 +1648,18 @@ class ALowerCaseNameIsStillANameCase(unittest.TestCase):
         self.assertEqual(voice.interpret("thea McKenna's number is 555 123 4567")["command"]["name"], "McKenna")
 
 
+class WhereThePasswordIsCase(unittest.TestCase):
+    def test_where_a_password_is_kept_is_not_the_password(self):
+        from aletheia import sensitivity, voice
+        self.assertFalse(sensitivity.carries_secret("my wifi password is on the fridge"))
+        self.assertFalse(sensitivity.carries_secret("the password is in my desk drawer"))
+        for secret in ("the wifi password is hunter2", "password is in2deep!", "password: on the fridge",
+                       "wifi password is on3Fire"):
+            self.assertTrue(sensitivity.carries_secret(secret), secret)
+        got = voice.interpret("thea remember that my wifi password is on the fridge")
+        self.assertEqual(got["command"]["kind"], "note")
+        self.assertIsNone(voice.interpret("thea remember my wifi password is hunter22")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()
