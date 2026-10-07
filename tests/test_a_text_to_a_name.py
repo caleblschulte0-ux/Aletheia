@@ -1206,5 +1206,31 @@ class CorrectingWhatSheJustDid(unittest.TestCase):
         self.assertIn("T16:00", cmd["at"])
 
 
+
+class NoIMeantMilk(unittest.TestCase):
+    def test_the_item_just_added_is_swapped(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "add eggs to the shopping list", "she_answered": "Added to the shopping list: eggs."}]
+        with mock.patch.object(converse, "recent", side_effect=lambda limit=4: turns[-limit:]):
+            cmd = voice.interpret("no, i meant milk")["command"]
+        self.assertEqual(cmd, {"kind": "shopping_add", "item": "milk", "replaces": "eggs"})
+
+    def test_the_swap_takes_the_old_one_off(self):
+        from aletheia import intercom
+        calls = []
+        real = intercom.execute_command
+
+        def spy(cmd, fleet, *a, **k):
+            if cmd["kind"] == "shopping_off":
+                calls.append(cmd["item"])
+                return "off"
+            return real(cmd, fleet, *a, **k)
+        with mock.patch.object(intercom, "execute_command", side_effect=spy), \
+                mock.patch("aletheia.shopping.create", return_value={"need": "milk"}):
+            said = real({"kind": "shopping_add", "item": "milk", "replaces": "eggs"}, {"repos": {}}, quote="test")
+        self.assertEqual(calls, ["eggs"])
+        self.assertEqual(said, "Swapped eggs for milk on the shopping list.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -350,7 +350,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "brief":           (set(), set()),
     "handle":          ({"text"}, set()),
     "travel_time":     ({"place"}, set()),
-    "shopping_add":    ({"item"}, {"budget"}),
+    "shopping_add":    ({"item"}, {"budget", "replaces"}),
     # Reading the list back, and taking something off it. `shopping_add`
     # shipped without either, so she confirmed "Added to the shopping
     # list: milk" and then said she had no shopping list.
@@ -3503,12 +3503,23 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import shopping
         import re as _re, uuid as _uuid
         budget = float(cmd["budget"]) if cmd.get("budget") else None
+        # "Add eggs", then "no, I meant milk": the item he just added comes
+        # off, and only when it really is on the list.
+        swapped = ""
+        if cmd.get("replaces"):
+            try:
+                execute_command({"kind": "shopping_off", "item": str(cmd["replaces"])}, fleet, quote=quote)
+                swapped = str(cmd["replaces"])
+            except Exception:  # noqa: BLE001
+                swapped = ""
         added = []
         for item in shopping_items_of(cmd["item"]):
             slug = _re.sub(r"[^a-z0-9]+", "-", item.lower()).strip("-")[:30]
             workflow = shopping.create(f"shop-{slug}-{_uuid.uuid4().hex[:4]}"[:60],
                                        need=item, budget=budget)
             added.append(str(workflow["need"]))
+        if swapped:
+            return f"Swapped {swapped} for {speech.and_list(added)} on the shopping list."
         return f"Added to the shopping list: {speech.and_list(added)}."
     if kind == "contacts":
         return _contacts_answer(cmd.get("which", ""))

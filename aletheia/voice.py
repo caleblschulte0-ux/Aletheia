@@ -5096,6 +5096,18 @@ def _interpret(transcript: str) -> dict:
         moved = _moved_reminder(text, tw) or _moved_hold(tw)
         if moved:
             return moved
+    # "Add eggs", then "no, I meant milk" (2026-10-07: to the planner) -
+    # the thing just put on the list, swapped. Only right after an add,
+    # and only for a bare thing.
+    if re.match(r"(?:\W*)(?:sorry|i meant|no|nope|oops|actually|wait)\b", text.lower().strip()) \
+            and re.fullmatch(r"(?:some |a |an |the )?[a-z][a-z' -]{1,30}", low) and len(low.split()) <= 4 \
+            and not re.search(r"\b(?:it|that|this|them|cancel|stop|never ?mind|yes|no|okay|ok)\b", low):
+        _said, answered = _previous_turn()
+        just = re.match(r"Added to the shopping list: ([^,]+?)\.$", answered)
+        if just and " and " not in just.group(1):
+            item = re.sub(r"^(?:some|a|an|the) ", "", low)
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, item),
+                                "replaces": just.group(1)}, "say": None}
 
     # "REMIND ME WHEN I GET HOME" (2026-10-07: to the planner). She has no
     # idea where he is, so a place cannot set anything off; say so, and
