@@ -198,6 +198,38 @@ def _tallies(path=None) -> list[dict]:
     return rows if isinstance(rows, list) else []
 
 
+#: What a question that stopped a form ASKS, by its words: the topic only,
+#: never the question (it can name the employer). Each topic is a fact of
+#: his she could keep once and answer everywhere, so the biggest count is
+#: the one thing worth asking him.
+QUESTION_TOPICS = (("sponsor", "sponsorship"), ("visa", "sponsorship"), ("authoriz", "work_authorization"),
+                   ("legally", "work_authorization"), ("salary", "pay"), ("compensation", "pay"),
+                   ("pay ", "pay"), ("start date", "start_date"), ("when can you start", "start_date"),
+                   ("available to start", "start_date"), ("relocat", "relocation"),
+                   ("on-site", "on_site"), ("onsite", "on_site"), ("in office", "on_site"),
+                   ("in-office", "on_site"), ("commute", "on_site"), ("years of", "years_experience"),
+                   ("how many years", "years_experience"), ("why do you", "why_this_job"),
+                   ("why are you", "why_this_job"), ("interest", "why_this_job"),
+                   ("linkedin", "links"), ("portfolio", "links"), ("website", "links"),
+                   ("gender", "demographic"), ("race", "demographic"), ("veteran", "demographic"),
+                   ("disab", "demographic"), ("ethnic", "demographic"), ("hispanic", "demographic"), ("pronoun", "demographic"),
+                   ("refer", "referral"), ("hear about", "referral"), ("cover letter", "cover_letter"),
+                   ("security clearance", "clearance"), ("clearance", "clearance"),
+                   ("background check", "background_check"), ("convicted", "background_check"),
+                   ("felony", "background_check"), ("non-compete", "agreements"),
+                   ("agreement", "agreements"), ("travel", "travel"), ("degree", "education"),
+                   ("school", "education"), ("gpa", "education"), ("address", "address"),
+                   ("city", "address"), ("phone", "contact"), ("email", "contact"))
+
+
+def _question_topic(label: str) -> str:
+    """At the START of a word, so "preferred" is not a referral and
+    "ethnicity" is not a city."""
+    said = " ".join(str(label or "").casefold().split()) + " "
+    return next((topic for lead, topic in QUESTION_TOPICS
+                 if re.search(r"(?<![a-z])" + re.escape(lead), said)), "other")
+
+
 WORKED = ("AWAITING_YOU", "NEEDS_YOU", "NEEDS_ACCOUNT", "SUBMITTED", "SUBMITTING", "FAILED", "REJECTED", "APPROVED")
 
 
@@ -274,7 +306,7 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
     zone = localtime.operator_tz()
     now = (now or dt.datetime.now(dt.timezone.utc)).astimezone(zone)
     out = {"to_send": 0, "his_ok": {}, "needs_answer": 0, "needs_account": 0, "failed": 0,
-           "closed": {}, "failed_because": {}, "oldest_days": 0}
+           "closed": {}, "failed_because": {}, "asked_about": {}, "oldest_days": 0}
     for r in rows:
         if not isinstance(r, dict):
             continue
@@ -287,6 +319,9 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
                 out["to_send"] += 1
         elif state == "NEEDS_YOU":
             out["needs_answer"] += 1
+            for topic in {_question_topic(q.get("label") if isinstance(q, dict) else q)
+                          for q in r.get("questions") or []}:
+                out["asked_about"][topic] = out["asked_about"].get(topic, 0) + 1
         elif state == "NEEDS_ACCOUNT":
             out["needs_account"] += 1
         elif state == "FAILED":
@@ -309,6 +344,7 @@ def waiting(rows: list[dict], *, now: dt.datetime | None = None, first: str = ""
     out["his_ok"] = dict(sorted(out["his_ok"].items()))
     out["closed"] = dict(sorted(out["closed"].items()))
     out["failed_because"] = dict(sorted(out["failed_because"].items()))
+    out["asked_about"] = dict(sorted(out["asked_about"].items()))
     return out
 
 
