@@ -1919,6 +1919,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "remember", "domain": "identity", "key": "address",
                             "value": _as_he_said(text, m.group(1)).strip().rstrip(".")}, "say": None}
 
+    # "MY EMAIL IS ..." / "MY PHONE NUMBER IS ...": "what's my email" says
+    # "tell me and I'll remember it" (2026-10-07: telling her went nowhere).
+    m = re.fullmatch(r"my (?:email|e-mail|email address) is (\S+@\S+\.\S+)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "email",
+                            "value": m.group(1).rstrip(".")}, "say": None}
+    m = re.fullmatch(r"my (?:phone|cell|mobile|cell phone|phone number|cell number|mobile number|number) is "
+                     r"(\+?\d[\d ().-]{5,20}\d)", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "phone",
+                            "value": m.group(1).strip()}, "say": None}
+
     # private contact: "remember person bob smith bob at gmail dot com"
     m = re.match(r"remember (?:person|contact)\s+(.+?)\s+((?:\S+\s+at\s+\S.*|\S+@\S+))$", low)
     if m:

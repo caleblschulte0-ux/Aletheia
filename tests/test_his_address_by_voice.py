@@ -17,3 +17,19 @@ class HisAddress(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HisEmailAndPhone(unittest.TestCase):
+    def test_saying_them_remembers_them(self):
+        c = voice._interpret("my email is caleb@example.com")["command"]
+        self.assertEqual((c["key"], c["value"]), ("email", "caleb@example.com"))
+        c = voice._interpret("my phone number is 605 555 1234")["command"]
+        self.assertEqual((c["key"], c["value"]), ("phone", "605 555 1234"))
+
+    def test_asking_reads_her_memory(self):
+        from unittest import mock
+        from aletheia import quick
+        held = {"identity": {"email": {"value": "caleb@example.com"}}}
+        with mock.patch("aletheia.profile.answer", return_value=None), \
+                mock.patch("aletheia.memory.everything", return_value=held):
+            self.assertEqual(quick.answer("what's my email"), "caleb@example.com")

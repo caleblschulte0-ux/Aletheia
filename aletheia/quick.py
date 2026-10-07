@@ -2770,6 +2770,18 @@ def _mine(what: str) -> str | None:
                 return str(value)
     except Exception:
         return None
+    # "My email is ..." said to her is kept in her memory of him (voice), and
+    # "what's my email" one turn later said she had none (2026-10-07).
+    try:
+        from aletheia import memory
+        identity = (memory.everything() or {}).get("identity") or {}
+        for field in fields:
+            entry = identity.get(field)
+            value = entry.get("value") if isinstance(entry, dict) else entry
+            if value:
+                return str(value)
+    except Exception:
+        pass
     return (f"I don't have your {asked} on file. "
             "Tell me and I'll remember it.")
 
