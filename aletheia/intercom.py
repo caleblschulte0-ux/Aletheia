@@ -252,7 +252,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # ever reduces, so it is routine and never waits.
     # Transport for whatever is playing. LOCAL: it presses keys on
     # his own machine.
-    "music":         ({"action"}, set()),
+    "music":         ({"action"}, {"level"}),
     "chatgpt":       (set(), set()),
     "chatgpt_on":    (set(), {"hours"}),
     "chatgpt_off":   (set(), set()),
@@ -3404,6 +3404,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 "It's waiting for your okay.")
     if kind == "music":
         from aletheia import music
+        if cmd["action"] == "volume_set":
+            try:
+                return music.set_volume(int(cmd.get("level")))
+            except (TypeError, ValueError):
+                raise act.Refused("I need a number for the volume, nought to a hundred.") from None
         return music.control(cmd["action"])
     if kind == "chatgpt":
         from aletheia import second_opinion

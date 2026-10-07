@@ -5194,11 +5194,15 @@ def _interpret(transcript: str) -> dict:
     # A VOLUME LEVEL is not a key. "Set the volume to 50" planned for a
     # minute on her own model and was refused with a list of action ids
     # (2026-09-23); up, down and mute are the keys she has.
-    if re.fullmatch(r"(?:(?:set|put|turn|change) (?:the )?(?:volume|sound) (?:to|at)|volume(?: to)?) (?:\d+|half|max|maximum|full|low|high)"
-                    r"(?: ?%| percent)?", low):
-        return {"command": None,
-                "say": "I can't set the volume to a level - only up, down and mute, a notch at a time. "
-                       "Say 'volume up' or 'volume down' and I'll press it."}
+    # Now it is: fifty presses down and level/2 up (2026-10-07).
+    m = re.fullmatch(r"(?:(?:set|put|turn|change) (?:the )?(?:volume|sound) (?:to|at|up to|down to)|volume(?: to)?)"
+                     r" (?P<level>\d{1,3}|half|halfway|max|maximum|full|low|high|quiet)(?: ?%| percent)?", low)
+    if m:
+        said = m.group("level")
+        level = {"half": 50, "halfway": 50, "max": 100, "maximum": 100, "full": 100, "low": 20, "quiet": 20,
+                 "high": 80}.get(said)
+        level = level if level is not None else min(int(said), 100)
+        return {"command": {"kind": "music", "action": "volume_set", "level": level}, "say": None}
 
     # NAMING SOMETHING TO PLAY is the half that needs his account, and
     # she says so instead of resuming whatever was paused on Thursday and

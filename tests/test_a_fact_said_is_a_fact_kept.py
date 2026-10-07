@@ -1377,5 +1377,23 @@ class HaveIHeardFromCase(unittest.TestCase):
             self.assertEqual(voice._interpret("did i hear back from gong")["command"]["kind"], "intent")
 
 
+class AVolumeLevelIsPressedCase(unittest.TestCase):
+    def test_all_the_way_down_then_up_to_the_level(self):
+        from aletheia import music
+        pressed = []
+        with mock.patch.object(music, "press", side_effect=lambda k: pressed.append(k) or True), \
+                mock.patch.object(music.journal, "append"):
+            said = music.set_volume(30, sleep=lambda _s: None)
+        self.assertEqual(pressed.count("volume_down"), 50)
+        self.assertEqual(pressed.count("volume_up"), 15)
+        self.assertEqual(said, "Volume at 30.")
+
+    def test_no_keys_is_said(self):
+        from aletheia import music
+        with mock.patch.object(music, "press", return_value=False):
+            with self.assertRaises(music.MusicUnavailable):
+                music.set_volume(30, sleep=lambda _s: None)
+
+
 if __name__ == "__main__":
     unittest.main()

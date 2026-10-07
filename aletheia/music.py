@@ -152,6 +152,23 @@ def control(what: str, *, sleep=time.sleep) -> str:
     return opened + said
 
 
+def set_volume(level: int, *, sleep=time.sleep) -> str:
+    """The volume at a level, with the only keys there are. Windows moves
+    two points a press, so fifty presses down is silence from anywhere
+    and level/2 presses up is the level. "Set the volume to 30" was
+    "I can't" (2026-10-07) with the two keys that make it in hand."""
+    level = max(0, min(100, int(level)))
+    for _ in range(50):
+        if not press("volume_down"):
+            raise MusicUnavailable("I couldn't reach the volume keys on this machine.")
+        sleep(0.01)
+    for _ in range(round(level / 2)):
+        press("volume_up")
+        sleep(0.01)
+    journal.append("action", "music", f"set the volume to {level}", actor=ACTOR)
+    return f"Volume at {level}." if level else "Volume all the way down."
+
+
 def cannot_choose() -> str:
     """The honest half: transport is not selection.
 

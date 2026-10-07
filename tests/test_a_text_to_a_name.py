@@ -341,7 +341,8 @@ class PlayingAndTheNews(unittest.TestCase):
             self.assertEqual(voice._interpret("play the news"), {"command": None, "say": "Here are the headlines."})
 
     def test_a_volume_number_is_said_plainly(self):
-        self.assertIn("only up, down and mute", voice._interpret("volume 50")["say"])
+        # "Volume 50" is a level, and since 2026-10-07 she sets it.
+        self.assertEqual(voice._interpret("volume 50")["command"]["level"], 50)
 
 
 class FilesByName(unittest.TestCase):
