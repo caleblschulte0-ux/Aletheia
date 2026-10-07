@@ -2396,5 +2396,22 @@ class ADueDayIsKeptAsADate(unittest.TestCase):
         self.assertEqual(quick.match("when are my library books due")[0], "task_due")
 
 
+
+class TellSomebodyIsAText(unittest.TestCase):
+    """2026-10-07: "tell mom dinner is at 7" and "let mom know I'll be late"
+    went to the planner."""
+
+    def test_someone_he_has(self):
+        self.assertEqual(voice._interpret("tell mom that dinner is at 7")["command"],
+                         {"kind": "message_send", "to": "mom", "body": "dinner is at 7"})
+        self.assertEqual(voice._interpret("let mom know I'll be late")["command"],
+                         {"kind": "message_send", "to": "mom", "body": "I'll be late"})
+
+    def test_not_a_text(self):
+        for said in ("tell me a joke", "tell mom about the trip", "let mom know", "tell the story"):
+            with self.subTest(said=said):
+                self.assertNotEqual(((voice._interpret(said) or {}).get("command") or {}).get("kind"), "message_send")
+
+
 if __name__ == "__main__":
     unittest.main()

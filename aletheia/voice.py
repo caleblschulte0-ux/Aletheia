@@ -5811,6 +5811,21 @@ def _interpret(transcript: str) -> dict:
     if split:
         return {"command": {"kind": "message_send", "to": split[0],
                             "body": _as_he_said(text, split[1])}, "say": None}
+    # "TELL DANA I'LL BE LATE", "let mom know dinner's at 7" (2026-10-07: to
+    # the planner). Only when the words start with someone he has - a saved
+    # contact or a relation - so "tell me a joke" and "tell the story" are
+    # not texts. It is a text, sent the way "text Dana ..." is: his tap first.
+    m = re.fullmatch(r"(?:tell|let) (?P<rest>.+)", low)
+    split = _known_person_first(m.group("rest")) if m else None
+    if split and low.startswith("let "):
+        know = re.fullmatch(r"know (?:that )?(.+)", split[1])
+        split = (split[0], know.group(1)) if know else None
+    elif split:
+        said = re.sub(r"^that ", "", split[1])
+        split = (split[0], said) if said and not re.match(r"(?:me|us|about|a |an |the |him|her|them)\b", said) else None
+    if split and split[0] not in ("me", "us", "him", "her", "them"):
+        return {"command": {"kind": "message_send", "to": split[0],
+                            "body": _as_he_said(text, split[1])}, "say": None}
     # "TEXT DANA I'M RUNNING LATE" with no Dana on file (2026-10-07: to the
     # planner). One word, then a word only a sentence starts with, is a
     # name and a message - "text bob happy birthday" is still not guessed
