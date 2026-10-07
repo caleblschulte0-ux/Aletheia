@@ -216,7 +216,7 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-10-07T16:09:22Z",
+  "generated_at": "2026-10-07T16:10:49Z",
   "sent_all_time": 238,
   "totals": {
     "filled": 359,
@@ -253,9 +253,9 @@
     },
     "his_ok": {},
     "needs_account": 0,
-    "needs_answer": 11,
+    "needs_answer": 10,
     "oldest_days": 24,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
