@@ -3125,7 +3125,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("missed_reminders", re.compile(
         r"^(?:did i miss|have i missed|did i skip) (?:any )?reminders?(?: today)?\s*\??$"
         r"|^(?:any|are there any|were there any) (?:missed|unseen|unread) reminders?(?: today)?\s*\??$"
-        r"|^(?:any|are there any|were there any) reminders? (?:that )?i (?:missed|haven'?t seen|didn'?t see)\s*\??$")),
+        r"|^(?:any|are there any|were there any) reminders? (?:that )?i (?:missed|haven'?t seen|didn'?t see)\s*\??$"
+        # "I missed a reminder" (2026-10-08: to the planner).
+        r"|^i (?:think i )?missed (?:a|my|the|some) reminders?\s*\??$")),
+    # "What did you remind me about today" (2026-10-08: to a model).
+    ("reminded_today", re.compile(r"^(?:what did you remind me (?:about|of|to do)|what reminders (?:went off|did i get)|what were my reminders)(?: today)?\s*\??$")),
     ("event_detail", re.compile(
         r"^how long (?:is|will be) (?:my|the) (?:next )?(?P<ed_long>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner)"
         r"(?: with [a-z][a-z' ]{1,25}?)?)(?: today| tomorrow)?\s*\??$"
@@ -7460,6 +7464,31 @@ def _missed_reminders(text: str = "") -> str | None:
             for n in rows[:4]]
     return (f"{speech.count_phrase(len(rows), 'reminder')} you haven't seen: " + speech.and_list(said)
             + (f", and {len(rows) - 4} more" if len(rows) > 4 else "") + ".")
+
+
+def _reminded_today() -> str | None:
+    """The reminders that went off today, seen or not."""
+    import datetime as dt
+    from aletheia import localtime, notifications, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    try:
+        rows = [n for n in notifications.all_notifications(limit=200) if str(n.get("title") or "") == "Reminder"]
+    except Exception:
+        return None
+    went = []
+    for n in rows:
+        try:
+            at = dt.datetime.fromisoformat(str(n.get("created_at") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if at.date() == today:
+            went.append((at, str(n.get("body") or "").strip().rstrip(".")))
+    if not went:
+        return "Nothing yet today - no reminder has gone off."
+    went.sort()
+    said = [f"{body} at {at.strftime('%I:%M %p').lstrip('0').replace(':00', '').lower()}" for at, body in went[:5] if body]
+    return f"{speech.count_phrase(len(went), 'reminder')} today: " + speech.and_list(said) + "."
 
 
 def _agenda_and_reminders(day: str) -> str | None:
@@ -18519,6 +18548,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "reminded_today": lambda _rest="": _reminded_today(),
            "weight_of": _weight_of,
            "my_hotel": lambda _rest="": _my_hotel(),
            "calories_in": _calories_in,

@@ -12081,5 +12081,17 @@ class ThePetsAgain(unittest.TestCase):
             self.assertEqual(quick.answer("what is my dog weight"), "You told me: your dog weighs 45 pounds.")
 
 
+class RemindersThatWentOff(unittest.TestCase):
+    def test_what_she_reminded_him_of_today(self):
+        from aletheia import notifications
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"title": "Reminder", "body": "call mom", "created_at": now}]
+        with mock.patch.object(notifications, "all_notifications", lambda **k: rows):
+            self.assertTrue(quick.answer("what did you remind me about today").startswith("1 reminder today: call mom at "))
+            self.assertTrue(quick.answer("I missed a reminder").startswith("1 reminder you haven't seen: call mom"))
+        with mock.patch.object(notifications, "all_notifications", lambda **k: []):
+            self.assertEqual(quick.answer("what did you remind me about today"), "Nothing yet today - no reminder has gone off.")
+
+
 if __name__ == "__main__":
     unittest.main()
