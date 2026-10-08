@@ -925,6 +925,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How many coffees have I had today" (2026-10-07: to a model).
         r"|^how many (?P<logged_drink2>coffee|tea|soda|beer|wine|juice|milk|latte|espresso)s? (?:have i (?:had|drunk|drank)|did i (?:have|drink))"
         r"(?P<logged_w6> today| this week)?\s*\??$"
+        # "What's my longest run" (2026-10-08: to a memory search).
+        r"|^what(?:'s| is|s| was) my (?:longest|farthest|furthest|biggest) (?P<logged_longest>run|walk|hike|bike ride|ride|swim|jog)"
+        r"(?: this week| this month| this year| ever)?\s*\??$"
         r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
         r"(?P<logged_w2> today| this week)?\s*\??$"
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
@@ -2474,6 +2477,11 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "How am I doing on my reading goal" (2026-10-08: to a model) is the
+    # book count this year, which says the goal beside it.
+    if re.fullmatch(r"(?:how (?:am i doing|am i tracking|close am i|far along am i) (?:on|with|to|toward|towards)|am i on track (?:with|for))"
+                    r" my (?:reading|book|books) goal\s*\??", text):
+        return "how many books have i read this year"
     # "Is the electric bill paid" (2026-10-08: to the planner, a turn after
     # "I paid the electric bill") is "did I pay the electric bill".
     m = re.fullmatch(r"(?:is|has) (?P<what>(?:the |my )?(?:[a-z][a-z ]{0,30}? )?(?:bill|rent|mortgage|payment|insurance|tuition|loan|fee|fees|tax|taxes))"
@@ -2713,7 +2721,11 @@ def _logged(text: str) -> str | None:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
         except ValueError:
             continue
-        rows.append((at, " ".join(str(row.get("text") or "").casefold().split())))
+        said = " ".join(str(row.get("text") or "").casefold().split())
+        # "I ran 5 miles yesterday" was said today about yesterday (2026-10-08).
+        if said.endswith(" yesterday"):
+            at -= dt.timedelta(days=1)
+        rows.append((at, said))
     when = "today" if window == "today" else "this week"
 
     def amount(word):
@@ -2745,6 +2757,21 @@ def _logged(text: str) -> str | None:
             return f"{_plain(total)} {drink if total == 1 else drink + 's'} {when}."
         plural = {"glass": "glasses"}.get(unit, unit + "s")
         return f"{_plain(total)} {unit if total == 1 else plural} of {drink} {when}."
+    if g.get("logged_longest"):
+        kind = g["logged_longest"]
+        verb = {"run": "ran", "walk": "walked", "hike": "hiked", "bike ride": "biked", "ride": "biked", "swim": "swam",
+                "jog": "jogged"}[kind]
+        best = None
+        for at, said in rows:
+            m = re.match(rf"i {verb} (\d+(?:\.\d+)?|\w+(?: a)?) ?(miles?|km|kilometers?|kilometres?|k)\b", said)
+            if m and amount(m.group(1)):
+                miles = amount(m.group(1)) / (1 if m.group(2).startswith("mile") else 1.609344)
+                if best is None or miles > best[0]:
+                    best = (miles, at)
+        if best is None:
+            return f"You haven't told me about a {kind} with a distance. Say \"I {verb} 3 miles\" and I'll keep it."
+        return (f"{_plain(round(best[0], 2))} mile{'s' if round(best[0], 2) != 1 else ''}, "
+                f"{speech.humanize_time(best[1].isoformat())}, from what you've told me.")
     if g.get("logged_move"):
         verb = {"run": "ran", "walk": "walked", "jog": "jogged", "bike": "biked", "cycle": "cycled",
                 "swim": "swam", "swum": "swam", "hike": "hiked"}.get(g["logged_move"], g["logged_move"])

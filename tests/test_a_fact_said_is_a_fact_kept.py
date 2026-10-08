@@ -6679,5 +6679,24 @@ class DaysOffAndBeforeAMonth(unittest.TestCase):
         self.assertTrue(due.endswith(("-02-28", "-02-29")))
 
 
+
+class LongestRunAndTheReadingGoal(unittest.TestCase):
+    """2026-10-08: "what's my longest run", "how am I doing on my reading
+    goal" and "I ran 5 miles yesterday" went to a model or the planner."""
+
+    def test_longest_run_and_yesterday(self):
+        self.assertEqual(voice.interpret("I ran 5 miles yesterday")["command"]["text"], "I ran 5 miles yesterday")
+        now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        rows = [{"text": "I ran 3 miles", "ts": now.isoformat()},
+                {"text": "I ran 5 miles yesterday", "ts": (now - dt.timedelta(minutes=5)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("what's my longest run")
+        self.assertTrue(said.startswith("5 miles, yesterday"), said)
+
+    def test_reading_goal_is_the_book_count(self):
+        self.assertEqual(quick.match("how am I doing on my reading goal"),
+                         ("off_lists", "how many books have i read this year"))
+
+
 if __name__ == "__main__":
     unittest.main()

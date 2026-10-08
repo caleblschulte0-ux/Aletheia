@@ -8207,9 +8207,9 @@ def _interpret(transcript: str) -> dict:
                      r"(?:miles?|km|kilometers?|kilometres?|k|minutes?|mins?|hours?|laps?)"
                      r"|slept (?:for )?(?:\d{1,2}(?:\.\d+)?|five|six|seven|eight|nine|ten) (?:and a half )?hours?"
                      r"|(?:worked out|exercised|meditated|stretched|did yoga|went to the gym)(?: for (?:\d{1,3}|an?|one|two|half an?) (?:minutes?|mins?|hours?))?)"
-                     r"(?: today| this morning| last night| tonight| just now)?", low)
+                     r"(?: today| this morning| last night| tonight| just now|(?P<ago> yesterday))?", low)
     if m:
-        return {"command": {"kind": "note", "text": "I " + m.group("log")}, "say": None}
+        return {"command": {"kind": "note", "text": "I " + m.group("log") + (m.group("ago") or "")}, "say": None}
     # "I went for a 20 minute run" (2026-10-07: to the planner) is "I ran
     # for 20 minutes", kept in the words `quick._logged` adds up.
     m = re.fullmatch(r"(?:i )?(?:just )?(?:went for|did|had) (?:a|an) (?P<n>\d{1,3}|half hour|half an hour)[- ]?(?P<u>minutes?|mins?|hours?|miles?|mile|k|km)?"
