@@ -2560,6 +2560,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:on )?(?P<ed_who_when>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     # "When do I have class", "when does my daughter have practice" a turn
     # after "...every Tuesday and Thursday at 5" (2026-10-08: to a model).
+    # "When are the dog's shots due" (2026-10-08: "nothing on file", with
+    # "my dog is due for shots in November" kept): the note, said back.
+    ("pet_due", re.compile(
+        r"^when (?:is|are|does|do) (?:the|my|our) (?P<pet_due>(?:dog|cat|puppy|kitten|pet)(?:'?s)? [a-z ]{3,25}?)"
+        r" (?:due|need(?: to be done)?)\s*\??$")),
     ("when_have", re.compile(
         r"^(?:when|what days?|what time) (?:do|does) (?P<when_have>(?:i|we|my [a-z]+|the kids|[a-z]{2,15}) have"
         r" (?!(?:time|to|a meeting|meetings|plans|anything|something)\b)[a-z][a-z' ]{1,20}?)\s*\??$")),
@@ -2762,7 +2767,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "when_have", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11500,6 +11505,22 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _pet_due(rest) -> str | None:
+    """What he told her his pet is due for, and when. None otherwise."""
+    from aletheia import speech
+    said = " ".join(str(rest or "").casefold().split())
+    m = re.match(r"(?P<pet>dog|cat|puppy|kitten|pet)(?:'?s)? (?P<what>.+)", said)
+    if not m:
+        return None
+    stem = m.group("what").split()[-1].rstrip("s")
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        low = note.casefold()
+        if re.search(rf"\b{m.group('pet')}", low) and re.search(rf"\b{re.escape(stem)}", low) and re.search(r"\bdue\b|\bneeds?\b", low):
+            return f"You told me: {speech.as_she_says_it(note).rstrip('.')}."
+    return None
+
+
 def _when_have(rest) -> str | None:
     """The days he told her somebody has something: the newest note naming
     who and what together with a day. None when no note says."""
@@ -13675,6 +13696,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "when_have": _when_have,
+           "pet_due": _pet_due,
            "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),

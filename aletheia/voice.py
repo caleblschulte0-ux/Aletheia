@@ -3938,6 +3938,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "Tell me what you weigh - \"I weigh 190\" - and your goal - \"my goal weight is 175\" - "
                        "and I'll keep track of how it's going."}
+    # "The dog needs to go to the vet", "my dog is due for shots in
+    # November" (2026-10-08: both to the planner). A trip is a job on his
+    # list; a when is kept, and "when are the dog's shots due" reads it.
+    m = re.fullmatch(r"(?:my|our|the) (?P<pet>dog|cat|puppy|kitten|pup|pet) (?:needs to go|has to go|should go|needs to get) to the "
+                     r"(?P<where>vet|groomer|groomers|kennel)", low)
+    if m:
+        return _new_task(f"take the {m.group('pet')} to the {m.group('where').rstrip('s')}")
+    if re.fullmatch(r"(?:my|our|the) (?:dog|cat|puppy|kitten|pup|pet)(?:'s)? (?:is due for|needs|will need|shots are due|vaccines are due)"
+                    r"(?: (?:its|his|her|their|a|an|the))?(?: [a-z ]{2,30}?)? (?:in|on|by|next) [a-z0-9 ]{2,20}", low) \
+            and not low.endswith("?"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My car needs an oil change at 45000 miles" (2026-10-08: to the
     # planner). Kept; "when does my car need an oil change" reads it.
     if re.fullmatch(r"(?:my|our|the) (?:car|truck|van|suv|bike|motorcycle|furnace|ac|a/c|water heater|lawn mower|mower)"

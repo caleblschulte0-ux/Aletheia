@@ -7887,5 +7887,17 @@ class HisHotelAndHisPackingList(unittest.TestCase):
 
 
 
+class ThePetsVetAndShots(unittest.TestCase):
+    def test_a_vet_trip_is_a_task(self):
+        self.assertEqual(voice._interpret("the dog needs to go to the vet")["command"]["description"],
+                         "take the dog to the vet")
+
+    def test_shots_due_is_kept_and_read_back(self):
+        self.assertEqual(voice._interpret("my dog is due for shots in november")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my dog is due for shots in November"}]):
+            self.assertIn("November", quick.answer("when are the dogs shots due"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
