@@ -11396,6 +11396,13 @@ def _interpret(transcript: str) -> dict:
     if m:
         pet = re.sub(r"^(?:my|our|the) ", "the ", _as_he_said(text, m.group("pet")))
         return _interpret(f"remind me every month to give {pet} {m.group('whose')} {m.group('med')}")
+    # "My health insurance is Blue Cross", "I've met 600 of my deductible"
+    # (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:my|our) (?:health |car |auto |home |homeowners |homeowner'?s |renters |renter'?s |life |dental |vision |pet |medical )?insurance"
+                    r"(?: company| provider| carrier| plan)? is (?:with |through )?[a-z][a-z&.' -]{1,30}", low) \
+            and not re.search(r"\b(?:is (?:due|expired|expiring|up|going up|too|so|really|very|cheap|expensive|\d))", low) \
+            or re.fullmatch(r"(?:i'?ve|i have|we'?ve|we have) (?:met|paid|hit|spent|used) \$?\d[\d,]*(?: dollars)? (?:of|toward|towards|on) (?:my|our|the) (?:deductible|out of pocket(?: max(?:imum)?)?)(?: so far| this year)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

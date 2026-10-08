@@ -2467,6 +2467,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What is my credit limit" after "my credit card limit is 5000"
     # (2026-10-08: "I don't have anything remembered about credit limit").
     ("card_limit", re.compile(r"^what(?:'s| is|s) (?:my|the) (?:credit card |card )?(?:credit )?(?P<card_limit>limit|balance)(?: on my (?:credit )?card)?\s*\??$")),
+    # "Who is my health insurance with" (2026-10-08: "I can't think").
+    ("insurer", re.compile(r"^(?:who(?:'s| is) my (?P<insurer>(?:health|car|auto|home|homeowners|renters|life|dental|vision|pet|medical) )?insurance(?: with| through| company| provider| carrier)?"
+                           r"|what (?:insurance|insurance company) do i have(?: for (?P<insurer2>health|my car|the car|my home|the house))?)\s*\??$")),
     # "Who is my car insurance with", "when will my car be ready",
     # "how much was the parking ticket" (2026-10-08: to a model).
     ("who_with", re.compile(r"^(?:who(?:'s| is)|what company is|where(?:'s| is)) (?:my|our) (?P<who_with>(?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account))(?: with| through| at)?\s*\??$")),
@@ -2668,6 +2671,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("gift_got", re.compile(r"^what (?:did|have) (?:i|we) (?:get|got|bought|buy|ordered|order) (?P<gift_got>(?:my |our )?[a-z]{2,15}(?: in law| in laws)?)(?: for (?:her|his|their|the) [a-z' ]{3,20})?(?: already| so far)?\s*\??$")),
     # "Who got engaged" (2026-10-08: "I can't think").
     ("who_news", re.compile(r"^who (?:got|is getting|just got) (?P<who_news>engaged|married|promoted|a new job|a puppy|a dog|into college)\s*\??$")),
+    # "How much of my deductible is left" (2026-10-08: "I can't think"), a
+    # turn after "my deductible is 1500" and "I've met 600 of my deductible".
+    ("deductible_left", re.compile(r"^(?:how much (?:of my deductible is|is) left(?: (?:on|of) my deductible)?|how much (?:more )?(?:do i have|have i got) (?:left )?(?:to (?:pay|meet|go) )?(?:on|toward|towards|until|before) my deductible(?: is met)?"
+                                   r"|have i met my deductible(?: yet)?|how close am i to (?:meeting )?my deductible)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3610,7 +3617,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18439,6 +18446,37 @@ def _who_news(text: str) -> str | None:
     return f"You told me {speech.and_list([f[:1].lower() + f[1:] for f in found])}." if found else None
 
 
+def _deductible_left(_text: str = "") -> str | None:
+    """His deductible less what he said he has met, both his numbers."""
+    total = met = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold().replace(",", "")
+        if total is None:
+            m = re.match(r"(?:my|our) (?:health insurance |medical )?deductible is (?:\$)?(\d+)", said)
+            if m:
+                total = int(m.group(1))
+        if met is None:
+            m = re.match(r"(?:i'?ve|i have|we'?ve|we have) (?:met|paid|hit|spent|used) \$?(\d+)(?: dollars)? (?:of|toward|towards|on) (?:my|our|the) deductible", said)
+            if m:
+                met = int(m.group(1))
+    if total is None:
+        return None
+    if met is None:
+        return f"Your deductible is ${total:,}, but you haven't told me how much of it you've met."
+    if met >= total:
+        return f"You've met it: ${met:,} of your ${total:,} deductible."
+    return f"${total - met:,} left: you've met ${met:,} of your ${total:,} deductible."
+
+
+def _insurer(text: str) -> str | None:
+    """Who his insurance is with, from what he said."""
+    from aletheia import speech
+    g = _groups("insurer", text)
+    kind = str(g.get("insurer") or "").strip()
+    found = _said_lines(rf"^(?:my|our) {re.escape(kind) + ' ' if kind else '(?:[a-z]+ )?'}insurance(?: company| provider| carrier| plan)? is \w", 2)
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19257,6 +19295,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "deductible_left": _deductible_left,
+           "insurer": _insurer,
            "gift_got": _gift_got,
            "who_news": _who_news,
            "who_chore": _who_chore,

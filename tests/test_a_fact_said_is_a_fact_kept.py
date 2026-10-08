@@ -12617,6 +12617,23 @@ class APetsMonthlyMedicine(unittest.TestCase):
         self.assertEqual(voice.interpret("my dog needs her heartworm pill every month")["command"]["text"], "give the dog her heartworm pill")
 
 
+class InsuranceAndTheDeductible(unittest.TestCase):
+    def test_kept(self):
+        for said in ("my health insurance is Blue Cross", "my car insurance is Geico", "I've met 600 of my deductible"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual(voice.interpret("my car insurance is due")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "I have met 600 of my deductible"}, {"text": "my deductible is 1500"},
+                {"text": "my health insurance is Blue Cross"}, {"text": "my car insurance is Geico"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how much of my deductible is left"), "$900 left: you've met $600 of your $1,500 deductible.")
+            self.assertEqual(quick.answer("who is my health insurance with"), "You told me: your health insurance is Blue Cross.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much of my deductible is left"))
+            self.assertIsNone(quick.answer("who is my health insurance with"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
