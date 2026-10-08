@@ -12052,5 +12052,19 @@ class KeepingFit(unittest.TestCase):
         self.assertEqual(quick.match("how many calories did I eat today")[0], "counted")
 
 
+class BookingTheTrip(unittest.TestCase):
+    def test_paperwork_is_an_errand_not_shopping(self):
+        self.assertEqual(voice.interpret("I need to get a passport")["command"]["description"], "get a passport")
+        self.assertEqual(voice.interpret("I need to renew my passport")["command"]["description"], "renew my passport")
+        self.assertEqual(voice.interpret("I need to buy milk")["command"]["kind"], "shopping_add")
+
+    def test_the_hotel_he_booked_is_kept_and_read(self):
+        said = "I booked a hotel in Chicago for the 15th"
+        self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": said}]):
+            for asked in ("what hotel am I staying at", "where am I staying", "when is my hotel"):
+                self.assertEqual(quick.answer(asked), "You told me: you booked a hotel in Chicago for the 15th.", asked)
+
+
 if __name__ == "__main__":
     unittest.main()

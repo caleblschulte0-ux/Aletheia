@@ -2569,6 +2569,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How many calories in a banana" (2026-10-08: to a model). A small
     # table of the usual numbers; anything else is still a model's.
     ("calories_in", re.compile(r"^how many calories (?:are )?(?:in|does) (?:a |an |one |1 )?(?:medium |large |small |regular )?(?P<cal_food>[a-z][a-z ]{1,30}?)(?: have)?\s*\??$")),
+    # "What hotel am I staying at", "when is my hotel" (2026-10-08: to a model).
+    ("my_hotel", re.compile(r"^(?:what|which) (?:hotel|airbnb|place) (?:am i|are we) (?:staying (?:at|in)|booked (?:at|in))|^where (?:am i|are we) staying"
+                            r"|^when(?:'s| is) (?:my|our|the) (?:hotel|airbnb|room|reservation)(?: reservation| booking)?"
+                            r"|^(?:what|which) hotel did (?:i|we) book\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -17678,6 +17682,12 @@ def _calories_in(text: str) -> str | None:
     return None
 
 
+def _my_hotel() -> str | None:
+    said = _said_lines(r"^(?:i|we) (?:booked|reserved|got) (?:a |an |the |our |my )?(?:hotel|room|hotel room|airbnb|air bnb|motel|cabin|rental|condo|campsite)\b"
+                       r"|^(?:i'?m|we'?re|i am|we are) staying (?:at|in) ", 2)
+    return f"You told me: {said[0]}." if said else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18493,6 +18503,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "my_hotel": lambda _rest="": _my_hotel(),
            "calories_in": _calories_in,
            "invited": _invited,
            "router_reset": lambda _rest="": _ROUTER_RESET,
@@ -18826,7 +18837,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"my_day", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 

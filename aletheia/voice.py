@@ -4428,7 +4428,10 @@ def _interpret(transcript: str) -> dict:
                              r"|prescription refill|refill|hearing test|allergy test"
                              # "I need a dog sitter" (2026-10-08: the shopping list) is a person to find.
                              r"|(?:dog |pet |cat |house |baby ?)?sitter|babysitter|dog walker|nanny|plumber|electrician|handyman"
-                             r"|bloodwork|labs?|lab work)\b", m.group("item")) \
+                             r"|bloodwork|labs?|lab work"
+                             # "I need to get a passport" (2026-10-08: the shopping list) is paperwork.
+                             r"|passport|visa|driver'?s license|license|licence|real id|id card|permit|birth certificate"
+                             r"|social security card|marriage license|title|registration|insurance card)\b", m.group("item")) \
             and not re.search(r"\b(?:done|cleaned|fixed|repaired|checked|changed|replaced|serviced|inspected|washed|installed"
                               # "I need to get the gutters cleaned" (2026-10-08: the
                               # shopping list, as "the gutters cleaned") is a job.
@@ -11060,6 +11063,10 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:worked|am working|'m working|was working|will work|'ll work) (?:from home|remotely|remote|in the office|from the office)"
                             r"(?: (?:today|yesterday|this morning|this afternoon|tomorrow))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I booked a hotel in Chicago for the 15th" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:booked|reserved|got) (?:a |an |the |our |my )?(?:hotel|room|hotel room|airbnb|air bnb|motel|cabin|rental|condo|campsite)"
+                    r"(?: (?:in|at|near) [a-z0-9][a-z0-9 '&-]{1,40}?)?(?: (?:for|on|from) [a-z0-9][a-z0-9 ,'-]{1,40})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
@@ -11964,6 +11971,14 @@ def _interpret(transcript: str) -> dict:
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.
     # "...at 45,000 miles" (2026-10-08: to the planner) is kept with it.
+    # "I need to get a passport" went on the shopping list (2026-10-08).
+    # Paperwork is an errand.
+    m = re.fullmatch(r"i (?:need|have to get|gotta get|got to get|should get|need to get|need to renew|have to renew|need to apply for|have to apply for) "
+                     r"(?P<what>(?:a |an |my )?(?:new )?(?:passport|visa|driver'?s license|license|licence|real id|id card|permit|birth certificate"
+                     r"|social security card|marriage license|insurance card)(?: renewed| replaced)?)", low)
+    if m:
+        verb = re.search(r"\b(renew|apply for)\b", low)
+        return _new_task(f"{verb.group(1) if verb else 'get'} {_as_he_said(text, m.group('what'))}")
     # "I need a dog sitter" went on the shopping list (2026-10-08).
     m = re.fullmatch(r"i (?:need|have to find|gotta find|got to find|should find|should get|need to find|need to get) (?:a |an )?(?P<who>(?:dog|pet|cat|house|baby) ?sitter|babysitter|dog walker)(?: for (?:the |this |next )?(?:weekend|week|trip|[a-z]+day(?: night)?))?", low)
     if m:
