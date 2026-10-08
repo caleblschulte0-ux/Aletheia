@@ -6446,5 +6446,15 @@ class HabitsHeKeepsCountOf(unittest.TestCase):
             self.assertTrue(quick.answer("am I on track with my workouts").startswith("1 workout so far this week, 3 to go"))
 
 
+
+class AFractionOfACup(unittest.TestCase):
+    """2026-10-08: "how many tablespoons in a quarter cup" went to a model."""
+
+    def test_fractions(self):
+        self.assertEqual(quick.answer("how many tablespoons in a quarter cup"), "4 tablespoons.")
+        self.assertEqual(quick.answer("how many teaspoons in a third of a cup"), "16 teaspoons.")
+        self.assertEqual(quick.answer("how many tablespoons in 3/4 cup"), "12 tablespoons.")
+
+
 if __name__ == "__main__":
     unittest.main()

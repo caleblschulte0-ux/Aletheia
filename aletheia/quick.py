@@ -9380,7 +9380,9 @@ def _volume(sentence: str) -> str | None:
         # An ounce of weight, not of water: 16 to the pound.
         pounds = float(weight.group("n") or 1)
         return f"{pounds * 16:g} ounces."
-    m = (re.fullmatch(r"how many " + _VOLUME_WORD + r" (?:are )?(?:in|make|is|to) (?:a |an |one |(?P<n>[\d.]+|half a|a half) )?"
+    # "How many tablespoons in a quarter cup" (2026-10-08: to a model)
+    m = (re.fullmatch(r"how many " + _VOLUME_WORD + r" (?:are )?(?:in|make|is|to) (?:a |an |one |(?P<n>[\d.]+|half a|a half"
+                      r"|a quarter(?: of a)?|a third(?: of a)?|three quarters(?: of a)?|two thirds(?: of a)?|1/4|1/3|1/2|3/4|2/3) )?"
                       + _VOLUME_WORD, sentence)
          or re.fullmatch(r"(?:convert |what(?:'s| is|s)? )(?P<n>[\d.]+|half a|a half) " + _VOLUME_WORD
                          + r" (?:to|in|into) " + _VOLUME_WORD, sentence))
@@ -9394,7 +9396,10 @@ def _volume(sentence: str) -> str | None:
     if not src or not dst or src == dst:
         return None
     said_n = m.group("n")
-    n = 0.5 if said_n in ("half a", "a half") else float(said_n) if said_n else 1.0
+    fractions = {"half a": 0.5, "a half": 0.5, "1/2": 0.5, "1/4": 0.25, "1/3": 1 / 3, "3/4": 0.75, "2/3": 2 / 3}
+    for word, part in (("a quarter", 0.25), ("a third", 1 / 3), ("three quarters", 0.75), ("two thirds", 2 / 3)):
+        fractions[word] = fractions[word + " of a"] = part
+    n = fractions.get(said_n) if said_n in fractions else float(said_n) if said_n else 1.0
     value = n * _VOLUMES[src] / _VOLUMES[dst]
     shown = round(value, 2) if value < 10 else round(value, 1)
     lead = "About " if abs(shown - value) > 1e-6 else ""
