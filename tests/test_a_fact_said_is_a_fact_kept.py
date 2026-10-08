@@ -11811,5 +11811,28 @@ class TheShoppingListAgain(unittest.TestCase):
         self.assertEqual(quick.match("read me my list")[0], "the_list")
 
 
+class TheNeighbors(unittest.TestCase):
+    """2026-10-08: "my neighbor is having a party Saturday" was held at 9 am
+    on HIS calendar, "I am watching Tom house this week" was kept as a show,
+    "Tom gave it back" and "the HOA fee is 200 a quarter" went to the
+    planner, and "who has my ladder" missed "Tom is borrowing my ladder"."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("my neighbor is having a party saturday")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("I am watching Tom's house this week")["command"]["text"], "I'm watching Tom's house this week")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Tom is borrowing my ladder"}]):
+            self.assertEqual(voice._interpret("Tom gave it back")["command"]["text"], "Tom gave my ladder back")
+        for said in ("the HOA fee is 200 a quarter", "my neighbor Tom has a snowblower", "Tom is out of town this week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("our HOA meeting is Tuesday at 7")["command"]["title"], "HOA meeting")
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Tom is borrowing my ladder"}, {"text": "my neighbor Tom has a snowblower"},
+                                                          {"text": "I'm watching Tom's house this week"}]):
+            self.assertEqual(quick.answer("who has my ladder"), "You told me: Tom is borrowing your ladder.")
+            self.assertIn("Tom has a snowblower", quick.answer("who has a snowblower"))
+            self.assertIn("Tom's house", quick.answer("whose house am I watching"))
+
+
 if __name__ == "__main__":
     unittest.main()
