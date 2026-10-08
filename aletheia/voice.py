@@ -5989,6 +5989,19 @@ def _interpret(transcript: str) -> dict:
     # failure he cannot see. An explicit travel phrasing is taken as one
     # whether or not she knows the place (so she can ask for the address);
     # the bare "how long to X" is only travel when X really is a place.
+    # "How far is Chicago from New York" (2026-10-08) measured to a place
+    # called "Chicago From New York". From home it is the trip; between
+    # two other places she has nothing to measure with, and says so.
+    m = (re.fullmatch(r"how (?:far|long a drive|many miles) is (?:it )?(?:from )?(?P<a>[a-z][a-z .'-]{1,40}?) (?:from|to) (?P<b>[a-z][a-z .'-]{1,40}?)", low)
+         or re.fullmatch(r"(?:what(?:'s| is|s) )?the distance (?:between|from) (?P<a>[a-z][a-z .'-]{1,40}?) (?:and|to) (?P<b>[a-z][a-z .'-]{1,40}?)", low))
+    if m:
+        a, b = m.group("a").strip(), m.group("b").strip()
+        here = ("here", "home", "my house", "me", "my place", "where i am")
+        if a in here or b in here:
+            return {"command": {"kind": "travel_time", "place": b if a in here else a}, "say": None}
+        return {"command": None,
+                "say": f"I can only measure from your home to places you've saved, so I can't say how far "
+                       f"{_as_he_said(text, a)} is from {_as_he_said(text, b)}."}
     m = (re.match(r"how long (?:does it |will it |would it |should it )?"
                   r"(?:take )?(?:to )?(?:get|drive|walk|ride|cycle|bike) to (.+)",
                   low)

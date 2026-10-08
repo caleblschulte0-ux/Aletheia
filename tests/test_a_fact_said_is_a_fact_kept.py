@@ -7074,6 +7074,20 @@ class WhenHeGetsHome(unittest.TestCase):
             self.assertNotIn("call", quick.answer("I'm home"))
 
 
+class NextFridayAndTwoCities(unittest.TestCase):
+    """2026-10-08: "how many days until next Friday" went to a model, and
+    "how far is Chicago from New York" measured to "Chicago From New York"."""
+
+    def test_days_until_next_friday_gives_both(self):
+        said = quick.answer("how many days until next friday")
+        self.assertIn("Friday the", said)
+
+    def test_two_cities_are_said_plainly_and_home_is_the_trip(self):
+        self.assertIn("how far Chicago is from New York", voice.interpret("how far is Chicago from New York")["say"])
+        self.assertEqual(voice.interpret("how far is the airport from here")["command"],
+                         {"kind": "travel_time", "place": "the airport"})
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

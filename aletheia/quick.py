@@ -4037,6 +4037,18 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
         return _interview_when()
     today = dt.datetime.now(localtime.operator_tz()).date()
+    nxt = re.fullmatch(r"next (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", " ".join(str(words or "").casefold().split()))
+    if nxt:
+        # "How many days until next Friday" (2026-10-08: to a model) is two
+        # answers on most days, the same two "what's the date next Friday" gives.
+        ahead = (_WEEKDAYS.index(nxt.group(1)) - today.weekday()) % 7 or 7
+        soon, later = today + dt.timedelta(days=ahead), today + dt.timedelta(days=ahead + 7)
+        name = nxt.group(1).capitalize()
+        first = "Tomorrow" if ahead == 1 else f"{ahead} days"
+        if ahead == 7:
+            return f"7 days, {name} the {_ordinal(soon.day)}."
+        return (f"{first}, {name} the {_ordinal(soon.day)} - or {ahead + 7} days, the {_ordinal(later.day)}, "
+                f"if you mean the week after.")
     when = _named_date(words, today) or _his_date(words, today)
     if when is None:
         if re.fullmatch(r"(?:my )?birthday", " ".join(str(words or "").casefold().split())):
