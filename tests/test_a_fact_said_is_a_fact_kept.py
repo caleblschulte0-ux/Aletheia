@@ -8661,5 +8661,32 @@ class WhatATaskWasAbout(unittest.TestCase):
 
 
 
+class ThreeFromTheHouseholdSweep(unittest.TestCase):
+    """2026-10-08: a recital on the calendar, a drill given back, and a
+    renewal date read back as what the insurance costs."""
+
+    def test_when_is_the_recital_reads_the_calendar(self):
+        import datetime as dt
+        from aletheia import quick
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+        with mock.patch.object(quick, "_notes", lambda: []), \
+                mock.patch.object(quick, "_coming", lambda now=None: [(at, "daughter's recital", "calendar")]):
+            said = quick.answer("when is the recital")
+        self.assertTrue(said.startswith("Your daughter's recital is "), said)
+
+    def test_gave_back_my_drill_takes_it_off_the_lent_list(self):
+        from aletheia import quick
+        rows = [{"text": "Mike gave back my drill"}, {"text": "I lent my drill to Mike"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what have I lent out"), "Nothing lent out that you've told me about.")
+
+    def test_a_renewal_date_is_not_a_price(self):
+        from aletheia import quick
+        rows = [{"text": "my car insurance renews on December 1", "ts": "2026-10-08T10:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertIn("but not how much it is", quick.answer("how much is my car insurance"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

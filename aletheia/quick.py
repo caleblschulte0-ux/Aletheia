@@ -12236,6 +12236,11 @@ def _cost_mine(text: str) -> str | None:
     # has no way to know). Her memory first; then plainly not told.
     held = _recall(thing)
     if held and not held.startswith("I have nothing"):
+        # "My car insurance renews on December 1" is not what it costs
+        # (2026-10-08: read back as the answer to "how much").
+        if not re.search(r"\$\s?\d|\d\s*(?:k\b|dollars|bucks|a (?:month|year|week)|per |/)|\b(?:is|are|costs?|pay) \$?\d",
+                         held.casefold()):
+            return held.rstrip(".") + ", but not how much it is."
         return held
     said = {"hoa": "HOA", "hbo": "HBO", "hbo max": "HBO Max", "icloud": "iCloud", "chatgpt": "ChatGPT", "ps plus": "PS Plus"}.get(
         thing, thing.title() if re.fullmatch(r"netflix|spotify|hulu|disney plus|youtube premium|youtube tv|amazon prime|apple music"
@@ -12324,6 +12329,8 @@ def _lent_out() -> str:
             out[m.group("thing")] = m.group("who")
             continue
         back = (re.fullmatch(r"[a-z][a-z' ]{1,30}? (?:gave|brought|returned) (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30}?) back", low)
+                # "Mike gave back my drill" (2026-10-08: still lent out)
+                or re.fullmatch(r"[a-z][a-z' ]{1,30}? (?:gave|brought) back (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30})", low)
                 or re.fullmatch(r"[a-z][a-z' ]{1,30}? returned (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30})", low)
                 or re.fullmatch(r"i got (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30}?) back(?: from .+)?", low))
         if back:
@@ -13150,6 +13157,15 @@ def _when_note(text: str) -> str | None:
         if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) and re.search(
                 r"\d|\b(?:mon|tues|wednes|thurs|fri|satur|sun|week)days?\b|\b(?:today|tonight|tomorrow|weekends?)\b", low):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    # "When is the recital" after "my daughter has a recital on Friday at 6"
+    # went on the calendar (2026-10-08: to a model). The soonest one.
+    for at, what, store in _coming():
+        low = str(what or "").casefold()
+        if store == "calendar" and all(re.search(rf"\b{re.escape(w)}", low) for w in stems):
+            name = str(what).strip().rstrip(".")
+            if name.casefold().split("'")[0] in _relation_words():
+                name = "your " + name
+            return f"{name[:1].upper() + name[1:]} is {speech.humanize_time(at.isoformat())}."
     # "When is our anniversary" with nothing told (2026-10-08: "I can't
     # think") - a date only he knows, so the answer is how to tell her.
     whose = re.match(r"when (?:is|'s) (?P<whose>my|our) ", _tidy(text))
