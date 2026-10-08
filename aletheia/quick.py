@@ -3336,8 +3336,17 @@ def _tasks_due(which: str = "") -> str | None:
         if (when < now) if overdue_only else (when <= limit):
             dated.append((when, task))
     dated.sort(key=lambda pair: pair[0])
+    # "What do I have to do tomorrow" left out "pick up the kids at 3"
+    # (2026-10-08): a reminder on that day is something to do on it too.
+    also = ""
+    if which in ("due today", "due tomorrow"):
+        rem = _reminders_on(which[4:]) or ""
+        if rem and not rem.startswith("No reminders"):
+            also = " " + rem
     if not dated:
         undated = len(rows) - sum(1 for t in rows if tasks_mod.parse_deadline(t.get("deadline")))
+        if also:
+            return "Nothing's " + which + " on your list." + also
         lead = "Nothing's overdue." if overdue_only else "Nothing's due " + (
             which[4:] if which.startswith("due ") else "in the next week") + "."
         if rows and undated == len(rows):
@@ -3356,7 +3365,7 @@ def _tasks_due(which: str = "") -> str | None:
     head = (f"{speech.count_phrase(len(dated), 'thing')} overdue" if overdue_only
             else f"{speech.count_phrase(len(dated), 'thing')} {which}" if one_day
             else f"{speech.count_phrase(len(dated), 'thing')} due" + (f", {len(late)} already late" if late else ""))
-    return f"{head}: {said}{more}."
+    return f"{head}: {said}{more}.{also}"
 
 
 def _weeks_until(words: str) -> str | None:

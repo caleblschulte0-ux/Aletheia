@@ -6326,5 +6326,21 @@ class MeetingSomebodyIsCalledWhatItIs(unittest.TestCase):
             self.assertEqual((got["kind"], got["title"]), ("calendar_hold", title), said)
 
 
+
+class WhatToDoOnADayIncludesItsReminders(unittest.TestCase):
+    """2026-10-08: "what do I have to do tomorrow" left out the reminder to
+    pick up the kids at 3."""
+
+    def test_the_days_reminders_follow_its_tasks(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", return_value=[]), \
+                mock.patch.object(quick, "_reminders_on", return_value="1 reminder tomorrow: 3 pm, pick up the kids."):
+            self.assertEqual(quick._tasks_due("tomorrow"),
+                             "Nothing's due tomorrow on your list. 1 reminder tomorrow: 3 pm, pick up the kids.")
+        with mock.patch.object(intercom, "_open_tasks", return_value=[]), \
+                mock.patch.object(quick, "_reminders_on", return_value="No reminders tomorrow."):
+            self.assertTrue(quick._tasks_due("tomorrow").startswith("Nothing's due tomorrow."))
+
+
 if __name__ == "__main__":
     unittest.main()
