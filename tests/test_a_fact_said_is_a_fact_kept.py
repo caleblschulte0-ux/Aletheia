@@ -9984,5 +9984,35 @@ class WhatHeDoesForFun(unittest.TestCase):
             self.assertIsNone(quick.answer("how long have I been learning piano"))
 
 
+class TheYardAndGarden(unittest.TestCase):
+    """A sweep of yard and garden sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("I planted tomatoes today", "the sprinklers are set for 6am", "the mulch was 40 dollars",
+                     "the tomatoes are ready to pick"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I need to fertilize the lawn in spring")["command"]["description"],
+                         "fertilize the lawn in spring")
+
+    def test_read(self):
+        from aletheia import scheduler, tasks
+        specs = [{"enabled": True, "kind": "weekly", "weekdays": [6], "time": "09:00",
+                  "command": {"kind": "notify", "text": "water the plants"}}]
+        rows = [{"description": "paint the fence", "status": "OPEN"}, {"description": "call mom", "status": "OPEN"}]
+        notes = [{"text": "the dishwasher is broken"}, {"text": "the sprinklers are set for 6am"},
+                 {"text": "the mulch was 40 dollars"}, {"text": "I planted tomatoes today"}]
+        with mock.patch.object(scheduler, "all_schedules", lambda: specs), mock.patch.object(tasks, "all_tasks", lambda: rows), \
+                mock.patch.object(tasks, "is_his", lambda t: True), mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("when do I water the plants"),
+                             "Every Sunday at 9 am - that's when I remind you to water the plants.")
+            self.assertIsNone(quick.answer("when do I feed the dog"))
+            self.assertEqual(quick.answer("what needs doing around the house"),
+                             "Your list says: paint the fence. From what you've told me: the dishwasher is broken.")
+            self.assertEqual(quick.answer("what time do the sprinklers go on"), "You told me: the sprinklers are set for 6am.")
+            self.assertEqual(quick.answer("how much did the mulch cost"), "You told me: the mulch was 40 dollars.")
+            self.assertIsNone(quick.answer("how much did the paint cost"))
+            self.assertEqual(quick.answer("when did I plant the tomatoes"), "You told me you planted tomatoes.")
+
+
 if __name__ == "__main__":
     unittest.main()

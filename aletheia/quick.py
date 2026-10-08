@@ -2280,6 +2280,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                        r" (?P<wfh>today|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday)\s*\??$")),
     # "How long have I been learning guitar" (2026-10-08: to a model).
     ("been_doing", re.compile(r"^how long have i been (?P<been_doing>(?:learning|taking|playing|practicing|doing|going to|on) [a-z][a-z ]{1,25}?)\s*\??$")),
+    # "When do I water the plants" a turn after "remind me to water the
+    # plants every Sunday" (2026-10-08: to a model).
+    ("routine_when", re.compile(r"^when (?:do|should|am) i (?:supposed to |usually )?(?P<routine_when>(?:water|feed|walk|mow|take out|put out|clean|change|vacuum|wash"
+                                r"|pay|call|check|empty|refill|charge|brush|bathe|groom|trim|spray|fertilize|mop|dust|wipe|replace|flip|rotate)"
+                                r" [a-z][a-z ]{1,30}?)(?<! next)(?<! again)\s*\??$")),
+    # "How much did the mulch cost" (2026-10-08: to a model, after "the
+    # mulch was 40 dollars").
+    ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
+    # "What needs doing around the house" (2026-10-08: to a model).
+    ("house_todo", re.compile(r"^what (?:needs|need|has) (?:doing|to be done|fixing|to get done|work)(?: around| at| in)? (?P<house_todo>the house|the yard|home|the garden|the apartment)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2293,7 +2303,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
         r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
-        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out|make|cook|bake|check in for) (?P<did_o>(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out|make|cook|bake|check in for"
+        r"|plant|prune|fertilize|weed|mulch|harvest|repot) (?P<did_o>(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
@@ -2984,6 +2995,11 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "What time do the sprinklers go on" (2026-10-08: nothing found, a
+    # turn after "the sprinklers are set for 6am").
+    m = re.fullmatch(r"(?:what time|when) (?:do|does) (?:the |my )(?P<t>sprinklers?|irrigation|porch lights?|lights|timer|heat|ac) (?:go on|come on|turn on|run|start)\s*\??", text)
+    if m:
+        return f"what time are the {m.group('t')} set for"
     # "Who is my favorite band" (2026-10-08: to a model) is the favorite he told her.
     m = re.fullmatch(r"who(?:'s| is| are) my (?P<f>fav(?:orite|ourite)? [a-z][a-z ]{1,20}?)\s*\??", text)
     if m:
@@ -3183,7 +3199,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -6106,7 +6122,8 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"check in for": "checked in for", "checked in for": "checked in for", "saw": "saw", "met": "met", "spoke to": "talked to", "spoke with": "talked to", "make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
+_PAST = {"plant": "planted", "prune": "pruned", "fertilize": "fertilized", "weed": "weeded", "mulch": "mulched", "harvest": "harvested",
+         "repot": "repotted", "check in for": "checked in for", "checked in for": "checked in for", "saw": "saw", "met": "met", "spoke to": "talked to", "spoke with": "talked to", "make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
          "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
          "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
@@ -14203,9 +14220,10 @@ def _bills_due() -> str | None:
     return f"From what you've told me: {speech.and_list(said[:5])}."
 
 
-def _repeating(which: str = "") -> str:
+def _repeating(which: str = "", about: str = "") -> str | None:
     """His reminders that come back, with how often - every one switched
-    on, or only the kind he named."""
+    on, or only the kind he named. With `about`, only the reminder saying
+    that, and None when there is none."""
     import datetime as dt
     from aletheia import speech
     try:
@@ -14244,6 +14262,11 @@ def _repeating(which: str = "") -> str:
             "week": lambda sp: sp.get("kind") == "weekly", "weekly": lambda sp: sp.get("kind") == "weekly",
             "month": lambda sp: sp.get("kind") == "monthly", "monthly": lambda sp: sp.get("kind") == "monthly"}.get(which)
     rows = [sp for sp in specs if keep is None or keep(sp)]
+    if about:
+        rows = [sp for sp in rows if str(sp["command"]["text"]).strip().rstrip(".") == about]
+        if not rows:
+            return None
+        return f"{how(rows[0])[:1].upper() + how(rows[0])[1:]} - that's when I remind you to {speech.as_she_says_it(about)}."
     if not rows:
         every = {"daily": "day", "weekly": "week", "monthly": "month", "nightly": "night"}.get(which, which)
         every = every if every in ("morning", "day", "night", "evening", "week", "month") else "day"
@@ -15114,6 +15137,69 @@ def _been_doing(what: str) -> str | None:
     return None
 
 
+def _routine_when(chore: str) -> str | None:
+    """When a chore comes round: the repeating reminder he set for it, or
+    his note saying when he does it. None when neither says."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z0-9]+", str(chore or "").casefold()) if w not in ("the", "my", "a", "an", "our")]
+    if len(words) < 2:
+        return None
+    try:
+        from aletheia import scheduler
+        specs = [sp for sp in scheduler.all_schedules() if sp.get("enabled") and sp.get("kind") != "once"]
+    except Exception:
+        specs = []
+    for sp in specs:
+        said = str((sp.get("command") or {}).get("text") or "").strip().rstrip(".")
+        if said and all(re.search(rf"\b{re.escape(w[:5])}", said.casefold()) for w in words):
+            listed = _repeating("", about=said)
+            if listed:
+                return listed
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"i (?:usually |always )?" + re.escape(words[0]), low) and all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words[1:]) \
+                and re.search(r"\b(?:every|each|on|at|once|twice)\b|days?\b|mornings?\b|nights?\b|weekends?\b", low):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _thing_cost(thing: str) -> str | None:
+    """What he said a thing cost - "the mulch was 40 dollars" - read
+    back. None when he never said."""
+    from aletheia import speech
+    thing = " ".join(str(thing or "").casefold().split())
+    if thing in ("it", "that", "this", "them", "rent", "bill"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(rf"(?:the |my |our )?{re.escape(thing)} (?:was|were|cost|came to|ran me|is|costs) (?:me )?(?:about |around )?\$?\d", low) \
+                or re.match(rf"i (?:paid|spent) \$?\d[\d,.]* (?:dollars |bucks )?(?:on|for) (?:the |my |some )?{re.escape(thing)}\b", low):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _house_todo(where: str) -> str | None:
+    """What needs doing at home: his open tasks and what he said broke."""
+    from aletheia import speech, tasks
+    try:
+        rows = [" ".join(str(t.get("description") or "").split()).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED]
+    except Exception:
+        rows = []
+    home = [r for r in rows if re.search(r"\b(?:fix|paint|clean|mow|rake|fertilize|weed|water|repair|replace|change|caulk|seal|trim|mulch|plant"
+                                         r"|gutters?|fence|lawn|yard|garden|deck|roof|garage|basement|attic|sink|toilet|faucet|furnace|filter"
+                                         r"|dishwasher|washer|dryer|fridge|door|window|porch|driveway|house|kitchen|bathroom|bedroom)\b", r, re.I)]
+    broken = _broken("") or ""
+    said = []
+    if home:
+        said.append(f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in home[:6]])}.")
+    if broken.startswith("From what you've told me"):
+        said.append(broken)
+    return " ".join(said) or None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15924,6 +16010,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "routine_when": _routine_when,
+           "thing_cost": _thing_cost,
+           "house_todo": _house_todo,
            "been_doing": _been_doing,
            "work_note": _work_note,
            "wfh": _wfh,

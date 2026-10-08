@@ -10306,6 +10306,21 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "I planted tomatoes today", "the sprinklers are set for 6am", "the
+    # mulch was 40 dollars", "the tomatoes are ready to pick" (2026-10-08:
+    # all to the planner).
+    if re.fullmatch(r"i (?:just )?(?:planted|seeded|sowed|transplanted|pruned|fertilized|weeded|mulched|repotted|harvested|picked) (?:the |my |some |a few |our )?"
+                    r"[a-z][a-z ]{1,25}?(?: today| yesterday| this morning| this weekend| last weekend)?", low) \
+            and not re.search(r"\b(?:up|it|that|them|him|her|out|a fight)\b", low) \
+            or re.fullmatch(r"(?:the |my |our )?(?:sprinklers?|irrigation|thermostat|timer|alarm system|porch lights?|lights) (?:is|are) set (?:for|to) "
+                            r"\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: degrees)?(?: every (?:day|morning|night))?", low) \
+            or re.fullmatch(r"(?:the |my |our )(?!(?:bill|rent|electric|water|gas|phone|internet|cable)\b)[a-z][a-z ]{1,20}? (?:was|were|cost|came to|ran me) (?:me )?(?:about |around )?\$?\d[\d,.]*(?: dollars| bucks)?", low) \
+            or re.fullmatch(r"(?:the |my |our )(?:tomatoes|peppers|cucumbers|zucchini|squash|beans|strawberries|lettuce|apples|pumpkins|herbs) (?:are|is) (?:ready|ripe|ready to (?:pick|harvest))", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to fertilize the lawn in spring" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:need|have|want|should) to (?P<what>[a-z][a-z ]{2,40}?) (?P<when>in (?:the )?(?:spring|summer|fall|autumn|winter))", low)
+    if m and not re.match(r"(?:go|be|move|travel|visit|fly)\b", m.group("what")):
+        return _new_task(f"{m.group('what')} {m.group('when')}")
     # "I have concert tickets for Saturday", "my book club meets on the
     # first Tuesday", "I started learning guitar", "I beat Zelda last
     # night" (2026-10-08: all to the planner).
