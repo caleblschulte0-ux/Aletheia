@@ -6,7 +6,10 @@ final button on the page the gate read that link as the way on and refused
 the whole mission. An application never charges him. On any other errand
 the refusal stands, and on a job the link is still never pressed.
 """
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from aletheia import browser_loop, browser_mission as bm, job_skill, page_state as ps
 
@@ -23,6 +26,14 @@ def posting(*extra):
 
 
 class APayLinkIsNotTheWayOn(unittest.TestCase):
+    def setUp(self):
+        # Missions of its own, never left behind for a test that reads them.
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        patch = mock.patch.object(bm, "missions_dir", lambda: Path(tmp.name))
+        patch.start()
+        self.addCleanup(patch.stop)
+
     def test_on_a_job_the_gate_lets_the_loop_go_on(self):
         record = bm.open_mission(GOAL, URL)
         self.assertIsNone(browser_loop._gate(None, None, posting(), record, GOAL, [], [],
