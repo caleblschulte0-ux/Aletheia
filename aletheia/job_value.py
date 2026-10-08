@@ -117,6 +117,37 @@ def pay_floor(known: dict | None, location: str = "") -> float:
     return amounts[0]
 
 
+def under_his_floor(job: dict, text: str = "") -> str:
+    """Why a posting pays too little to apply to, or "".
+
+    His ruling, 2026-10-08 (`config/rulings.json`, pay-floor-95k): "Don't
+    apply to any job whose salary is below 95K or ... 95K comparative to
+    making that in South Dakota." So the floor is scaled by the cost of
+    living where the job is, against his home state's, and compared with the
+    TOP of the posted range. No posted pay is not a low one, and a place the
+    index does not know is judged at the floor itself. No ruling: no cut."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("pay_floor")
+    except Exception:
+        return ""
+    floor = (ruled or {}).get("floor") or {}
+    if not (ruled and ruled.get("on")) or not floor.get("amount"):
+        return ""
+    pay = annual_pay(job, text)
+    if not pay:
+        return ""
+    amount = float(floor["amount"])
+    home = STATE_INDEX.get(str(floor.get("home") or "").upper(), 100)
+    index, market = col_index(job.get("location") or "")
+    need = amount * index / home if market else amount
+    low, high = pay
+    if high >= need:
+        return ""
+    there = f" (about ${need:,.0f} in {market})" if market and round(need) != round(amount) else ""
+    return (f"it pays ${low:,.0f} to ${high:,.0f}, under his ${amount:,.0f} floor{there}")
+
+
 def _in_his_state(location: str, known: dict | None) -> bool:
     known = known or {}
     state = str(known.get("state") or "").strip()

@@ -905,6 +905,10 @@ _WHICH_CITIES = re.compile(
     r"|\bavailable to work in\b", re.I)
 
 
+#: A question about making cold calls, in a form's words.
+_ASKS_ABOUT_COLD_CALLS = re.compile(r"\bcold[- ]?call", re.I)
+
+
 def _yes(value) -> bool:
     return str(value or "").strip().casefold() in ("yes", "y", "true", "1")
 
@@ -969,6 +973,12 @@ def _obvious(label: str, choices: list[str], known: dict, resume: str, record: d
     def pick(value):
         return formfill._best_option(value, choices, known) if choices else value
 
+    # "Are you comfortable with cold calling?" His words, 2026-10-08: "I am
+    # not comfortable with cold calls. So she should be putting no."
+    if _ASKS_ABOUT_COLD_CALLS.search(label):
+        chosen = pick("No")
+        if chosen:
+            return chosen
     # He answered this exact question once, on another form.
     told = profile.answer_for(label)
     if told:
@@ -1498,6 +1508,12 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
                 posting_text = str(describe(page) or "")
             except Exception:
                 posting_text = ""
+        # His floor, before a model is asked: a posting that lists its pay
+        # and tops out under $95,000 in South Dakota money is not his job.
+        under = job_value.under_his_floor(page, posting_text)
+        if under:
+            passed_over.append({"url": page["url"], "title": title, "why": under})
+            continue
         fit = job_fit.verdict(page, text, known_now, think=think,
                               describe=(lambda _job, held=posting_text: held) if describe is not None else None,
                               early=early)
