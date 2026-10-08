@@ -2267,6 +2267,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When did my mom last call", "who do I need to call back", "when did
     # I send my mom flowers" (2026-10-08: each to a model).
     ("kin_called", re.compile(r"^when did (?P<kin_called>(?:my|our) [a-z][a-z ]{1,20}?|[a-z]{2,15}) (?:last )?call(?: me)?(?: last)?\s*\??$")),
+    # "When did I get my laptop" after "I got a new laptop" (2026-10-08: to a model).
+    ("got_when", re.compile(r"^when did i (?:get|buy|order|pick up) (?:my|the|our) (?:new )?(?P<got_when>[a-z][a-z ]{1,25}?)\s*\??$")),
     ("call_back", re.compile(r"^who (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?:call|text|email) back(?P<call_back>)\s*\??$")),
     ("sent_kin", re.compile(r"^when did i (?:last )?(?:send|get|buy|give) (?P<sent_kin>(?:my|our) (?:mom|mother|dad|father|wife|husband|grandma|grandpa|sister|brother|son|daughter|aunt|uncle|boss|friend|girlfriend|boyfriend|neighbor) [a-z][a-z ]{1,20}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
@@ -3165,7 +3167,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -12806,7 +12808,7 @@ _SUB_KEYS = (r"netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube pre
 _BILL_KEYS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )?insurance(?: payment| bill)?"
               r"|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill|water bill|gas bill|cable bill"
               r"|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition|gym membership|hoa(?: fees?)?"
-              r"|childcare|car loan|trash bill|sewer bill"
+              r"|childcare|car loan|trash bill|sewer bill|(?:cell |cell phone |mobile )?phone plan|cell plan|phone payment"
               r"|" + _SUB_KEYS)
 
 
@@ -13965,7 +13967,9 @@ def _plans_for(who: str) -> str | None:
 
 _BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up"
                     r"|making a (?:weird |strange |loud )?noise|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining"
-                    r"|not turning on|not starting|tripping)|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working)")
+                    r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging)"
+                    r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working|cracked|shattered|froze)"
+                    r"|^(?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25}?) (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)")
 _FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
                     r"|\breplaced the batter(?:y|ies) in (?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25})"
                     r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:is|got|was) (?:fixed|repaired|working again)")
@@ -14946,6 +14950,26 @@ def _call_back(_rest: str = "") -> str | None:
     return f"Your list says to get back to {speech.and_list([speech.as_she_says_it(w) for w in who[:5]])}."
 
 
+def _got_when(thing: str) -> str | None:
+    """When he said he got, bought or ordered a thing. None when he never
+    said: a receipt or a model may know."""
+    from aletheia import speech
+    thing = " ".join(str(thing or "").casefold().split())
+    if thing in ("it", "that", "this", "them", "paid", "home", "back", "up", "there", "here"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(rf"i (?:just |finally )?(?:got|bought|ordered|picked up) (?:a |an |my |the |our )?(?:new |used )?{re.escape(thing)}s?\b", low):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            plain = speech.as_she_says_it(said)
+            plain = plain[:1].lower() + plain[1:]
+            if told and not re.search(r"\b(?:today|yesterday|last \w+|on \w+)$", low):
+                return f"You told me {plain} - that was {told}."
+            return f"You told me {plain}."
+    return None
+
+
 def _sent_kin(what: str) -> str | None:
     """When he said he sent or got somebody something: "I sent my mom
     flowers" for "when did I send my mom flowers"."""
@@ -15797,6 +15821,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "got_when": _got_when,
            "how_kin": _how_kin,
            "kin_called": _kin_called,
            "call_back": _call_back,

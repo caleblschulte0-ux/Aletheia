@@ -9910,5 +9910,30 @@ class HisFamilyAgain(unittest.TestCase):
             self.assertEqual(quick.answer("who do I need to call back"), "Your list says to get back to your mom and Dana.")
 
 
+class HisThings(unittest.TestCase):
+    """A sweep about his things: orders, returns, gadgets (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("my package is supposed to come Friday", "my phone screen cracked", "my laptop keeps crashing",
+                     "my phone won't charge", "my phone plan is 45 a month"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("the day is slow")["command"]["kind"], "note")
+        ret = voice._interpret("I have 30 days to return the jacket")["command"]
+        self.assertEqual(ret["description"], "return the jacket")
+        self.assertIn("deadline", ret)
+        self.assertEqual(voice._interpret("where were my headphones")["command"].get("query"), "headphones")
+
+    def test_read(self):
+        rows = [{"text": "my phone plan is 45 a month"}, {"text": "my laptop keeps crashing"}, {"text": "my phone screen cracked"},
+                {"text": "my package is supposed to come Friday"}, {"text": "I got a new laptop"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("when did I get my laptop"), "You told me you got a new laptop.")
+            self.assertIsNone(quick.answer("when did I get my car"))
+            self.assertEqual(quick.answer("when is my package coming"), "You told me: your package is supposed to come Friday.")
+            self.assertEqual(quick.answer("what do I need to fix"),
+                             "From what you've told me: your phone screen cracked and your laptop keeps crashing.")
+            self.assertEqual(quick.answer("how much is my phone plan"), "You told me: your phone plan is 45 a month.")
+
+
 if __name__ == "__main__":
     unittest.main()
