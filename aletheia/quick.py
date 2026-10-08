@@ -609,7 +609,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:long|much longer|much time) (?:until|till|before) i (?P<work_hours3>get off|finish|clock out|start|clock in)(?: work)?\s*\??$")),
     ("we_when", re.compile(r"^(?:when (?:do|are|will) we|how (?:many days|long) (?:until|till|before) we) (?P<we_when>close|move|move in|move out|closing|moving|moving in)\b(?: on| into| out of)?(?: the| our)?(?: new)?(?: house| home| apartment| place| condo)?\s*\??$")),
     ("life_when", re.compile(
-        r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
+        r"^when (?:am i|are we) (?P<lw>moving(?: out)?|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
         r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?"
         r"|off(?: work)?(?: next)?|next off|on vacation|working from home|out of (?:the )?office)\s*\??$"
         r"|^when do (?:i|we) (?P<lw2>start (?:my |the |our )?(?:new job|school|college|classes)|move|leave for (?:my |our |the )?(?:vacation|trip|holiday)"
@@ -2457,6 +2457,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How long to cook a 5 pound turkey" (2026-10-08: "I can't think").
     ("turkey_time", re.compile(r"^how long (?:do i|should i|to|does it take to|will it take to) (?:cook|roast|bake|do) (?:a |an |my |the )?"
                                r"(?P<turkey_lb>\d{1,2}(?:\.\d)?)[ -]?(?:pound|lb|lbs|pounder)s? (?P<turkey_kind>turkey|chicken|turkey breast)(?: for)?\s*\??$")),
+    # "What apartments have I looked at" (2026-10-08: "I can't think").
+    ("places_seen", re.compile(r"^(?:what|which) (?P<places_seen>apartments?|houses?|condos?|places?|rentals?|homes?) (?:have i|did i|have we|did we) (?:looked at|seen|toured|visited|checked out)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -13300,6 +13302,13 @@ def _cost_mine(text: str) -> str | None:
     # with "I spent 60 on groceries" kept): what he told her he spent.
     if thing and g.get("cost_mine2") and not re.fullmatch(_BILL_KEYS, thing):
         return _spent(f"how much did i spend on {thing} this month")
+    # "How much was my security deposit" (2026-10-08: "I can't think"). A
+    # one-off sum, never a monthly bill.
+    if thing and re.fullmatch(r"(?:security )?deposit|down payment|closing costs?|pet deposit|retainer|bail|deductible", thing):
+        for said in rows:
+            if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|was|will be|came to) .*\d", said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
@@ -16790,6 +16799,20 @@ def _turkey_time(text: str) -> str | None:
             f"reads 165 degrees, so trust the thermometer over the clock.")
 
 
+def _places_seen(_rest: str = "") -> str | None:
+    """The apartments or houses he told her he looked at, with what they cost."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"(?:i|we) (?:just )?(?:looked at|saw|toured|went to see|checked out|viewed) (?:an?|the|a nice|a new) (?:apartment|house|condo|place|townhouse|rental|unit|home)\b", line, re.I) \
+                or re.match(r"the (?:apartment|house|condo|place|townhouse|rental|unit) (?:on|at|in|near|by) .+ (?:was|is|costs?|wants) \$?\d", line, re.I):
+            found.append(speech.as_she_says_it(line))
+        if len(found) >= 5:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17603,6 +17626,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "places_seen": _places_seen,
            "turkey_time": _turkey_time,
            "budget_on": _budget_on,
            "gift_cards": _gift_cards,

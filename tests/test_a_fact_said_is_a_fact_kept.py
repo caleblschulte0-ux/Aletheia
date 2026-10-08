@@ -11232,5 +11232,30 @@ class HowLongTheBirdTakes(unittest.TestCase):
         self.assertIn("165 degrees", quick.answer("how long to cook a 5 pound turkey"))
 
 
+class RentingAndMoving(unittest.TestCase):
+    """2026-10-08: "my landlord number is ...", "I am moving out in June",
+    "I need to give 30 days notice", the landlord raising the rent and the
+    apartments he looked at went to the planner; "how much was my security
+    deposit" and "what apartments have I looked at" got "I can't think"."""
+
+    def test_said(self):
+        got = voice._interpret("my landlord number is 555 222 3333")["command"]
+        self.assertEqual((got["kind"], got["name"]), ("contact_add", "Landlord"))
+        self.assertEqual(voice._interpret("my account number is 12345678")["command"]["kind"], "note")
+        for said in ("I am moving out in June", "the landlord is raising the rent", "I looked at an apartment on Elm St",
+                     "the apartment on Elm St was 1600 a month"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        got = voice._interpret("I need to give 30 days notice")["command"]
+        self.assertEqual((got["kind"], got["description"]), ("task_new", "give 30 days notice"))
+
+    def test_read(self):
+        notes = [{"text": "the apartment on Elm St was 1600 a month"}, {"text": "I looked at an apartment on Elm St"},
+                 {"text": "my security deposit was 1500"}, {"text": "I am moving out in June"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how much was my security deposit"), "You told me: your security deposit was 1500.")
+            self.assertEqual(quick.answer("when am I moving out"), "You told me: you are moving out in June.")
+            self.assertIn("1600 a month", quick.answer("what apartments have I looked at"))
+
+
 if __name__ == "__main__":
     unittest.main()

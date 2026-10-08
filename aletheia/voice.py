@@ -6636,6 +6636,12 @@ def _interpret(transcript: str) -> dict:
         # which is the one thing it may never do. The planner resolves the
         # date and compiles the same command; it just costs a round trip.
 
+    # "My landlord number is 555 222 3333" (2026-10-08: to the planner) is
+    # "my landlord's number". His own phone, work and account numbers are not.
+    m = re.fullmatch(r"my (?P<who>[a-z]{3,20}(?: [a-z]{3,20})?) (?:phone |cell )?number is (?P<n>\+?\d[\d ().-]{5,20}\d)", low)
+    if m and not re.search(r"\b(?:phone|cell|mobile|home|work|office|fax|account|member|policy|routing|license|passport|social|ssn|id|card"
+                           r"|order|tracking|confirmation|case|claim|reference|seat|room|locker|flight|plate|serial|pin|group|cell phone)\b", m.group("who")):
+        return _interpret(f"my {m.group('who')}'s number is {m.group('n')}")
     # "MOM'S NUMBER IS 605 555 0123": "text mom" says "Tell me the number
     # once and I'll remember it", and telling her went to the planner
     # (2026-10-07). Same for an email address.
@@ -10493,6 +10499,19 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:i'?m|i am) (?:learning|studying|practicing) [a-z][a-z ]{1,20} (?:on|with|using|through) [a-z][a-z ]{1,20}", low) \
             or re.fullmatch(r"my [a-z][a-z ]{1,20} streak is (?:at |up to )?\d{1,4} (?:days?|weeks?)(?: now)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The landlord is raising the rent", "I looked at an apartment on Elm
+    # St", "the apartment on Elm St was 1600 a month" (2026-10-08: to the
+    # planner). Kept, for "what apartments have I looked at".
+    if re.fullmatch(r"(?:the |my |our )?landlord (?:is|'s) (?:raising|increasing|putting up) (?:the |my |our )?rent(?: (?:next|this) (?:month|year)| in [a-z]+)?", low) \
+            or re.fullmatch(r"(?:i|we) (?:just )?(?:looked at|saw|toured|went to see|checked out|viewed) (?:an?|the|a nice|a new) (?:apartment|house|condo|place|townhouse|rental|unit|home)"
+                            r"(?: (?:on|at|in|near|by) [a-z0-9][a-z0-9 .'-]{1,30})?(?: today| yesterday| this morning)?", low) \
+            or re.fullmatch(r"the (?:apartment|house|condo|place|townhouse|rental|unit) (?:on|at|in|near|by) [a-z0-9][a-z0-9 .'-]{1,30}? (?:was|is|costs?|wants)"
+                            r" \$?\d[\d,]*(?: dollars| bucks)?(?: (?:a|per) month)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to give 30 days notice" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:need|have|gotta|got to|should)(?: to)? (?P<what>give (?:my |the |a )?(?:\d{1,3}|thirty|sixty|two weeks?'?) ?(?:days?'?|weeks?'?)? ?notice(?: to (?:my |the )?[a-z]+)?)", low)
+    if m:
+        return _new_task(_as_he_said(text, m.group("what")))
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
@@ -10763,7 +10782,7 @@ def _interpret(transcript: str) -> dict:
         if any(re.search(r"\b(?:got|start|starting|new|accepted|took) (?:a |the |my )?(?:new )?(?:job|offer|position|role)\b|\bgot hired\b", r)
                for r in recent):
             return {"command": {"kind": "note", "text": "I start my new job " + _as_he_said(text, m.group("when"))}, "say": None}
-    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:moving|going on (?:vacation|holiday|a trip|our trip|my trip|our honeymoon)"
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:moving(?: out)?|going on (?:vacation|holiday|a trip|our trip|my trip|our honeymoon)"
                     r"|flying to [a-z][a-z ]{1,25}?|driving to [a-z][a-z ]{1,25}?|having surgery"
                     r"|starting (?:my |a )?(?:new job|school|college|classes|work)|retiring|graduating)(?: to [a-z][a-z ]{1,25}?)? " + _when, low) \
             or re.fullmatch(r"(?:i|we) (?:start|begin) (?:my |our |a )?(?:new job|school|college|classes|work|the new job) " + _when, low) \
