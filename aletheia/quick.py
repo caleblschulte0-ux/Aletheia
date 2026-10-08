@@ -9896,6 +9896,11 @@ def _who_named(name: str) -> str | None:
     notes = [str(r.get("text") or "").strip().rstrip(".") for r in _notes()
              if words and all(re.search(rf"\b{re.escape(w)}\b", str(r.get("text") or "").casefold()) for w in words)]
     if notes:
+        # "Who is Jake" is answered by who he IS first - "your brother's
+        # name is Jake" - and then what else he said (2026-10-08 it came
+        # last, after where Jake lives and what he likes).
+        who = re.escape(name.casefold().strip())
+        notes.sort(key=lambda n: 0 if re.search(rf"\bname is {who}$|^{who} is (?:my|our) ", n.casefold()) else 1)
         said.append("You told me: " + "; ".join(speech.as_she_says_it(n) for n in notes[:3]) + ".")
     return " ".join(said) or None
 

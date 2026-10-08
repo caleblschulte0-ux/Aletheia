@@ -8093,5 +8093,19 @@ class AndMilkTooIsMilk(unittest.TestCase):
 
 
 
+class WhoIsJakeSaysWhoHeIsFirst(unittest.TestCase):
+    """"Who is Jake" read where Jake lives before that he is the brother."""
+
+    def test_the_relation_leads(self):
+        from aletheia import quick
+        rows = [{"text": "Jake lives in Denver"}, {"text": "Jake likes fishing"},
+                {"text": "my brothers name is Jake"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            out = quick._who_named("jake")
+        self.assertTrue(out.startswith("You told me: your brother"), out)
+        self.assertIn("Denver", out)
+
+
+
 if __name__ == "__main__":
     unittest.main()
