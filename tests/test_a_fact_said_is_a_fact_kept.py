@@ -9134,6 +9134,10 @@ class BookingTimeWithSomebodyIsAHold(unittest.TestCase):
         self.assertNotEqual(voice._interpret("book a table for 2 at 7")["command"]["kind"], "calendar_hold")
         self.assertNotEqual(voice._interpret("schedule a meeting with him at 4")["command"]["kind"], "calendar_hold")
 
+    def test_any_free_time_on_a_day_reads_the_calendar(self):
+        self.assertEqual(quick.match("do I have any free time thursday")[0], "free_at")
+        self.assertEqual(quick.match("do I have free time tomorrow")[0], "free_at")
+
 
 if __name__ == "__main__":
     unittest.main()

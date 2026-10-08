@@ -538,7 +538,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Wednesdays" (2026-10-08: a FILE search). Placed after the readers for
     # "anything", "plans" and "meetings", which say the whole day.
     ("do_i_have", re.compile(
-        r"^(?:do|will) (?:i|we|the kids|my kids|the children) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
+        r"^(?:do|will) (?:i|we|the kids|my kids|the children) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|free time|spare time|openings|gaps|to)\b)"
         r"(?P<do_i_have>[a-z][a-z' ]{1,20}? (?:today|tonight|tomorrow|this weekend|(?:on |this |next )?"
         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))\s*\??$")),
     # "How did I do on my test" after "I got an A on my test" (2026-10-08).
@@ -1425,7 +1425,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:am i|will i be) (?:free|busy|available|booked)(?: (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
         r"(?: (?:at|around) [0-9a-z: ]{1,14}?)?(?: (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^(?:do i|have i) (?:have|got) (?:anything|something|a meeting|plans) (?:on )?(?:at|around) [0-9a-z: ]{1,14}?"
-        r"(?: (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
+        r"(?: (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
+        # "Do I have any free time thursday" went to the planner (2026-10-08).
+        r"|^(?:do i|will i) (?:have|get) (?:any )?(?:free time|time free|spare time|openings|gaps)"
+        r"(?: (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     # Already computed every beat for the wall (`next_appointment`), and
     # it was paying a round trip to be read aloud. Deliberately without a
     # trailing clause: "what's my next meeting ABOUT" and "move my next
