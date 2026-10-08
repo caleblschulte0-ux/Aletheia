@@ -6798,5 +6798,24 @@ class EmmasSizeAndAge(unittest.TestCase):
             self.assertIsNone(quick.answer("how old is Obama"))
 
 
+
+class WhatToDoFirst(unittest.TestCase):
+    """2026-10-08: "what should I do first" read the whole list back, and
+    the top task was due "tomorrow at 11:59 pm" with a tie left unsaid."""
+
+    def test_the_first_one_and_the_tie(self):
+        from aletheia import tasks, needs_you
+        import datetime as _dt
+        day = (_dt.date.today() + _dt.timedelta(days=3)).isoformat()
+        rows = [{"id": "a", "description": "call the vet", "deadline": day, "status": "PENDING", "created_at": "1"},
+                {"id": "b", "description": "email my boss", "deadline": day, "status": "PENDING", "created_at": "2"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=rows), mock.patch.object(tasks, "is_his", return_value=True), \
+                mock.patch.object(needs_you, "items", return_value=[]), mock.patch.object(quick, "_agenda", return_value="Nothing today."):
+            said = quick._focus()
+        self.assertNotIn("11:59", said)
+        self.assertTrue(said.startswith("Call the vet - it has the nearest deadline"), said)
+        self.assertIn("Email my boss is due then too.", said)
+
+
 if __name__ == "__main__":
     unittest.main()

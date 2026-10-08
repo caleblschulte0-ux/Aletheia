@@ -4309,9 +4309,11 @@ def _focus() -> str:
                          + (f" - the first is {first.get('what')}" if first.get("what") else ""))
     except Exception:
         pass
-    tasks = _tasks()
-    if tasks and not tasks.lower().startswith("nothing") and "empty" not in tasks.lower():
-        parts.append(tasks.rstrip("."))
+    # "What should I do first" read the whole list back (2026-10-08): the
+    # first one, and why it is first.
+    top = _task_top()
+    if top and not top.startswith("Nothing open"):
+        parts.append(top.rstrip("."))
     day = _agenda("today")
     if day and not day.lower().startswith("nothing"):
         parts.append(day.rstrip("."))
@@ -5420,6 +5422,14 @@ def _task_progress() -> str:
     return done + " " + left
 
 
+def _and_one_more(tied: list) -> str:
+    """"Email your boss is due then too." - a tie said, not hidden."""
+    from aletheia import speech
+    names = [str(t.get("description") or "").strip().rstrip(".") for t in tied[:3]]
+    said = speech.and_list(names)
+    return f"{said[:1].upper() + said[1:]} {'is' if len(names) == 1 else 'are'} due then too."
+
+
 def _task_top() -> str:
     """The one to do first: the nearest deadline, else the oldest open task.
     Said with WHY it is first, because "most important" is his to judge."""
@@ -5433,7 +5443,11 @@ def _task_top() -> str:
     if dated:
         deadline, top = sorted(dated, key=lambda dt_t: dt_t[0])[0]
         what = str(top.get("description") or "").strip().rstrip(".")
-        return f"{what[:1].upper() + what[1:]} - it has the nearest deadline, {speech.humanize_time(deadline.isoformat())}."
+        # A date with no time is the day, not "tomorrow at 11:59 pm" (2026-10-08).
+        when = re.sub(r" at 11:59 pm$", "", speech.humanize_time(deadline.isoformat()))
+        tied = [t for d, t in dated if d == deadline and t is not top]
+        also = f" {_and_one_more(tied)}" if tied else ""
+        return f"{what[:1].upper() + what[1:]} - it has the nearest deadline, {when}.{also}"
     top = sorted(live, key=lambda t: str(t.get("created_at") or ""))[0]
     what = str(top.get("description") or "").strip().rstrip(".")
     return (f"{what[:1].upper() + what[1:]} - nothing has a deadline, so that's the one that's waited longest."
