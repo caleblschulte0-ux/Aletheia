@@ -2139,7 +2139,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Sunrise tomorrow", "what time is sunrise tomorrow" (2026-10-07: to the planner).
         # "What's the sunrise tomorrow", "when's the sunset" (2026-10-07: a memory search).
         r"|^(?:what time is |what time's |what(?:'s| is|s) |when(?:'s| is) )?(?:the )?(?P<sun5>sunset|sunrise)"
-        r"(?: (?:time )?(?P<sunday5>today|tonight|tomorrow))?$")),
+        r"(?: (?:time )?(?P<sunday5>today|tonight|tomorrow))?$"
+        # "How long until sunset" (2026-10-08: to a model) - the time it is.
+        r"|^how (?:long|much (?:longer|time)) (?:is it )?(?:until|till|til|before) (?:the )?(?P<sun6>sunset|sunrise|dark|it gets dark|the sun sets)$")),
     ("moon", re.compile(
         r"^what(?:'s| is) the (?:moon(?: phase)?|phase of the moon)(?: tonight| today)?$"
         r"|^what phase is the moon(?: in)?(?: tonight| today)?$"
@@ -3955,6 +3957,9 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     Thanksgiving" answered "50 days" first, 2026-10-07)."""
     import datetime as dt
     from aletheia import localtime
+    # "How long until sunset" is the sun's, not a date's (2026-10-08).
+    if re.fullmatch(r"(?:the )?(?:sunset|sunrise|dark|it gets dark|the sun sets)", str(words or "").strip()):
+        return _sun(f"how long until {str(words).strip()}")
     # "how long until my next meeting" is the calendar's, not a date's
     # (2026-09-23 night sweep: it fell through here to a model).
     if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
@@ -6486,10 +6491,11 @@ def _note_search(text: str) -> str | None:
 def _sun(text: str) -> str | None:
     from aletheia import weather
     g = _groups("sun", text)
-    said = g.get("sun") or g.get("sun2") or g.get("sun3") or g.get("sun4") or g.get("sun5") or ""
+    said = g.get("sun") or g.get("sun2") or g.get("sun3") or g.get("sun4") or g.get("sun5") or g.get("sun6") or ""
     which = "rise" if any(w in said for w in ("rise", "come up", "light")) else "set"
     when = g.get("sunday") or g.get("sunday2") or g.get("sunday3") or g.get("sunday4") or g.get("sunday5") or ""
-    return weather.spoken_sun(which, "tomorrow" if when == "tomorrow" else "")
+    day = "tomorrow" if when == "tomorrow" else ""
+    return weather.spoken_sun(which, day, until=True) if g.get("sun6") else weather.spoken_sun(which, day)
 
 
 def _moon(text: str) -> str:
@@ -6977,6 +6983,12 @@ def _days_since(words: str) -> str | None:
             base = _base_verb(m.group("v"))
             if base:
                 return _did_last(f"when did i last {base} {m.group('o')}")
+        # "How many days since my birthday" with none told (2026-10-08: to
+        # a model) has one honest answer.
+        whose = re.fullmatch(r"(?:my|our) (birthday|anniversary|wedding anniversary)", words.strip())
+        if whose:
+            return (f"You haven't told me when your {whose.group(1)} is. Say \"my {whose.group(1)} is\" and the date, "
+                    "and I'll remember it.")
         return None
     if day > today and not re.search(r"\d{4}", words):
         # "Since January 1" is the one that has passed.

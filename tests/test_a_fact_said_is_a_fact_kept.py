@@ -6751,5 +6751,21 @@ class WhereTheLunchIs(unittest.TestCase):
             self.assertTrue(quick.answer("where am I having lunch").startswith("Lunch with Dana is at Olive Garden"))
 
 
+
+class UntilSunsetAndSinceABirthday(unittest.TestCase):
+    """2026-10-08: "how long until sunset" and "how many days since my
+    birthday" (none told) went to a model."""
+
+    def test_how_long_until_sunset_is_the_gap(self):
+        from aletheia import weather
+        with mock.patch.object(weather, "_where_on_earth", return_value=(41.88, -87.63, "Chicago")):
+            said = quick.answer("how long until sunset")
+        self.assertRegex(said, r"^\d+ (?:hours?|minutes?).* - sunset is at \d")
+
+    def test_since_a_birthday_never_told(self):
+        with mock.patch.object(quick, "_a_date", return_value=None):
+            self.assertIn("You haven't told me when your birthday is", quick.answer("how many days since my birthday"))
+
+
 if __name__ == "__main__":
     unittest.main()

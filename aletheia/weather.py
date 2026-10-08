@@ -400,8 +400,9 @@ def sun_times(day=None, *, lat: float | None = None, lon: float | None = None):
     return when(transit - w), when(transit + w)
 
 
-def spoken_sun(which: str, when: str = "") -> str:
-    """"Sunset is at 6:52 pm today." - in his timezone, never the process's."""
+def spoken_sun(which: str, when: str = "", *, until: bool = False) -> str:
+    """"Sunset is at 6:52 pm today." - in his timezone, never the process's.
+    `until`: "how long until sunset" leads with the gap (2026-10-08)."""
     import datetime as dt
     from aletheia import localtime
     tz = localtime.operator_tz()
@@ -415,9 +416,25 @@ def spoken_sun(which: str, when: str = "") -> str:
     moment = rise if which == "rise" else set_
     if moment is None:
         return f"The sun doesn't {'rise' if which == 'rise' else 'set'} there that day."
+    now = dt.datetime.now(tz)
+    if until and moment <= now and not when:
+        # Tonight's sunset has gone: the next one is tomorrow's.
+        day = today + dt.timedelta(days=1)
+        rise, set_ = sun_times(day, lat=lat, lon=lon)
+        moment = rise if which == "rise" else set_
+        if moment is None:
+            return f"The sun doesn't {'rise' if which == 'rise' else 'set'} there tomorrow."
     clock = moment.astimezone(tz).strftime("%I:%M %p").lstrip("0").replace("AM", "am").replace("PM", "pm")
     name = "Sunrise" if which == "rise" else "Sunset"
-    return f"{name} is at {clock} {'tomorrow' if day != today else 'today'}."
+    said = f"{name} is at {clock} {'tomorrow' if day != today else 'today'}."
+    if until and moment > now:
+        from aletheia import speech
+        left = int((moment - now).total_seconds() // 60)
+        hours, minutes = divmod(left, 60)
+        gap = (speech.count_phrase(minutes, "minute") if not hours else speech.count_phrase(hours, "hour")
+               + (f" and {speech.count_phrase(minutes, 'minute')}" if minutes else ""))
+        return f"{gap[:1].upper() + gap[1:]} - {said[:1].lower() + said[1:]}"
+    return said
 
 
 _DETAIL_WHEN = ("today", "tonight", "this morning", "this afternoon", "this evening")
