@@ -7719,5 +7719,17 @@ class WhatShouldIEatIsAMealIdea(unittest.TestCase):
 
 
 
+class CarWorkIsAJobNotShopping(unittest.TestCase):
+    def test_tires_are_a_task(self):
+        got = voice._interpret("I need new tires")["command"]
+        self.assertEqual(got["kind"], "task_new")
+        self.assertEqual(got["description"], "get new tires for the car")
+
+    def test_an_alignment_keeps_its_article(self):
+        self.assertEqual(voice._interpret("I need an alignment")["command"]["description"],
+                         "get an alignment for the car")
+
+
+
 if __name__ == "__main__":
     unittest.main()

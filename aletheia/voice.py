@@ -3888,6 +3888,18 @@ def _interpret(transcript: str) -> dict:
     # "I need gas", "I need a nap", "I need to lose weight" (2026-10-08: all
     # to the planner). Gas is an errand; the other two are his, said kindly
     # with the one thing she can do about each.
+    # "I need new tires" (2026-10-08: on the shopping list). Car work is
+    # done at a shop, so it is a job on his list, not a thing to pick up.
+    m = re.fullmatch(r"(?:i|we) (?:need|gotta get|need to get|have to get|should get) (?:a |an |some |new )*"
+                     r"(?P<job>tires|tyres|brakes|brake pads|an? alignment|alignment|an? tune[- ]up|tune[- ]up|an? inspection"
+                     r"|inspection|an? emissions test|emissions test|an? smog check|smog check|tire rotation|a tire rotation"
+                     r"|new battery|a new battery|car battery|an? car wash|car wash)(?: on (?:my|the) car)?", low)
+    if m:
+        job = re.sub(r"^(?:an?|new) ", "", m.group("job")).replace("tune up", "tune-up")
+        said = {"tires": "new tires", "tyres": "new tyres", "brakes": "new brakes", "brake pads": "new brake pads",
+                "inspection": "the car inspected", "car battery": "a new car battery", "battery": "a new car battery",
+                "car wash": "a car wash"}.get(job, ("an " if job[0] in "aeiou" else "a ") + job)
+        return _new_task("get " + said + ("" if "car" in said else " for the car"))
     if re.fullmatch(r"(?:i|we) (?:need|gotta get|need to get|have to get|should get) (?:some )?(?:gas|fuel|petrol|diesel)"
                     r"(?: in the car| for the car)?", low):
         return _new_task("get gas")
