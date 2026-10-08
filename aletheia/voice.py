@@ -4084,6 +4084,29 @@ def _interpret(transcript: str) -> dict:
         goal = _as_he_said(text, m.group("g"))
         return {"command": {"kind": "note", "text": "My goal is to " + goal},
                 "say": f"Good one. I've kept it with your goals: {goal}."}
+    # "I should start going to bed earlier", "I'm trying to cut back on
+    # coffee", "my resolution is to drink less soda" (2026-10-08: a task,
+    # the planner, and a plain note "what are my resolutions" never read).
+    m = re.fullmatch(r"i (?:really )?(?:should|need to|have to|gotta|want to) (?P<g>(?:start|stop|quit) [a-z]+ing\b[a-z0-9 ',-]{0,40})", low) \
+        or re.fullmatch(r"i(?:'m| am) (?:really )?trying to (?P<g>(?:cut back on|cut down on|cut out|give up|quit|lose|eat less|eat more|limit|stop|drink less|drink more)"
+                        r" [a-z0-9 ',-]{2,40})", low) \
+        or re.fullmatch(r"my (?:new year'?s? |new years )?resolutions? (?:is|are|for this year is|this year is) to (?P<g>[a-z0-9 ',-]{3,60})", low)
+    if m and "?" not in text and not re.search(r"\b(?:you|your|thea|the car|it|that)\b", m.group("g")):
+        goal = _as_he_said(text, m.group("g"))
+        return {"command": {"kind": "note", "text": "My goal is to " + goal},
+                "say": f"Good one. I've kept it with your goals: {goal}."}
+    # "My dream car is a Porsche 911", "I'm saving up for a new couch", "I
+    # usually leave my keys on the hook" (2026-10-08: all to the planner).
+    if re.fullmatch(r"my dream (?:car|house|home|job|vacation|trip|destination|bike|truck|guitar|watch|city|career) is (?:a |an |the |to )?[a-z0-9][a-z0-9 .'&-]{1,40}", low) \
+            or re.fullmatch(r"(?:i(?:'m| am)|we(?:'re| are)) saving (?:up )?(?:money )?for (?:a |an |the |our |my )?(?!it\b|that\b)[a-z][a-z0-9 '-]{2,40}", low) \
+            or re.fullmatch(r"i (?:usually|always|normally) (?:leave|keep|put|hang) my (?:[a-z]+ ){0,2}(?:keys|wallet|glasses|sunglasses|phone|badge|bag|purse|charger|headphones|earbuds|umbrella|jacket|coat|shoes|passport|remote)"
+                            r" (?:on|in|by|at|under|next to|behind) (?:the |my )?[a-z][a-z ]{1,30}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"i (?:always|keep|constantly|am always|'m always) (?:lose|losing|misplace|misplacing|forget where i put|forgetting where i put) my (?P<thing>[a-z][a-z ]{1,20})", low)
+    if m:
+        thing = m.group("thing")
+        return {"command": None, "say": f"I can help with that. Say \"I put my {thing} on the hook\" (or wherever) when you set them down, "
+                                        f"or \"I usually leave my {thing}\" and where, and \"where are my {thing}\" will find them."}
     # "I want to watch Oppenheimer", "I want to read Dune", "I'm reading
     # Project Hail Mary" (2026-10-08: to the planner, and "I'm reading" to a
     # model). A title goes on his watch or reading list; what he is reading

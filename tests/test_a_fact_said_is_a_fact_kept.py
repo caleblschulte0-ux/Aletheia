@@ -10314,5 +10314,32 @@ class FamilyNews(unittest.TestCase):
             self.assertEqual(quick._agenda_and_reminders("sunday"), empty)
 
 
+class WhatHeWantsAndHisHabits(unittest.TestCase):
+    """A sweep of wishes and habits (2026-10-08): a resolution was a note
+    "what are my resolutions" never read, "I should start going to bed
+    earlier" was a task, and his dream car, his savings goal and where he
+    usually leaves his keys went to the planner."""
+
+    def test_goals(self):
+        for said, goal in (("I should start going to bed earlier", "start going to bed earlier"),
+                           ("I am trying to cut back on coffee", "cut back on coffee"),
+                           ("my resolution is to drink less soda", "drink less soda")):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": "My goal is to " + goal}, said)
+        self.assertEqual(voice._interpret("I should call my mom")["command"]["kind"], "task_new")
+        self.assertNotEqual(voice._interpret("I should stop by the store")["command"]["kind"], "note")
+
+    def test_said_and_read(self):
+        for said in ("my dream car is a Porsche 911", "I am saving up for a new couch", "I usually leave my keys on the hook"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertIn("where are my keys", voice._interpret("I always lose my keys")["say"])
+        rows = [{"text": "I usually leave my keys on the hook"}, {"text": "I am saving up for a new couch"},
+                {"text": "my dream car is a Porsche 911"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what am I saving for"), "You told me you're saving for a new couch.")
+            self.assertEqual(quick.answer("where do I usually leave my keys"), "You told me you usually leave them on the hook.")
+            self.assertEqual(quick.answer("what is my dream car"), "You told me: your dream car is a Porsche 911.")
+            self.assertEqual(voice._interpret("where are my keys")["say"], "You usually leave your keys on the hook.")
+
+
 if __name__ == "__main__":
     unittest.main()

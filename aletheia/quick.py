@@ -2350,6 +2350,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: to the planner and a model).
     ("in_hospital", re.compile(r"^(?:is|are) (?P<in_hospital>(?:my|our) [a-z]+(?: in law)?) (?:still )?(?:in the hospital|in hospital|out of the hospital|home from the hospital|home yet)\s*\??$")),
     ("baby_name", re.compile(r"^(?:what (?:was|is|did they name) (?P<baby_name>(?:the|my [a-z]+'s|her|his|their)) baby(?: named| called| name)?|what(?:'s| is) (?:the|my [a-z]+'s) baby'?s name)\s*\??$")),
+    # "What am I saving for", "where do I usually leave my keys" (2026-10-08: to a model).
+    ("saving_for", re.compile(r"^what (?:am i|are we) saving (?:up )?for\s*\??$")),
+    ("usual_spot", re.compile(r"^where do i (?:usually|always|normally) (?:leave|keep|put|hang) my (?P<usual_spot>[a-z][a-z ]{1,25}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3284,7 +3287,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15864,6 +15867,32 @@ def _baby_name(text: str) -> str | None:
     return None
 
 
+def _saving_for(_what: str = "") -> str | None:
+    """What he said he is saving up for."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"(?:i(?:'m| am)|we(?:'re| are)) saving (?:up )?(?:money )?for (?P<what>.+)", said, re.I)
+        if m and m.group("what").casefold() not in [f.casefold() for f in found]:
+            found.append(re.sub(r"(?i)^(?:my|our)\b", "your", m.group("what")))
+    if not found:
+        return None
+    return f"You told me you're saving for {speech.and_list(found[:4])}."
+
+
+def _usual_spot(thing: str) -> str | None:
+    """Where he said he usually leaves a thing."""
+    thing = " ".join(str(thing or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(rf"i (?:usually|always|normally) (?:leave|keep|put|hang) my (?:[a-z]+ ){{0,2}}{re.escape(thing)} (?P<where>(?:on|in|by|at|under|next to|behind) .+)", said, re.I)
+        if m:
+            return f"You told me you usually leave them {m.group('where')}." if thing.endswith("s") else \
+                f"You told me you usually leave it {m.group('where')}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16674,6 +16703,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "saving_for": _saving_for,
+           "usual_spot": _usual_spot,
            "in_hospital": _in_hospital,
            "baby_name": _baby_name,
            "borrowed_from": _borrowed_from,
