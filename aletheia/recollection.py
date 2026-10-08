@@ -270,7 +270,12 @@ def _row(entry: dict) -> dict:
         # read out as something she did (2026-09-24). Noting it is the act.
         # Said back as hers to say: "Noted: I finished the report" read his
         # own "I" as hers (2026-10-08).
-        what = "Noted: " + speech.as_she_says_it(speech.tidy(speech.strip_ids(text)))
+        # The voice layer's own markers ("Journal: ", "Idea: ") came out as
+        # "Noted: Journal: you had a rough day" (2026-10-08).
+        said = speech.tidy(speech.strip_ids(text))
+        marker = re.match(r"(Journal|Idea): (.+)$", said)
+        what = (f"Noted in your {'journal' if marker.group(1) == 'Journal' else 'ideas'}: "
+                + speech.as_she_says_it(marker.group(2))) if marker else "Noted: " + speech.as_she_says_it(said)
     elif head in SUBJECT_KINDS:
         said = speech.spoken_receipt(SUBJECT_KINDS[head], text)
         what = said if said != text else speech.tidy(speech.strip_ids(text))

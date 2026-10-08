@@ -2511,7 +2511,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|(?:read|tell|remind) me (?:of )?my (?:goals|resolutions))(?P<kept_goal>)\s*\??$"
         r"|^(?:what (?:am|have) i (?:been )?(?:grateful|thankful) for|(?:read|show|tell) me (?:what i'?m grateful for|my gratitude(?: list| journal)?))(?P<kept_thanks>)\s*\??$"
         r"|^(?:(?:read|show|tell) me (?:what'?s in )?my (?:journal|diary)|what(?:'s| is) in my (?:journal|diary)"
-        r"|what did i (?:write|put|say) in my (?:journal|diary))(?P<kept_when> today| yesterday| this week)?(?P<kept_journal>)\s*\??$")),
+        r"|what did i (?:write|put|say) in my (?:journal|diary)"
+        # "how have I been feeling lately" (2026-10-08): his moods are journal lines
+        r"|how (?:have i been|was i|am i) feeling(?: lately| recently)?|what(?:'s| was| is|s) my mood(?: lately| recently)?"
+        r"|how(?:'s| has) my mood been(?: lately| recently)?)(?P<kept_when> today| yesterday| this week)?(?P<kept_journal>)\s*\??$")),
     ("gift_for", re.compile(
         r"^what (?:gift ideas|gifts|presents|present ideas) (?:do i have|have i (?:got|saved|kept)|did i (?:save|have)) for (?P<gift_for>(?:my )?[a-z][a-z' ]{1,25}?)\s*\??$"
         r"|^what(?:'s| is|s) on (?:(?P<gift_for3>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)|my gift (?:list|ideas) for (?P<gift_for4>(?:my )?[a-z][a-z' ]{1,25}?))\s*\??$"

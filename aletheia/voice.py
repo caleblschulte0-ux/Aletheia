@@ -8717,6 +8717,24 @@ def _interpret(transcript: str) -> dict:
             say = "Glad to hear it. I've put it in your journal."
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, entry)},
                 "say": say}
+    # HOW HE FEELS (2026-10-08): "I'm feeling stressed" got a kind word and
+    # was gone, so "how have I been feeling lately" had nothing to read. It
+    # goes in his journal in his words, and the kind word is still said.
+    m = re.fullmatch(r"(?:i'?m|im|i am|i feel|i'?m feeling|im feeling|i am feeling|feeling)"
+                     r" (?:really |so |very |pretty |a bit |kind of |kinda |a little |super |quite )?"
+                     r"(?P<mood>stressed(?: out)?|anxious|happy|great|sad|down|exhausted|overwhelmed|lonely|excited"
+                     r"|calm|relaxed|depressed|awful|terrible|amazing|nervous|worried|burned out|burnt out|tired"
+                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself)"
+                     r"(?: (?:today|right now|now|tonight|this morning|lately|again))?"
+                     r"|(?:i (?:had|have had|'ve had) a(?:n)? (?:really |pretty |very |so )?"
+                     r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)", low)
+    if m:
+        try:
+            say = _quick.answer(text)
+        except Exception:  # noqa: BLE001
+            say = None
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": say or "Noted. I've put it in your journal."}
     # WHAT SOMEONE LIKES (2026-10-07: "Sam likes coffee", "my mom loves
     # tulips" went to the planner). A note in his words, read back by "what
     # does Sam like" - and by "what did I tell you about Sam".

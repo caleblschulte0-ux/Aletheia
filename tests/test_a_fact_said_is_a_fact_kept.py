@@ -8107,5 +8107,36 @@ class WhoIsJakeSaysWhoHeIsFirst(unittest.TestCase):
 
 
 
+class HowHeFeelsIsKept(unittest.TestCase):
+    """"I'm feeling stressed" got a kind word and was gone, so "how have I
+    been feeling lately" had nothing to read."""
+
+    def test_a_feeling_is_a_journal_line_and_still_gets_its_word(self):
+        from aletheia import voice
+        out = voice._interpret("I feel great today")
+        self.assertEqual(out["command"], {"kind": "note", "text": "Journal: I feel great today"})
+        self.assertTrue(out["say"])
+
+    def test_not_every_im_is_a_mood(self):
+        from aletheia import voice
+        for said in ("I'm fine", "I am tired of this", "I'm sick"):
+            cmd = (voice._interpret(said) or {}).get("command") or {}
+            self.assertNotEqual(cmd.get("kind"), "note", said)
+
+    def test_how_have_i_been_feeling_reads_the_journal(self):
+        from aletheia import quick
+        rows = [{"text": "Journal: I had a rough day", "ts": "2026-10-08T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            out = quick.answer("how have I been feeling lately")
+        self.assertIn("you had a rough day", out)
+
+    def test_what_she_did_does_not_say_the_marker(self):
+        from aletheia import recollection
+        row = recollection._row({"ts": "2026-10-08T20:00:00Z", "kind": "note", "actor": "operator-local-core",
+                                 "subject": "operator", "text": "Journal: I had a rough day"})
+        self.assertEqual(row["what"], "Noted in your journal: you had a rough day")
+
+
+
 if __name__ == "__main__":
     unittest.main()
