@@ -414,6 +414,18 @@ def _split_deadline(text: str) -> tuple[str, str]:
     rest, when = m.group(1).strip(), m.group(2).strip()
     if not rest:
         return text, ""
+    # "Renew my passport before March" (2026-10-08: kept with no date, so
+    # nothing ever came due). Before a month is the last day of the one
+    # before it, the next time that month comes round.
+    month = re.fullmatch(r"(january|february|march|april|may|june|july|august|september|october|november|december)", when.lower())
+    if month:
+        import datetime as dt
+        from aletheia import localtime
+        today = localtime.today()
+        number = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+                  "november", "december"].index(month.group(1)) + 1
+        first = dt.date(today.year + (1 if number <= today.month else 0), number, 1)
+        return rest, (first - dt.timedelta(days=1)).isoformat()
     at = re.search(r"^(.*?)\s+at\s+(.+)$", when)
     day = _spoken_day(at.group(1) if at else when)
     if not day:
@@ -8774,6 +8786,17 @@ def _interpret(transcript: str) -> dict:
                     "say": "Goodnight. I'll keep going quietly."}
     if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
+    # "I have 3 vacation days left", "I took a sick day today", "I took
+    # Friday off" (2026-10-08: to the planner). Kept in his words; "how
+    # many vacation days do I have left" counts them down.
+    if re.fullmatch(r"i (?:have|'ve got|have got|got|still have) (?:\d{1,3}(?:\.5)?|one|two|three|four|five|six|seven|eight|nine|ten)"
+                    r" (?:more )?(?:vacation|pto|sick|personal|holiday|leave) days?(?: left| remaining)?(?: this year)?"
+                    r"|i (?:just )?(?:took|used) (?:a|an|one|two|three|four|five|\d{1,2}(?:\.5)?|half a) (?:vacation|pto|sick|personal|holiday|leave)"
+                    r" days?(?: today| yesterday| off| this week| on (?:monday|tuesday|wednesday|thursday|friday))?"
+                    r"|i took (?:today|yesterday|monday|tuesday|wednesday|thursday|friday|the day) off", low):
+        said = re.sub(r" (?:this year|today|yesterday|off|this week|on (?:monday|tuesday|wednesday|thursday|friday))$", "",
+                      _as_he_said(text, low)) if not re.match(r"i took (?:today|yesterday|\w+day|the day) off", low) else _as_he_said(text, low)
+        return {"command": {"kind": "note", "text": said}, "say": None}
     # "I woke up at 7", "I went to bed at 11" (2026-10-07: to the planner).
     # Kept in his words; "what time did I wake up" reads the newest back.
     if re.fullmatch(r"i (?:woke up|got up|went to bed|went to sleep|fell asleep) (?:at |around |about )?"

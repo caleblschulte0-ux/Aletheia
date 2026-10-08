@@ -6654,5 +6654,30 @@ class WhatsLeftOnMyList(unittest.TestCase):
             self.assertEqual(voice.interpret("what's left on my list")["command"], {"kind": "shopping_list"})
 
 
+
+class DaysOffAndBeforeAMonth(unittest.TestCase):
+    """2026-10-08: "I have 3 vacation days left", "I took Friday off" and
+    "how many vacation days do I have left" all went to the planner or a
+    model; "renew my passport before March" kept no date."""
+
+    def test_vacation_days_count_down(self):
+        self.assertEqual(voice.interpret("I took a vacation day today")["command"],
+                         {"kind": "note", "text": "I took a vacation day"})
+        rows = [{"text": "I took Friday off", "ts": "2026-10-09T10:00:00-05:00"},
+                {"text": "I took 2 sick days this week", "ts": "2026-10-08T12:00:00-05:00"},
+                {"text": "I took a vacation day", "ts": "2026-10-08T10:00:00-05:00"},
+                {"text": "I have 10 vacation days left", "ts": "2026-10-01T10:00:00-05:00"},
+                {"text": "I took a vacation day", "ts": "2026-09-01T10:00:00-05:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how many vacation days do I have left").startswith("8 vacation days left"))
+            self.assertEqual(quick.answer("how many vacation days have I used"), "3 vacation days, from what you've told me.")
+            self.assertIn("You haven't told me how many personal days", quick.answer("how many personal days do I have"))
+
+    def test_before_a_month_is_the_last_day_of_the_one_before(self):
+        desc, due = voice._split_deadline("renew my passport before March")
+        self.assertEqual(desc, "renew my passport")
+        self.assertTrue(due.endswith(("-02-28", "-02-29")))
+
+
 if __name__ == "__main__":
     unittest.main()

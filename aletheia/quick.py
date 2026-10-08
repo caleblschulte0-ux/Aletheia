@@ -1868,6 +1868,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HABITS HE KEEPS COUNT OF (2026-10-08: all to a model): "how many days
     # in a row have I meditated", "how many drinks did I have this week",
     # "am I on track with my workouts".
+    # "How many vacation days do I have left" (2026-10-08: to a model, a
+    # turn after "I have 3 vacation days left").
+    ("days_off", re.compile(
+        r"^how many (?P<off_kind>vacation|pto|sick|personal|holiday|leave) days? (?:do i have|have i got|are left|have i (?:got )?left"
+        r"|do i have left|have i used|have i taken|did i take|do i get)(?: left)?(?: this year)?\s*\??$"
+        r"|^how much (?P<off_kind2>pto|vacation|leave|time off) (?:do i have|have i got)(?: left)?\s*\??$")),
     ("habit", re.compile(
         r"^how many days in a row (?:have|did) i (?P<hb_streak>[a-z]+(?: [a-z]+)?)\s*\??$"
         r"|^(?:what(?:'s| is) my|how long is my) (?P<hb_streak2>[a-z]+) streak\s*\??$"
@@ -2503,7 +2509,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -2638,6 +2644,54 @@ _HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's D
 
 _COUNT_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
                 "eight": 8, "nine": 9, "ten": 10, "half a": 0.5}
+
+
+_OFF_KIND = {"pto": "vacation", "holiday": "vacation", "leave": "vacation", "time off": "vacation"}
+
+
+def _days_off(text: str) -> str | None:
+    """His days off left: the newest balance he told her, less the days he
+    said he took since. Nothing told is said, not guessed."""
+    import datetime as dt
+    from aletheia import speech
+    g = _groups("days_off", text)
+    kind = g.get("off_kind") or g.get("off_kind2") or "vacation"
+    kind = _OFF_KIND.get(kind, kind)
+    used_q = re.search(r"\b(?:used|taken|did i take)\b", _tidy(text))
+    num = r"(\d{1,3}(?:\.5)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|half a)"
+    names = {"vacation": r"(?:vacation|pto|holiday|leave)", "sick": r"sick", "personal": r"personal"}[kind] \
+        if kind in ("vacation", "sick", "personal") else re.escape(kind)
+    have = re.compile(rf"i (?:have|'ve got|have got|got|still have) {num} (?:more )?{names} days?(?: left| remaining)?", re.I)
+    took = re.compile(rf"i (?:took|used|am taking|'m taking|take) {num} {names} days?"
+                      + (r"|i took (?:today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|the day) off" if kind == "vacation" else ""),
+                      re.I)
+    amount = lambda w: _COUNT_WORDS.get(w.casefold()) if not w[0].isdigit() else float(w)
+    taken, balance, when = 0.0, None, ""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        said = re.sub(r" (?:today|yesterday|this week|last week|this year|on [a-z]+day)$", "", said, flags=re.I)
+        m = have.fullmatch(said) if not used_q else None
+        if m:
+            balance, when = amount(m.group(1)), str(row.get("ts") or "")
+            break
+        m = took.fullmatch(said)
+        if m:
+            taken += amount(m.group(1)) if m.group(1) else 1
+    plain = lambda n: str(int(n)) if float(n).is_integer() else str(n)
+    if used_q:
+        if not taken:
+            return f"You haven't told me you've taken any {kind} days."
+        return f"{plain(taken)} {kind} day{'s' if taken != 1 else ''}, from what you've told me."
+    if balance is None:
+        return (f"You haven't told me how many {kind} days you have. Say \"I have 10 {kind} days left\" and I'll count "
+                "them down as you take them.")
+    left = max(0.0, balance - taken)
+    since = speech.humanize_time(when) if when else ""
+    since = ("on " + since) if since[:1].isdigit() else since
+    if not taken:
+        return f"{plain(left)} {kind} day{'s' if left != 1 else ''} left, you told me {since}.".replace(" ,", ",")
+    return (f"{plain(left)} {kind} day{'s' if left != 1 else ''} left - you had {plain(balance)} {since} "
+            f"and you've taken {plain(taken)} since.")
 
 
 def _logged(text: str) -> str | None:
@@ -12414,6 +12468,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "it_due": lambda text: _it_due(),
            "their_person": lambda text: _their_person(text),
            "habit": lambda text: _habit(text),
+           "days_off": lambda text: _days_off(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),
