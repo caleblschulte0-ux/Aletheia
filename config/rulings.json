@@ -90,6 +90,51 @@
         }
       ],
       "means": "A posting that lists its pay is passed over when the top of its range is under $95,000 in South Dakota money: $95,000 scaled by the cost of living where the job is, against South Dakota's. A posting that lists no pay, or a place the index does not know, is judged at $95,000 itself."
+    },
+    {
+      "id": "no-ecg-rivals",
+      "switch": "rivals",
+      "on": true,
+      "since": "2026-10-08",
+      "employers": [
+        "Enova",
+        "OnDeck",
+        "On Deck Capital",
+        "Headway Capital",
+        "NetCredit",
+        "CashNetUSA",
+        "Kapitus",
+        "National Funding",
+        "Fundbox",
+        "Bluevine",
+        "Credibly",
+        "Rapid Finance",
+        "Fora Financial",
+        "Libertas Funding",
+        "CAN Capital",
+        "Forward Financing",
+        "Mulligan Funding",
+        "Reliant Funding",
+        "Biz2Credit",
+        "Lendio",
+        "Kabbage",
+        "Funding Circle",
+        "BHG Financial",
+        "Bankers Healthcare Group",
+        "Pearl Capital",
+        "Greenbox Capital",
+        "Fundation",
+        "iBusiness Funding",
+        "Fundworks",
+        "Velocity Capital Group"
+      ],
+      "quotes": [
+        {
+          "on": "2026-10-08T15:50:16Z",
+          "said": "Maybe refrain from applying anywhere that's ECGs direct competition like enova"
+        }
+      ],
+      "means": "No application goes to a direct competitor of Expansion Capital Group, his employer: online small-business lenders and revenue-based / merchant-cash-advance funders (Enova and its brands, and the others listed). Matched on the employer's name, at the choice of a job and again right before a send."
     }
   ]
 }

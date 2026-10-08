@@ -200,7 +200,8 @@ _UNFIT_WORDS = (("years", re.compile(r"asks for \d+\+? years")),
                 ("license", re.compile(r"requires an? .{1,40} license")),
                 ("hands_on", re.compile(r"hands-on shift work")),
                 ("sales", re.compile(r"sales job|cold calling|outbound prospecting|quota")),
-                ("pay", re.compile(r"under his \$[\d,]+ floor")))
+                ("pay", re.compile(r"under his \$[\d,]+ floor")),
+                ("rival", re.compile(r"competes directly with his employer")))
 
 
 def _unfit_bucket(why: str) -> str:
