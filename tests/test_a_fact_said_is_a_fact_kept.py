@@ -8138,5 +8138,22 @@ class HowHeFeelsIsKept(unittest.TestCase):
 
 
 
+class IMadeTacosForDinnerIsAMeal(unittest.TestCase):
+    """"I made tacos for dinner" went to the planner (2026-10-08)."""
+
+    def test_it_is_kept_and_read_back(self):
+        import datetime as dt
+        from aletheia import quick, voice
+        out = voice._interpret("I made tacos for dinner")
+        self.assertEqual(out["command"], {"kind": "note", "text": "I made tacos for dinner"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I made tacos for dinner", "ts": now}, {"text": "I got a haircut", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("what did I eat today")
+        self.assertIn("tacos for dinner", said)
+        self.assertNotIn("haircut", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

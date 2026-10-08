@@ -9371,7 +9371,7 @@ def _interpret(transcript: str) -> dict:
     # "I had a burrito for lunch", "I ate a salad" (2026-10-07: to the
     # planner). What he ate is a note; "what did I have for lunch
     # yesterday" reads it back by day and meal.
-    if re.fullmatch(r"i (?:had|ate|just had|just ate) (?!lunch\b|dinner\b|breakfast\b|a meeting\b|a call\b|an? (?:idea|question|dream)\b)"
+    if re.fullmatch(r"i (?:had|ate|just had|just ate|made|cooked|just made|just cooked|grabbed|ordered|got) (?!lunch\b|dinner\b|breakfast\b|a meeting\b|a call\b|an? (?:idea|question|dream)\b)"
                     r"[a-z0-9][a-z0-9' ,&-]{1,50}? for (?:breakfast|lunch|dinner|supper|a snack|dessert)"
                     r"(?: (?:today|yesterday|this morning|tonight|last night))?", low) \
             or re.fullmatch(r"(?:for (?:breakfast|lunch|dinner|supper|dessert)(?: today| yesterday| tonight)?,? )i (?:had|ate) "

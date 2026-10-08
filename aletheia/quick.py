@@ -12287,29 +12287,32 @@ def _ate(text: str) -> str | None:
     today = dt.datetime.now(tz).date()
     day = today - dt.timedelta(days=1) if when == "yesterday" else today
     said = re.compile(r"^(?:for (breakfast|lunch|dinner|supper|dessert)(?: today| yesterday| tonight)?,? )?"
-                      r"i (?:just )?(?:had|ate) (.+?)(?: for (breakfast|lunch|dinner|supper|a snack|dessert))?"
+                      r"i (?:just )?(?:had|ate|(?P<made>made|cooked|grabbed|ordered|got)) (.+?)(?: for (breakfast|lunch|dinner|supper|a snack|dessert))?"
                       r"(?: (today|yesterday|this morning|tonight|last night))?\.?$", re.IGNORECASE)
     hits: list[str] = []
     for row in _notes():
         m = said.match(" ".join(str(row.get("text") or "").split()))
         if not m:
             continue
-        of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(3) or "").casefold(),
-                                                            (m.group(1) or m.group(3) or "").casefold())
+        # "I made tacos for dinner" is a meal; "I got a haircut" is not
+        if m.group("made") and not m.group(4):
+            continue
+        of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(4) or "").casefold(),
+                                                            (m.group(1) or m.group(4) or "").casefold())
         if not of:
             # "I had pizza last night" is dinner (2026-10-07).
-            of = {"last night": "dinner", "tonight": "dinner", "this morning": "breakfast"}.get((m.group(4) or "").casefold(), "")
+            of = {"last night": "dinner", "tonight": "dinner", "this morning": "breakfast"}.get((m.group(5) or "").casefold(), "")
         if meal and of != meal:
             continue
         try:
             noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
         except ValueError:
             continue
-        if (m.group(4) or "").casefold() in ("yesterday", "last night"):
+        if (m.group(5) or "").casefold() in ("yesterday", "last night"):
             noted -= dt.timedelta(days=1)
         if noted != day:
             continue
-        food = speech.as_she_says_it(m.group(2).strip()).rstrip(".")
+        food = speech.as_she_says_it(m.group(3).strip()).rstrip(".")
         hits.append(f"{food} for {of}" if of and not meal else food)
         if len(hits) >= 4:
             break
