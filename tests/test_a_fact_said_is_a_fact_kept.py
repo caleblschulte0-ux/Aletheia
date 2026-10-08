@@ -9245,7 +9245,7 @@ class TheWeeksWorkouts(unittest.TestCase):
             self.assertEqual(quick.answer("what workouts did I do this week"), "This week you ran 3 miles and did yoga.")
 
 
-class TheCar(unittest.TestCase):
+class TheCarTwo(unittest.TestCase):
     """A sweep of car sentences (2026-10-08)."""
 
     def test_next_oil_change_reads_the_task(self):
@@ -9290,7 +9290,7 @@ class AtWork(unittest.TestCase):
             self.assertIn("the report is due", quick.answer("what deadlines do I have"))
 
 
-class TheKitchen(unittest.TestCase):
+class TheKitchenTwo(unittest.TestCase):
     """A sweep of kitchen sentences (2026-10-08)."""
 
     def test_frozen_and_batch_cooked_are_kept(self):
@@ -9638,7 +9638,9 @@ class InTheKitchenAgain(unittest.TestCase):
             self.assertEqual(voice._interpret("do I have eggs")["say"], "Sounds like you're out - eggs are on your shopping list.")
         with mock.patch.object(intercom, "_shopping_items", lambda: []):
             self.assertIn("milk isn't on your shopping list", voice._interpret("do I have milk")["say"])
-        self.assertEqual(voice._interpret("do I have my passport")["command"]["kind"], "file_find")
+        # Not the kitchen: since the passport stopped being a file, it is
+        # where he put it.
+        self.assertEqual(voice._interpret("do I have my passport"), voice._interpret("where is my passport"))
         self.assertEqual(voice._interpret("I bought everything on the list")["command"], {"kind": "shopping_off", "item": "everything"})
         self.assertEqual(voice._interpret("I made tacos tonight")["command"], {"kind": "note", "text": "I made tacos tonight"})
         self.assertNotEqual(voice._interpret("I made a mistake today")["command"]["kind"], "note")
@@ -11050,7 +11052,7 @@ class WhatSizeTheyWear(unittest.TestCase):
             self.assertIsNone(quick.answer("what size does my daughter wear"))
 
 
-class AtWork(unittest.TestCase):
+class AtWorkTwo(unittest.TestCase):
     """2026-10-08: "I finished the budget report" ticked off "ask Lisa about
     the budget"; "how many hours did I work this week" said he never started
     work after "I worked 9 hours today"; a raise, a commute and a deadline
@@ -11537,7 +11539,7 @@ class AroundTheHouseAgain(unittest.TestCase):
             self.assertIn("garage door is stuck", quick.answer("what is broken in the house"))
 
 
-class TheKidsAgain(unittest.TestCase):
+class TheKidsAgainTwo(unittest.TestCase):
     """2026-10-08: "the tooth fairy needs to come tonight", "my son is
     grounded until Friday" and "I am coaching the soccer team" went to the
     planner; "what does my son need signed" to a model."""
@@ -11557,7 +11559,7 @@ class TheKidsAgain(unittest.TestCase):
             self.assertIn("Friday 9 October", quick.answer("when is my son ungrounded"))
 
 
-class SavingUp(unittest.TestCase):
+class SavingUpTwo(unittest.TestCase):
     """2026-10-08: "we need 40000 for a down payment" was refused as spending
     money, "we have saved 12000 so far" went to the planner, and "how much
     more do we need" to a model. A sum he is saving toward is a fact he tells
@@ -11581,7 +11583,7 @@ class SavingUp(unittest.TestCase):
             self.assertIsNone(quick.answer("how much more do we need"))
 
 
-class InTheKitchenAgain(unittest.TestCase):
+class InTheKitchenAgainTwo(unittest.TestCase):
     """2026-10-08: "I need 2 pounds of ground beef", "I doubled the recipe",
     "the pizza will be here at 7" and "I made cookies for the bake sale" went
     to the planner; "how many eggs does the recipe need" to a model."""
@@ -11678,7 +11680,7 @@ class RemindMeBeforeIt(unittest.TestCase):
         self.assertIn("flight to paris", r["say"].casefold())
 
 
-class HisWife(unittest.TestCase):
+class HisWifeTwo(unittest.TestCase):
     """2026-10-08: "my wife ring size is 6" (the apostrophe dropped), date
     night, "my wife is working late", "my wife is mad at me" and "I forgot
     our anniversary" went to the planner; "what does my wife have next week"
@@ -11706,7 +11708,7 @@ class HisWife(unittest.TestCase):
         self.assertNotIn("dentist", said)
 
 
-class AtWorkAgain(unittest.TestCase):
+class AtWorkAgainTwo(unittest.TestCase):
     """2026-10-08: a one on one, "my team lunch is at noon", "my manager is
     out next week", a new title, a PTO balance and a coworker leaving went to
     the planner; "what is my job title", "am I off Friday" and "who is
@@ -12291,7 +12293,7 @@ class DebtAndBills(unittest.TestCase):
         self.assertEqual(voice.interpret("I paid the dentist")["command"]["kind"], "note")
 
 
-class TheKitchen(unittest.TestCase):
+class TheKitchenThree(unittest.TestCase):
     def test_kitchen_answers_from_fixed_tables(self):
         self.assertIn("lemon juice", quick.answer("what can I substitute for buttermilk"))
         self.assertTrue(quick.answer("what is a good substitute for eggs").startswith("For one egg in baking"))
@@ -12565,6 +12567,39 @@ class GiftsAndFamilyNews(unittest.TestCase):
             self.assertEqual(quick.answer("what did I get my sister"), "You told me you got your sister a necklace.")
             self.assertEqual(quick.answer("who got engaged"), "You told me your brother got engaged.")
             self.assertIsNone(quick.answer("what did I get my dad"))
+
+
+class AtWorkThree(unittest.TestCase):
+    """2026-10-08: "what am I working on" said "No active projects" a turn
+    after "I'm working on the Henderson project", "how much was my bonus"
+    found nothing after "I got a bonus of 2000", and "my manager wants the
+    report by Monday" and "I had a bad day at work" went to the planner."""
+
+    def test_what_he_is_working_on_today_comes_first(self):
+        with mock.patch.object(quick, "_where_was_i", return_value="You told me today you were working on the Henderson project."):
+            self.assertIn("Henderson", voice.interpret("what am I working on")["say"])
+        with mock.patch.object(quick, "_where_was_i", return_value=None):
+            self.assertEqual(voice.interpret("what am I working on")["command"]["kind"], "projects")
+
+    def test_an_old_working_on_note_is_not_today(self):
+        rows = [{"text": "I'm working on the Henderson project", "ts": "2026-01-02T15:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIsNone(quick._where_was_i(today_only=True))
+            self.assertIn("Henderson", quick._where_was_i())
+
+    def test_the_bonus_is_read(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I got a bonus of 2000"}]):
+            self.assertIn("2000", quick.answer("how much was my bonus"))
+
+    def test_what_the_manager_wants_is_kept_and_read(self):
+        self.assertEqual(voice.interpret("my manager wants the report by Monday")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my boss wants me to finish the deck by Friday"}]):
+            self.assertEqual(quick.answer("what does my boss want"), "You told me: your boss wants you to finish the deck by Friday.")
+
+    def test_a_bad_day_at_work_goes_in_the_journal(self):
+        said = voice.interpret("I had a bad day at work")
+        self.assertEqual(said["command"]["text"], "Journal: I had a bad day at work")
+        self.assertIn("rough one", said["say"])
 
 
 class TheNextHaircut(unittest.TestCase):

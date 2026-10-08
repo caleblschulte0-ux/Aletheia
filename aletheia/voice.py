@@ -6411,6 +6411,11 @@ def _interpret(transcript: str) -> dict:
                 else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what) else None)
         if same:
             return _interpret(same)
+    # "Do I have my passport" (2026-10-08: to the planner, once the passport
+    # stopped being a file): a thing he carries is where he put it.
+    if m and re.match(r"(?:do i have|have i got) my ", low) and " ".join(m.group(1).split()) in _NOT_A_FILE \
+            and m.group(1) not in ("email", "emails", "inbox", "mail", "messages", "texts", "calendar", "schedule", "list", "time"):
+        return _interpret(f"where is my {m.group(1)}")
     if m and re.match(r"(?:do i have|have i got) ", low):
         pantry = _in_the_kitchen(m.group(1))
         if pantry:
@@ -7559,6 +7564,14 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:give me )?(?:the |a )?work (?:session )?report", low):
         return {"command": {"kind": "work_report"}, "say": None}
 
+    # "What am I working on" said "No active projects" a turn after "I'm
+    # working on the Henderson project" (2026-10-08). What he told her today
+    # is the answer; otherwise it is her projects, as before.
+    if re.fullmatch(r"what am i working on(?: today| right now)?", low):
+        from aletheia import quick
+        said = quick._where_was_i(today_only=True)
+        if said:
+            return {"command": None, "say": said}
     if re.fullmatch(r"(?:my projects?|what projects are (?:open|active)|"
                     r"what am i working on|"
                     # "Repos" is the word he uses, in a repository he
@@ -9697,7 +9710,10 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "note", "text": "Grateful for " + _as_he_said(text, m.group("thanks"))}, "say": None}
     m = re.fullmatch(r"(?:journal entry|dear diary|journal|diary entry|add to my journal|write in my journal|log in my journal)[:,]? (?P<entry>[a-z0-9].{3,400})"
-                     r"|(?P<day>today was (?:a |an )?(?:really |pretty |very |so )?(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|quiet|nice|terrible)(?: day)?(?: .{1,150})?)"
+                     r"|(?P<day>today was (?:a |an )?(?:really |pretty |very |so )?(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|quiet|nice|terrible)(?: day)?(?: .{1,150})?"
+                     # "I had a bad day at work" (2026-10-08: to the planner).
+                     r"|i had (?:a |an )?(?:really |pretty |very |so )?(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible|stressful)"
+                     r" day (?:at work|at school|at the office|with the kids)(?: today)?)"
                      r"|(?P<proud>i'?m (?:really |so )?proud (?:of (?!you\b|your\b)|that )[a-z].{2,150})", low)
     if m:
         entry = m.group("entry") or m.group("day") or m.group("proud")
@@ -9706,7 +9722,7 @@ def _interpret(transcript: str) -> dict:
         say = None
         if m.group("proud"):
             say = "You should be. I've put it in your journal."
-        elif m.group("day") and re.search(r"\b(?:bad|rough|hard|tough|awful|terrible|long)\b", m.group("day")):
+        elif m.group("day") and re.search(r"\b(?:bad|rough|hard|tough|awful|terrible|long|stressful)\b", m.group("day")):
             say = "Sorry it was a rough one. I've put it in your journal."
         elif m.group("day") and re.search(r"\b(?:good|great|amazing|fun|productive|nice)\b", m.group("day")):
             say = "Glad to hear it. I've put it in your journal."
@@ -11966,8 +11982,9 @@ def _interpret(transcript: str) -> dict:
                     r"(?: on (?:her|his|their|the|a) [a-z][a-z ]{1,25}| in [a-z][a-z ]{1,20})?", low) \
             or re.fullmatch(rf"(?:{_kid}) (?:wants|would like|is asking for|asked for) (?:a |an |some |the )?[a-z][a-z' ]{{1,30}}? for (?:her|his|their|christmas|hanukkah)(?: birthday)?", low) \
             or re.fullmatch(r"(?:my|our) (?:son|daughter|kids?|boy|girl|wife|husband|mom|mother|dad|father|sister|brother|grandma|grandpa|"
-                            r"girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend) (?:really )?(?:wants|would like|is asking for|asked for|has been wanting)"
-                            r" (?:a |an |some |new |the )[a-z][a-z' ]{1,30}?(?: for (?:her|his|their|christmas|hanukkah|mother's day|father's day|valentine'?s(?: day)?)(?: birthday)?)?", low) \
+                            r"girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend|boss|manager|client|teacher) (?:really )?(?:wants|would like|is asking for|asked for|has been wanting)"
+                            # "My manager wants the report by Monday" (2026-10-08: to the planner).
+                            r" (?:me to (?=[a-z]+ )|a |an |some |new |the )[a-z][a-z' ]{1,30}?(?: for (?:her|his|their|christmas|hanukkah|mother's day|father's day|valentine'?s(?: day)?)(?: birthday)?)?", low) \
             or re.fullmatch(r"i paid (?:the )?(?:babysitter|sitter|nanny|dog walker|cleaner|cleaning lady|lawn guy|gardener|plumber|electrician|tutor|handyman|mechanic) \$?\d[\d,.]*(?: dollars| bucks)?(?: today| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My glasses prescription is minus 2", "I have a dentist cleaning every

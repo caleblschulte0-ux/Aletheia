@@ -2410,7 +2410,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # her birthday", "who is babysitting tonight" (2026-10-08: to a model).
     ("kid_did", re.compile(r"^how did (?P<kid_did>my (?:son|daughter|kid|kids|boy|girl)|the kids) do(?: on (?:her|his|their|the|a) (?P<kid_on>[a-z][a-z ]{1,20}?)| in [a-z ]{2,20})?(?: today)?\s*\??$")),
     ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|mother|dad|father|sister|brother|grandma|grandpa"
-                             r"|girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend)|the kids) (?:want|really want|wish for)(?: for (?:her|his|their) (?:birthday)| for (?:christmas|hanukkah|mother's day|father's day))?\s*\??$"
+                             r"|girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend|boss|manager|client|teacher)|the kids) (?:want|really want|wish for)(?: for (?:her|his|their) (?:birthday)| for (?:christmas|hanukkah|mother's day|father's day))?\s*\??$"
                              r"|^what (?:does|do) (?P<kid_wants2>my (?:son|daughter|kid|kids|boy|girl)|the kids) want for (?:christmas|hanukkah)\s*\??$")),
     # "When do we close on the house", "how many days until we move", "how
     # much did we offer" (2026-10-08: to a model).
@@ -3393,7 +3393,7 @@ def _direct(text: str) -> str:
         return "what are my goals"
     # "How much is my tax refund" after "my tax refund is 1200" (2026-10-08:
     # to a model) is what his refund is.
-    m = re.fullmatch(r"how much (?:is|was) my (?P<w>(?:federal |state )?tax refund|refund|tax bill|property tax|bonus|take[- ]home pay|hourly rate|pay rate|income|raise|pay raise)\s*\??", text)
+    m = re.fullmatch(r"how much (?:is|was) my (?P<w>(?:federal |state )?tax refund|refund|tax bill|property tax|take[- ]home pay|hourly rate|pay rate|income|raise|pay raise)\s*\??", text)
     if m:
         return f"what is my {m.group('w')}"
     # "What's my mood been like this week" (2026-10-08: "I don't have
@@ -8494,9 +8494,9 @@ def _until_leave() -> str | None:
     return "You haven't told me when you need to leave. Say \"remind me to leave at\" and the time, and I'll keep it."
 
 
-def _where_was_i() -> str | None:
+def _where_was_i(today_only: bool = False) -> str | None:
     """The newest "I'm working on X" he told her. None without one: he may
-    have said it to a model."""
+    have said it to a model. `today_only` asks for one said today."""
     import datetime as dt
     from aletheia import localtime, speech
     for row in _notes():
@@ -8508,7 +8508,9 @@ def _where_was_i() -> str | None:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz())
             when = " " + speech.humanize_time(at.isoformat())
         except ValueError:
-            when = ""
+            at, when = None, ""
+        if today_only and (at is None or at.date() != dt.datetime.now(localtime.operator_tz()).date()):
+            return None
         return f"You told me{when} you were {m.group(1).casefold()} {m.group(2)}."
     return None
 
@@ -17519,7 +17521,12 @@ def _save_goal(text: str) -> str | None:
         if left <= 0:
             return f"You're there: you've saved {said(have)} of the {said(need)} you said you need."
         return f"{said(left)} more - you've saved {said(have)} of the {said(need)} you said you need."
-    return f"You told me {told(have_line)}." if have_line else None
+    if have_line:
+        return f"You told me {told(have_line)}."
+    # "I saved 200 this week" and "I put 100 into savings" are added up by
+    # `_saved`, which this pattern was standing in front of (2026-10-08).
+    saved = next((p for n, p in PATTERNS if n == "saved"), None)
+    return _saved(text) if saved is not None and saved.match(_tidy(text)) else None
 
 
 def _recipe_qty(text: str) -> str | None:
