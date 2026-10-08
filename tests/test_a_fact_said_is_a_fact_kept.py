@@ -12137,5 +12137,23 @@ class HisShifts(unittest.TestCase):
             self.assertIsNone(quick.answer("am I working sunday"))
 
 
+class ChoresAndTurns(unittest.TestCase):
+    def test_whose_turn_and_the_trash_are_kept(self):
+        for said in ("it is my turn to cook", "Sam is doing the dishes tonight", "the trash goes out tonight"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice.interpret("who is doing the dishes tonight")["command"]["kind"], "note")
+
+    def test_whose_turn_answers_the_chore_asked(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Sam is doing the dishes tonight"}]):
+            self.assertEqual(quick.answer("who is doing the dishes tonight"), "You told me: Sam is doing the dishes tonight.")
+            self.assertIsNone(quick.answer("whose turn is it to cook"))
+
+    def test_when_he_last_did_a_chore_with_no_object(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I vacuumed the living room"}, {"text": "I did laundry"}]):
+            self.assertEqual(quick.answer("when did I last vacuum"), "You told me: you vacuumed the living room.")
+            self.assertEqual(quick.answer("when did I last do laundry"), "You told me: you did laundry.")
+            self.assertIsNone(quick.answer("when did I last mop"))
+
+
 if __name__ == "__main__":
     unittest.main()

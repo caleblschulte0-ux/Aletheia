@@ -11095,6 +11095,12 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i have to|i've got to|i gotta|i need to|i'?m|i am|i will be|i'?ll be) (?:work|working|going in|on shift)(?: (?:a |an )?(?:double|late|early|overnight|night) shift)? (?:today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend)(?: (?:from )?\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low) \
             or re.fullmatch(r"my (?:shift|hours) (?:is|are) (?:from )?\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "It is my turn to cook", "Sam is doing the dishes tonight", "the trash
+    # goes out tonight" (2026-10-08: to the planner). Whose turn, kept.
+    if re.fullmatch(r"(?:it is|it's|its) (?:my|our|[a-z]{2,15}'s) turn to (?:cook|do the dishes|do dishes|do the laundry|take out the trash|walk the dog|drive|pick up the kids|clean|vacuum|mow)(?: tonight| today| this week)?", low) \
+            or re.fullmatch(r"(?:my (?:wife|husband|son|daughter|partner)|(?!(?:who|what|nobody|everyone|anyone)\b)[a-z]{2,15}) (?:is|will be) (?:doing|cooking|making) (?:the dishes|dishes|dinner|the laundry|laundry)(?: tonight| today| this week)?", low) \
+            or re.fullmatch(r"the (?:trash|garbage|recycling|bins?) (?:goes|go|go out|goes out|is picked up|gets picked up) (?:out )?(?:tonight|tomorrow|today|on [a-z]+days?|every [a-z]+day)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

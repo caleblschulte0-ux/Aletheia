@@ -2584,6 +2584,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("my_shift", re.compile(r"^(?:am i working|do i (?:have to )?work|do i have work|what(?:'s| is| are) my (?:shift|hours))"
                             r"(?: (?P<shift_day>today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend))?\s*\??$"
                             r"|^what days? am i (?P<shift_off>off)(?: this week| next week)?\s*\??$")),
+    # "When did I last vacuum" (2026-10-08: to a model) - a chore with no object.
+    ("did_bare", re.compile(r"^when did i (?:last )?(?P<did_bare>vacuum|mop|dust|sweep|do (?:the |a load of )?laundry|do the dishes|do dishes|clean(?: up)?|tidy up|grocery shop|go grocery shopping)(?: last)?\s*\??$")),
+    ("whose_turn", re.compile(r"^(?:who(?:'s| is) (?:doing|cooking|making) (?:the dishes|dishes|dinner|the laundry|laundry)(?: tonight| today)?"
+                              r"|whose turn is it(?: to (?P<turn_to>[a-z ]{2,25}))?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3526,7 +3530,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17765,6 +17769,35 @@ def _my_shift(text: str) -> str | None:
     return f"You told me: {speech.and_list(said)}." if said else None
 
 
+_BARE_PAST = {"vacuum": "vacuumed", "mop": "mopped", "dust": "dusted", "sweep": "swept", "clean": "cleaned",
+              "clean up": "cleaned up", "tidy up": "tidied up", "grocery shop": "(?:went )?grocery shopp(?:ed|ing)",
+              "go grocery shopping": "went grocery shopping"}
+
+
+def _did_bare(text: str) -> str | None:
+    what = " ".join(str(_groups("did_bare", text).get("did_bare") or "").split())
+    if not what:
+        return None
+    if what.startswith("do "):
+        past = "did " + re.sub(r"^do (?:the |a load of )?", "(?:the |a load of |some )?", what)
+    else:
+        past = _BARE_PAST.get(what, what)
+    return _told_when(rf"^(?:i|we) (?:just )?{past}\b")
+
+
+def _whose_turn(text: str) -> str | None:
+    said = _said_lines(r"\bturn to (?:cook|do|take|walk|drive|pick|clean|vacuum|mow)\b"
+                       r"|^(?!who\b)[a-z' ]{2,25} (?:is|will be) (?:doing|cooking|making) (?:the dishes|dishes|dinner|the laundry|laundry)\b", 6)
+    # "Whose turn is it to cook" is not answered with who does the dishes.
+    asked = _tidy(text)
+    for key, words in (("cook", r"cook|dinner"), ("dinner", r"cook|dinner"), ("dish", r"dish"), ("laundry", r"laundry"),
+                       ("trash", r"trash"), ("dog", r"dog"), ("drive", r"drive"), ("kids", r"kids")):
+        if key in asked:
+            said = [line for line in said if re.search(words, line, re.I)]
+            break
+    return f"You told me: {said[0]}." if said else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18580,6 +18613,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "whose_turn": _whose_turn,
+           "did_bare": _did_bare,
            "my_shift": _my_shift,
            "went_place": _went_place,
            "reminded_today": lambda _rest="": _reminded_today(),
