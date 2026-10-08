@@ -5659,5 +5659,19 @@ class TheDentistIsTheFifteenth(unittest.TestCase):
         self.assertIsNone(voice._interpret("my wifi network password is hunter2")["command"])
 
 
+class TellJessImRunningLate(unittest.TestCase):
+    """2026-10-07: "tell Jess I'm running late" went to the planner while
+    "text Jess I'm running late" was a text."""
+
+    def test_tell_with_a_message_is_a_text(self):
+        cmd = voice._interpret("tell Jess I'm running late")["command"]
+        self.assertEqual((cmd["kind"], cmd["to"]), ("message_send", "jess"))
+        self.assertEqual(voice._interpret("tell jess that we'll be there at 6")["command"]["body"], "we'll be there at 6")
+
+    def test_not_every_tell_is_a_text(self):
+        for said in ("tell me I'm doing great", "tell Jess what time it is", "tell him I'm late", "tell Jess about the party"):
+            self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "message_send", said)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6901,10 +6901,16 @@ def _interpret(transcript: str) -> dict:
     # planner). One word, then a word only a sentence starts with, is a
     # name and a message - "text bob happy birthday" is still not guessed
     # at. With no number for Dana the send says so, by name.
-    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<who>(?:my |our )?[a-z][a-z']{1,20}) "
-                     r"(?P<body>(?:i'm|im|i|i'll|i've|we're|we|we'll|can you|could you|are you|did you|do you|don't|dont"
+    # "Tell Jess I'm running late" with no Jess on file is the same text
+    # (2026-10-07: to the planner) - only with a body that starts the way
+    # a message does, so "tell Jess about the party" is not guessed at.
+    m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message|tell) (?P<who>(?:my |our )?[a-z][a-z']{1,20}) "
+                     r"(?:that )?(?P<body>(?:i'm|im|i|i'll|i've|we're|we|we'll|can you|could you|are you|did you|do you|don't|dont"
                      r"|where|what|when|call me|hey|hi|thanks|thank you|on my way|running late|see you|love you)\b.*)", low)
-    if m and m.group("who") not in ("a", "the", "my", "him", "her", "them", "it", "that", "this", "me", "back", "again"):
+    if m and low.startswith("tell ") and re.match(r"(?:where|what|when|can you|could you|are you|did you|do you)\b", m.group("body")):
+        m = None          # "tell me what you think" is not a message
+    if m and m.group("who") not in ("a", "the", "my", "him", "her", "them", "it", "that", "this", "me", "back", "again",
+                                    "us", "you", "thea", "everyone", "everybody", "someone", "somebody"):
         return {"command": {"kind": "message_send", "to": m.group("who"),
                             "body": _as_he_said(text, m.group("body"))}, "say": None}
     # "SEND A MESSAGE TO DANA" names who and not what (2026-10-07: to the
