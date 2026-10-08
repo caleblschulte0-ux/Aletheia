@@ -9625,5 +9625,26 @@ class HisWife(unittest.TestCase):
             self.assertIn("haven't told me where your wife works", voice._interpret("where does my wife work")["say"])
 
 
+class InTheKitchenAgain(unittest.TestCase):
+    """A sweep of kitchen sentences (2026-10-08). "Do I have eggs" searched
+    his Documents."""
+
+    def test_said(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_shopping_items", lambda: [{"need": "eggs"}]):
+            self.assertEqual(voice._interpret("do I have eggs")["say"], "Sounds like you're out - eggs are on your shopping list.")
+        with mock.patch.object(intercom, "_shopping_items", lambda: []):
+            self.assertIn("milk isn't on your shopping list", voice._interpret("do I have milk")["say"])
+        self.assertEqual(voice._interpret("do I have my passport")["command"]["kind"], "file_find")
+        self.assertEqual(voice._interpret("I bought everything on the list")["command"], {"kind": "shopping_off", "item": "everything"})
+        self.assertEqual(voice._interpret("I made tacos tonight")["command"], {"kind": "note", "text": "I made tacos tonight"})
+        self.assertNotEqual(voice._interpret("I made a mistake today")["command"]["kind"], "note")
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I made tacos tonight"}]):
+            self.assertEqual(quick.answer("when did I last make tacos"), "You told me you made tacos.")
+        self.assertNotEqual((quick.match("when did I make an appointment") or ("",))[0], "did_last")
+
+
 if __name__ == "__main__":
     unittest.main()

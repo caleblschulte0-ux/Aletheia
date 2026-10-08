@@ -734,6 +734,35 @@ def _spell_his_name(which: str) -> str:
     return "; ".join(f"{p}: " + "-".join(ch.upper() for ch in p if ch.isalpha()) for p in parts) + "."
 
 
+_GROCERY = (r"eggs?|milk|bread|butter|cheese|coffee|tea|sugar|flour|rice|pasta|cereal|oats|oatmeal|yogh?urt|cream|juice|water|soda|beer|wine"
+            r"|chicken|beef|pork|bacon|ham|turkey|fish|salmon|tuna|shrimp|tofu|beans|lentils|onions?|garlic|potatoes?|tomatoes?|lettuce"
+            r"|spinach|carrots?|apples?|bananas?|oranges?|lemons?|limes?|avocados?|berries|strawberries|grapes|peppers?|broccoli|cucumbers?"
+            r"|salt|pepper|oil|olive oil|vinegar|ketchup|mustard|mayo|mayonnaise|honey|jam|peanut butter|snacks?|chips|crackers|cookies"
+            r"|ice cream|frozen pizza|pizza|tortillas|bagels?|paper towels|toilet paper|tissues|napkins|dish soap|soap|shampoo|conditioner"
+            r"|toothpaste|detergent|laundry detergent|dishwasher (?:pods|tabs)|trash bags|garbage bags|foil|plastic wrap|batteries"
+            r"|light ?bulbs|dog food|cat food|cat litter|diapers|wipes|formula|baby food")
+
+
+def _in_the_kitchen(thing: str) -> str | None:
+    """"Do I have eggs": on the shopping list means he's out; a grocery not
+    on it is something she can't see. None for anything else."""
+    item = re.sub(r"^(?:any |some |enough |a |an |the |more )", "", " ".join(str(thing or "").casefold().split()))
+    item = re.sub(r" (?:left|at home|in the (?:house|fridge|pantry|freezer)|in stock)$", "", item)
+    if not re.fullmatch(_GROCERY, item):
+        return None
+    try:
+        from aletheia import intercom
+        listed = [str(w.get("need") or "") for w in intercom._shopping_items()]
+    except Exception:  # noqa: BLE001
+        listed = []
+    stem = item.rstrip("s")
+    hit = next((n for n in listed if re.search(rf"\b{re.escape(stem)}", n.casefold())), None)
+    if hit:
+        return f"Sounds like you're out - {hit} {'are' if hit.casefold().endswith('s') else 'is'} on your shopping list."
+    return (f"I can't see your kitchen, but {item} {'aren' if item.endswith('s') else 'isn'}'t on your shopping list. "
+            f"Say \"add {item}\" if you need some.")
+
+
 def _not_a_file(said: str) -> bool:
     """True when "find my X" is not about a file at all."""
     low = " ".join(str(said or "").casefold().split())
@@ -5912,6 +5941,12 @@ def _interpret(transcript: str) -> dict:
             r" (?:today|tonight|tomorrow|this weekend|next week|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday"
             r"|friday|saturday|sunday))$", m.group(1)):
         m = None
+    # "Do I have eggs" a turn after "I'm out of eggs" searched his
+    # Documents (2026-10-08). Food and household things are the kitchen.
+    if m and re.match(r"(?:do i have|have i got) ", low):
+        pantry = _in_the_kitchen(m.group(1))
+        if pantry:
+            return {"command": None, "say": pantry}
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group(1))},
@@ -10171,6 +10206,15 @@ def _interpret(transcript: str) -> dict:
                      r" (?:works|teaches|volunteers|goes to school|studies) (?:at|for|in|as) (?:an? |the )?[a-z][a-z0-9 &'.-]{2,40}", low)
     if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
             and m.group("who") not in ("it", "this", "that", "he", "she", "who", "nobody", "everyone"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I bought everything on the list" (2026-10-08: kept as a note, with
+    # every line still on it) ticks the whole shopping list off.
+    if re.fullmatch(r"i (?:just )?(?:got|bought|picked up|grabbed) everything on (?:the|my) (?:shopping |grocery )?list(?: today)?", low):
+        return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
+    # "I made tacos tonight" (2026-10-08: to the planner) is dinner, kept
+    # the way "I had tacos for dinner" is.
+    m = re.fullmatch(r"i (?:just )?(?:made|cooked) (?P<what>(?:a |an |some |homemade )?[a-z][a-z' ]{2,30}?) (?:for dinner |for lunch )?(?:tonight|today|for dinner|for lunch|last night)", low)
+    if m and not re.search(r"\b(?:mistake|reservation|appointment|call|decision|plan|it|that|money|progress|time|friends?)\b", m.group("what")):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
     # to leave, and "Jake is picking me up from the airport" is kept.
