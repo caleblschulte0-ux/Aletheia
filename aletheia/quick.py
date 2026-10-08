@@ -2659,6 +2659,12 @@ def _direct(text: str) -> str:
                      r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
+    # "What expires soon" (2026-10-08: to a model, with "my license expires
+    # on November 5" kept): the dates he told her, the way "what's due next
+    # month" already reads them.
+    if re.fullmatch(r"(?:what(?:'s| is)? (?:expiring|up for renewal|due for renewal|running out)|what (?:expires|needs renewing|needs to be renewed)"
+                    r"|(?:is |does )?anything (?:expiring|expire|need renewing|due for renewal))(?: soon| this month| next month)?\s*\??", text):
+        return "what's due next month"
     # "What hotel am I staying at" a turn after "my hotel is the Hilton"
     # (2026-10-08: to a model): the fact he gave, asked by its own name.
     m = re.fullmatch(r"(?:what|which|where(?:'s| is)?) (?P<what>hotel|airbnb|campsite|cabin)(?: am i| are we| is it)?"

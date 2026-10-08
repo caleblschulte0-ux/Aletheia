@@ -8360,5 +8360,16 @@ class HowOldIfBornIn(unittest.TestCase):
 
 
 
+class WhatExpiresSoon(unittest.TestCase):
+    """"What expires soon" went to a model with "my license expires on
+    November 5" kept (2026-10-08)."""
+
+    def test_it_reads_the_dates_he_told_her(self):
+        from aletheia import quick
+        for said in ("what expires soon", "is anything expiring", "what needs renewing"):
+            self.assertEqual(quick._direct(said), "what's due next month", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()
