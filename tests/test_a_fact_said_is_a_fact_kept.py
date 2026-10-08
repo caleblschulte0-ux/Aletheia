@@ -11555,5 +11555,29 @@ class TheKidsAgain(unittest.TestCase):
             self.assertIn("Friday 9 October", quick.answer("when is my son ungrounded"))
 
 
+class SavingUp(unittest.TestCase):
+    """2026-10-08: "we need 40000 for a down payment" was refused as spending
+    money, "we have saved 12000 so far" went to the planner, and "how much
+    more do we need" to a model. A sum he is saving toward is a fact he tells
+    her; "buy me a house" still is not."""
+
+    def test_said(self):
+        for said in ("we need 40000 for a down payment", "we have saved 12000 so far",
+                     "my student loan balance is 18000", "my car loan is paid off"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual((voice._interpret("buy me a house") or {}).get("command", {}).get("kind"), "note")
+
+    def test_read(self):
+        notes = [{"text": "we need 40000 for a down payment"}, {"text": "we have saved 12000 so far"},
+                 {"text": "I got a bonus of 2000"}, {"text": "my 401k is at 35000"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how much more do we need"), "28,000 more - you've saved 12,000 of the 40,000 you said you need.")
+            self.assertEqual(quick.answer("how much do we need for a down payment"), "You told me you need 40000 for a down payment.")
+            self.assertIn("2000", quick.answer("how big was my bonus"))
+            self.assertIn("35000", quick.answer("how much is in my 401k"))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("how much more do we need"))
+
+
 if __name__ == "__main__":
     unittest.main()

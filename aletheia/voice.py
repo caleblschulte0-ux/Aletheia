@@ -10735,6 +10735,17 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:this|next) (?:season|year|fall|spring|summer|winter))?", low) \
             and re.search(r"\b(?:team|league|troop|club|class|group|pta|scouts|practice)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # SAVING UP (2026-10-08: "we need 40000 for a down payment" was refused
+    # as spending money; "we have saved 12000 so far", "my student loan
+    # balance is 18000", "my car loan is paid off" went to the planner). A
+    # sum he is saving toward is a fact he tells her; keeping it spends
+    # nothing.
+    if re.fullmatch(r"(?:we|i) (?:need|want|have to save|need to save|are saving|am saving|'re saving|'m saving) (?:about |around |roughly )?\$?\d[\d,]*(?:k| thousand)?(?: dollars| bucks)?"
+                    r" (?:for|toward|towards|to cover) (?:a |the |our |my )?(?:down payment|house|home|wedding|new car|car|tuition|college|emergency fund|trip|vacation|honeymoon|baby|move|renovation|retirement)", low) \
+            or re.fullmatch(r"(?:we|i) (?:have|'ve) (?:saved|put away|got saved) (?:about |around |roughly )?\$?\d[\d,]*(?:k| thousand)?(?: dollars| bucks)?(?: (?:so far|for (?:the |a |our )?[a-z ]{3,20}|already|total))*", low) \
+            or re.fullmatch(r"my (?:student loan|car loan|mortgage|credit card|loan|personal loan|heloc)s? (?:balance )?(?:is|are) (?:at |down to |now )?\$?\d[\d,]*(?:k| thousand)?(?: dollars)?", low) \
+            or re.fullmatch(r"(?:my|our) (?:car loan|student loans?|mortgage|credit card|loan|personal loan|truck|car|house) (?:is|are) (?:finally |all )?paid off", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

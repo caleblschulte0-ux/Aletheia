@@ -546,6 +546,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How much chicken do I need" a turn after "add 2 pounds of chicken"
     # (2026-10-08: "I can't think"): the amount on the list. None when the
     # list holds no such thing, so a recipe question still reaches a model.
+    # "How much do we need for a down payment", "how much have we saved",
+    # "how much more do we need", "how big was my bonus", "how much is in my
+    # 401k" (2026-10-08: to a model).
+    ("save_goal", re.compile(r"^(?:how much (?:do|did) (?:we|i) (?:need|want) (?:to save )?for (?:a |the |our |my )?(?P<save_goal>[a-z][a-z ]{2,20}?)"
+                             r"|how much (?:have|did) (?:we|i) (?:saved?|put away)(?: (?:so far|for (?:a |the |our |my )?(?P<save_for>[a-z][a-z ]{2,20}?)))?"
+                             r"|how much more (?:do|did) (?:we|i) need(?: to save)?(?: for (?:a |the |our |my )?(?P<save_more>[a-z][a-z ]{2,20}?))?"
+                             r"|how (?:big|much) (?:was|is) my (?P<save_bonus>bonus|raise|tax refund|refund|paycheck)"
+                             r"|how much (?:is|do i have|have i got) in my (?P<save_acct>401k|401\(k\)|ira|roth ira|roth|hsa|savings|savings account|checking|emergency fund|brokerage|pension))\s*\??$")),
     ("shop_qty", re.compile(
         r"^how (?:much|many) (?P<shop_qty>[a-z][a-z' -]{1,25}?) (?:do|did) (?:i|we) (?:need|need to (?:get|buy)|have on (?:my|the) list)\s*\??$")),
     ("shop_added", re.compile(
@@ -3433,7 +3441,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17129,6 +17137,57 @@ def _ungrounded(text: str) -> str | None:
     return f"You told me {found[0]}." if found else None
 
 
+def _save_goal(text: str) -> str | None:
+    """What he is saving toward, what he has saved, and the gap - every
+    number one he said."""
+    g = _groups("save_goal", text)
+    money = r"\$?(\d[\d,]*(?:\.\d+)?)(k| thousand)?"
+
+    def amount(m):
+        n = float(m.group(1).replace(",", ""))
+        return n * 1000 if m.group(2) else n
+
+    def said(label):
+        n = int(label) if label == int(label) else label
+        return f"{n:,}"
+
+    if g.get("save_bonus"):
+        found = _said_lines(rf"\b{re.escape(g['save_bonus'])}\b.*\d|\d.*\b{re.escape(g['save_bonus'])}\b", 1)
+        return f"You told me {found[0]}." if found else None
+    if g.get("save_acct"):
+        acct = g["save_acct"].replace("401(k)", "401k")
+        found = _said_lines(rf"\b(?:my |our )?{re.escape(acct)}(?: account)? (?:is|has|balance is) (?:at |up to |down to |now )?\$?\d", 1)
+        return f"You told me {found[0]}." if found else None
+    need = have = None
+    need_line = have_line = ""
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = line.casefold()
+        if need is None:
+            m = re.match(rf"(?:we|i) (?:need|want|have to save|need to save|are saving|am saving|'re saving|'m saving) (?:about |around |roughly )?{money}(?: dollars| bucks)? (?:for|toward|towards|to cover) ", low)
+            if m:
+                need, need_line = amount(m), line
+        if have is None:
+            m = re.match(rf"(?:we|i) (?:have|'ve) (?:saved|put away|got saved) (?:about |around |roughly )?{money}", low)
+            if m:
+                have, have_line = amount(m), line
+    from aletheia import speech
+
+    def told(line):
+        return re.sub(r"^we\b", "you", speech.as_she_says_it(line), flags=re.I)
+
+    if g.get("save_goal"):
+        return f"You told me {told(need_line)}." if need_line else None
+    if text.startswith("how much more") or re.match(r"how much more", text):
+        if need is None or have is None:
+            return None
+        left = need - have
+        if left <= 0:
+            return f"You're there: you've saved {said(have)} of the {said(need)} you said you need."
+        return f"{said(left)} more - you've saved {said(have)} of the {said(need)} you said you need."
+    return f"You told me {told(have_line)}." if have_line else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17944,6 +18003,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "save_goal": _save_goal,
            "need_signed": _need_signed,
            "ungrounded": _ungrounded,
            "charged": _charged,
