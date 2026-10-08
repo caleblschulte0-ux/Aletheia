@@ -12117,5 +12117,12 @@ class PlacesToEat(unittest.TestCase):
             self.assertIsNone(quick.answer("when did I last eat at Chilis"))
 
 
+class TheirAnniversary(unittest.TestCase):
+    def test_an_anniversary_coming_up_is_kept(self):
+        got = voice.interpret("it is my anniversary next week")
+        self.assertEqual(got["command"], {"kind": "note", "text": "it is my anniversary next week"})
+        self.assertIn("our anniversary is", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11086,6 +11086,10 @@ def _interpret(transcript: str) -> dict:
         if ((again or {}).get("command") or {}).get("kind") == "list_add":
             again["command"]["item"] = _as_he_said(text, m.group("x"))
             return again
+    # "It is my anniversary next week" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:it is|it's|its) (?:my|our) (?:wedding )?anniversary (?:next week|next month|this weekend|in \d{1,2} days|soon)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Noted. Say \"our anniversary is\" and the date, and I'll remember it every year."}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
