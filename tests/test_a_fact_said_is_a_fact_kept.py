@@ -9605,5 +9605,25 @@ class ClaimsRefundsAndRepairs(unittest.TestCase):
             self.assertEqual(quick.answer("what needs fixing"), "From what you've told me: the faucet is dripping.")
 
 
+class HisWife(unittest.TestCase):
+    """A sweep of sentences about his wife (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("my wife works at the hospital", "my mother in law is coming for christmas"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("this works for me")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "my wife works at the hospital"}, {"text": "my wife is allergic to shellfish"},
+                {"text": "we got married in 2015"}, {"text": "my anniversary is June 10"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(voice._interpret("where does my wife work")["say"], "You told me: your wife works at the hospital.")
+            self.assertEqual(quick.answer("can my wife eat shrimp"), "No - you told me your wife is allergic to shellfish.")
+            self.assertIsNone(quick.answer("can I eat shrimp"))
+            self.assertIn("you told me you got married in 2015", quick.answer("what anniversary is this year") or "")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIn("haven't told me where your wife works", voice._interpret("where does my wife work")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

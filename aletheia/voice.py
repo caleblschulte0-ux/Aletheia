@@ -2650,7 +2650,7 @@ _AN_ASK_OF_HERS = re.compile(
 #: "My sister is visiting", "I have a wedding", "we're having people over",
 #: "I'm hosting game night" - something on with other people, said with a
 #: when (2026-10-07: every one to the planner). Kept as a note in his words.
-_SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law)?s?|in-laws|parents|folks|family|kids|friends?(?: [a-z]+)?)|[a-z]+ and [a-z]+"
+_SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law| in law)?s?|in-laws|in laws|parents|folks|family|kids|friends?(?: [a-z]+)?)|[a-z]+ and [a-z]+"
                 r"|(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone|everybody"
                 r"|it|that|this|rain|snow|a storm|the storm|storm|weather|winter|summer|spring|fall|the package|package|my package"
                 r"|the delivery|delivery|the bill|the rent|rent|the bus|the train)\b)[a-z]+)"
@@ -5988,6 +5988,21 @@ def _interpret(transcript: str) -> dict:
                 "say": "I only read your email and write drafts - I can't delete, archive or mark messages. "
                        "Do that in your mail app."}
 
+    # "Where does my wife work" searched his Documents (2026-10-08). What
+    # he said about where somebody works, or plainly not told.
+    m = re.fullmatch(r"where (?:does|do) (?P<who>my [a-z][a-z' ]{1,20}?|[a-z]{2,15}) (?P<v>work|go to school|study|go to college|teach|volunteer)\s*\??", low)
+    if m and m.group("who") not in ("you", "i", "we", "they", "he", "she", "it", "people"):
+        who, v = m.group("who"), m.group("v")
+        verb = {"work": "works", "go to school": "goes to", "study": "studies", "go to college": "goes to", "teach": "teaches",
+                "volunteer": "volunteers"}[v]
+        stem = verb.split()[0]
+        from aletheia import quick
+        for row in quick._notes():
+            note = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(rf"{re.escape(who)} {re.escape(stem)}\b", note.casefold()):
+                return {"command": None, "say": f"You told me: {speech.as_she_says_it(note)}."}
+        mine = re.sub(r"^my ", "your ", who) if who.startswith("my ") else _as_he_said(transcript, who)
+        return {"command": None, "say": f"You haven't told me where {mine} {verb.split()[0]}. Say \"{_as_he_said(transcript, who)} {verb.split()[0]} at\" and where, and I'll keep it."}
     m = re.fullmatch(r"where(?:'s| is| are)? (?:my |the )?(.+?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?\s*\??", low)
     # "Note that the wifi code is on the fridge", then "where's the wifi
     # code" searched his Documents (2026-10-07). A note saying where it is
@@ -10149,6 +10164,14 @@ def _interpret(transcript: str) -> dict:
         again = _interpret(f"remind me to take {m.group('what')}{m.group('at')}")
         if again and (again.get("command") or {}).get("kind") in ("remind_at", "remind_in"):
             return again
+    # "My wife works at the hospital" (2026-10-08: to the planner) is kept
+    # for "where does my wife work". A name needs its capital.
+    m = re.fullmatch(r"(?P<who>my (?:wife|husband|partner|mom|mum|dad|mother|father|sister|brother|son|daughter|girlfriend|boyfriend"
+                     r"|fiance|fiancee|friend|neighbou?r|roommate|best friend|cousin|aunt|uncle)|[a-z]{2,15})"
+                     r" (?:works|teaches|volunteers|goes to school|studies) (?:at|for|in|as) (?:an? |the )?[a-z][a-z0-9 &'.-]{2,40}", low)
+    if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("it", "this", "that", "he", "she", "who", "nobody", "everyone"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
     # to leave, and "Jake is picking me up from the airport" is kept.
     m = re.fullmatch(r"i (?:need|have|got|gotta|should|must)(?: to)? (?:leave|head out|go|get going) (?:at|by) (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"

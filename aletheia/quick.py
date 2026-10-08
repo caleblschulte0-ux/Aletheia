@@ -2150,7 +2150,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who (?:do i know (?:that |who )?)?(?:lives|live|is living|stays|moved) (?:in|near|to) (?P<who_lives>[a-z][a-z .'-]{1,30}?)\s*\??$")),
     # "Can I eat chicken" with "I am vegetarian" kept (2026-10-08: to the
     # planner). Only what his notes settle; anything else is a model's.
-    ("can_eat", re.compile(r"^(?:can|should) i (?:eat|have|drink) (?:a |an |some |the )?(?P<can_eat>[a-z][a-z ]{1,25}?)\s*\??$")),
+    ("can_eat", re.compile(r"^(?:can|should) i (?:eat|have|drink) (?:a |an |some |the )?(?P<can_eat>[a-z][a-z ]{1,25}?)\s*\??$"
+                           # "Can my wife eat shrimp" (2026-10-08: to the planner).
+                           r"|^(?:can|should) (?P<ce_who>my [a-z][a-z ]{1,20}?|the kids|[a-z]{2,15}) (?:eat|have|drink) (?:a |an |some |the )?"
+                           r"(?P<can_eat2>[a-z][a-z ]{1,25}?)\s*\??$")),
     # "What bills do I have coming up" (2026-10-08: to a model, with "the
     # water bill is due on the 15th" kept).
     ("bills_due", re.compile(
@@ -3102,7 +3105,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3122,7 +3125,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -10070,7 +10073,9 @@ def _married(text: str) -> str | None:
             if n < 1:
                 return None
             on = f", on {nxt.strftime('%A %d %B').replace(' 0', ' ')}" if nxt else ""
-            return f"Your {_ordinal(n)}{on} - you told me {speech.as_she_says_it(said).rstrip('.')}."
+            # "you told me we got married in 2015" (2026-10-08): his "we" is "you" out loud.
+            told = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said).rstrip("."))
+            return f"Your {_ordinal(n)}{on} - you told me {told}."
         years = today.year - int(y.group(1))
         return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
                 if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
@@ -13947,19 +13952,40 @@ _FISH = r"fish|salmon|tuna|shrimp|prawns?|crab|lobster|sushi|cod|tilapia|anchov(
 _ANIMAL = r"eggs?|milk|cheese|butter|yogurt|yoghurt|ice cream|cream|honey"
 
 
-def _can_eat(food: str) -> str | None:
+#: What an allergy to a whole family of foods rules out ("allergic to
+#: shellfish" and "can my wife eat shrimp", 2026-10-08).
+_FOOD_FAMILY = {"shellfish": r"shrimp|prawns?|crabs?|lobsters?|clams?|mussels?|oysters?|scallops?|crawfish|crayfish",
+                "nuts": r"peanuts?|almonds?|cashews?|walnuts?|pecans?|pistachios?|hazelnuts?|nutella|peanut butter",
+                "tree nuts": r"almonds?|cashews?|walnuts?|pecans?|pistachios?|hazelnuts?|nutella",
+                "dairy": r"milk|cheese|yogh?urt|butter|ice cream|cream|latte",
+                "gluten": r"bread|pasta|wheat|pizza|bagels?|crackers?|cereal|beer",
+                "fish": r"salmon|tuna|cod|tilapia|trout|sushi|halibut|sardines?|anchovies"}
+
+
+def _can_eat(food: str, who: str = "") -> str | None:
     """Whether his own notes rule a food out: an allergy, his diet, or a
-    dislike. None when nothing he said settles it."""
+    dislike. None when nothing he said settles it. Asked about somebody
+    else ("my wife"), only what he said about them counts."""
     food = " ".join(str(food or "").casefold().split())
+    who = " ".join(str(who or "").casefold().split())
     if not food:
         return None
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
         allergy = re.search(r"\ballergic to (?P<a>[a-z][a-z ,]{1,40})", low)
-        if allergy and any(a.strip() and (a.strip().rstrip("s") in food or food.rstrip("s") in a.strip())
-                           for a in re.split(r",| and | or ", allergy.group("a"))):
+        # "My wife is allergic to shellfish" answered "can I eat shrimp"
+        # as his own allergy (2026-10-08). Whose allergy it is matters.
+        whose = re.match(r"(?:i(?:'m| am| have| get)?|my allergies)\b", low) if not who else \
+            re.match(rf"{re.escape(who)}(?:'s)? (?:is|are|has|have|gets?)\b", low)
+        if allergy and whose and any(a.strip() and (a.strip().rstrip("s") in food or food.rstrip("s") in a.strip()
+                                                    or re.search(rf"\b(?:{_FOOD_FAMILY.get(a.strip(), '(?!x)x')})\b", food))
+                                     for a in re.split(r",| and | or ", allergy.group("a"))):
+            if who:
+                return f"No - you told me {_say_mine(said)}."
             return f"No - you told me you're allergic to {allergy.group('a').strip().rstrip('.')}."
+        if who:
+            continue
         diet = re.search(r"\bi(?:'m| am) (?:a )?(?:strict )?(?P<d>vegetarian|vegan|pescatarian)\b", low)
         if diet:
             d = diet.group("d")
@@ -15417,7 +15443,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "places_liked": lambda rest: _places_liked(),
            "repeating": _repeating,
            "bills_due": lambda rest: _bills_due(),
-           "can_eat": _can_eat,
+           "can_eat": lambda text: _can_eat(*(lambda g: (g.get("can_eat") or g.get("can_eat2") or "", g.get("ce_who") or ""))(
+               _groups("can_eat", text))),
            "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,
            "born_age": _born_age,
