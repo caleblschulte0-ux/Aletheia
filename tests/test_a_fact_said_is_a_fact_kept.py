@@ -13021,5 +13021,12 @@ class AMeetingMovedOrOff(unittest.TestCase):
         self.assertEqual(start[11:13], "21")
 
 
+class TheTimeBeforeTomorrow(unittest.TestCase):
+    def test_held_like_the_other_order(self):
+        for said, other in (("I have a dentist appointment at 10 tomorrow morning", "I have a dentist appointment tomorrow morning at 10"),
+                            ("I have dinner with the Smiths at 7 tomorrow night", "I have dinner with the Smiths tomorrow night at 7")):
+            self.assertEqual(voice.interpret(said)["command"], voice.interpret(other)["command"], said)
+
+
 if __name__ == "__main__":
     unittest.main()

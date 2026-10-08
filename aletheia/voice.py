@@ -11594,6 +11594,15 @@ def _interpret(transcript: str) -> dict:
             said = _interpret(f"cancel {m.group('what')}")
         if said:
             return said
+    # "I have a dentist appointment at 10 tomorrow morning" (2026-10-08: to
+    # the planner; "tomorrow morning at 10" was held). The same words in
+    # the order the hold rule reads.
+    m = re.fullmatch(r"(?P<head>(?:i|we) (?:have|'ve got|have got|got) .{3,60}?) at (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)"
+                     r" (?P<day>tomorrow)(?: (?P<part>morning|afternoon|evening|night))?", low)
+    if m:
+        again = _interpret(f"{_as_he_said(text, m.group('head'))} {m.group('day')}{' ' + m.group('part') if m.group('part') else ''} at {m.group('t')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            return again
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
