@@ -8175,5 +8175,177 @@ class HowManyCaloriesDidIEat(unittest.TestCase):
 
 
 
+class WhatAppointmentsDoIHave(unittest.TestCase):
+    """"What appointments do I have", "whats coming up" and "what meetings
+    do I have" each went to a model (2026-10-08)."""
+
+    def test_they_read_whats_ahead(self):
+        from aletheia import quick
+        for said, name in (("whats coming up", "coming_up"), ("what do I have coming up", "coming_up"),
+                           ("what appointments do I have", "meetings_ahead"),
+                           ("any appointments coming up", "meetings_ahead"),
+                           ("what meetings do I have", "meetings_ahead")):
+            self.assertEqual((quick.match(said) or ("",))[0], name, said)
+
+
+
+class AThingDoneEverySoOftenRepeats(unittest.TestCase):
+    """"I need to take out the trash every Tuesday" was a task called "take
+    out the trash every"; "remind me to call mom every week" went to the
+    planner (2026-10-08)."""
+
+    def test_a_need_with_every_is_a_repeating_reminder(self):
+        from aletheia import voice
+        cmd = voice._interpret("i need to take out the trash every tuesday")["command"]
+        self.assertEqual((cmd["kind"], cmd["days"], cmd["text"]), ("remind_weekly", ["tuesday"], "take out the trash"))
+        cmd = voice._interpret("I need to water the plants every 3 days")["command"]
+        self.assertEqual((cmd["kind"], cmd["every"]), ("remind_daily", 3))
+
+    def test_every_week_is_today_each_week(self):
+        from aletheia import voice
+        cmd = voice._interpret("remind me to call mom every week")["command"]
+        self.assertEqual((cmd["kind"], cmd["every"], cmd["text"]), ("remind_weekly", 1, "call mom"))
+
+    def test_a_need_without_every_is_still_a_task(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I need to call the bank tomorrow")["command"]["kind"], "task_new")
+
+
+
+class WhatsWithoutTheApostrophe(unittest.TestCase):
+    """Typed "whats", "wheres", "whos" missed every pattern written with the
+    apostrophe (2026-10-08: "whats the most important thing today", "whats
+    coming up" each to a model), and "who's coming Saturday" asked about a
+    person called "coming saturday"."""
+
+    def test_the_question_word_gets_its_apostrophe(self):
+        from aletheia import quick
+        for said, name in (("whats the most important thing today", "focus"), ("whats coming up", "coming_up"),
+                           ("whos coming saturday", "who_coming"), ("who's coming saturday", "who_coming")):
+            self.assertEqual((quick.match(said) or ("",))[0], name, said)
+
+    def test_a_person_is_still_a_person(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("who is sam"), ("who_named", "sam"))
+
+
+
+class IGotGasToday(unittest.TestCase):
+    """"I got gas today" and "I got an oil change today at 45000 miles"
+    each went to the planner (2026-10-08)."""
+
+    def test_they_are_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I got gas today")["command"], {"kind": "note", "text": "I got gas today"})
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False):
+            cmd = voice._interpret("I got an oil change today at 45000 miles")["command"]
+        self.assertEqual(cmd["kind"], "note")
+        self.assertIn("45000 miles", cmd["text"])
+
+    def test_when_did_i_last_get_gas_reads_it(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "I got gas today", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("you got gas", quick.answer("when did I last get gas"))
+
+
+
+class EmmasTeacherIsEmmas(unittest.TestCase):
+    """"Emmas teacher is Mrs Brown" and "when is Emmas dentist appointment"
+    went to the planner (2026-10-08): a name typed without its apostrophe."""
+
+    def test_the_possessive_is_put_back(self):
+        from aletheia import voice
+        self.assertEqual(voice._apostrophes("Emmas teacher is Mrs Brown"), "Emma's teacher is Mrs Brown")
+        self.assertEqual(voice._apostrophes("when is Emmas dentist appointment"), "when is Emma's dentist appointment")
+        self.assertEqual(voice.interpret("Emmas teacher is Mrs Brown")["command"]["text"], "Emma's teacher is Mrs Brown")
+
+    def test_a_name_ending_in_s_is_left_alone(self):
+        from aletheia import voice
+        self.assertEqual(voice._apostrophes("James teacher is Mr Lee"), "James teacher is Mr Lee")
+        self.assertEqual(voice._apostrophes("The kids have school"), "The kids have school")
+
+
+
+class NoSchoolOnMonday(unittest.TestCase):
+    """"The kids have no school on Monday" was kept and "do the kids have
+    school Monday" went to the planner (2026-10-08)."""
+
+    def test_it_answers_no(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "the kids have no school on monday", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            said = quick.answer("do the kids have school monday")
+        self.assertTrue(said.startswith("No - you told me the kids have no school"), said)
+
+    def test_an_old_note_does_not_answer(self):
+        from aletheia import quick
+        rows = [{"text": "the kids have no school on monday", "ts": "2025-01-01T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick._do_i_have("school monday"))
+
+
+
+class WatchedComesOffTheWatchList(unittest.TestCase):
+    """"What should I watch tonight" offered Dune a turn after "I watched
+    Dune"; "I am reading Atomic Habits" went to the planner (2026-10-08)."""
+
+    def test_a_listed_title_comes_off(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "items", return_value=["Dune", "Oppenheimer"]):
+            cmd = voice._interpret("I watched Dune last night")["command"]
+        self.assertEqual(cmd, {"kind": "list_off", "list": "watch", "item": "Dune"})
+
+    def test_an_unlisted_title_is_still_noted(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "items", return_value=[]):
+            self.assertEqual(voice._interpret("I watched Barbie")["command"]["kind"], "note")
+
+    def test_i_am_reading_is_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I am reading Atomic Habits")["command"],
+                         {"kind": "note", "text": "I'm reading Atomic Habits"})
+
+
+
+class AFlightAndAHotelSaidAsPlans(unittest.TestCase):
+    """"I have a flight to Denver on November 3 at 6am" and "I'm staying at
+    the Hilton in Denver" went to the planner (2026-10-08)."""
+
+    def test_they_are_kept_in_the_shape_the_readers_know(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I have a flight to Denver on November 3 at 6am")["command"],
+                         {"kind": "note", "text": "my flight to Denver is November 3 at 6am"})
+        self.assertEqual(voice._interpret("I am staying at the Hilton in Denver")["command"],
+                         {"kind": "note", "text": "my hotel is the Hilton in Denver"})
+
+    def test_a_relative_day_is_not_written_down_as_words(self):
+        from aletheia import voice
+        cmd = voice._interpret("I have a flight tomorrow at 7")["command"]
+        self.assertNotEqual(cmd.get("text"), "my flight is tomorrow at 7")
+
+
+
+class RemindMeWhenILeaveWork(unittest.TestCase):
+    """"Remind me to buy milk when I leave work" was refused for want of a
+    place, beside "when I get to work" which worked (2026-10-08)."""
+
+    def test_it_is_kept_and_said_when_he_leaves(self):
+        from aletheia import quick, voice
+        cmd = voice._interpret("remind me to buy milk when I leave work")["command"]
+        self.assertEqual(cmd, {"kind": "note", "text": "remind me to buy milk when I leave work"})
+        rows = [{"text": "remind me to buy milk when I leave work"}, {"text": "finished work"}]   # newest first
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = voice._interpret("I'm leaving work")["say"]
+        self.assertIn("buy milk", said)
+        rows = [{"text": "finished work"}, {"text": "remind me to buy milk when I leave work"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = voice._interpret("I'm leaving work")["say"]
+        self.assertNotIn("buy milk", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

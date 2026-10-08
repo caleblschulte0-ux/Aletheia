@@ -428,8 +428,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who's coming for Thanksgiving" (2026-10-07: to a model, with "my
     # in-laws are coming for Thanksgiving" kept).
     ("who_coming", re.compile(
-        r"^who(?:'s| is| are) (?:coming|visiting|coming over|coming to visit|staying with us)"
-        r"(?: (?:for|on|over|this|to|at) (?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
+        r"^who(?:'s| is| are) (?:coming over|coming to visit|coming|visiting|staying with us)"
+        # "Who's coming Saturday" (2026-10-08) was a person called "coming saturday"
+        r"(?: (?:(?:for|on|over|this|to|at) )?(?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -534,7 +535,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Wednesdays" (2026-10-08: a FILE search). Placed after the readers for
     # "anything", "plans" and "meetings", which say the whole day.
     ("do_i_have", re.compile(
-        r"^(?:do|will) (?:i|we) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
+        r"^(?:do|will) (?:i|we|the kids|my kids|the children) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
         r"(?P<do_i_have>[a-z][a-z' ]{1,20}? (?:today|tonight|tomorrow|this weekend|(?:on |this |next )?"
         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))\s*\??$")),
     # "How did I do on my test" after "I got an A on my test" (2026-10-08).
@@ -943,12 +944,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # tonight", "how many meetings do I have tomorrow" went to the planner.
     # Her calendar and reminders, soonest first.
     ("coming_up", re.compile(
-        r"^(?:what(?:'s| is)|anything|is anything|do i have anything) coming up(?: (?P<coming>today|tonight|tomorrow))?\s*\??$"
+        r"^(?:what(?:'s| is|s)|what do i have|what have i got|anything|is anything|do i have anything) coming up(?: (?P<coming>today|tonight|tomorrow))?\s*\??$"
         r"|^what(?:'s| is) (?:on )?(?:for )?(?P<coming2>tonight)\s*\??$|^what am i doing (?P<coming3>tonight|this evening)\s*\??$"
         r"|^what do i have (?:on |going on )?(?P<coming4>tonight|this evening)\s*\??$")),
     ("meetings_count", re.compile(
         r"^how many (?:meetings|appointments|events)(?: (?:do i have|are on my calendar|have i got))?"
         r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
+    # "What appointments do I have", "any meetings coming up" (2026-10-08:
+    # to a model): the calendar's next few, the way meetings_count reads it.
+    ("meetings_ahead", re.compile(
+        r"^(?:what|which) (?:appointments|meetings|events) (?:do i have|have i got|are (?:on my calendar|coming up))(?: coming up)?\s*\??$"
+        r"|^(?:do i have |have i got )?any (?:appointments|meetings|events) coming up\s*\??$")),
     # "How many meetings do I have this week" (2026-10-07: to a model).
     ("meetings_week", re.compile(
         r"^how many (?:meetings|appointments|events|calls)(?: (?:do i have|are on my calendar|have i got))?"
@@ -2053,7 +2059,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
-        r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
+        r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r"|gas)(?: last| done)?\s*\??$"
         # "When did the dog get his heartworm pill" (2026-10-08: to a model,
         # a turn after "I gave the dog his heartworm pill").
         r"|^when did (?P<did_who6>the (?:dog|cat|puppy|kitten|baby|kids?)|my (?:dog|cat|son|daughter|kids?|wife|husband|mom|dad)"
@@ -2652,7 +2658,7 @@ def _direct(text: str) -> str:
     # (2026-10-08: to a model): the fact he gave, asked by its own name.
     m = re.fullmatch(r"(?:what|which|where(?:'s| is)?) (?P<what>hotel|airbnb|campsite|cabin)(?: am i| are we| is it)?"
                      r"(?: staying(?: at| in)?| booked| at)?\s*\??", text) \
-        or re.fullmatch(r"where (?:am i|are we) staying\s*\??", text)
+        or re.fullmatch(r"where (?:am i|are we) staying(?: in [a-z][a-z .'-]{1,30}?| tonight| there)?\s*\??", text)
     if m:
         what = m.groupdict().get("what") or "hotel"
         if _fact_any(what):
@@ -11649,6 +11655,16 @@ def _do_i_have(rest) -> str | None:
         low = note.casefold()
         if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             continue
+        # "The kids have no school on Monday" (2026-10-08), said this week,
+        # answers "do the kids have school Monday".
+        if a in _DAYS and re.search(rf"\bno {re.escape(words[0])}", low) and re.search(rf"\b{a}\b", low):
+            try:
+                noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                noted = None
+            if noted and 0 <= (targets[0] - noted).days < 7:
+                told = speech.as_she_says_it(note).rstrip(".")
+                return f"No - you told me {told[:1].lower()}{told[1:]}."
         plural = {i for i, d in enumerate(_DAYS) if re.search(rf"\b{d}s\b", low)}
         # "every Monday and Wednesday" (2026-10-08) is the same as "on Mondays and Wednesdays".
         every = re.search(r"\bevery ((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
@@ -12507,7 +12523,7 @@ def _no_password(text: str = "") -> str:
     from aletheia import memory, voice
     asked = [w for w in re.findall(r"[a-z0-9]+", _tidy(text)) if w not in _STOP_WORDS
              and w not in ("password", "passcode", "passphrase", "remember", "know", "tell", "give", "read", "remind",
-                           "what", "whats", "is", "was", "the", "for", "to", "on", "of", "do", "you", "have")]
+                           "what", "whats", "s", "is", "was", "the", "for", "to", "on", "of", "do", "you", "have")]
     try:
         held = memory.everything(max_chars=8000)
     except Exception:  # noqa: BLE001
@@ -13785,6 +13801,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),
            "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),
+           "meetings_ahead": lambda rest: _coming_up("", calendar_only=True),
            "meetings_week": lambda rest: _meetings_week(rest),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
