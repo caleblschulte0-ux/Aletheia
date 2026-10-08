@@ -10306,6 +10306,15 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "My glasses prescription is minus 2", "I have a dentist cleaning every
+    # 6 months", "my last dentist visit was in April" (2026-10-08: all to
+    # the planner).
+    if re.fullmatch(r"my (?:glasses|eyeglass|contacts?|contact lens|eye) prescription is (?:minus |plus |-|\+)?\d[\d.]*(?: [a-z0-9 .+-]{1,30})?", low) \
+            or re.fullmatch(r"i (?:have|get|go for|need) (?:a |my )?(?:dentist |dental |teeth )?(?:cleaning|checkup|check-up|physical|eye exam|mammogram|colonoscopy)s?"
+                            r" every (?:\d{1,2}|six|three|twelve) (?:months|years)", low) \
+            or re.fullmatch(r"my last (?:dentist|dental|doctor|eye|vet|haircut|oil change|physical|cleaning|checkup) (?:visit |appointment |exam )?(?:was|was on|was in)"
+                            r" (?:january|february|march|april|may|june|july|august|september|october|november|december|last [a-z]+|\d{1,2}/\d{1,2}|[a-z]+ \d{1,2})", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I got home at 6", "I left work at 5", "I dropped the kids off at
     # school", "I am meeting Dana at the coffee shop at 3" (2026-10-08: all
     # to the planner).

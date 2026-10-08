@@ -10045,5 +10045,32 @@ class OutRunningErrands(unittest.TestCase):
             self.assertIsNone(quick.answer("where am I"))
 
 
+class CheckupsAndDoses(unittest.TestCase):
+    """A sweep of health sentences (2026-10-08). "When can I take more
+    tylenol" after "I took 2 tylenol at noon" gave the minute he said it."""
+
+    def test_said(self):
+        for said in ("my glasses prescription is minus 2", "I have a dentist cleaning every 6 months",
+                     "my last dentist visit was in April"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        rows = [{"text": "I took 2 tylenol at noon", "ts": now}, {"text": "my glasses prescription is minus 2"},
+                {"text": "I have a dentist cleaning every 6 months"}, {"text": "my last dentist visit was in April"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertIn("tylenol at noon today", quick.answer("when can I take more tylenol"))
+            self.assertEqual(quick.answer("what is my glasses prescription"), "You told me: your glasses prescription is minus 2.")
+            self.assertEqual(quick.answer("when is my next dentist cleaning"),
+                             "You told me you have a dentist cleaning every 6 months, and your last dentist visit was in April"
+                             " - so around October.")
+            self.assertEqual(quick.answer("when was my last dentist visit"), "You told me: your last dentist visit was in April.")
+
+    def test_a_narrow_reader_hands_on_what_it_cannot_answer(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my savings goal is 5000"}]):
+            self.assertEqual(quick.answer("what is my savings goal"), "You told me: your savings goal is 5000.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2298,6 +2298,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("dropped", re.compile(r"^did i (?:drop|pick) (?P<dropped>(?:the |my )?[a-z][a-z ]{1,20}?) (?:off|up)(?: at [a-z ]{2,20})?(?: today| yet)?\s*\??$")),
     # "What do I need to do on the way home" (2026-10-08: to a model).
     ("on_the_way", re.compile(r"^what (?:do|did) i (?:need|have|want) to (?:do|get|grab|pick up) on (?:the|my) way (?P<on_the_way>home|to work|back)\s*\??$")),
+    # "When is my next dentist cleaning" after "I have a dentist cleaning
+    # every 6 months" and "my last dentist visit was in April", and "when
+    # was my last dentist visit" (2026-10-08: to a model).
+    ("next_every", re.compile(r"^when(?:'s| is) my next (?P<next_every>[a-z][a-z ]{2,30}?)\s*\??$")),
+    ("last_visit", re.compile(r"^when (?:was|did i have) my last (?P<last_visit>[a-z][a-z ]{2,30}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3157,17 +3162,22 @@ def _direct(text: str) -> str:
     return text
 
 
-def match(question: str) -> tuple[str, str] | None:
-    """(which answer, the captured remainder) — or None to think properly."""
+def match(question: str, after: str | None = None) -> tuple[str, str] | None:
+    """(which answer, the captured remainder) — or None to think properly.
+    With `after`, only the patterns past that one are tried."""
     text = _tidy(question)
     if not text or len(text) > MAX_QUESTION:
         return None
     direct = _direct(text)
     if direct != text:
-        found = match(direct)
+        found = match(direct, after)
         if found:
             return found
+    skipping = after is not None
     for name, pattern in PATTERNS:
+        if skipping:
+            skipping = name != after
+            continue
         found = pattern.match(text)
         if not found:
             continue
@@ -3207,7 +3217,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -4326,7 +4336,8 @@ def _took_today(what: str) -> str:
             continue
         clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
         # "I took ibuprofen at 2" - the time he said, not when he said it.
-        told_at = re.search(r"\bat (\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)\s*$", said)
+        # "At noon" too (2026-10-08: read back as "1:17 pm").
+        told_at = re.search(r"\bat (\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon|midnight|lunch|breakfast|dinner|bedtime)(?: today)?\s*$", said)
         if told_at:
             clock = told_at.group(1)
         if at.date() == today:
@@ -15294,6 +15305,55 @@ def _on_the_way(where: str) -> str | None:
     return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in hits[:5]])}."
 
 
+_VISIT = r"(?:visit|appointment|exam|cleaning|checkup|check-up|physical)"
+
+
+def _last_visit_note(words: list) -> str | None:
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"my last ", said, re.I) and re.search(rf"\b{re.escape(words[0])}", said, re.I) and re.search(r"\b(?:was|were)\b", said, re.I):
+            return said
+    return None
+
+
+def _last_visit(thing: str) -> str | None:
+    """His note giving his last visit of a kind. None when he never said."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("the", "a")]
+    if not words:
+        return None
+    said = _last_visit_note(words)
+    return f"You told me: {speech.as_she_says_it(said)}." if said else None
+
+
+def _next_every(thing: str) -> str | None:
+    """When the next of something he has every few months falls, from how
+    often he said and when the last one was. None without the how-often."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("the", "a")]
+    if not words:
+        return None
+    nums = {"three": 3, "six": 6, "twelve": 12}
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        m = re.match(r"i (?:have|get|go for|need) (?:a |my )?(?P<what>[a-z -]+?)s? every (?P<n>\d{1,2}|three|six|twelve) (?P<unit>months|years)$", low)
+        if not m or not all(re.search(rf"\b{re.escape(w[:5])}", m.group("what")) for w in words[-1:]) \
+                or not re.search(rf"\b{re.escape(words[0][:5])}", m.group("what")):
+            continue
+        n = int(nums.get(m.group("n"), m.group("n")))
+        told = f"You told me {speech.as_she_says_it(said)[:1].lower() + speech.as_she_says_it(said)[1:]}"
+        last = _last_visit_note(words)
+        month = re.search(r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\b", (last or "").casefold())
+        if last and month and m.group("unit") == "months":
+            nxt = _MONTHS[(_MONTHS.index(month.group(1)) + n) % 12].title()
+            return f"{told}, and {speech.as_she_says_it(last)[:1].lower() + speech.as_she_says_it(last)[1:]} - so around {nxt}."
+        if last:
+            return f"{told}, and {speech.as_she_says_it(last)[:1].lower() + speech.as_she_says_it(last)[1:]}."
+        return f"{told}, but not when the last one was."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16104,6 +16164,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "next_every": _next_every,
+           "last_visit": _last_visit,
            "where_now": _where_now,
            "dropped": _dropped,
            "on_the_way": _on_the_way,
@@ -16348,6 +16410,12 @@ def _follow_up(question: str) -> str | None:
     return answer(rebuilt)
 
 
+#: Readers that find nothing and hand the question to the next pattern.
+_HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+                       "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit"})
+
+
 def answer(question: str) -> str | None:
     """An answer from her own stores, or None to go and think.
 
@@ -16360,6 +16428,15 @@ def answer(question: str) -> str | None:
             return _follow_up(question)
         name, rest = found
         said = ANSWERS[name](rest)
+        # A narrow reader added in front of an older, broader one hands the
+        # question on when it finds nothing, so what the older reader used
+        # to answer it still answers (2026-10-08).
+        while said is None and name in _HANDS_ON:
+            found = match(question, after=name)
+            if not found:
+                break
+            name, rest = found
+            said = ANSWERS[name](rest)
         # `str(None)` is the four-character string "None", which is truthy
         # and would have been spoken out loud as an answer.
         if said is None:
