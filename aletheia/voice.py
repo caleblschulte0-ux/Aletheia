@@ -10306,6 +10306,22 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "I got home at 6", "I left work at 5", "I dropped the kids off at
+    # school", "I am meeting Dana at the coffee shop at 3" (2026-10-08: all
+    # to the planner).
+    if re.fullmatch(r"i (?:got|came|made it) (?:home|back home|back) at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?", low) \
+            or re.fullmatch(r"i (?:left|got off|finished|started|got to|got in to) work at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: today)?", low) \
+            or re.fullmatch(r"i (?:just )?(?:dropped|picked) (?:the |my )?(?:kids|son|daughter|baby|wife|husband|mom|dad|dog|[a-z]{2,15}) (?:off|up) at (?:the |my )?[a-z][a-z' ]{1,25}", low) \
+            or re.fullmatch(r"(?:i'?m|i am) meeting [a-z][a-z' ]{1,20}? (?:at|for) (?:the |a )?[a-z][a-z' ]{1,25}? at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: today| tomorrow)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to stop at the bank on the way home" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:need|have|want) to (?P<what>(?:stop|swing by|go|run) (?:at|by|to) (?:the |a )?[a-z][a-z' ]{1,20}?|grab [a-z][a-z' ]{1,20}?|pick up [a-z][a-z' ]{1,20}?)"
+                     r" on (?:the|my) way (?P<where>home|to work|back)", low)
+    if m:
+        return _new_task(f"{m.group('what')} on the way {m.group('where')}")
+    # "Traffic is terrible" (2026-10-08: to the planner) wants a kind word.
+    if re.fullmatch(r"(?:the )?traffic (?:is|was) (?:terrible|awful|horrible|bad|crazy|insane|the worst|so bad|a nightmare)(?: today| tonight| this morning)?", low):
+        return {"command": None, "say": "Ugh, sorry. Drive safe - I'll be here."}
     # "I planted tomatoes today", "the sprinklers are set for 6am", "the
     # mulch was 40 dollars", "the tomatoes are ready to pick" (2026-10-08:
     # all to the planner).

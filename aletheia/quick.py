@@ -2290,6 +2290,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
     # "What needs doing around the house" (2026-10-08: to a model).
     ("house_todo", re.compile(r"^what (?:needs|need|has) (?:doing|to be done|fixing|to get done|work)(?: around| at| in)? (?P<house_todo>the house|the yard|home|the garden|the apartment)\s*\??$")),
+    # "Where am I", "where am I going" a turn after "I'm at the gym" or
+    # "I'm going to the grocery store" (2026-10-08: his home address, and
+    # a model).
+    ("where_now", re.compile(r"^where (?:am i|was i)(?P<where_now> going| headed| heading| right now| now)?\s*\??$")),
+    # "Did I drop the kids off" (2026-10-08: to the planner).
+    ("dropped", re.compile(r"^did i (?:drop|pick) (?P<dropped>(?:the |my )?[a-z][a-z ]{1,20}?) (?:off|up)(?: at [a-z ]{2,20})?(?: today| yet)?\s*\??$")),
+    # "What do I need to do on the way home" (2026-10-08: to a model).
+    ("on_the_way", re.compile(r"^what (?:do|did) i (?:need|have|want) to (?:do|get|grab|pick up) on (?:the|my) way (?P<on_the_way>home|to work|back)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3199,7 +3207,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13259,6 +13267,14 @@ def _arrived(text: str) -> str | None:
                 return (f"At {clock} - that's when you told me you were done with work." if wanted == "finished work"
                         else f"At {clock} - that's when you told me you were at work.")
         if mark:
+            # "I left work at 5" (2026-10-08: to the planner, then a model).
+            verbs = (r"(?:left|got off|finished|clocked out of|clocked out at)" if wanted == "finished work"
+                     else r"(?:started|got to|got in to|clocked in at|clocked in to)")
+            for row in _notes():
+                said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+                if re.match(rf"i {verbs} work at \d", said, re.I):
+                    from aletheia import speech
+                    return f"You told me: {speech.as_she_says_it(said)}."
             return None
     said_it = re.compile(r"^(?:(?:i'?m|i am) (?:just |now |finally )?(?:at |back |back at |here at |in at )?"
                          r"|(?:i'?ve |i have |i )?(?:just |finally )?(?:got|arrived|made it|got back)(?: to| at)? )"
@@ -13280,6 +13296,11 @@ def _arrived(text: str) -> str | None:
             continue
         if at.date() != today:
             continue
+        # "I got home at 6" was answered with the minute he said it
+        # (2026-10-08: "at 1:12 pm").
+        if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?$", said, re.I):
+            from aletheia import speech
+            return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
         return f"At {at.strftime('%I:%M %p').lstrip('0').lower()} - that's when you told me you were {'home' if word == 'home' else 'at ' + place}."
     return None
 
@@ -15200,6 +15221,79 @@ def _house_todo(where: str) -> str | None:
     return " ".join(said) or None
 
 
+def _said_today(rx: str) -> list:
+    """(text, local time) of today's notes and spoken turns matching rx,
+    newest first - "I'm at the gym" is a turn as often as a note."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    try:
+        from aletheia import converse
+        turns = [{"text": t.get("you"), "ts": t.get("at")} for t in reversed(converse._thread())]
+    except Exception:  # noqa: BLE001
+        turns = []
+    found, seen = [], set()
+    for row in sorted(list(_notes()) + turns, key=lambda r: str(r.get("ts") or ""), reverse=True):
+        said = re.sub(r"^(?:hey |ok |okay )?thea,? ", "", " ".join(str(row.get("text") or "").split()), flags=re.I).rstrip(".")
+        if not re.search(rx, said, re.I) or said.casefold() in seen:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if at.date() == today:
+            seen.add(said.casefold())
+            found.append((said, at))
+    return found
+
+
+def _where_now(rest: str = "") -> str | None:
+    """Where he said he is, or is going, today. None when he hasn't said:
+    the home address answers "where am I" then, as before."""
+    from aletheia import speech
+    going = bool(re.search(r"going|head", rest or ""))
+    rx = (r"^(?:i'?m|i am) (?:going|heading|headed|off|on my way) to |^(?:heading|headed|going|off) to "
+          if going else r"^(?:i'?m|i am) (?:at|in|going to|heading to|headed to|on my way to|off to) (?:the |my |a )?[a-z]")
+    hits = _said_today(rx)
+    if not hits:
+        return None
+    said, at = hits[0]
+    clock = at.strftime("%I:%M %p").lstrip("0").lower()
+    return f"You told me at {clock}: {speech.as_she_says_it(said)}."
+
+
+def _dropped(who: str) -> str | None:
+    """Whether he said he dropped somebody off or picked them up."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(who or "").casefold()) if w not in ("the", "my")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"i (?:just )?(?:dropped|picked)\b", low) and all(re.search(rf"\b{re.escape(w)}", low) for w in words) \
+                and re.search(r"\b(?:off|up)\b", low):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            plain = speech.as_she_says_it(said)
+            return f"Yes - you told me {plain[:1].lower() + plain[1:]}" + (f", {told}." if told else ".")
+    return None
+
+
+def _on_the_way(where: str) -> str | None:
+    """His open tasks to do on the way somewhere."""
+    from aletheia import speech, tasks
+    try:
+        rows = [" ".join(str(t.get("description") or "").split()).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED]
+    except Exception:
+        return None
+    hits = [r for r in rows if re.search(rf"\bon (?:the|my) way {re.escape(where)}\b", r, re.I)]
+    if not hits:
+        return None
+    return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in hits[:5]])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16010,6 +16104,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "where_now": _where_now,
+           "dropped": _dropped,
+           "on_the_way": _on_the_way,
            "routine_when": _routine_when,
            "thing_cost": _thing_cost,
            "house_todo": _house_todo,

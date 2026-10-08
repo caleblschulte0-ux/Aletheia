@@ -10014,5 +10014,36 @@ class TheYardAndGarden(unittest.TestCase):
             self.assertEqual(quick.answer("when did I plant the tomatoes"), "You told me you planted tomatoes.")
 
 
+class OutRunningErrands(unittest.TestCase):
+    """A sweep of a day out (2026-10-08). "What time did I get home" a turn
+    after "I got home at 6" answered with the minute he said it."""
+
+    def test_said(self):
+        for said in ("I got home at 6", "I left work at 5", "I dropped the kids off at school",
+                     "I am meeting Dana at the coffee shop at 3"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I need to stop at the bank on the way home")["command"]["description"],
+                         "stop at the bank on the way home")
+        self.assertIsNone(voice._interpret("traffic is terrible")["command"])
+
+    def test_read(self):
+        from aletheia import converse, localtime, tasks
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        notes = [{"text": "I got home at 6", "ts": now}, {"text": "I left work at 5", "ts": now},
+                 {"text": "I dropped the kids off at school", "ts": now}]
+        turns = [{"you": "I am going to the grocery store", "at": now}, {"you": "I am at the gym", "at": now}]
+        rows = [{"description": "stop at the bank on the way home", "status": "OPEN"}]
+        with mock.patch.object(quick, "_notes", lambda: notes), mock.patch.object(converse, "_thread", lambda: turns), \
+                mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertTrue(quick.answer("where am I").endswith(": you are at the gym."))
+            self.assertTrue(quick.answer("where am I going").endswith(": you are going to the grocery store."))
+            self.assertEqual(quick.answer("what time did I get home"), "You told me: you got home at 6.")
+            self.assertEqual(quick.answer("when did I leave work"), "You told me: you left work at 5.")
+            self.assertTrue(quick.answer("did I drop the kids off").startswith("Yes - you told me you dropped the kids off at school"))
+            self.assertEqual(quick.answer("what do I need to do on the way home"), "Your list says: stop at the bank on the way home.")
+        with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(converse, "_thread", lambda: []):
+            self.assertIsNone(quick.answer("where am I"))
+
+
 if __name__ == "__main__":
     unittest.main()
