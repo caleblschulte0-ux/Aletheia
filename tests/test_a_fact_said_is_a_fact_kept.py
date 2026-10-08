@@ -8810,5 +8810,35 @@ class ANewJobAtANamedEmployer(unittest.TestCase):
 
 
 
+class WhatHeHasForSomebody(unittest.TestCase):
+    """2026-10-08: "what does my wife like" missed "Sarah likes candles",
+    and "what am I doing for Sarah" went to a model."""
+
+    rows = [{"text": "Sarah likes candles", "ts": "2026-10-08T10:00:00+00:00"},
+            {"text": "my wife's name is Sarah", "ts": "2026-10-08T09:00:00+00:00"}]
+
+    def test_likes_by_name_or_relation(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", lambda: self.rows):
+            self.assertEqual(quick.answer("what does my wife like"), "You told me: Sarah likes candles.")
+
+    def test_what_am_i_doing_for_her(self):
+        import datetime as dt
+        from aletheia import quick, tasks
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+        with mock.patch.object(quick, "_notes", lambda: self.rows), \
+                mock.patch.object(quick, "_coming", lambda now=None: [(at, "buy flowers for Sarah", "reminder")]), \
+                mock.patch.object(tasks, "all_tasks", lambda: [{"description": "book dinner for my wife", "status": "PENDING"}]):
+            said = quick.answer("what am I doing for Sarah")
+        self.assertTrue(said.startswith("For Sarah, you have a reminder "), said)
+        self.assertIn("book dinner for your wife", said)
+
+    def test_a_meal_or_a_holiday_is_not_a_person(self):
+        from aletheia import quick
+        for said in ("what am I doing for dinner", "what are we doing for christmas"):
+            self.assertIsNone(quick.match(said), said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

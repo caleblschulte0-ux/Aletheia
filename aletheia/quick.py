@@ -2080,6 +2080,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_about", re.compile(
         r"^what (?:did|do) i (?:need|have|want|say i (?:need|had|wanted)) to (?P<task_about>[a-z][a-z' ]{2,50}?) (?:about|for)\s*\??$"
         r"|^why (?:did|do) i (?:need|have|want) to (?P<task_about2>[a-z][a-z' ]{2,50}?)\s*\??$")),
+    # "What am I doing for Sarah" (2026-10-08: to a model, a turn after
+    # "remind me to buy flowers for Sarah on Friday").
+    ("plans_for", re.compile(
+        r"^what (?:am i|are we) (?:doing|getting|planning|giving|buying) (?:for )?(?!(?:dinner|lunch|breakfast|brunch|christmas|thanksgiving|halloween|easter|today|tonight|tomorrow|the|work|fun|now|money|food|it|that|this|them|him|her|you|me|my (?:birthday|anniversary)|new year)\b)(?P<plans_for>(?:my )?[a-z][a-z'-]{1,20})"
+        r"(?: for (?:her|his|their) (?:birthday|anniversary|bday))?\s*\??$"
+        r"|^what (?:do i have|have i got) (?:planned|lined up) for (?!(?:dinner|lunch|breakfast|brunch|christmas|thanksgiving|halloween|easter|today|tonight|tomorrow|the|work|fun|now|money|food|it|that|this|them|him|her|you|me|my (?:birthday|anniversary)|new year)\b)(?P<plans_for2>(?:my )?[a-z][a-z'-]{1,20})(?:'s (?:birthday|bday))?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2905,7 +2911,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -12502,6 +12508,9 @@ def _gift_for(text: str) -> str | None:
     except Exception:
         return None
     alias = _name_for_relation(name) if " " not in name else None
+    if not alias and " " not in name and name not in _relation_words():
+        # "What should I get Sarah" reads "my wife loves tulips" too (2026-10-08)
+        alias = next((rel for rel in _relation_words() if (_name_for_relation(rel) or "").casefold() == name.casefold()), None)
     hits = [r for r in rows if re.search(rf"\bfor (?:my )?(?:{re.escape(name)}|{re.escape(alias or name)})\b", r, re.I)]
     if hits:
         said = [re.sub(rf"\s+for (?:my )?(?:{re.escape(name)}|{re.escape(alias or name)})\b.*$", "", r, flags=re.I) for r in hits]
@@ -13338,6 +13347,39 @@ def _task_about(what: str) -> str | None:
     return None
 
 
+def _plans_for(who: str) -> str | None:
+    """Reminders, tasks and calendar holds that name somebody of his, read
+    together. None when nothing names them: a model may know of more."""
+    from aletheia import speech, tasks
+    who = " ".join(str(who or "").casefold().split())
+    base = re.sub(r"^my ", "", who)
+    if not base or base in ("you", "me", "it", "that", "them", "him", "her", "dinner", "lunch", "breakfast", "today",
+                            "tonight", "tomorrow", "the", "work", "fun", "christmas", "thanksgiving", "halloween", "now"):
+        return None
+    names = {base}
+    if who.startswith("my ") or base in _relation_words():
+        n = _name_for_relation(base)
+        if n:
+            names.add(n.casefold())
+    else:
+        names |= {rel for rel in _relation_words() if (_name_for_relation(rel) or "").casefold() == base}
+    hit = lambda t: any(re.search(rf"\b{re.escape(n)}\b", str(t or "").casefold()) for n in names)
+    said = []
+    for at, what, store in _coming():
+        if hit(what):
+            when = speech.humanize_time(at.isoformat())
+            said.append(f"{what} {when}" if store == "calendar" else f"a reminder {when} to {what.rstrip('.')}")
+    try:
+        said += [speech.as_she_says_it(str(t.get("description") or "")).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                 and str(t.get("status") or "").upper() not in _TASK_CLOSED and hit(t.get("description"))]
+    except Exception:
+        pass
+    if not said:
+        return None
+    shown = speech.as_she_says_it(who) if who.startswith("my ") or base in _relation_words() else _named(base)
+    return f"For {shown}, you have {speech.and_list(said[:4])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -13565,10 +13607,20 @@ def _their_likes(text: str) -> str | None:
     hate = g.get("tl_verb") in ("hate", "not like")
     verbs = (r"(?:hates|doesn'?t like|does not like|can'?t stand)" if hate
              else r"(?:really |also )?(?:likes|loves|adores|prefers|enjoys|is into|is obsessed with|is a fan of|collects)")
+    # "What does my wife like" with "Sarah likes candles" kept, and the
+    # other way round (2026-10-08: to a model): the name he gave counts.
+    base = re.sub(r"^(?:my|our) ", "", who)
+    names = [base]
+    if who.startswith(("my ", "our ")) or base in _relation_words():
+        named = _name_for_relation(base)
+        if named:
+            names.append(named.casefold())
+    else:
+        names += [rel for rel in _relation_words() if (_name_for_relation(rel) or "").casefold() == base]
     found = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        if re.fullmatch(r"(?:my |our )?" + re.escape(re.sub(r"^(?:my|our) ", "", who)) + r" " + verbs + r" .+", said, re.IGNORECASE):
+        if re.fullmatch(r"(?:my |our )?(?:" + "|".join(re.escape(n) for n in names) + r") " + verbs + r" .+", said, re.IGNORECASE):
             hers = speech.as_she_says_it(said).rstrip(".")
             if hers.casefold() not in (f.casefold() for f in found):
                 found.append(hers)
@@ -14130,6 +14182,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "news_when": _news_when,
+           "plans_for": _plans_for,
            "task_about": _task_about,
            "born_age": _born_age,
            "his_likes": lambda rest: _his_likes(),
