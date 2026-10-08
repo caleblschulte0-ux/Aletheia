@@ -461,6 +461,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| was) (?P<out_today>out sick|off sick|sick|out|off|on vacation|out of (?:the )?office|working from home|wfh|away)"
         r"(?: today| this week)?\s*\??$")),
     ("sitter", re.compile(r"^who(?:'s| is) (?:babysitting|watching the kids|coming to babysit)(?P<sitter> tonight| today| tomorrow)?\s*\??$")),
+    ("interviewer", re.compile(r"^who(?:'s| is| am i) (?:interviewing me|my interviewer|the interviewer|interviewing with)\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -2473,6 +2474,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "who is getting married" (to a model).
     ("registered_at", re.compile(r"^where (?:is|are) (?P<registered_at>[a-z]{2,15}|my [a-z]{2,15}|they) registered\s*\??$")),
     ("who_marrying", re.compile(r"^who(?:'s| is) getting married\s*\??$")),
+    # "Who is interviewing me", "when will they get back to me" (2026-10-08:
+    # to a model) after "the interviewer is Sarah Chen" and "they said they
+    # would get back to me next week".
+    ("hear_back", re.compile(r"^when (?:will|are|do|should) (?:they|i|the [a-z]{3,15}) (?:get back to me|be getting back to me|hear back|call me back|let me know|going to let me know)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -16932,6 +16937,26 @@ def _who_marrying(_rest: str = "") -> str | None:
     return f"You told me: {speech.and_list(found)}." if found else None
 
 
+def _interviewer(_rest: str = "") -> str | None:
+    """Who he said is interviewing him."""
+    from aletheia import speech
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\b(?:interviewer|interviewing me|interview(?:ing)? with)\b", line, re.I) and not line.lower().startswith(("who", "when")):
+            return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
+def _hear_back(_rest: str = "") -> str | None:
+    """When he was told he would hear back."""
+    from aletheia import speech
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\b(?:get back to (?:me|us)|hear back|let (?:me|us) know|call (?:me|us) back)\b", line, re.I) and re.search(r"\b(?:said|told|will|would|should)\b", line, re.I):
+            return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17213,7 +17238,9 @@ def _person(rest: str) -> str:
     # your landlord. Tell me and I'll remember it" - he just had. The note says
     # it in his own words; read it the way he said it.
     if who:
-        said = re.compile(r"\bmy " + re.escape(who.casefold()) + r"(?:'s name)? (?:is|was|=) (.+)", re.IGNORECASE)
+        # "My new boss is Mike" (2026-10-08: "I don't have anyone remembered
+        # as your boss").
+        said = re.compile(r"\bmy (?:new )?" + re.escape(who.casefold()) + r"(?:'s name)? (?:is|was|=) (.+)", re.IGNORECASE)
         # "Dana is my sister" - the other order (2026-10-07).
         other = re.compile(r"^\s*([A-Za-z][\w'-]*(?: [A-Za-z][\w'-]*)?) is my (?:new |old |best |younger |older |little |big )?"
                            + re.escape(who.casefold()) + r"\b", re.IGNORECASE)
@@ -17745,6 +17772,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "interviewer": _interviewer,
+           "hear_back": _hear_back,
            "registered_at": _registered_at,
            "who_marrying": _who_marrying,
            "kid_missed": _kid_missed,

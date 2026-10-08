@@ -10598,6 +10598,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"How exciting - a {m.group('pet')}!"}
     if re.fullmatch(r"(?:the|our|my|his|her) (?:new )?(?:puppy|kitten|dog|cat|bunny|rabbit|hamster|guinea pig|parrot|bird|fish|turtle|lizard|horse)(?:'s name)? (?:is named|is called|'s name is|is) (?!(?:sick|old|young|hungry|tired|due|on|at|in|out|home|here|gone|fine|okay|ok|missing|lost|scared|sleeping|outside|inside)\b)[a-z][a-z']{1,15}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The interviewer is Sarah Chen", "I think the interview went well",
+    # "they said they would get back to me next week", "I turned down the
+    # offer", "I'm negotiating the salary" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:the|my) (?:interviewer|hiring manager|recruiter)(?:'s name)? (?:is|was) [a-z][a-z'. -]{1,30}", low) \
+            or re.fullmatch(r"(?:i think |i feel like |honestly )?(?:the|my) (?:interview|presentation|meeting|date|game|test|exam|first day|call|pitch|audition|recital|surgery|appointment|trip|party)"
+                            r"(?: [a-z]{2,15})? (?:went|go) (?:really |pretty |so |very |super )?(?:well|great|badly|bad|ok|okay|fine|terribly|awful|amazing|good|poorly|horribly|perfectly)", low) \
+            or re.fullmatch(r"(?:they|she|he|the [a-z]{3,15}|[a-z]{2,15}) (?:said|told me|promised) (?:that )?(?:they|she|he|it) (?:would|will|'ll|should) (?:get back to me|call me back|let me know|be in touch|reach out|follow up)"
+                            r"(?: (?:by |on |in |within |next |this )?[a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"i (?:turned down|declined|accepted|took|got|signed|countered|rejected) (?:the|their|an?) (?:job )?(?:offer|counteroffer|counter offer)(?: from [a-z][a-z ]{1,20})?", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:negotiating|asking for more|countering)(?: (?:the|my) (?:salary|offer|raise|pay|rent|price))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

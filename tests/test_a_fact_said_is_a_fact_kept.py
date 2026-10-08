@@ -11396,5 +11396,25 @@ class TheCarWasDone(unittest.TestCase):
             self.assertIn("Thursday", quick.answer("when will the car be ready"))
 
 
+class AJobInterview(unittest.TestCase):
+    """2026-10-08: "the interviewer is Sarah Chen", "I think the interview
+    went well" and "they said they would get back to me next week" went to
+    the planner, and "who is my boss" missed "my new boss is Mike"."""
+
+    def test_said(self):
+        for said in ("the interviewer is Sarah Chen", "I think the interview went well",
+                     "they said they would get back to me next week", "I turned down the offer",
+                     "I am negotiating the salary"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read(self):
+        notes = [{"text": "the interviewer is Sarah Chen"}, {"text": "they said they would get back to me next week"},
+                 {"text": "my new boss is Mike"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertIn("Sarah Chen", quick.answer("who is interviewing me"))
+            self.assertIn("next week", quick.answer("when will they get back to me"))
+            self.assertEqual(quick.answer("who is my boss"), "Your boss is Mike.")
+
+
 if __name__ == "__main__":
     unittest.main()
