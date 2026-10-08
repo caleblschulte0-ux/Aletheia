@@ -7737,5 +7737,23 @@ class WhoAmISeeingOnADay(unittest.TestCase):
 
 
 
+class ARepeatingAlarmCanBeMoved(unittest.TestCase):
+    def test_the_one_weekday_alarm_moves_on_the_same_days(self):
+        spec = {"id": "remind-weekly-x", "kind": "weekly", "enabled": True, "weekdays": [0, 1, 2, 3, 4],
+                "time": "06:00", "command": {"kind": "notify_operator", "text": "wake up"}}
+        with mock.patch("aletheia.scheduler.all_schedules", return_value=[spec]):
+            got = voice._interpret("change my alarm to 6:15")["command"]
+        self.assertEqual(got, {"kind": "remind_weekly", "days": [0, 1, 2, 3, 4], "time": "06:15",
+                               "text": "wake up", "replaces": "wake up"})
+
+    def test_a_weekday_alarm_can_be_turned_off(self):
+        self.assertEqual(voice._interpret("turn off my weekday alarm")["command"],
+                         {"kind": "reminder_off", "which": "wake up"})
+
+    def test_what_time_is_my_alarm_tomorrow_is_asked_of_her_alarms(self):
+        self.assertEqual(quick.match("what time is my alarm tomorrow")[0], "alarm_q")
+
+
+
 if __name__ == "__main__":
     unittest.main()

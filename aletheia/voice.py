@@ -2166,6 +2166,26 @@ def _moved_alarm(time_words: str, was_words: str = "") -> dict:
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return _to_the_planner(f"change my alarm to {time_words}")
+    if not running and not was_words:
+        # Only a repeating alarm (2026-10-08: "you don't have an alarm set"
+        # with one set for weekdays): the one repeating alarm moves, same days.
+        try:
+            from aletheia import scheduler
+            repeating = [spec for spec in scheduler.all_schedules()
+                         if spec.get("enabled") and spec.get("kind") in ("daily", "weekly")
+                         and "wake up" in str((spec.get("command") or {}).get("text") or "").casefold()]
+        except Exception:
+            repeating = []
+        if len(repeating) == 1:
+            spec = repeating[0]
+            if spec.get("kind") == "daily":
+                return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up", "replaces": "wake up"},
+                        "say": None}
+            return {"command": {"kind": "remind_weekly", "days": list(spec.get("weekdays") or []), "time": hhmm,
+                                "text": "wake up", "replaces": "wake up"}, "say": None}
+        if len(repeating) > 1:
+            return {"command": None, "say": f"You have {len(repeating)} repeating alarms - turn off the one you "
+                                            f"don't want and set it again for {time_words}."}
     if not running:
         return {"command": None, "say": f"You don't have an alarm set. Say \"set an alarm for {time_words}\" and I'll set one."}
     was_hhmm = _spoken_time(was_words) if was_words else None
@@ -4157,7 +4177,7 @@ def _interpret(transcript: str) -> dict:
         # setting one was instant while cancelling it reached the planner.
         alarm = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
                              r"(?:the |my |that |all )?(?:my )?(?P<before>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?"
-                             r"alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
+                             r"(?:(?:weekday|weekend|daily|morning|everyday|work|school|wake ?up) )?alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
         if alarm:
             # "CANCEL MY 6:30 ALARM" names WHICH alarm; the time travels
             # with the words, and a bare "6" becomes "6:00" so it reads as

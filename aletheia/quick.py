@@ -2147,7 +2147,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                             r"|^how many (?P<what4>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek)) (?:is|are|in|for|to) (?:a |an |one |(?P<what5>[\d,]+(?:\.\d+)?) )?(?P<what6>(?:us dollars?|dollars?|bucks|usd|euros?|eur|british pounds|pounds?|gbp|quid|sterling|japanese yen|yen|jpy|canadian dollars?|cad|australian dollars?|aud|mexican pesos|pesos?|mxn|swiss francs|francs?|chf|yuan|renminbi|cny|rupees?|inr|won|krw|krona|kronor|sek))$")),
     ("riddle", re.compile(r"^(?:tell me|give me|do you have|got|know) (?:a |another |any )?riddles?$")),
     ("count_to", re.compile(r"^count (?:to|up to) (?P<what>\d{1,2}|ten|five|three|twenty)$")),
-    ("alarm_q", re.compile(r"^what time (?:did i set|is) my alarm(?: set)?(?: for)?$|^when(?:'s| is) my alarm(?: set for)?$"
+    ("alarm_q", re.compile(r"^what time (?:did i set|is) my alarm(?: set)?(?: for)?(?: tomorrow| today| tonight| in the morning| on [a-z]+day)?$"
+                           r"|^when(?:'s| is) my alarm(?: set for)?(?: tomorrow| in the morning)?$"
                            r"|^when (?:does|will) my (?:next )?alarm go off$|^what(?:'s| is) my alarm set (?:for|to)$|^is my alarm (?:set|on)$"
                            r"|^(?:did i set|do i have) an alarm(?: (?:set|for tomorrow))?$")),
     # "HOW DO I TURN YOU OFF": the switch is his, and it is one word.

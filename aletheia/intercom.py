@@ -298,7 +298,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # so "remind me every monday to take out the trash" compiled to a
     # generic `do_task` under a summary that promised a weekly reminder.
     # A capability nothing can ask for is not a capability.
-    "remind_weekly":   ({"days", "time", "text"}, {"tz", "every"}),
+    "remind_weekly":   ({"days", "time", "text"}, {"tz", "every", "replaces"}),
     # "What reminders do I have" / "stop reminding me about the bins".
     # `scheduler` has listed and disabled schedules since it was written;
     # asking for either OUT LOUD compiled a gap called `reminder.cancel`
@@ -4086,6 +4086,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import scheduler
         import uuid as _uuid
         days = _weekday_numbers(cmd["days"])
+        if cmd.get("replaces"):
+            # "Change my alarm to 6:15" with only a weekday alarm set
+            # (2026-10-08): the old time goes off (never deleted).
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None and found.get("kind") == "weekly":
+                scheduler.set_enabled(found["id"], False)
         sid = "remind-weekly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="weekly",
