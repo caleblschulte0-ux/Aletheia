@@ -2015,7 +2015,9 @@ def _one_notice(which: str = ""):
         except Exception:
             nxt = None
         if nxt:
-            return None, (f"Nothing has gone off yet - your next reminder, {nxt[1].rstrip('.')}, is "
+            # An alarm is a "wake up" reminder underneath; he calls it his alarm.
+            what = "your next alarm" if nxt[1].strip().casefold() == "wake up" else f"your next reminder, {nxt[1].rstrip('.')},"
+            return None, (f"Nothing has gone off yet - {what} is "
                           f"{speech.humanize_time(nxt[0].isoformat())}. Say \"move it to\" and a time to push it.")
         return None, "Nothing is waiting to be snoozed."
     needle = " ".join(str(which or "").split()).casefold()
