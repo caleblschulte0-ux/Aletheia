@@ -22,6 +22,23 @@
       "unreachable_ApplyError": 4,
       "unreachable_no_form": 1,
       "weak_shot": 5
+    },
+    "2026-10-08": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 80,
+      "needs_account": 0,
+      "needs_answer": 9,
+      "not_realistic": 9,
+      "offered": 90,
+      "ready": 8,
+      "runs": 1,
+      "unfit_model": 4,
+      "unfit_sales": 5,
+      "unjudged": 0,
+      "unreachable": 1,
+      "unreachable_ApplyError": 1,
+      "weak_shot": 1
     }
   },
   "closed_recently": {
@@ -33,7 +50,7 @@
       "left_captcha": 1,
       "left_error": 3,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 2,
+      "left_no_way_forward": 3,
       "left_out_of_steps": 1,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 15,
@@ -123,7 +140,7 @@
     },
     "2026-09-22": {
       "filled": 15,
-      "found": 62,
+      "found": 61,
       "interviews": 0,
       "rejections": 0,
       "replies": 4,
@@ -242,16 +259,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 23,
-      "found": 24,
+      "filled": 27,
+      "found": 29,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 3
+      "sent": 6
     }
   },
-  "generated_at": "2026-10-08T13:52:46Z",
-  "sent_all_time": 273,
+  "generated_at": "2026-10-08T14:23:09Z",
+  "sent_all_time": 276,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -274,6 +291,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 2
     },
     "no_way_forward": {
+      "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form/observed": 5,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -311,6 +329,7 @@
         "nothing_to_press_on_form/review_reached": 1
       },
       "no_way_forward": {
+        "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content/observed": 2,
         "nothing_to_press_on_form/observed": 3,
         "unclear_button/observed": 2
@@ -324,12 +343,12 @@
     }
   },
   "totals": {
-    "filled": 358,
-    "found": 715,
+    "filled": 362,
+    "found": 719,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 273
+    "sent": 276
   },
   "waiting": {
     "asked_about": {
@@ -339,9 +358,10 @@
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 13,
+      "other": 14,
       "pay": 2,
       "travel": 1,
+      "work_authorization": 1,
       "years_experience": 1
     },
     "closed": {
@@ -355,7 +375,7 @@
       "left_captcha": 13,
       "left_error": 12,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 71,
+      "left_no_way_forward": 72,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 1,
@@ -368,7 +388,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 74
+      "not_realistic": 73
     },
     "failed": 13,
     "failed_because": {
