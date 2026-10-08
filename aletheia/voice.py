@@ -2369,9 +2369,15 @@ _OWNED = (r"name|birthday|age|vet|doctor|dentist|food|medicine|meds|number|phone
 
 
 def _apostrophes(transcript: str) -> str:
-    """"My dogs name" -> "my dog's name", keeping his capitals."""
-    return re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
+    """"My dogs name" -> "my dog's name", keeping his capitals. "My bosses
+    name" is the boss's, and "Sarah number" - a capitalised name before
+    what a person has - is Sarah's (2026-10-08: both to the planner)."""
+    said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
                   str(transcript or ""), flags=re.I)
+    said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
+    return re.sub(r"(?<![\w'])(?!(?:My|The|Our|What|When|Where|Who|How|Is|Set|Add|Call|Text|Email)\b)([A-Z][a-z]{1,15}(?<!s)) "
+                  r"(number|phone number|cell number|cell|email|email address|birthday|address)\b(?! is (?:a|an|the)\b)",
+                  r"\1's \2", said)
 
 
 def interpret(transcript: str) -> dict:

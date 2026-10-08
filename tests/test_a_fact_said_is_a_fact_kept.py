@@ -7005,6 +7005,10 @@ class TheApostropheHeNeverSays(unittest.TestCase):
         self.assertEqual(voice.interpret("my dogs name is Max")["command"], {"kind": "note", "text": "my dog's name is Max"})
         self.assertEqual(quick._tidy("what is my wifes birthday"), "what is my wife's birthday")
         self.assertEqual(voice._apostrophes("my parents are visiting"), "my parents are visiting")
+        self.assertEqual(voice._apostrophes("Sarah number is 555 123 4567"), "Sarah's number is 555 123 4567")
+        self.assertEqual(voice._apostrophes("what is my bosses name"), "what is my boss's name")
+        self.assertEqual(voice._apostrophes("Chris number is 5"), "Chris number is 5")
+        self.assertEqual(voice._apostrophes("Text Sarah I'm late"), "Text Sarah I'm late")
 
     def test_the_dogs_appointment_is_the_dogs(self):
         cmd = voice._interpret("the dog has a vet appointment friday at 10")["command"]
