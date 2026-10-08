@@ -2140,7 +2140,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What do I need to bring", "who is having the party", "where am I
     # meeting Tom" (2026-10-08: each to a model, one turn after he said it).
     ("to_bring", re.compile(
-        r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_bring>bring|take|pack|wear|make|buy|get)"
+        r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_bring>bring|take|pack|wear|make|buy|get|refill|return|pick up|renew|mail|order)"
         r"(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,25})?\s*\??$")),
     ("event_who", re.compile(
         r"^who(?:'s| is) (?:having|hosting|throwing|doing) (?:the |this |that )?(?P<event_who>[a-z][a-z' ]{1,25}?)\s*\??$"
@@ -11916,15 +11916,30 @@ _PAID_NOTE = re.compile(r"^i (?:just )?got (?:my )?(?:paid|paycheck|pay ?check)"
 _PER_YEAR = {"hour": 2080, "week": 52, "two weeks": 26, "other week": 26, "month": 12, "year": 1}
 
 
-def _next_payday(said: str):
+def _next_payday(said: str, paid_on=None):
     """The next date a pay note names - "on the 15th and the 30th", "on the
-    1st", "every Friday", "the last day of the month". None for any other
-    shape (every other Friday has no anchor), never a guess."""
+    1st", "every Friday", "the last day of the month", and "every other
+    Friday" or "every two weeks" counted from the day he last said he got
+    paid. None for any other shape, never a guess."""
     import calendar as _calmod
     import datetime as dt
     from aletheia import localtime
     low = str(said or "").casefold()
     today = dt.datetime.now(localtime.operator_tz()).date()
+    # "I get paid every other Friday" + "I got paid today" (2026-10-08:
+    # "when is my next paycheck" to a model).
+    if paid_on and re.search(r"\b(?:every other|every second|every two weeks|biweekly|bi-weekly|fortnightly)\b", low):
+        step = dt.timedelta(days=14)
+        # Paid a day early for a holiday is still that Friday's pay.
+        named = re.search(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low)
+        if named:
+            want = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(named.group(1))
+            shift = (want - paid_on.weekday()) % 7
+            paid_on += dt.timedelta(days=shift if shift <= 3 else shift - 7)
+        nxt = paid_on + step
+        while nxt < today:
+            nxt += step
+        return nxt
     days = [int(d) for d in re.findall(r"\b(\d{1,2})(?:st|nd|rd|th)\b", low) if 1 <= int(d) <= 31]
     last = bool(re.search(r"\blast (?:day|business day)\b|\bend of (?:the|every) month\b", low))
     if days or last:
@@ -11971,7 +11986,20 @@ def _pay(question: str) -> str | None:
         if not hit:
             return None
         told = f"You told me: {speech.as_she_says_it(hit).rstrip('.')}."
-        nxt = _next_payday(hit)
+        import datetime as dt
+        from aletheia import localtime
+        paid_on = None
+        for t, r in notes:
+            if _PAID_NOTE.match(t.casefold()):
+                try:
+                    paid_on = dt.datetime.fromisoformat(str(r.get("ts") or "").replace("Z", "+00:00")).astimezone(
+                        localtime.operator_tz()).date()
+                except ValueError:
+                    paid_on = None
+                if paid_on and re.search(r"\byesterday\b", t.casefold()):
+                    paid_on -= dt.timedelta(days=1)
+                break
+        nxt = _next_payday(hit, paid_on)
         if nxt is None:
             return told
         import datetime as dt

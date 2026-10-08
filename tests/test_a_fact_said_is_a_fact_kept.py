@@ -9790,5 +9790,40 @@ class HisPetsAgain(unittest.TestCase):
             self.assertEqual(quick.answer("how old is Bear"), "You told me: Bear is 10 weeks old.")
 
 
+class WhatHeNeedsToRefill(unittest.TestCase):
+    """'What do I need to refill' reads the tasks that start with it (2026-10-08)."""
+
+    def test_read(self):
+        from aletheia import tasks
+        rows = [{"description": "refill my inhaler", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("what do I need to refill"), "Your list says: refill your inhaler.")
+            self.assertIsNone(quick.answer("what do I need to renew"))
+
+
+class EveryOtherFriday(unittest.TestCase):
+    """'When is my next paycheck' counts two weeks on from the Friday he
+    last said he got paid (2026-10-08: to a model)."""
+
+    def test_counted_from_the_last_pay(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        friday = today - dt.timedelta(days=(today.weekday() - 4) % 7)
+        ts = dt.datetime.combine(friday, dt.time(12), tz).isoformat()
+        rows = [{"text": "I got paid today", "ts": ts}, {"text": "I get paid every other Friday", "ts": ts}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            said = voice._interpret("when is my next paycheck")["say"]
+        nxt = friday + dt.timedelta(days=14)
+        self.assertTrue(said.startswith(f"Next payday is Friday the {nxt.day}"), said)
+        self.assertIn("every other Friday", said)
+
+    def test_no_pay_said_is_no_date(self):
+        rows = [{"text": "I get paid every other Friday", "ts": "2026-10-01T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(voice._interpret("when is my next paycheck")["say"],
+                             "You told me: you get paid every other Friday.")
+
+
 if __name__ == "__main__":
     unittest.main()
