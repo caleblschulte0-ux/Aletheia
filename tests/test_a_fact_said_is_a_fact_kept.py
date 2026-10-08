@@ -12456,5 +12456,22 @@ class HabitsHeBroke(unittest.TestCase):
             self.assertEqual(voice.interpret("did I hit my step goal today")["say"], "Yes - 12,000 steps today, past your goal of 10,000.")
 
 
+class ABabyOnTheWay(unittest.TestCase):
+    def test_the_news_is_kept(self):
+        for said in ("we are expecting a baby in march", "the baby is a girl", "we picked the name olivia",
+                     "the baby kicked today", "my wife is 20 weeks pregnant"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        held = voice.interpret("we have a doctor appointment for the baby on friday at 10")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "doctor appointment for the baby"))
+        self.assertEqual(voice.interpret("we need to set up the nursery")["command"]["description"], "set up the nursery")
+
+    def test_the_questions_read_it(self):
+        notes = [{"text": "we picked the name olivia"}, {"text": "the baby is a girl"}, {"text": "my wife is 20 weeks pregnant"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("are we having a boy or a girl"), "You told me the baby is a girl.")
+            self.assertEqual(quick.answer("what are we naming the baby"), "You told me we picked the name olivia.")
+            self.assertEqual(quick.answer("how far along is my wife"), "You told me your wife is 20 weeks pregnant.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2646,6 +2646,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:since|has it been since|ago did) i (?:quit|stopped|gave up) (?P<quit_since>smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)\s*\??$"
         r"|^how (?:many days|long) (?:sober|clean|smoke free|smoke-free|nicotine free|alcohol free) (?:am i|have i been)\s*\??$"
         r"|^how (?:many days|long) have i been (?P<quit_state>sober|clean|smoke free|smoke-free|nicotine free|alcohol free)\s*\??$")),
+    ("baby_coming", re.compile(
+        r"^when(?:'s| is) (?P<bc_due>the baby|our baby|my wife|she|my partner) due\s*\??$"
+        r"|^(?:are we having|is (?:the|our) baby|is it) (?P<bc_sex>a boy or a girl)\s*\??$"
+        r"|^what (?:are we|did we decide to|did we|are we going to) (?:naming|name|call|calling) (?P<bc_name>the baby|her|him)\s*\??$"
+        r"|^how far along is (?P<bc_along>my wife|she|my partner|my girlfriend)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3588,7 +3593,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18256,6 +18261,37 @@ def _quit_since(text: str) -> str | None:
     return None
 
 
+
+def _baby_coming(text: str) -> str | None:
+    """A baby on the way (2026-10-08, each to a model): when it's due, a
+    boy or a girl, the name, how far along. What he said, or None."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("baby_coming", text)
+    if g.get("bc_due"):
+        found = _said_lines(r"\bexpecting\b.* (?:in|on|around|next|this|early|late|mid) [a-z0-9]|\bbaby (?:is|'s) due\b", 1)
+    elif g.get("bc_sex"):
+        found = _said_lines(r"^(?:the baby is|it(?:'s| is)|we(?:'re| are) having) (?:a )?(?:boy|girl|twins)\b|\bexpecting (?:a )?(?:boy|girl|twins)\b", 1)
+    elif g.get("bc_name"):
+        found = _said_lines(r"^we (?:picked|chose|decided on|went with|settled on) |^we(?:'re| are) (?:naming|calling) |\bbaby is named\b", 1)
+    elif g.get("bc_along"):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            m = re.search(r"\b(\d{1,2}) weeks(?: pregnant| along)?\b", said, re.I)
+            if not m or not re.search(r"pregnant|along|my (?:wife|partner|girlfriend|fiancee) is", said, re.I):
+                continue
+            try:
+                told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz()).date()
+            except ValueError:
+                return f"You told me {_said_lines(re.escape(said), 1)[0]}."
+            weeks = int(m.group(1)) + (dt.datetime.now(localtime.operator_tz()).date() - told).days // 7
+            return f"About {weeks} weeks, counting from the {m.group(1)} you told me."
+        return None
+    else:
+        return None
+    return f"You told me {found[0]}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19074,6 +19110,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "baby_coming": _baby_coming,
            "step_goal": _step_goal,
            "quit_since": _quit_since,
            "left_at": _left_at,

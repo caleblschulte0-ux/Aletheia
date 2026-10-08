@@ -5011,7 +5011,8 @@ def _interpret(transcript: str) -> dict:
     # "Maybe I should call mom", "I should probably clean the garage"
     # (2026-10-08: to the planner) are the same; going to bed is not a task.
     m = re.fullmatch(r"(?:(?:maybe|i think|honestly|ok(?:ay)?),? )?"
-                     r"(?:i (?:need|have|got) to|i've got to|i gotta|i must|i (?:probably |really )?should(?: really| probably)?|"
+                     # "We need to call the plumber" (2026-10-08: to the planner).
+                     r"(?:(?:i|we) (?:need|have|got) to|(?:i|we)'ve got to|(?:i|we) gotta|i must|(?:i|we) (?:probably |really )?should(?: really| probably)?|"
                      r"(?:don'?t|do not) let me forget to|make sure i|remember i (?:need|have) to)"
                      r" (?P<what>.{3,120})", low)
     if m and re.match(r"(?:go to (?:bed|sleep)|call it a (?:night|day)|get (?:some )?sleep|go home)\b", m.group("what")):
@@ -11271,6 +11272,29 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:have not|haven't) (?:had a drink|had a cigarette|smoked|vaped|had alcohol) (?:in|for) \d{1,4} days", low) \
             or re.fullmatch(r"i(?:'m| am) (?:\d{1,4} days|one week|two weeks|a month|\d{1,2} months) (?:sober|clean|smoke free|smoke-free)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "That's a big one - good for you. I'll keep count."}
+    # A BABY ON THE WAY (2026-10-08, each to the planner): "we are expecting
+    # a baby in march", "the baby is a girl", "we picked the name Olivia",
+    # "the baby kicked today", "my wife is 20 weeks pregnant".
+    _WHEN = r"(?: (?:in|on|around|at the end of|early|late|mid) [a-z0-9 ]{3,20}| next (?:month|year|spring|summer|fall|winter)| this (?:spring|summer|fall|winter))"
+    if re.fullmatch(r"(?:we(?:'re| are)|my (?:wife|partner|girlfriend|fiancee) (?:is|'s)|i(?:'m| am)) expecting(?: a baby| our first| our second| a boy| a girl| twins)?" + _WHEN + "?", low) \
+            or re.fullmatch(r"(?:the |our )?baby (?:is|'s) due" + _WHEN, low) \
+            or re.fullmatch(r"(?:the baby is|it(?:'s| is)|we(?:'re| are) having) (?:a )?(?:boy|girl|twins|twin boys|twin girls)", low) \
+            or re.fullmatch(r"we (?:picked|chose|decided on|went with|settled on) (?:the name )?[a-z]{2,15}(?: for the baby)?|we(?:'re| are) (?:naming|calling) (?:her|him|the baby|them) [a-z]{2,15}", low) \
+            or re.fullmatch(r"the baby (?:kicked|moved|is kicking|was kicking)(?: today| tonight| for the first time)?", low) \
+            or re.fullmatch(r"(?:my (?:wife|partner|girlfriend|fiancee) is|i(?:'m| am)|we(?:'re| are)) \d{1,2} weeks(?: pregnant| along)?", low):
+        say = None
+        if re.search(r"\bexpecting\b", low):
+            say = "Congratulations! I've kept it."
+        elif re.search(r"\bkick", low):
+            say = "That's wonderful. I've kept it."
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": say}
+    m = re.fullmatch(r"we have (?:a |an )?(?P<what>doctor(?:'s)? appointment|ultrasound|ob appointment|checkup) for the baby (?P<when>.+)", low)
+    if m:
+        again = _interpret(f"i have a {m.group('what')} {m.group('when')}")
+        cmd = (again or {}).get("command") or {}
+        if cmd.get("kind") == "calendar_hold":
+            cmd["title"] = f"{m.group('what')} for the baby"
+            return again
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
