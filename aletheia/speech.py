@@ -477,7 +477,10 @@ def as_she_says_it(phrase: str) -> str:
 # 3", "the 3rd of may" ("Dana's birthday is march 3", 2026-10-07).
 _NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
                          r"|june|july|august|september|october|november|december)\b"
-                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b")
+                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b"
+                         # "expires in march", "by may" (2026-10-08)
+                         r"|(?:(?<= in )|(?<= by )|(?<= until )|(?<= since )|(?<= before )|(?<= after )|(?<= early )"
+                         r"|(?<= late )|(?<= next )|(?<= last ))(?:march|may)\b(?! (?:be|have|go|need|want|not|i|we|you)\b)")
 
 
 #: Words that should not start a file name: they describe whose it is,

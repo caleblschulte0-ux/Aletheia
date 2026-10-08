@@ -2100,6 +2100,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("event_who", re.compile(
         r"^who(?:'s| is) (?:having|hosting|throwing|doing) (?:the |this |that )?(?P<event_who>[a-z][a-z' ]{1,25}?)\s*\??$"
         r"|^where am i (?:meeting|seeing|having (?:coffee|lunch|dinner|drinks) with) (?P<event_who2>[a-z][a-z' ]{1,25}?)(?: tomorrow| today| tonight)?\s*\??$")),
+    # "Is my passport still valid" (2026-10-08: to the planner, a turn
+    # after "my passport expires on June 5 2027").
+    ("still_valid", re.compile(
+        r"^(?:is|are) (?:my|our) (?P<still_valid>[a-z][a-z' ]{1,25}?) (?:still )?(?:valid|expired|current|up to date|out of date)(?: yet)?\s*\??$"
+        r"|^(?:has|have) (?:my|our) (?P<still_valid2>[a-z][a-z' ]{1,25}?) expired(?: yet)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2925,7 +2930,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13475,6 +13480,47 @@ def _event_who(what: str) -> str | None:
     return None
 
 
+def _still_valid(thing: str) -> str | None:
+    """Whether a document he told her the expiry of is still good, worked
+    out from that date. None when he never said when it expires."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    thing = " ".join(str(thing or "").casefold().split())
+    words = [w for w in re.findall(r"[a-z]+", thing) if w not in ("my", "the", "drivers", "driver's", "driving")]
+    if not words:
+        return None
+    month_re = "|".join(_MONTHS)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not all(re.search(rf"\b{re.escape(w)}", low) for w in words) \
+                or not re.search(r"\b(?:expires?|expired|expiring|runs out|valid (?:until|till|through)|good (?:until|till|through)|renew)", low):
+            continue
+        m = re.search(rf"\b(?P<mon>{month_re})\.?(?: (?P<day>\d{{1,2}})(?:st|nd|rd|th)?)?(?:,? (?P<year>20\d\d))?", low)
+        if not m:
+            continue
+        mon = _MONTHS.index(m.group("mon")) + 1
+        year = int(m.group("year")) if m.group("year") else today.year
+        day = int(m.group("day")) if m.group("day") else 28
+        try:
+            ends = dt.date(year, mon, day)
+        except ValueError:
+            continue
+        if not m.group("year") and ends < today.replace(day=1):
+            ends = ends.replace(year=year + 1)
+        told = f"you told me {speech.as_she_says_it(said).rstrip('.')}"
+        # Said without yes or no: "is it valid" and "has it expired" ask
+        # the same thing with opposite answers.
+        if ends < today:
+            return f"It has expired - {told}, and that date has passed."
+        left = (ends - today).days
+        if left >= 60:
+            return f"It's still good - {told}, so about {round(left / 30.44)} months left."
+        return f"It's still good for now - {told}, so {speech.count_phrase(left, 'day')} left. Worth renewing soon."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14280,6 +14326,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "plans_for": _plans_for,
            "broken": _broken,
            "to_bring": _to_bring,
+           "still_valid": _still_valid,
            "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,
            "born_age": _born_age,

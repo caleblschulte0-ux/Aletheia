@@ -8886,5 +8886,27 @@ class APartyAndACoffee(unittest.TestCase):
 
 
 
+class IsItStillValid(unittest.TestCase):
+    """2026-10-08: "is my passport still valid" went to the planner a turn
+    after "my passport expires on June 5 2027"."""
+
+    def test_worked_out_from_the_date(self):
+        import datetime as dt
+        from aletheia import quick
+        ahead = (dt.date.today() + dt.timedelta(days=400)).strftime("%B %-d %Y")
+        gone = (dt.date.today() - dt.timedelta(days=40)).strftime("%B %-d %Y")
+        rows = [{"text": f"my passport expires on {ahead}"}, {"text": f"my gym card expired on {gone}"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertTrue(quick.answer("is my passport still valid").startswith("It's still good - you told me your passport"))
+            self.assertTrue(quick.answer("has my gym card expired").startswith("It has expired"))
+            self.assertIsNone(quick.answer("is my visa valid"))
+
+    def test_march_after_in_keeps_its_capital(self):
+        from aletheia import speech
+        self.assertEqual(speech.as_she_says_it("my license expires in march"), "your license expires in March")
+        self.assertEqual(speech.as_she_says_it("it may be late"), "it may be late")
+
+
+
 if __name__ == "__main__":
     unittest.main()
