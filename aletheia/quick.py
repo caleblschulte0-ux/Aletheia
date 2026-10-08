@@ -2524,6 +2524,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "what did I watch last night" (2026-10-08: to a model).
     ("media_said", re.compile(r"^(?:what (?:are we|am i) reading for (?P<ms_club>book club)|what (?:was the |is the )?(?P<ms_pod>podcast) (?:did i (?:listen to|hear)|was i listening to)"
                               r"|what did i (?P<ms_watch>watch)(?: last night| yesterday| today| this weekend)?)\s*\??$")),
+    # "What does my wife have this week" (2026-10-08: to a model), a turn
+    # after "my wife has a doctor appointment Thursday at 2" was held.
+    ("their_week", re.compile(r"^what (?:does|do) (?P<their_week>my (?:wife|husband|partner|son|daughter|kids?|mom|dad|girlfriend|boyfriend)|the kids|[a-z]{2,15}) have(?: (?:going on|on|coming up|planned))?"
+                              r" (?P<tw_when>today|tomorrow|this week|this weekend|next week|coming up)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3455,7 +3459,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17309,6 +17313,36 @@ def _media_said(text: str) -> str | None:
     return f"You told me {said}."
 
 
+def _their_week(text: str) -> str | None:
+    """Their holds on his calendar in the window he asked about. None when
+    there are none - their own calendar is not hers to see."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("their_week", text)
+    who = re.sub(r"^(?:my|the) ", "", str(g.get("their_week") or ""))
+    when = str(g.get("tw_when") or "this week")
+    if not who:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    until = {"today": today + dt.timedelta(days=1), "tomorrow": today + dt.timedelta(days=2),
+             "this week": today + dt.timedelta(days=7 - today.weekday()),
+             "this weekend": today + dt.timedelta(days=7 - today.weekday()),
+             "next week": today + dt.timedelta(days=14 - today.weekday()),
+             "coming up": today + dt.timedelta(days=14)}[when]
+    start = today + dt.timedelta(days=1) if when == "tomorrow" else now
+    stem = re.escape(re.sub(r"s$", "", who))
+    hits = []
+    for at, _end, event in _upcoming_events(start, until):
+        title = str(event.get("title") or "")
+        if re.search(rf"\b{stem}s?(?:'s?)?\b", title, re.I):
+            hits.append(f"{title} {speech.humanize_time(at.astimezone(tz).isoformat())}")
+    if not hits:
+        return None
+    return f"On your calendar: {speech.and_list(hits[:5])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18124,6 +18158,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "their_week": _their_week,
            "media_said": _media_said,
            "felt_about": _felt_about,
            "my_day": _my_day,

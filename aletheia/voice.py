@@ -2660,6 +2660,11 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b(doctor|dentist|vet|lawyer|accountant|barber|hairdresser|optometrist|therapist|orthodontist|dermatologist"
                   r"|chiropractor|pediatrician|surgeon|eye doctor)s (appointment|appt|office|visit|checkup|check-up)\b",
                   r"\1's \2", said, flags=re.I)
+    # "My wife ring size is 6", "my wife favorite flower is tulips"
+    # (2026-10-08: to the planner) - the apostrophe and its s both dropped.
+    said = re.sub(r"\b((?:my|our) (?:wife|husband|mom|mother|dad|father|son|daughter|sister|brother|girlfriend|boyfriend|partner"
+                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat)) (ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
+                  r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy)\b", r"\1's \2", said, flags=re.I)
     # "Whats coming up", "whats the most important thing today" (2026-10-08:
     # each to a model) - typed without the apostrophe, they missed every
     # pattern written "what's". The question word gets it back.
@@ -10814,6 +10819,23 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:we'?re|we are|i'?m|i am) reading [a-z0-9][a-z0-9' :-]{1,40} for (?:my |our |the )?book club", low) \
             or re.fullmatch(r"i (?:just )?(?:listened to|heard) (?:a |an |the )?(?:great |good |really good |interesting |fascinating )?podcast (?:about|on|called|with) [a-z0-9][a-z0-9' :-]{1,40}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # US (2026-10-08: "we went to Olive Garden for date night", "my wife is
+    # working late tonight", "my wife is mad at me", "I forgot our
+    # anniversary" - to the planner).
+    if re.fullmatch(r"we (?:went|had|did|got) (?:to |out to )?[a-z][a-z' &]{1,30} for (?:date night|our anniversary|my birthday|her birthday|his birthday|dinner|brunch|lunch)", low) \
+            or re.fullmatch(r"(?:we had|we did) (?:a |our )?date night(?: at [a-z][a-z' &]{1,30})?(?: tonight| last night| on [a-z]+)?", low) \
+            or re.fullmatch(r"my (?:wife|husband|partner|girlfriend|boyfriend|fiance|fiancee|roommate) (?:is|'s) (?:working late|staying late|out late|on a trip|traveling|travelling|away|out of town|at her mom'?s|at his mom'?s)"
+                            r"(?: tonight| today| this week| until [a-z0-9 ]{3,15})?", low) \
+            or re.fullmatch(r"(?:my|our) (?:wife|husband|partner|girlfriend|boyfriend|fiance|fiancee)'s favou?rite [a-z ]{2,15} (?:is|are) [a-z][a-z' ]{1,30}", low) \
+            or re.fullmatch(r"(?:my|our) (?:wife|husband|partner|girlfriend|boyfriend|fiance|fiancee)'s (?:ring|shoe|dress|shirt|pants) size is [a-z0-9. ]{1,10}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"my (?P<who>wife|husband|partner|girlfriend|boyfriend|fiance|fiancee) (?:is|'s) (?:mad|angry|upset|annoyed|pissed) (?:at|with) me", low)
+    if m:
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": "Sorry - that's hard. If there's something to make right, I can help you do it: a note, flowers on your list, or time on the calendar."}
+    if re.fullmatch(r"i (?:forgot|missed) (?:our|my wife'?s|my husband'?s|her|his) (?:anniversary|birthday)", low):
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": "Oof. It's not too late to make it right today - say \"add flowers to the list\" or \"remind me in an hour to call\" and I'll help. And tell me the date, and I'll make sure it never sneaks up again."}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

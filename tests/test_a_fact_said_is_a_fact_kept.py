@@ -11676,5 +11676,33 @@ class RemindMeBeforeIt(unittest.TestCase):
         self.assertIn("flight to paris", r["say"].casefold())
 
 
+class HisWife(unittest.TestCase):
+    """2026-10-08: "my wife ring size is 6" (the apostrophe dropped), date
+    night, "my wife is working late", "my wife is mad at me" and "I forgot
+    our anniversary" went to the planner; "what does my wife have next week"
+    to a model with her appointment held on his calendar."""
+
+    def test_said(self):
+        self.assertEqual(voice.interpret("my wife ring size is 6")["command"], {"kind": "note", "text": "my wife's ring size is 6"})
+        self.assertEqual(voice.interpret("my wife favorite flower is tulips")["command"]["text"], "my wife's favorite flower is tulips")
+        self.assertIn("where your wife works", voice.interpret("where does my wife work")["say"])
+        for said in ("we went to Olive Garden for date night", "my wife is working late tonight"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        r = voice._interpret("I forgot our anniversary")
+        self.assertEqual(r["command"]["text"], "Journal: I forgot our anniversary")
+        self.assertIn("make it right", r["say"])
+
+    def test_her_holds(self):
+        import datetime as dt
+        from aletheia import calendar as cal, localtime
+        at = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=8)).replace(hour=14, minute=0, second=0, microsecond=0)
+        events = [{"title": "wife's doctor appointment", "start": at.isoformat(), "status": "TENTATIVE"},
+                  {"title": "dentist", "start": at.isoformat(), "status": "TENTATIVE"}]
+        with mock.patch.object(cal, "all_events", lambda: events):
+            said = quick.answer("what does my wife have coming up")
+        self.assertIn("wife's doctor appointment", said)
+        self.assertNotIn("dentist", said)
+
+
 if __name__ == "__main__":
     unittest.main()
