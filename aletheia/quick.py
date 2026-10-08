@@ -1040,6 +1040,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how long (?:is it )?(?:until|till|til|before) (?:my |the |our )?(?P<until_mine>"
         r"(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
         r"(?: (?:today|tomorrow))?\s*\??$")),
+    # "How long to bake chicken breast at 400" (2026-10-08: to a model, and
+    # the "until" pattern below took it as time until an event). From a
+    # table, always with the temperature that says it is done.
+    ("bake_time", re.compile(
+        r"^how long (?:do i|should i|do you|to|does it take to|should you) (?:bake|roast|cook) (?:a |an |the |some |my )?"
+        r"(?P<bake>[a-z][a-z -]{1,30}?)(?: in the oven)?(?: (?:at|on) (?P<bake_t>\d{3})(?: degrees| f| fahrenheit)?)?(?: for)?\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|many hours|many minutes|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |(?:soft |hard |medium )?boil\b)"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
@@ -2754,6 +2760,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("meal_plan", re.compile(
         r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
+        # "Meal plan for the week", "what is the meal plan this week" (2026-10-08: to a model).
+        r"|^(?:(?:what(?:'s| is) )?(?:my |the |our )?meal plan (?:for )?(?:this|the) week|(?:my |the |our )?meal plan)\s*\??$"
         r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?:(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?)?\s*\??$"
         r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$"
         # "What am I cooking this weekend" (2026-10-08: to a model).
@@ -3482,7 +3490,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17513,6 +17521,45 @@ def _wfh_days(text: str) -> str | None:
     return f"You worked {where} {count} {window}, by what you told me."
 
 
+#: Oven times at one temperature, from the usual charts. The thermometer, not
+#: the clock, says when meat is done - so every answer says the number too.
+_BAKE_TIMES = (
+    (r"chicken breasts?|boneless chicken", 400, "20 to 25 minutes", "boneless chicken breasts"),
+    (r"chicken thighs?|thighs?", 425, "35 to 45 minutes bone-in, 20 to 25 boneless", "chicken thighs"),
+    (r"chicken wings?|wings", 400, "40 to 45 minutes, turned halfway", "chicken wings"),
+    (r"chicken drumsticks?|drumsticks?|chicken legs?", 425, "35 to 45 minutes", "drumsticks"),
+    (r"whole chicken|a whole chicken", 425, "about 20 minutes a pound, plus 15", "a whole chicken"),
+    (r"chicken", 400, "20 to 25 minutes as boneless breasts - a whole one at 425 takes about 20 minutes a pound, plus 15", "chicken"),
+    (r"salmon|fish|cod|tilapia", 400, "12 to 15 minutes", "salmon"),
+    (r"(?:baked )?potato(?:es)?", 400, "45 to 60 minutes, until a fork slides in", "a whole potato"),
+    (r"sweet potato(?:es)?", 400, "45 to 60 minutes, until soft", "a whole sweet potato"),
+    (r"bacon", 400, "15 to 20 minutes", "bacon"),
+    (r"pork chops?", 400, "15 to 20 minutes for an inch thick", "boneless pork chops"),
+    (r"meatloaf", 350, "about an hour", "a two-pound meatloaf"),
+    (r"(?:frozen )?pizza", 425, "12 to 15 minutes, or what the box says", "a pizza"),
+)
+
+
+def _bake_time(text: str) -> str | None:
+    g = _groups("bake_time", text)
+    food = " ".join(str(g.get("bake") or "").split())
+    if not food:
+        return None
+    for pattern, temp, how_long, called in _BAKE_TIMES:
+        if not re.fullmatch(rf"(?:{pattern})", food):
+            continue
+        said = f"At {temp} degrees, {called} {'take' if called.endswith('s') else 'takes'} {how_long}."
+        theirs = int(g["bake_t"]) if g.get("bake_t") else None
+        if theirs and theirs != temp:
+            said += f" At {theirs} it'll be a little {'longer' if theirs < temp else 'quicker'}."
+        for p_, f, tail in _SAFE_TEMPS:
+            if re.search(rf"\b(?:{p_})", food):
+                said += f" It's done at {f} degrees inside{tail}."
+                break
+        return said
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18328,6 +18375,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "bake_time": _bake_time,
            "who_out": _who_out,
            "wfh_days": _wfh_days,
            "who_owns": _who_owns,

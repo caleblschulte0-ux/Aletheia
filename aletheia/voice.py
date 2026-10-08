@@ -9303,6 +9303,14 @@ def _interpret(transcript: str) -> dict:
     _cal_days = (r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:the )?day after tomorrow|tomorrow|today|tonight"
                  r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
                  r" \d{1,2}(?:st|nd|rd|th)?)")
+    # "Tacos for dinner on Monday" was a 6:30 hold called "tacos for dinner",
+    # and "Tuesday is taco night" went to the planner (2026-10-08). A dish on
+    # a day is the meal plan; dinner WITH somebody or AT a place stays a hold.
+    dish = re.fullmatch(r"(?P<w>[a-z][a-z ,'&-]{1,40}?) for (?:dinner|supper) (?:on )?(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)?"
+                        r"|(?P<d2>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)? is (?P<w2>[a-z][a-z ,'&-]{1,30}?) night", low)
+    if dish and not re.search(r"\b(?:with|at|reservations?|out|party|meeting|date)\b", dish.group("w") or dish.group("w2") or ""):
+        what = dish.group("w") or f"{dish.group('w2')} night"
+        return _interpret(f"we are having {what} {dish.group('d') or dish.group('d2')}")
     held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
                       r"(?: at (?P<time>[\w: ]+?))?", low),

@@ -11952,5 +11952,21 @@ class ABirthdayTypedLowercase(unittest.TestCase):
             self.assertNotIn("Sam", quick.answer("when is my birthday") or "")
 
 
+class TheOvenAndTheMealPlan(unittest.TestCase):
+    def test_how_long_in_the_oven_comes_with_the_temperature_that_says_done(self):
+        said = quick.answer("how long to bake chicken breast at 400")
+        self.assertIn("20 to 25 minutes", said)
+        self.assertIn("165 degrees inside", said)
+        self.assertIn("a little longer", quick.answer("how long should I bake salmon at 375"))
+        self.assertIsNone(quick.answer("how long to bake cookies"))
+
+    def test_a_dish_on_a_day_is_the_meal_plan(self):
+        self.assertEqual(voice.interpret("tacos for dinner on monday")["command"],
+                         {"kind": "list_add", "list": "meal plan", "item": "Monday: tacos"})
+        self.assertEqual(voice.interpret("tuesday is taco night")["command"]["item"], "Tuesday: taco night")
+        self.assertEqual(voice.interpret("dinner with Sam on friday")["command"]["kind"], "calendar_hold")
+        self.assertEqual(quick.match("meal plan for the week")[0], "meal_plan")
+
+
 if __name__ == "__main__":
     unittest.main()
