@@ -4068,6 +4068,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if found is not None:
                 scheduler.set_enabled(found["id"], False)
                 moved = " (moved)"
+        else:
+            # "Set an alarm for 6" twice made two 6 am alarms, and "cancel my
+            # alarm" then asked "tomorrow at 6 am or tomorrow at 6 am?"
+            # (2026-10-08). The same words at the same moment are one reminder.
+            import datetime as _dt
+            for spec in _reminder_schedules():
+                try:
+                    same = spec.get("kind") == "once" and _dt.datetime.fromisoformat(str(spec.get("at"))) == _dt.datetime.fromisoformat(str(cmd["at"]))
+                except (TypeError, ValueError):
+                    same = False
+                if same and " ".join(str((spec.get("command") or {}).get("text") or "").split()).casefold() == " ".join(str(cmd["text"]).split()).casefold():
+                    return f"reminder {spec.get('id')} set for {cmd['at']} — {cmd['text'][:80]!r} (already set)"
         sid = "remind-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="once", at=cmd["at"])

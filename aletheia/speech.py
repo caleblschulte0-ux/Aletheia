@@ -662,6 +662,10 @@ def spoken_receipt(kind: str, detail: str, *,
                 return (f"Done - your timer{' for the ' + named.group(2) if named else ''} now goes off "
                         f"{humanize_time(when.group(0), now)}.")
             return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
+        if when and what and text.rstrip().endswith("(already set)"):
+            if what.group(1).strip() == "wake up":
+                return f"You already have an alarm for {humanize_time(when.group(0), now)}."
+            return f"You already have that reminder {humanize_time(when.group(0), now)}: {_yours(what.group(1))}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:

@@ -12658,6 +12658,7 @@ class CuttingBack(unittest.TestCase):
         self.assertEqual(voice.interpret("I'm cutting back on sugar")["command"]["text"], "My goal is to cut back on sugar")
         self.assertEqual(voice.interpret("I want to cut back on sugar")["command"]["text"], "My goal is to cut back on sugar")
         self.assertNotEqual(voice.interpret("I'm giving up on it")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("I need more sleep")["command"]["text"], "My goal is to get more sleep")
 
 
 class QuestionsThatWereWrites(unittest.TestCase):
@@ -12695,6 +12696,25 @@ class AQuestionIsNeverKept(unittest.TestCase):
     def test_statements_are_still_kept(self):
         for said in ("Sam owes me 15", "the gym is at 20 Oak Ave", "my son is grounded until Friday", "Dave is leaving the company"):
             self.assertIn((voice.interpret(said)["command"] or {}).get("kind"), voice._WRITES, said)
+
+
+class TheSameAlarmTwice(unittest.TestCase):
+    """2026-10-08: "wake me up at 6" then "set an alarm for 6 tomorrow" made
+    two alarms, and "cancel my alarm" asked "tomorrow at 6 am or tomorrow at
+    6 am?"."""
+
+    def test_the_same_reminder_is_not_set_twice(self):
+        from aletheia import intercom, scheduler, speech
+        at = "2026-10-09T06:00:00-05:00"
+        existing = [{"id": "remind-abc", "kind": "once", "at": at, "enabled": True,
+                     "command": {"kind": "notify_operator", "text": "wake up"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=existing), \
+                mock.patch.object(scheduler, "create") as create:
+            said = intercom.execute_command({"kind": "remind_at", "at": at, "text": "wake up"}, {"repos": {}}, quote="q")
+            create.assert_not_called()
+            self.assertIn("You already have an alarm", speech.spoken_receipt("remind_at", said))
+            intercom.execute_command({"kind": "remind_at", "at": "2026-10-09T06:30:00-05:00", "text": "wake up"}, {"repos": {}}, quote="q")
+            create.assert_called_once()
 
 
 class TheNextHaircut(unittest.TestCase):

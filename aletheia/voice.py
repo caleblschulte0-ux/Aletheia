@@ -4284,6 +4284,12 @@ def _interpret(transcript: str) -> dict:
         goal = _as_he_said(text, m.group("g"))
         return {"command": {"kind": "note", "text": "My goal is to " + goal},
                 "say": f"Good one. I've kept it with your goals: {goal}."}
+    # "I need more sleep" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:really )?(?:need|want) (?P<g>(?:more|better) (?:sleep|exercise|water|vegetables|veggies|protein|fiber|me time|rest))", low)
+    if m and "?" not in text:
+        goal = "get " + m.group("g")
+        return {"command": {"kind": "note", "text": "My goal is to " + goal},
+                "say": f"Good one. I've kept it with your goals: {goal}."}
     # "I'm cutting back on sugar" (2026-10-08: "I can't think").
     m = re.fullmatch(r"i(?:'m| am) (?:really |finally )?(?P<v>cutting back on|cutting down on|cutting out|giving up) (?P<o>(?!on\b)[a-z][a-z0-9 ',-]{1,40})", low)
     if m and "?" not in text and not re.search(r"\b(?:you|your|thea|it|that|on)\b", m.group("o")):
