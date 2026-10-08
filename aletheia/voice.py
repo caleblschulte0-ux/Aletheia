@@ -3595,6 +3595,27 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
 
+    # "I want to watch Oppenheimer", "I want to read Dune", "I'm reading
+    # Project Hail Mary" (2026-10-08: to the planner, and "I'm reading" to a
+    # model). A title goes on his watch or reading list; what he is reading
+    # is a note, which "what am I reading" reads.
+    m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need) to (?P<v>watch|see|read) (?P<t>[a-z0-9].{1,60}?)"
+                     r"(?: (?:sometime|someday|soon|at some point|one day|eventually))?", low)
+    if m and not re.match(r"(?:a|an|some|something|anything|more|less|it|that|this|them|tv|television|the news|the game"
+                          r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)", m.group("t")) \
+            and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
+        listed = "reading" if m.group("v") == "read" else "watch"
+        return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}
+    m = re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
+    if m and not re.match(r"(?:it|that|this|them|a |an |some|the news|my |your |about |up on |through |over )", m.group("t")) \
+            and "?" not in text:
+        return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
+                "say": "Noted. Ask me \"what am I reading\" and I'll tell you."}
+    if re.fullmatch(r"what (?:movies|shows|films|tv shows|things|stuff) (?:do|did) i (?:want|say i wanted) to (?:watch|see)\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "watch"}, "say": None}
+    if re.fullmatch(r"what books? (?:do|did) i (?:want|say i wanted) to read\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "reading"}, "say": None}
+
     # "I'm out of my medicine" (2026-10-08: to the planner; "my" kept it off
     # the shopping list). A prescription is refilled, not bought off a list.
     m = re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)|im) (?:all |almost |nearly |running )?(?:out of|low on) (?:my |the )?"

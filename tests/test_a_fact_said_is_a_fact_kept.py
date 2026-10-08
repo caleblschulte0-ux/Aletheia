@@ -3235,10 +3235,10 @@ class WatchedAndRead(unittest.TestCase):
             lists.take_off("reading", "the hobbit")
             self.assertEqual(quick.answer("what have I watched"), "You've watched Dune.")
             self.assertEqual(quick.answer("what was the last book I read"), "The Hobbit, from your list.")
-            self.assertEqual(quick.answer("how many books have I read this year"), "1 book this year, off your list.")
+            self.assertEqual(quick.answer("how many books have I read this year"), "1 book this year, from what you've told me.")
             now = dt.datetime.now(dt.timezone.utc).isoformat()
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading Dune Messiah", "ts": now}]):
-                self.assertEqual(quick.answer("what am I reading"), "You told me you started Dune Messiah.")
+                self.assertEqual(quick.answer("what am I reading"), "You told me you're reading Dune Messiah.")
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading The Hobbit", "ts": now}]):
                 # finished is not "still reading", and not "never told me"
                 self.assertIn("you've finished it", quick.answer("what am I reading"))
@@ -6069,6 +6069,27 @@ class WhereSomeoneLives(unittest.TestCase):
         rows = [{"text": "my sister lives in Denver", "ts": "2026-10-08T00:00:00+00:00"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
             self.assertIn("in Denver", quick.answer("what time is it where my sister lives"))
+
+
+class WatchAndReadingLists(unittest.TestCase):
+    """2026-10-08: "I want to watch Oppenheimer", "I'm reading Project Hail
+    Mary", "what movies do I want to watch" and "what did I watch recently"
+    went to the planner or a model."""
+
+    def test_writers(self):
+        self.assertEqual(voice._interpret("I want to watch Oppenheimer")["command"],
+                         {"kind": "list_add", "list": "watch", "item": "Oppenheimer"})
+        self.assertEqual(voice._interpret("I want to read Circe")["command"]["list"], "reading")
+        got = voice._interpret("I want to watch a movie tonight")
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "list_add")
+        self.assertEqual(voice._interpret("I'm reading Project Hail Mary")["command"]["text"], "I'm reading Project Hail Mary")
+        self.assertEqual(voice._interpret("what movies do I want to watch")["command"], {"kind": "list_read", "list": "watch"})
+
+    def test_readers(self):
+        rows = [{"text": "I'm reading Project Hail Mary", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what am I reading"), "You told me you're reading Project Hail Mary.")
+        self.assertEqual(quick.match("what did I watch recently")[0], "off_lists")
 
 
 if __name__ == "__main__":

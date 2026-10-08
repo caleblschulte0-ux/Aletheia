@@ -541,7 +541,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?P<off_r>books )?have i (?:read|finished reading)(?: lately| recently| this year| so far)?\s*\??$"
         r"|^how many (?P<off_n>books|movies|shows|films) have i (?:read|watched|seen|finished)(?P<off_y> this year| so far)?\s*\??$"
         r"|^what was the last (?P<off_l>book|movie|show|film) i (?:read|watched|saw|finished)\s*\??$"
-        r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$")),
+        r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$"
+        # "What did I watch recently" (2026-10-08: to a model).
+        r"|^what (?:movies |shows |films |tv shows |books )?did i (?:watch|see|read|finish(?: watching| reading)?)(?: lately| recently| last| this year)\s*\??$")),
     # "What time do I usually wake up" (2026-10-07: to a model, two turns
     # after "I woke up at 6:30").
     # "What was my blood pressure" (2026-10-07: to a model, a turn after he
@@ -10431,7 +10433,7 @@ def _off_lists(text: str) -> str | None:
     low = _tidy(text)
     if g.get("off_now") is not None or re.match(r"^what (?:book )?am i", low):
         for row in _notes():
-            m = re.match(r"i(?:'ve| have)? (?:just )?(?:started|begun|began|am|'m) (?:reading|on) (?P<b>.+?)\.?$",
+            m = re.match(r"i(?:'ve| have|'m| am)? (?:just |currently |now |still )?(?:(?:started|begun|began) (?:reading|on)|reading) (?P<b>.+?)\.?$",
                          " ".join(str(row.get("text") or "").split()), re.I)
             if m:
                 book = m.group("b")
@@ -10440,7 +10442,7 @@ def _off_lists(text: str) -> str | None:
                 read = {t.casefold() for name in (h["name"] for h in lists.all_lists() if lists.kind_of(h["name"]) == "read")
                         for t, _at in lists.done_items(name)}
                 if not finished and book.casefold() not in read:
-                    return f"You told me you started {book}."
+                    return f"You told me you're reading {book}."
                 return f"The last book you told me about was {book}, and you've finished it. Tell me when you start the next one."
         # nothing kept is said, not guessed at (2026-10-07: to a model)
         return "You haven't told me what you're reading. Say \"I started reading\" and the title, and I'll keep it."
@@ -10470,7 +10472,16 @@ def _off_lists(text: str) -> str | None:
         year = str(dt.date.today().year)
         done = [r for r in done if r[1].startswith(year)]
     if g.get("off_n"):
-        return f"{speech.count_phrase(len(done), noun.rstrip('s'))}{' this year' if 'this year' in low else ''}, off your list."
+        # "1 book this year, off your list" (2026-10-08) - the count came
+        # from his notes too, and a goal he set is the other half.
+        said = f"{speech.count_phrase(len(done), noun.rstrip('s'))}{' this year' if 'this year' in low else ''}, from what you've told me"
+        goal = next((int(m.group(1)) for m in (re.search(r"\bgoal is to (?:read|watch) (\d{1,3}) " + re.escape(noun.rstrip("s")),
+                                                          str(r.get("text") or ""), re.I) for r in _notes()) if m), None)
+        if goal and goal > len(done):
+            said += f" - {goal - len(done)} to go on your goal of {goal}"
+        elif goal:
+            said += f" - that's your goal of {goal} reached"
+        return said + "."
     if not done:
         return f"Nothing's come off your {'reading' if want == 'read' else 'watch'} list yet."
     return f"You've {verb} {speech.and_list([t for t, _ in done[:6]])}" + (f" and {len(done) - 6} more." if len(done) > 6 else ".")
