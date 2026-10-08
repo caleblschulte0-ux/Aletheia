@@ -11003,5 +11003,32 @@ class WhoIsComingAndWhatHeIsThinking(unittest.TestCase):
             self.assertIn("you're thinking about getting a dog", got)
 
 
+class AroundTheHouseToday(unittest.TestCase):
+    """2026-10-08: "I started the laundry", "I took the chicken out to thaw",
+    "the dishwasher is running", "I forgot to call mom" and "I'm running 10
+    minutes late" went to the planner or "I can't think"."""
+
+    def test_what_he_did_is_kept_and_read(self):
+        for said in ("I started the laundry", "I took the chicken out to thaw", "I forgot my lunch", "the dishwasher is running"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        notes = [{"text": "I took the chicken out to thaw"}, {"text": "I started the laundry"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("when did I take the chicken out"), "You told me you took the chicken out to thaw.")
+            self.assertEqual(quick.answer("did I start the laundry"), "You told me you started the laundry.")
+
+    def test_medicine_still_goes_to_its_own_reader(self):
+        self.assertEqual(quick.match("did I take my pills today")[0], "took_today")
+        self.assertEqual(quick.match("when did I last take my medicine")[0], "took_today")
+
+    def test_forgot_to_is_still_to_do(self):
+        got = voice._interpret("I forgot to call mom")
+        self.assertEqual((got["command"]["kind"], got["command"]["description"]), ("task_new", "call mom"))
+        self.assertEqual(got["say"], "It's on your list now: call mom.")
+
+    def test_running_some_minutes_late(self):
+        self.assertIn("text Sam I'm running 10 minutes late", quick.answer("I am running 10 minutes late"))
+        self.assertIsNone(quick.answer("I've been running a bit late"))
+
+
 if __name__ == "__main__":
     unittest.main()

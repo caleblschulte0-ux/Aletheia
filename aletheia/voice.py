@@ -10375,6 +10375,29 @@ def _interpret(transcript: str) -> dict:
         what = _as_he_said(text, m.group("what").strip())
         return {"command": None, "say": f"When should I remind you to {what}? Say a time, like \"at 3\" or \"tomorrow morning\"."}
 
+    # "I forgot to call mom" (2026-10-08: to the planner) is still to do.
+    m = re.fullmatch(r"(?:oh |oops,? |dang,? |shoot,? )?i (?:totally |completely )?forgot to (?P<what>[a-z].{2,80}?)(?: today| yesterday| this morning| earlier)?", low)
+    if m and _TASK_VERB.match(m.group("what")):
+        got = _new_task(_as_he_said(text, m.group("what")))
+        got["say"] = f"It's on your list now: {got['command']['description']}."
+        return got
+    # "I started the laundry", "I took the chicken out to thaw", "I forgot
+    # my lunch" (2026-10-08: to the planner). Only these things: "I started
+    # crying" is not a chore, and "I moved my car" has its own door.
+    _chore = (r"(?:the |a |my |some )?(?:laundry|load of laundry|wash|washer|washing machine|dryer|dishwasher|dishes|oven|slow cooker|crock ?pot"
+              r"|instant pot|roomba|sprinklers?|groceries|towels|sheets|clothes)")
+    _meat = r"(?:the |some |a )?(?:chicken|meat|steak|steaks|roast|turkey|ground beef|beef|fish|salmon|pork|pork chops|shrimp|burgers?|ham|lasagna|chili|soup)"
+    if re.fullmatch(r"i (?:just )?(?:started|ran|turned on|switched on|folded|put away|unloaded|loaded|emptied) " + _chore
+                    + r"(?: (?:today|this morning|tonight|earlier))?", low) \
+            or re.fullmatch(r"i (?:just )?(?:took|pulled|got) " + _meat + r" out(?: of the freezer)?(?: to (?:thaw|defrost))?(?: for (?:dinner|tonight|tomorrow))?", low) \
+            or re.fullmatch(r"i (?:just )?(?:put|stuck) " + _meat + r" in the (?:oven|fridge|slow cooker|crock ?pot|instant pot)(?: to thaw)?", low) \
+            or re.fullmatch(r"i (?:totally )?forgot my (?:lunch|wallet|phone|keys|laptop|charger|badge|id|glasses|bag|backpack|umbrella|water bottle|jacket|coat)"
+                            r"(?: at (?:home|work|the office|school|the gym))?(?: today)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The dishwasher is running" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
+                    r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A THING HE DID, OR A DATE ON SOMETHING OF HIS (2026-10-07: "I changed
     # the oil today", "I gave the dog his medicine", "my license expires
     # June 2027" each went to the planner). Last before the planner, so

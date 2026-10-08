@@ -2450,12 +2450,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
         r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
         r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out|make|cook|bake|check in for"
-        r"|plant|prune|fertilize|weed|mulch|harvest|repot) (?P<did_o>(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|plant|prune|fertilize|weed|mulch|harvest|repot"
+        # "When did I take the chicken out" (2026-10-08: to a model).
+        r"|start|run|take|turn on|switch on|fold|put away|unload|load|thaw|move) (?P<did_o>(?!(?:my |any |an? |some |the )?(?:morning |evening |night |daily )?(?:medicine|meds|medication|pills?|vitamins?|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")\b)(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
         r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
-        r"|turn off|turned off|take out|taken out|took out|file|filed|submit|submitted|check in for|checked in for) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|turn off|turned off|take out|taken out|took out|file|filed|submit|submitted|check in for|checked in for"
+        r"|start|started|run|ran|take|taken|took|turn on|turned on|fold|folded|put away|unload|unloaded|load|loaded|move|moved) (?P<did_o2>(?!(?:my |any |an? |some |the )?(?:morning |evening |night |daily )?(?:medicine|meds|medication|pills?|vitamins?|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")\b)(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -2833,6 +2836,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick"
         # "I'm procrastinating" (2026-10-07: to the planner)
         r"|procrastinating|unmotivated|distracted|stuck|thirsty|cold|freezing|hot|nervous|scared|worried|running late|stuck in traffic"
+        # "I'm running 10 minutes late" (2026-10-08: "I can't think").
+        r"|running (?:about |like |maybe )?(?:a (?:few|little|bit|couple)|\d{1,3}|five|ten|fifteen|twenty|thirty|an hour|half an hour)(?: of)?(?: minutes?| mins?)? late"
         r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now| lately| recently| all week| this week| all day)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
         r"|^(?P<feel2>i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
@@ -6307,7 +6312,9 @@ _PAST = {"plant": "planted", "prune": "pruned", "fertilize": "fertilized", "weed
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
          "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
          "get": "got", "got": "got", "gotten": "got", "have": "had", "had": "had", "pay": "paid", "paid": "paid", "give": "gave", "given": "gave", "feed": "fed", "fed": "fed", "cut": "cut", "drop off": "dropped off",
-         "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled"}
+         "pick up": "picked up", "back up": "backed up", "empty": "emptied", "fill": "filled",
+         "run": "ran", "ran": "ran", "take": "took", "taken": "took", "took": "took", "turn on": "turned on", "turned on": "turned on",
+         "switch on": "switched on", "put away": "put away"}
 
 
 #: Ways of being with somebody: asked about one, any of them answers.
@@ -8796,8 +8803,12 @@ def _feeling(text: str) -> str | None:
     g = _match_of("feeling", text)
     said = (g.get("feel") or g.get("feel2") or "").strip()
     # "I've been late" is a habit, not a text to send now
-    if said in ("late", "running late", "stuck in traffic") and re.match(r"i(?:'ve| have) been\b", _tidy(text)):
+    if (said in ("late", "running late", "stuck in traffic") or re.fullmatch(r"running .+ late", said)) and re.match(r"i(?:'ve| have) been\b", _tidy(text)):
         return None
+    m = re.fullmatch(r"running (.+) late", said)
+    if m:
+        return (f"Want them to know? Say \"text\" and the name and what to say, like "
+                f"\"text Sam I'm running {m.group(1)} late\".")
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
     if said in ("cheer me up", "make me smile", "give me a compliment", "compliment me", "say something nice about me"):
