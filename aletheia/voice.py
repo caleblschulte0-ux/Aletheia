@@ -9464,6 +9464,20 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i (?:just )?(?:got|received) (?:a |another )?(?:speeding|parking|traffic|red light) (?:ticket|fine|citation)"
                     r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|i (?:just )?got pulled over(?: today| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Ugh, sorry. I've noted it."}
+    # "I got in a fender bender" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:just )?(?:got in|got into|was in|had|have been in) (?:a |an )?(?:little |small |minor |bad |car )?(?:fender bender|accident|wreck|crash|car crash|collision)"
+                    r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|(?:someone|somebody|a car|a truck) (?:hit|rear[- ]ended|backed into|sideswiped) (?:me|my car|my truck)(?: today| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Oh no - I hope you're okay. I've noted it."}
+    # "My car insurance is with Geico", "the body shop says it will take a
+    # week" (2026-10-08: both to the planner).
+    if re.fullmatch(r"(?:my|our) (?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account)"
+                    r" (?:is|are) (?:with|through|at) (?!it\b|that\b)[a-z][a-z0-9 .&'-]{1,30}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"the (?P<who>body shop|mechanic|shop|dealer|dealership|garage|repair shop|tire shop|vet|landlord|contractor|plumber|electrician|repair guy|tech|technician)"
+                     r" (?:says|said|told me) (?:that )?(?P<x>(?:it|the|my|they|we|he|she)\b.{3,80})", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"the {m.group('who')} said {_as_he_said(text, m.group('x'))}"}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.
@@ -9706,7 +9720,9 @@ def _interpret(transcript: str) -> dict:
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
                      r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
-                     r"|anniversary|account number|member(?:ship)? number|policy number"
+                     r"|anniversary|account number|member(?:ship)? number|(?:insurance |car insurance |auto insurance |home insurance |health insurance )?policy number"
+                     # "My deductible is 500" (2026-10-08: to the planner).
+                     r"|deductible|copay|co-pay|premium|insurance premium|out of pocket max(?:imum)?"
                      # "My GPA is 3.5", "my credit score is 720" (2026-10-08: to the planner).
                      r"|gpa|credit score|sat score|act score|golf handicap|handicap"
                      # "Our mortgage rate is 6.5 percent" (2026-10-08: to the planner).

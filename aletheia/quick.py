@@ -2368,6 +2368,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What is my credit limit" after "my credit card limit is 5000"
     # (2026-10-08: "I don't have anything remembered about credit limit").
     ("card_limit", re.compile(r"^what(?:'s| is|s) (?:my|the) (?:credit card |card )?(?:credit )?(?P<card_limit>limit|balance)(?: on my (?:credit )?card)?\s*\??$")),
+    # "Who is my car insurance with", "when will my car be ready",
+    # "how much was the parking ticket" (2026-10-08: to a model).
+    ("who_with", re.compile(r"^(?:who(?:'s| is)|what company is|where(?:'s| is)) (?:my|our) (?P<who_with>(?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account))(?: with| through| at)?\s*\??$")),
+    ("car_ready", re.compile(r"^(?:when (?:will|is|does) my (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
+    ("cost_of_it", re.compile(r"^how much (?:was|is|did) (?:the|my) (?P<cost_of_it>(?:parking |speeding |traffic )?ticket|fine|repair|tow|deductible|copay|bill from [a-z ]+)(?: cost)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3309,7 +3314,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -16087,6 +16092,37 @@ def _days_from(said: str, ts) -> str:
     return f" - so around {say(first)}"
 
 
+def _who_with(what: str) -> str | None:
+    """Which company his insurance (or bank, or plan) is with."""
+    from aletheia import speech
+    key = " ".join(str(what or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:my|our) {re.escape(key)} (?:is|are) (?:with|through|at) .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _car_ready(_text: str = "") -> str | None:
+    """What the shop said about his car, with the day he told her."""
+    return _told_when(r"^the (?:body shop|mechanic|shop|dealer|dealership|garage|repair shop|tire shop) said ")
+
+
+def _cost_of_it(what: str) -> str | None:
+    """What he said a ticket, a fine or a repair cost."""
+    from aletheia import speech
+    key = re.sub(r"^(?:parking|speeding|traffic) ", "", " ".join(str(what or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.search(rf"\b{re.escape(key)}\b", low) and re.search(r"\$?\d[\d,.]*(?: dollars| bucks)?", low) \
+                and re.search(r"\b(?:was|is|cost|costs|came to|were)\b", low):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16724,7 +16760,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_do_i": lambda rest: _when_mine(rest) or _task_due(rest),
            "meds": _meds,
            "work_hours": _work_hours,
-           "cost_mine": _cost_mine,
+           # "How much was the parking ticket" (2026-10-08) is a ticket, a
+           # fine or a repair he gave the figure of, not a bill.
+           "cost_mine": lambda t: _cost_mine(t) or _cost_of_it(_groups("cost_of_it", t).get("cost_of_it") or ""),
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "woke_usual": lambda text: _woke_usual(text),
@@ -16897,6 +16935,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "who_with": _who_with,
+           "car_ready": _car_ready,
+           "cost_of_it": _cost_of_it,
            "card_limit": _card_limit,
            "they_said_are": _they_said_are,
            "leave_flight": _leave_flight,

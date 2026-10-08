@@ -10438,5 +10438,31 @@ class MessagesAndHisBankCard(unittest.TestCase):
         self.assertEqual(quick.match("who do I need to reply to")[0], "tasks_verb")
 
 
+class TheCarsPaperwork(unittest.TestCase):
+    """A sweep of car paperwork (2026-10-08): his insurer, his deductible
+    and a fender bender went to the planner, and "what is my deductible"
+    said nothing was remembered."""
+
+    def test_said(self):
+        for said in ("my car insurance is with Geico", "my insurance policy number is ABC123", "my deductible is 500"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        bump = voice._interpret("I got in a fender bender")
+        self.assertEqual(bump["command"]["kind"], "note")
+        self.assertIn("I hope you're okay", bump["say"])
+        self.assertEqual(voice._interpret("the body shop says it will take a week")["command"]["text"],
+                         "the body shop said it will take a week")
+        self.assertNotEqual(voice._interpret("the shop said nothing")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "the body shop said it will take a week"}, {"text": "my deductible is 500"},
+                {"text": "my car insurance is with Geico"}, {"text": "the parking ticket was 45 dollars"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how much was the parking ticket"), "You told me: the parking ticket was 45 dollars.")
+            self.assertEqual(quick.answer("who is my car insurance with"), "You told me: your car insurance is with Geico.")
+            self.assertEqual(quick.answer("what is my deductible"), "You told me: your deductible is 500.")
+            self.assertEqual(quick.answer("how much is my deductible"), "You told me: your deductible is 500.")
+            self.assertEqual(quick.answer("when will my car be ready"), "You told me: the body shop said it will take a week.")
+
+
 if __name__ == "__main__":
     unittest.main()
