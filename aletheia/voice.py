@@ -4250,9 +4250,16 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i (?:really )?(?:should|need to|have to|gotta|want to) (?P<g>(?:start|stop|quit) [a-z]+ing\b[a-z0-9 ',-]{0,40})", low) \
         or re.fullmatch(r"i(?:'m| am) (?:really )?trying to (?P<g>(?:cut back on|cut down on|cut out|give up|quit|lose|eat less|eat more|limit|stop|drink less|drink more)"
                         r" [a-z0-9 ',-]{2,40})", low) \
+        or re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need) to (?P<g>(?:cut back on|cut down on|cut out|give up|limit|drink less|eat less) [a-z0-9 ',-]{2,40})", low) \
         or re.fullmatch(r"my (?:new year'?s? |new years )?resolutions? (?:is|are|for this year is|this year is) to (?P<g>[a-z0-9 ',-]{3,60})", low)
     if m and "?" not in text and not re.search(r"\b(?:you|your|thea|the car|it|that)\b", m.group("g")):
         goal = _as_he_said(text, m.group("g"))
+        return {"command": {"kind": "note", "text": "My goal is to " + goal},
+                "say": f"Good one. I've kept it with your goals: {goal}."}
+    # "I'm cutting back on sugar" (2026-10-08: "I can't think").
+    m = re.fullmatch(r"i(?:'m| am) (?:really |finally )?(?P<v>cutting back on|cutting down on|cutting out|giving up) (?P<o>(?!on\b)[a-z][a-z0-9 ',-]{1,40})", low)
+    if m and "?" not in text and not re.search(r"\b(?:you|your|thea|it|that|on)\b", m.group("o")):
+        goal = _as_he_said(text, m.group("v").replace("cutting", "cut").replace("giving", "give") + " " + m.group("o"))
         return {"command": {"kind": "note", "text": "My goal is to " + goal},
                 "say": f"Good one. I've kept it with your goals: {goal}."}
     # "My dream car is a Porsche 911", "I'm saving up for a new couch", "I

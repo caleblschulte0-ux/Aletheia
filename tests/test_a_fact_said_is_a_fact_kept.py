@@ -12653,6 +12653,13 @@ class WhatsForDinnerIsAQuestion(unittest.TestCase):
             self.assertEqual(quick.answer("what did we have for dinner last night"), "You told me you had Chinese for dinner yesterday.")
 
 
+class CuttingBack(unittest.TestCase):
+    def test_cutting_back_is_a_goal(self):
+        self.assertEqual(voice.interpret("I'm cutting back on sugar")["command"]["text"], "My goal is to cut back on sugar")
+        self.assertEqual(voice.interpret("I want to cut back on sugar")["command"]["text"], "My goal is to cut back on sugar")
+        self.assertNotEqual(voice.interpret("I'm giving up on it")["command"]["kind"], "note")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
