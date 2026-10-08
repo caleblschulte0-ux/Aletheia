@@ -2256,6 +2256,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("size_of", re.compile(r"^what size (?:is|are) (?:the |my |our )?(?P<size_of>[a-z][a-z ]{1,25}?)\s*\??$"
                            r"|^what size (?P<size_of2>[a-z][a-z ]{1,25}?) (?:do i|do we|does (?:the |my |our )?[a-z]{2,12}) (?:have|need|take|use|wear|buy|get)"
                            r"(?: for (?:the |my |our )?[a-z ]{2,20})?\s*\??$")),
+    # "When did I start my workout program" (2026-10-08: to a model).
+    ("started_on", re.compile(r"^when did i (?:start|begin) (?:my |the |a |on my |on the )?(?:new )?(?P<started_on>[a-z][a-z0-9 ]{2,30}?)\s*\??$")),
+    # "What is my weight goal" (2026-10-08: "nothing remembered about
+    # weight goal", a turn after "my goal is to lose 20 pounds").
+    ("goal_of", re.compile(r"^what(?:'s| is| was) my (?P<goal_of>weight(?: loss)?|savings?|running|reading|fitness|step|steps|water|sleep|money|lifting|workout) goal\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3146,7 +3151,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13446,9 +13451,11 @@ def _woke(act: str) -> str:
                 noted = dt.datetime.fromisoformat(str(row["ts"]).replace("Z", "+00:00")).astimezone(tz)
                 ago = (dt.datetime.now(tz).date() - noted.date()).days
                 woke = kin[0] == "woke up"
-                when = (" this morning" if woke else " last night" if noted.hour < 12 else " tonight") if ago == 0 else \
-                       (" yesterday" if woke else " the night before last" if noted.hour < 12 else " last night") if ago == 1 else \
-                       f" on {(noted.date() - dt.timedelta(days=0 if woke or noted.hour >= 12 else 1)).strftime('%A')}"
+                # Told at 12:21 pm, bed was last night (2026-10-08: "midnight
+                # tonight") - the evening starts at five, not at noon.
+                when = (" this morning" if woke else " last night" if noted.hour < 17 else " tonight") if ago == 0 else \
+                       (" yesterday" if woke else " the night before last" if noted.hour < 17 else " last night") if ago == 1 else \
+                       f" on {(noted.date() - dt.timedelta(days=0 if woke or noted.hour >= 17 else 1)).strftime('%A')}"
             except (ValueError, TypeError):
                 when = ""
         return f"You told me you {m.group(1).casefold()} at {at}{when}."
@@ -14813,6 +14820,49 @@ def _size_of(what: str) -> str | None:
     return None
 
 
+def _started_on(what: str) -> str | None:
+    """When he said he started something, from his note. None when he
+    never said: a model or the calendar may know."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold()) if w not in ("my", "the", "a", "an", "new")]
+    if not words or words[0] in ("it", "that", "this", "them", "work", "today"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.match(r"i (?:just |finally |recently )?started\b", low):
+            continue
+        if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            plain = re.sub(r" (?:today|yesterday|this week|last week)$", "", speech.as_she_says_it(said))
+            day = re.search(r" (today|yesterday|this week|last week)$", low)
+            if day and (not told or told.startswith("today")):
+                return f"You told me {plain[:1].lower() + plain[1:]} {day.group(1)}."
+            return f"You told me {plain[:1].lower() + plain[1:]}" + (f" - that was {told}." if told else ".")
+    return None
+
+
+def _goal_of(kind: str) -> str | None:
+    """His goal of a kind - "my goal is to lose 20 pounds" for the weight
+    goal - read back. None when no note gives one."""
+    from aletheia import speech
+    kind = str(kind or "").casefold()
+    hint = {"weight": r"\b(?:lose|gain|weigh|pounds|lbs|kg)\b", "weight loss": r"\b(?:lose|pounds|lbs|kg)\b",
+            "saving": r"\b(?:save|saving|savings)\b", "savings": r"\b(?:save|saving|savings)\b", "money": r"\b(?:save|saving|savings|\$)",
+            "running": r"\b(?:run|running|miles|marathon|5k|10k)\b", "reading": r"\b(?:read|reading|books?)\b",
+            "step": r"\bsteps\b", "steps": r"\bsteps\b", "water": r"\bwater\b", "sleep": r"\bsleep\b",
+            "lifting": r"\b(?:bench|squat|deadlift|lift)\b", "fitness": r"\b(?:lose|run|gym|work ?out|fit)\b",
+            "workout": r"\b(?:gym|work ?out|exercise)\b"}.get(kind)
+    if not hint:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:my |our )?(?:[a-z]+ )?goal (?:is|was) |i want to |i'm trying to |i am trying to ", low) and (re.search(hint, low) or re.search(rf"\b{re.escape(kind)} goal\b", low)):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15623,6 +15673,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "started_on": _started_on,
+           "goal_of": _goal_of,
            "size_of": _size_of,
            "weighs": _weighs,
            "days_taken": _days_taken,

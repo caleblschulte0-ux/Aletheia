@@ -10239,6 +10239,17 @@ def _interpret(transcript: str) -> dict:
                             r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
                             r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z ]{3,30})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I started a new workout program today", "I skipped the gym today"
+    # (2026-10-08: to the planner) - read back by "when did I start my
+    # workout program".
+    if re.fullmatch(r"i (?:just |finally )?started (?:a |an |my |the |on a |on my )(?:new )?(?:workout|exercise|training|lifting|running|diet|meal|sleep|"
+                    r"physical therapy|therapy|couch to 5k|weight loss|fitness|reading|study|savings|budget|keto|fasting)"
+                    r"(?: [a-z]{3,12})?(?: today| yesterday| this week| last week| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low) \
+            or re.fullmatch(r"i (?:just )?started (?:physical therapy|therapy|keto|intermittent fasting|couch to 5k|counting calories)"
+                            r"(?: today| yesterday| this week| last week)?", low) \
+            or re.fullmatch(r"i skipped (?:the gym|my workout|leg day|my run|breakfast|lunch|dinner|my meds|my medicine|practice|class|church)"
+                            r"(?: today| this morning| tonight| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My son's soccer practice is every Tuesday at 5", "my son goes to
     # Lincoln Elementary", "my kid lost a tooth" (2026-10-08: all to the
     # planner) are kept for "when is soccer practice" and "what school does

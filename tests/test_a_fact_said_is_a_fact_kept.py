@@ -9850,5 +9850,31 @@ class AroundTheHouseSizes(unittest.TestCase):
             self.assertIsNone(quick.answer("why do I need to call the bank"))
 
 
+class WorkingOutAgain(unittest.TestCase):
+    """A sweep of fitness sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("I started a new workout program today", "I started physical therapy", "I skipped the gym today"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("I started crying")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "I started a new workout program today"}, {"text": "my goal is to lose 20 pounds"},
+                {"text": "my step goal is 10000 a day"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("when did I start my workout program"),
+                             "You told me you started a new workout program today.")
+            self.assertEqual(quick.answer("what is my weight goal"), "You told me: your goal is to lose 20 pounds.")
+            self.assertEqual(quick.answer("what's my step goal"), "You told me: your step goal is 10000 a day.")
+            self.assertIsNone(quick.answer("what is my reading goal"))
+
+    def test_bed_told_at_lunch_was_last_night(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        noon = dt.datetime.combine(dt.datetime.now(tz).date(), dt.time(12, 21), tz).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I went to bed at midnight", "ts": noon}]):
+            self.assertEqual(quick.answer("what time did I go to bed"), "You told me you went to bed at midnight last night.")
+
+
 if __name__ == "__main__":
     unittest.main()
