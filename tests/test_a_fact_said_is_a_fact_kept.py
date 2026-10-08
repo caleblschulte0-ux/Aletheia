@@ -6861,5 +6861,33 @@ class HisWorkHoursAndTomorrowMorning(unittest.TestCase):
         self.assertEqual(intercom._free_sentence([], tomorrow, "morning"), "Nothing free tomorrow morning.")
 
 
+
+class TheHourHeSaysTrailing(unittest.TestCase):
+    """2026-10-08: "remind me to call mom in an hour" went to the planner,
+    and "change that to 7" on a 9 am reminder set seven at night."""
+
+    def test_an_hour_after_the_task(self):
+        for said, mins in (("remind me to call mom in an hour", 60),
+                           ("remind me to stretch in half an hour", 30),
+                           ("remind me to call the bank in ten minutes", 10)):
+            got = voice._interpret(said)
+            cmd = got["command"]
+            self.assertEqual(cmd["kind"], "remind_at", said)
+            at = dt.datetime.fromisoformat(cmd["at"])
+            gap = (at - dt.datetime.now(dt.timezone.utc)).total_seconds() / 60
+            self.assertAlmostEqual(gap, mins, delta=2, msg=said)
+
+    def test_a_correction_keeps_the_morning_in_his_zone(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        day = localtime.today() + dt.timedelta(days=1)
+        nine = dt.datetime.combine(day, dt.time(9, 0), tzinfo=tz)
+        with mock.patch.object(voice, "_recent_reminder_ask",
+                               return_value={"at": nine.isoformat(), "text": "call the vet"}):
+            got = voice._moved_reminder("change that to 7", "7")
+        at = dt.datetime.fromisoformat(got["command"]["at"]).astimezone(tz)
+        self.assertEqual((at.date(), at.hour), (day, 7))
+
+
 if __name__ == "__main__":
     unittest.main()

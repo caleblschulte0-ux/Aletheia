@@ -1854,7 +1854,11 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         # keeps the half of the day the reminder was already in.
         try:
             import datetime as dt
-            was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00"))
+            from aletheia import localtime
+            # In HIS zone: a 9 am reminder is 14:00 UTC, and read in UTC
+            # "change that to 7" moved it to seven at night (2026-10-08).
+            was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")) \
+                .astimezone(localtime.operator_tz())
             hour, minute = map(int, hhmm.split(":"))
             if was.hour >= 12 and hour < 12:
                 hhmm, bare = f"{hour + 12:02d}:{minute:02d}", False
@@ -1870,9 +1874,10 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         tz = localtime.operator_tz()
         was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")).astimezone(tz)
         hour, minute = map(int, hhmm.split(":"))
-        if bare and 1 <= hour <= 7:
+        if bare and 1 <= hour <= EARLIEST_BARE_HOUR:
             # "Make it 4" on a 10 am reminder is four in the afternoon,
-            # the way a bare hour is read everywhere else.
+            # the way a bare hour is read everywhere else; "make it 7" on a
+            # 9 am one is still the morning, the half it was already in.
             hour += 12
         same_day = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if same_day > dt.datetime.now(tz):
@@ -4703,7 +4708,7 @@ def _interpret(transcript: str) -> dict:
                 "say": "I can't tell where you are yet, so a place can't set off a reminder. "
                        f"Give me a time - 'remind me at 6 to {_as_he_said(text, m.group(1).strip())}' - and I'll do that."}
     m = re.match(r"remind me (?:to|that) (.+?) "
-                 r"(?:at ([\w: ]+)|in (\d+) (minutes?|hours?))$", low)
+                 r"(?:at ([\w: ]+)|in (\d+|an?|half an?|one|two|three|four|five|ten|fifteen|twenty|thirty|forty five) (minutes?|hours?))$", low)
     if m and re.search(r"\b(?:every|each)\b", m.group(1)):
         return _to_the_planner(text)    # a repeat is never set as a one-off
     if m:
@@ -4714,7 +4719,10 @@ def _interpret(transcript: str) -> dict:
             at = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group(2)))
         else:
             import datetime as dt
-            amount = int(m.group(3))
+            said = m.group(3)
+            amount = 0.5 if said.startswith("half") else 1 if said in ("a", "an") else _spoken_amount(said)
+            if amount is None:
+                return _to_the_planner(text)
             delta = dt.timedelta(minutes=amount) if m.group(4).startswith("minute") \
                 else dt.timedelta(hours=amount)
             at = (dt.datetime.now(dt.timezone.utc) + delta).isoformat()
