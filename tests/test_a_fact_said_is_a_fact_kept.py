@@ -10828,5 +10828,20 @@ class TheTripItself(unittest.TestCase):
                              "You told me: your flight got delayed 2 hours, so it leaves at 8 am tomorrow.")
 
 
+class HisWifeByName(unittest.TestCase):
+    """2026-10-08: "what's my wife's name" read back "my wife loves tulips"
+    beside "my wife is Jessica"; "when did I meet my wife" said he never
+    told her, beside "we met in 2015"."""
+
+    def test_read(self):
+        notes = [{"text": "my wife loves tulips"}, {"text": "my wife is Jessica"}, {"text": "we met in 2015"},
+                 {"text": "we got married in June 2018"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("what is my wife's name"), "You told me: your wife is Jessica.")
+            self.assertEqual(quick.answer("when did I meet my wife"), "You told me you met in 2015.")
+            self.assertTrue(quick.answer("how long have we known each other").endswith("you told me you met in 2015."))
+            self.assertTrue(quick.answer("how long have we been married").endswith("you told me you got married in June 2018."))
+
+
 if __name__ == "__main__":
     unittest.main()

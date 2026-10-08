@@ -2433,6 +2433,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
     ("freezer", re.compile(r"^what(?:'s| is|s)? (?:in|left in) (?:the |my )?(?:freezer|deep freeze)\s*\??$"
                            r"|^what (?:do i have|have i got|did i put) in (?:the |my )?freezer\s*\??$")),
+    # "When did I meet my wife", "how long have we known each other"
+    # (2026-10-08: "you haven't told me" beside "we met in 2015").
+    ("met_when", re.compile(r"^(?P<met_when>when|how long ago|how long have (?:i|we) known (?:each other|my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?)))"
+                            r"(?: did (?:i|we) (?:first )?meet(?: (?:my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?)|each other))?)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -3345,7 +3349,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -10338,6 +10342,16 @@ def _recall(words: str) -> str | None:
     words themselves. Nothing matching is said as nothing - never guessed."""
     from aletheia import memory, speech
     words, _bar, attr = str(words or "").partition("|")
+    # "What's my wife's name" read back "my wife loves tulips" beside "my
+    # wife is Jessica" (2026-10-08). Her name, when he said it.
+    if attr.strip() == "name" and re.fullmatch(r"[a-z]{2,20}(?: in law)?", words.strip()):
+        rel = re.escape(words.strip())
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            m = re.fullmatch(rf"(?i:(?:my|our) {rel}(?:'s name)? is (?:named |called )?)(?P<n>[A-Z][a-z'-]+(?: [A-Z][a-z'-]+)?)", said) \
+                or re.fullmatch(rf"(?P<n>[A-Z][a-z'-]+(?: [A-Z][a-z'-]+)?) (?i:is my {rel})", said)
+            if m:
+                return f"You told me: {speech.as_she_says_it(said)}."
     being = re.fullmatch(r"being on (.+)", words.strip())
     if being:
         # "Am I on call" is the phrase, not every note with "call" in it.
@@ -10466,13 +10480,37 @@ def _married(text: str) -> str | None:
             told = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said).rstrip("."))
             return f"Your {_ordinal(n)}{on} - you told me {told}."
         years = today.year - int(y.group(1))
-        return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
-                if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
+        told = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said).rstrip("."))
+        return (f"About {speech.count_phrase(years, 'year')} - you told me {told}."
+                if years else f"Less than a year - you told me {told}.")
     if no_year:
         # "Our anniversary is May 5" names the day and not the year
         # (2026-10-07: "how many years have we been married" went to a model).
         return (f"You told me: {speech.as_she_says_it(no_year).rstrip('.')}. But not the year, so I can't say how long. "
                 "Say \"we got married in\" and the year, and I'll know.")
+    return None
+
+
+def _met_when(text: str) -> str | None:
+    """When he and his partner met, from "we met in 2015" - and, asked how
+    long, the years since."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    t = _tidy(text)
+    if t in ("when", "how long ago") or not re.search(r"\bmeet\b|\bknown\b", t):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(r"(?:we|i) (?:first )?met(?: my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?))?\b", said.casefold()):
+            continue
+        told = re.sub(r"(?i)^we\b", "you", re.sub(r"(?i)^i\b", "you", speech.as_she_says_it(said)))
+        told = re.sub(r"(?i)\bmy\b", "your", told)
+        y = re.search(r"\b((?:19|20)\d\d)\b", said)
+        if t.startswith(("how long", "how many")) and y:
+            years = dt.datetime.now(localtime.operator_tz()).year - int(y.group(1))
+            if years > 0:
+                return f"About {speech.count_phrase(years, 'year')} - you told me {told}."
+        return f"You told me {told}."
     return None
 
 
@@ -17273,6 +17311,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "met_when": _met_when,
            "got_paid": _got_paid,
            "nap_len": _nap_len,
            "family_news": _family_news,
