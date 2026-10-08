@@ -7011,6 +7011,20 @@ class TheApostropheHeNeverSays(unittest.TestCase):
         self.assertEqual(cmd["title"], "the dog's vet appointment")
 
 
+class HowMuchAdvil(unittest.TestCase):
+    """2026-10-08: "how much advil have I taken today" went to a model a
+    turn after "I took 2 advil"."""
+
+    def test_added_up_from_his_notes(self):
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I took 2 advil", "ts": now}, {"text": "I took an advil", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how much advil have I taken today").startswith("3 advil today"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(quick.answer("how many tylenol have I taken today"), "You haven't told me about any tylenol today.")
+            self.assertIn("I took 2 pills", quick.answer("how many pills have I taken today"))
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

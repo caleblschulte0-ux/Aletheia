@@ -34,6 +34,11 @@ import re
 MAX_QUESTION = 200
 
 
+#: What he takes by the pill and counts by the name.
+_MEDS = ("advil", "tylenol", "ibuprofen", "aspirin", "aleve", "motrin", "excedrin", "acetaminophen", "naproxen",
+         "melatonin", "benadryl", "claritin", "zyrtec")
+
+
 def _tidy(text: str) -> str:
     """Normalise for matching — including the filler nobody means anything by.
 
@@ -928,6 +933,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How many coffees have I had today" (2026-10-07: to a model).
         r"|^how many (?P<logged_drink2>coffee|tea|soda|beer|wine|juice|milk|latte|espresso)s? (?:have i (?:had|drunk|drank)|did i (?:have|drink))"
         r"(?P<logged_w6> today| this week)?\s*\??$"
+        # "How much advil have I taken today" (2026-10-08: to a model, a turn
+        # after "I took 2 advil").
+        r"|^how (?:much|many) (?P<logged_med>" + "|".join(_MEDS) + r"|pills|tablets|painkillers) (?:have i|did i) (?:taken|take|took|had|have)"
+        r"(?P<logged_w7> today| this week)?\s*\??$"
         # "What's my longest run" (2026-10-08: to a memory search).
         r"|^what(?:'s| is|s| was) my (?:longest|farthest|furthest|biggest) (?P<logged_longest>run|walk|hike|bike ride|ride|swim|jog)"
         r"(?: this week| this month| this year| ever)?\s*\??$"
@@ -2763,7 +2772,7 @@ def _logged(text: str) -> str | None:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     window = (g.get("logged_w") or g.get("logged_w2") or g.get("logged_w3") or g.get("logged_w4") or g.get("logged_w5")
-              or g.get("logged_w6")
+              or g.get("logged_w6") or g.get("logged_w7")
               or (" this week" if g.get("logged_dur") else " today")).strip()
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if window == "this week":
@@ -2810,6 +2819,21 @@ def _logged(text: str) -> str | None:
             return f"{_plain(total)} {drink if total == 1 else drink + 's'} {when}."
         plural = {"glass": "glasses"}.get(unit, unit + "s")
         return f"{_plain(total)} {unit if total == 1 else plural} of {drink} {when}."
+    if g.get("logged_med"):
+        med = g["logged_med"]
+        stem = med[:-1] if med in ("pills", "tablets", "painkillers") else med
+        total, last = 0.0, None
+        for at, said in rows:
+            m = re.match(rf"i (?:just )?(?:took|had|taken) (?:(an?|one|two|three|four|\d+) )?(?:\w+ )?{stem}s?\b", said)
+            if m and at >= start:
+                n = 1.0 if not m.group(1) or m.group(1) in ("a", "an") else amount(m.group(1))
+                if n:
+                    total += n
+                    last = at if last is None or at > last else last
+        if not total:
+            return f"You haven't told me about any {med} {when}."
+        return (f"{_plain(total)} {med if med.endswith('s') else med} {when}, the last "
+                f"{speech.humanize_time(last.isoformat()).replace('today ', '')}, from what you've told me.")
     if g.get("logged_longest"):
         kind = g["logged_longest"]
         verb = {"run": "ran", "walk": "walked", "hike": "hiked", "bike ride": "biked", "ride": "biked", "swim": "swam",
@@ -10397,6 +10421,9 @@ def _counted(text: str) -> str | None:
         return None
     what = found.group("counted").strip()
     when = (found.group("counted_when") or " today").strip()
+    if what in _MEDS:
+        # "How many tylenol have I taken": "Say 'I did 20 tylenol'" (2026-10-08).
+        return _logged(f"how much {what} have i taken {when}")
     stem = re.sub(r"(?:es|s)$", "", what.replace("-", ""))
     tz = localtime.operator_tz()
     today = dt.datetime.now(tz).date()
@@ -10419,7 +10446,9 @@ def _counted(text: str) -> str | None:
     if not seen:
         if stem in ("step", "heart rate", "calorie"):
             return None                 # those have their own honest answer
-        return f"You haven't told me about any {what} {when}. Say \"I did 20 {what}\" and I'll add them up."
+        # "Say 'I did 20 pills'" (2026-10-08): a pill is taken.
+        verb, n = ("took", 2) if stem in ("pill", "tablet", "capsule", "dose", "painkiller", "vitamin") else ("did", 20)
+        return f"You haven't told me about any {what} {when}. Say \"I {verb} {n} {what}\" and I'll add them up."
     return f"{total:,} {what} {when}."
 
 
