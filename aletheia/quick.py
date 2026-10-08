@@ -982,7 +982,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:do i|have i got to|do i still) (?:have|need|got) to do (?P<due5>tomorrow|this week|this weekend)\s*\??$"
         # "What am I forgetting" (2026-10-07: to a model).
         r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
-        r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
+        r"|what am i forgetting|is there anything i(?:'m| am) forgetting"
+        # "What did I not finish yesterday" (2026-10-08: to a model).
+        r"|what did i not (?:finish|get to|do)(?: yesterday)?|what didn'?t i (?:finish|get to|do)(?: yesterday)?)"
         r"(?: today)?(?P<due4>)\s*\??$"
         # "What's on my list for Friday" (2026-10-08: to a model).
         # ("What's due Friday" is `due`'s, which was there first.)
@@ -2998,7 +3000,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "I'm running 10 minutes late" (2026-10-08: "I can't think").
         r"|running (?:about |like |maybe )?(?:a (?:few|little|bit|couple)|\d{1,3}|five|ten|fifteen|twenty|thirty|an hour|half an hour)(?: of)?(?: minutes?| mins?)? late"
         r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now| lately| recently| all week| this week| all day)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
-        r"|^(?P<feel2>i(?: have|'ve got| got) nothing to do|(?:suggest|give me|find me) something to do|i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
+        r"|^(?P<feel2>i(?: have|'ve got| got) (?:so much|a lot|too much|tons|way too much) (?:to do|going on|on my plate)(?: today| this week)?|i(?: have|'ve got| got) nothing to do|(?:suggest|give me|find me) something to do|i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         r"|give me a compliment|compliment me|say something nice about me"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
@@ -9042,6 +9044,9 @@ def _feeling(text: str) -> str | None:
                 f"\"text Sam I'm running {m.group(1)} late\".")
     if "nothing to do" in said or "something to do" in said:
         said = "bored"
+    # "I have a lot to do" (2026-10-08: to the planner).
+    if re.match(r"i(?: have|'ve got| got) (?:so much|a lot|too much|tons|way too much)", said):
+        said = "overwhelmed"
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
     if said in ("cheer me up", "make me smile", "give me a compliment", "compliment me", "say something nice about me"):

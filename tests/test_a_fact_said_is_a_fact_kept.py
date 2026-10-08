@@ -12162,5 +12162,11 @@ class AFriendsBaby(unittest.TestCase):
         self.assertIn("congratulations to Mike", got["say"])
 
 
+class APileOfWork(unittest.TestCase):
+    def test_a_lot_to_do_and_what_he_did_not_finish(self):
+        self.assertIn("One thing at a time", quick.answer("I have a lot to do"))
+        self.assertEqual(quick.match("what did I not finish yesterday")[0], "tasks_due")
+
+
 if __name__ == "__main__":
     unittest.main()
