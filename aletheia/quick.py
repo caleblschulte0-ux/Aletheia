@@ -2558,6 +2558,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what (?:does|do)|what(?:'s| is)|does) (?!(?:i|we|you|it|that|this|he|she|they|the|a)\b)(?P<ed_who>(?:my |our )?[a-z][a-z']{1,20})"
         r" (?:have(?: going on| on| coming up| anything(?: on| going on)?)?|doing|up to)"
         r"(?: (?:on )?(?P<ed_who_when>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
+    # "When do I have class", "when does my daughter have practice" a turn
+    # after "...every Tuesday and Thursday at 5" (2026-10-08: to a model).
+    ("when_have", re.compile(
+        r"^(?:when|what days?|what time) (?:do|does) (?P<when_have>(?:i|we|my [a-z]+|the kids|[a-z]{2,15}) have"
+        r" (?!(?:time|to|a meeting|meetings|plans|anything|something)\b)[a-z][a-z' ]{1,20}?)\s*\??$")),
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         # the calendar's own words belong to the calendar's readers
@@ -2748,7 +2753,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "when_have", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11486,6 +11491,27 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _when_have(rest) -> str | None:
+    """The days he told her somebody has something: the newest note naming
+    who and what together with a day. None when no note says."""
+    from aletheia import speech
+    said = " ".join(str(rest or "").casefold().split())
+    who, _, thing = said.partition(" have ")
+    words = [w for w in re.findall(r"[a-z0-9']+", thing) if w not in ("my", "the", "a", "an", "our")]
+    if not words:
+        return None
+    subject = {"i": r"^(?:i|we)\b", "we": r"^(?:we|i)\b"}.get(who, rf"^(?:my |our |the )?{re.escape(who.removeprefix('my '))}\b")
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        low = note.casefold()
+        if not re.search(subject, low) or not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
+            continue
+        if re.search(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday|weekend)s?\b|\bat \d", low):
+            told = speech.as_she_says_it(note).rstrip(".")
+            return f"You told me {told[:1].lower()}{told[1:]}."
+    return None
+
+
 def _do_i_have(rest) -> str | None:
     """Whether a thing of his falls on a day: his calendar first, then the
     days he told her it happens. None when neither says, so the question
@@ -11527,6 +11553,11 @@ def _do_i_have(rest) -> str | None:
         if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             continue
         plural = {i for i, d in enumerate(_DAYS) if re.search(rf"\b{d}s\b", low)}
+        # "every Monday and Wednesday" (2026-10-08) is the same as "on Mondays and Wednesdays".
+        every = re.search(r"\bevery ((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                          r"(?:(?:,| and|, and) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))*)", low)
+        if every:
+            plural |= {i for i, d in enumerate(_DAYS) if re.search(rf"\b{d}\b", every.group(1))}
         if re.search(r"\bweekdays\b", low):
             plural |= {0, 1, 2, 3, 4}
         if re.search(r"\bweekends\b", low):
@@ -13634,6 +13665,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "when_have": _when_have,
            "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),

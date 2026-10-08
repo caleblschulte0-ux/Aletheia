@@ -7852,5 +7852,24 @@ class AnAmountGoesOnTheListAndIsReadBack(unittest.TestCase):
 
 
 
+class TheDaysSomebodyHasSomething(unittest.TestCase):
+    NOTES = [{"text": "my daughter has practice every tuesday and thursday at 5"},
+             {"text": "I have class every monday and wednesday at 9"}]
+
+    def test_days_first_is_kept(self):
+        self.assertEqual(voice._interpret("my daughter has practice every tuesday and thursday at 5")["command"]["kind"], "note")
+
+    def test_when_does_she_have_it(self):
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertIn("every Tuesday and Thursday at 5", quick.answer("when does my daughter have practice"))
+            self.assertIn("every Monday and Wednesday", quick.answer("when do I have class"))
+
+    def test_every_monday_counts_for_a_day(self):
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES), mock.patch.object(quick, "_coming", return_value=[]):
+            said = quick._do_i_have("class monday")
+        self.assertTrue(said.startswith("Yes"), said)
+
+
+
 if __name__ == "__main__":
     unittest.main()
