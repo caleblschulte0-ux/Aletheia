@@ -122,6 +122,22 @@ class AControlIsJudgedByWhatPressingItDoes(unittest.TestCase):
         self.assertTrue(ps.shows_a_charge("Amount due $5"))
         self.assertFalse(ps.shows_a_charge("Founded in 1998. 40 staff."))
 
+    def test_a_posting_that_states_its_pay_is_not_a_charge(self):
+        """Live 2026-10-07: "total compensation" on a job page stopped filled
+        applications at Submit as if they spent money."""
+        for text in ("Total compensation: $80,000 - $95,000",
+                     "The salary range for this role is $70,000 - $90,000. Total: $90,000 OTE",
+                     "Total target cash $120,000 including commission",
+                     "Base pay $60/hr. Total rewards include equity and benefits.",
+                     "Total compensation: $80,000 - $95,000 per year. In order to apply, "
+                     "attach a resume."):
+            with self.subTest(text=text):
+                self.assertFalse(ps.shows_a_charge(text))
+        # A real checkout still is one, even on a page that also names pay.
+        self.assertTrue(ps.shows_a_charge(
+            "Order total: $21.40" + " " * 200 + "We pay our staff a fair salary."))
+        self.assertTrue(ps.shows_a_charge("Total $12.99\nPlace order"))
+
     def test_an_unfamiliar_button_on_a_form_is_a_commit(self):
         """"Join the list" says no committing word and is a submit button."""
         for label in ("Join the list", "Let's go", "Count me in", ""):
