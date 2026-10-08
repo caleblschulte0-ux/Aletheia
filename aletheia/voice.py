@@ -2691,7 +2691,8 @@ _AN_ASK_OF_HERS = re.compile(
 #: "My sister is visiting", "I have a wedding", "we're having people over",
 #: "I'm hosting game night" - something on with other people, said with a
 #: when (2026-10-07: every one to the planner). Kept as a note in his words.
-_SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law| in law)?s?|in-laws|in laws|parents|folks|family|kids|friends?(?: [a-z]+)?)|[a-z]+ and [a-z]+"
+_SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law| in law)?s?|in-laws|in laws|parents|folks|family|kids|friends?(?: [a-z]+)?"
+                r"|(?:cousin|uncle|aunt|brother|sister|niece|nephew|grandma|grandpa|coworker|boss|neighbor) [a-z]+)|[a-z]+ and [a-z]+"
                 r"|(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone|everybody"
                 r"|it|that|this|rain|snow|a storm|the storm|storm|weather|winter|summer|spring|fall|the package|package|my package"
                 r"|the delivery|delivery|the bill|the rent|rent|the bus|the train)\b)[a-z]+)"
@@ -10238,6 +10239,24 @@ def _interpret(transcript: str) -> dict:
                             r" (?:is|are|will be) (?:watching|feeding|walking|taking care of|looking after|babysitting|dog-?sitting|house-?sitting)"
                             r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
                             r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z ]{3,30})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My brother is getting married in June", "my sister had a baby girl
+    # named Emma", "my grandma turns 90 next month", "I sent my mom flowers"
+    # (2026-10-08: all to the planner).
+    m = re.fullmatch(r"(?:my|our) (?:sister|brother|sister in law|brother in law|cousin|daughter|son)(?:'s wife| and her husband| and his wife)? (?:just )?had "
+                     r"(?:a |her |his |their )?(?:new )?(?:baby )?(?:girl|boy|daughter|son|baby) (?:named|called) (?P<name>[a-z][a-z'-]{1,20})(?: today| yesterday| last night)?", low)
+    if m:
+        name = _as_he_said(text, m.group("name"))
+        name = name[:1].upper() + name[1:]
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"Congratulations to them! Welcome, {name}."}
+    if re.fullmatch(r"(?:my|our) (?:mom|mother|dad|father|parents|brother|sister|son|daughter|cousin|aunt|uncle|niece|nephew|best friend|friend [a-z]+"
+                    r"|grandma|grandpa|grandmother|grandfather|boss|coworker [a-z]+) (?:is|are) (?:getting married|getting divorced|moving|retiring|graduating"
+                    r"|having a baby|expecting|pregnant|due)(?: to [a-z ]{2,25})?(?: (?:in|on|this|next) [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"(?:my|our) (?:mom|mother|dad|father|grandma|grandpa|grandmother|grandfather|aunt|uncle|son|daughter|brother|sister|niece|nephew|cousin|wife|husband)"
+                            r" (?:turns|will be|is turning) \d{1,3}(?: (?:in|on|this|next) [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"i (?:just )?(?:sent|got|bought) (?:my |our )(?:mom|mother|dad|father|wife|husband|grandma|grandpa|sister|brother|son|daughter"
+                            r"|aunt|uncle|boss|friend|girlfriend|boyfriend|neighbor) (?:some |a |an )?(?:flowers|a card|a gift|a present|a birthday card|a thank you card"
+                            r"|a thank you note|chocolates|a cake|a care package|a gift card|a text|money)(?: today| yesterday| for (?:her|his|their) [a-z ]{2,20})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I started a new workout program today", "I skipped the gym today"
     # (2026-10-08: to the planner) - read back by "when did I start my

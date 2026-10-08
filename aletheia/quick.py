@@ -2059,6 +2059,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("starts_when", re.compile(
         r"^when (?:does|do|is|are|will) (?:the |my |our |[a-z]{2,15}'s )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         r"(?P<sw_what>[a-z][a-z' ]{1,25}?) (?P<sw_verb>start|starting|begin|beginning|end|ending|finish|over|open|close|get out|let out)\s*\??$")),
+    # "What is my niece's name" (2026-10-08: "nothing about niece").
+    ("niece", re.compile(r"^what(?:'s| is|s)? (?:my|the) (?P<niece>niece|nephew|new niece|new nephew)(?:'s|s)? name\s*\??$"
+                         r"|^what did my (?P<niece2>sister|brother|cousin|[a-z]{2,15}) name (?:the|her|his|their) (?:baby|daughter|son)\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?P<recall_attr>name|number|address|email|birthday|code|password|pin)\s*\??$"
@@ -2261,6 +2264,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What is my weight goal" (2026-10-08: "nothing remembered about
     # weight goal", a turn after "my goal is to lose 20 pounds").
     ("goal_of", re.compile(r"^what(?:'s| is| was) my (?P<goal_of>weight(?: loss)?|savings?|running|reading|fitness|step|steps|water|sleep|money|lifting|workout) goal\s*\??$")),
+    # "When did my mom last call", "who do I need to call back", "when did
+    # I send my mom flowers" (2026-10-08: each to a model).
+    ("kin_called", re.compile(r"^when did (?P<kin_called>(?:my|our) [a-z][a-z ]{1,20}?|[a-z]{2,15}) (?:last )?call(?: me)?(?: last)?\s*\??$")),
+    ("call_back", re.compile(r"^who (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?:call|text|email) back(?P<call_back>)\s*\??$")),
+    ("sent_kin", re.compile(r"^when did i (?:last )?(?:send|get|buy|give) (?P<sent_kin>(?:my|our) (?:mom|mother|dad|father|wife|husband|grandma|grandpa|sister|brother|son|daughter|aunt|uncle|boss|friend|girlfriend|boyfriend|neighbor) [a-z][a-z ]{1,20}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2414,6 +2422,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("on_days", re.compile(
         r"^what(?: do i (?:usually |normally )?(?:do|have(?: going on)?)|(?:'s| is|s) (?:usually |normally )?(?:on|happening))"
         r" (?:on )?(?P<od>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\s*\??$")),
+    # "How is my dad doing" (2026-10-08: "no fleet reading yet", a turn
+    # after "my dad is in the hospital").
+    ("how_kin", re.compile(r"^how(?:'s| is|s| are) (?P<how_kin>(?:my|our) (?:mom|mother|dad|father|parents|wife|husband|son|daughter|kids|baby|brother|sister"
+                           r"|grandma|grandmother|grandpa|grandfather|grandparents|aunt|uncle|cousin|niece|nephew|girlfriend|boyfriend|partner|fiance|fiancee"
+                           r"|friend|best friend|neighbor|mother in law|father in law|in laws|dog|cat|puppy|kitten)|the (?:dog|cat|puppy|kids|baby))"
+                           r"(?: (?:doing|feeling|holding up|getting on|getting along|feeling today|doing today))?\s*\??$")),
     ("status_of", _STATUS),
     # 2026-10-07: powers, roots, a joke and where he parked, each to a model.
     ("power", re.compile(
@@ -3131,7 +3145,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3151,7 +3165,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -4437,6 +4451,11 @@ def _age_of(who: str) -> str | None:
     young = _told_when(rf"^(?:my |our )?{re.escape(label)} is \d{{1,2}} (?:weeks|months) old\.?$")
     if young:
         return young
+    # "My grandma turns 90 next month" (2026-10-08: "you haven't told me
+    # when your grandma was born").
+    turning = _told_when(rf"^(?:my |our )?(?:{'|'.join(re.escape(' '.join(ws)) for ws in either if ws)}) (?:turns|will be|is turning) \d{{1,3}}\b")
+    if turning:
+        return turning
     # "My mom was born in 1965" gives the year a birthday note may lack.
     born_in = None
     for row in _notes():
@@ -14863,6 +14882,111 @@ def _goal_of(kind: str) -> str | None:
     return None
 
 
+def _kin_names(who: str) -> list:
+    """The words his notes would use for somebody: "my dad" and the name
+    he gave his dad, when he gave one."""
+    who = " ".join(str(who or "").casefold().split())
+    base = re.sub(r"^(?:my|our|the) ", "", who)
+    names = [base]
+    if who.startswith(("my ", "our ")):
+        name = _name_for_relation("my " + base)
+        if name:
+            names.append(name.casefold())
+    return names
+
+
+def _how_kin(who: str) -> str | None:
+    """What he told her lately about somebody of his - "my dad is in the
+    hospital" for "how is my dad doing". None when nothing names them."""
+    from aletheia import speech
+    names = _kin_names(who)
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:who|what|when|where|how|why|is|are|did|do)\b", low):
+            continue
+        if any(re.search(rf"\b(?:my|our|the) {re.escape(names[0])}\b", low) for _ in [0]) \
+                or any(re.search(rf"\b{re.escape(n)}\b", low) for n in names[1:]):
+            found.append(speech.as_she_says_it(said))
+        if len(found) >= 2:
+            break
+    return f"The latest you told me: {speech.and_list(found)}." if found else None
+
+
+def _kin_called(who: str) -> str | None:
+    """When he said somebody called him. None when he never said."""
+    from aletheia import speech
+    names = _kin_names(who)
+    if names[0] in ("you", "it", "that", "they", "he", "she", "i", "who", "anyone", "someone"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.search(r"\bcalled\b", low) and (re.search(rf"^(?:my |our )?{re.escape(names[0])} (?:just )?called\b", low)
+                                              or any(re.match(rf"{re.escape(n)} (?:just )?called\b", low) for n in names[1:])):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"You told me {speech.as_she_says_it(said)[:1].lower() + speech.as_she_says_it(said)[1:]}" + \
+                (f" - that was {told}." if told and not re.search(r"\b(?:today|yesterday)\b", low) else ".")
+    return None
+
+
+def _call_back(_rest: str = "") -> str | None:
+    """His open tasks to call, text or email somebody back."""
+    from aletheia import speech, tasks
+    try:
+        rows = [" ".join(str(t.get("description") or "").split()).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED]
+    except Exception:
+        return None
+    who = [re.sub(r"^(?:call|text|email) (.+?) back\b.*$", r"\1", r, flags=re.I) for r in rows
+           if re.match(r"(?:call|text|email) .+? back\b", r, re.I)]
+    if not who:
+        return None
+    return f"Your list says to get back to {speech.and_list([speech.as_she_says_it(w) for w in who[:5]])}."
+
+
+def _sent_kin(what: str) -> str | None:
+    """When he said he sent or got somebody something: "I sent my mom
+    flowers" for "when did I send my mom flowers"."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold()) if w not in ("my", "our", "the", "a", "an", "some")]
+    if len(words) < 2:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"i (?:just )?(?:sent|got|bought|gave)\b", low) and all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            plain = speech.as_she_says_it(said)
+            return f"You told me {plain[:1].lower() + plain[1:]}" + (f" - that was {told}." if told else ".")
+    return None
+
+
+def _niece(text: str) -> str | None:
+    """His niece's or nephew's name, from "my sister had a baby girl named
+    Emma". None when no note gives one."""
+    from aletheia import speech
+    low = _tidy(text)
+    boy = bool(re.search(r"\bnephew\b|\bson\b", low))
+    parent = re.search(r"^what did my ([a-z]+) name", low)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(r"(?:my|our) (?P<p>sister|brother|sister in law|brother in law|cousin)(?:'s wife| and her husband| and his wife)? (?:just )?(?:had|has) "
+                     r"(?:a |her |his |their )?(?:new )?(?:baby )?(?P<kind>girl|boy|daughter|son|baby)(?: named| called) (?P<name>[A-Za-z][a-z'-]+)", said, re.I)
+        if not m or (parent and m.group("p").casefold() != parent.group(1)):
+            continue
+        if m.group("kind").casefold() in (("boy", "son") if not boy else ("girl", "daughter")):
+            continue
+        return f"You told me: {speech.as_she_says_it(said)}."
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"(?:my |our )?{'nephew' if boy else 'niece'}(?:'s name)? is [A-Za-z]", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    # What the plain recall said before this reader existed.
+    return None if parent else _recall(f"{'nephew' if boy else 'niece'}|name")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15673,6 +15797,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "how_kin": _how_kin,
+           "kin_called": _kin_called,
+           "call_back": _call_back,
+           "sent_kin": _sent_kin,
+           "niece": _niece,
            "started_on": _started_on,
            "goal_of": _goal_of,
            "size_of": _size_of,

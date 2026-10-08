@@ -9876,5 +9876,39 @@ class WorkingOutAgain(unittest.TestCase):
             self.assertEqual(quick.answer("what time did I go to bed"), "You told me you went to bed at midnight last night.")
 
 
+class HisFamilyAgain(unittest.TestCase):
+    """A sweep of family sentences (2026-10-08). "How is my dad doing" was
+    answered about the fleet."""
+
+    def test_said(self):
+        for said in ("my brother is getting married in June", "my grandma turns 90 next month", "I sent my mom flowers",
+                     "my cousin Jake is visiting next week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        baby = voice._interpret("my sister had a baby girl named Emma")
+        self.assertEqual(baby["command"], {"kind": "note", "text": "my sister had a baby girl named Emma"})
+        self.assertIn("Emma", baby["say"])
+
+    def test_read(self):
+        rows = [{"text": "my mom called today"}, {"text": "my dad is in the hospital"},
+                {"text": "my sister had a baby girl named Emma"}, {"text": "my grandma turns 90 next month"},
+                {"text": "I sent my mom flowers"}, {"text": "my cousin Jake is visiting next week"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how is my dad doing"), "The latest you told me: your dad is in the hospital.")
+            self.assertIsNone(quick.answer("how is my wife doing"))
+            self.assertEqual(quick.answer("when did my mom last call"), "You told me your mom called today.")
+            self.assertEqual(quick.answer("what is my nieces name"), "You told me: your sister had a baby girl named Emma.")
+            self.assertNotIn("Emma", quick.answer("what is my nephews name") or "")
+            self.assertEqual(quick.answer("how old is my grandma"), "You told me: your grandma turns 90 next month.")
+            self.assertEqual(quick.answer("when did I send my mom flowers"), "You told me you sent your mom flowers.")
+            self.assertEqual(quick.answer("who is visiting next week"), "You told me: your cousin Jake is visiting next week.")
+        self.assertEqual(quick.match("how is the trader doing")[0], "status_of")
+
+    def test_who_to_call_back(self):
+        from aletheia import tasks
+        rows = [{"description": "call my mom back", "status": "OPEN"}, {"description": "text Dana back about Friday", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("who do I need to call back"), "Your list says to get back to your mom and Dana.")
+
+
 if __name__ == "__main__":
     unittest.main()
