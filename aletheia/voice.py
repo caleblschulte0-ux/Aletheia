@@ -48,6 +48,9 @@ FILLER = re.compile(
     # "ACTUALLY cancel that" went to the planner while "cancel that" was
     # instant: the correction words a person leads with carry no request.
     r"i mean|i meant|like|actually|oh|oops|sorry)\b[,\s]*"
+    # "Never mind, cancel it" (2026-10-08: to the planner) - only before
+    # the words that undo, so "never mind" alone is still its own answer.
+    r"|never ?mind[,\s]+(?=(?:cancel|delete|remove|drop|scrap|forget|undo|don'?t|take)\b)"
     # "No, add eggs" and "wait, cancel that" (2026-10-07: to the planner).
     # Only with the comma: a bare "no" or "yes" is an answer, not filler.
     r"|(?:no|nope|yeah|yep|yes|yup|wait|hold on|hang on|oh wait)\s*,\s*)*",
@@ -4794,7 +4797,11 @@ def _interpret(transcript: str) -> dict:
                         r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low) \
         or re.fullmatch(r"(?:the |my )?(?P<w>.+?) (?:task )?(?:is|should be) due (?:on |by )?"
                         r"(?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
-    if m and _names_one_open_task(m.group("w")):
+    which = m.group("w") if m else ""
+    if which in ("it", "that", "this", "that one"):
+        # "Push that to next week" a turn after the task was added (2026-10-08)
+        which = _the_task_just_added() or which
+    if m and _names_one_open_task(which):
         said = m.group("day")
         if said.startswith("next "):
             asked = _ambiguous_next_weekday(said)
@@ -4809,7 +4816,7 @@ def _interpret(transcript: str) -> dict:
         else:
             day = _spoken_day("today" if said == "tonight" else said)
         if day:
-            return {"command": {"kind": "task_change", "which": m.group("w"), "deadline": day}, "say": None}
+            return {"command": {"kind": "task_change", "which": which, "deadline": day}, "say": None}
     elif m and re.search(r"\btask\b|\bon my (?:list|to-?do list)\b", low):
         # "Move my dentist task to friday" with no such task went to the
         # planner (2026-10-07). He said task: the answer is the list's.

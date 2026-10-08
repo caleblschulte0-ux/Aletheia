@@ -6219,5 +6219,31 @@ class AWeighInFromBefore(unittest.TestCase):
             self.assertIsNone(quick.answer("how much have I lost"))
 
 
+
+class ThatMeansTheTaskJustAdded(unittest.TestCase):
+    """2026-10-08: "push that to next week", "when is it due" and "never
+    mind, cancel it" all went to the planner a turn after the thing."""
+
+    def test_push_that_moves_it(self):
+        with mock.patch.object(voice, "_the_task_just_added", return_value="renew my passport"), \
+                mock.patch.object(voice, "_names_one_open_task", side_effect=lambda w: w == "renew my passport"):
+            got = voice.interpret("push that to next week")["command"]
+        self.assertEqual((got["kind"], got["which"]), ("task_change", "renew my passport"))
+
+    def test_when_is_it_due_reads_that_task(self):
+        with mock.patch.object(voice, "_the_task_just_added", return_value="renew my passport"), \
+                mock.patch.object(quick, "_task_due", return_value="Renew my passport is due Monday.") as due:
+            self.assertEqual(quick.answer("when is it due"), "Renew my passport is due Monday.")
+        due.assert_called_with("renew my passport")
+        with mock.patch.object(voice, "_the_task_just_added", return_value=""):
+            self.assertIsNone(quick.answer("when is it due"))
+
+    def test_never_mind_before_an_undo_is_filler(self):
+        self.assertEqual(voice._without_preamble("never mind cancel it"), "cancel it")
+        self.assertEqual(voice._without_preamble("never mind, delete that"), "delete that")
+        self.assertEqual(voice._without_preamble("never mind"), "never mind")
+        self.assertEqual(voice._without_preamble("never mind the milk"), "never mind the milk")
+
+
 if __name__ == "__main__":
     unittest.main()

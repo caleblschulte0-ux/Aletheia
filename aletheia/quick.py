@@ -1827,6 +1827,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|when do i (?:need to|have to|should) (?:leave|head out)(?: today)?)\s*\??$")),
     # "When is my passport task due" (2026-10-07: read as a note about
     # "passport task", and "nothing on file" while the task sat there).
+    # "When is it due" a turn after "add a task to renew my passport by
+    # Friday" (2026-10-08: to a model): the task just added.
+    ("it_due", re.compile(r"^when(?:'s| is| was) (?:it|that|this)(?: one| task)? due\s*\??$")),
     ("task_due", re.compile(
         r"^when(?:'s| is) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<due>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)? due\s*\??$"
         r"|^when do i (?:need|have) to (?P<due2>[a-z][a-z0-9 '-]{1,40}?)(?: by)?\s*\??$"
@@ -2451,7 +2454,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11336,6 +11339,13 @@ def _plural(text: str) -> str | None:
     return f"{said[:1].upper() + said[1:]}." if said != word else f"{word[:1].upper() + word[1:]} - it's the same in the plural."
 
 
+def _it_due() -> str | None:
+    """The task his last exchange named, and when it is due."""
+    from aletheia import voice
+    task = voice._the_task_just_added()
+    return _task_due(task) if task else None
+
+
 def _starts_when(text: str) -> str | None:
     """"When does school start": the note naming it AND the change asked
     about, so "school pictures are on the 14th" is not the answer to when
@@ -12111,6 +12121,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "time_where": lambda text: _time_where(text),
            "trip_length": lambda text: _trip_length(text),
            "starts_when": lambda text: _starts_when(text),
+           "it_due": lambda text: _it_due(),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),
