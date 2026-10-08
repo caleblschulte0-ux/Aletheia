@@ -26,24 +26,24 @@
     "2026-10-08": {
       "duplicate": 15,
       "employer_full": 0,
-      "minutes": 297,
+      "minutes": 304,
       "needs_account": 0,
-      "needs_answer": 18,
-      "not_realistic": 598,
-      "offered": 787,
+      "needs_answer": 19,
+      "not_realistic": 600,
+      "offered": 791,
       "ready": 15,
-      "runs": 19,
+      "runs": 21,
       "unfit_clearance": 2,
       "unfit_language": 11,
       "unfit_license": 34,
-      "unfit_model": 33,
+      "unfit_model": 34,
       "unfit_pay": 120,
-      "unfit_sales": 388,
+      "unfit_sales": 389,
       "unfit_years": 10,
       "unjudged": 47,
-      "unreachable": 8,
+      "unreachable": 9,
       "unreachable_ApplyError": 5,
-      "unreachable_left_till_tomorrow": 3,
+      "unreachable_left_till_tomorrow": 4,
       "weak_shot": 2
     }
   },
@@ -266,15 +266,15 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 29,
-      "found": 45,
+      "filled": 30,
+      "found": 46,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 14
     }
   },
-  "generated_at": "2026-10-08T21:38:06Z",
+  "generated_at": "2026-10-08T23:01:09Z",
   "sent_all_time": 284,
   "stuck_at": {
     "approval_denied": {
@@ -353,8 +353,8 @@
     }
   },
   "totals": {
-    "filled": 364,
-    "found": 734,
+    "filled": 365,
+    "found": 735,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
@@ -368,7 +368,7 @@
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 9,
+      "other": 10,
       "pay": 1,
       "travel": 1,
       "years_experience": 1
@@ -410,7 +410,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 14,
+    "needs_answer": 15,
     "oldest_days": 25,
     "to_send": 0
   },
