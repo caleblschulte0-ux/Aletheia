@@ -8189,5 +8189,28 @@ class WhatAppointmentsDoIHave(unittest.TestCase):
 
 
 
+class AThingDoneEverySoOftenRepeats(unittest.TestCase):
+    """"I need to take out the trash every Tuesday" was a task called "take
+    out the trash every"; "remind me to call mom every week" went to the
+    planner (2026-10-08)."""
+
+    def test_a_need_with_every_is_a_repeating_reminder(self):
+        from aletheia import voice
+        cmd = voice._interpret("i need to take out the trash every tuesday")["command"]
+        self.assertEqual((cmd["kind"], cmd["days"], cmd["text"]), ("remind_weekly", ["tuesday"], "take out the trash"))
+        cmd = voice._interpret("I need to water the plants every 3 days")["command"]
+        self.assertEqual((cmd["kind"], cmd["every"]), ("remind_daily", 3))
+
+    def test_every_week_is_today_each_week(self):
+        from aletheia import voice
+        cmd = voice._interpret("remind me to call mom every week")["command"]
+        self.assertEqual((cmd["kind"], cmd["every"], cmd["text"]), ("remind_weekly", 1, "call mom"))
+
+    def test_a_need_without_every_is_still_a_task(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I need to call the bank tomorrow")["command"]["kind"], "task_new")
+
+
+
 if __name__ == "__main__":
     unittest.main()

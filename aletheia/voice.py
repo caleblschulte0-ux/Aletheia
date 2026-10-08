@@ -1020,8 +1020,8 @@ _RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "siste
               "grandpa", "son", "daughter", "boss", "girlfriend", "boyfriend", "partner", "roommate"}
 _ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
                  "eighth": 8, "ninth": 9, "tenth": 10, "fifteenth": 15, "twentieth": 20, "last": 31}
-_SPAN = (r"(?P<span>(?:every|each) (?:month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
-         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|monthly|fortnightly)")
+_SPAN = (r"(?P<span>(?:every|each) (?:week|month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
+         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|weekly|monthly|fortnightly)")
 _MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
 
 
@@ -1070,6 +1070,10 @@ def _a_repeat(low: str, text: str) -> dict | None:
     words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
     if span == "fortnightly" or "couple of weeks" in span:
         n, unit = 2, "weeks"
+    elif span in ("every week", "each week", "weekly"):
+        # "Remind me to call mom every week" (2026-10-08: to the planner):
+        # today's weekday, said back so the day he gets can be heard.
+        n, unit = 1, "weeks"
     elif "other day" in span:
         n, unit = 2, "days"
     elif "other" in span:
@@ -4618,6 +4622,15 @@ def _interpret(transcript: str) -> dict:
             timed = _interpret(f"remind me to {m.group('what')}")
             if ((timed or {}).get("command") or {}).get("kind") == "remind_at":
                 return timed
+        if re.search(r"\bevery (?:\d+ |other |two |three |four )?(?:day|days|morning|night|evening|week|weeks|month"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday)s?\b", m.group("what")):
+            # "I need to take out the trash every Tuesday" became a task
+            # called "take out the trash every" due Tuesday (2026-10-08). A
+            # thing done every so often is a repeating reminder - one tick
+            # off a task would end it for good.
+            again = _interpret(f"remind me to {m.group('what')}")
+            if ((again or {}).get("command") or {}).get("kind", "").startswith("remind_"):
+                return again
         return _new_task(_as_he_said(text, m.group("what")))
     # "I'm going to call mom tomorrow" (2026-10-07: to the planner). Said
     # as a plan, it is a task only when it names a day - "I'm going to make
