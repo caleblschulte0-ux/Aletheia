@@ -135,6 +135,26 @@
         }
       ],
       "means": "No application goes to a direct competitor of Expansion Capital Group, his employer: online small-business lenders and revenue-based / merchant-cash-advance funders (Enova and its brands, and the others listed). Matched on the employer's name, at the choice of a job and again right before a send."
+    },
+    {
+      "id": "self-id-answers",
+      "switch": "self_id",
+      "on": true,
+      "since": "2026-10-08",
+      "answers": {
+        "gender": "Male",
+        "race": "White",
+        "hispanic_latino": "No",
+        "veteran_status": "I am not a protected veteran"
+      },
+      "otherwise": "decline",
+      "quotes": [
+        {
+          "on": "2026-10-08T22:45:00Z",
+          "said": "well first it should try male white non hispanic not a vetrean but if thats not on otipon or not working then we can decline to say"
+        }
+      ],
+      "means": "A voluntary self-identification question about gender, race, Hispanic/Latino ethnicity or veteran status is answered Male, White, Not Hispanic or Latino, Not a veteran. Where the form offers no option that plainly says that, the option that declines to answer is chosen instead. Disability, orientation, signatures and every legal declaration are untouched by this ruling."
     }
   ]
 }
