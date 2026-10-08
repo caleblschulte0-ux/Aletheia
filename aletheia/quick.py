@@ -499,7 +499,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<counted_when> today| this week| yesterday)?\s*\??$")),
     ("ate", re.compile(
         r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
-        r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
+        r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$"
+        # "Did I eat lunch" (2026-10-08: to the planner, with "I ate lunch" kept).
+        r"|^(?:did|have) i (?:eat|eaten|had|have) (?P<ate_yes>breakfast|lunch|dinner|supper)(?P<ate_when3> today| yet| yesterday)?\s*\??$")),
     # "What have I lent out" (2026-10-08: to a model, with "I lent Mike my
     # drill" kept): every lend not since given back.
     # "What time do I need to get up tomorrow" (2026-10-08: a memory search
@@ -1342,7 +1344,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
         r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^what (?:do i have|have i got|is there|am i doing) (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what (?:do i have|have i got|is there|am i doing)(?: going on| planned| scheduled| happening| lined up)? (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         # "Who am I meeting tomorrow" became a calendar hold called "who am
         # I meeting" (2026-10-07). It is the day's calendar, asked by who.
         r"|^(?:who|where) (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast) with|have (?:lunch|dinner|coffee|breakfast) with|"
@@ -13833,8 +13835,11 @@ def _ate(text: str) -> str | None:
     found = next((p.match(_tidy(text)) for n, p in PATTERNS if n == "ate"), None)
     if not found:
         return None
-    meal = {"supper": "dinner"}.get(found.group("ate_meal") or "", found.group("ate_meal") or "")
-    when = (found.group("ate_when") or found.group("ate_when2") or " today").strip()
+    asked = found.group("ate_meal") or found.group("ate_yes") or ""
+    meal = {"supper": "dinner"}.get(asked, asked)
+    when = (found.group("ate_when") or found.group("ate_when2") or found.group("ate_when3") or " today").strip()
+    if when == "yet":
+        when = "today"
     if when == "last night":
         when = "yesterday"
     tz = localtime.operator_tz()
@@ -13853,6 +13858,10 @@ def _ate(text: str) -> str | None:
             continue
         of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(4) or "").casefold(),
                                                             (m.group(1) or m.group(4) or "").casefold())
+        # "I ate lunch" names the meal and no food (2026-10-08).
+        bare = (m.group(3) or "").strip().casefold() in ("breakfast", "lunch", "dinner", "supper")
+        if bare and not of:
+            of = {"supper": "dinner"}.get(m.group(3).strip().casefold(), m.group(3).strip().casefold())
         if not of:
             # "I had pizza last night" is dinner (2026-10-07).
             of = {"last night": "dinner", "tonight": "dinner", "this morning": "breakfast"}.get((m.group(5) or "").casefold(), "")
@@ -13867,13 +13876,18 @@ def _ate(text: str) -> str | None:
         if noted != day:
             continue
         food = speech.as_she_says_it(m.group(3).strip()).rstrip(".")
-        hits.append(f"{food} for {of}" if of and not meal else food)
+        hits.append(of if bare else f"{food} for {of}" if of and not meal else food)
         if len(hits) >= 4:
             break
     named = f"for {meal} {when}" if meal else when
+    if found.group("ate_yes"):
+        if not hits:
+            return f"You didn't tell me you had {meal} {when}."
+        food = hits[-1]
+        return f"Yes - you told me you had {food if food == meal else f'{food} for {meal}'} {when}."
     if not hits:
         return (f"You didn't tell me what you had {named}. "
-                "Say \"I had a burrito for lunch\" and I'll remember it.")
+                f"Say \"I had a burrito for {meal or 'lunch'}\" and I'll remember it.")
     hits.reverse()                      # newest first in the store; said in the order he ate
     return f"You told me you had {speech.and_list(hits)} {named}."
 

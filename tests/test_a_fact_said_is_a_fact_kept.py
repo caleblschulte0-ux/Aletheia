@@ -12224,5 +12224,19 @@ class School(unittest.TestCase):
             self.assertIsNone(quick.answer("what homework does my son have"))
 
 
+class HisMorning(unittest.TestCase):
+    def test_did_he_eat_lunch_reads_what_he_said(self):
+        import datetime as dt
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I ate lunch", "ts": now}]):
+            self.assertEqual(quick.answer("did I eat lunch"), "Yes - you told me you had lunch today.")
+            self.assertEqual(quick.answer("have I had dinner yet"), "You didn't tell me you had dinner today.")
+            self.assertIn("a burrito for breakfast", quick.answer("what did I have for breakfast"))
+
+    def test_what_he_has_going_on_is_his_calendar(self):
+        self.assertEqual(quick.match("what do I have going on today")[0], "agenda")
+
+
 if __name__ == "__main__":
     unittest.main()
