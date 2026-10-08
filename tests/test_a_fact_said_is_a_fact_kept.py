@@ -5673,5 +5673,41 @@ class TellJessImRunningLate(unittest.TestCase):
             self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "message_send", said)
 
 
+class DoIStillOweSam(unittest.TestCase):
+    """2026-10-07: "do I still owe Sam" went to the planner."""
+
+    def test_still(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        rows = [{"text": "I paid Sam back", "ts": now.isoformat()},
+                {"text": "I owe Sam 20 dollars", "ts": (now - dt.timedelta(hours=1)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows[1:]):
+            self.assertEqual(quick.answer("do I still owe Sam"), "You owe Sam $20.")
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("Nothing between you and Sam", quick.answer("do I still owe Sam"))
+
+
+class HowFarIsMyMomsHouse(unittest.TestCase):
+    """2026-10-07: "how far is my mom's house" said "I don't know where my
+    mom's house is" one breath after "my mom lives at 12 Oak St"."""
+
+    def _refusal(self, place, notes):
+        from aletheia import act, intercom, places
+        with mock.patch.object(places, "resolve", side_effect=KeyError("no place")), \
+                mock.patch.object(quick, "_notes", return_value=notes):
+            with self.assertRaises(act.Refused) as caught:
+                intercom.execute_command({"kind": "travel_time", "place": place}, {})
+        return str(caught.exception)
+
+    def test_what_he_told_her_is_offered_back(self):
+        said = self._refusal("my mom's house", [{"text": "my mom lives at 12 Oak St, Springfield", "ts": "2026-10-07T12:00:00+00:00"}])
+        self.assertIn("your mom lives at 12 Oak St, Springfield", said)
+        self.assertIn("\"my mom's house is at 12 Oak St, Springfield\"", said)
+
+    def test_her_words_say_your(self):
+        said = self._refusal("my sister's house", [])
+        self.assertIn("I don't know where your sister's house is", said)
+
+
 if __name__ == "__main__":
     unittest.main()

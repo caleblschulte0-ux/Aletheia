@@ -4200,8 +4200,28 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 raise act.Refused(
                     f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
                     f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
+            # "How far is my mom's house" said "I don't know where my mom's
+            # house is" one breath after "my mom lives at 12 Oak St"
+            # (2026-10-07). Her words say "your", and what he told her is
+            # offered back as the sentence that saves it.
+            spoken = re.sub(r"^my ", "your ", named)
+            whose = re.fullmatch(r"my ([a-z][a-z' ]{1,25}?)'s (?:house|place|home|apartment)", named)
+            if whose:
+                try:
+                    from aletheia import quick as _quick
+                    for row in _quick._notes():
+                        told = re.fullmatch(r"my " + re.escape(whose.group(1)) + r" lives (?:at|on) (.+?)\.?",
+                                            " ".join(str(row.get("text") or "").split()), re.IGNORECASE)
+                        if told:
+                            raise act.Refused(
+                                f"You told me your {whose.group(1)} lives at {told.group(1)}, but it isn't one of your "
+                                f"saved places. Say \"{named} is at {told.group(1)}\" and I'll measure to it.") from None
+                except act.Refused:
+                    raise
+                except Exception:  # noqa: BLE001
+                    pass
             raise act.Refused(
-                f"I don't know where {named} is. Say \"{named} is at\" and the address, "
+                f"I don't know where {spoken} is. Say \"{named} is at\" and the address, "
                 "and I'll remember it.") from None
         except LookupError:
             raise act.Refused(
