@@ -6429,6 +6429,12 @@ def _interpret(transcript: str) -> dict:
         stretch = re.sub(r"^(?:the |this )", "", str(m.group(1) or ""))
         if stretch in ("weekend", "week", "next week", "next few days", "next two weeks"):
             when = {"weekend": "this weekend", "week": "this week"}.get(stretch, stretch)
+            # "Do I have any appointments this week" asks what is ON it, not
+            # when he is free (2026-10-08: "Free: Friday 9 am to 6 pm...").
+            if re.search(r"\bany (?:meetings|appointments)\b", low) and when in ("this week", "this weekend", "next week"):
+                said = _interpret(f"what's on my calendar {when}")
+                if said:
+                    return said
             return {"command": {"kind": "calendar_find_free", "when": when}, "say": None}
         return _to_the_planner(text)
 
@@ -6853,7 +6859,7 @@ def _interpret(transcript: str) -> dict:
     # "MOM'S NUMBER IS 605 555 0123": "text mom" says "Tell me the number
     # once and I'll remember it", and telling her went to the planner
     # (2026-10-07). Same for an email address.
-    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:phone |cell |mobile |cell phone )?(?:number|phone) is "
+    m = re.fullmatch(r"(?:my )?([a-z][a-z' -]{0,30}?)'s (?:phone |cell |mobile |cell phone |office |office phone )?(?:number|phone) is "
                      r"(\+?[\d][\d ().-]{5,20}\d)", low)
     if m and m.group(1) not in ("my", "your", "his", "her"):
         # A name said all in lower case is still a name (2026-10-07:

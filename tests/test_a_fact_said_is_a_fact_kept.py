@@ -12914,5 +12914,16 @@ class SizesSaidByTheMeasure(unittest.TestCase):
             self.assertEqual(quick.answer("what's my shoe size"), "You told me: you wear a size 11 shoe.")
 
 
+class AppointmentsThisWeekAreWhatIsOn(unittest.TestCase):
+    def test_not_free_time(self):
+        for said in ("do I have any appointments this week", "do I have any meetings next week"):
+            self.assertNotEqual((voice._interpret(said) or {}).get("command", {}).get("kind"), "calendar_find_free", said)
+        self.assertEqual(voice.interpret("do I have any plans this weekend")["command"]["kind"], "calendar_find_free")
+
+    def test_an_office_number_is_their_number(self):
+        cmd = voice.interpret("my dentist's office number is 555-123-4567")["command"]
+        self.assertEqual(cmd["kind"], "contact_add")
+
+
 if __name__ == "__main__":
     unittest.main()
