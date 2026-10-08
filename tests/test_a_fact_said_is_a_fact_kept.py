@@ -7710,5 +7710,14 @@ class AHabitHeWantsIsAGoal(unittest.TestCase):
 
 
 
+class WhatShouldIEatIsAMealIdea(unittest.TestCase):
+    def test_it_is_answered_without_a_model(self):
+        with mock.patch.object(quick, "_planned_for", return_value=None, create=True):
+            said = quick.answer("what should I eat")
+        self.assertIsNotNone(said)
+        self.assertIn("idea", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

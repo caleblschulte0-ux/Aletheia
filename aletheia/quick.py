@@ -2597,6 +2597,14 @@ def _direct(text: str) -> str:
                      r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m and not re.match(r"what (?:are|is|do|does) (?:you|u|i|we|they|it)\b", text):
         return f"what's on {m.group('day')}"
+    # "What should I eat" (2026-10-08: "I can't think just now"): the meal
+    # it is time for, asked the way the meal-idea reader already answers.
+    if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \
+            or re.fullmatch(r"(?:i'?m|i am) hungry,? what should i eat\s*\??", text):
+        import datetime as dt
+        from aletheia import localtime
+        hour = dt.datetime.now(localtime.operator_tz()).hour
+        return "what should i make for " + ("breakfast" if 4 <= hour < 11 else "lunch" if hour < 15 else "dinner")
     # "What's for dinner tonight" (2026-10-08: to a model): tonight's plan
     # when there is one, otherwise the same idea "what should I make" gets.
     m = re.fullmatch(r"what(?:'s| is|s) for (?P<meal>dinner|supper|lunch)(?: tonight| today)?\s*\??", text)
