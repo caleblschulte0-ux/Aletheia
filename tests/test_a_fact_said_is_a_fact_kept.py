@@ -8562,5 +8562,17 @@ class HeyTheaAndOtherPoliteWays(unittest.TestCase):
 
 
 
+class CanYouCheckMyCalendarInPlainWords(unittest.TestCase):
+    """"Can you check my calendar" was answered "Yes - Timezone-aware local
+    conflict, buffer, work-window and multi-day slot reasoning" (2026-10-08)."""
+
+    def test_the_answer_is_said_plainly(self):
+        from aletheia import quick
+        said = quick.answer("can you check my calendar") or ""
+        self.assertNotIn("Timezone-aware", said)
+        self.assertNotIn("slot reasoning", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()
