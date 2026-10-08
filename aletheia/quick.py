@@ -2344,7 +2344,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How did my daughter do on her test", "what does my daughter want for
     # her birthday", "who is babysitting tonight" (2026-10-08: to a model).
     ("kid_did", re.compile(r"^how did (?P<kid_did>my (?:son|daughter|kid|kids|boy|girl)|the kids) do(?: on (?:her|his|their|the|a) (?P<kid_on>[a-z][a-z ]{1,20}?)| in [a-z ]{2,20})?(?: today)?\s*\??$")),
-    ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|dad)|the kids) want for (?:her|his|their) (?:birthday|christmas|hanukkah)\s*\??$"
+    ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|mother|dad|father|sister|brother|grandma|grandpa"
+                             r"|girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend)|the kids) (?:want|really want|wish for)(?: for (?:her|his|their) (?:birthday)| for (?:christmas|hanukkah|mother's day|father's day))?\s*\??$"
                              r"|^what (?:does|do) (?P<kid_wants2>my (?:son|daughter|kid|kids|boy|girl)|the kids) want for (?:christmas|hanukkah)\s*\??$")),
     # "When do we close on the house", "how many days until we move", "how
     # much did we offer" (2026-10-08: to a model).
@@ -2427,6 +2428,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Did I get paid" (2026-10-08: to a model, after "my paycheck came in").
     ("got_paid", re.compile(r"^(?:did|have) (?:i|we) (?:get|gotten|got) paid(?P<got_paid> today| yet| this week)?(?: yet)?\s*\??$"
                             r"|^(?:did|has) (?:my|the) (?:paycheck|pay|direct deposit|deposit) (?:come in|come through|clear|cleared|hit|land|landed|go through|gone through|post|posted)(?: yet)?\s*\??$")),
+    # "What gifts do I need to get" (2026-10-08: "I can't think"), after
+    # "I need to get a birthday gift for my mom" went on the shopping list.
+    ("gifts_owed", re.compile(r"^(?:what|which) (?:gifts?|presents?) (?:do|did) i (?:need|have|still need|still have|want) to (?:get|buy|pick up|wrap)(?: still)?\s*\??$"
+                              r"|^(?:who|whom) do i (?:still )?(?:need|have) to (?:get|buy) (?:a )?(?:gifts?|presents?) for\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -16502,6 +16507,34 @@ def _get_my(thing: str) -> str | None:
     return None
 
 
+def _gifts_owed(_rest: str = "") -> str | None:
+    """Gifts still to get: shopping lines and open tasks that name one."""
+    from aletheia import intercom, speech, tasks
+    gift = re.compile(r"\b(?:gifts?|presents?)\b", re.I)
+    try:
+        shop = [str(r.get("need") or "") for r in intercom._shopping_items() if gift.search(str(r.get("need") or ""))]
+    except Exception:
+        shop = []
+    try:
+        todo = [str(t.get("description") or "") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in ("DONE", "COMPLETED", "CANCELLED", "DROPPED")
+                and gift.search(str(t.get("description") or ""))]
+    except Exception:
+        todo = []
+    parts = []
+    if shop:
+        parts.append("on your shopping list: " + speech.and_list([speech.as_she_says_it(x) for x in shop[:4]]))
+    if todo:
+        parts.append(("a task to " if len(todo) == 1 else "tasks to ")
+                     + speech.and_list([speech.as_she_says_it(x) for x in todo[:4]]))
+    if not parts:
+        return None
+    said = parts[0][0].upper() + parts[0][1:] + "."
+    if len(parts) > 1:
+        said += " You also have " + parts[1] + "."
+    return said
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17315,6 +17348,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "gifts_owed": _gifts_owed,
            "met_when": _met_when,
            "got_paid": _got_paid,
            "nap_len": _nap_len,

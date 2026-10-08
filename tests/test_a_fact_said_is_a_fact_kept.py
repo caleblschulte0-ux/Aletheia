@@ -10927,5 +10927,35 @@ class AwayFromHome(unittest.TestCase):
         self.assertTrue(got["say"].startswith("Welcome back"))
 
 
+class ErrandsAndGifts(unittest.TestCase):
+    """2026-10-08: a package to drop off, a suit to dry clean and "my mom
+    wants a scarf" went to the planner, and "what gifts do I need to get"
+    and "what does my mom want" got "I can't think"."""
+
+    def test_errands_are_tasks(self):
+        for said, task in (("I have a package to drop off at UPS", "drop off a package at UPS"),
+                           ("I need to get my suit dry cleaned", "get my suit dry cleaned"),
+                           ("I need to get my ring resized", "get my ring resized")):
+            got = voice._interpret(said)["command"]
+            self.assertEqual((got["kind"], got["description"]), ("task_new", task), said)
+
+    def test_what_somebody_wants_is_kept_and_read(self):
+        self.assertEqual(voice._interpret("my mom wants a scarf")["command"], {"kind": "note", "text": "my mom wants a scarf"})
+        self.assertNotEqual(voice._interpret("my wife wants to go out")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my mom wants a scarf"}]):
+            self.assertEqual(quick.answer("what does my mom want"), "You told me: your mom wants a scarf.")
+            self.assertIsNone(quick.answer("what does my wife want"))
+
+    def test_gifts_still_to_get(self):
+        from aletheia import intercom, tasks
+        with mock.patch.object(intercom, "_shopping_items", lambda: [{"need": "birthday gift for my mom"}, {"need": "milk"}]), \
+                mock.patch.object(tasks, "all_tasks", lambda: [{"description": "wrap the present for Sam", "status": "OPEN"}]), \
+                mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("what gifts do I need to get"),
+                             "On your shopping list: birthday gift for your mom. You also have a task to wrap the present for Sam.")
+        with mock.patch.object(intercom, "_shopping_items", lambda: []), mock.patch.object(tasks, "all_tasks", lambda: []):
+            self.assertIsNone(quick.answer("what gifts do I need to get"))
+
+
 if __name__ == "__main__":
     unittest.main()

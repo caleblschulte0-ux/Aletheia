@@ -5901,6 +5901,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i'?m|i am|we'?re|we are|just got) (?:back|home) from (?:my |our |the )?(?:vacation|trip|holiday|honeymoon|cruise|camping|business trip|work trip|[a-z]+ trip)", low):
         from aletheia import quick as _qa
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": _qa._arrival()}
+    # "I have a package to drop off at UPS", "I need to get my suit dry
+    # cleaned" (2026-10-08: to the planner) are errands.
+    m = re.fullmatch(r"i (?:have|got|'ve got) (?P<n>a|an|some|two|three|\d) (?P<thing>package|packages|parcel|parcels|box|boxes|return|returns|letter|letters)"
+                     r" to (?P<v>drop off|mail|ship|send|return|post)(?P<rest> (?:at|to) (?:the )?[a-z][a-z' ]{1,30})?(?: today| tomorrow)?", low)
+    if m:
+        return _new_task(f"{m.group('v')} {m.group('n')} {m.group('thing')}" + (" " + _as_he_said(text, m.group("rest").strip()) if m.group("rest") else ""))
+    m = re.fullmatch(r"i (?:need|have|gotta|got|should)(?: to)? (?:get|take) (?P<what>(?:my|the|our) [a-z][a-z' ]{1,25}?) (?:to be )?"
+                     r"(?P<done>dry cleaned|cleaned|fixed|repaired|altered|hemmed|tailored|serviced|resized|framed|sharpened|tuned|reupholstered|re-?soled|shortened|taken in|let out)"
+                     r"(?: (?:today|tomorrow|this week|next week|soon))?", low)
+    if m:
+        return _new_task(_as_he_said(text, f"get {m.group('what')} {m.group('done')}"))
     # "My paycheck came in", "I split dinner with Sam" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit|refund|tax refund|bonus|reimbursement|commission)"
                     r" (?:just )?(?:came in|came through|cleared|hit|landed|went through|was deposited|got deposited|posted|arrived|showed up)"
@@ -10920,6 +10931,9 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(rf"(?:{_kid}) (?:got|scored|made|earned) (?:an? |a perfect |a |)(?:[a-f][+-]?|\d{{1,3}}(?:%| percent)?|perfect score|honor roll|first place|second place|third place)"
                     r"(?: on (?:her|his|their|the|a) [a-z][a-z ]{1,25}| in [a-z][a-z ]{1,20})?", low) \
             or re.fullmatch(rf"(?:{_kid}) (?:wants|would like|is asking for|asked for) (?:a |an |some |the )?[a-z][a-z' ]{{1,30}}? for (?:her|his|their|christmas|hanukkah)(?: birthday)?", low) \
+            or re.fullmatch(r"(?:my|our) (?:son|daughter|kids?|boy|girl|wife|husband|mom|mother|dad|father|sister|brother|grandma|grandpa|"
+                            r"girlfriend|boyfriend|fiancee?|partner|niece|nephew|best friend) (?:really )?(?:wants|would like|is asking for|asked for|has been wanting)"
+                            r" (?:a |an |some |new |the )[a-z][a-z' ]{1,30}?(?: for (?:her|his|their|christmas|hanukkah|mother's day|father's day|valentine'?s(?: day)?)(?: birthday)?)?", low) \
             or re.fullmatch(r"i paid (?:the )?(?:babysitter|sitter|nanny|dog walker|cleaner|cleaning lady|lawn guy|gardener|plumber|electrician|tutor|handyman|mechanic) \$?\d[\d,.]*(?: dollars| bucks)?(?: today| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My glasses prescription is minus 2", "I have a dentist cleaning every
