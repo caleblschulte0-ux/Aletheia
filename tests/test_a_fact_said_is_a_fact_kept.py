@@ -12411,5 +12411,13 @@ class ThingsLentAndLeft(unittest.TestCase):
             self.assertEqual(quick.answer("did I get my ladder back"), "Yes - you told me the neighbor returned the ladder.")
 
 
+class WhatWaitsOnHim(unittest.TestCase):
+    def test_approvals_and_what_she_is_doing_are_hers_to_read(self):
+        for said in ("do I have any approvals", "anything need my approval", "what are you waiting on me for"):
+            self.assertEqual(quick.match(said)[0], "waiting", said)
+        self.assertEqual(quick.match("are you working on anything")[0], "doing")
+        self.assertNotEqual(voice.interpret("do I have any approvals")["command"]["kind"], "file_find")
+
+
 if __name__ == "__main__":
     unittest.main()

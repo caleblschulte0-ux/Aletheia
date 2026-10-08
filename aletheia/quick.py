@@ -228,6 +228,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what needs me(?: right now| now| today)?\s*\??$"
         r"|^what(?:'s| is|s)? the (?:first|next|top) thing (?:waiting (?:on|for) me|i need to do|that needs me)\s*\??$"
         r"|^(?:does )?anything need me(?: right now| now)?\s*\??$"
+        # "Do I have any approvals", "what are you waiting on me for"
+        # (2026-10-08: a file search, and an answer about applications only).
+        r"|^(?:do i have|are there|is there) any (?:pending |open )?(?:approvals?|decisions?|things? waiting(?: on me| for me)?)(?: pending| waiting)?(?: for me)?\s*\??$"
+        r"|^(?:does )?anything need(?:s)? my (?:approval|ok|okay|yes|sign off|sign-off)\s*\??$"
+        r"|^what (?:are|r) (?:you|u) waiting (?:on|for) me (?:for|about|on)\s*\??$"
+        r"|^are (?:you|u) waiting (?:on|for) me(?: for anything)?\s*\??$"
         r"|^(?:is there )?anything (?:waiting )?for me$"
         # "Anything waiting on me", "what needs my attention" (2026-10-07: to a model).
         r"|^(?:is |are )?(?:there )?(?:anything|something|things) waiting (?:on|for) me(?: right now| now| today)?\s*\??$"
@@ -259,6 +265,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("doing", re.compile(
         r"^what (?:are|r) (?:you|u) (?:doing|working on|up to)"
         r"(?: right now| now| at the moment| currently)?$"
+        # "Are you working on anything" (2026-10-08: "I couldn't look into that").
+        r"|^(?:are|r) (?:you|u) (?:working on|doing|busy with) (?:anything|something)(?: right now| now| at the moment| currently)?\s*\??$"
         r"|^what(?:'s| is|s)? (?:happening|going on|the status)(?: right now| now)?$"
         r"|^status$|^how(?:'s| is) it going$")),
     # The brief's first question, answered from the application records

@@ -789,6 +789,10 @@ def _not_a_file(said: str) -> bool:
         return True
     if low in _NOT_A_FILE:
         return True
+    # "Do I have any approvals" searched his Documents (2026-10-08). Her
+    # own approvals and what waits on him are hers to read.
+    if re.fullmatch(r"(?:any |anything )?(?:pending |open )?(?:approvals?|requests?|decisions?|things? waiting(?: on me| for me)?)(?: pending| waiting)?", low):
+        return True
     # "Find ME a plumber near me": a person or a service, never a file.
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low) \
             or re.match(r"(?:the )?(?:nearest|closest)\b", low):
