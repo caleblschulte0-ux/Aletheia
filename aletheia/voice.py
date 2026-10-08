@@ -9030,6 +9030,22 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|got|was) (?:fixed|repaired|working again)(?: now| today)?", low)) \
             and not re.search(r"\b(?:heart|leg|arm|back|bone|nose|wrist|ankle|finger|toe|record|promise|news|ice|build|ci|pipeline|repo|tests?)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHAT HE THOUGHT OF SOMETHING (2026-10-08: "Dune was amazing" to the
+    # planner). Kept; "what did I think of Dune" reads it.
+    m = re.fullmatch(r"(?P<what>[a-z0-9][a-z0-9' :&-]{1,40}?) (?:was|is) (?:really |so |pretty |kind of |kinda |very |super |just )?"
+                     r"(?P<how>amazing|great|good|bad|terrible|boring|ok|okay|fine|awesome|incredible|meh|disappointing|overrated"
+                     r"|underrated|fantastic|excellent|awful|brilliant|slow|confusing|beautiful|hilarious|funny|sad|scary|mid|so good|so bad)"
+                     r"(?: too)?", low)
+    said_as = re.match(re.escape(m.group("what")), text.strip(), re.I) if m else None
+    content = [w for w in (said_as.group(0).split() if said_as else []) if w.casefold() not in ("the", "a", "an")]
+    if m and content and (
+            # a title, said with its capitals: "Dune", "The Bear"
+            (all(w[:1].isupper() or w[:1].isdigit() for w in content)
+             and content[0].casefold() not in ("it", "that", "this", "today", "yesterday", "he", "she", "they", "everything",
+                                               "life", "work", "i", "you", "we", "there", "what", "how", "who", "dinner",
+                                               "lunch", "breakfast", "weather", "my", "your", "tonight", "everyone", "thea", "aletheia"))
+            or re.search(r"\b(?:movie|film|show|book|series|episode|album|game|season|play|concert|restaurant)$", m.group("what"))):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.

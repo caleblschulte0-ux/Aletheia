@@ -8418,8 +8418,13 @@ def _opinion(text: str) -> str | None:
         words = [w for w in re.findall(r"[a-z0-9]+", g["opinion"]) if w not in ("the", "that", "this", "my", "our")]
         for row in _notes():
             said = " ".join(str(row.get("text") or "").split())
-            if re.match(r"(?:i|we) (?:really |absolutely |totally |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t|did not)\b",
-                        said.casefold()) and words and all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
+            # "Dune was amazing" (2026-10-08) is what he thought too.
+            if (re.match(r"(?:i|we) (?:really |absolutely |totally |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t|did not)\b",
+                         said.casefold())
+                    or re.search(r"\b(?:was|is) (?:really |so |pretty |kind of |kinda |very |super |just )?(?:amazing|great|good|bad"
+                                 r"|terrible|boring|ok|okay|fine|awesome|incredible|meh|disappointing|overrated|underrated|fantastic"
+                                 r"|excellent|awful|brilliant|slow|confusing|beautiful|hilarious|funny|sad|scary|mid)\b", said.casefold())) \
+                    and words and all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
         return None
     if g.get("rated"):

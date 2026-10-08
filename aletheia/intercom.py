@@ -3195,11 +3195,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # stayed there, noted as if it were news). Only a line that IS
             # the thing he named - never a word inside another line.
             from aletheia import lists as lists_mod
-            wanted = re.sub(r"^(?:a|an|the|my) ", "", " ".join(str(cmd["which"]).casefold().split()))
+            # "I finished reading Dune" is Dune (2026-10-08: it stayed on
+            # his reading list).
+            named = re.sub(r"^(?:reading|watching|listening to|playing) ", "", " ".join(str(cmd["which"]).split()), flags=re.I)
+            wanted = re.sub(r"^(?:a|an|the|my) ", "", named.casefold())
             for held in lists_mod.all_lists():
                 lines = lists_mod.items(held["name"]) or []
                 if any(re.sub(r"^(?:a|an|the|my) ", "", " ".join(line.casefold().split())) == wanted for line in lines):
-                    taken, _why = lists_mod.take_off(held["name"], str(cmd["which"]))
+                    taken, _why = lists_mod.take_off(held["name"], named)
                     if taken:
                         return f"Nice - took it off your {held['name']} list: {speech.and_list(taken)}."
             # "I finished the report" with no task about it said "Nothing

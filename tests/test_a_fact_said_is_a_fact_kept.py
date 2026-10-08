@@ -8926,5 +8926,33 @@ class WhoLivesThere(unittest.TestCase):
 
 
 
+class WhatHeThoughtOfIt(unittest.TestCase):
+    """2026-10-08: "Dune was amazing" went to the planner, and "I finished
+    reading Dune" left Dune on his reading list."""
+
+    def test_kept_only_for_a_title(self):
+        from aletheia import voice
+        for said in ("Dune was amazing", "The Bear is so good", "the new Batman movie was mid"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        for said in ("It was great", "The weather is great", "Dinner was great", "That was fun"):
+            self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_read_back(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Dune was amazing"}]):
+            self.assertEqual(quick.answer("what did I think of Dune"), "You told me: Dune was amazing.")
+
+    def test_finished_reading_takes_it_off_the_list(self):
+        from aletheia import intercom, lists
+        with mock.patch.object(intercom, "_one_task", lambda which: (None, "Nothing open")), \
+                mock.patch.object(intercom, "_one_shopping_item", lambda which: (None, "")), \
+                mock.patch.object(lists, "all_lists", lambda: [{"name": "reading"}]), \
+                mock.patch.object(lists, "items", lambda name: ["Dune"]), \
+                mock.patch.object(lists, "take_off", lambda name, which: ([which], "")) as off:
+            said = intercom.execute_command({"kind": "task_done", "which": "reading Dune"}, {}, quote="I finished reading Dune")
+        self.assertEqual(said, "Nice - took it off your reading list: Dune.")
+
+
+
 if __name__ == "__main__":
     unittest.main()
