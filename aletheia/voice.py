@@ -2368,6 +2368,42 @@ _OWNED = (r"name|birthday|age|vet|doctor|dentist|food|medicine|meds|number|phone
           r"|size|shoe size|favorite [a-z]+|allergies|allergy|breed|weight|appointment|party|anniversary|plate|license plate")
 
 
+def _event_from_notes(what: str) -> dict | None:
+    """"My flight is at 6 am on Friday" as an event: {"title", "start"}, the
+    newest note that names `what` with a day and a time still ahead. For
+    "remind me 2 hours before my flight" when the flight is a note and not
+    on the calendar (2026-10-08). None when no note says both."""
+    import datetime as dt
+    from aletheia import localtime, quick as _q
+    words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold()) if len(w) > 2]
+    if not words:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    days = r"(today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|" + SPOKEN_DATE + r")"
+    for row in _q._notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not all(w in low for w in words) or not re.search(r"\b(?:is|leaves|departs|starts)\b", low):
+            continue
+        day = re.search(r"\b(?:on |this |next )?" + days + r"\b", low)
+        clock = re.search(r"\bat (\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?|noon|midnight)", low)
+        if not day or not clock:
+            continue
+        iso = _spoken_day(day.group(0).replace("on ", "").replace("this ", "").strip())
+        hhmm = _spoken_time(clock.group(1))
+        if not iso or not hhmm:
+            continue
+        hour, minute = map(int, hhmm.split(":"))
+        if _is_bare_hour(clock.group(1)) and hour <= EARLIEST_BARE_HOUR:
+            hour += 12
+        start = dt.datetime.combine(dt.date.fromisoformat(iso), dt.time(hour, minute), tzinfo=tz)
+        if start > now:
+            title = re.sub(r"^(?:my |your )?", "your ", " ".join(w for w in re.findall(r"[a-z0-9']+", str(what).casefold())))
+            return {"title": title, "start": start.isoformat()}
+    return None
+
+
 def _apostrophes(transcript: str) -> str:
     """"My dogs name" -> "my dog's name", keeping his capitals. "My bosses
     name" is the boss's, and "Sarah number" - a capitalised name before
@@ -4625,6 +4661,9 @@ def _interpret(transcript: str) -> dict:
             if not generic:
                 words = [w for w in re.findall(r"[a-z0-9]+", what) if len(w) > 2]
                 upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
+                told = None if upcoming else _event_from_notes(what)
+                if told and cal.parse_time(told["start"]) > now + lead:
+                    upcoming = [told]
             if not upcoming:
                 return {"command": None,
                         "say": ("Nothing on your calendar coming up" if generic
@@ -4710,6 +4749,8 @@ def _interpret(transcript: str) -> dict:
         if not generic:
             words = [w for w in re.findall(r"[a-z0-9]+", what) if len(w) > 2]
             upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
+            told = None if upcoming else _event_from_notes(what)
+            upcoming = [told] if told else upcoming
         if not upcoming:
             return {"command": None,
                     "say": ("Nothing on your calendar coming up" if generic

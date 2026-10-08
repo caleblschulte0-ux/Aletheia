@@ -7159,6 +7159,22 @@ class DaysOffSaidPlainly(unittest.TestCase):
         self.assertEqual(quick.match("how many days off do I have")[0], "days_off")
 
 
+class BeforeAFlightHeToldHer(unittest.TestCase):
+    """2026-10-08: "remind me to leave 2 hours before my flight" said the
+    flight was not on the calendar, one turn after "my flight is at 6 am on
+    Saturday"."""
+
+    def test_the_note_is_the_event(self):
+        from aletheia import calendar as cal, localtime
+        day = (localtime.today() + dt.timedelta(days=3)).strftime("%A").lower()
+        rows = [{"text": f"my flight is at 6 am on {day}", "ts": ""}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(cal, "all_events", return_value=[]):
+            cmd = voice._interpret("remind me to leave for the airport 2 hours before my flight")["command"]
+        at = dt.datetime.fromisoformat(cmd["at"]).astimezone(localtime.operator_tz())
+        self.assertEqual((at.strftime("%A").lower(), at.hour), (day, 4))
+        self.assertIn("your flight in 2 hours", cmd["text"])
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
