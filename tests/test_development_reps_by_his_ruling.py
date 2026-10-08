@@ -29,11 +29,13 @@ class WithHisRuling(unittest.TestCase):
     def test_development_reps_pass_even_with_cold_calls_and_a_quota(self):
         for title in ("Business Development Representative", "SDR, Mid-Market",
                       "Sales Development Representative", "BDR - AI Labs",
-                      "Business Development Associate"):
+                      "Business Development Associate", "Account Development Representative",
+                      "Market Development Rep", "Lead Development Representative (Inbound)"):
             self.assertEqual(job_fit.unwanted_reason(title, COLD, HIS), "", title)
 
     def test_every_other_sales_job_is_still_left_out(self):
-        for title in ("Account Executive", "Inside Sales Representative", "Sales Manager"):
+        for title in ("Account Executive", "Inside Sales Representative", "Sales Manager",
+                      "Market Development Manager, Sales", "Account Manager, Sales"):
             self.assertTrue(job_fit.unwanted_reason(title, "", HIS), title)
         self.assertTrue(job_fit.unwanted_reason("Customer Success Manager", COLD, HIS))
 
