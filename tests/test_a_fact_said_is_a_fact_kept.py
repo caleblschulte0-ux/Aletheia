@@ -7922,5 +7922,14 @@ class ABareMeetingTakesItsArticle(unittest.TestCase):
 
 
 
+class HerDayReadsHisNotesAsHis(unittest.TestCase):
+    def test_his_i_is_said_as_you(self):
+        from aletheia import recollection
+        row = recollection._row({"ts": "2026-10-08T08:00:00Z", "kind": "note", "actor": "operator-local-core",
+                                 "subject": "operator", "text": "I finished the report"})
+        self.assertEqual(row["what"], "Noted: you finished the report")
+
+
+
 if __name__ == "__main__":
     unittest.main()

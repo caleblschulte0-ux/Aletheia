@@ -677,7 +677,7 @@ class TheEighthBatteryFallThroughs(unittest.TestCase):
             self.assertEqual(quick.answer("how many notifications do I have"), "No unread notifications.")
         row = recollection._row({"ts": "2026-09-24T20:00:00Z", "kind": "note", "actor": "operator-local-core",
                                  "subject": "operator", "text": "my landlord's name is Dana"})
-        self.assertEqual(row["what"], "Noted: my landlord's name is Dana")
+        self.assertEqual(row["what"], "Noted: your landlord's name is Dana")
         self.assertIn("core:note", recollection.SAID_NOT_DID)
         # Undo his own last ask: the task he just added is cancelled.
         with tempfile.TemporaryDirectory() as tmp, \
