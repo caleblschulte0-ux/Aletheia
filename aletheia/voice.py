@@ -1528,6 +1528,13 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # No day said: today, unless the time has already gone by - "I have a
     # meeting at 1" said at 6 pm was held for 1 pm today (2026-10-07).
     unsaid = not str(day or "").strip()
+    # "A call with Bob at 9 tonight" was held for 9 am TOMORROW (2026-10-08):
+    # "tonight" said after the time is the day and the evening both.
+    if unsaid and str(part or "").strip().casefold() == "tonight":
+        day, part, unsaid = "tonight", "night", False
+    # "At 4 this afternoon" is today's, gone by or not - never tomorrow's.
+    elif unsaid and part and re.search(r"\bthis (?:morning|afternoon|evening)\b", str(transcript or "").casefold()):
+        day, unsaid = "today", False
     day = day or "today"
     day_iso = _spoken_day(day)
     if not day_iso:
@@ -11575,6 +11582,18 @@ def _interpret(transcript: str) -> dict:
     # day "are the leftovers still good" counts from.
     if re.fullmatch(r"(?:the |these |our )?(?:leftovers?|left overs|[a-z]{3,12} leftovers) (?:are|is|were|was) from (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|yesterday|last night|the other day)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My meeting got moved to 4", "my meeting with Sarah got canceled"
+    # (2026-10-08: to the planner) are his hold moved or taken off, said
+    # as news. A flight or a game called off is still news (a note).
+    m = re.fullmatch(r"(?P<what>my (?:meeting|appointment|call|interview|[a-z]{3,15}(?:'s)? (?:appointment|meeting|call))(?: with [a-z][a-z' ]{1,25}?)?)"
+                     r" (?:got|was|has been|is being|is) (?P<how>moved|pushed|bumped|rescheduled|changed|canceled|cancelled|called off)(?P<to> (?:back )?to .{1,30}?)?(?: instead)?", low)
+    if m and (m.group("how") in ("canceled", "cancelled", "called off")) != bool(m.group("to")):
+        if m.group("to"):
+            said = _interpret(f"move {m.group('what')}{re.sub(r'^ back', '', m.group('to'))}")
+        else:
+            said = _interpret(f"cancel {m.group('what')}")
+        if said:
+            return said
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

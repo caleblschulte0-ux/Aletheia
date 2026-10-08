@@ -2330,7 +2330,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                             r"(?: me)?(?: today| yet| back| this morning)?\s*\??$")),
     # "Where am I going at 3", "do I still have the meeting", "who is
     # picking me up" (2026-10-08: all to a model).
-    ("at_hour", re.compile(r"^(?:where am i (?:going|supposed to be|meant to be)|what do i have|what(?:'s| is) on|what am i doing|what(?:'s| is) happening)"
+    ("at_hour", re.compile(r"^(?:where am i (?:going|supposed to be|meant to be)|what do i have|what(?:'s| is) on|what am i doing|what(?:'s| is) happening"
+                           r"|who (?:am i|do i have a) (?:meeting|seeing|meeting with|call with|talking to))"
                            r" at (?P<at_hour>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)(?P<ah_tmw> tomorrow| today)?\s*\??$")),
     ("still_have", re.compile(r"^(?:do|did) i still have (?:the|my|a|that) (?P<still_have>[a-z][a-z' ]{2,30}?)(?: today| tomorrow| later)?\s*\??$"
                               r"|^is (?:the|my) (?P<still_have2>[a-z][a-z' ]{2,30}?) still (?:on|happening)(?: today| tomorrow)?\s*\??$")),
@@ -15663,9 +15664,14 @@ def _at_hour(text: str) -> str | None:
     day = dt.datetime.now(tz).date() + dt.timedelta(days=1 if "tomorrow" in str(g.get("ah_tmw") or "") else 0)
     found = [(at.astimezone(tz), title) for at, title, store in _coming()
              if store == "calendar" and at.astimezone(tz).date() == day and at.astimezone(tz).hour == h]
+    # "Who am I meeting at 3", said at 7 in the evening, is tomorrow's 3
+    # (2026-10-08: to a model).
+    if not found and not g.get("ah_tmw") and dt.datetime.now(tz).hour >= h:
+        found = [(at.astimezone(tz), title) for at, title, store in _coming()
+                 if store == "calendar" and at.astimezone(tz).date() == day + dt.timedelta(days=1) and at.astimezone(tz).hour == h]
     if not found:
         return None
-    said = [f"your {t.rstrip('.')} at {speech.humanize_time(a.isoformat())}" for a, t in found[:3]]
+    said = [f"your {t.rstrip('.')} {speech.humanize_time(a.isoformat())}" for a, t in found[:3]]
     out = speech.and_list(said)
     return out[:1].upper() + out[1:] + "."
 
@@ -15684,6 +15690,19 @@ def _still_have(text: str) -> str | None:
         low = title.casefold()
         if store == "calendar" and all(re.search(r"\b" + re.escape(w.rstrip("s")), low) for w in words):
             return f"Yes - your {title.rstrip('.')} is {speech.humanize_time(at.astimezone(tz).isoformat())}."
+    # "My meeting with Sarah got canceled" and then "do I still have it"
+    # (2026-10-08: to the planner): she took it off, so the answer is no.
+    try:
+        from aletheia import recollection
+        rows = recollection.day(24 * 14)
+    except Exception:
+        rows = []
+    for row in reversed(rows):
+        what = str(row.get("what") or "")
+        gone = re.match(r"Took (.+?) off your calendar", what)
+        if gone and all(re.search(r"\b" + re.escape(w.rstrip("s")), gone.group(1).casefold()) for w in words):
+            title = re.sub(r" (?:today|tomorrow|this|next|on [A-Z][a-z]+day|[A-Z][a-z]+day|\d)\b.*$", "", gone.group(1))
+            return f"No - I took the {title} off your calendar."
     return None
 
 

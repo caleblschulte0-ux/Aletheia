@@ -9559,7 +9559,8 @@ class OutAndAbout(unittest.TestCase):
                 mock.patch.object(quick, "_coming", lambda: [(three, "team meeting", "calendar")]):
             self.assertEqual(quick.answer("who is picking me up"), "You told me: Jake is picking you up from the airport.")
             self.assertEqual(quick.answer("what level did I park on"), "You parked on level 3.")
-            self.assertTrue(quick.answer("where am I going at 3 tomorrow").startswith("Your team meeting at"))
+            # It used to read "Your team meeting at tomorrow at 3 pm" (2026-10-08).
+            self.assertEqual(quick.answer("where am I going at 3 tomorrow"), "Your team meeting tomorrow at 3 pm.")
             self.assertTrue(quick.answer("do I still have the meeting").startswith("Yes - your team meeting is"))
             self.assertIsNone(quick.answer("do I still have the dentist"))
 
@@ -12993,6 +12994,31 @@ class LeftoversFromADay(unittest.TestCase):
         rows = [{"text": "the leftovers are from yesterday", "ts": told.isoformat()}]
         with mock.patch.object(quick, "_notes", return_value=rows):
             self.assertTrue(quick.answer("are the leftovers still good").startswith("They went in yesterday"))
+
+
+class AMeetingMovedOrOff(unittest.TestCase):
+    """2026-10-08: "my meeting got moved to 4" and "my meeting with Sarah got
+    canceled" went to the planner, "do I still have it" then went there too,
+    and "a call with Bob at 9 tonight" was held for 9 the next MORNING."""
+
+    def test_moved_and_canceled_are_his_verbs(self):
+        self.assertEqual(voice._interpret("my meeting got moved to 4"), voice._interpret("move my meeting to 4"))
+        self.assertEqual(voice._interpret("my meeting with Sarah got canceled"), voice._interpret("cancel my meeting with Sarah"))
+        self.assertEqual(voice.interpret("my flight got canceled")["command"]["kind"], "note")
+
+    def test_still_have_it_after_it_came_off(self):
+        rows = [{"what": "Took meeting with Sarah tomorrow at 4 pm off your calendar."}]
+        from aletheia import recollection
+        with mock.patch.object(quick, "_coming", return_value=[]), mock.patch.object(recollection, "day", return_value=rows):
+            self.assertEqual(quick.answer("do I still have a meeting with Sarah"), "No - I took the meeting with Sarah off your calendar.")
+        with mock.patch.object(quick, "_coming", return_value=[]), mock.patch.object(recollection, "day", return_value=[]):
+            self.assertIsNone(quick.answer("do I still have a meeting with Sarah"))
+
+    def test_tonight_after_the_hour_is_tonight(self):
+        from aletheia import localtime
+        start = voice._interpret("I have a call with Bob at 9 tonight")["command"]["start"]
+        self.assertEqual(start[:10], localtime.today().isoformat())
+        self.assertEqual(start[11:13], "21")
 
 
 if __name__ == "__main__":
