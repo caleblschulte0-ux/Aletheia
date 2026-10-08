@@ -1874,7 +1874,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How long have I been married" (2026-10-07: to a model, a turn after
     # "I got married in 2018").
     ("married", re.compile(r"^how long (?:have|has) (?:i|we|anna and i|my wife and i|my husband and i) been married\s*\??$"
-                           r"|^how many years (?:have i|have we) been married\s*\??$|^when did (?:i|we) get married\s*\??$")),
+                           r"|^how many years (?:have i|have we) been married\s*\??$|^when did (?:i|we) get married\s*\??$"
+                           # "What anniversary is this year" (2026-10-08: to a model).
+                           r"|^(?:what|which) (?:wedding )?anniversary (?:is (?:it|this|this one|this year|coming up|next)|are we (?:on|at|celebrating)(?: this year)?)\s*\??$")),
     # "What time should I go to bed if I wake up at 6" (2026-10-07: to a model).
     ("bedtime_calc", re.compile(
         r"^(?:what time|when) should i (?:go to bed|go to sleep|sleep|be in bed) (?:if|so|to)(?: that)? i (?:can )?(?:wake up|get up|have to (?:wake|get) up"
@@ -2171,7 +2173,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # new job" (2026-10-07: an application called "many days since I
     # started my new", and a model).
     ("job_since", re.compile(
-        r"^(?:how long have i (?:been (?:at|with|working at|working for|in) (?:my (?:new )?job|work|my company|my role|[a-z][a-z0-9&.' -]{1,30}?)|had my (?:new )?job|worked (?:at|for) [a-z][a-z0-9&.' -]{1,30}?)"
+        # "How long have I worked here" (2026-10-08: to a model)
+        r"^(?:how long have i (?:worked here|been working here|been here at work|been at this job|been (?:at|with|working at|working for|in) (?:my (?:new )?job|work|my company|my role|[a-z][a-z0-9&.' -]{1,30}?)|had my (?:new )?job|worked (?:at|for) [a-z][a-z0-9&.' -]{1,30}?)"
         r"|how many (?:days|weeks|months) (?:since i started|have i been at|have i had) (?:my (?:new )?job|work|at [a-z][a-z0-9&.' -]{1,30}?|working at [a-z][a-z0-9&.' -]{1,30}?)"
         r"|when did i start (?:my (?:new )?job|work at [a-z][a-z0-9&.' -]{1,30}?|working at [a-z][a-z0-9&.' -]{1,30}?|at [a-z][a-z0-9&.' -]{1,30}?))\s*\??$")),
     ("days_since", re.compile(
@@ -2934,6 +2937,9 @@ def _date_in_notes(words: str, today):
     note of his gives it, next time it comes round (2026-10-07: "how long
     until our anniversary" went to a model a turn after he said it)."""
     w = re.sub(r"^(?:my|our|the) ", "", " ".join(str(words or "").casefold().split()))
+    # "How long until my lease is up" a turn after "my lease ends July 31"
+    # (2026-10-08): the end said another way is still the end.
+    w = re.sub(r" (?:is up|is over|runs out|expires|ends|is due|starts|begins)$", "", w)
     if not w or len(w) > 40:
         return None
     rel = re.match(r"(?P<rel>[a-z]+)'s (?P<what>.+)", w)
@@ -8633,6 +8639,7 @@ def _married(text: str) -> str | None:
     from aletheia import localtime, speech
     today = dt.datetime.now(localtime.operator_tz()).date()
     when_asked = text.casefold().startswith("when")
+    which = bool(re.match(r"(?:what|which) (?:wedding )?anniversary", _tidy(text)))
     no_year = None
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
@@ -8649,6 +8656,14 @@ def _married(text: str) -> str | None:
             continue
         if when_asked:
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        if which:
+            # the next one is counted from the year they married
+            nxt = _date_in_notes("anniversary", today)
+            n = (nxt.year if nxt else today.year) - int(y.group(1))
+            if n < 1:
+                return None
+            on = f", on {nxt.strftime('%A %d %B').replace(' 0', ' ')}" if nxt else ""
+            return f"Your {_ordinal(n)}{on} - you told me {speech.as_she_says_it(said).rstrip('.')}."
         years = today.year - int(y.group(1))
         return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
                 if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
@@ -11509,15 +11524,21 @@ def _job_since(text: str) -> str | None:
             return f"You told me: {speech.as_she_says_it(text_).rstrip('.')}."
         days = (today - began).days
         on = f"{began.strftime('%A')} {began.day} {began.strftime('%B')}" + ("" if began.year == today.year else f" {began.year}")
+        # "March 2021" named a month, not the first of it (2026-10-08)
+        month_only = when not in ("today", "yesterday") and not (d.group("a") or d.group("b"))
+        if month_only:
+            on = began.strftime("%B") + ("" if began.year == today.year else f" {began.year}")
         if days < 0:
-            return f"You start on {on}."
+            return f"You start in {on}." if month_only else f"You start on {on}."
+        if days == 0:
+            return "You started today."
         if days < 60:
             span = f"{days} day{'s' if days != 1 else ''}"
         elif days < 730:
             span = f"about {round(days / 30.44)} months"
         else:
             span = f"about {days // 365} years"
-        return f"{span[:1].upper() + span[1:]} - you started on {on}."
+        return f"{span[:1].upper() + span[1:]} - you started {'in' if month_only else 'on'} {on}."
     return None
 
 

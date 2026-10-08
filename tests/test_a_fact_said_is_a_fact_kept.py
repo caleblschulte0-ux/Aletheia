@@ -6292,5 +6292,26 @@ class TheCarSaidOutLoud(unittest.TestCase):
                          "get the dryer looked at - it's making an odd noise")
 
 
+
+class AnniversariesLeasesAndJobs(unittest.TestCase):
+    """2026-10-08: "what anniversary is this year", "how long until my
+    lease is up" and "how long have I worked here" went to a model."""
+
+    def test_which_anniversary(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my anniversary is May 12"}, {"text": "we got married in 2015"}]):
+            said = quick.answer("what anniversary is this year")
+        today = dt.date.today()
+        nth = (today.year + (1 if (today.month, today.day) > (5, 12) else 0)) - 2015
+        self.assertTrue(said.startswith(f"Your {quick._ordinal(nth)}, on "), said)
+
+    def test_the_end_said_another_way_is_the_end(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my lease ends July 31"}]):
+            self.assertRegex(quick.answer("how long until my lease is up"), r"^\d+ days, \w+ 31 July\.$")
+
+    def test_worked_here_is_the_job(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I started my job in March 2021", "ts": "2026-10-08T01:00:00+00:00"}]):
+            self.assertTrue(quick.answer("how long have I worked here").endswith("you started in March 2021."))
+
+
 if __name__ == "__main__":
     unittest.main()
