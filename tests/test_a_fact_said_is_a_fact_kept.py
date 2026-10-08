@@ -9001,5 +9001,30 @@ class CanIEatIt(unittest.TestCase):
 
 
 
+class ATripToParis(unittest.TestCase):
+    """2026-10-08: the trip sweep. "My hotel in Paris is the Ritz" and "I
+    need to pack my charger" went to the planner; "how many days until my
+    trip" and "what time zone is Paris in" to a model."""
+
+    def test_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my hotel in Paris is the Ritz")["command"],
+                         {"kind": "note", "text": "my hotel is the Ritz in Paris"})
+        self.assertEqual(voice._interpret("I need to pack my charger")["command"],
+                         {"kind": "list_add", "list": "packing", "item": "charger"})
+
+    def test_a_trip_with_no_day_says_so(self):
+        from aletheia import quick
+        rows = [{"text": "I am going to Paris next month", "ts": "2026-10-08T10:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            said = quick.answer("how many days until my trip")
+        self.assertIn("but not the day", said)
+
+    def test_time_zone(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what time zone is Paris in"), ("time_in", "paris"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

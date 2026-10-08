@@ -9936,6 +9936,17 @@ def _interpret(transcript: str) -> dict:
     if m:
         where = _as_he_said(text, m.group("at")) + (" " + _as_he_said(text, m.group("in").strip()) if m.group("in") else "")
         return {"command": {"kind": "note", "text": f"my hotel is {where}"}, "say": None}
+    # "My hotel in Paris is the Ritz" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:my|our) (?:hotel|airbnb|hostel|resort|place) (?P<in>in [a-z][a-z .'-]{1,30}? )?is (?:called )?(?P<at>(?:the |an? )?[a-z0-9][a-z0-9 &'.-]{1,40}?)", low)
+    if m and not re.match(r"(?:nice|great|good|bad|awful|terrible|amazing|small|big|clean|dirty|close|far|booked|ready|expensive|cheap)\b", m.group("at")):
+        where = _as_he_said(text, m.group("at")) + (" " + _as_he_said(text, m.group("in").strip()) if m.group("in") else "")
+        return {"command": {"kind": "note", "text": f"my hotel is {where}"}, "say": None}
+    # "I need to pack my charger" (2026-10-08: to the planner) goes on the
+    # packing list "what do I need to pack" already reads.
+    m = re.fullmatch(r"(?:i (?:need|have|got|gotta|should|must)(?: to)? |don'?t (?:let me )?forget to |remember to )pack (?:my |the |a |an |some |our )?"
+                     r"(?P<what>[a-z][a-z0-9 '&-]{1,40}?)(?: for (?:the |my |our )?(?:trip|vacation|holiday|flight))?", low)
+    if m and m.group("what") not in ("it", "that", "this", "everything", "up", "stuff", "things", "bags", "bag", "suitcase"):
+        return {"command": {"kind": "list_add", "list": "packing", "item": _as_he_said(text, m.group("what"))}, "say": None}
     # "I benched 185 today" (2026-10-08: to the planner). A lift he logs;
     # "what's my max bench" reads the heaviest.
     if re.fullmatch(r"i (?:just )?(?:benched|bench pressed|squatted|deadlifted|overhead pressed|military pressed|curled|leg pressed|"

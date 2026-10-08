@@ -1094,6 +1094,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? the time (?:in|at) (?P<time_in>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^what time is it (?:in|at|over in) (?P<time_in2>[a-z][a-z .'-]{1,40}?)(?: right now| now)?\s*\??$"
         r"|^(?:what(?:'s| is) the )?(?:current |local )?time in (?P<time_in3>[a-z][a-z .'-]{1,40}?)\s*\??$"
+        # "What time zone is Paris in" (2026-10-08: to a model): its clock and how far off.
+        r"|^what (?:time ?zone|timezone) is (?P<time_in6>[a-z][a-z .'-]{1,40}?) in\s*\??$"
+        r"|^what(?:'s| is) the (?:time ?zone|timezone) (?:in|of|for) (?P<time_in7>[a-z][a-z .'-]{1,40}?)\s*\??$"
         # "How far ahead is Tokyo", "what's the time difference with London"
         # (2026-10-07: to a model) - the same answer says how far.
         r"|^how (?:far|many hours) (?:ahead|behind) (?:of (?:me|us) )?is (?P<time_in4>[a-z][a-z .'-]{1,40}?)\s*\??$"
@@ -2930,7 +2933,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
-                                           "time_in3", "time_in4", "time_in5", "date_of", "date_of2", "date_of3",
+                                           "time_in3", "time_in4", "time_in5", "time_in6", "time_in7", "date_of", "date_of2", "date_of3",
                                            "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
@@ -4429,7 +4432,7 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     `which_day`: he asked WHEN it is, so the date leads ("what day is
     Thanksgiving" answered "50 days" first, 2026-10-07)."""
     import datetime as dt
-    from aletheia import localtime
+    from aletheia import localtime, speech
     # "How long until sunset" is the sun's, not a date's (2026-10-08).
     if re.fullmatch(r"(?:the )?(?:sunset|sunrise|dark|it gets dark|the sun sets)", str(words or "").strip()):
         return _sun(f"how long until {str(words).strip()}")
@@ -4474,7 +4477,17 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if when is None:
         if re.fullmatch(r"(?:my )?birthday", " ".join(str(words or "").casefold().split())):
             return "I don't know your birthday yet. Say \"my birthday is March 3\" and I'll remember it."
-        return _until_mine(words)  # a thing, not a date: the model may think
+        found = _until_mine(words)  # a thing, not a date: the model may think
+        if found is None and re.fullmatch(r"(?:my |our |the )?(?:trip|vacation|holiday|getaway)", " ".join(str(words or "").casefold().split())):
+            # "I'm going to Paris next month" names no day (2026-10-08: a
+            # model was asked to count to it).
+            for row in _notes():
+                said = " ".join(str(row.get("text") or "").split())
+                if re.search(r"\b(?:trip|vacation|holiday|going to|heading to|flying to|driving to)\b", said, re.I) \
+                        and re.search(r"\b(?:next|this) (?:week|month|year|summer|winter|spring|fall|weekend)\b|\bin (?:the )?(?:summer|winter|spring|fall)\b", said, re.I):
+                    return (f"You told me {speech.as_she_says_it(said).rstrip('.')}, but not the day. "
+                            "Tell me the date and I'll count down to it.")
+        return found
     days = (when - today).days
     said = when.strftime("%A %d %B").replace(" 0", " ")
     if days == 0:
