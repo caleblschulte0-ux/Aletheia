@@ -8251,5 +8251,22 @@ class IGotGasToday(unittest.TestCase):
 
 
 
+class EmmasTeacherIsEmmas(unittest.TestCase):
+    """"Emmas teacher is Mrs Brown" and "when is Emmas dentist appointment"
+    went to the planner (2026-10-08): a name typed without its apostrophe."""
+
+    def test_the_possessive_is_put_back(self):
+        from aletheia import voice
+        self.assertEqual(voice._apostrophes("Emmas teacher is Mrs Brown"), "Emma's teacher is Mrs Brown")
+        self.assertEqual(voice._apostrophes("when is Emmas dentist appointment"), "when is Emma's dentist appointment")
+        self.assertEqual(voice.interpret("Emmas teacher is Mrs Brown")["command"]["text"], "Emma's teacher is Mrs Brown")
+
+    def test_a_name_ending_in_s_is_left_alone(self):
+        from aletheia import voice
+        self.assertEqual(voice._apostrophes("James teacher is Mr Lee"), "James teacher is Mr Lee")
+        self.assertEqual(voice._apostrophes("The kids have school"), "The kids have school")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2519,6 +2519,12 @@ def _event_from_notes(what: str) -> dict | None:
     return None
 
 
+#: Names that end in s on their own, so "James teacher" is not "Jame's".
+_ENDS_IN_S = ("James|Charles|Chris|Thomas|Nicholas|Douglas|Lucas|Marcus|Agnes|Frances|Doris|Lewis|Louis|Dennis"
+              "|Phyllis|Iris|Gus|Jess|Russ|Ross|Wes|Les|Carlos|Jesus|Andreas|Elias|Silas|Atlas|Miles|Moses|Amos"
+              "|Hayes|Reyes|Gladys|Lois|Alexis|Paris|Tess|Bess|Cass|Jules|Niles|Myles|Ellis|Willis|Curtis|Otis|Rhys")
+
+
 def _apostrophes(transcript: str) -> str:
     """"My dogs name" -> "my dog's name", keeping his capitals. "My bosses
     name" is the boss's, and "Sarah number" - a capitalised name before
@@ -2534,6 +2540,14 @@ def _apostrophes(transcript: str) -> str:
     # each to a model) - typed without the apostrophe, they missed every
     # pattern written "what's". The question word gets it back.
     said = re.sub(r"\b(what|where|who|how|when)s\b", r"\1's", said, flags=re.I)
+    # "Emmas teacher is Mrs Brown", "when is Emmas dentist appointment"
+    # (2026-10-08: to the planner). A capitalised name with an s stuck on,
+    # before something a person has, is that person's - except a name that
+    # really ends in s.
+    said = re.sub(r"(?<![\w'])(?!(?:" + _ENDS_IN_S + r")\b)([A-Z][a-z]{1,15}[^s\W])s (teacher|coach|school|class|dentist|doctor|"
+                  r"(?:dentist |doctor |vet |school |soccer |piano |dance )?(?:appointment|practice|game|recital|lesson|party)|"
+                  r"birthday|number|phone number|email|address|friend|mom|dad|wife|husband|boyfriend|girlfriend)\b",
+                  r"\1's \2", said)
     return re.sub(r"(?<![\w'])(?!(?:My|The|Our|What|When|Where|Who|How|Is|Set|Add|Call|Text|Email)\b)([A-Z][a-z]{1,15}(?<!s)) "
                   r"(number|phone number|cell number|cell|email|email address|birthday|address)\b(?! is (?:a|an|the)\b)",
                   r"\1's \2", said)
