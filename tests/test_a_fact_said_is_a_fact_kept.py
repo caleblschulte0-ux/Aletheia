@@ -8013,5 +8013,18 @@ class APomodoroAndABreak(unittest.TestCase):
 
 
 
+class DoYouRememberAndForgetThat(unittest.TestCase):
+    def test_do_you_remember_reads_the_day(self):
+        self.assertEqual(quick._direct("do you remember what i told you yesterday"), "what did i tell you yesterday")
+
+    def test_forget_that_finds_the_note(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_remembered_matching", return_value=[]), \
+                mock.patch.object(intercom, "_forget_note", side_effect=lambda a: a if a.startswith("my boss") else "") as gone:
+            said = intercom.execute_command({"kind": "forget", "about": "that my boss is named Karen"}, {}, quote="x")
+        self.assertTrue(said.startswith("Forgotten:"), said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

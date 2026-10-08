@@ -2656,6 +2656,12 @@ def _direct(text: str) -> str:
                    "took": "take", "changed": "change", "vacuumed": "vacuum"}.get(first)
         if present:
             return f"when did i last {present} {after}".strip()
+    # "Do you remember what I told you yesterday" (2026-10-08: "nothing on
+    # file about what i told you yesterday"): the day's reader.
+    m = re.fullmatch(r"(?:do|did) (?:you|u) remember what i (?:told|said to|tell) (?:you|u)"
+                     r" (?P<when>yesterday|today|this morning|last night|earlier|earlier today)\s*\??", text)
+    if m:
+        return f"what did i tell you {m.group('when')}"
     # "What should I eat" (2026-10-08: "I can't think just now"): the meal
     # it is time for, asked the way the meal-idea reader already answers.
     if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \
