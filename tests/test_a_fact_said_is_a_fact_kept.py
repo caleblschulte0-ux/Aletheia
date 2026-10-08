@@ -11493,5 +11493,31 @@ class CallsAndNotesHeOwes(unittest.TestCase):
             self.assertEqual(quick.answer("did I mail the package"), "You told me you mailed the package.")
 
 
+class ARoadTrip(unittest.TestCase):
+    """2026-10-08: a road trip went to the planner sentence by sentence, every
+    question about it to a model, and "check in is at 3" answered "I don't
+    have an open conversation with is at 3"."""
+
+    def test_said(self):
+        for said in ("I am going on a road trip next week", "we are driving to Chicago", "the drive is 6 hours",
+                     "we are leaving at 7am", "we are stopping in Indianapolis", "the kids want to go to the zoo",
+                     "check in is at 3"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertRegex(voice._interpret("we get back Sunday")["command"]["text"], r"^we get back on Sunday \d+ \w+$")
+        self.assertEqual(voice._interpret("check in with Sam")["command"]["kind"], "thread_followup")
+
+    def test_read(self):
+        notes = [{"text": t} for t in ("we are driving to Chicago", "the drive is 6 hours", "we are leaving at 7am",
+                                       "we are staying at the Hilton", "the kids want to go to the zoo", "check in is at 3")]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("where are we staying"), "You told me you are staying at the Hilton.")
+            self.assertEqual(quick.answer("how long is the drive"), "You told me the drive is 6 hours.")
+            self.assertIn("7am", quick.answer("what time are we leaving"))
+            self.assertIn("zoo", quick.answer("what do the kids want to do"))
+            self.assertEqual(quick.answer("what time is check in"), "You told me check in is at 3.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("where are we staying"))
+
+
 if __name__ == "__main__":
     unittest.main()

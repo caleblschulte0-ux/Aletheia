@@ -2488,6 +2488,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("dinner_at", re.compile(r"^what time is (?P<dinner_at>(?:thanksgiving |christmas |easter )?(?:dinner|lunch|brunch|the party|the barbecue|the bbq|the potluck))(?: on [a-z]+)?\s*\??$")),
     ("allergic_who", re.compile(r"^who(?:'s| is) allergic to (?P<allergic_who>[a-z][a-z ]{1,20}?)\s*\??$")),
     ("thaw_when", re.compile(r"^when (?:should|do) i (?:start )?(?:thaw(?:ing)?|defrost(?:ing)?|take out) (?:the|my|a) turkey(?: out)?\s*\??$")),
+    # "Where are we staying", "how long is the drive", "what time are we
+    # leaving", "where are we stopping", "what do the kids want to do", "what
+    # time is check in" (2026-10-08: to a model, or his Documents searched).
+    ("trip_fact", re.compile(r"^(?:where (?:are|am) (?:we|i) (?P<tf_where>staying|stopping|going|driving to|headed)"
+                             r"|how long (?:is|will be) the (?P<tf_long>drive|flight|train ride|trip)(?: there| home| back)?"
+                             r"|what time (?:are we|am i|do we) (?P<tf_leave>leaving|heading out|taking off)"
+                             r"|what (?:do|does) (?P<tf_want>the kids|my kids|my son|my daughter|my wife|my husband|[a-z]{2,15}) want to (?:do|see|visit)"
+                             r"|what time is (?:the )?(?:hotel )?(?P<tf_check>check[- ]?in|check[- ]?out))\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3419,7 +3427,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17056,6 +17064,31 @@ def _thaw_when(_rest: str = "") -> str | None:
             f"{start:%A} {start.day} {start:%B} for Thanksgiving on {thanks:%A} {thanks.day} {thanks:%B}.")
 
 
+def _trip_fact(text: str) -> str | None:
+    """A thing he said about the trip, read back as he said it."""
+    g = _groups("trip_fact", text)
+    if g.get("tf_where"):
+        verb = {"staying": r"(?:staying|stay) (?:at|in|with)", "stopping": r"(?:stopping|staying the night|staying overnight|spending the night) (?:in|at)",
+                "going": r"(?:going|driving|flying|heading)(?: up| down| out)? to|going on", "driving to": r"driving(?: up| down| out)? to",
+                "headed": r"(?:heading|headed|going) to"}[g["tf_where"]]
+        pattern = rf"^(?:we'?re|we are|i'?m|i am) {verb}\b"
+    elif g.get("tf_long"):
+        pattern = rf"^(?:the |our )?{re.escape(g['tf_long'])} (?:there |home |back )?(?:is|takes|will take) "
+    elif g.get("tf_leave"):
+        pattern = r"^(?:we'?re|we are|i'?m|i am) (?:leaving|heading out|taking off|hitting the road) "
+    elif g.get("tf_want"):
+        pattern = rf"^{re.escape(g['tf_want'])} (?:wants?|would like) to "
+    elif g.get("tf_check"):
+        pattern = r"^(?:my |our |the )?(?:hotel )?check[- ]?" + ("in" if g["tf_check"].endswith("in") else "out") + r" (?:time )?is "
+    else:
+        return None
+    found = _said_lines(pattern, 1)
+    if not found:
+        return None
+    said = re.sub(r"^(?:we are|we.re)\b", "you are", found[0], flags=re.I)
+    return f"You told me {said}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17871,6 +17904,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "trip_fact": _trip_fact,
            "who_brings": _who_brings,
            "coming_count": _coming_count,
            "dinner_at": _dinner_at,
