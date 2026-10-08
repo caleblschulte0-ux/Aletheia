@@ -5417,6 +5417,34 @@ def _interpret(transcript: str) -> dict:
                         r"(?: already| now)?", low)
     if m and _on_the_shopping_list(m.group("w")) and not _names_one_open_task(m.group("w")):
         return {"command": {"kind": "shopping_off", "item": m.group("w").strip()}, "say": None}
+    # "I got the batteries" with batteries on his Target list (2026-10-08:
+    # to the planner). The one other list that holds exactly that line.
+    if m and not _names_one_open_task(m.group("w")):
+        try:
+            from aletheia import lists as _lists
+            bare = lambda x: re.sub(r"^(?:a|an|the|some|my) ", "", " ".join(str(x).casefold().split()))
+            holds = [held["name"] for held in _lists.all_lists()
+                     if any(bare(line) == bare(m.group("w")) for line in (_lists.items(held["name"]) or []))]
+        except Exception:  # noqa: BLE001
+            holds = []
+        if len(holds) == 1:
+            return {"command": {"kind": "list_off", "list": holds[0], "item": m.group("w").strip()}, "say": None}
+    # "What do I need at Target" with a Target list (2026-10-08: to a
+    # model). That list; without one, the shopping list.
+    w = re.fullmatch(r"what (?:do i|else do i) (?:still )?need (?:at|from) (?:the )?(?P<shop>[a-z][a-z' &-]{1,25}?)", low)
+    if w and w.group("shop") not in ("store", "shop", "shops", "grocery store", "supermarket", "me", "you"):
+        try:
+            from aletheia import lists as _lists
+            named = [held["name"] for held in _lists.all_lists()
+                     if re.sub(r" list$", "", str(held.get("name") or "").casefold()) == w.group("shop")]
+        except Exception:  # noqa: BLE001
+            named = []
+        if named:
+            return {"command": {"kind": "list_read", "list": named[0]}, "say": None}
+        # "From Sarah" is a person, not a shop: only a shop by name.
+        if re.fullmatch(r"target|costco|walmart|aldi|kroger|safeway|publix|wegmans|trader joe'?s|whole foods|sam'?s club|cvs|walgreens"
+                        r"|ikea|home depot|lowe'?s|best buy|the pharmacy|pharmacy|hardware store|grocery|market|farmers market|bakery", w.group("shop")):
+            return {"command": {"kind": "shopping_list"}, "say": None}
     # "I GOT EVERYTHING" back from the store (2026-10-07: to the planner).
     # The whole list, and only when there is one to clear.
     if re.fullmatch(r"(?:i )?(?:got|bought|picked up|grabbed) (?:everything|it all|all of it|all of them|all that)"

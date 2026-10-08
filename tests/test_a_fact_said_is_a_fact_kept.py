@@ -8969,5 +8969,22 @@ class RunThisMonthAndALanguage(unittest.TestCase):
 
 
 
+class ANamedShoppingList(unittest.TestCase):
+    """2026-10-08: "what do I need at Target" went to a model and "I got the
+    batteries" to the planner, with batteries on his Target list."""
+
+    def test_read_and_ticked(self):
+        from aletheia import voice, lists
+        with mock.patch.object(lists, "all_lists", lambda: [{"name": "target"}]), \
+                mock.patch.object(lists, "items", lambda n: ["batteries"]), \
+                mock.patch.object(voice, "_on_the_shopping_list", lambda w: False):
+            self.assertEqual(voice._interpret("I got the batteries")["command"],
+                             {"kind": "list_off", "list": "target", "item": "batteries"})
+            self.assertEqual(voice._interpret("what do I need at Target")["command"], {"kind": "list_read", "list": "target"})
+            self.assertEqual(voice._interpret("what do I need at costco")["command"], {"kind": "shopping_list"})
+            self.assertNotEqual(voice._interpret("what do I need from Sarah")["command"]["kind"], "shopping_list")
+
+
+
 if __name__ == "__main__":
     unittest.main()
