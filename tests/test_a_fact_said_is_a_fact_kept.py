@@ -7871,5 +7871,21 @@ class TheDaysSomebodyHasSomething(unittest.TestCase):
 
 
 
+class HisHotelAndHisPackingList(unittest.TestCase):
+    def test_the_hotel_is_kept_and_read_back(self):
+        self.assertEqual(voice._interpret("my hotel is the Hilton downtown")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my hotel is the Hilton downtown"}]):
+            self.assertIn("Hilton", quick.answer("what hotel am I staying at"))
+
+    def test_a_list_reads_his_my_as_your_and_leaves_titles_alone(self):
+        from aletheia import intercom
+        with mock.patch("aletheia.lists.items", return_value=["my charger", "I Am Legend"]), \
+                mock.patch("aletheia.lists.exists", return_value=True, create=True):
+            said = intercom.execute_command({"kind": "list_read", "list": "packing"}, {}, quote="x")
+        self.assertIn("your charger", said)
+        self.assertIn("I Am Legend", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

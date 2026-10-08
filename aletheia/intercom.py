@@ -2625,7 +2625,9 @@ def _named_list(kind: str, cmd: dict) -> str:
         return f"Nothing's on a {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
     if not rows:
         return f"Your {name} list is empty."
-    shown = rows[:10] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
+    # "Sunscreen and my charger" read his own words back as hers (2026-10-08).
+    # Only a leading "my": a title ("I Am Legend") is never rewritten.
+    shown = [re.sub(r"^[Mm]y ", "your ", str(r)) for r in rows[:10]] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
     return f"{speech.count_phrase(len(rows), 'thing')} on your {name} list: {speech.and_list(shown)}."
 
 

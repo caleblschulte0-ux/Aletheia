@@ -8919,6 +8919,8 @@ def _interpret(transcript: str) -> dict:
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name| network(?: name| password)?)?|wi-fi(?: password| network)?"
                      r"|gate code|door code|garage code|(?:gym |school |work |bike )?locker(?: number| combination| combo| code)?|bike lock(?: code| combo| combination)?"
                      r"|license plate|plate number"
+                     # "My hotel is the Hilton downtown" (2026-10-08: to the planner).
+                     r"|hotel|airbnb|rental car|rental|hotel address|campsite|cabin"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"

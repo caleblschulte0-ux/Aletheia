@@ -2625,6 +2625,15 @@ def _direct(text: str) -> str:
                      r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
+    # "What hotel am I staying at" a turn after "my hotel is the Hilton"
+    # (2026-10-08: to a model): the fact he gave, asked by its own name.
+    m = re.fullmatch(r"(?:what|which|where(?:'s| is)?) (?P<what>hotel|airbnb|campsite|cabin)(?: am i| are we| is it)?"
+                     r"(?: staying(?: at| in)?| booked| at)?\s*\??", text) \
+        or re.fullmatch(r"where (?:am i|are we) staying\s*\??", text)
+    if m:
+        what = m.groupdict().get("what") or "hotel"
+        if _fact_any(what):
+            return f"what's my {what}"
     # "What should I eat" (2026-10-08: "I can't think just now"): the meal
     # it is time for, asked the way the meal-idea reader already answers.
     if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \
