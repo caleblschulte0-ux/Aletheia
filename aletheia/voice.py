@@ -6393,6 +6393,21 @@ def _interpret(transcript: str) -> dict:
         m = None
     # "Do I have eggs" a turn after "I'm out of eggs" searched his
     # Documents (2026-10-08). Food and household things are the kitchen.
+    # "Do I have any tasks", "...any bills due", "...any birthdays coming up"
+    # (2026-10-08: the planner, or a search of his Documents). Each is a
+    # question she already answers, asked another way.
+    if m and re.match(r"(?:do i have|have i got) ", low):
+        what = " ".join(m.group(1).split())
+        when = re.search(r"\b(today|tomorrow|tonight|this week|next week|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$", what)
+        same = ("what bills are due" if re.fullmatch(r"(?:any )?(?:bills?|payments?)(?: due| coming up)?(?: this week| this month| soon)?", what)
+                else "what is on my to do list" if re.fullmatch(r"(?:any )?(?:tasks?|to ?dos?|to-dos?|things to do|chores)(?: today| left| to do)?", what)
+                else f"what's on my calendar {when.group(1) if when else 'today'}"
+                if re.fullmatch(r"(?:any )?(?:appointments?|meetings?|events?)(?: (?:on )?[a-z ]{3,12})?", what)
+                else "any birthdays coming up" if re.fullmatch(r"(?:any )?birthdays?(?: coming up| soon| this (?:week|month))?", what)
+                else "what packages am i expecting" if re.fullmatch(r"(?:any )?(?:packages?|deliveries|orders)(?: coming| on the way| arriving)?(?: today| this week)?", what)
+                else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what) else None)
+        if same:
+            return _interpret(same)
     if m and re.match(r"(?:do i have|have i got) ", low):
         pantry = _in_the_kitchen(m.group(1))
         if pantry:

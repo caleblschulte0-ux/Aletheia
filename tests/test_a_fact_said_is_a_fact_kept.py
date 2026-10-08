@@ -12501,5 +12501,13 @@ class CouponsAndGroceries(unittest.TestCase):
                              "$85 on groceries this week, from what you've told me.")
 
 
+class DoIHaveAny(unittest.TestCase):
+    def test_do_i_have_any_is_the_question_she_already_answers(self):
+        self.assertEqual(voice.interpret("do I have any tasks")["command"], voice.interpret("what is on my to do list")["command"])
+        for said in ("do I have any birthdays coming up", "do I have any packages coming", "do I have any leftovers", "do I have any bills due"):
+            self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "file_find", said)
+        self.assertEqual(voice.interpret("do I have any receipts")["command"]["kind"], "file_find")
+
+
 if __name__ == "__main__":
     unittest.main()
