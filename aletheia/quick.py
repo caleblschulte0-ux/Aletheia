@@ -2649,7 +2649,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is) (?:my|our|the) (?P<car_mpg2>car|truck|van|suv)(?:'s)? (?:mpg|gas mileage)\s*\??$")),
     ("code_at", re.compile(r"^what(?:'s| is|s) (?:the )?(?P<code_kind>gate|door|front door|garage|alarm|lock ?box|building|key ?pad|entry|parking) (?:code|number|combo|combination) (?:at|for) (?:my |the )?(?P<code_at>[a-z][a-z' ]{1,25}?)\s*\??$")),
     ("left_at", re.compile(r"^what (?:did|have) i (?:leave|left) (?:at|in) (?:the |my )?(?P<left_at>work|office|school|home|gym|car|[a-z]{3,15}'?s(?: house)?)\s*\??$")),
-    ("got_back", re.compile(r"^(?:did|have) i (?:get|gotten|got) (?:my|our|the) (?P<got_back>[a-z][a-z ]{1,20}?) back(?: yet)?\s*\??$")),
+    ("got_back", re.compile(r"^(?:did|have) i (?:get|gotten|got) (?:my|our|the) (?P<got_back>[a-z][a-z ]{1,20}?) back(?: yet)?\s*\??$"
+                            # "When is my brother bringing my car back" (2026-10-08: to a model).
+                            r"|^(?P<gb_when>when) (?:is|will|are) (?:my |the |our )?[a-z][a-z' ]{1,25}? (?:bring|giving|give|returning|return|bringing|dropping off|drop off)"
+                            r" (?:my|our|the) (?P<got_back2>[a-z][a-z ]{1,20}?)(?: back)?\s*\??$"
+                            r"|^(?P<gb_when2>when) (?:am i|do i|will i) (?:get|getting) (?:my|our|the) (?P<got_back3>[a-z][a-z ]{1,20}?) back\s*\??$")),
     ("step_goal", re.compile(r"^(?:did|have) i (?:hit|reach|reached|make|made|meet|met|get|got|beat|beaten) my (?:daily )?(?:step|steps|walking) goal(?P<step_goal> today| yesterday| yet)?\s*\??$")),
     ("quit_since", re.compile(
         r"^how long (?:since|has it been since|ago did) i (?:quit|stopped|gave up) (?P<quit_since>smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)\s*\??$"
@@ -6611,12 +6615,13 @@ def _owed(question: str = "") -> str:
     to_me = bool(re.search(r"\bowes? me\b", low)) and not re.search(r"\bdo i owe\b", low)
     by_me = bool(re.search(r"\b(?:do i (?:still )?owe|what do i owe)\b", low)) and not to_me
     if who:
-        name = _named(who)
+        # "You owe my landlord" (2026-10-08): his "my" is "your" out loud.
+        name = re.sub(r"^(?:my|our) ", "your ", _named(who))
         amount = ledger.get(who, 0)
         if amount < 0:
             return f"You owe {name} {_money(-amount)}."
         if amount > 0:
-            return f"{name} owes you {_money(amount)}."
+            return f"{name[:1].upper() + name[1:]} owes you {_money(amount)}."
         return f"Nothing between you and {name} that you've told me about."
     owe = [f"{_named(k)} {_money(-v)}" for k, v in ledger.items() if v < 0]
     owed = [f"{_named(k)} owes you {_money(v)}" for k, v in ledger.items() if v > 0]
@@ -18361,9 +18366,14 @@ def _got_back(text: str) -> str | None:
     """"Did I get my ladder back" (2026-10-08: to a model): the return he
     told her about, or who still has it. None when he never lent it."""
     g = _groups("got_back", text)
-    thing = re.escape(str(g.get("got_back") or ""))
+    thing = re.escape(str(g.get("got_back") or g.get("got_back2") or g.get("got_back3") or ""))
     if not thing:
         return None
+    if g.get("gb_when") or g.get("gb_when2"):
+        until = _said_lines(rf"\b(?:has|have|is keeping|borrowed|is borrowing|took) (?:my|our|the) {thing} (?:until|till|through|back on|back by)\b"
+                            rf"|\b(?:bring|bringing|give|giving|return|returning)s? (?:my|our|the) {thing} back (?:on|by|tomorrow|next|this)\b", 1)
+        if until:
+            return f"You told me {until[0]}."
     back = _said_lines(rf"\b(?:gave|brought|returned|handed) (?:back )?(?:my|our|the) {thing}\b(?: back)?|^i got (?:my|our|the) {thing} back", 1)
     lent = _said_lines(rf"^i (?:lent|loaned) (?:my|our|the) {thing} to |^i (?:lent|loaned) [a-z' ]{{2,30}} (?:my|our|the) {thing}$", 1)
     if back:

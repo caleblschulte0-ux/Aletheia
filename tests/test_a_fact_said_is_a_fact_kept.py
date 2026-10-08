@@ -13089,5 +13089,14 @@ class WhatHeIsHosting(unittest.TestCase):
             self.assertIsNone(quick.answer("am I hosting Christmas"))
 
 
+class LentUntilSunday(unittest.TestCase):
+    def test_when_it_comes_back(self):
+        rows = [{"text": "my brother has my car until Sunday"}, {"text": "I lent my car to my brother"}, {"text": "I owe my landlord 1200 for rent"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            for asked in ("when is my brother bringing my car back", "when am I getting my car back"):
+                self.assertEqual(quick.answer(asked), "You told me your brother has your car until Sunday.", asked)
+            self.assertEqual(quick.answer("how much do I owe my landlord"), "You owe your landlord $1,200.")
+
+
 if __name__ == "__main__":
     unittest.main()
