@@ -8395,5 +8395,42 @@ class TheLastDoseIsWhenHeSaidHeTookIt(unittest.TestCase):
 
 
 
+class HowLongHaveIHadThisCold(unittest.TestCase):
+    """"I have a cold" got "rest up" and was gone; "how long have I had this
+    cold" went to a model (2026-10-08)."""
+
+    def test_the_cold_is_kept_and_still_gets_its_word(self):
+        from aletheia import voice
+        out = voice._interpret("I have a cold")
+        self.assertEqual(out["command"], {"kind": "note", "text": "Journal: I have a cold"})
+        self.assertTrue(out["say"])
+
+    def test_how_long_counts_from_the_first_mention(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "Journal: I have a cold", "ts": now.isoformat()},
+                {"text": "Journal: I have a cold", "ts": (now - dt.timedelta(days=3)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how long have I had this cold").startswith("3 days"))
+
+    def test_feeling_better_ends_the_run(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "Journal: I have a cold", "ts": now.isoformat()},
+                {"text": "Journal: I feel better now", "ts": (now - dt.timedelta(days=5)).isoformat()},
+                {"text": "Journal: I have a cold", "ts": (now - dt.timedelta(days=9)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how long have I had this cold").startswith("Since today"))
+
+    def test_since_monday_is_said_back(self):
+        from aletheia import quick
+        rows = [{"text": "Journal: I have had a headache since monday", "ts": "2026-10-08T05:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how long have I had a headache"), "Since Monday, you told me.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

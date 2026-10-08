@@ -8781,6 +8781,17 @@ def _interpret(transcript: str) -> dict:
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # BEING ILL (2026-10-08): "I have a cold" got "rest up" and was gone, so
+    # "how long have I had this cold" had nothing to count from.
+    m = re.fullmatch(r"i(?:'ve| have)(?: got| had)? (?:a |an |the )?(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)"
+                     r"(?: (?:since (?:this morning|last night|yesterday|lunch|[a-z]+day)|all (?:day|morning|week)|again|today|right now|now))?", low)
+    if m:
+        try:
+            say = _quick.answer(text)
+        except Exception:  # noqa: BLE001
+            say = None
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": say or "Noted. I've put it in your journal."}
     # WHAT SOMEONE LIKES (2026-10-07: "Sam likes coffee", "my mom loves
     # tulips" went to the planner). A note in his words, read back by "what
     # does Sam like" - and by "what did I tell you about Sam".

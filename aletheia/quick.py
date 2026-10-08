@@ -1818,6 +1818,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| are) (?P<who_coming_noted>visiting|coming over|coming to visit|coming to stay|coming|staying with us|in town|flying in)"
         r"(?: (?:this weekend|next weekend|this week|next week|tomorrow|tonight|today|on [a-z]+|for [a-z' ]+))?\s*\??$")),
     # "Who called today" after "my mom called" (2026-10-08: both to a model).
+    # "How long have I had this cold" (2026-10-08: to a model).
+    ("sick_since", re.compile(
+        r"^how long have i (?:had|been sick with|been dealing with|been fighting) (?:this |my |a |an |the )?"
+        r"(?P<sick_since>headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)(?: for)?\s*\??$")),
     # "How old am I if I was born in 1990" (2026-10-08: to a model).
     ("born_age", re.compile(
         r"^how old (?:am i|would i be|is (?:someone|somebody|a person|someone who was|somebody who was))"
@@ -2823,7 +2827,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -9906,6 +9910,38 @@ def _contacts_count() -> str | None:
             + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
 
+def _sick_since(what: str) -> str | None:
+    """How long since he first told her he had it, in this run of it: the
+    oldest mention with no "I feel better" after it. "Since Monday" he said
+    himself is said back as he said it."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    what = " ".join(str(what or "").split())
+    tz = localtime.operator_tz()
+    first, since = None, ""
+    for row in _notes():                                    # newest first
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        if re.search(r"\b(?:feel|feeling) (?:much )?better\b|\bover (?:it|my|the)\b", said):
+            break
+        if re.search(rf"\b(?:have|had|got) (?:a |an |the )?{re.escape(what)}\b", said):
+            try:
+                first = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+            except ValueError:
+                continue
+            m = re.search(r"\bsince ([a-z ]+)$", said)
+            since = m.group(1) if m else ""
+    if first is None:
+        return f"You haven't told me you have a {what}. Say \"I have a {what}\" and I'll keep count." \
+            if what[0] not in "aeiou" else f"You haven't told me you have an {what}."
+    if since:
+        since = re.sub(r"\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", lambda d: d.group(1).capitalize(), since)
+        return f"Since {since}, you told me."
+    days = (dt.datetime.now(tz).date() - first.date()).days
+    told = speech.humanize_time(first.isoformat())
+    return (f"Since {told}, when you first told me." if days < 1
+            else f"{days} day{'s' if days != 1 else ''} - you first told me {told}.")
+
+
 def _born_age(said: str) -> str | None:
     """Age from a birth year alone: two answers, because the year does not
     say whether the birthday has come round yet."""
@@ -13846,6 +13882,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "born_age": _born_age,
+           "sick_since": _sick_since,
            "when_have": _when_have,
            "pet_due": _pet_due,
            "deliveries": lambda rest: _deliveries(),
