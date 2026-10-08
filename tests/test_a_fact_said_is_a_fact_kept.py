@@ -12801,6 +12801,31 @@ class SellingAndClearingOut(unittest.TestCase):
             self.assertIsNone(quick.answer("how much did I sell my car for"))
 
 
+class OutForTheWeekend(unittest.TestCase):
+    """2026-10-08: "we have a reservation at Olive Garden at 7" and "we're
+    going camping next weekend" went to the planner, and "where are we eating
+    tonight" searched his Documents for "we eating"."""
+
+    def test_a_reservation_is_dinner_there(self):
+        cmd = voice.interpret("we have a reservation at Olive Garden at 7")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"]), ("calendar_hold", "dinner at Olive Garden"))
+        self.assertEqual(voice.interpret("we have dinner reservations at 7")["command"]["title"], "dinner reservation")
+
+    def test_outings_are_kept(self):
+        for said in ("I'm taking the kids to the zoo on Saturday", "we're going camping next weekend"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_where_we_eat_is_the_calendar(self):
+        import datetime as dt
+        from aletheia import calendar, localtime
+        self.assertNotEqual(voice.interpret("where are we eating tonight")["command"]["kind"], "file_find")
+        at = dt.datetime.now(localtime.operator_tz()).replace(hour=19, minute=0, second=0, microsecond=0)
+        with mock.patch.object(calendar, "all_events", return_value=[{"title": "dinner at Olive Garden", "start": at.isoformat()}]):
+            self.assertIn("Dinner at Olive Garden", quick.answer("where are we eating tonight"))
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertIsNone(quick.answer("where are we eating tonight"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

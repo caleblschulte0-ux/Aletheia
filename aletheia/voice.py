@@ -810,6 +810,10 @@ def _not_a_file(said: str) -> bool:
     # a file search for "note about dana").
     if re.match(r"notes? (?:about|on|for|mentioning)\b", low):
         return True
+    # "Where are we eating tonight" searched his Documents for "we eating"
+    # (2026-10-08). Somebody doing something is never a file.
+    if re.match(r"(?:we|i|you|they|he|she|the kids) [a-z]+ing\b", low):
+        return True
     # "Where's the party" searched his Documents for "party" (2026-10-08).
     # An occasion is somewhere he goes, never a file.
     if re.fullmatch(rf"(?:the |my |our )?(?:{_EVENT_WORDS}|game|match|meeting|concert|show|dinner|lunch|reunion|recital)(?: tonight| tomorrow| on [a-z]+)?", low):
@@ -11497,6 +11501,33 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(rf"(?!(?:i|we|you|thea|who|what)\b)(?:someone|somebody|a guy|a lady|a buyer|the buyer|a neighbor|[a-z]{{2,15}}) (?:wants to buy|is buying|is interested in|offered (?:me )?\$?\d[\d,]* (?:for|on)) {_thing}", low) \
             or re.fullmatch(r"(?:the |a )?(?:guy|lady|buyer|person|woman|man|[a-z]{2,15}) (?:is coming|will come|is stopping by|is swinging by) (?:at \d{1,2}(?::\d\d)?(?: ?[ap]m)?|tomorrow|today|tonight)"
                             r"(?: (?:at \d{1,2}(?::\d\d)?(?: ?[ap]m)?|today|tomorrow))? to (?:pick up|get|look at|see|grab|buy) (?:the |my |our )?[a-z][a-z' ]{1,25}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "We have a reservation at Olive Garden at 7" (2026-10-08: to the
+    # planner) is dinner there, held like "dinner at Olive Garden at 7".
+    m = re.fullmatch(r"(?:i|we) (?:have|got|made|booked) (?:a |an )?(?P<meal>dinner |lunch |brunch )?reservations? (?:at|for) (?P<place>(?!\d)[a-z][a-z'& ]{1,30}?)"
+                     r"(?P<day> tonight| tomorrow(?: night)?| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
+                     r" (?:at|for) (?P<t>\d{1,2}(?::\d\d)?(?: ?[ap]m)?)(?P<day2> tonight| tomorrow(?: night)?| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
+    if m:
+        meal = (m.group("meal") or "dinner ").strip()
+        day = (m.group("day") or m.group("day2") or " tonight").strip()
+        held = _interpret(f"{meal} at {m.group('place')} {day} at {m.group('t')}")
+        if ((held or {}).get("command") or {}).get("kind") == "calendar_hold":
+            held["command"]["title"] = f"{meal} at {_as_he_said(text, m.group('place'))}"
+        return held
+    m = re.fullmatch(r"(?:i|we) (?:have|got|made|booked) (?:a |an )?(?P<meal>dinner |lunch |brunch )?reservations? (?:at|for) (?P<t>\d{1,2}(?::\d\d)?(?: ?[ap]m)?)"
+                     r"(?P<day> tonight| tomorrow(?: night)?| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
+    if m:
+        meal = (m.group("meal") or "dinner ").strip()
+        held = _interpret(f"{meal} {(m.group('day') or ' tonight').strip()} at {m.group('t')}")
+        if ((held or {}).get("command") or {}).get("kind") == "calendar_hold":
+            held["command"]["title"] = f"{meal} reservation"
+        return held
+    # "I'm taking the kids to the zoo on Saturday", "we're going camping next
+    # weekend" (2026-10-08: to the planner or "I can't think").
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:taking|bringing) (?:the kids|my (?:son|daughter|kids|wife|husband|mom|dad)|the dog|[a-z]{2,15}) to (?:the |a )?[a-z][a-z' ]{1,25}?"
+                    r" (?:on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend|tomorrow|today|tonight|this (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) going (?:camping|fishing|hiking|hunting|skiing|snowboarding|bowling|golfing|kayaking|boating|apple picking|pumpkin picking|trick or treating)"
+                            r"(?: (?:on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend|tomorrow|today|tonight|next week|this (?:saturday|sunday)))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
