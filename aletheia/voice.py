@@ -11337,6 +11337,14 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:from|out of|in) (?:the|my|our) (?:garden|yard|tree|backyard))?(?: today| this morning| tonight| yesterday)?", low) \
             or re.fullmatch(r"(?:i|we) planted (?!a tree\b)[a-z][a-z ]{2,30}?(?: (?:in|on) (?:the|my|our) [a-z ]{2,20})?(?: today| yesterday| this weekend| this morning)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I reset the router" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:reset|restarted|rebooted|unplugged|power cycled) (?:the|my|our) (?:router|modem|wifi|wi-fi|internet"
+                    r"|printer|tv|laptop|computer|phone|thermostat|smart tv|roku|apple tv|xbox|playstation|ps5|switch|tablet|ipad)(?: again| today| this morning)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I go to the barber every 3 weeks" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:usually |normally )?(?:go to|see|visit|get) (?:the |my |a |an )?(?:barber|hairdresser|stylist|hair ?cut|trim|dentist|chiropractor"
+                    r"|massage|therapist|nail salon|manicure|pedicure|groomer|cleaning) (?:every|once every) (?:\d{1,2}|two|three|four|five|six|other) (?:weeks?|months?)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

@@ -12534,5 +12534,25 @@ class TheGarden(unittest.TestCase):
         self.assertIsNone(quick.answer("when should I plant orchids"))
 
 
+class HomeTech(unittest.TestCase):
+    def test_a_reset_router_is_kept(self):
+        self.assertEqual(voice.interpret("I reset the router")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("I rebooted my modem this morning")["command"]["kind"], "note")
+
+
+class TheNextHaircut(unittest.TestCase):
+    def test_how_often_and_the_last_one_give_the_next(self):
+        self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
+        rows = [{"text": "I got a haircut", "ts": "2026-10-01T15:00:00+00:00"}, {"text": "I go to the barber every 3 weeks"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("when should I get my next haircut")
+            self.assertIn("every 3 weeks", said)
+            self.assertIn("October 22", said)
+        with mock.patch.object(quick, "_notes", return_value=rows[1:]):
+            self.assertIn("haven't told me when your last haircut was", quick.answer("when should I get my next haircut"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("when should I get my next haircut"))
+
+
 if __name__ == "__main__":
     unittest.main()

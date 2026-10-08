@@ -2658,6 +2658,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When should I plant tulips" (2026-10-08: "I can't think"): a fixed
     # rule of thumb for the common ones, nothing for the rest.
     ("plant_when", re.compile(r"^when (?:should|do|can) (?:i|we|you) plant (?:the |my |our )?(?P<plant_when>[a-z][a-z ]{2,25}?)(?: bulbs?| seeds?)?\s*\??$")),
+    # "When should I get my next haircut" (2026-10-08: "I can't think"),
+    # a turn after "I go to the barber every 3 weeks" and "I got a haircut".
+    ("next_cut", re.compile(r"^when (?:should|do) i (?:get|need|book) (?:my |a )?(?:next |another )?hair ?cut(?: again)?\s*\??$"
+                            r"|^when (?:should|do) i (?:go to|see) (?:the|my) (?:barber|hairdresser|stylist) (?:next|again)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -18363,6 +18367,36 @@ def _picked_count(text: str) -> str | None:
     return f"{total} {what}, from the {times} time{'s' if times != 1 else ''} you told me you picked them."
 
 
+def _next_cut(text: str) -> str | None:
+    """When the next haircut is due, from how often he goes and his last."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "other": 2}
+    every, last = None, None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = re.search(r"\b(?:barber|hairdresser|stylist|hair ?cut|trim)\b.* every (\d{1,2}|two|three|four|five|six|other) (week|month)s?\b", said)
+        if m and every is None:
+            n = int(m.group(1)) if m.group(1).isdigit() else words[m.group(1)]
+            every = dt.timedelta(weeks=n) if m.group(2) == "week" else dt.timedelta(days=30 * n)
+            often = f"every {speech.count_phrase(n, m.group(2))}" if n != 1 else f"every {m.group(2)}"
+        elif last is None and re.match(r"(?:i|we) (?:just )?(?:got|had) (?:a |my )?hair ?cut\b|(?:i|we) (?:just )?went to the (?:barber|hairdresser|stylist)\b", said):
+            try:
+                last = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            except ValueError:
+                pass
+    if every is None:
+        return None
+    if last is None:
+        return f"You go {often}, but you haven't told me when your last haircut was. Say \"I got a haircut\" next time."
+    due = (last + every).date()
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    day = f"{due:%A, %B} {due.day}"
+    if due < today:
+        return f"You're due: you go {often}, and your last haircut was {speech.humanize_time(last.isoformat())}."
+    return f"Around {day}. You go {often}, and your last haircut was {speech.humanize_time(last.isoformat())}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19181,6 +19215,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "next_cut": _next_cut,
            "picked_count": _picked_count,
            "plant_when": _plant_when,
            "coupons": _coupons,
