@@ -28,6 +28,9 @@ WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 
 def strip_wake_word(text: str) -> str:
     t = text.strip()
+    # "Hey Thea, can you remind me at 5..." (2026-10-08: to the planner) -
+    # the greeting before her name hid her name, so nothing after it matched.
+    t = re.sub(r"^(?:hey|hi|ok|okay|yo|oh|hello)[\s,.!]+(?=(?:%s)\b)" % "|".join(WAKE_WORDS), "", t, flags=re.IGNORECASE)
     for w in WAKE_WORDS:
         # A whole word only: "theater tickets" was "ter tickets" (2026-10-07).
         if t.lower().startswith(w) and not t[len(w):len(w) + 1].isalnum():
@@ -2798,7 +2801,10 @@ def _a_polite_ask(transcript: str) -> str:
     # ask that ends "please" (2026-10-07: all three to the planner, and "I
     # need you to remind me to pay rent" refused as SPENDING).
     m = re.fullmatch(r"(?:hey |ok |okay )?(?P<lead>would (?:you|u) mind |(?:can|could|would|will) (?:you|u) (?:please |kindly |just )?"
-                     r"|(?:i need|i want|i'd like|i would like) (?:you|u) to (?:please )?)?"
+                     r"|(?:i need|i want|i'd like|i would like) (?:you|u) to (?:please )?"
+                     # "I was wondering if you could add a task..." (2026-10-08: to the planner)
+                     r"|i (?:was|am|'m) wondering if (?:you|u) (?:could|would|can) (?:please )?"
+                     r"|(?:is there any way|is it possible) (?:that )?(?:you|u) (?:could|can) (?:please )?)?"
                      r"(?P<rest>.{3,160}?)(?P<tail>,? please|, thanks|, thank you)?(?: for me)?\s*[?.!]?",
                      " ".join(bare.split()), re.IGNORECASE)
     if not m or not (m.group("lead") or m.group("tail")):

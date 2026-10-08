@@ -8537,5 +8537,30 @@ class TheDaySaidFirst(unittest.TestCase):
 
 
 
+class HeyTheaAndOtherPoliteWays(unittest.TestCase):
+    """"Hey Thea, can you remind me to call mom at 5", "I was wondering if
+    you could add a task...", "can you check if I have anything tomorrow"
+    went to the planner, and "is there anything on my calendar today" was
+    answered "Yes" with a description of her calendar code (2026-10-08)."""
+
+    def test_hey_before_her_name(self):
+        from aletheia import voice
+        self.assertEqual(voice.strip_wake_word("Hey Thea, add milk"), "add milk")
+        self.assertEqual(voice.interpret("hey thea can you remind me to call mom at 5")["command"]["kind"], "remind_at")
+        self.assertEqual(voice.strip_wake_word("hey there"), "hey there")
+
+    def test_i_was_wondering_if_you_could(self):
+        from aletheia import voice
+        cmd = voice.interpret("I was wondering if you could add a task to clean the garage")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "clean the garage"))
+
+    def test_check_if_is_the_question(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("can you check if i have anything tomorrow"), "do i have anything tomorrow")
+        self.assertEqual(quick.match("could you see if there is anything on my calendar today"), ("agenda", "today"))
+        self.assertEqual(quick.match("is there anything on my calendar"), ("coming_up", ""))
+
+
+
 if __name__ == "__main__":
     unittest.main()

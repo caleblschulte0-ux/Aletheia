@@ -2671,6 +2671,27 @@ def _direct(text: str) -> str:
                      r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
+    # "Can you check if I have anything tomorrow" (2026-10-08: to the
+    # planner) is the question itself.
+    m = re.fullmatch(r"(?:can|could|would) (?:you|u) (?:please )?(?:check|see|look|find out|tell me) (?:if|whether) "
+                     r"(?P<q>(?:i|we) (?:have|am|'m|are|need|owe)|there(?:'s| is| are)|my [a-z ]{1,30}? (?:is|are)) (?P<rest>.{2,80}?)\s*\??", text)
+    if m:
+        q = m.group("q")
+        lead = {"i have": "do i have", "we have": "do we have", "i am": "am i", "i'm": "am i", "we are": "are we",
+                "i need": "do i need", "i owe": "do i owe", "there's": "is there", "there is": "is there",
+                "there are": "are there"}.get(q)
+        if lead is None and q.startswith("my "):
+            verb = q.rsplit(" ", 1)[1]
+            lead = f"{verb} {q[:-len(verb)].strip()}"
+        if lead:
+            return f"{lead} {m.group('rest')}"
+    # "Is there anything on my calendar today" (2026-10-08: answered "Yes"
+    # with a description of her calendar code, read as "can she").
+    m = re.fullmatch(r"(?:is there |do i have |have i got |have we got |do we have )?anything (?:on|in) (?:my|the|our) (?:calendar|schedule|diary|agenda)"
+                     r"(?: (?:for )?(?P<day>today|tomorrow|tonight|this week|next week|this weekend|monday|tuesday|wednesday|thursday"
+                     r"|friday|saturday|sunday))?\s*\??", text)
+    if m:
+        return f"what's on my calendar {m.group('day')}" if m.group("day") else "what's coming up"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
