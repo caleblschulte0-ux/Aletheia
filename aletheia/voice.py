@@ -10211,13 +10211,17 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:for |on )?(?P<day2>" + _wd + r")(?: night)?(?:'s dinner is| dinner is| we'?re having| i'?m (?:having|making)) (?P<what2>[a-z0-9][a-z0-9 ,'&-]{1,50})"
                      # "I'm making tacos tonight" (2026-10-07: to a model) -
                      # the day said after the dish.
-                     r"|(?:i'?m|we'?re|i am|we are) (?:making|having|cooking) (?P<what3>(?!dinner\b|lunch\b|breakfast\b|plans\b|a call\b|time\b"
+                     r"|(?:(?:i'?m|we'?re|i am|we are) (?:making|having|cooking)"
+                     # "I want to make chili this weekend" (2026-10-08: to the planner).
+                     r"|(?:i|we) (?:want to|wanna|would like to|'d like to|plan to|are going to|'re going to) (?:make|cook)"
+                     r"|(?:i'?m|we'?re|i am|we are) (?:going to|gonna|planning to) (?:make|cook)) (?P<what3>(?!dinner\b|lunch\b|breakfast\b|plans\b|a call\b|time\b"
                      # "We're having people over Friday night" is company, not
                      # a dish (2026-10-07: it went on the meal plan).
                      r"|people\b|friends\b|guests\b|company\b|family\b|folks\b|the kids\b|a party\b|a baby\b|surgery\b"
                      r"|a meeting\b|a wedding\b|a test\b|an? [a-z]+ party\b|[a-z' ]+ over\b)[a-z][a-z0-9 ,'&-]{1,40}?)"
                      # "I'm making lasagna for dinner" is tonight (2026-10-08: to a model).
-                     r"(?:(?: for dinner)? (?P<day3>" + _wd + r")(?: night)?| for (?P<meal3>dinner|supper))", low)
+                     # "We're having chili on Saturday" read "chili on" (2026-10-08).
+                     r"(?:(?: for dinner)? (?:on |this )?(?P<day3>" + _wd + r"|weekend)(?: night)?| for (?P<meal3>dinner|supper))", low)
     if m:
         import datetime as _dt
         from aletheia import localtime
@@ -10228,7 +10232,7 @@ def _interpret(transcript: str) -> dict:
         what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
         # "Added to your meal plan list: Wednesday: lasagna" (2026-10-08).
         tonight = (m.group("day") or m.group("day2") or m.group("day3") or ("today" if m.group("meal3") else "")) in ("today", "tonight")
-        when = "tonight" if tonight else f"on {said.capitalize()}" if said else ""
+        when = "tonight" if tonight else "this weekend" if said == "weekend" else f"on {said.capitalize()}" if said else ""
         return {"command": {"kind": "list_add", "list": "meal plan",
                             "item": f"{said.capitalize()}: {what}" if said else what},
                 "say": f"{what[:1].upper() + what[1:]} {when} - it's on your meal plan." if when else None}
@@ -10395,6 +10399,24 @@ def _interpret(transcript: str) -> dict:
                     r"(?: again)?(?: today| tonight| this morning| last night)?", low) \
             or re.fullmatch(r"(?:my |the |our )(?:[a-z]+(?:'s|s'|s) )?[a-z][a-z]{1,15}(?: [a-z]{2,15})? (?:keeps|won't stop|wont stop|will not stop) (?!it\b)[a-z]{3,15}ing(?: [a-z ]{1,25})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My kids hate broccoli", "my son won't eat peas", "my mom's lasagna
+    # recipe uses ricotta" (2026-10-08: all to the planner).
+    if re.fullmatch(r"(?:my|our) (?:kids|son|daughter|children|boys|girls|husband|wife|partner|girlfriend|boyfriend|mom|dad|mother|father|[a-z]+ in law|baby|toddler)"
+                    r" (?:hates?|don'?t like|doesn'?t like|won'?t eat|refuses? to eat|can'?t stand|dislikes?) (?!it\b|that\b|me\b|when\b|to\b|going\b)[a-z][a-z ,'-]{1,30}", low) \
+            or re.fullmatch(r"(?:my |our |the )?(?:[a-z]+(?:'s|s) )?[a-z][a-z ]{1,25} recipe (?:uses|calls for|needs|has|takes|is) [a-z0-9][a-z0-9 ,'/-]{2,60}", low):
+        # "my moms lasagna" is how the room hears "my mom's lasagna".
+        said = re.sub(r"\b(my|our) (mom|dad|mother|father|grandma|grandpa|grandmother|grandfather|aunt|uncle|wife|husband|sister|brother|nana|papa)s\b",
+                      r"\1 \2's", _as_he_said(text, low), flags=re.I)
+        return {"command": {"kind": "note", "text": said}, "say": None}
+    # "The chicken needs to cook for 45 minutes" (2026-10-08: to the
+    # planner). Kept, and the timer is one sentence away.
+    m = re.fullmatch(r"the (?P<f>[a-z][a-z ]{1,20}?) (?:needs|has|is supposed) to (?:cook|bake|roast|simmer|rest|boil|marinate|sit|rise|chill|soak|steep|smoke)"
+                     r" (?:for )?(?:another |about |around )?(?P<n>\d+|an?|half an) (?P<u>minutes?|mins?|hours?|hrs?)", low)
+    if m:
+        n = {"a": "1", "an": "1", "half an": "30"}.get(m.group("n"), m.group("n"))
+        unit = "minutes" if m.group("n") == "half an" or m.group("u").startswith("m") else ("hour" if n == "1" else "hours")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"Noted. Want me to time it? Say \"set a timer for {n} {unit} for the {m.group('f')}\"."}
     # "The baby is named Lily" a turn after "my sister had her baby", "my
     # dad got out of the hospital" (2026-10-08: both to the planner).
     m = re.fullmatch(r"(?:the |her |his |their )?baby(?:'s name)? is (?:named |called )?(?P<n>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)"

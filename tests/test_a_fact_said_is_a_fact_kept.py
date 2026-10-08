@@ -10341,5 +10341,42 @@ class WhatHeWantsAndHisHabits(unittest.TestCase):
             self.assertEqual(voice._interpret("where are my keys")["say"], "You usually leave your keys on the hook.")
 
 
+class InTheKitchen(unittest.TestCase):
+    """A sweep of cooking sentences (2026-10-08). "Are the leftovers still
+    good" answered with the fleet, and "we're having chili on Saturday" put
+    "chili on" on the meal plan."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("we are having chili on Saturday")["command"]["item"], "Saturday: chili")
+        self.assertEqual(voice._interpret("I want to make chili this weekend")["command"]["item"], "Weekend: chili")
+        for said in ("my kids hate broccoli", "my son won't eat peas"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("my moms lasagna recipe uses ricotta")["command"]["text"], "my mom's lasagna recipe uses ricotta")
+        said = voice._interpret("the chicken needs to cook for 45 minutes")
+        self.assertEqual(said["command"]["kind"], "note")
+        self.assertIn("set a timer for 45 minutes for the chicken", said["say"])
+
+    def test_read(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        two = (now - dt.timedelta(days=2)).isoformat()
+        six = now - dt.timedelta(days=6)
+        rows = [{"text": "my mom's lasagna recipe uses ricotta"}, {"text": "the chicken needs to cook for 45 minutes"},
+                {"text": "my kids hate broccoli"}, {"text": "I put the leftovers in the fridge", "ts": two}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("are the leftovers still good"),
+                             "They went in 2 days ago, so they should be fine. Cooked leftovers are generally good for 3 to 4 days in the fridge.")
+            self.assertEqual(quick.answer("what does my moms lasagna use"), "You told me: your mom's lasagna recipe uses ricotta.")
+            self.assertEqual(quick.answer("how long does the chicken cook"), "You told me: the chicken needs to cook for 45 minutes.")
+            self.assertEqual(quick.answer("what do my kids not like"), "You told me: your kids hate broccoli.")
+            self.assertIsNone(quick.answer("is the milk still good"))
+        day = six.strftime("%A").lower()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": f"I put the soup in the fridge on {day}", "ts": six.isoformat()}]):
+            self.assertRegex(quick.answer("is the soup still good"), r"^They went in 6 days ago, so I'd throw them out\.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertEqual(quick.answer("are the leftovers still good"),
+                             "Cooked leftovers are generally good for 3 to 4 days in the fridge. Tell me when they went in and I'll keep track.")
+
+
 if __name__ == "__main__":
     unittest.main()

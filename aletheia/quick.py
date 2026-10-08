@@ -2353,6 +2353,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What am I saving for", "where do I usually leave my keys" (2026-10-08: to a model).
     ("saving_for", re.compile(r"^what (?:am i|are we) saving (?:up )?for\s*\??$")),
     ("usual_spot", re.compile(r"^where do i (?:usually|always|normally) (?:leave|keep|put|hang) my (?P<usual_spot>[a-z][a-z ]{1,25}?)\s*\??$")),
+    # "What does my mom's lasagna use", "how long does the chicken cook"
+    # (2026-10-08: to a model).
+    ("recipe_has", re.compile(r"^what (?:does|do) (?P<recipe_has>(?:the |my |our )?(?:[a-z]+(?:'s|s) )?[a-z][a-z ]{1,25}?)(?: recipe)? (?:use|call for|need|take|have in it)\s*\??$")),
+    ("cook_for", re.compile(r"^how long (?:does|do|should|did) (?:the |my )?(?P<cook_for>[a-z][a-z ]{1,20}?) (?:need to |have to )?(?:cook|bake|roast|simmer|rest|boil|marinate|sit|rise|chill|soak|smoke)(?: for)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2513,6 +2517,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                            r"|grandma|grandmother|grandpa|grandfather|grandparents|aunt|uncle|cousin|niece|nephew|girlfriend|boyfriend|partner|fiance|fiancee"
                            r"|friend|best friend|neighbor|mother in law|father in law|in laws|dog|cat|puppy|kitten)|the (?:dog|cat|puppy|kids|baby))"
                            r"(?: (?:doing|feeling|holding up|getting on|getting along|feeling today|doing today))?\s*\??$")),
+    # "Are the leftovers still good" (2026-10-08: "no fleet reading yet").
+    ("still_good", re.compile(r"^(?:are|is) (?:the |my |our |these |those |that )?(?P<still_good>leftovers|left overs|leftover [a-z]+|cooked [a-z]+|(?:[a-z]+ )?(?:soup|chili|pasta|rice|pizza|casserole|stew|lasagna)"
+                              # "Is the milk still good" is not the fleet either; a model may help.
+                              r"|milk|eggs|bread|chicken|meat|fish|yogurt|cheese|salad|sushi|ground beef|steak|turkey|ham|cream|half and half)"
+                              r" (?:still )?(?:good|ok|okay|safe|safe to eat|fine)(?: to eat)?\s*\??$")),
     ("status_of", _STATUS),
     # 2026-10-07: powers, roots, a joke and where he parked, each to a model.
     ("power", re.compile(
@@ -2549,7 +2558,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
         r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?:(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?)?\s*\??$"
-        r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$")),
+        r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$"
+        # "What am I cooking this weekend" (2026-10-08: to a model).
+        r"|^what (?:am i|are we) (?:cooking|making|having)(?: for dinner)? (?:this |on the )?(?P<mp_day4>weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("meal_idea", re.compile(
         r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
         r"|^what(?:'s| is) for (?P<meal2>breakfast|lunch|dinner|supper)(?: tonight| today)?$"
@@ -3287,7 +3298,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -7493,7 +7504,8 @@ def _planned_for(day: str) -> str | None:
     if day in ("today", "tonight", "tomorrow"):
         when = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
         day = when.strftime("%A").lower()
-    hits = [r.split(":", 1)[1].strip() for r in rows if r.casefold().startswith(day + ":")]
+    days = ("weekend:", "saturday:", "sunday:") if day == "weekend" else (day + ":",)
+    hits = [r.split(":", 1)[1].strip() for r in rows if r.casefold().startswith(days)]
     from aletheia import speech
     return speech.and_list(hits) if hits else None
 
@@ -7561,7 +7573,7 @@ def _meal_plan(text: str) -> str | None:
     """His meal plan, or one day of it, from the list he keeps."""
     from aletheia import lists, speech
     g = _groups("meal_plan", text)
-    day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or "").strip()
+    day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or g.get("mp_day4") or "").strip()
     # "What am I making for dinner" (2026-10-07: to a model) is tonight's.
     if not day and re.match(r"what (?:am i|are we) ", text.casefold()):
         day = "tonight"
@@ -7574,7 +7586,7 @@ def _meal_plan(text: str) -> str | None:
         return None if day else "You don't have a meal plan yet. Say \"add chicken to my meal plan for Monday\"."
     if day and day != "this week":
         planned = _planned_for(day)
-        said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow"}.get(day, f"on {day.capitalize()}")
+        said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow", "weekend": "this weekend"}.get(day, f"on {day.capitalize()}")
         return f"{planned[:1].upper() + planned[1:]} {said}." if planned else f"Nothing on your meal plan {said}."
     if not rows:
         return "Your meal plan is empty."
@@ -15893,6 +15905,75 @@ def _usual_spot(thing: str) -> str | None:
     return None
 
 
+def _still_good(food: str) -> str | None:
+    """Whether leftovers he put away are still good: the days since he said
+    he put them in, against the common 3 to 4 days for cooked food."""
+    import datetime as dt
+    from aletheia import localtime
+    food = " ".join(str(food or "").casefold().split())
+    from aletheia import speech
+    rule = "Cooked leftovers are generally good for 3 to 4 days in the fridge"
+    cooked = re.search(r"leftover|left over|cooked|soup|chili|pasta|rice|pizza|casserole|stew|lasagna", food)
+    stem = food.split()[-1].rstrip("s") if food else "leftover"
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.search(rf"\b{re.escape(stem)}", low) or not re.search(r"\b(?:fridge|refrigerator|freezer)\b", low):
+            continue
+        if "freezer" in low or "froze" in low:
+            return "You told me they're in the freezer - frozen, they keep for months, though they're best within 3 or 4."
+        now = dt.datetime.now(localtime.operator_tz())
+        put = None
+        day = re.search(r"\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+        try:
+            told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(now.tzinfo)
+        except ValueError:
+            told = None
+        if day and told:
+            back = (told.weekday() - _WEEKDAYS.index(day.group(1))) % 7
+            put = told.date() - dt.timedelta(days=back)
+        elif told and not re.search(r"\b(?:yesterday|last)\b", low):
+            put = told.date()
+        if put is None:
+            told_words = speech.as_she_says_it(said)
+            return f"{rule}. You told me {told_words[:1].lower() + told_words[1:]}, but I don't know which day."
+        days = (now.date() - put).days
+        ago = "today" if days == 0 else "yesterday" if days == 1 else f"{days} days ago"
+        verdict = ("so they should be fine" if days <= 3 else "so today is about the last day" if days == 4
+                   else "so I'd throw them out")
+        return f"They went in {ago}, {verdict}. {rule}."
+    if not cooked:
+        return None
+    return f"{rule}. Tell me when they went in and I'll keep track."
+
+
+def _recipe_has(what: str) -> str | None:
+    """What he said a recipe uses."""
+    from aletheia import speech
+    what = re.sub(r"^(?:the|my|our) ", "", " ".join(str(what or "").casefold().split()))
+    what = re.sub(r"(?<=[a-z])s (?=[a-z])", "'s ", what, count=1) if not re.search(r"'s ", what) else what
+    words = [w for w in re.findall(r"[a-z]+", what) if w not in ("s", "recipe")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if " recipe " in low and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _cook_for(food: str) -> str | None:
+    """How long he said a dish needs."""
+    from aletheia import speech
+    food = " ".join(str(food or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"the {re.escape(food)} (?:needs|has|is supposed) to [a-z]+ .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16118,7 +16199,7 @@ def _their_likes(text: str) -> str | None:
     if not who:
         return None
     hate = g.get("tl_verb") in ("hate", "not like")
-    verbs = (r"(?:hates|doesn'?t like|does not like|can'?t stand)" if hate
+    verbs = (r"(?:hates?|doesn'?t like|does not like|don'?t like|do not like|can'?t stand|won'?t eat|refuses? to eat|dislikes?)" if hate
              else r"(?:really |also )?(?:likes|loves|adores|prefers|enjoys|is into|is obsessed with|is a fan of|collects)")
     # "What does my wife like" with "Sarah likes candles" kept, and the
     # other way round (2026-10-08: to a model): the name he gave counts.
@@ -16703,6 +16784,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "still_good": _still_good,
+           "recipe_has": _recipe_has,
+           "cook_for": _cook_for,
            "saving_for": _saving_for,
            "usual_spot": _usual_spot,
            "in_hospital": _in_hospital,
