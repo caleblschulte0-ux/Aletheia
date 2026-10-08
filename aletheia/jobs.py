@@ -861,6 +861,66 @@ def _settled(skip, job: dict) -> bool:
         return False
 
 
+#: Systems whose public listing names every job still taking applications,
+#: by the same id the job's own address carries.
+LISTED_BY_ID = ("greenhouse", "lever", "ashby")
+#: Boards read just to check a posting found elsewhere, per search.
+MAX_LISTINGS_CHECKED = 12
+
+
+def _listing_key(provider, board) -> tuple[str, str]:
+    return str(provider or ""), str(board or "").casefold()
+
+
+def drop_unlisted(found: list[dict], *, listed: dict | None = None, lister=None) -> tuple[list[dict], int]:
+    """(the openings still on their board's own listing, how many were not).
+
+    A CLOSED POSTING IS NOT AN OPENING. A web search remembers a job long
+    after the employer took it down, and an Ashby posting that closed still
+    answers 200 with an empty application shell, so nothing before the
+    browser could tell. Live 2026-10-08, 15 of three days' closures were
+    postings already gone, 9 of them on Ashby: each one cost a batch slot and
+    a browser. The board's own listing says which jobs it is still taking.
+
+    `listed` maps (provider, board) to the ids already read this search;
+    `lister(provider, token)` reads a board that was not (None: unchecked).
+    Fails OPEN: a board that cannot be read, or a system without a listing by
+    id, keeps its openings for the browser to judge.
+    """
+    listed = {k: {str(i).casefold() for i in v if i} for k, v in (listed or {}).items()
+              if k[0] in LISTED_BY_ID}
+    wanted = []
+    for job in found or []:
+        key = _listing_key(job.get("provider"), job.get("board"))
+        if key[0] in LISTED_BY_ID and key[1] and key not in listed and key not in wanted:
+            wanted.append(key)
+    if lister is not None and wanted:
+        def read(key):
+            try:
+                rows = lister(*key)
+            except Exception:
+                return key, None
+            return key, None if rows is None else {str(r.get("id") or "").casefold() for r in rows}
+
+        with ThreadPoolExecutor(MAX_WORKERS) as pool:
+            for key, ids in pool.map(read, wanted[:MAX_LISTINGS_CHECKED]):
+                if ids:              # a board that lists nothing proves nothing
+                    listed[key] = ids
+    kept, gone = [], 0
+    for job in found or []:
+        ids = listed.get(_listing_key(job.get("provider"), job.get("board")))
+        if ids and job.get("id") and str(job["id"]).casefold() not in ids:
+            gone += 1
+            continue
+        kept.append(job)
+    return kept, gone
+
+
+def _read_listing(provider: str, token: str) -> list[dict] | None:
+    read = PROVIDERS.get(provider)
+    return read({"provider": provider, "token": token, "learned": True}) if read else None
+
+
 def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                 fetcher=None, discover: bool = False, http=None,
                 country: str = "", exclude=(), namer=None, companies=None,
@@ -1080,6 +1140,13 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
         beyond += [row[i] for row in (web, own, searched, crawled) if i < len(row)]
         i += 1
     beyond = [job for job in beyond if not _settled(skip, job)]
+    listed: dict = {}
+    for job in everything:
+        key = _listing_key(job.get("provider"), job.get("board"))
+        if key[0] in LISTED_BY_ID and key[1] and job.get("id"):
+            listed.setdefault(key, set()).add(job["id"])
+    beyond, unlisted = drop_unlisted(beyond, listed=listed,
+                                     lister=_read_listing if fetcher is None else None)
     # Two from the boards, then one found beyond them, so both get tried.
     # ONE ROLE, ONE SLOT. A role posted in five cities is five openings and
     # one application (`apply_run.role_taken`); live 2026-10-07 the batch
@@ -1119,13 +1186,14 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
                    f"{speech.count_phrase(len(found), 'match')}"
                    + (f" and {extra} more from employers' own sites and the web" if extra else "")
                    + (f"; {len(held)} held until discovery may choose" if held else "")
+                   + (f"; {unlisted} left out because the posting has closed" if unlisted else "")
                    + (f"; {speech.count_phrase(len(failures), 'board')} did not answer" if failures else ""),
                    actor=ACTOR)
     return {"role": ", ".join(roles), "roles": list(roles), "where": where,
             "matches": matches, "searched": boards_read, "matched": len(found),
             "discovered": len(discovered), "company_sites": len(on_their_sites),
             "web_searched": len(anywhere), "employer_sites": len(on_crawled),
-            "employer_sites_held": len(held),
+            "employer_sites_held": len(held), "unlisted": unlisted,
             "failed": failures}
 
 
