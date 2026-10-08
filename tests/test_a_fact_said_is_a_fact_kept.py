@@ -9394,5 +9394,17 @@ class HerBirthdayAndHowLongTogether(unittest.TestCase):
             self.assertRegex(quick.answer("how long have we been together"), r"^About \d+ years - you told me we met in 2012\.$")
 
 
+class WhoDoesWhatForHim(unittest.TestCase):
+    """"Who cuts my hair" and "what do I need to reschedule" went to a model (2026-10-08)."""
+
+    def test_answered(self):
+        from aletheia import tasks
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my barber is Tony"}]), \
+                mock.patch.object(tasks, "all_tasks", lambda: [{"description": "call the dentist to reschedule", "status": "OPEN"}]), \
+                mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("who cuts my hair"), "Your barber is Tony.")
+            self.assertEqual(quick.answer("what do I need to reschedule"), "Call the dentist to reschedule.")
+
+
 if __name__ == "__main__":
     unittest.main()

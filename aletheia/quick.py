@@ -1363,7 +1363,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # need to return the shoes by Friday"). His open tasks with that verb.
     ("tasks_verb", re.compile(
         r"^what (?:do i|else do i|have i got to|do i still) (?:need|have|got) to (?P<tv>return|call|pay|pick up|drop off|fix|mail|send|email|text"
-        r"|schedule|book|cancel|renew|clean|wash|finish|sign|file|read|write|print|ship|sell|clean up|book|look into|follow up on)\s*\??$"
+        r"|schedule|book|cancel|renew|clean|wash|finish|sign|file|read|write|print|ship|sell|clean up|book|look into|follow up on"
+        # "What do I need to reschedule" (2026-10-08: to a model)
+        r"|reschedule|confirm|submit|order|replace|update|prepare|plan|organize|research)\s*\??$"
         r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with)\s*\??$"
         # "What calls do I need to make" (2026-10-07: to a model).
         r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
@@ -2872,6 +2874,13 @@ def _direct(text: str) -> str:
         return "what expires soon"
     if re.fullmatch(r"what am i (?:trying|working|aiming|hoping) to (?:do|achieve|accomplish|get better at|work on)\s*\??", text):
         return "what are my goals"
+    # "Who cuts my hair", "who does my taxes" (2026-10-08: to a model) are
+    # who his barber and his accountant are.
+    m = re.fullmatch(r"who (?:cuts|does) my (?P<w>hair|taxes|nails|teeth|books)\s*\??|who (?:fixes|works on|services) my (?P<w2>car|truck|teeth)\s*\??", text)
+    if m:
+        role = {"hair": "barber", "taxes": "accountant", "books": "accountant", "nails": "nail tech", "teeth": "dentist",
+                "car": "mechanic", "truck": "mechanic"}[m.group("w") or m.group("w2")]
+        return f"who is my {role}"
     # "What deadlines do I have" (2026-10-08: "nothing about deadlines on
     # file") is what's due.
     m = re.fullmatch(r"what (?:deadlines|deadline) (?:do i have|have i got|are coming up)(?P<w> today| this week| next week| this month| tomorrow)?\s*\??", text)
@@ -13043,7 +13052,9 @@ def _tasks_verb(text: str) -> str | None:
     hits = []
     for t in live:
         what = " ".join(str(t.get("description") or "").split()).rstrip(".")
-        if re.match(re.escape(verb if head in ("pick", "drop", "clean", "look", "follow") else head) + r"\b", what, re.I):
+        # "call the dentist to reschedule" is something to reschedule too
+        if re.match(re.escape(verb if head in ("pick", "drop", "clean", "look", "follow") else head) + r"\b", what, re.I) \
+                or (head in ("reschedule", "confirm", "cancel", "renew", "return") and re.search(r"\bto " + re.escape(head) + r"\b", what, re.I)):
             when = tasks.parse_deadline(t.get("deadline"))
             due = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat())) if when else ""
             hits.append(what + (f" by {due}" if due else ""))     # a comma would collide in a list
