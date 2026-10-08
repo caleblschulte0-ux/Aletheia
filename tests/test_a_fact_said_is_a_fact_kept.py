@@ -10644,5 +10644,22 @@ class OutWithNoNameGiven(unittest.TestCase):
         self.assertNotEqual((voice._interpret("my boss is out of his mind")["command"] or {}).get("kind"), "note")
 
 
+class WhatIsInTheKitchen(unittest.TestCase):
+    """2026-10-08: "I have chicken and rice" went to the planner, and "what
+    should I make for dinner" then said "I don't know what's in the fridge"."""
+
+    def test_kept_only_when_it_is_food(self):
+        self.assertEqual(voice._interpret("I have chicken and rice")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("I have some eggs and cheese in the fridge")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("I have a meeting and a call")["command"] or {}).get("kind"), "note")
+
+    def test_an_idea_from_it(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I have chicken and rice"}]):
+            self.assertEqual(quick.answer("what should I make for dinner"),
+                             "You said you have chicken and rice - how about chicken fried rice?")
+        self.assertEqual(quick.answer("what can I make with eggs and cheese"), "How about a cheese omelette? Just an idea.")
+        self.assertIsNone(quick.answer("what can I make with glue"))
+
+
 if __name__ == "__main__":
     unittest.main()

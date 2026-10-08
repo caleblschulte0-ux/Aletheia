@@ -5735,6 +5735,14 @@ def _interpret(transcript: str) -> dict:
         bye = quick._farewell("leaving work")
         return {"command": {"kind": "note", "text": "finished work"},
                 "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
+    # "I have chicken and rice" (2026-10-08: to the planner): what is in the
+    # kitchen, kept so "what should I make for dinner" can build on it. Every
+    # item must be a food, so "I have a meeting and a call" is never a pantry.
+    m = re.fullmatch(r"(?:all )?i (?:have|'ve got|got|have got) (?:some )?(?P<items>[a-z][a-z, ]{2,60}?)(?: in the (?:fridge|freezer|pantry|kitchen)| at home| left)?", low)
+    if m:
+        from aletheia import quick
+        if quick._food_said(m.group("items")):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # PACKAGES AND REFUNDS (2026-10-08: "my headphones arrived", "the refund
     # should be in 5 days" and "my amazon order is late" went to the planner).
     if re.fullmatch(r"(?:my|the|our) (?:new )?(?!(?:sister|brother|mom|dad|mother|father|wife|husband|son|daughter|kids?|parents|friend|guests?"

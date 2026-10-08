@@ -2393,6 +2393,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("got_here", re.compile(r"^(?:has|have|did) (?:my|the|our) (?P<got_here>[a-z][a-z' ]{1,25}?) (?:arrived|arrive|come|came|got here|get here|been delivered|get delivered|shown up|show up)(?: yet)?\s*\??$"
                            r"|^(?:is|are) (?:my|the|our) (?P<got_here2>[a-z][a-z' ]{1,25}?) (?:here|delivered)(?: yet)?\s*\??$")),
     ("get_my", re.compile(r"^when (?:will|do|should|am i going to|am i gonna) (?:i )?(?:get|see|receive) (?:my|the|our) (?P<get_my>(?:tax )?(?:refund|check|paycheck|deposit|reimbursement|money back|[a-z]+ refund))\s*\??$")),
+    # "What can I make with chicken and rice" (2026-10-08: to a model).
+    ("make_with", re.compile(r"^what (?:can|could|should) (?:i|we) (?:make|cook|do) with (?P<make_with>[a-z][a-z, ]{2,60}?)(?: for (?:dinner|lunch|tonight))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3334,7 +3336,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -7540,6 +7542,40 @@ _MEALS = {
 }
 
 
+#: What he says he has, to a dish a person would suggest - pairs first,
+#: then the one thing the meal is built round. Ideas, said as ideas.
+_DISHES = (
+    (("chicken", "rice"), "chicken fried rice"), (("beef", "rice"), "a beef rice bowl"), (("eggs", "rice"), "egg fried rice"),
+    (("chicken", "pasta"), "chicken pasta"), (("beef", "pasta"), "spaghetti bolognese"), (("ground beef", "pasta"), "spaghetti bolognese"),
+    (("tortillas", "cheese"), "quesadillas"), (("bread", "cheese"), "grilled cheese"), (("eggs", "cheese"), "a cheese omelette"),
+    (("chicken", "tortillas"), "chicken tacos"), (("beef", "tortillas"), "tacos"), (("ground beef", "tortillas"), "tacos"),
+    (("potatoes", "eggs"), "a potato hash with eggs"), (("pasta", "tomatoes"), "pasta with tomato sauce"),
+    (("chicken",), "a chicken stir-fry"), (("ground beef",), "tacos"), (("beef",), "a beef stir-fry"), (("pasta",), "pasta"),
+    (("eggs",), "an omelette"), (("rice",), "fried rice"), (("potatoes",), "baked potatoes"), (("salmon",), "baked salmon"),
+    (("fish",), "fish tacos"), (("shrimp",), "shrimp stir-fry"), (("pork",), "pork chops"), (("tofu",), "a tofu stir-fry"),
+    (("steak",), "steak and a salad"), (("sausage",), "sausage and peppers"), (("beans",), "chili"), (("lentils",), "a lentil soup"),
+)
+_FOOD = (r"chicken|rice|beef|ground beef|pasta|spaghetti|noodles|eggs|cheese|bread|tortillas|potatoes|tomatoes|salmon|fish|shrimp|pork"
+         r"|tofu|steak|sausage|beans|lentils|broccoli|peppers|onions|carrots|spinach|mushrooms|bacon|ham|turkey|leftovers")
+
+
+def _dish_from(items: list) -> str | None:
+    have = {re.sub(r"^(?:some |a |an |the |a bit of |a lot of |leftover )", "", " ".join(str(i).casefold().split())) for i in items}
+    have |= {{"spaghetti": "pasta", "noodles": "pasta", "egg": "eggs", "potato": "potatoes", "tomato": "tomatoes"}.get(h, h) for h in have}
+    for need, dish in _DISHES:
+        if all(n in have for n in need):
+            return dish
+    return None
+
+
+def _food_said(text: str) -> list | None:
+    """The foods in "chicken, rice and broccoli" - None unless every one is
+    a food, so "I have a meeting and a call" is never a pantry."""
+    parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+", text.casefold()) if p.strip()]
+    parts = [re.sub(r"^(?:some |a |an |the |a bit of |a lot of |leftover |a dozen |two |three )", "", p) for p in parts]
+    return parts if parts and all(re.fullmatch(rf"(?:{_FOOD})", p) for p in parts) else None
+
+
 def _planned_for(day: str) -> str | None:
     """The meal plan's line for one day ("Monday: chicken"), or None."""
     import datetime as dt
@@ -7648,6 +7684,22 @@ def _meal_idea(meal: str) -> str:
         planned = _planned_for("today")
         if planned:
             return f"Your meal plan says {planned}."
+    # "I have chicken and rice" said lately (2026-10-08: "how about pasta? I
+    # don't know what's in the fridge" right after he told her).
+    import datetime as dt
+    for row in _notes()[:5]:
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"i (?:have|'ve got|got|have got) (?P<items>.+?)(?: in the (?:fridge|freezer|pantry|kitchen)| at home| left)?", said.casefold())
+        items = _food_said(m.group("items")) if m else None
+        try:
+            fresh = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")) < dt.timedelta(days=2)
+        except (ValueError, TypeError):
+            fresh = not row.get("ts")
+        if items and fresh and meal != "breakfast":
+            from aletheia import speech
+            dish = _dish_from(items)
+            return (f"You said you have {speech.and_list(items)} - how about {dish}?" if dish
+                    else f"You said you have {speech.and_list(items)} - build it round those.")
     for row in _notes():
         said = str(row.get("text") or "")
         liked = re.search(r"\bmy fav(?:ou?rite)? (?:food|meal|dinner|dish) is (.+?)\.?$", said, re.IGNORECASE)
@@ -17091,6 +17143,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "make_with": lambda t: (lambda items: (f"How about {_dish_from(items)}? Just an idea." if items and _dish_from(items) else None))(_food_said(t)),
            "ordered_what": _ordered_what,
            "got_here": _got_here,
            "get_my": _get_my,
