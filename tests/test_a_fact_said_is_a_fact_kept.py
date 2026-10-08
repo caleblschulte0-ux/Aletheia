@@ -12833,6 +12833,23 @@ class ASavingsRate(unittest.TestCase):
             self.assertEqual(quick.answer("how much should I save each month"), "You said you want to save $500 a month.")
 
 
+class NeighborsAndBorrowing(unittest.TestCase):
+    """2026-10-08: "I borrowed Bob's ladder" and "Bob is watching our house
+    while we're away" went to the planner, and "I gave Bob his ladder back"
+    never counted as giving it back."""
+
+    def test_kept(self):
+        for said in ("I borrowed Bob's ladder", "I gave Bob his ladder back", "Bob is watching our house while we're away",
+                     "the neighbors are having a party"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_given_back_is_given_back(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I borrowed Bob's ladder"}]):
+            self.assertEqual(quick._borrowed(), "From what you've told me, you have the ladder from Bob.")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I gave Bob his ladder back"}, {"text": "I borrowed Bob's ladder"}]):
+            self.assertEqual(quick._borrowed(), "Nothing borrowed that you've told me about.")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

@@ -10575,6 +10575,10 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?P<who>[a-z][a-z' ]{1,30})", fact_low) \
         or re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )(?P<thing>[a-z][a-z' ]{1,30}?)"
                         r" back(?: to [a-z][a-z' ]{1,30})?", fact_low)
+    # "I borrowed Bob's ladder", "I gave Bob his ladder back" (2026-10-08:
+    # to the planner, the second not counted as giving it back).
+    m = m or re.fullmatch(r"i borrowed (?P<who>(?!(?:my|his|her|their|our)\b)[a-z]{2,15})'s (?P<thing>[a-z][a-z' ]{1,30}?)", fact_low) \
+        or re.fullmatch(r"i (?:gave|brought|took|returned) (?P<who>(?!(?:back|the|my|his|her|their|our)\b)[a-z]{2,15}) (?:his|her|their|the) (?P<thing>[a-z][a-z' ]{1,30}?) back", fact_low)
     if m and not re.search(r"\d|\b(?:dollars?|bucks|money|cash)\b", m.group("thing")):
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "MIKE GAVE BACK MY DRILL" / "I GOT MY DRILL BACK" (2026-10-07: to the
@@ -11535,6 +11539,11 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) going (?:camping|fishing|hiking|hunting|skiing|snowboarding|bowling|golfing|kayaking|boating|apple picking|pumpkin picking|trick or treating)"
                             r"(?: (?:on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend|tomorrow|today|tonight|next week|this (?:saturday|sunday)))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The neighbors are having a party" (2026-10-08: to the planner) with
+    # no day: their news, kept.
+    if re.fullmatch(r"(?:the|my|our) (?:neighbors?|neighbours?|people next door|people upstairs|people downstairs) (?:is|are) having (?:a |an |another )?"
+                    r"(?:party|barbecue|bbq|cookout|garage sale|yard sale|baby|get together|get-together|bonfire)(?: tonight| today| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
@@ -11871,7 +11880,7 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?!(?:who|what|where|when|why|how|which|is|are|i)\b)(?:my |our |the )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?"
                             r" (?:is|are|will be) (?:watching|feeding|walking|taking care of|looking after|babysitting|dog-?sitting|house-?sitting)"
                             r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
-                            r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z ]{3,30})?", low):
+                            r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z' ]{3,30})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My brother is getting married in June", "my sister had a baby girl
     # named Emma", "my grandma turns 90 next month", "I sent my mom flowers"

@@ -13771,11 +13771,13 @@ def _borrowed() -> str:
     out: dict[str, str] = {}
     for row in reversed(_notes()):
         low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
-        m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?P<who>[a-z][a-z' ]{1,30})", low)
+        m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?P<who>[a-z][a-z' ]{1,30})", low) \
+            or re.fullmatch(r"i borrowed (?P<who>(?!(?:my|his|her|their|our)\b)[a-z]{2,15})'s (?P<thing>[a-z][a-z' ]{1,30}?)", low)
         if m:
             out[m.group("thing")] = m.group("who")
             continue
-        back = re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )?(?P<thing>[a-z][a-z' ]{1,30}?)"
+        back = re.fullmatch(r"i (?:gave|brought|took|returned) [a-z]{2,15} (?:his|her|their|the) (?P<thing>[a-z][a-z' ]{1,30}?) back", low) \
+            or re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )?(?P<thing>[a-z][a-z' ]{1,30}?)"
                             r"(?: back)?(?: to [a-z][a-z' ]{1,30})?", low)
         if back:
             out.pop(back.group("thing"), None)
