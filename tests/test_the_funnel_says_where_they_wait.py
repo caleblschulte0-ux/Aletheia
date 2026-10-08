@@ -184,3 +184,23 @@ class WhereTheyWait(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheLastFewDaysAreToldApart(unittest.TestCase):
+    """A month of closures mixes causes already fixed with ones still happening."""
+
+    def test_recent_closures_are_counted_on_their_own(self):
+        import datetime as _dt
+        from aletheia import hunt_funnel as _hf
+        now = _dt.datetime(2026, 10, 8, 18, tzinfo=_dt.timezone.utc)
+        why = "nothing on this page asks for his name, email or phone, so it is not an application form"
+        rows = [{"state": "CLOSED", "closed_kind": "not-a-form", "closed_because": why,
+                 "url": "https://boards.greenhouse.io/x/jobs/1", "closed_at": "2026-09-20T10:00:00Z",
+                 "staged_at": "2026-09-20T10:00:00Z"},
+                {"state": "CLOSED", "closed_kind": "not-a-form", "closed_because": why,
+                 "url": "https://boards.greenhouse.io/x/jobs/2", "closed_at": "2026-10-08T10:00:00Z",
+                 "staged_at": "2026-10-08T10:00:00Z"}]
+        out = _hf.counts(rows, now=now)
+        self.assertEqual(out["waiting"]["closed"], {"not_a_form_asks_nothing_on_greenhouse": 2})
+        self.assertEqual(out["closed_recently"]["days"], _hf.RECENT_DAYS)
+        self.assertEqual(out["closed_recently"]["why"], {"not_a_form_asks_nothing_on_greenhouse": 1})
