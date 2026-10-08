@@ -7565,5 +7565,23 @@ class TheDoctorsAppointmentMoved(unittest.TestCase):
                          ("call the bank", voice._spoken_day("tomorrow")))
 
 
+class DinnerTonightAndWhenHeAte(unittest.TestCase):
+    """2026-10-08: "what's for dinner tonight" and "when did I last eat"
+    (after "I ate at 7") both went to a model."""
+
+    def test_dinner_is_the_plan_or_an_idea(self):
+        with mock.patch.object(quick, "_planned_for", return_value="tacos"):
+            self.assertEqual(quick._direct("what's for dinner tonight"), "what am i making for dinner")
+        with mock.patch.object(quick, "_planned_for", return_value=None):
+            self.assertEqual(quick._direct("what's for dinner"), "what should i make for dinner")
+
+    def test_when_he_ate(self):
+        rows = [{"text": "I ate at 7", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("you ate at 7", quick.answer("when did I last eat"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me", quick.answer("when did I last eat"))
+
+
 if __name__ == "__main__":
     unittest.main()

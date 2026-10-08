@@ -516,6 +516,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_age", re.compile(
         r"^(?:what(?:'s| is|s)|which is) (?:my |the )?(?P<task_age>oldest|newest|latest|most recent|first|last) "
         r"(?:task|thing on my (?:list|to ?do list)|to ?do)(?: on my list)?\s*\??$")),
+    # "When did I last eat" after "I ate at 7" (2026-10-08: to a model; an
+    # irregular verb the did-last reader cannot make).
+    ("last_ate", re.compile(
+        r"^(?:when did i (?:last )?(?:eat|have something to eat|have a meal)|when was (?:the last time i ate|my last meal)"
+        r"|what time did i (?:last )?eat)(?: today)?\s*\??$")),
     # "Do I work tomorrow" after "I have the day off tomorrow" (2026-10-08:
     # to the planner).
     ("do_i_work", re.compile(
@@ -2568,6 +2573,15 @@ def _direct(text: str) -> str:
                      r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m and not re.match(r"what (?:are|is|do|does) (?:you|u|i|we|they|it)\b", text):
         return f"what's on {m.group('day')}"
+    # "What's for dinner tonight" (2026-10-08: to a model): tonight's plan
+    # when there is one, otherwise the same idea "what should I make" gets.
+    m = re.fullmatch(r"what(?:'s| is|s) for (?P<meal>dinner|supper|lunch)(?: tonight| today)?\s*\??", text)
+    if m:
+        try:
+            planned = _planned_for("tonight" if m.group("meal") != "lunch" else "today")
+        except Exception:
+            planned = None
+        return f"what am i making for {m.group('meal')}" if planned else f"what should i make for {m.group('meal')}"
     # "How often do you remind me to stretch" (2026-10-08: to the planner).
     m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
     if m:
@@ -11288,6 +11302,19 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _last_ate() -> str:
+    """When he last told her he ate, from his notes, newest first."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.match(r"(?:i|we) (?:just |finally )?(?:ate|had (?:breakfast|lunch|dinner|supper|brunch|a snack|a meal|something to eat))\b",
+                    said.casefold()):
+            told = speech.as_she_says_it(said).rstrip(".")
+            return (f"You told me {told[:1].lower()}{told[1:]} - that was "
+                    f"{speech.humanize_time(str(row.get('ts') or ''))}.")
+    return "You haven't told me. Say \"I just ate\" next time and I'll keep track."
+
+
 def _task_age(rest) -> str:
     """His oldest or newest open task, with when he added it."""
     from aletheia import speech, tasks
@@ -13302,6 +13329,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "do_i_work": _do_i_work,
+           "last_ate": lambda rest: _last_ate(),
            "task_age": _task_age,
            "who_coming_noted": _who_coming_noted,
            "asked_on": _asked_on,
