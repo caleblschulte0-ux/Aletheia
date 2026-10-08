@@ -1446,6 +1446,12 @@ def _reminders_answer(which: str = "") -> str:
     from aletheia import speech
     rows = _reminder_schedules()
     noun = "reminder"
+    if which.casefold() == "recurring":
+        # "What are my recurring reminders" listed tonight's one-off too (2026-10-08)
+        rows = [r for r in rows if r.get("kind") != "once"]
+        if not rows:
+            return "You have no repeating reminders set."
+        which = ""
     if which:
         needle = which.casefold()
         noun = {"wake up": "alarm", "timer is up": "timer"}.get(needle, "reminder")

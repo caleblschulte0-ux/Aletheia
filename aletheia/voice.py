@@ -3822,6 +3822,8 @@ def _interpret(transcript: str) -> dict:
         # says alarms.
         if re.search(r"\balarms?\b", low) and not re.search(r"\b(?:reminders?|timers?)\b", low):
             return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
+        if re.search(r"\b(?:recurring|repeating|regular)\b", low):
+            return {"command": {"kind": "reminders", "which": "recurring"}, "say": None}
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.
@@ -8742,6 +8744,25 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": f"I rated {_as_he_said(text, m.group('what'))} {m.group('n')} "
                                                     f"{'stars' if 'star' in low else low.split(m.group('n') + ' ', 1)[1]}"},
                 "say": None}
+    # "Remind me on the last day of the month to pay rent" (2026-10-08: to
+    # the planner): this month's last day, at 9 unless he says a time.
+    m = re.fullmatch(r"remind me (?:on )?the last day of (?:the |this )?month(?: at (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))?"
+                     r" (?:to|about) (?P<what>.{2,80})", low)
+    if m:
+        import calendar as _cal
+        import datetime as _dt
+        from aletheia import localtime
+        now = _dt.datetime.now(localtime.operator_tz())
+        clock = _spoken_time(m.group("t")) if m.group("t") else "09:00"
+        if clock:
+            hh, mm = map(int, clock.split(":"))
+            if m.group("t") and _is_bare_hour(m.group("t")) and hh < 7:
+                hh += 12
+            last = now.replace(day=_cal.monthrange(now.year, now.month)[1], hour=hh, minute=mm, second=0, microsecond=0)
+            if last <= now:
+                nxt = (now.replace(day=1) + _dt.timedelta(days=32)).replace(day=1)
+                last = last.replace(year=nxt.year, month=nxt.month, day=_cal.monthrange(nxt.year, nxt.month)[1])
+            return {"command": {"kind": "remind_at", "at": last.isoformat(), "text": _as_he_said(text, m.group("what"))}, "say": None}
     # HABITS HE KEEPS (2026-10-08: to the planner): "I want to work out 4
     # times a week", "I smoked a cigarette", "I didn't drink today". Kept in
     # his words; "am I on track with my workouts" and "how many cigarettes

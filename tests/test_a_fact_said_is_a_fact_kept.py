@@ -6481,5 +6481,29 @@ class WishesLikesAndRatings(unittest.TestCase):
             self.assertIn("learning guitar", quick.answer("what was I thinking about learning"))
 
 
+
+class RepeatingAndMonthEndReminders(unittest.TestCase):
+    """2026-10-08: "what are my recurring reminders" listed tonight's one-off
+    too, and "remind me on the last day of the month to pay rent" went to
+    the planner."""
+
+    def test_recurring_leaves_the_one_offs_out(self):
+        from aletheia import intercom
+        self.assertEqual(voice._interpret("what are my recurring reminders")["command"], {"kind": "reminders", "which": "recurring"})
+        rows = [{"kind": "once", "command": {"text": "check the oven"}}, {"kind": "weekly", "command": {"text": "take my vitamins"}}]
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+                mock.patch.object(intercom, "_soonest_first", side_effect=lambda r: r), \
+                mock.patch.object(intercom, "_reminder_words", side_effect=lambda r, **k: r["command"]["text"]):
+            self.assertEqual(intercom._reminders_answer("recurring"), "1 reminder: take my vitamins.")
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows[:1]):
+            self.assertEqual(intercom._reminders_answer("recurring"), "You have no repeating reminders set.")
+
+    def test_the_last_day_of_the_month(self):
+        got = voice._interpret("remind me on the last day of the month to pay rent")["command"]
+        at = dt.datetime.fromisoformat(got["at"])
+        self.assertEqual((got["kind"], got["text"], at.hour), ("remind_at", "pay rent", 9))
+        self.assertEqual((at + dt.timedelta(days=1)).day, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
