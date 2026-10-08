@@ -9726,5 +9726,28 @@ class LearningAndReading(unittest.TestCase):
             self.assertEqual(quick.answer("how long did I practice spanish this week"), "20 minutes this week, from what you've told me.")
 
 
+class AtWorkAgain(unittest.TestCase):
+    """A sweep of work sentences (2026-10-08). "How many sick days have I
+    taken" said "Say 'I did 20 sick days'"."""
+
+    def test_said(self):
+        hold = voice._interpret("I have a one on one with Linda tomorrow at 10")["command"]
+        self.assertEqual((hold["kind"], hold["title"]), ("calendar_hold", "one on one with Linda"))
+        self.assertEqual(voice._interpret("my raise is 5 percent")["command"], {"kind": "note", "text": "my raise is 5 percent"})
+
+    def test_read(self):
+        import datetime as dt
+        from aletheia import intercom
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "my raise is 5 percent", "ts": now}, {"text": "my review is next month", "ts": now},
+                {"text": "I took a sick day", "ts": now}, {"text": "I took 2 sick days", "ts": now}]
+        tasks_ = [{"description": "ask Linda about the budget", "status": "OPEN", "id": "t1"}]
+        with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: tasks_):
+            self.assertEqual(quick.answer("how much was my raise"), "You told me: your raise is 5 percent.")
+            self.assertEqual(quick.answer("when is my performance review"), "You told me: your review is next month.")
+            self.assertEqual(quick.answer("how many sick days have I taken"), "3 sick days this year, from what you've told me.")
+            self.assertEqual(quick.answer("what do I need to ask Linda"), "Your list says: ask Linda about the budget.")
+
+
 if __name__ == "__main__":
     unittest.main()

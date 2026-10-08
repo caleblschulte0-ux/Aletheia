@@ -8858,7 +8858,9 @@ def _interpret(transcript: str) -> dict:
                         r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
                         r"|date|class|practice|haircut|checkup|check-up"
                         # "I have a parent teacher conference thursday at 4" (2026-10-08: to the planner).
-                        r"|conference|lesson|rehearsal|concert|performance)(?: with [a-z' ]+?)?)"
+                        r"|conference|lesson|rehearsal|concert|performance"
+                        # "I have a one on one with Linda tomorrow at 10" (2026-10-08: to the planner).
+                        r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up)(?: with [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
     # ...but "call tomorrow" alone is not a diary entry called Call.
@@ -9626,7 +9628,7 @@ def _interpret(transcript: str) -> dict:
                      # "My parking spot is B12", "my hotel room is 512" (2026-10-08: to the planner)
                      r"|parking spot|parking space|spot|hotel room|room|seat|desk|cubicle|apartment|apartment number|unit|suite|gate"
                      # "My tax refund is 1200" (2026-10-08: to the planner)
-                     r"|(?:federal |state )?tax refund|refund|tax bill|property tax(?:es)?|income|annual income|bonus|take[- ]home pay|hourly rate|pay rate"
+                     r"|(?:federal |state )?tax refund|refund|tax bill|property tax(?:es)?|income|annual income|bonus|raise|pay raise|take[- ]home pay|hourly rate|pay rate"
                      r"|(?:netflix|hulu|spotify|amazon|work|school|email|[a-z]+) (?:login|username|user name))"
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
