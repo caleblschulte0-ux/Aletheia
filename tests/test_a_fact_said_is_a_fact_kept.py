@@ -11223,5 +11223,14 @@ class WhatHeIsInTheMiddleOf(unittest.TestCase):
             self.assertEqual(said, "Nice - that's Atomic Habits finished. I've noted it.")
 
 
+class HowLongTheBirdTakes(unittest.TestCase):
+    """2026-10-08: "how long to cook a 5 pound turkey" got "I can't think"."""
+
+    def test_by_the_pound(self):
+        self.assertTrue(quick.answer("how long do I roast a 14 lb turkey").startswith("About 3 hours at 325 degrees"))
+        self.assertTrue(quick.answer("how long to cook a 4 pound chicken").startswith("About 1 hour and 15 minutes at 350 degrees"))
+        self.assertIn("165 degrees", quick.answer("how long to cook a 5 pound turkey"))
+
+
 if __name__ == "__main__":
     unittest.main()

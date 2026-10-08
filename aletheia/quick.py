@@ -2454,6 +2454,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|how much (?:is |do i have )?left (?:in|on) (?:my )?(?P<budget_on3>[a-z][a-z ]{1,25}?) budget)(?: this (?:month|week))?\s*\??$")),
     # "What gift cards do I have" (2026-10-08: "nothing about gift cards").
     ("gift_cards", re.compile(r"^(?:what|which|do i have any|how many) gift cards?(?: do i have| have i got)?(?: left)?\s*\??$")),
+    # "How long to cook a 5 pound turkey" (2026-10-08: "I can't think").
+    ("turkey_time", re.compile(r"^how long (?:do i|should i|to|does it take to|will it take to) (?:cook|roast|bake|do) (?:a |an |my |the )?"
+                               r"(?P<turkey_lb>\d{1,2}(?:\.\d)?)[ -]?(?:pound|lb|lbs|pounder)s? (?P<turkey_kind>turkey|chicken|turkey breast)(?: for)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3385,7 +3388,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "turkey_time", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16767,6 +16770,26 @@ def _gift_cards(_rest: str = "") -> str | None:
     return f"You told me: {speech.and_list(found)}." if found else None
 
 
+def _turkey_time(text: str) -> str | None:
+    """Roasting time at 325 F for a bird of a given weight, unstuffed - the
+    USDA's rule of thumb - always with the thermometer as the real answer."""
+    g = _groups("turkey_time", text)
+    try:
+        lb = float(g.get("turkey_lb") or 0)
+    except ValueError:
+        return None
+    kind = (g.get("turkey_kind") or "").strip()
+    if not lb or not kind:
+        return None
+    per = 20 if kind == "chicken" else 22 if kind == "turkey breast" else 13
+    temp = 350 if kind == "chicken" else 325
+    minutes = round(lb * per / 15) * 15
+    hours, mins = divmod(minutes, 60)
+    took = (f"{hours} hour{'s' if hours != 1 else ''}" if hours else "") + ((" and" if hours else "") + f" {mins} minutes" if mins else "")
+    return (f"About {took.strip()} at {temp} degrees, unstuffed - roughly {per} minutes a pound. It's done when the thickest part "
+            f"reads 165 degrees, so trust the thermometer over the clock.")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17580,6 +17603,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "turkey_time": _turkey_time,
            "budget_on": _budget_on,
            "gift_cards": _gift_cards,
            "provider": _provider,
