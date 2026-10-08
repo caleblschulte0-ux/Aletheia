@@ -1725,6 +1725,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:list|show me|read me) (?P<applied_on3>today'?s?|yesterday'?s?) (?:applications|jobs)\s*\??$")),
     # WHAT HE ASKED, by day, from the journal of his own words
     # (`converse.ASKED_SUBJECT`). Offline it was "I can't think just now".
+    # "What did I tell you today" listed his ASKS (2026-10-08); what he told
+    # her is his notes, and the asks are the fallback when there are none.
+    ("told_on", re.compile(
+        r"^what (?:did|have) i (?:tell|told) (?:you|u)"
+        r" (?P<told_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$")),
     ("asked_on", re.compile(
         r"^what (?:did|have) i (?:ask|asked|tell|told|say to|said to) (?:you|u)(?: to do| for| about)?"
         r" (?P<asked_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$"
@@ -2493,6 +2498,12 @@ def _direct(text: str) -> str:
                      r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
     if m:
         return f"what did i tell you about being on {m.group('state')}"
+    # "When does my car need an oil change" (2026-10-08: to a model) is the
+    # note he gave her about it.
+    m = re.fullmatch(r"when (?:does|do|will) (?:my|our|the) (?P<thing>car|truck|van|suv|bike|motorcycle|furnace|ac|water heater"
+                     r"|lawn mower|mower) need (?:an? |its |new )?(?P<what>[a-z ]{3,40}?)\s*\??", text)
+    if m:
+        return f"what did i tell you about {m.group('what')}"
     # "What size shoes does Emma wear" (2026-10-08: to a model, a turn
     # after "Emma's shoe size is 2") is her shoe size.
     m = re.fullmatch(r"what size (?P<what>shoe|shirt|pants|dress|ring|jacket|coat|diaper|clothes)s? (?:does|do) (?P<who>(?!i\b|you\b|we\b)[a-z]{2,15}|my [a-z]{2,15})"
@@ -2581,7 +2592,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -8504,6 +8515,13 @@ def _applied_on(rest) -> str:
             + (f", and {len(sent) - 6} more" if len(sent) > 6 else "") + ".")
 
 
+def _told_on(rest) -> str:
+    """The notes he gave her on a day; his asks when he gave none."""
+    words = str(rest or "").casefold()
+    said = _notes_day("yesterday" if ("yesterday" in words or "last night" in words) else "today")
+    return _asked_on(rest) if said.startswith("No notes") else said
+
+
 def _asked_on(rest) -> str:
     """What he asked her on a day, from the journal of his own words."""
     import datetime as dt
@@ -12733,6 +12751,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "sending": lambda rest: _sending(rest),
            "draft_to": lambda rest: _draft_to(rest),
            "applied_on": _applied_on,
+           "told_on": _told_on,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
            "who_are_you": lambda rest: _who_are_you(),

@@ -3702,6 +3702,14 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
         return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
 
+    # "My car needs an oil change at 45000 miles" (2026-10-08: to the
+    # planner). Kept; "when does my car need an oil change" reads it.
+    if re.fullmatch(r"(?:my|our|the) (?:car|truck|van|suv|bike|motorcycle|furnace|ac|a/c|water heater|lawn mower|mower)"
+                    r" (?:needs|is due for|will need) (?:an? |its |new )?[a-z0-9 ,'-]{3,60}", low) \
+            and re.search(r"\d", low) and not low.endswith("?"):
+        # Only with a when ("at 45000 miles", "in 2027"): "my car needs an
+        # oil change" alone is a job, and the task rule below has it.
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm out of my medicine" (2026-10-08: to the planner; "my" kept it off
     # the shopping list). A prescription is refilled, not bought off a list.
     m = re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)|im) (?:all |almost |nearly |running )?(?:out of|low on) (?:my |the )?"
@@ -3802,6 +3810,15 @@ def _interpret(transcript: str) -> dict:
     # "Forget it" and "forget that" are deliberately NOT here: those mean
     # "never mind" and already deny a pending approval, which is a
     # different act and the safer one to keep.
+    # "Forget the last thing I told you" (2026-10-08) looked for a note
+    # ABOUT "the last thing i told you". It is the newest note.
+    if re.fullmatch(r"(?:forget|delete|erase|scratch) (?:the last thing|what) i (?:just )?(?:told you|said)"
+                    r"(?: to remember)?|forget what i just told you", low):
+        from aletheia import quick as _quick
+        rows = _quick._notes(1)
+        if not rows:
+            return {"command": None, "say": "You haven't told me anything to forget."}
+        return {"command": {"kind": "forget", "about": str(rows[0].get("text") or "")}, "say": None}
     m = re.fullmatch(r"forget (?:about )?(?!it$|that$|everything$)"
                      r"((?:what you know about |everything about |what i (?:said|told you) about |(?:my |the )?notes? about )?.+?)"
                      r"\s*\??", low)

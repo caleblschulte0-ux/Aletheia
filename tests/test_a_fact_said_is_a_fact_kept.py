@@ -6899,5 +6899,31 @@ class TheHourHeSaysTrailing(unittest.TestCase):
                          "meet bob at the cafe")
 
 
+
+class WhatHeToldHerToday(unittest.TestCase):
+    """2026-10-08: "what did I tell you today" listed his asks; "forget the
+    last thing I told you" looked for a note about those words; a car's
+    service note went to the planner."""
+
+    def test_the_car_needs_is_a_note_and_is_asked_back(self):
+        got = voice._interpret("my car needs an oil change at 45000 miles")
+        self.assertEqual(got["command"]["kind"], "note")
+        self.assertEqual(quick._direct("when does my car need an oil change"),
+                         "what did i tell you about oil change")
+
+    def test_the_last_thing_told_is_the_newest_note(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I weigh 182 pounds"}]):
+            got = voice._interpret("forget the last thing I told you")
+        self.assertEqual(got["command"], {"kind": "forget", "about": "I weigh 182 pounds"})
+
+    def test_told_today_reads_the_notes_first(self):
+        with mock.patch.object(quick, "_notes_day", return_value="1 note from today: you weigh 182 pounds."), \
+                mock.patch.object(quick, "_asked_on", return_value="asks"):
+            self.assertIn("182", quick._told_on("today"))
+        with mock.patch.object(quick, "_notes_day", return_value="No notes from today."), \
+                mock.patch.object(quick, "_asked_on", return_value="asks"):
+            self.assertEqual(quick._told_on("today"), "asks")
+
+
 if __name__ == "__main__":
     unittest.main()
