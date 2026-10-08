@@ -10469,6 +10469,10 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|our) (?:sister|brother|mom|mother|dad|father|parents|in laws|in-laws|mother in law|father in law|guests?|friends?|cousin|aunt|uncle|grandma|grandpa|grandparents|kids)"
                     r" (?:left|went home|headed home|flew home|took off)(?: today| this morning| tonight| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got a 50 dollar gift card to Target" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i (?:just )?(?:got|have|received|was given)|(?:[a-z]{2,15}|my [a-z]{2,15}) gave me) (?:a |an )?\$?\d[\d,]*(?: dollar| buck)? gift ?card"
+                    r"(?: (?:to|for|from) [a-z][a-z&' -]{1,25})*", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

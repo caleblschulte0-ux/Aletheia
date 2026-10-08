@@ -11162,5 +11162,39 @@ class WhenSheLands(unittest.TestCase):
             self.assertEqual(quick.answer("when does my sister land"), "You told me: your sister lands at 4 on Friday 9 October.")
 
 
+class BillsBudgetsAndDebts(unittest.TestCase):
+    """2026-10-08: "how much are my bills" summed "my car payment is due on
+    the 15th" as $15 a month; "I paid the dentist" did not settle what he
+    owed, which was said "the Dentist"; a budget and a gift card went to
+    the planner or "nothing on file"."""
+
+    def test_a_due_date_is_not_an_amount(self):
+        notes = [{"text": "my car payment is due on the 15th"}, {"text": "my car payment is 350"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how much are my bills"), "About $350 a month. From what you've told me: your car payment is 350.")
+
+    def test_paid_settles_and_a_common_noun_stays_small(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I owe the dentist 150"}]):
+            self.assertEqual(quick.answer("who do I owe"), "You owe the dentist $150.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I paid the dentist"}, {"text": "I owe the dentist 150"}]):
+            self.assertTrue(quick.answer("who do I owe").startswith("Nobody"))
+
+    def test_a_budget(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        notes = [{"text": "I spent 450 on groceries", "ts": now}, {"text": "my budget for groceries is 400 a month", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("am I over budget on groceries"),
+                             "Yes - $450 on groceries this month, $50 over your $400 budget, from what you've told me.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("am I over budget on groceries"))
+
+    def test_a_gift_card(self):
+        said = "I got a 50 dollar gift card to Target"
+        self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": said}]):
+            self.assertEqual(quick.answer("what gift cards do I have"), "You told me: you got a 50 dollar gift card to Target.")
+
+
 if __name__ == "__main__":
     unittest.main()

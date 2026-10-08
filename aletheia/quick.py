@@ -2447,6 +2447,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("provider", re.compile(r"^(?:who|what) (?:is|'s) (?:my|our) (?P<provider>phone|cell|cell phone|wireless|internet|cable|insurance|electric|power|car insurance|health insurance)"
                             r" (?:carrier|provider|company|plan)\s*\??$"
                             r"|^who do (?:i|we) (?:have|use) for (?:my |our )?(?P<provider2>phone|cell|internet|cable|insurance|electric|power)\s*\??$")),
+    # "Am I over budget on groceries" (2026-10-08: to the planner), after
+    # "my budget for groceries is 400 a month".
+    ("budget_on", re.compile(r"^(?:am i (?:over|under|within|on) budget (?:on|for) (?P<budget_on>[a-z][a-z ]{1,25}?)"
+                             r"|how am i doing on (?:my )?(?P<budget_on2>[a-z][a-z ]{1,25}?) budget"
+                             r"|how much (?:is |do i have )?left (?:in|on) (?:my )?(?P<budget_on3>[a-z][a-z ]{1,25}?) budget)(?: this (?:month|week))?\s*\??$")),
+    # "What gift cards do I have" (2026-10-08: "nothing about gift cards").
+    ("gift_cards", re.compile(r"^(?:what|which|do i have any|how many) gift cards?(?: do i have| have i got)?(?: left)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3378,7 +3385,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -6257,7 +6264,8 @@ def _ledger() -> dict:
             who = m.group("who")
             owed[who] = owed.get(who, 0) + float(m.group("amt"))
             continue
-        m = re.fullmatch(r"i paid (?P<who>[a-z][a-z ]{0,25}?) back(?: " + _MONEY + r")?", low)
+        # "I paid the dentist" (2026-10-08) settles it as surely as "back".
+        m = re.fullmatch(r"i (?:just )?paid (?:off )?(?P<who>[a-z][a-z ]{0,25}?)(?: back)?(?: " + _MONEY + r")?(?: today| yesterday)?", low)
         if m and owe.get(m.group("who"), 0) > 0:
             who = m.group("who")
             owe[who] = max(0.0, owe[who] - float(m.group("amt"))) if m.group("amt") else 0.0
@@ -6274,8 +6282,11 @@ def _ledger() -> dict:
 def _named(who: str) -> str:
     """"sam" -> "Sam"; "the irs" -> "the IRS", not "The irs" (2026-10-07)."""
     words = str(who or "").split()
+    # "You owe the Dentist $150" (2026-10-08): after "the" or "my" it is a
+    # word, not a name.
+    common = bool(words) and words[0] in ("the", "my", "our")
     out = [w.upper() if w in ("irs", "dmv", "ups", "usps", "hoa", "va") else
-           w if (i == 0 and w in ("the", "my", "our")) or (i and w in ("the", "of", "and")) else w[:1].upper() + w[1:]
+           w if (i == 0 and w in ("the", "my", "our")) or (i and w in ("the", "of", "and")) or (i and common) else w[:1].upper() + w[1:]
            for i, w in enumerate(words)]
     return " ".join(out)
 
@@ -13257,12 +13268,16 @@ def _cost_mine(text: str) -> str | None:
                 seen.add(gone.group("k"))
                 continue
             m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
+            # "My car payment is due on the 15th" was summed as $15 a month
+            # (2026-10-08). When it is due is not what it costs.
+            if m and re.match(r"(?:due|on the|every|on|the) ", m.group("v")) and not re.search(r"\$\d|\d+(?:\.\d+)? ?(?:dollars|bucks|a month|per month|a year|a week)", m.group("v")):
+                continue
             if m and subs and not re.fullmatch(_SUB_KEYS, m.group("k")):
                 continue
             if m and m.group("k") not in seen:
                 seen.add(m.group("k"))
                 bills.append(speech.as_she_says_it(said).rstrip(".").removeprefix("your ").removeprefix("Your "))
-                n = re.search(r"\$?(\d[\d,]*(?:\.\d+)?)", m.group("v"))
+                n = re.search(r"\$?(\d[\d,]*(?:\.\d+)?)(?!\d|st\b|nd\b|rd\b|th\b)", m.group("v"))
                 if not n:
                     whole = False
                     continue
@@ -16693,6 +16708,65 @@ def _provider(text: str) -> str | None:
     return None
 
 
+def _budget_on(text: str) -> str | None:
+    """Spending this month on a thing against the budget he gave for it."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("budget_on", text)
+    what = " ".join(str(g.get("budget_on") or g.get("budget_on2") or g.get("budget_on3") or "").casefold().split())
+    what = re.sub(r"^(?:my|the) ", "", what)
+    if not what:
+        return None
+    stem = what.rstrip("s").removesuffix("ie").removesuffix("ery")
+    budget, weekly = None, False
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        m = re.match(rf"(?:my|our) (?:budget for (?:the )?{re.escape(stem)}[a-z]* is|{re.escape(stem)}[a-z]* budget is) \$?(\d[\d,]*(?:\.\d+)?)"
+                     r"(?: dollars| bucks)?(?: (?:a|per|each) (month|week))?", line)
+        if m:
+            budget, weekly = float(m.group(1).replace(",", "")), m.group(2) == "week"
+            break
+    if budget is None:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = midnight - dt.timedelta(days=now.weekday()) if weekly else midnight.replace(day=1)
+    spent = 0.0
+    for row in _notes():
+        m = _SPENT_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
+        if not m or stem not in m.group("on"):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if m.group("when") in ("yesterday", "last night"):
+            at -= dt.timedelta(days=1)
+        if at >= start:
+            spent += float(m.group("amt").replace(",", ""))
+    span = "this week" if weekly else "this month"
+    yes_no = _tidy(text).startswith("am i")
+    if spent > budget:
+        said = f"{_money(spent)} on {what} {span}, {_money(spent - budget)} over your {_money(budget)} budget, from what you've told me."
+        return ("Yes - " + said) if yes_no and "over" in _tidy(text) else ("No - " + said) if yes_no else said
+    said = f"{_money(spent)} on {what} {span}, so {_money(budget - spent)} left of your {_money(budget)} budget, from what you've told me."
+    return ("No - " + said) if yes_no and "over" in _tidy(text) else ("Yes - " + said) if yes_no else said
+
+
+def _gift_cards(_rest: str = "") -> str | None:
+    """Gift cards he told her he has."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\bgift ?cards?\b", line, re.I) and not re.search(r"\b(?:used|spent) (?:the|my|a)\b.*gift ?card", line, re.I):
+            found.append(speech.as_she_says_it(line))
+        if len(found) >= 4:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17506,6 +17580,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "budget_on": _budget_on,
+           "gift_cards": _gift_cards,
            "provider": _provider,
            "home_when": _home_when,
            "pay_now": _pay_now,
