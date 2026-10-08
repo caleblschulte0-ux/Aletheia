@@ -10265,6 +10265,26 @@ def _interpret(transcript: str) -> dict:
                             r"|aunt|uncle|boss|friend|girlfriend|boyfriend|neighbor) (?:some |a |an )?(?:flowers|a card|a gift|a present|a birthday card|a thank you card"
                             r"|a thank you note|chocolates|a cake|a care package|a gift card|a text|money)(?: today| yesterday| for (?:her|his|their) [a-z ]{2,20})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My new boss is named Rachel" (2026-10-08: to the planner) is who his
+    # boss is, kept the way "who is my boss" reads it.
+    m = re.fullmatch(r"my (?:new )?(?P<role>boss|manager|supervisor|coworker|doctor|dentist|landlord|neighbor|trainer|therapist)"
+                     r"(?:'s name)? is (?:named|called) (?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"my {m.group('role')} is {_as_he_said(text, m.group('name'))}"}, "say": None}
+    # "My interview is with Sarah Jones", "the interview went well", "I work
+    # from home on Fridays", "my coworker Sam is leaving the company", "I got
+    # a bonus of 2000", "I have a performance review next week" (2026-10-08:
+    # all to the planner).
+    if re.fullmatch(r"(?:my|the) (?:job |phone |video |second |final )?interview (?:is|was|will be) with [a-z][a-z' .-]{1,40}", low) \
+            or re.fullmatch(r"(?:my|the) (?:job |phone |video |second |final )?interview (?:went|was) (?:really |pretty |so |very |not )?(?:well|great|good|ok|okay|fine|badly|bad|terrible|awful|amazing|horrible|rough)(?: today| yesterday)?", low) \
+            or re.fullmatch(r"i (?:think i )?(?:nailed|bombed|aced) (?:the|my) interview(?: today| yesterday)?", low) \
+            or re.fullmatch(r"i (?:work from home|wfh|work remotely) (?:on |every )?(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?)"
+                            r"(?:(?:,| and|, and) (?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?))*", low) \
+            or re.fullmatch(r"(?:my (?:coworker|boss|manager|friend at work) )?[a-z][a-z'-]{1,20} (?:is|are) leaving (?:the company|the team|work)(?: (?:next|this) (?:week|month)| on [a-z]+| soon)?", low) \
+            or re.fullmatch(r"i got a (?:\$?\d[\d,]*k? )?(?:bonus|raise)(?: of \$?\d[\d,]*k?)?(?: today| this year| yesterday)?", low) \
+            or re.fullmatch(r"i have (?:a |my )?(?:performance review|annual review|review|one on one|1 on 1|team meeting|all hands|training|work trip|conference)"
+                            r" (?:next week|this week|next month|this month|soon)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I have 30 days to return the jacket" (2026-10-08: to the planner) is
     # the return, due on the last day.
     m = re.fullmatch(r"i (?:have|got|only have) (?P<n>\d{1,3}) days to (?P<what>return|exchange|send back) (?P<thing>(?:the|my|this|that) [a-z][a-z' ]{1,30})", low)

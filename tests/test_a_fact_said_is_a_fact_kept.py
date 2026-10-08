@@ -9935,5 +9935,31 @@ class HisThings(unittest.TestCase):
             self.assertEqual(quick.answer("how much is my phone plan"), "You told me: your phone plan is 45 a month.")
 
 
+class AtWorkThirdTime(unittest.TestCase):
+    """A sweep of work and interview sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("my interview is with Sarah Jones", "the interview went well", "I work from home on Fridays",
+                     "I have a performance review next week", "my coworker Sam is leaving the company", "I got a bonus of 2000"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("my new boss is named Rachel")["command"], {"kind": "note", "text": "my boss is Rachel"})
+
+    def test_read(self):
+        rows = [{"text": "my interview is with Sarah Jones"}, {"text": "the interview went well"},
+                {"text": "I work from home on Fridays"}, {"text": "my coworker Sam is leaving the company"},
+                {"text": "I start my new job on Monday"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("who is my interview with"), "You told me: your interview is with Sarah Jones.")
+            self.assertEqual(quick.answer("how did my interview go"), "You told me: the interview went well.")
+            self.assertEqual(quick.answer("do I work from home on friday"), "Yes. You told me: you work from home on Fridays.")
+            self.assertEqual(quick.answer("do I work from home on monday"),
+                             "Not that you've told me. You told me: you work from home on Fridays.")
+            self.assertEqual(quick.answer("who is leaving the company"), "You told me: your coworker Sam is leaving the company.")
+            self.assertEqual(quick.answer("when do I start"), "You told me: you start your new job on Monday.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("do I work from home tomorrow"))
+            self.assertIsNone(quick.answer("who is my interview with"))
+
+
 if __name__ == "__main__":
     unittest.main()
