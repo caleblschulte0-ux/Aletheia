@@ -3252,6 +3252,18 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                              " ".join(str(quote or "").split()), re.IGNORECASE)
             if said:
                 execute_command({"kind": "note", "text": said.group(0).strip().strip('"')}, fleet, quote=quote)
+                # "I finished Atomic Habits", a book he said he was reading,
+                # got "that wasn't on your task list" (2026-10-08).
+                try:
+                    from aletheia import quick as _quick
+                    title = re.escape(re.sub(r"^(?:reading|watching) ", "", " ".join(str(cmd["which"]).split()), flags=re.I))
+                    was = next((m.group(1) for r in _quick._notes()[:40]
+                                for m in [re.search(rf"\b(?:reading|watching|listening to|playing) ({title})\b",
+                                                    " ".join(str(r.get("text") or "").split()), re.I)] if m), None)
+                except Exception:
+                    was = None
+                if was:
+                    return f"Nice - that's {was} finished. I've noted it."
                 return "Nice. That wasn't on your task list, so I've noted it."
         if found is None:
             return why

@@ -11196,5 +11196,32 @@ class BillsBudgetsAndDebts(unittest.TestCase):
             self.assertEqual(quick.answer("what gift cards do I have"), "You told me: you got a 50 dollar gift card to Target.")
 
 
+class WhatHeIsInTheMiddleOf(unittest.TestCase):
+    """2026-10-08: "I want to read Dune next" listed "Dune next"; "I'm on
+    season 3" a turn after "I'm watching Breaking Bad", a puzzle, Duolingo
+    and a streak went to the planner; "I finished Atomic Habits" said it
+    wasn't on his task list."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I want to read Dune next")["command"]["item"], "Dune")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I am watching Breaking Bad"}]):
+            self.assertEqual(voice._interpret("I am on season 3")["command"], {"kind": "note", "text": "I'm on season 3 of Breaking Bad"})
+        for said in ("I started a puzzle", "I am learning Spanish on Duolingo", "my Duolingo streak is 45 days"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_a_book_he_was_reading_is_finished(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import intercom, lists
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(lists, "private_dir", side_effect=lambda name: Path(tmp) / name), \
+                mock.patch.object(intercom, "_one_task", return_value=(None, "Nothing open matching that.")), \
+                mock.patch.object(intercom, "_one_shopping_item", return_value=(None, "")), \
+                mock.patch.object(quick, "_notes", lambda: [{"text": "I am reading Atomic Habits"}]):
+            (Path(tmp) / "lists").mkdir()
+            said = intercom.execute_command({"kind": "task_done", "which": "atomic habits"}, None, quote="I finished Atomic Habits")
+            self.assertEqual(said, "Nice - that's Atomic Habits finished. I've noted it.")
+
+
 if __name__ == "__main__":
     unittest.main()

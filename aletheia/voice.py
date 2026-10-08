@@ -4180,7 +4180,7 @@ def _interpret(transcript: str) -> dict:
     # model). A title goes on his watch or reading list; what he is reading
     # is a note, which "what am I reading" reads.
     m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need) to (?P<v>watch|see|read) (?P<t>[a-z0-9].{1,60}?)"
-                     r"(?: (?:sometime|someday|soon|at some point|one day|eventually))?", low)
+                     r"(?: (?:sometime|someday|soon|at some point|one day|eventually|next|after this(?: one)?|after that))?", low)
     if m and not re.match(r"(?:a|an|some|something|anything|more|less|it|that|this|them|tv|television|the news|the game"
                           r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)\b", m.group("t")) \
             and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
@@ -10472,6 +10472,26 @@ def _interpret(transcript: str) -> dict:
     # "I got a 50 dollar gift card to Target" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i (?:just )?(?:got|have|received|was given)|(?:[a-z]{2,15}|my [a-z]{2,15}) gave me) (?:a |an )?\$?\d[\d,]*(?: dollar| buck)? gift ?card"
                     r"(?: (?:to|for|from) [a-z][a-z&' -]{1,25})*", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'm on season 3", a turn after "I'm watching Breaking Bad" (2026-10-08:
+    # "I can't think"). The show is the one he said he is watching.
+    m = re.fullmatch(r"(?:i'?m|i am) (?:now |up to |currently )?on (?P<where>(?:season|episode|chapter|page|book|part|level) \d{1,4}(?:,? (?:episode|chapter) \d{1,3})?)", low)
+    if m:
+        kind = "reading" if re.match(r"(?:chapter|page|book|part)\b", m.group("where")) else "watching"
+        title = ""
+        for row in _quick._notes()[:20]:
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            got = re.fullmatch(rf"(?i:i'?m|i am|i'?ve been|i have been|i (?:just )?started) {kind} (?P<t>.{{2,60}})", said)
+            if got:
+                title = got.group("t")
+                break
+        return {"command": {"kind": "note", "text": f"I'm on {m.group('where')}" + (f" of {title}" if title else "")}, "say": None}
+    # "I started a puzzle", "I'm learning Spanish on Duolingo", "my Duolingo
+    # streak is 45 days" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:just )?started (?:a |an |my |a new )?(?:puzzle|jigsaw puzzle|lego set|painting|drawing|knitting project|sweater|scarf|quilt|garden|journal"
+                    r"|diet|workout plan|program|course|class|podcast|series|game|video game|novel|blog)(?: today| tonight| this week)?", low) \
+            or re.fullmatch(r"(?:i'?m|i am) (?:learning|studying|practicing) [a-z][a-z ]{1,20} (?:on|with|using|through) [a-z][a-z ]{1,20}", low) \
+            or re.fullmatch(r"my [a-z][a-z ]{1,20} streak is (?:at |up to )?\d{1,4} (?:days?|weeks?)(?: now)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
