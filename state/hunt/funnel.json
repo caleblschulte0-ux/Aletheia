@@ -232,15 +232,15 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 57,
-      "found": 82,
+      "filled": 59,
+      "found": 84,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 35
     }
   },
-  "generated_at": "2026-10-08T02:10:45Z",
+  "generated_at": "2026-10-08T02:36:13Z",
   "sent_all_time": 269,
   "stuck_at": {
     "approval_denied": {
@@ -311,8 +311,8 @@
     }
   },
   "totals": {
-    "filled": 336,
-    "found": 696,
+    "filled": 338,
+    "found": 698,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
@@ -352,9 +352,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 78
     },
-    "failed": 8,
+    "failed": 9,
     "failed_because": {
-      "ApplyError": 2,
+      "ApplyError": 3,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
