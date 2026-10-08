@@ -12099,5 +12099,12 @@ class HowHeGotThere(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
 
 
+class SeeingTheDoctor(unittest.TestCase):
+    def test_seeing_a_dentist_is_an_errand_and_the_doctor_has_a_number(self):
+        self.assertEqual(voice.interpret("I need to see a dentist")["command"]["description"], "see a dentist")
+        self.assertEqual(voice.interpret("dr patel number is 555 222 3333")["command"],
+                         {"kind": "contact_add", "name": "Dr Patel", "phone": "555 222 3333"})
+
+
 if __name__ == "__main__":
     unittest.main()

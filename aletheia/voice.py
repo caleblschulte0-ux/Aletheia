@@ -2715,6 +2715,9 @@ def _apostrophes(transcript: str) -> str:
                   r"(?:dentist |doctor |vet |school |soccer |piano |dance )?(?:appointment|practice|game|recital|lesson|party)|"
                   r"birthday|number|phone number|email|address|friend|mom|dad|wife|husband|boyfriend|girlfriend)\b",
                   r"\1's \2", said)
+    # "Dr patel number is 555 222 3333" (2026-10-08: to the planner) - a
+    # doctor typed lowercase still has a number.
+    said = re.sub(r"\b(dr\.?|doctor) ([a-z]{2,15}) (number|phone number|office number|email|address)\b", r"\1 \2's \3", said, flags=re.I)
     return re.sub(r"(?<![\w'])(?!(?:My|The|Our|What|When|Where|Who|How|Is|Set|Add|Call|Text|Email)\b)([A-Z][a-z]{1,15}(?<!s)) "
                   r"(number|phone number|cell number|cell|email|email address|birthday|address)\b(?! is (?:a|an|the)\b)",
                   r"\1's \2", said)
@@ -11978,6 +11981,12 @@ def _interpret(transcript: str) -> dict:
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.
     # "...at 45,000 miles" (2026-10-08: to the planner) is kept with it.
+    # "I need to see a dentist" (2026-10-08: to the planner) is an errand.
+    m = re.fullmatch(r"i (?:need to|have to|should|gotta|got to|really need to|really should) (?P<what>(?:see|go to|visit) (?:a |an |the |my )?"
+                     r"(?:doctor|dentist|eye doctor|optometrist|dermatologist|chiropractor|therapist|physical therapist|vet|doc|specialist|orthodontist)"
+                     r"(?: about [a-z' ]{2,30})?)", low)
+    if m:
+        return _new_task(_as_he_said(text, m.group("what")))
     # "I need to get a passport" went on the shopping list (2026-10-08).
     # Paperwork is an errand.
     m = re.fullmatch(r"i (?:need|have to get|gotta get|got to get|should get|need to get|need to renew|have to renew|need to apply for|have to apply for) "
