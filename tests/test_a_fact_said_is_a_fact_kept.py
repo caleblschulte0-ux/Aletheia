@@ -8893,8 +8893,10 @@ class IsItStillValid(unittest.TestCase):
     def test_worked_out_from_the_date(self):
         import datetime as dt
         from aletheia import quick
-        ahead = (dt.date.today() + dt.timedelta(days=400)).strftime("%B %-d %Y")
-        gone = (dt.date.today() - dt.timedelta(days=40)).strftime("%B %-d %Y")
+        # "%-d" is not a Windows format: the day is written out by hand
+        said = lambda day: f"{day.strftime('%B')} {day.day} {day.year}"
+        ahead = said(dt.date.today() + dt.timedelta(days=400))
+        gone = said(dt.date.today() - dt.timedelta(days=40))
         rows = [{"text": f"my passport expires on {ahead}"}, {"text": f"my gym card expired on {gone}"}]
         with mock.patch.object(quick, "_notes", lambda: rows):
             self.assertTrue(quick.answer("is my passport still valid").startswith("It's still good - you told me your passport"))
