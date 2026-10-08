@@ -10522,5 +10522,23 @@ class TheDayAThingFallsOn(unittest.TestCase):
             self.assertIsNone(quick.answer("what day is leg day"))
 
 
+class TheRentGoingUp(unittest.TestCase):
+    """2026-10-08: "what is my rent going to be", a turn after "my landlord
+    is raising the rent to 1800", went to a model."""
+
+    def test_the_newest_figure(self):
+        notes = [{"text": "my landlord is raising the rent to 1800"}, {"text": "my rent is 1500"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            for q in ("what is my rent going to be", "how much is my rent", "how much will my rent be"):
+                self.assertEqual(quick.answer(q), "You told me: your landlord is raising the rent to 1800.", q)
+            self.assertEqual(quick.answer("is my rent going up"),
+                             "Yes - you told me: your landlord is raising the rent to 1800.")
+
+    def test_no_raise_is_not_a_no(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my rent is 1500"}]):
+            self.assertIsNone(quick.answer("is my rent going up"))
+            self.assertEqual(quick.answer("what is my rent"), "You told me: your rent is 1500.")
+
+
 if __name__ == "__main__":
     unittest.main()

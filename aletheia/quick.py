@@ -538,6 +538,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How much is rent" (2026-10-07: to a model, beside "my rent is 1500").
         r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage|netflix|spotify|hulu|disney plus|hbo max|youtube premium|youtube tv"
         r"|amazon prime|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus)(?: (?:a|per|each) month)?\s*\??$"
+        # "What is my rent going to be" (2026-10-08: to a model, beside "my
+        # landlord is raising the rent to 1800").
+        r"|^(?:what(?:'s| is|s)|how much (?:is|will)) (?:my|our|the) (?P<cost_mine4>rent|mortgage)(?: (?:going to be|gonna be|be|now|going to go up to))?\s*\??$"
+        r"|^(?:is|did) (?:my|our|the) (?P<cost_up>rent|mortgage) (?:going up|go up|increasing|getting raised|being raised)\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$"
@@ -13050,7 +13054,8 @@ def _cost_mine(text: str) -> str | None:
         if (g.get("cost_bills2") or subs) and whole:
             return f"About {_money(round(total))} a month. {listed}"
         return listed
-    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or "").casefold().split())
+    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or g.get("cost_mine4")
+                         or g.get("cost_up") or "").casefold().split())
     # "How much do I spend on groceries a month" (2026-10-07: to a model,
     # with "I spent 60 on groceries" kept): what he told her he spent.
     if thing and g.get("cost_mine2") and not re.fullmatch(_BILL_KEYS, thing):
@@ -13058,8 +13063,19 @@ def _cost_mine(text: str) -> str | None:
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
+        # "My landlord is raising the rent to 1800", "my rent is going up to
+        # 1800" (2026-10-08): the newest figure, said as the new one.
+        if re.search(rf"\b(?:rais(?:ing|ed|e)|increas(?:ing|ed|e)|bump(?:ing|ed)|putting up|put up) (?:the |my |our )?{re.escape(thing)}"
+                     rf" (?:to|up to) .*\d|\b{re.escape(thing)} (?:is going up|went up|goes up|is going to be|will be|is increasing) (?:to )?.*\d",
+                     said.casefold()):
+            yes = "Yes - you" if g.get("cost_up") else "You"
+            return f"{yes} told me: {speech.as_she_says_it(said).rstrip('.')}."
         if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|was|were|costs?|came to|came out to) .*\d", said.casefold()):
+            if g.get("cost_up"):
+                return None
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    if g.get("cost_up"):
+        return None
     # "How much is my rent" with nothing told (2026-10-07: to a model, which
     # has no way to know). Her memory first; then plainly not told. Only a
     # note naming ALL of it: "the electric bill" read back the water bill
