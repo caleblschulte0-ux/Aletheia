@@ -6128,5 +6128,32 @@ class WhatHeSpentTheMostOn(unittest.TestCase):
         self.assertTrue(said.startswith("Dinner: $120 of the $180"), said)
 
 
+
+class SchoolDaysAreKeptAndReadBack(unittest.TestCase):
+    """2026-10-08: "school starts August 20" went to a model, "when does
+    school start" read back the pictures day, and "does Leo have anything
+    Thursday" was asked of the money ledger."""
+
+    NOTES = [{"text": "Leo has a field trip Thursday"}, {"text": "Leo's school pictures are on the 14th"},
+             {"text": "school starts August 20"}]
+
+    def test_the_dates_are_notes(self):
+        for said in ("school starts August 20", "Leo's school pictures are on the 14th", "Leo has a field trip Thursday",
+                     "work ends friday"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("the meeting is over")["command"]["kind"], "note")
+
+    def test_when_it_starts_is_the_start(self):
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertEqual(quick.answer("when does school start"), "You told me: school starts August 20.")
+            self.assertIn("pictures", quick.answer("when are school pictures"))
+
+    def test_what_a_name_is_doing_is_the_calendar_and_notes(self):
+        for said in ("what's Leo doing Thursday", "does Leo have anything Thursday"):
+            self.assertEqual(quick.match(said)[0], "event_detail", said)
+        self.assertEqual(quick._groups("owed", "does sam owe me money").get("owe_who"), "sam")
+        self.assertFalse(quick._groups("owed", "does leo have anything thursday"))
+
+
 if __name__ == "__main__":
     unittest.main()

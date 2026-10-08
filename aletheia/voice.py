@@ -8274,7 +8274,16 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:the |my |our )?(?P<thing4>dentist|doctor|vet|haircut|interview|meeting|party|wedding|game|recital"
                          r"|concert|game|recital|surgery|checkup|check-up|physical|[a-z]+ appointment) is (?:on )?(?:"
                          + SPOKEN_DATE + r"|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-                         r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low))
+                         r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low)
+         # "School starts August 20", "Leo's school pictures are on the 14th"
+         # and "Leo has a field trip Thursday" (2026-10-08: to the planner).
+         or re.fullmatch(r"(?:the |my |our |[a-z]{2,15}'s )?(?P<thing7>[a-z][a-z ]{1,25}?) (?:starts?|begins?|ends?|finishes|opens|closes"
+                         r"|is|are|is over|gets out|lets out) (?:on |back )?(?:" + SPOKEN_DATE
+                         + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday|thursday"
+                         r"|friday|saturday|sunday))" + _at, low)
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )(?P<thing8>[a-z][a-z ]{1,25}?)"
+                         r" (?:on )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|today|tomorrow|(?:this |next )?"
+                         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low))
     if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6")) and low.startswith("i have ")
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
