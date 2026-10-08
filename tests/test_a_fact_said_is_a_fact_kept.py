@@ -8371,5 +8371,15 @@ class WhatExpiresSoon(unittest.TestCase):
 
 
 
+class AmIBusyTomorrowMorning(unittest.TestCase):
+    """"Am I busy tomorrow morning" went to the planner (2026-10-08)."""
+
+    def test_it_is_the_free_question(self):
+        from aletheia import voice
+        cmd = voice._interpret("am I busy tomorrow morning")["command"]
+        self.assertEqual((cmd["kind"], cmd.get("part")), ("free_time", "morning"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

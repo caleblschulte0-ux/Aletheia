@@ -6059,7 +6059,9 @@ def _interpret(transcript: str) -> dict:
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
-    m = re.fullmatch(r"(?:when am i free|am i free|are we free|"
+    # "Am I busy tomorrow morning" (2026-10-08: to the planner) is the same
+    # question the other way round, answered with the same free time.
+    m = re.fullmatch(r"(?:when am i free|am i free|are we free|am i busy|are we busy|am i booked|will i be busy|"
                      r"what'?s my availability|any free time|do i have time)"
                      r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
