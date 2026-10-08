@@ -5940,7 +5940,7 @@ class WhatHappensOnADayAndWhenToLeave(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=rows), \
                 mock.patch.object(quick, "_agenda_and_reminders", return_value="Nothing on your calendar Friday."):
             got = quick.answer("what do I do on Fridays")
-        self.assertIn("piano fridays at 4", got)
+        self.assertIn("piano Fridays at 4", got)
         self.assertEqual(quick.match("what's happening on saturdays")[0], "on_days")
 
     def test_leaving(self):
@@ -11999,6 +11999,25 @@ class TroubleWithTheCar(unittest.TestCase):
     def test_how_much_the_ticket_was(self):
         with mock.patch.object(quick, "_notes", lambda: [{"text": "I got a parking ticket for 40"}]):
             self.assertEqual(quick.answer("how much was my parking ticket"), "You told me: you got a parking ticket for 40.")
+
+
+class TheKidsWeek(unittest.TestCase):
+    def test_a_game_and_a_conference_told_either_way_are_holds(self):
+        got = voice.interpret("my son has a soccer game saturday at 10")["command"]
+        self.assertEqual((got["kind"], got["title"], got["start"][11:16]), ("calendar_hold", "son's soccer game", "10:00"))
+        got = voice.interpret("parent teacher conference is on the 22nd at 4")["command"]
+        self.assertEqual((got["kind"], got["title"], got["start"][8:16]), ("calendar_hold", "parent teacher conference", "22T16:00"))
+
+    def test_who_is_picking_up_the_kids_is_a_question(self):
+        self.assertNotEqual((voice.interpret("who is picking up the kids") or {}).get("command", {}).get("kind"), "note")
+        self.assertEqual(voice.interpret("my wife is picking up the kids today")["command"]["kind"], "note")
+
+    def test_a_weekly_activity_is_in_their_week(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my daughter has dance on tuesdays"}]), \
+                mock.patch.object(quick, "_upcoming_events", return_value=[]):
+            self.assertEqual(quick.answer("what does my daughter have this week"),
+                             "You told me: your daughter has dance on Tuesdays.")
+            self.assertIsNone(quick.answer("what does my son have this week"))
 
 
 if __name__ == "__main__":

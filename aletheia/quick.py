@@ -17429,9 +17429,16 @@ def _their_week(text: str) -> str | None:
         title = str(event.get("title") or "")
         if re.search(rf"\b{stem}s?(?:'s?)?\b", title, re.I):
             hits.append(f"{title} {speech.humanize_time(at.astimezone(tz).isoformat())}")
-    if not hits:
+    # "My daughter has dance on Tuesdays" (2026-10-08: "what does my daughter
+    # have this week" went to a model beside it). Every week is this week too.
+    weekly = _said_lines(rf"^(?:my |our )?{stem}s? (?:has|have|goes to|go to|takes|take) .+ (?:on|every) "
+                         r"(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends?|weekdays?)\b", 3)
+    if not hits and not weekly:
         return None
-    return f"On your calendar: {speech.and_list(hits[:5])}."
+    said = f"On your calendar: {speech.and_list(hits[:5])}." if hits else ""
+    if weekly:
+        said = (said + " " if said else "") + f"You told me: {speech.and_list(weekly)}."
+    return said
 
 
 def _work_said(text: str) -> str | None:

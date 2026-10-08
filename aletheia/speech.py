@@ -485,7 +485,7 @@ _LANGUAGES = re.compile(r"\b(?:spanish|french|german|italian|japanese|chinese|ma
 
 # March and May are words too, so only beside a day of the month: "march
 # 3", "the 3rd of may" ("Dana's birthday is march 3", 2026-10-07).
-_NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
+_NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b|\b(?:january|february|april"
                          r"|june|july|august|september|october|november|december)\b"
                          r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b"
                          # "expires in march", "by may" (2026-10-08)
