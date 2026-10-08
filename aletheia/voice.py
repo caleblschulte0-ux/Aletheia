@@ -11112,6 +11112,14 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i|we) (?:just )?(?:got|received) (?:a |the |my |our )?(?:package|parcel|delivery|box|letter)(?: from [a-z0-9 ]{2,25})?(?: today| yesterday| this morning)?", low) \
             or re.fullmatch(r"(?:a|my|the|our) (?:[a-z]+ )?(?:package|parcel|delivery|order) (?:just )?(?:came|arrived|got here|was delivered|showed up)(?: today| yesterday| this morning)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Shopping for a car (2026-10-08, each to the planner): "the civic is
+    # 25000", "I test drove the camry", "my budget for a car is 30000".
+    # Kept, which spends nothing; only a car by name is read as a price.
+    from aletheia.quick import CAR_MODELS
+    if re.fullmatch(rf"(?:the |that |a )?(?:used |new )?{CAR_MODELS} (?:is|was|costs?|is listed at|was listed at|is going for|is priced at) \$?\d[\d,]*k?(?: dollars)?", low) \
+            or re.fullmatch(rf"(?:i|we) (?:just )?(?:test drove|test-drove|test drive|drove|looked at|checked out|went to see) (?:a |the |that )?(?:used |new )?{CAR_MODELS}(?: today| yesterday| this weekend)?", low) \
+            or re.fullmatch(r"(?:my|our) (?:(?:new )?car budget|budget for (?:a|the|our|my) (?:new |used )?car) is (?:about |around |up to )?\$?\d[\d,]*k?(?: dollars)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

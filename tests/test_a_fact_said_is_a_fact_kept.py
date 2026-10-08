@@ -12174,5 +12174,22 @@ class APackageCame(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
 
 
+class ShoppingForACar(unittest.TestCase):
+    def test_prices_test_drives_and_the_budget_are_kept(self):
+        for said in ("the civic is 25000", "I test drove the camry", "my budget for a car is 30000"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice.interpret("the total is 25000")["command"]["kind"], "note")
+
+    def test_the_car_questions_read_what_he_said(self):
+        notes = [{"text": "the civic is 25000"}, {"text": "my budget for a car is 30000"},
+                 {"text": "I like the honda civic"}, {"text": "I test drove the camry"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how much is the civic"), "You told me: the civic is 25000.")
+            self.assertEqual(quick.answer("what is my car budget"), "You told me: your budget for a car is 30000.")
+            self.assertEqual(quick.answer("which car did I like"), "You told me: you like the honda civic.")
+            self.assertIn("you test drove the camry", quick.answer("what cars am I looking at"))
+            self.assertIsNone(quick.answer("how much is the camry"))
+
+
 if __name__ == "__main__":
     unittest.main()

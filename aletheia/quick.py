@@ -2590,6 +2590,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("did_bare", re.compile(r"^when did i (?:last )?(?P<did_bare>vacuum|mop|dust|sweep|do (?:the |a load of )?laundry|do the dishes|do dishes|clean(?: up)?|tidy up|grocery shop|go grocery shopping)(?: last)?\s*\??$")),
     ("whose_turn", re.compile(r"^(?:who(?:'s| is) (?:doing|cooking|making) (?:the dishes|dishes|dinner|the laundry|laundry)(?: tonight| today)?"
                               r"|whose turn is it(?: to (?P<turn_to>[a-z ]{2,25}))?)\s*\??$")),
+    ("car_shop", re.compile(
+        r"^(?:what(?:'s| is|s)|how much is) (?:my|our) (?P<car_budget>(?:new )?car budget|budget for (?:a|the|our|my) (?:new |used )?car)\s*\??$"
+        r"|^(?:which|what) (?:car|one) did (?:i|we) (?P<car_liked>like|love|prefer|like best|like the most)\s*\??$"
+        r"|^(?:which|what) cars? (?:am i|are we|was i|were we) (?P<car_looking>looking at|considering|thinking about|test driving)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3532,7 +3536,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -13550,6 +13554,13 @@ def _cost_mine(text: str) -> str | None:
                     or re.match(rf"i (?:just )?(?:got|received) (?:a |an |another )?{re.escape(thing)} (?:for|of) .*\d", said.casefold()):
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
         return None
+    # "How much is the civic" after "the civic is 25000" (2026-10-08: to a model).
+    if thing and re.fullmatch(CAR_MODELS, thing):
+        model = re.sub(r"^\S+ (?=\S)", "", thing) if " " in thing and not re.fullmatch(r"model [3sxy]|santa fe|grand cherokee|3 series", thing) else thing
+        for said in rows:
+            if re.search(rf"\b{re.escape(model)} (?:is|was|costs?|is listed at|was listed at|is going for|is priced at) \$?\d", said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
@@ -17803,6 +17814,45 @@ def _whose_turn(text: str) -> str | None:
     return f"You told me: {said[0]}." if said else None
 
 
+
+#: Cars he might be shopping for, by the name people say. "The civic is
+#: 25000" is a price only when the civic is a car (2026-10-08: to the
+#: planner); "the total is 25000" is not one.
+CAR_MODELS = (r"(?:(?:honda|toyota|ford|chevy|chevrolet|nissan|hyundai|kia|subaru|mazda|jeep|tesla|vw|volkswagen|bmw|audi|lexus|acura|gmc|ram|dodge) )?"
+              r"(?:civic|accord|cr-?v|hr-?v|pilot|odyssey|fit|camry|corolla|rav ?4|highlander|tacoma|tundra|prius|4runner|sienna"
+              r"|f-?150|f-?250|escape|explorer|bronco|mustang|maverick|ranger|edge|silverado|equinox|malibu|tahoe|traverse|colorado"
+              r"|altima|sentra|rogue|pathfinder|frontier|elantra|sonata|tucson|santa fe|palisade|kona|forte|optima|k5|sorento|sportage|telluride|soul"
+              r"|outback|forester|crosstrek|impreza|ascent|cx-?5|cx-?30|cx-?50|mazda ?3|wrangler|grand cherokee|cherokee|compass|gladiator"
+              r"|model [3sxy]|jetta|tiguan|atlas|golf|3 series|x3|x5|a4|q5|rx|es|nx|mdx|rdx|tlx|sierra|charger|durango|challenger|1500)")
+
+
+def _car_shop(text: str) -> str | None:
+    """Shopping for a car (2026-10-08, each to a model with his notes kept):
+    "what is my car budget", "which car did I like", "what cars am I looking
+    at". Read from what he said; nothing kept is None."""
+    from aletheia import speech
+    g = _groups("car_shop", text)
+    rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()]
+    if g.get("car_budget"):
+        for said in rows:
+            if re.match(r"(?:my|our) (?:(?:new )?car budget|budget for (?:a|the|our|my) (?:new |used )?car) (?:is|was) .*\d", said.casefold()) \
+                    or re.match(r"(?:i|we) (?:can|want to|wanna|plan to) spend (?:up to |about |around )?\$?\d[\d,k]* (?:on|for) (?:a|the) (?:new |used )?car", said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
+    car = re.compile(rf"\b{CAR_MODELS}\b")
+    if g.get("car_liked"):
+        for said in rows:
+            if re.match(r"(?:i|we) (?:really )?(?:like|liked|love|loved|prefer|preferred) (?:the |that )?", said.casefold()) and car.search(said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
+    seen = [said for said in rows if car.search(said.casefold())
+            and re.search(r"\b(?:like|liked|love|loved|prefer|test drove|test-drove|drove|looking at|looked at|thinking about|considering|is|was|costs?|listed)\b", said.casefold())]
+    if not seen:
+        return None
+    seen = list(dict.fromkeys(seen))[:4]
+    return "From what you've told me: " + "; ".join(speech.as_she_says_it(x).rstrip(".") for x in seen) + "."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18618,6 +18668,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "car_shop": _car_shop,
            "whose_turn": _whose_turn,
            "did_bare": _did_bare,
            "my_shift": _my_shift,
