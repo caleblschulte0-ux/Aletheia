@@ -6054,7 +6054,11 @@ def _interpret(transcript: str) -> dict:
                      r"(?: while i(?:'m| am) (?:gone|away|on vacation)| (?:next|this) week)?", low)
     if m:
         return _new_task(f"{'hold' if m.group('v') in ('hold', 'put a hold on') else m.group('v')} the {m.group('what')}")
-    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are|just got) (?:back|home) from (?:my |our |the )?(?:vacation|trip|holiday|honeymoon|cruise|camping|business trip|work trip|[a-z]+ trip)", low):
+    # "I'm back from Chicago" (2026-10-08: "I can't think"): a place he named
+    # with its capital, which is how a city is told from the gym.
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are|just got) (?:back|home) from (?:my |our |the )?(?:vacation|trip|holiday|honeymoon|cruise|camping|business trip|work trip|[a-z]+ trip)", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are|(?:i |we )?just got) (?:back|home) from [A-Z][a-z]+(?: [A-Z][a-z]+)?", " ".join(text.strip().rstrip(".!").split()), re.I) \
+            and re.search(r"from [A-Z][a-z]+(?: [A-Z][a-z]+)?[.!]?$", text.strip()):
         from aletheia import quick as _qa
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": _qa._arrival()}
     # "I have a package to drop off at UPS", "I need to get my suit dry

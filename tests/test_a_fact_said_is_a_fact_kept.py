@@ -12602,6 +12602,14 @@ class AtWorkThree(unittest.TestCase):
         self.assertIn("rough one", said["say"])
 
 
+class BackFromATrip(unittest.TestCase):
+    def test_back_from_a_named_place_is_a_welcome_back(self):
+        for said in ("I'm back from Chicago", "just got back from New York"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+            self.assertIn("Welcome back", voice.interpret(said)["say"])
+        self.assertNotEqual(voice.interpret("i'm back from work")["command"]["kind"], "note")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
