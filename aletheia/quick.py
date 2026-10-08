@@ -4191,7 +4191,10 @@ def _age_of(who: str) -> str | None:
                 f"this year. Tell me the birthday and I'll know.")
     # "My sister is 28" said plainly (2026-10-08: to the planner, and "how
     # old is my sister" asked for her birthday after).
-    said_age = re.compile(rf"\b(?:{re.escape(label)}|{re.escape(name or label)})(?: is| just turned| turned| will be)"
+    # His capitals are on the name, never on the note it is matched against
+    # ("how old is my cat" missed "Luna is 4", 2026-10-08).
+    said_age = re.compile(rf"\b(?:{re.escape(label.casefold())}|{re.escape((name or label).casefold())}"
+                          rf"|{re.escape(re.sub(r'^my ', '', who))})(?: is| just turned| turned| will be)"
                           r" (\d{1,3})(?: years old| yrs old)?\.?$")
     for row in reversed(_notes()):
         m = said_age.search(" ".join(str(row.get("text") or "").split()).casefold())

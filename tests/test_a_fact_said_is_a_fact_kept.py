@@ -8736,5 +8736,27 @@ class AnEatingOutBudget(unittest.TestCase):
 
 
 
+class HisPets(unittest.TestCase):
+    """2026-10-08: "my cat is named Luna", "Luna is 4", "the dog threw up"
+    and "Max needs his flea medicine on the 15th" each went to the planner."""
+
+    def test_they_are_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my cat is named Luna")["command"]["text"], "my cat's name is Luna")
+        for said in ("Luna is 4", "the dog threw up", "Max needs his flea medicine on the 15th"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        for said in ("my score is 4", "Dinner is 6", "Someone threw up"):
+            self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_how_old_is_my_cat_reads_her_age_by_name(self):
+        from aletheia import quick
+        rows = [{"text": "Luna is 4", "ts": "2026-10-08T10:00:00+00:00"},
+                {"text": "my cat's name is Luna", "ts": "2026-10-08T09:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how old is my cat"), "You told me Luna is 4.")
+            self.assertEqual(quick.answer("how old is Luna"), "You told me Luna is 4.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

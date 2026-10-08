@@ -8972,6 +8972,40 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|our) (?:" + _WHOSE + r"|son|daughter|kids?|grandson|granddaughter|stepson|stepdaughter)"
                     r"(?: [a-z]+)? (?:is|just turned|turned|will be) \d{1,3}(?: years old| yrs old)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HIS PETS (2026-10-08, every one to the planner): "my cat is named
+    # Luna" is kept the way "my cat's name is Luna" already was; "Luna is
+    # 4" is an age when Luna is a name he said with its capital; "the dog
+    # threw up" and "Max needs his flea medicine on the 15th" are notes.
+    m = re.fullmatch(r"(?:my|our) (?P<pet>dog|cat|puppy|kitten|pet|bird|hamster|rabbit|bunny|fish|horse|parrot|turtle|lizard|snake"
+                     r"|guinea pig|ferret)(?:'s)? (?:is named|is called|name is|goes by) (?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m:
+        name = _as_he_said(text, m.group("name"))
+        return {"command": {"kind": "note", "text": f"my {m.group('pet')}'s name is {name[:1].upper() + name[1:]}"}, "say": None}
+    m = re.fullmatch(r"(?:my |our )?(?P<who>dog|cat|puppy|kitten|[a-z][a-z'-]{1,20}) (?:is|just turned|turned) \d{1,2}(?: years old| yrs old)?", low)
+    if m and (m.group("who") in ("dog", "cat", "puppy", "kitten") if low.startswith(("my ", "our ")) else
+              re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("it", "that", "this", "he", "she", "there", "what", "who", "i", "you", "we", "they", "time",
+                                       "score", "temp", "number", "answer", "count", "total", "rate", "speed", "weight", "dinner",
+                                       "lunch", "breakfast", "everyone", "everybody", "someone", "somebody", "nobody", "today",
+                                       "tomorrow", "mine", "yours", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                                       "nine", "ten", "dog", "cat", "puppy", "kitten"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet|bird|horse|rabbit|bunny)|[a-z][a-z'-]{1,20})"
+                     r" (?:just |has |keeps |has been |is |was )?(?:threw up|thrown up|throwing up|vomited|vomiting|is limping|limping|was limping"
+                     r"|isn'?t eating|is not eating|won'?t eat|wouldn'?t eat|stopped eating|has diarrh(?:o)?ea|had diarrh(?:o)?ea"
+                     r"|got into the trash|ate (?:something|a sock|chocolate|grapes)|has fleas|got fleas|is scratching a lot)"
+                     r"(?: (?:today|again|this morning|last night|tonight|all day))?", low)
+    if m and (re.match(r"(?:my|our|the) ", m.group("who")) or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("it", "that", "he", "she", "i", "we", "they", "baby", "everyone", "everybody", "someone",
+                                       "somebody", "nobody", "who", "what"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet)|[a-z][a-z'-]{1,20}) needs (?:his|her|its|their|a|the|to get (?:his|her|its|a|the)) "
+                     r"[a-z][a-z' ]{2,40}? (?:on|by) (?:the )?(?:\d{1,2}(?:st|nd|rd|th)?|(?:mon|tues|wednes|thurs|fri|satur|sun)day"
+                     r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)", low)
+    if m and (re.match(r"(?:my|our|the) ", m.group("who")) or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("it", "that", "he", "she", "i", "we", "they", "everyone", "everybody", "someone",
+                                       "somebody", "nobody", "who", "what", "this"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.
