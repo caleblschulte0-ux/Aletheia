@@ -11185,6 +11185,12 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my|our) (?:credit card|student loan|car loan|personal loan|medical) (?:debt|balance) is (?:about |around )?\$?\d[\d,]*k?(?: dollars)?", low) \
             or re.fullmatch(r"(?:i|we) (?:just )?(?:got|received) (?:a |an |my |our )?(?:\$?\d[\d,]*(?:\.\d\d)? (?:dollar )?)?(?:refund|rebate|reimbursement|credit)(?: of \$?\d[\d,]*(?:\.\d\d)?(?: dollars)?)?(?: (?:from|back from) [a-z0-9][a-z0-9 ]{1,25})?(?: today| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # The car's running costs (2026-10-08, each to the planner): "gas was
+    # 3.49 a gallon", "my car gets 30 miles a gallon".
+    if re.fullmatch(r"(?:gas|diesel|premium|regular) (?:was|is|cost|costs) (?:about |around )?\$?\d(?:\.\d\d?)? ?(?:a|per|/) ?gallon(?: (?:today|at [a-z0-9 ]{2,25}))?", low) \
+            or re.fullmatch(r"(?:i|we) paid \$?\d(?:\.\d\d?)? ?(?:a|per) gallon(?: for gas)?(?: today| at [a-z0-9 ]{2,25})?", low) \
+            or re.fullmatch(r"(?:my|our|the) (?:car|truck|van|suv|[a-z]{3,12}) (?:gets|averages|does) (?:about |around )?\d{1,3} (?:miles (?:a|per|to the) gallon|mpg|miles to a gallon)(?: on the highway| in town| city| highway)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

@@ -12312,5 +12312,14 @@ class TheKitchen(unittest.TestCase):
             self.assertEqual(quick.answer("what does my wife like that I cook"), "You told me your wife loves your lasagna.")
 
 
+class TheCarsRunningCosts(unittest.TestCase):
+    def test_gas_and_mileage_are_kept_and_read_back(self):
+        for said in ("gas was 3.49 a gallon", "my car gets 30 miles a gallon"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "gas was 3.49 a gallon"}, {"text": "my car gets 30 miles a gallon"}]):
+            self.assertEqual(quick.answer("how much was gas"), "You told me gas was 3.49 a gallon.")
+            self.assertEqual(quick.answer("what mpg does my car get"), "You told me your car gets 30 miles a gallon.")
+
+
 if __name__ == "__main__":
     unittest.main()
