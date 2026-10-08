@@ -11108,6 +11108,10 @@ def _interpret(transcript: str) -> dict:
     if m and m.group("who").split()[0] not in ("My", "The", "We", "I", "She", "He", "They", "Our"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"That's wonderful - congratulations to {m.group('who')}. I've kept it."}
+    # "I got a package today" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:got|received) (?:a |the |my |our )?(?:package|parcel|delivery|box|letter)(?: from [a-z0-9 ]{2,25})?(?: today| yesterday| this morning)?", low) \
+            or re.fullmatch(r"(?:a|my|the|our) (?:[a-z]+ )?(?:package|parcel|delivery|order) (?:just )?(?:came|arrived|got here|was delivered|showed up)(?: today| yesterday| this morning)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

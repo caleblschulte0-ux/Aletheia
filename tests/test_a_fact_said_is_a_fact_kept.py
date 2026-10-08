@@ -12168,5 +12168,11 @@ class APileOfWork(unittest.TestCase):
         self.assertEqual(quick.match("what did I not finish yesterday")[0], "tasks_due")
 
 
+class APackageCame(unittest.TestCase):
+    def test_a_package_that_came_is_kept(self):
+        for said in ("I got a package today", "my Amazon order arrived"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+
+
 if __name__ == "__main__":
     unittest.main()
