@@ -6416,5 +6416,35 @@ class ShoppingSaidTheWayHeSaysIt(unittest.TestCase):
 
 
 
+
+class HabitsHeKeepsCountOf(unittest.TestCase):
+    """2026-10-08: streaks, drink and cigarette counts and a weekly workout
+    goal all went to a model or the planner."""
+
+    def _ago(self, days):
+        return (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)).isoformat()
+
+    def test_a_streak_counts_back_from_today(self):
+        notes = [{"text": "I ran 3 miles", "ts": self._ago(d)} for d in (0, 1, 2, 4)]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how many days in a row have I run"), "3 days in a row, counting today.")
+        with mock.patch.object(quick, "_notes", return_value=notes[1:]):
+            self.assertEqual(quick.answer("how many days in a row have I run"), "2 days in a row, not counting today yet.")
+
+    def test_drinks_and_cigarettes_are_added_up(self):
+        notes = [{"text": "I had 2 beers tonight", "ts": self._ago(0)}, {"text": "I had a glass of wine", "ts": self._ago(0)},
+                 {"text": "I smoked 2 cigarettes", "ts": self._ago(0)}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick.answer("how many drinks did I have today"), "3 drinks today, from what you've told me.")
+            self.assertEqual(quick.answer("how many cigarettes today"), "2 cigarettes today, from what you've told me.")
+
+    def test_the_weekly_goal(self):
+        for said in ("I want to work out 4 times a week", "I smoked a cigarette", "I didn't drink any alcohol today"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I want to work out 4 times a week", "ts": self._ago(0)}]), \
+                mock.patch.object(quick, "_went", return_value="1 time this week, from what you've told me."):
+            self.assertTrue(quick.answer("am I on track with my workouts").startswith("1 workout so far this week, 3 to go"))
+
+
 if __name__ == "__main__":
     unittest.main()

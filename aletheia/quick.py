@@ -1850,6 +1850,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("their_person", re.compile(
         r"^what(?:'s| is) (?P<tp_who>(?!my\b|your\b|the\b)[a-z]{2,15})'s (?P<tp_rel>[a-z][a-z -]{1,20}?)'s name\s*\??$"
         r"|^who(?:'s| is) (?P<tp_who2>(?!my\b|your\b|the\b|it\b|that\b|he\b|she\b)[a-z]{2,15}) married to\s*\??$")),
+    # HABITS HE KEEPS COUNT OF (2026-10-08: all to a model): "how many days
+    # in a row have I meditated", "how many drinks did I have this week",
+    # "am I on track with my workouts".
+    ("habit", re.compile(
+        r"^how many days in a row (?:have|did) i (?P<hb_streak>[a-z]+(?: [a-z]+)?)\s*\??$"
+        r"|^(?:what(?:'s| is) my|how long is my) (?P<hb_streak2>[a-z]+) streak\s*\??$"
+        r"|^how many (?P<hb_count>drinks|beers|glasses of wine|cigarettes|smokes|cups of coffee|coffees|sodas|cokes|energy drinks)"
+        r"(?: (?:did|have) i (?:had|have|drink|drunk|drank|smoke|smoked))?(?: (?P<hb_when>today|this week|this month|yesterday))?\s*\??$"
+        r"|^(?:am i|how am i doing) on (?:track with |)(?:my )?(?P<hb_goal>workouts?|work ?out goal|exercise(?: goal)?|gym(?: goal)?)\s*\??$"
+        r"|^(?:am i on track|how am i doing) (?:with|on) (?:my )?(?P<hb_goal2>workouts?|work ?out goal|exercise(?: goal)?|gym(?: goal)?)\s*\??$")),
     # "When does school start" read back every note naming school, the
     # pictures day first (2026-10-08).
     ("starts_when", re.compile(
@@ -2470,7 +2480,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11401,6 +11411,93 @@ def _plural(text: str) -> str | None:
     return f"{said[:1].upper() + said[1:]}." if said != word else f"{word[:1].upper() + word[1:]} - it's the same in the plural."
 
 
+def _habit(text: str) -> str | None:
+    """Streaks, counts and a weekly goal, from what he told her he did.
+    Never a guess: nothing kept is said as nothing kept."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("habit", text)
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+
+    def dated(row):
+        try:
+            return dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            return None
+
+    verb = (g.get("hb_streak") or g.get("hb_streak2") or "").strip()
+    if verb:
+        head, _, rest = verb.partition(" ")
+        past = {"run": "ran", "swim": "swam", "go": "went", "read": "read", "do": "did", "eat": "ate", "ride": "rode",
+                "write": "wrote", "drink": "drank", "sleep": "slept", "lift": "lifted"}.get(head) or (
+            head if head.endswith("ed") else _past_of(head))
+        said_re = re.compile(rf"^i (?:just )?{re.escape(past)}\b" + (rf".*\b{re.escape(rest)}" if rest else ""))
+        days = {dated(r).date() for r in _notes() if dated(r) and said_re.search(" ".join(str(r.get("text") or "").split()).casefold())}
+        if not days:
+            return f"You haven't told me you {past}{' ' + rest if rest else ''}. Say \"I {past}{' ' + rest if rest else ''}\" when you do and I'll keep count."
+        day = now.date() if now.date() in days else now.date() - dt.timedelta(days=1)
+        run = 0
+        while day in days:
+            run += 1
+            day -= dt.timedelta(days=1)
+        if not run:
+            last = max(days)
+            return f"No streak right now - the last day you told me was {last.strftime('%A %d %B').replace(' 0', ' ')}."
+        if run == 1 and now.date() in days:
+            return "Just today so far - one day."
+        today = " counting today" if now.date() in days else ", not counting today yet"
+        return f"{speech.count_phrase(run, 'day')} in a row{',' if today.startswith(' c') else ''}{today}."
+    what = (g.get("hb_count") or "").strip()
+    if what:
+        when = (g.get("hb_when") or "this week").strip()
+        start = {"today": now.replace(hour=0, minute=0, second=0, microsecond=0),
+                 "yesterday": (now - dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0),
+                 "this month": now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)}.get(
+            when, (now - dt.timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0))
+        end = start + dt.timedelta(days=1) if when == "yesterday" else now + dt.timedelta(days=1)
+        smoke = what in ("cigarettes", "smokes")
+        nouns = (r"cigarettes?|smokes?" if smoke else
+                 r"drinks?|beers?|glass(?:es)? of (?:wine|champagne)|wines?|shots?|cocktails?|margaritas?|seltzers?"
+                 if what in ("drinks", "beers", "glasses of wine") else re.escape(what.rstrip("s")) + "s?")
+        verbs = r"smoked|had" if smoke else r"had|drank|drunk"
+        total = 0
+        for row in _notes():
+            at = dated(row)
+            if not at or not (start <= at < end):
+                continue
+            low = " ".join(str(row.get("text") or "").split()).casefold()
+            m = re.match(rf"i (?:just )?(?:{verbs}) (?P<n>\d+|a couple(?: of)?|a few|an?|one|two|three|four|five|six|seven|eight|nine|ten)"
+                         rf" (?:more )?(?:{nouns})\b", low)
+            if m:
+                total += int(m.group("n")) if m.group("n").isdigit() else {"a couple": 2, "a couple of": 2, "a few": 3}.get(m.group("n")) or int(_COUNT_WORDS.get(m.group("n"), 1))
+        noun = "cigarette" if smoke else "drink" if what in ("drinks", "beers", "glasses of wine") else what.rstrip("s")
+        if not total:
+            return f"None {when} that you've told me."
+        return f"{speech.count_phrase(total, noun)} {when}, from what you've told me."
+    if g.get("hb_goal") or g.get("hb_goal2"):
+        goal = None
+        for row in _notes():
+            m = re.match(r"i (?:want|need|plan|am going|'m going|aim) to (?:work out|exercise|go to the gym|hit the gym|train)"
+                         r" (\d|one|two|three|four|five|six|seven) (?:times|days) (?:a|per|each) week",
+                         " ".join(str(row.get("text") or "").split()).casefold())
+            if m:
+                goal = int(m.group(1)) if m.group(1).isdigit() else int(_COUNT_WORDS[m.group(1)])
+                break
+        done = _went("how many times did i work out this week") or ""
+        n = int(re.match(r"(\d+)", done).group(1)) if re.match(r"\d+", done) else 0
+        if goal is None:
+            return (f"You haven't told me a goal. Say \"I want to work out 4 times a week\" and I'll keep you to it. "
+                    f"So far this week: {speech.count_phrase(n, 'workout')}.")
+        left = goal - n
+        days_left = 6 - now.weekday()
+        if left <= 0:
+            return f"Yes - {speech.count_phrase(n, 'workout')} this week, and your goal is {goal}."
+        return (f"{speech.count_phrase(n, 'workout')} so far this week, {left} to go for your goal of {goal}, "
+                f"with {speech.count_phrase(days_left, 'day')} left after today.")
+    return None
+
+
 def _their_person(text: str) -> str | None:
     """Somebody's person, from his note: "Jen's kid's name is Mia", "Bob's
     wife is Linda", "Bob is married to Linda". None when no note says."""
@@ -12208,6 +12305,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "starts_when": lambda text: _starts_when(text),
            "it_due": lambda text: _it_due(),
            "their_person": lambda text: _their_person(text),
+           "habit": lambda text: _habit(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

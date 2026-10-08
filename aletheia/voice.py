@@ -8730,6 +8730,17 @@ def _interpret(transcript: str) -> dict:
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HABITS HE KEEPS (2026-10-08: to the planner): "I want to work out 4
+    # times a week", "I smoked a cigarette", "I didn't drink today". Kept in
+    # his words; "am I on track with my workouts" and "how many cigarettes
+    # this week" read them.
+    if re.fullmatch(r"i (?:want|need|plan|am going|'m going|aim) to (?:work out|exercise|go to the gym|hit the gym|train|run|meditate|read)"
+                    r" (?:\d|one|two|three|four|five|six|seven) (?:times|days) (?:a|per|each) week", low) \
+            or re.fullmatch(r"i (?:just )?smoked (?:\d+|a|an|one|two|three|four|five|a couple(?: of)?|a few) (?:more )?(?:cigarettes?|smokes?)"
+                            r"(?: today| tonight| this morning)?", low) \
+            or re.fullmatch(r"i (?:didn'?t|did not) (?:drink|smoke|have (?:a|any) (?:drinks?|alcohol|cigarettes?))(?: any(?: alcohol)?)?"
+                            r"(?: today| tonight| this week| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO SOMEBODY IS TO HIM, BY NAME (2026-10-08: "my wife is Anna" and
     # "my neighbor is Bob" went to the planner; "Bob's wife is Linda" too).
     # Only a name he said with a capital - "my wife is sick" is how she is.
