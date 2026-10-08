@@ -6367,8 +6367,15 @@ _MONEY = r"\$?(?P<amt>\d+(?:\.\d{1,2})?)(?: ?(?:dollars|bucks|usd|\$))?"
 
 
 def _ledger() -> dict:
-    """{person: amount} from his notes, oldest first: positive is owed TO
-    him, negative is what he owes. "Paid back" settles that direction.
+    """{person: amount}: positive is owed TO him, negative is what he owes."""
+    owe, owed = _ledger_sides()
+    out = {who: owed.get(who, 0) - owe.get(who, 0) for who in list(owe) + [w for w in owed if w not in owe]}
+    return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
+
+
+def _ledger_sides() -> tuple[dict, dict]:
+    """(what he owes, what he is owed), each {person: amount}, from his
+    notes oldest first. "Paid back" settles that direction.
 
     The two directions are kept apart until the end (2026-10-08): "I owe
     Mike 20", "Mike owes me 50", "I paid Mike back" left Mike owing 30,
@@ -6403,8 +6410,7 @@ def _ledger() -> dict:
         if m and owed.get(m.group("who"), 0) > 0:
             who = m.group("who")
             owed[who] = max(0.0, owed[who] - float(m.group("amt"))) if m.group("amt") else 0.0
-    out = {who: owed.get(who, 0) - owe.get(who, 0) for who in list(owe) + [w for w in owed if w not in owe]}
-    return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
+    return ({k: v for k, v in owe.items() if v >= 0.005}, {k: v for k, v in owed.items() if v >= 0.005})
 
 
 def _named(who: str) -> str:
@@ -6448,6 +6454,15 @@ def _owed(question: str = "") -> str:
     if to_me:
         if owed_line:
             return owed_line
+        # "Sam owes me 15" beside "I owe Sam 20" (2026-10-08) was answered
+        # "nobody owes you anything" - the balance hid what he had just said.
+        gross_owe, gross_owed = _ledger_sides()
+        both = [k for k in gross_owed if k in gross_owe]
+        if both:
+            k = both[0]
+            net = gross_owe[k] - gross_owed[k]
+            return (f"{_named(k)} owes you {_money(gross_owed[k])}, but you owe {_named(k)} {_money(gross_owe[k])}"
+                    + (f" - so on balance you owe {_named(k)} {_money(net)}." if net > 0 else " - so you're even."))
         return ("Nobody owes you anything that you've told me about. "
                 + ("You owe " + speech.and_list(owe) + "." if owe
                    else "Say \"I lent Sam 20 dollars\" and I'll keep track."))

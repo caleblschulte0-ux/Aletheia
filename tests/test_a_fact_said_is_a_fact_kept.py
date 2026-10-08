@@ -12020,5 +12020,13 @@ class TheKidsWeek(unittest.TestCase):
             self.assertIsNone(quick.answer("what does my son have this week"))
 
 
+class MoneyBothWays(unittest.TestCase):
+    def test_who_owes_me_says_what_he_said_even_when_the_balance_is_his(self):
+        notes = [{"text": "Sam owes me 15"}, {"text": "I owe Sam 20 dollars"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("who owes me money"),
+                             "Sam owes you $15, but you owe Sam $20 - so on balance you owe Sam $5.")
+
+
 if __name__ == "__main__":
     unittest.main()
