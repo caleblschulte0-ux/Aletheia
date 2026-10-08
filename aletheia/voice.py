@@ -10400,6 +10400,17 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:in |for )?(?:shoes?|sneakers|boots|pants|jeans|shirts?|t-?shirts|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?|gloves|socks|shorts|underwear))?", low) \
             and not re.match(r"(?:who|what|which|it|he|she|they|you)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got a raise to 85000", "my commute took an hour today" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:just )?got a (?:raise|promotion|bump)(?: to| up to) \$?\d[\d,.]*k?(?: dollars| bucks)?(?: (?:a|per|an) (?:year|hour|month))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Congratulations - that's well earned."}
+    if re.fullmatch(r"(?:my|the) (?:commute|drive|drive home|drive in|drive to work|bus|train|ride)(?: home| in| to work)? (?:took|was|lasted) "
+                    r"(?:about |almost |over |nearly )?(?:an hour(?: and a half)?|half an hour|\d{1,3} (?:minutes?|mins?|hours?))(?: today| this morning| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have a deadline Friday for the budget report" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:have|got|'ve got) a deadline (?:(?:on |this |next )?(?P<day>[a-z]+day|tomorrow|today|tonight) )?for (?P<what>(?:the |my |a )?[a-z][a-z0-9' ]{1,40}?)"
+                     r"(?: (?:on |this |next )?(?P<day2>[a-z]+day|tomorrow|today|tonight))?", low)
+    if m and (m.group("day") or m.group("day2")) and (m.group("day") or m.group("day2")) in WEEKDAYS + ("tomorrow", "today", "tonight"):
+        return _interpret(f"i need to finish {m.group('what')} by {m.group('day') or m.group('day2')}")
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

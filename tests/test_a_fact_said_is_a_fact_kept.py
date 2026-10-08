@@ -11044,5 +11044,37 @@ class WhatSizeTheyWear(unittest.TestCase):
             self.assertIsNone(quick.answer("what size does my daughter wear"))
 
 
+class AtWork(unittest.TestCase):
+    """2026-10-08: "I finished the budget report" ticked off "ask Lisa about
+    the budget"; "how many hours did I work this week" said he never started
+    work after "I worked 9 hours today"; a raise, a commute and a deadline
+    went to the planner."""
+
+    def test_one_shared_word_does_not_tick_a_task(self):
+        from aletheia import intercom
+        rows = [{"id": "ask-lisa", "description": "ask Lisa about the budget", "status": "OPEN"}]
+        with mock.patch.object(intercom, "_open_tasks", lambda: rows):
+            self.assertIsNone(intercom._one_task("budget report")[0])
+            self.assertEqual(intercom._one_task("budget")[0]["id"], "ask-lisa")
+            self.assertEqual(intercom._one_task("asking lisa")[0]["id"], "ask-lisa")
+
+    def test_hours_said_day_by_day(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        notes = [{"text": "I worked 9 hours today", "ts": now.isoformat()}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how many hours did I work this week"), "You told me you worked 9 hours this week.")
+
+    def test_pay_and_the_rest(self):
+        got = voice._interpret("I got a raise to 85000")
+        self.assertEqual(got["command"], {"kind": "note", "text": "I got a raise to 85000"})
+        self.assertEqual(voice._interpret("my commute took an hour today")["command"]["kind"], "note")
+        got = voice._interpret("I have a deadline Friday for the budget report")["command"]
+        self.assertEqual((got["kind"], got["description"]), ("task_new", "finish the budget report"))
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I got a raise to 85000"}, {"text": "my salary is 80000"}]):
+            self.assertEqual(quick.answer("how much do I make"), "You told me: you got a raise to 85000.")
+            self.assertEqual(quick.answer("what is my salary"), "You told me: you got a raise to 85000.")
+
+
 if __name__ == "__main__":
     unittest.main()

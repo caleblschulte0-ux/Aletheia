@@ -2759,11 +2759,18 @@ def _one_task(which: str):
         # and matching on those makes every task a candidate.
         words = [w for w in re.split(r"[^a-z0-9]+", needle)
                  if len(w) > 2 and w not in TASK_STOP]
+        # Every word of his has to be in it: "I finished the budget report"
+        # ticked off "ask Lisa about the budget" on "budget" alone
+        # (2026-10-08), which is worse than not finding it. "Calling" is
+        # still "call": a word counts with its ending taken off too.
+        def _in(w, desc):
+            return w in desc or any(len(d) >= 3 and w.startswith(d) and w[len(d):] in ("s", "es", "ed", "d", "ing", "ling", "ning")
+                                    for d in re.split(r"[^a-z0-9]+", desc))
         scored = [(sum(1 for w in words
-                       if w in str(t.get("description", "")).casefold()), t)
+                       if _in(w, str(t.get("description", "")).casefold())), t)
                   for t in rows]
         best = max((n for n, _t in scored), default=0)
-        hits = [t for n, t in scored if n == best and n > 0]
+        hits = [t for n, t in scored if n == best and n > 0 and n == len(words)]
     if not hits:
         # "Nothing open matching 'call the vet'" read its quote marks out (2026-10-07).
         return None, f"Nothing on your list matches {str(which).strip()}."

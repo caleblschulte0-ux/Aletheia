@@ -1824,6 +1824,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg>-?[\d.,]+) degrees? (?:to|in|into) (?P<deg_to>celsius|fahrenheit|c|f)$"
         # "What's 98.6 in celsius" (2026-10-07: to a model) - the scale named in full.
         r"|^(?:convert |what(?:'s| is|s)? )?(?P<deg2>-?[\d.,]+) (?:to|in|into) (?P<deg_to2>celsius|fahrenheit)$")),
+    # "How much do I make" (2026-10-08: "I can't think"), after "I got a
+    # raise to 85000".
+    ("pay_now", re.compile(r"^(?:how much (?:do|did) i (?:make|earn|get paid)|what (?:do|did) i (?:make|earn)|how much money do i make"
+                           r"|what(?:'s| is) my (?:pay|income|salary|wage|hourly rate|pay rate))(?: (?:a|per|an) (?:year|month|hour|week))?(?: now)?\s*\??$")),
     ("mine", re.compile(
         r"^what(?:'s| is|s)? my (?P<mine>email(?: address)?|phone(?: number)?"
         r"|number|city|town|name|first name|last name|full name|zip|zip code|postcode|postal code"
@@ -12614,6 +12618,28 @@ def _worked(text: str) -> str | None:
                 continue
             if total and first <= on <= last:
                 return f"You told me you worked {total.group(1)} hours {when}."
+        # "I worked 9 hours today", day by day (2026-10-08: "you didn't tell
+        # me you started work this week" a turn after he did).
+        days = {}
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            each = re.match(r"i (?:worked|put in) (\d{1,2}(?:\.\d+)?) hours?(?: of work)?(?: (today|yesterday|tonight))?\.?$", said, re.I)
+            if not each:
+                continue
+            try:
+                on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            if (each.group(2) or "").casefold() == "yesterday":
+                on -= dt.timedelta(days=1)
+            if first <= on <= last and on not in days:
+                days[on] = float(each.group(1))
+        if days:
+            hours = sum(days.values())
+            shown = f"{hours:g}"
+            if len(days) == 1:
+                return f"You told me you worked {shown} hours {when}."
+            return f"{shown} hours {when}, from the {len(days)} days you told me about."
         return None if when == "today" and not marks else f"You didn't tell me you started work {when}."
     # A start and a finish in the same second are a start, then a finish.
     marks.sort(key=lambda m: (m[0], m[1] != "started work"))
@@ -16588,6 +16614,18 @@ def _wears(text: str) -> str | None:
     return None
 
 
+def _pay_now(_rest: str = "") -> str | None:
+    """What he makes, from the newest note that says it."""
+    from aletheia import speech
+    said_it = re.compile(r"^(?:my (?:salary|pay|income|wage|hourly rate|pay rate) is(?: now)?|i (?:make|earn|get paid|am making|'m making)"
+                         r"|i got a (?:raise|promotion|bump)(?: to| up to)|my (?:salary|pay) (?:went up|was raised|got bumped) to)\b.*\d", re.I)
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if said_it.search(line):
+            return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17401,6 +17439,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "pay_now": _pay_now,
            "wears": _wears,
            "gifts_owed": _gifts_owed,
            "met_when": _met_when,
@@ -17697,7 +17736,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
 
 def answer(question: str) -> str | None:
