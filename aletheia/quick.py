@@ -588,7 +588,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what did (?:the|my|our) (?P<role_said>" + _ROLES_WHO_TELL + r") (?:say|tell me|tell us|think|recommend|want me to do)\s*\??$")),
     ("woke_usual", re.compile(
         r"^(?:what time|when) do i (?:usually|normally|typically|tend to) (?:wake up|get up|go to bed|go to sleep|fall asleep)\s*\??$"
-        r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$")),
+        r"|^what(?:'s| is|s)? my (?:usual|normal|average|typical) (?:bedtime|wake[- ]?up time|wake time)\s*\??$"
+        # "What time do I go to bed", "what's my bedtime" (2026-10-08: to a
+        # model, after "I go to bed at 11 usually").
+        r"|^(?:what time|when) do i (?:wake up|get up|go to bed|go to sleep)(?: at night| in the morning)?\s*\??$"
+        r"|^what(?:'s| is|s)? my (?:bedtime|bed time|wake[- ]?up time|wake time)\s*\??$")),
     ("woke", re.compile(
         r"^(?:what time|when) did i (?P<woke>wake up|get up|go to bed|go to sleep|fall asleep)"
         r"(?: today| this morning| last night| yesterday)?\s*\??$")),
@@ -11636,6 +11640,20 @@ def _woke_usual(text: str) -> str:
             if habit.search(said) and re.search(r"\b(?:usually|normally|always|tend to|most (?:nights|days|mornings)|every (?:night|day|morning)|on weekdays)\b", said, re.I):
                 from aletheia import speech
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        if not minutes:
+            # A bedtime reminder is his bedtime too, and an alarm his wake-up
+            # time (2026-10-08).
+            try:
+                from aletheia import intercom, speech
+                found, _why = intercom._one_reminder("bed" if bed else "wake up")
+                if found is not None:
+                    what, _, when = intercom._reminder_words(found).partition(" — ")
+                    if when and bed:
+                        return f"You haven't said when you go to bed, but your reminder to {speech._yours(what)} is {when}."
+                    if when:
+                        return f"You haven't said when you wake up, but your alarm is set for {when}."
+            except Exception:
+                pass
         return _woke("go to bed" if bed else "wake up") + (
             " That's the only time you've told me, so I can't say what's usual yet." if minutes else "")
     minutes.sort()

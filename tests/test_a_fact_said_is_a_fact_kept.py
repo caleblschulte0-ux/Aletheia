@@ -7037,6 +7037,23 @@ class TheWholeListIsNotOneSentence(unittest.TestCase):
                 self.assertIn("whole task list", got["say"], said)
 
 
+class HisBedtime(unittest.TestCase):
+    """2026-10-08: "what time do I go to bed" and "what's my bedtime" went to
+    a model with "I go to bed at 11 usually" and a bedtime reminder on file."""
+
+    def test_said_from_his_note_or_his_reminder(self):
+        from aletheia import intercom
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I go to bed at 11 usually", "ts": ""}]):
+            self.assertEqual(quick.answer("what time do I go to bed"), "You told me: you go to bed at 11 usually.")
+        with mock.patch.object(quick, "_notes", return_value=[]), \
+                mock.patch.object(intercom, "_one_reminder", return_value=({"id": "r"}, "")), \
+                mock.patch.object(intercom, "_reminder_words", return_value="go to bed — every day at 10:30 pm"):
+            self.assertIn("every day at 10:30 pm", quick.answer("what's my bedtime"))
+
+    def test_a_bedtime_reminder_asks_the_time(self):
+        self.assertIn("What time?", voice._interpret("set a bedtime reminder")["say"])
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

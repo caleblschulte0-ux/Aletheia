@@ -7800,6 +7800,9 @@ def _interpret(transcript: str) -> dict:
         except Exception:
             pass
 
+    # "Set a bedtime reminder" (2026-10-08: to the planner) needs only a time.
+    if re.fullmatch(r"(?:set|make|add|create|give me) (?:a |an |my )?(?:bedtime|bed time|go to bed|sleep) reminder", low):
+        return {"command": None, "say": "What time? Say \"remind me to go to bed at 10:30 every night\" and it's set."}
     # "SEARCH YOUTUBE FOR CAT VIDEOS" - YouTube's own results page, opened
     # in his browser (2026-10-07: to the planner).
     m = (re.fullmatch(r"(?:search|look up|find) (?P<q>.{2,80}?) on youtube", low)
