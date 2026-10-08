@@ -8840,5 +8840,34 @@ class WhatHeHasForSomebody(unittest.TestCase):
 
 
 
+class BrokenAndFixed(unittest.TestCase):
+    """2026-10-08: "the dishwasher is broken", "the landlord fixed the sink",
+    "what's broken" and "is the sink fixed" all went to the planner or a
+    model."""
+
+    def test_kept(self):
+        from aletheia import voice
+        for said in ("the dishwasher is broken", "the landlord fixed the sink", "my laptop died"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        for said in ("the build is broken", "my heart is broken"):
+            self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_read(self):
+        from aletheia import quick
+        rows = [{"text": "the landlord fixed the sink"}, {"text": "the sink is leaking"}, {"text": "the dishwasher is broken"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what's broken in the house"), "From what you've told me: the dishwasher is broken.")
+            self.assertEqual(quick.answer("is the sink fixed"), "Yes - you told me the landlord fixed the sink.")
+            self.assertTrue(quick.answer("is the dishwasher fixed").startswith("Not that you've told me."))
+        self.assertNotEqual((quick.match("is the trader working") or ("",))[0], "broken")
+
+
+class TasksDueThisWeekend(unittest.TestCase):
+    def test_matches(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("what do I need to do this weekend"), ("tasks_due", "this weekend"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

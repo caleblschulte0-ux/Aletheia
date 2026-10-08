@@ -9021,6 +9021,15 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i(?:'m| am| have to| need to|'ve got to| got to| gotta| will| will be|'ll be|'ll)? (?:be )?work(?:ing)? "
                     r"(?:late|(?:until|till) \d{1,2}(?::\d\d)? ?(?:am|pm)?)(?: tonight| today| tomorrow)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
+    # "the landlord fixed the sink" both to the planner). Notes; "what's
+    # broken" and "is the sink fixed" read them.
+    if (re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up|making a (?:weird |strange |loud )?noise)(?: again)?", low)
+            or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:broke|stopped working|died|quit working)(?: today| again| yesterday)?", low)
+            or re.fullmatch(r"(?:i|we|the [a-z]{3,15}|my [a-z]{3,15}|[a-z]{3,15}) (?:finally |just )?(?:fixed|repaired|unclogged) (?:the|my|our) [a-z][a-z' ]{1,25}", low)
+            or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|got|was) (?:fixed|repaired|working again)(?: now| today)?", low)) \
+            and not re.search(r"\b(?:heart|leg|arm|back|bone|nose|wrist|ankle|finger|toe|record|promise|news|ice|build|ci|pipeline|repo|tests?)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.

@@ -915,7 +915,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "what did I forget", which is the overdue list asked guiltily.
         r"|^what tasks (?:do i have|have i got|are there|are on my list)(?: due)? (?P<due3>today|tomorrow|this week)\s*\??$"
         # "What do I have to do tomorrow" (2026-10-07: to a model).
-        r"|^what (?:do i|have i got to|do i still) (?:have|need|got) to do (?P<due5>tomorrow|this week)\s*\??$"
+        r"|^what (?:do i|have i got to|do i still) (?:have|need|got) to do (?P<due5>tomorrow|this week|this weekend)\s*\??$"
         # "What am I forgetting" (2026-10-07: to a model).
         r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
         r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
@@ -2086,6 +2086,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what (?:am i|are we) (?:doing|getting|planning|giving|buying) (?:for )?(?!(?:dinner|lunch|breakfast|brunch|christmas|thanksgiving|halloween|easter|today|tonight|tomorrow|the|work|fun|now|money|food|it|that|this|them|him|her|you|me|my (?:birthday|anniversary)|new year)\b)(?P<plans_for>(?:my )?[a-z][a-z'-]{1,20})"
         r"(?: for (?:her|his|their) (?:birthday|anniversary|bday))?\s*\??$"
         r"|^what (?:do i have|have i got) (?:planned|lined up) for (?!(?:dinner|lunch|breakfast|brunch|christmas|thanksgiving|halloween|easter|today|tonight|tomorrow|the|work|fun|now|money|food|it|that|this|them|him|her|you|me|my (?:birthday|anniversary)|new year)\b)(?P<plans_for2>(?:my )?[a-z][a-z'-]{1,20})(?:'s (?:birthday|bday))?\s*\??$")),
+    # "What's broken in the house", "is the sink fixed" (2026-10-08: both to
+    # a model, with "the dishwasher is broken" kept).
+    ("broken", re.compile(
+        r"^what(?:'s| is|s)? (?:still )?(?:broken|not working|needs fixing|needs to be fixed|needs repair)"
+        r"(?: in the house| at home| around the house| at the house)?(?P<broken>)\s*\??$"
+        r"|^(?:is|are|did) (?:the|my|our) (?P<broken2>[a-z][a-z' ]{1,25}?) (?:fixed|repaired|still broken|get fixed)(?: yet| now)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2911,7 +2917,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -3886,6 +3892,17 @@ def _tasks_due(which: str = "") -> str | None:
         said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") for t in on[:5]])
         more = f", and {len(on) - 5} more" if len(on) > 5 else ""
         return f"{speech.count_phrase(len(on), 'thing')} due on {day}: {said}{more}.{rem}"
+    # "What do I need to do this weekend" (2026-10-08: to a model, a turn
+    # after "clean the gutters" went on the list due Sunday).
+    if which == "this weekend":
+        sat = now.date() + dt.timedelta(days=(5 - now.weekday()) % 7) if now.weekday() != 6 else now.date()
+        days = {sat, sat + dt.timedelta(days=1)} if now.weekday() != 6 else {sat}
+        on = [t for t in rows if tasks_mod.parse_deadline(t.get("deadline"))
+              and tasks_mod.parse_deadline(t.get("deadline")).astimezone(tz).date() in days]
+        if not on:
+            return "Nothing on your list is due this weekend."
+        said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") for t in on[:5]])
+        return f"{speech.count_phrase(len(on), 'thing')} due this weekend: {said}."
     overdue_only = which in ("overdue", "late", "past due", "")
     limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
              "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
@@ -13380,6 +13397,41 @@ def _plans_for(who: str) -> str | None:
     return f"For {shown}, you have {speech.and_list(said[:4])}."
 
 
+_BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up"
+                    r"|making a (?:weird |strange |loud )?noise)|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working)")
+_FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
+                    r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:is|got|was) (?:fixed|repaired|working again)")
+
+
+def _broken(thing: str = "") -> str | None:
+    """What he told her broke and has not told her was fixed. Asked about
+    one thing, its newest word either way; None when he never said."""
+    from aletheia import speech
+    thing = " ".join(str(thing or "").casefold().split())
+    state: dict[str, tuple[str, str]] = {}
+    for row in reversed(_notes()):
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold().rstrip(".")
+        for rx, how in ((_FIXED, "fixed"), (_BROKE, "broken")):
+            m = rx.search(low)
+            if m:
+                what = re.sub(r" (?:today|again|yesterday|now)$", "", (m.group("t") or m.group("t2")).strip())
+                state[what] = (how, said)
+                break
+    if thing:
+        hit = state.get(thing) or next((v for k, v in state.items() if k.endswith(" " + thing) or thing.endswith(" " + k)), None)
+        if not hit:
+            return None
+        how, said = hit
+        if how == "fixed":
+            return f"Yes - you told me {speech.as_she_says_it(said).rstrip('.')}."
+        return f"Not that you've told me. The last I heard, {speech.as_she_says_it(said).rstrip('.')}."
+    broken = [speech.as_she_says_it(said).rstrip(".") for how, said in state.values() if how == "broken"]
+    if not broken:
+        return "Nothing you've told me is broken right now." if state else None
+    return f"From what you've told me: {speech.and_list(broken[:5])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14183,6 +14235,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_called": _who_called,
            "news_when": _news_when,
            "plans_for": _plans_for,
+           "broken": _broken,
            "task_about": _task_about,
            "born_age": _born_age,
            "his_likes": lambda rest: _his_likes(),
