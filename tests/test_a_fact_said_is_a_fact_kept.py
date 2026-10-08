@@ -6813,7 +6813,7 @@ class WhatToDoFirst(unittest.TestCase):
                 {"id": "b", "description": "email my boss", "deadline": day, "status": "PENDING", "created_at": "2"}]
         with mock.patch.object(tasks, "all_tasks", return_value=rows), mock.patch.object(tasks, "is_his", return_value=True), \
                 mock.patch.object(needs_you, "items", return_value=[]), mock.patch.object(quick, "_agenda", return_value="Nothing today."):
-            said = quick._focus()
+            said = quick.answer("what should I do first")
         self.assertNotIn("11:59", said)
         self.assertTrue(said.startswith("Call the vet - it has the nearest deadline"), said)
         self.assertIn("Email my boss is due then too.", said)

@@ -2558,7 +2558,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -4304,7 +4304,7 @@ def _status() -> str:
     return ". ".join(p for p in parts if p) + "."
 
 
-def _focus() -> str:
+def _focus(only_first: bool = False) -> str:
     """What to do first: what needs him, then what is due, then the day."""
     from aletheia import speech
     parts: list[str] = []
@@ -4318,10 +4318,10 @@ def _focus() -> str:
     except Exception:
         pass
     # "What should I do first" read the whole list back (2026-10-08): the
-    # first one, and why it is first.
-    top = _task_top()
-    if top and not top.startswith("Nothing open"):
-        parts.append(top.rstrip("."))
+    # first one, and why it is first. "Plan my day" still wants the list.
+    tasks = _task_top() if only_first else _tasks()
+    if tasks and not tasks.lower().startswith("nothing") and "empty" not in tasks.lower():
+        parts.append(tasks.rstrip("."))
     day = _agenda("today")
     if day and not day.lower().startswith("nothing"):
         parts.append(day.rstrip("."))
@@ -12498,7 +12498,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applications_waiting": lambda rest: _applications_waiting(),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
-           "focus": lambda rest: _focus(),
+           "focus": lambda rest: _focus(only_first=bool(re.search(r"\b(?:first|start with|tackle)\b", rest))),
            "outcomes": _outcomes,
            "until": _until,
            "race": lambda rest: _race(rest),
