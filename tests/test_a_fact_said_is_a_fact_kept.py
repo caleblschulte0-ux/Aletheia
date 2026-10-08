@@ -11727,5 +11727,23 @@ class AtWorkAgain(unittest.TestCase):
             self.assertEqual(quick.answer("who is leaving"), "You told me: your coworker Jen is leaving.")
 
 
+class WeeksAndYears(unittest.TestCase):
+    """2026-10-08: "how many weeks until my birthday" went to a model a turn
+    after "how many days" was answered from the birthday on file, and "what
+    year was 10 years ago" too."""
+
+    def test_weeks_until_his_birthday(self):
+        import datetime as dt
+        from aletheia import localtime
+        ahead = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=15)
+        with mock.patch.object(quick, "_birthday_on_file", lambda: (ahead.month, ahead.day, None)):
+            self.assertTrue(quick.answer("how many weeks until my birthday").startswith("2 weeks and 1 day"))
+
+    def test_years_ago(self):
+        import datetime as dt
+        from aletheia import localtime
+        self.assertEqual(quick.answer("what year was 10 years ago"), f"{dt.datetime.now(localtime.operator_tz()).year - 10}.")
+
+
 if __name__ == "__main__":
     unittest.main()
