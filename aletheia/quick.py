@@ -2175,6 +2175,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("workouts_did", re.compile(
         r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
         r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
+    # "What day of the year is it" (2026-10-08: to a model).
+    ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
+                               r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
     # "Which locker is mine", "which parking spot is mine" (2026-10-08: to a model).
     ("which_mine", re.compile(r"^(?:which|what) (?P<which_mine>locker|gym locker|parking spot|parking space|spot|seat|room|desk|cubicle"
                               r"|gate|unit|apartment) (?:is mine|is my one|am i in|do i have|did i get)\s*\??$")),
@@ -2861,6 +2864,15 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"what (?:deadlines|deadline) (?:do i have|have i got|are coming up)(?P<w> today| this week| next week| this month| tomorrow)?\s*\??", text)
     if m:
         return "what's due" + (m.group("w") or "")
+    # "What day will it be in 3 weeks", "what day is Christmas on this
+    # year" (2026-10-08: to a model) are the date questions she answers.
+    m = re.fullmatch(r"what (?:day|date) (?:will it be|is it going to be|is it|will be) in (?P<n>\d{1,3}|a|one|two|three|four|five|six|seven|eight|nine|ten)"
+                     r" (?P<u>days?|weeks?|months?)\s*\??", text)
+    if m:
+        return f"what's the date in {m.group('n')} {m.group('u')}"
+    m = re.fullmatch(r"what (?:day|date) (?:is|does) (?P<x>[a-z][a-z' ]{2,30}?) (?:on |fall on |land on )?this year\s*\??", text)
+    if m:
+        return f"what day is {m.group('x')}"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
@@ -14075,6 +14087,15 @@ def _which_mine(thing: str) -> str | None:
     return None
 
 
+def _day_of_year(_text: str = "") -> str:
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    n = today.timetuple().tm_yday
+    total = 366 if (today.year % 4 == 0 and (today.year % 100 or today.year % 400 == 0)) else 365
+    return f"Day {n} of {total}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14882,6 +14903,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "day_of_year": _day_of_year,
            "which_mine": _which_mine,
            "reminder_next": _reminder_next,
            "reminders_week": _reminders_week,

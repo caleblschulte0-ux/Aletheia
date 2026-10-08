@@ -9353,5 +9353,14 @@ class SpotsRoomsAndLockers(unittest.TestCase):
             self.assertEqual(quick.answer("which locker is mine"), "You told me: your gym locker is 42.")
 
 
+class DatesAskedOtherWays(unittest.TestCase):
+    """Three date questions that went to a model (2026-10-08)."""
+
+    def test_answered(self):
+        self.assertRegex(quick.answer("what day of the year is it"), r"^Day \d{1,3} of 36[56]\.$")
+        self.assertEqual(quick.match("what day will it be in 3 weeks")[0], "date_after")
+        self.assertEqual(quick.match("what day is christmas on this year")[0], "until_day")
+
+
 if __name__ == "__main__":
     unittest.main()
