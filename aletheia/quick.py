@@ -1956,6 +1956,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<sick_since>headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)(?: for)?\s*\??$"
         # "How long have I been coughing", "how long has my back hurt" (2026-10-08)
         r"|^how long have i been (?:feeling )?(?P<sick_since2>coughing|sneezing|dizzy|nauseous|throwing up|wheezing|congested)(?: for)?\s*\??$"
+        r"|^how long have i been (?P<sick_since4>sick|ill|feeling sick|feeling ill|unwell|under the weather|not feeling well)(?: for)?\s*\??$"
         r"|^how long has my (?P<sick_since3>back|lower back|head|throat|stomach|knee|neck|shoulder|tooth|ear|foot|leg|arm|wrist|ankle|hip|jaw)"
         r" (?:hurt|been hurting|been sore|ached|been aching|been bothering me)(?: for)?\s*\??$")),
     # "What symptoms have I had this week", "what should I tell the doctor"
@@ -3592,7 +3593,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11174,11 +11175,17 @@ def _sick_since(what: str) -> str | None:
     import datetime as dt
     from aletheia import localtime, speech
     what = " ".join(str(what or "").split())
+    if what in ("ill", "feeling sick", "unwell", "under the weather", "not feeling well", "feeling ill"):
+        what = "sick"
     tz = localtime.operator_tz()
     first, since, told_at = None, "", None
     # "coughing", "dizzy", "back": the ways he says each (2026-10-08)
     stem = {"coughing": r"cough(?:ing)?", "sneezing": r"sneez(?:e|ing)", "throwing up": r"throwing up|threw up|vomit",
-            "wheezing": r"wheez", "dizzy": r"dizzy", "nauseous": r"nause", "congested": r"congested|stuffy"}.get(what)
+            "wheezing": r"wheez", "dizzy": r"dizzy", "nauseous": r"nause", "congested": r"congested|stuffy",
+            # "How long have I been sick" (2026-10-08: to a model): any way
+            # he said he was ill, from the first time in this run of it.
+            "sick": r"(?:feel|feeling|am|i'm|been|getting|got) (?:really |so |kind of |kinda |pretty )?(?:sick|ill|unwell|under the weather|crummy)"
+                    r"|not feeling (?:well|good)|(?:don't|do not) feel (?:well|good)|coming down with|have (?:a |an |the )?(?:cold|flu|fever|virus|bug|covid)"}.get(what)
     if stem is None and what in ("back", "lower back", "head", "throat", "stomach", "knee", "neck", "shoulder", "tooth", "ear",
                                  "foot", "leg", "arm", "wrist", "ankle", "hip", "jaw"):
         stem = rf"my {re.escape(what)} (?:hurts|is hurting|is sore|aches|is aching|is killing|has been)"
@@ -13949,6 +13956,9 @@ def _reading(text: str) -> str:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         m = re.match(r"(?:my )?" + pattern + r" (?:was|is|reading was|came out|came out at|was at)? ?(.+?)\.?$", said, re.I)
+        # "I have a fever of 101" (2026-10-08) is a temperature too.
+        if not m and named in ("temperature", "temp"):
+            m = re.match(r"(?:journal: )?i (?:have|'ve got|got|am running|'m running) (?:a )?(?:fever|temperature|temp) of (\d{2,3}(?:\.\d)?(?: degrees)?)\b", said, re.I)
         if not m or not re.search(r"\d", m.group(1)):
             continue
         value = re.sub(r" ?/ ?", " over ", m.group(1).strip())

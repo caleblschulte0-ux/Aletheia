@@ -12363,5 +12363,23 @@ class NumbersHeSays(unittest.TestCase):
             self.assertIsNone(quick.answer("what is the gate code at work"))
 
 
+class FeelingSick(unittest.TestCase):
+    def test_feeling_sick_and_a_fever_go_in_his_journal(self):
+        for said in ("I feel sick", "I don't feel well", "I have a fever of 101"):
+            got = voice.interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": "Journal: " + said})
+        self.assertIn("call your doctor", voice.interpret("I have a fever of 101")["say"])
+        self.assertIn("That's high", voice.interpret("I have a fever of 104")["say"])
+
+    def test_how_long_sick_and_the_temperature_read_his_journal(self):
+        import datetime as dt
+        from aletheia import localtime
+        ago = lambda d: (dt.datetime.now(localtime.operator_tz()) - dt.timedelta(days=d)).isoformat()
+        notes = [{"text": "Journal: I have a fever of 101", "ts": ago(0)}, {"text": "Journal: I feel sick", "ts": ago(2)}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertTrue(quick.answer("how long have I been sick").startswith("2 days"))
+            self.assertTrue(quick.answer("what was my temperature").startswith("Your temperature was 101"))
+
+
 if __name__ == "__main__":
     unittest.main()

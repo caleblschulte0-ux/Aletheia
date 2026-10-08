@@ -9679,11 +9679,17 @@ def _interpret(transcript: str) -> dict:
                      r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself|better|much better|a lot better"
                      # "I am in a good mood today", "I'm excited for the weekend",
                      # "I'm nervous about my interview tomorrow" (2026-10-08).
-                     r"|in a (?:good|great|bad|terrible|weird|funny|grumpy|rotten) mood|scared|dreading [a-z][a-z ]{1,30})"
+                     r"|in a (?:good|great|bad|terrible|weird|funny|grumpy|rotten) mood|scared|dreading [a-z][a-z ]{1,30}"
+                     # "I feel sick" (2026-10-08: a kind word and nothing kept, so
+                     # "how long have I been sick" had nothing to count from).
+                     # A bare "I'm sick" stays out: it is as often "sick of this".
+                     r"|unwell|under the weather|crummy|run down|feverish|not feeling well|not feeling good)"
                      r"(?: (?:about|for|to|over) (?!you\b|your\b)[a-z0-9][a-z0-9 ',-]{1,60}?)?"
                      r"(?: (?:today|right now|now|tonight|this morning|lately|again))?"
                      r"|(?:i (?:had|have had|'ve had) a(?:n)? (?:really |pretty |very |so )?"
-                     r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)", low)
+                     r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)"
+                     r"|i (?:don't|do not) feel (?:well|good|so good|great)(?: today| right now)?"
+                     r"|(?:i feel|i'?m feeling|i am feeling|feeling) (?:really |so |kind of |kinda |pretty |a bit |a little )?(?:sick|ill)(?: today| right now| again)?", low)
     if m:
         try:
             say = _quick.answer(text)
@@ -9692,7 +9698,9 @@ def _interpret(transcript: str) -> dict:
                 say = _quick.answer(f"i am {m.group('mood')}")
         except Exception:  # noqa: BLE001
             say = None
-        if not say and m.group("mood") and re.match(r"(?:nervous|worried|anxious|scared|dreading)", m.group("mood")):
+        if re.search(r"\b(?:sick|ill|unwell|under the weather|crummy|run down|feverish|not feeling (?:well|good)|feel (?:well|good|so good|great))\b", low):
+            say = "Rest up. I've put it in your journal, so you can tell the doctor how long it's been."
+        elif not say and m.group("mood") and re.match(r"(?:nervous|worried|anxious|scared|dreading)", m.group("mood")):
             say = "That's normal - it means it matters to you. You'll do fine. I've put it in your journal."
         elif not say and m.group("mood") and re.match(r"(?:excited|happy|great|amazing|in a (?:good|great) mood)", m.group("mood")):
             say = "Love that. I've put it in your journal."
@@ -11217,6 +11225,14 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"the (?:gate|door|front door|garage|alarm|lock ?box|building|key ?pad|entry|wifi network|parking) (?:code|number|combo|combination) (?:at|for) (?:my |the )?[a-z][a-z' ]{1,25} is [0-9a-z#* ]{3,14}", low) \
             and not _ID_NUMBER.search(low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have a fever of 101" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:have|'ve got|got|am running|'m running) (?:a )?(?:fever|temperature|temp) of (?P<t>\d{2,3}(?:\.\d)?)(?: degrees)?(?: today| tonight| this morning)?", low)
+    if m:
+        t = float(m.group("t"))
+        high = t >= 103 if t > 45 else t >= 39.4
+        say = ("That's high. Call your doctor, and if there's a stiff neck, confusion or trouble breathing, call 911. I've put it in your journal."
+               if high else "Rest and fluids. If it goes past 103, or lasts more than three days, call your doctor. I've put it in your journal.")
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)}, "say": say}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
