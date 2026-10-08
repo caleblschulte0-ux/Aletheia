@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-08T13:41:02Z",
+  "generated_at": "2026-10-08T23:24:50Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "f3f996b46ae4",
-          "date": "2026-10-08T13:22:23Z",
+          "sha": "62fe1ef1bc8a",
+          "date": "2026-10-08T23:13:41Z",
+          "message": "Merge pull request #347 from caleblschulte0-ux/claude/sweep-seventy"
+        },
+        {
+          "sha": "703990acbbbf",
+          "date": "2026-10-08T23:01:15Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "ca6885a778fd",
-          "date": "2026-10-08T13:19:58Z",
-          "message": "Merge pull request #335 from caleblschulte0-ux/claude/sweep-sixty"
+          "sha": "26361db4f991",
+          "date": "2026-10-08T22:34:30Z",
+          "message": "Do I have any approvals reads what waits on him instead of searching his files; are you working on anything says what sh"
         },
         {
-          "sha": "f3cf4abd344b",
-          "date": "2026-10-08T13:06:58Z",
-          "message": "Merge pull request #334 from caleblschulte0-ux/claude/no-cold-calls-and-a-pay-floor"
+          "sha": "78ca6b13efd6",
+          "date": "2026-10-08T22:32:59Z",
+          "message": "A return said with 'the' is kept; did I get my ladder back and what did I leave at work read what he said"
         },
         {
-          "sha": "175cbdf8d7b8",
-          "date": "2026-10-08T13:03:50Z",
-          "message": "core: state checkpoint"
-        },
-        {
-          "sha": "2d722b70f704",
-          "date": "2026-10-08T12:39:04Z",
-          "message": "Read what somebody likes by their name or by who they are to him, and what he has planned for them"
+          "sha": "0261ff9e6ec9",
+          "date": "2026-10-08T22:31:09Z",
+          "message": "A visit: how long she is staying reads the pronoun said after; getting a room ready is a task; how is my mom reads what'"
         }
       ],
       "commit": {
-        "sha": "f3f996b46ae4",
-        "date": "2026-10-08T13:22:23Z",
-        "message": "core: state checkpoint"
+        "sha": "62fe1ef1bc8a",
+        "date": "2026-10-08T23:13:41Z",
+        "message": "Merge pull request #347 from caleblschulte0-ux/claude/sweep-seventy"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-08T13:41:00Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37786280680"
+          "updated_at": "2026-10-08T23:24:46Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37859278759"
         },
         "ci.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-08T13:31:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37785070867"
+          "updated_at": "2026-10-08T23:19:33Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37858786632"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21896
+          "bytes": 21091
         }
       },
       "health": "unknown"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "d2e9a1db7eaf",
-          "date": "2026-10-08T13:36:29Z",
+          "sha": "44536d420d61",
+          "date": "2026-10-08T22:53:11Z",
+          "message": "Hooks are heard by a listener, not scored on keywords; the voice gets words (#559)"
+        },
+        {
+          "sha": "5b0311700e77",
+          "date": "2026-10-08T22:47:52Z",
+          "message": "story forge: new real-data stories [skip ci]"
+        },
+        {
+          "sha": "d3641825b293",
+          "date": "2026-10-08T22:47:49Z",
+          "message": "claim: mailbox verdicts 2026-10-08T22:47Z [skip ci]"
+        },
+        {
+          "sha": "221269c0e565",
+          "date": "2026-10-08T22:25:10Z",
           "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "414b2ef19a1b",
-          "date": "2026-10-08T13:31:08Z",
-          "message": "watchdog: chatgpt task verdicts 20261008 [skip ci]"
-        },
-        {
-          "sha": "1213c7d3be1d",
-          "date": "2026-10-08T13:16:42Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
-        },
-        {
-          "sha": "fb533af3f562",
-          "date": "2026-10-08T12:51:46Z",
-          "message": "third: analytics [skip ci]"
-        },
-        {
-          "sha": "e6ffec96771a",
-          "date": "2026-10-08T12:51:38Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "19e14fe0ddad",
+          "date": "2026-10-08T22:17:43Z",
+          "message": "claim: mailbox verdicts 2026-10-08T22:17Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "d2e9a1db7eaf",
-        "date": "2026-10-08T13:36:29Z",
-        "message": "explainer: update posted log + analytics [skip ci]"
+        "sha": "44536d420d61",
+        "date": "2026-10-08T22:53:11Z",
+        "message": "Hooks are heard by a listener, not scored on keywords; the voice gets words (#559)"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 306
+          "value": 308
         },
         {
           "label": "third posted",
-          "value": 874
+          "value": 875
         },
         {
           "label": "curiosity posted",
@@ -129,32 +129,32 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-08T11:36:19Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37771099521"
+          "updated_at": "2026-10-08T23:05:47Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37857342411"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-08T11:38:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37771370965"
+          "updated_at": "2026-10-08T20:01:01Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37836209878"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-08T12:36:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37774440246"
+          "updated_at": "2026-10-08T22:47:59Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37851785352"
         },
         "third.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-08T12:51:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37773700476"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-08T17:52:15Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37819575081"
         },
         "explainer.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-08T13:36:39Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37770970651"
+          "updated_at": "2026-10-08T22:25:23Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37850858585"
         },
         "retro.yml": {
           "status": "completed",
@@ -176,11 +176,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 136493
+          "bytes": 139714
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 488624
+          "bytes": 490245
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 3542140
+          "bytes": 3774014
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -203,6 +203,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "7cbc729f191b",
+          "date": "2026-10-08T19:16:37Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
         {
           "sha": "64cc70c16a8c",
           "date": "2026-10-07T23:48:34Z",
@@ -222,16 +227,11 @@
           "sha": "a3d9f9a73bfb",
           "date": "2026-10-06T18:54:49Z",
           "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "d7a5f003780e",
-          "date": "2026-10-05T21:06:25Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "64cc70c16a8c",
-        "date": "2026-10-07T23:48:34Z",
+        "sha": "7cbc729f191b",
+        "date": "2026-10-08T19:16:37Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -259,19 +259,19 @@
       "state_files": {
         "signals/holdings.json": {
           "exists": true,
-          "bytes": 2122
+          "bytes": 2127
         },
         "signals/sim_account.json": {
           "exists": true,
-          "bytes": 3869
+          "bytes": 4273
         },
         "signals/performance.json": {
           "exists": true,
-          "bytes": 2287
+          "bytes": 2333
         },
         "reports/track_record.md": {
           "exists": true,
-          "bytes": 1497
+          "bytes": 1575
         }
       },
       "health": "green"
@@ -361,7 +361,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 14,
+        "days_quiet": 15,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -437,17 +437,33 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-08T13:22:23Z",
+        "last_progress_at": "2026-10-08T23:13:41Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
           {
-            "number": 336,
-            "title": "Sweep 61: bills, broken things, trips, food, repeating reminders and lists named after shops",
-            "head": "claude/sweep-sixty-one",
+            "number": 350,
+            "title": "A question is never saved, the same thing said twice is one, and 21 tests that never ran now do",
+            "head": "claude/sweep-seventy-one",
             "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/336",
-            "created_at": "2026-10-08T13:31:46Z"
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/350",
+            "created_at": "2026-10-08T23:19:26Z"
+          },
+          {
+            "number": 349,
+            "title": "Emailed interview confirmations go on his calendar, with no reply drafted",
+            "head": "claude/confirmed-interview-on-calendar",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/349",
+            "created_at": "2026-10-08T22:55:34Z"
+          },
+          {
+            "number": 348,
+            "title": "Self-ID questions answered by his ruling, declining where his answer isn't offered",
+            "head": "claude/self-id-by-his-ruling",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/348",
+            "created_at": "2026-10-08T22:52:22Z"
           }
         ]
       },
@@ -531,14 +547,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [],
   "plans": {
     "open": 6,
