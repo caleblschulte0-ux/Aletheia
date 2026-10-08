@@ -7417,6 +7417,22 @@ class TheKidsHaveSoccer(unittest.TestCase):
         self.assertEqual(quick._direct("what are you doing saturday"), "what are you doing saturday")
 
 
+class RanOutAndSleptThisWeek(unittest.TestCase):
+    """2026-10-08: "I ran out of coffee" went to the planner and "how did I
+    sleep this week" to a model."""
+
+    def test_ran_out_goes_on_the_list(self):
+        cmd = (voice.interpret("thea I ran out of coffee") or {}).get("command") or {}
+        self.assertEqual(cmd, {"kind": "shopping_add", "item": "coffee"})
+
+    def test_ran_out_of_time_is_not_shopping(self):
+        cmd = (voice.interpret("thea we ran out of time") or {}).get("command") or {}
+        self.assertNotEqual(cmd.get("kind"), "shopping_add")
+
+    def test_sleep_this_week_is_the_weeks_reader(self):
+        self.assertEqual(quick.match("how did I sleep this week")[0], quick.match("how much did I sleep this week")[0])
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

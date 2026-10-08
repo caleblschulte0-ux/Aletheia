@@ -973,6 +973,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How much did I sleep this week" (2026-10-07: to a model).
         r"|^how (?:much|many hours)(?: of sleep)? (?:did i|have i) (?:sleep|slept|get|gotten)(?: sleep)? (?P<logged_sleep3>this week)\s*\??$"
         r"|^how (?:much|many hours of) sleep (?:did i get|have i had|have i gotten) (?P<logged_sleep4>this week)\s*\??$"
+        # "How did I sleep this week" (2026-10-08: to a model).
+        r"|^how (?:did|have) i (?:sleep|slept|been sleeping) (?P<logged_sleep5>this week)\s*\??$"
         # "How much sleep did I get" (2026-10-07: to a model).
         r"|^how (?:much|many hours of) (?P<logged_sleep2>sleep) (?:did i get|have i had|have i gotten)(?: last night)?\s*\??$"
         # "Did I sleep enough" (2026-10-07: to the planner).
@@ -2986,7 +2988,7 @@ def _logged(text: str) -> str | None:
             return f"You've told me about one night: {_plain(list(nights.values())[0])} hours."
         return (f"About {_plain(round(sum(nights.values()) / len(nights), 1))} hours a night, "
                 f"over the {len(nights)} nights you've told me about this month.")
-    if g.get("logged_sleep3") or g.get("logged_sleep4"):
+    if g.get("logged_sleep3") or g.get("logged_sleep4") or g.get("logged_sleep5"):
         monday = start - dt.timedelta(days=now.weekday())
         nights = {}
         for at, said in rows:
