@@ -3193,7 +3193,7 @@ class HisBillsAndHowOften(unittest.TestCase):
         from aletheia import quick
         now = dt.datetime.now(dt.timezone.utc).isoformat()
         with mock.patch.object(quick, "_notes", return_value=[{"text": "I walked the dog", "ts": now}] * 2):
-            self.assertEqual(quick.answer("how many times did I walk the dog today"), "2 times today, from what you've told me.")
+            self.assertEqual(quick.answer("how many times did I walk the dog today"), "Twice today, from what you've told me.")
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertTrue(quick.answer("how many times did I feed the cat this week").startswith("None this week"))
 
@@ -10753,6 +10753,23 @@ class HisPayLanded(unittest.TestCase):
             self.assertTrue(quick.answer("did I get paid today").startswith("Not today that you've told me."))
         with mock.patch.object(quick, "_notes", lambda: []):
             self.assertIsNone(quick.answer("did I get paid"))
+
+
+class APetThatAteSomethingBad(unittest.TestCase):
+    """2026-10-08: "my dog ate chocolate" was a plain "Noted.", and "my dog
+    is due for shots" went to the planner."""
+
+    def test_who_to_call(self):
+        for said in ("my dog ate chocolate", "the cat ate a lily"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"]["kind"], "note", said)
+            self.assertIn("Poison Control", got["say"], said)
+        self.assertIsNone(voice._interpret("my dog threw up")["say"])
+
+    def test_shots(self):
+        self.assertEqual(voice._interpret("my dog is due for shots")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my dog is due for shots next month"}]):
+            self.assertEqual(quick.answer("when is my dog due for shots"), "You told me: your dog is due for shots next month.")
 
 
 if __name__ == "__main__":

@@ -13087,7 +13087,8 @@ def _did_count(text: str) -> str | None:
         n += start <= at < end
     if not n:
         return f"None {window} that you've told me. Say \"I {past} {thing}\" when you do and I'll keep count."
-    return f"{speech.count_phrase(n, 'time')} {window}, from what you've told me."
+    times = {1: "Once", 2: "Twice"}.get(n) or speech.count_phrase(n, "time")
+    return f"{times} {window}, from what you've told me."
 
 
 _SUB_KEYS = (r"netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")

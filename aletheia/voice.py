@@ -5766,6 +5766,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|the|our) (?:[a-z]+ )?(?:basil|tomato|tomatoes|plant|plants|garden|flowers|roses|herbs|lawn|grass|tree|trees|hedge|succulent|cactus|orchid|fern|peppers|mint|lettuce)"
                     r" (?:is|are|looks?|seems?) (?:really |kind of |kinda |a bit )?(?:dying|wilting|drooping|dead|turning (?:yellow|brown)|brown|yellow|sad|thriving|doing (?:great|well|badly))", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My dog is due for shots" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:my|our|the) (?:dog|cat|puppy|kitten|pet)(?:'s)? (?:is )?(?:due|overdue) for (?:his |her |its |their )?"
+                    r"(?:shots|vaccines|vaccinations|rabies shot|booster|checkup|check-up|flea (?:and tick )?(?:medicine|meds|treatment)|heartworm (?:medicine|pill|test)|grooming|nail trim|dental cleaning)"
+                    r"(?: (?:in|on|by|next|this) [a-z0-9 ,]{2,25})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I have chicken and rice" (2026-10-08: to the planner): what is in the
     # kitchen, kept so "what should I make for dinner" can build on it. Every
     # item must be a food, so "I have a meeting and a call" is never a pantry.
@@ -9467,12 +9472,20 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet|bird|horse|rabbit|bunny)|[a-z][a-z'-]{1,20})"
                      r" (?:just |has |keeps |has been |is |was )?(?:threw up|thrown up|throwing up|vomited|vomiting|is limping|limping|was limping"
                      r"|isn'?t eating|is not eating|won'?t eat|wouldn'?t eat|stopped eating|has diarrh(?:o)?ea|had diarrh(?:o)?ea"
-                     r"|got into the trash|ate (?:something(?: weird| bad| strange| off)?|a sock|chocolate|grapes)|has fleas|got fleas|is scratching a lot)"
+                     r"|got into the trash|ate (?:something(?: weird| bad| strange| off)?|a sock|(?:some |a (?:bunch|lot) of |a |an )?(?P<bad>chocolate|grapes|raisins|gum|xylitol"
+                     r"|onions?|garlic|a lily|lilies|antifreeze|rat poison|mouse poison|my medicine|medicine|pills|ibuprofen|advil|tylenol|aspirin|marijuana|weed))"
+                     r"|has fleas|got fleas|is scratching a lot)"
                      r"(?: (?:today|again|this morning|last night|tonight|all day))?", low)
     if m and (re.match(r"(?:my|our|the) ", m.group("who")) or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
             and m.group("who") not in ("it", "that", "he", "she", "i", "we", "they", "baby", "everyone", "everybody", "someone",
                                        "somebody", "nobody", "who", "what"):
-        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        # "My dog ate chocolate" (2026-10-08) was a plain "Noted." - it can be
+        # an emergency, and the one useful thing is who to call, now.
+        urgent = None
+        if m.group("bad") and re.match(r"(?:my|our|the) (?:dog|cat|puppy|kitten|pet)", m.group("who")):
+            urgent = ("That can be dangerous for a pet. Call your vet or the ASPCA Animal Poison Control Center "
+                      "at 888-426-4435 now - don't wait for symptoms.")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": urgent}
     m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet)|[a-z][a-z'-]{1,20}) needs (?:his|her|its|their|a|the|to get (?:his|her|its|a|the)) "
                      r"[a-z][a-z' ]{2,40}? (?:on|by) (?:the )?(?:\d{1,2}(?:st|nd|rd|th)?|(?:mon|tues|wednes|thurs|fri|satur|sun)day"
                      r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)", low)
