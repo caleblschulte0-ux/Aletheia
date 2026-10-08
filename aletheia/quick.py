@@ -6214,6 +6214,42 @@ def _slow() -> str | None:
         return None
 
 
+_FOR_HOME = re.compile(r"^remind me (?:to|that) (?P<what>.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?"
+                       r"(?:back )?(?:home|back)$", re.I)
+
+
+def _home_reminders() -> list[str]:
+    """What he asked to be told when he got home, since he last said he
+    was (2026-10-08: she said she couldn't, and "I'm home" said nothing)."""
+    import datetime as dt
+    arrived = ""
+    try:
+        from aletheia import converse
+        pattern = dict(PATTERNS)["arrival"]
+        for turn in converse._thread():
+            if pattern.match(_tidy(str(turn.get("you") or ""))):
+                arrived = max(arrived, str(turn.get("at") or ""))
+    except Exception:  # noqa: BLE001
+        pass
+    since = None
+    try:
+        since = dt.datetime.fromisoformat(arrived.replace("Z", "+00:00")) if arrived else None
+    except ValueError:
+        since = None
+    out = []
+    for row in reversed(_notes()):
+        m = _FOR_HOME.match(" ".join(str(row.get("text") or "").split()))
+        if not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if since is None or at > since:
+            out.append(m.group("what"))
+    return out
+
+
 def _arrival() -> str:
     from aletheia import speech
     try:
@@ -6221,9 +6257,12 @@ def _arrival() -> str:
         rows = needs_you.items()
     except Exception:
         rows = []
+    home = _home_reminders()
+    told = (f" You asked me to remind you when you got home: {speech.and_list([speech._yours(h) for h in home])}."
+            if home else "")
     if rows:
-        return f"Welcome back. {speech.count_phrase(len(rows), 'thing')} waiting on you."
-    return "Welcome back. Nothing's waiting on you."
+        return f"Welcome back.{told} {speech.count_phrase(len(rows), 'thing')} waiting on you."
+    return f"Welcome back.{told}" + ("" if told else " Nothing's waiting on you.")
 
 
 def _farewell(text: str) -> str:

@@ -3873,8 +3873,8 @@ class APlaceIsNotATime(unittest.TestCase):
 
     def test_other_places_say_so(self):
         from aletheia import voice
-        for said in ("remind me to grab my charger when i leave", "remind me to stretch when i get to the gym",
-                     "remind me to call mom when i get home"):
+        # "When I get home" is kept for "I'm home" (2026-10-08, WhenHeGetsHome).
+        for said in ("remind me to grab my charger when i leave", "remind me to stretch when i get to the gym"):
             out = voice._interpret(said)
             self.assertIsNone(out["command"], said)
             self.assertIn("can't tell where you are", out["say"])
@@ -7052,6 +7052,26 @@ class HisBedtime(unittest.TestCase):
 
     def test_a_bedtime_reminder_asks_the_time(self):
         self.assertIn("What time?", voice._interpret("set a bedtime reminder")["say"])
+
+
+class WhenHeGetsHome(unittest.TestCase):
+    """2026-10-08: "remind me to call mom when I get home" was refused and
+    "I'm home" said nothing about it."""
+
+    def test_kept_and_said_once_when_he_says_he_is_home(self):
+        from aletheia import converse
+        got = voice._interpret("remind me to call mom when I get home")
+        self.assertEqual(got["command"]["kind"], "note")
+        self.assertIn("I'm home", got["say"])
+        now = dt.datetime.now(dt.timezone.utc)
+        note = [{"text": "remind me to call my mom when I get home", "ts": now.isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=note), \
+                mock.patch.object(converse, "_thread", return_value=[]):
+            self.assertIn("call your mom", quick.answer("I'm home"))
+        later = [{"you": "I'm home", "at": (now + dt.timedelta(minutes=1)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=note), \
+                mock.patch.object(converse, "_thread", return_value=later):
+            self.assertNotIn("call", quick.answer("I'm home"))
 
 
 def _needs_today_to_hold(case, span):
