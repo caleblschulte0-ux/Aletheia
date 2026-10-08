@@ -8432,5 +8432,23 @@ class HowLongHaveIHadThisCold(unittest.TestCase):
 
 
 
+class WhatsMyMaxBench(unittest.TestCase):
+    """"I benched 185 today" went to the planner and "what's my max bench"
+    to a model (2026-10-08)."""
+
+    def test_the_heaviest_is_read_back(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("I benched 185 today")["command"]["kind"], "note")
+        rows = [{"text": "I benched 185 today", "ts": "2026-10-08T12:00:00+00:00"},
+                {"text": "I benched 205 for 3 reps", "ts": "2026-10-07T12:00:00+00:00"},
+                {"text": "I squatted 300", "ts": "2026-10-07T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("whats my max bench").startswith("Your best bench is 205"))
+            self.assertTrue(quick.answer("how much can I squat").startswith("Your best squat is 300"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("I deadlifted 275", quick.answer("what's my best deadlift"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

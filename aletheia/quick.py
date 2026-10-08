@@ -1818,6 +1818,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| are) (?P<who_coming_noted>visiting|coming over|coming to visit|coming to stay|coming|staying with us|in town|flying in)"
         r"(?: (?:this weekend|next weekend|this week|next week|tomorrow|tonight|today|on [a-z]+|for [a-z' ]+))?\s*\??$")),
     # "Who called today" after "my mom called" (2026-10-08: both to a model).
+    # "What's my max bench" after "I benched 185" (2026-10-08: to a model).
+    ("lift_max", re.compile(
+        r"^what(?:'s| is| was) my (?:max|best|heaviest|top|pr|personal best|personal record|one rep max|1 rep max)"
+        r"(?: on (?:the )?| for (?:the )?| )?(?P<lift_max>bench(?: press)?|squat|deadlift|overhead press|curl|leg press)\s*\??$"
+        r"|^how much (?:can i|do i|did i|have i) (?P<lift_max2>bench|squat|deadlift|curl|leg press)(?:ed)?\s*\??$")),
     # "How long have I had this cold" (2026-10-08: to a model).
     ("sick_since", re.compile(
         r"^how long have i (?:had|been sick with|been dealing with|been fighting) (?:this |my |a |an |the )?"
@@ -2827,7 +2832,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -9910,6 +9915,30 @@ def _contacts_count() -> str | None:
             + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
 
+def _lift_max(lift: str) -> str | None:
+    """His heaviest logged lift of one kind, from "I benched 185"."""
+    from aletheia import speech
+    lift = re.sub(r" press$", "", " ".join(str(lift or "").split()))
+    verb = {"bench": r"bench(?:ed| pressed)|did (?:a )?bench(?: of)?", "squat": r"squatted|did (?:a )?squat(?: of)?",
+            "deadlift": r"deadlifted|did (?:a )?deadlift(?: of)?", "overhead": r"(?:overhead|military) pressed",
+            "curl": r"curled", "leg": r"leg pressed"}.get(lift.split()[0] if lift else "", None)
+    if not verb:
+        return None
+    best, said = 0, ""
+    for row in _notes():
+        m = re.search(rf"\bi (?:just )?(?:{verb}) (\d{{2,4}})( ?(?:pounds|lbs?|kilos|kgs?))?", str(row.get("text") or ""), re.I)
+        if m and int(m.group(1)) > best:
+            best = int(m.group(1))
+            said = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            unit = (m.group(2) or "").strip()
+    name = {"bench": "bench", "overhead": "overhead press", "leg": "leg press"}.get(lift.split()[0], lift)
+    if not best:
+        example = {"bench": "benched 185", "squat": "squatted 225", "deadlift": "deadlifted 275", "overhead": "overhead pressed 95",
+                   "curl": "curled 35", "leg": "leg pressed 300"}[lift.split()[0]]
+        return f"You haven't told me any {name} weights yet. Say \"I {example}\" after a set and I'll keep your best."
+    return f"Your best {name} is {best}{' ' + unit if unit else ''}" + (f", {said}." if said else ".")
+
+
 def _sick_since(what: str) -> str | None:
     """How long since he first told her he had it, in this run of it: the
     oldest mention with no "I feel better" after it. "Since Monday" he said
@@ -13883,6 +13912,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_called": _who_called,
            "born_age": _born_age,
            "sick_since": _sick_since,
+           "lift_max": _lift_max,
            "when_have": _when_have,
            "pet_due": _pet_due,
            "deliveries": lambda rest: _deliveries(),

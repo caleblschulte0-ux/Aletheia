@@ -9735,6 +9735,12 @@ def _interpret(transcript: str) -> dict:
     if m:
         where = _as_he_said(text, m.group("at")) + (" " + _as_he_said(text, m.group("in").strip()) if m.group("in") else "")
         return {"command": {"kind": "note", "text": f"my hotel is {where}"}, "say": None}
+    # "I benched 185 today" (2026-10-08: to the planner). A lift he logs;
+    # "what's my max bench" reads the heaviest.
+    if re.fullmatch(r"i (?:just )?(?:benched|bench pressed|squatted|deadlifted|overhead pressed|military pressed|curled|leg pressed|"
+                    r"did (?:a )?(?:bench|squat|deadlift)(?: of)?) \d{2,4}(?: ?(?:pounds|lbs?|kilos|kgs?))?"
+                    r"(?: (?:for|x|times) \d{1,2}(?: reps?)?)?(?: (?:today|this morning|tonight|yesterday|at the gym))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|bought|put in|filled up(?: on)?) gas(?: in (?:the|my) (?:car|truck))?"
