@@ -3214,6 +3214,46 @@ def _job_hunt_is_the_context() -> bool:
         return False
 
 
+_WHO_HURT = (r"(?:my|our|the) (?:son|daughter|kid|kids|child|baby|toddler|boy|girl|wife|husband|partner|mom|mum|mother|dad|father"
+             r"|grandma|grandpa|grandmother|grandfather|brother|sister|friend|roommate|neighbou?r)|(?:he|she|someone|somebody)")
+
+
+def _emergency(low: str) -> str | None:
+    """What to do, said first, when what he says is an emergency
+    (2026-10-08: "my son swallowed a battery", "my wife is not breathing"
+    and "I smell gas" all went to the planner - which, with the models out,
+    answered "it's on my list"). Only the one thing that helps: who to
+    call, now. She cannot call anyone herself and never says she will."""
+    low = re.sub(r"^(?:help|oh no|oh my god|omg|please help|quick|thea)[,!.]* ", "", low)
+    low = re.sub(r",? (?:what (?:do|should) i do|help(?: me)?|please)$", "", low)
+    if re.fullmatch(rf"(?:{_WHO_HURT}) (?:just )?(?:swallowed|ate|drank|got into|took) (?:a |an |some |the |my |his |her |a bunch of |too many )?"
+                    r"(?:button )?(?:batter(?:y|ies)|magnets?)", low):
+        return "A swallowed battery or magnet is an emergency. Go to the ER or call 911 now - don't wait for symptoms."
+    if re.fullmatch(r"i (?:just )?(?:took|swallowed) too many (?:pills|tablets|of my (?:pills|meds|medication)|[a-z]+)", low):
+        return ("Call 911 or Poison Control at 1-800-222-1222 now. If you took them on purpose, you can also call or "
+                "text 988 any hour - you don't have to go through this alone.")
+    if re.fullmatch(rf"(?:{_WHO_HURT}) (?:just )?(?:swallowed|ate|drank|got into|took|bit into) (?:a |an |some |the |my |his |her |a bunch of |too many )?"
+                    r"(?:bleach|tide pods?|laundry pods?|detergent|dishwasher pods?|cleaner|cleaning stuff|drain cleaner|antifreeze|poison|rat poison|pesticide"
+                    r"|weed killer|lighter fluid|gasoline|vape juice|nicotine|e-?cig(?:arette)? liquid|pills|medicine|medication|my pills|my medicine|vitamins"
+                    r"|tylenol|advil|ibuprofen|aspirin|nail polish remover|mouthwash|hand sanitizer|essential oils?)", low) \
+            or re.fullmatch(r"i (?:accidentally )?(?:drank|swallowed) (?:some )?(?:bleach|cleaner|antifreeze|poison)", low):
+        return ("Call Poison Control at 1-800-222-1222 now - they answer any hour. If they're struggling to breathe, "
+                "having a seizure or hard to wake, call 911 instead.")
+    if re.fullmatch(rf"(?:{_WHO_HURT}|i) (?:is|are|am|'s|'m)? ?(?:not breathing|isn'?t breathing|can'?t breathe|cannot breathe|choking|unconscious|unresponsive"
+                    r"|having a seizure|having a heart attack|having a stroke|passed out and won'?t wake up|won'?t wake up|turning blue|bleeding (?:a lot|badly|heavily))", low) \
+            or re.fullmatch(rf"(?:{_WHO_HURT}) (?:just )?(?:collapsed|fell and can'?t get up|fell and (?:hit|cracked) (?:his|her|their) head|stopped breathing)", low) \
+            or re.fullmatch(r"i think (?:i'?m|i am|(?:" + _WHO_HURT + r") (?:is|'s)) having (?:a heart attack|a stroke|a seizure|an allergic reaction)", low) \
+            or re.fullmatch(r"i (?:cut myself (?:really )?badly|can'?t stop the bleeding|am bleeding (?:a lot|badly)|can'?t breathe)", low):
+        return "Call 911 now."
+    if re.fullmatch(r"(?:there(?:'s| is) a |my |the )?(?:fire|house is on fire|kitchen is on fire|stove is on fire|the house is on fire)(?: in (?:my|the) [a-z ]{2,20})?"
+                    r"|(?:my|the|our) (?:house|kitchen|apartment|garage|stove|oven) (?:is )?on fire", low):
+        return "Get everyone out now and call 911 from outside. Don't go back in."
+    if re.fullmatch(r"i (?:can )?smell gas(?: in (?:the|my) [a-z ]{2,20})?|(?:it )?smells like gas(?: in here)?|(?:there(?:'s| is) a |i think there(?:'s| is) a )?gas leak", low):
+        return ("Leave the house now. Don't flip switches or light anything on the way out, and call 911 or your gas "
+                "company's emergency line from outside.")
+    return None
+
+
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
@@ -3223,6 +3263,10 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
+    # AN EMERGENCY FIRST, before any rule that could keep it as a note.
+    sos = _emergency(low)
+    if sos:
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)}, "say": sos}
     # "I need to remember to bring snacks Saturday" (2026-10-08: to the
     # planner) is "I need to bring snacks Saturday": remembering is her job.
     low = re.sub(r"^(i (?:need|have|got|gotta|must|should)(?: to)? |i've got to )(?:remember to |not forget to )", r"\1", low)

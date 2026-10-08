@@ -10772,5 +10772,25 @@ class APetThatAteSomethingBad(unittest.TestCase):
             self.assertEqual(quick.answer("when is my dog due for shots"), "You told me: your dog is due for shots next month.")
 
 
+class AnEmergencyIsAnsweredFirst(unittest.TestCase):
+    """2026-10-08: "my son swallowed a battery", "my wife is not breathing",
+    "there is a fire in my kitchen" and "I smell gas" went to the planner,
+    which with the models out answered "it's on my list"."""
+
+    def test_who_to_call(self):
+        for said, want in (("my son swallowed a battery", "call 911"), ("my daughter drank bleach", "1-800-222-1222"),
+                           ("my kid ate a tide pod", "1-800-222-1222"), ("my wife is not breathing", "Call 911 now."),
+                           ("help my baby is choking", "Call 911 now."), ("I think I am having a heart attack", "Call 911 now."),
+                           ("my dad fell and can't get up", "Call 911 now."), ("there is a fire in my kitchen", "call 911"),
+                           ("I smell gas", "Leave the house now."), ("I took too many pills", "988")):
+            got = voice._interpret(said)
+            self.assertIn(want, got["say"], said)
+            self.assertEqual(got["command"]["kind"], "note", said)
+
+    def test_ordinary_sentences_are_not_emergencies(self):
+        for said in ("my son ate pizza", "I ate too much", "my wife took my car", "the fire alarm is beeping"):
+            self.assertIsNone(voice._emergency(said.lower()), said)
+
+
 if __name__ == "__main__":
     unittest.main()
