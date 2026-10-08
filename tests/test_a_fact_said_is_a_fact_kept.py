@@ -12093,5 +12093,11 @@ class RemindersThatWentOff(unittest.TestCase):
             self.assertEqual(quick.answer("what did you remind me about today"), "Nothing yet today - no reminder has gone off.")
 
 
+class HowHeGotThere(unittest.TestCase):
+    def test_the_bus_he_took_is_kept(self):
+        for said in ("I took the bus today", "I took an Uber to the airport"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+
+
 if __name__ == "__main__":
     unittest.main()
