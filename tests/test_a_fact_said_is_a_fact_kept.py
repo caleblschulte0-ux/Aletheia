@@ -11355,5 +11355,28 @@ class AWeddingHeIsGoingTo(unittest.TestCase):
             self.assertIsNone(quick.answer("where is Jake registered"))
 
 
+class ThePets(unittest.TestCase):
+    """2026-10-08: "we are getting a puppy" and "the puppy is named Max" went
+    to the planner, "who is my vet" and "how long did I walk the dog this
+    week" to a model, and "the groomer is on Saturday at 9" was a note."""
+
+    def test_said(self):
+        self.assertIn("puppy", voice._interpret("we are getting a puppy")["say"])
+        self.assertEqual(voice._interpret("the puppy is named Max")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("the dog is sick") or {}).get("command", {}).get("kind"), "note")
+        held = voice._interpret("the groomer is on Saturday at 9")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "groomer appointment"))
+
+    def test_read(self):
+        import datetime as dt
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I walked the dog for 30 minutes", "ts": ts}, {"text": "my vet is Dr Patel", "ts": ts},
+                 {"text": "the puppy is named Max", "ts": ts}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how long did I walk the dog this week"), "30 minutes this week, from what you've told me.")
+            self.assertEqual(quick.answer("who is my vet"), "Your vet is Dr Patel.")
+            self.assertIn("Max", quick.answer("what is the puppy's name"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9361,9 +9361,14 @@ def _interpret(transcript: str) -> dict:
         # at 2", said the other way round.
         mine = re.fullmatch(r"(?:my|the|our) (?P<what>[a-z][a-z' ]{1,40}?) (?:is|'s) (?P<when>.{3,40})", low)
         if (mine and re.search(r"\b(?:appointment|appt|meeting|interview|call|lunch|dinner|class|game|flight|haircut"
-                               r"|checkup|check-up|surgery|exam|recital|practice)\b", mine.group("what"))
+                               r"|checkup|check-up|surgery|exam|recital|practice"
+                               # "The groomer is on Saturday at 9" (2026-10-08: a note).
+                               r"|groomer|grooming|vet|party|wedding|shower|concert|playdate|sleepover|rehearsal)\b", mine.group("what"))
                 and re.search(r"\d|" + _cal_days, mine.group("when"))):
-            again = _interpret(f"i have a {mine.group('what')} {mine.group('when')}")
+            what = mine.group("what")
+            if re.fullmatch(r"(?:[a-z]+'s )?(?:groomer|vet)", what):
+                what += " appointment"
+            again = _interpret(f"i have a {what} {mine.group('when')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
                 return again
     # "Book 30 minutes with Sam at 4", "schedule a call with Dana tomorrow
@@ -10570,6 +10575,13 @@ def _interpret(transcript: str) -> dict:
                 "say": "That's an honor - congratulations." if m.group("role") != "pallbearer" else "I'm sorry. That's a kind thing to be asked to do."}
     if re.fullmatch(r"my (?:speech|toast|talk|presentation|eulogy|reading) (?:is|has to be|should be|needs to be) (?:about |under |less than |no more than )?\d{1,2} minutes?(?: long)?", low) \
             or re.fullmatch(r"(?:[a-z]{2,15}|my [a-z]{2,15}|they|we) (?:(?:is|are) )?registered (?:at|on|with) [a-z][a-z&' -]{1,30}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "We're getting a puppy", "the puppy is named Max" (2026-10-08: to the
+    # planner).
+    m = re.fullmatch(r"(?:we'?re|we are|i'?m|i am) (?:getting|adopting|bringing home) (?:a|an|another) (?P<pet>puppy|kitten|dog|cat|bunny|rabbit|hamster|guinea pig|parrot|bird|fish|turtle|lizard|horse)(?: (?:on |this |next |in )?[a-z0-9 ]{2,20})?", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"How exciting - a {m.group('pet')}!"}
+    if re.fullmatch(r"(?:the|our|my|his|her) (?:new )?(?:puppy|kitten|dog|cat|bunny|rabbit|hamster|guinea pig|parrot|bird|fish|turtle|lizard|horse)(?:'s name)? (?:is named|is called|'s name is|is) (?!(?:sick|old|young|hungry|tired|due|on|at|in|out|home|here|gone|fine|okay|ok|missing|lost|scared|sleeping|outside|inside)\b)[a-z][a-z']{1,15}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"

@@ -731,7 +731,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"sister|brother|mom|mother|dad|father|wife|husband|partner|girlfriend|boyfriend|roommate|"
         r"neighbou?r|best friend|emergency contact|recruiter"
         # "Who is my professor" (2026-10-08: to a model).
-        r"|professor|[a-z]+ professor|advisor|adviser|academic advisor|[a-z]+ teacher|teacher|tutor|counselor|principal)\s*\??$")),
+        r"|professor|[a-z]+ professor|advisor|adviser|academic advisor|[a-z]+ teacher|teacher|tutor|counselor|principal"
+        # "Who is my vet" (2026-10-08: to a model).
+        r"|vet|veterinarian|groomer|dog walker|pediatrician|chiropractor|optometrist|eye doctor|dermatologist|pharmacist|babysitter|nanny)\s*\??$")),
     # "How many opportunities are you working on" came back from her own
     # model as "opportunity tracking is experimental for me right now, not
     # something I run live yet" - while forty of them sat in her store.
@@ -2281,7 +2283,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: to a model).
     ("minutes_did", re.compile(r"^how (?:long|many minutes|many hours|much time) (?:did|have) i (?:spent? )?(?P<minutes_did>meditat(?:e|ed|ing)|read(?:ing)?"
                                r"|stretch(?:ed|ing)?|practi[cs](?:e|ed|ing)|stud(?:y|ied|ying)|walk(?:ed|ing)?|do(?:ne)? yoga|did yoga|exercis(?:e|ed|ing)"
-                               r"|work(?:ed)? out|play(?:ed|ing)? (?:the )?[a-z]+|clean(?:ed|ing)?)(?: (?P<md_obj>(?!today\b|this\b|yesterday\b|for\b)[a-z]{3,15}))?"
+                               r"|work(?:ed)? out|play(?:ed|ing)? (?:the )?[a-z]+|clean(?:ed|ing)?)(?: (?:the |my )?(?P<md_obj>(?!today\b|this\b|yesterday\b|for\b)[a-z]{3,15}))?"
                                r"(?P<md_when> today| this week| yesterday)?\s*\??$")),
     # "What happened with my claim", "what am I waiting on", "when was the
     # furnace last serviced" (2026-10-08: all to a model).
@@ -15253,7 +15255,7 @@ def _minutes_did(text: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).casefold()
         obj = str(g.get("md_obj") or "")
-        filler = rf" (?:my |some )?{re.escape(obj)}" if obj else r"(?: [a-z ]{1,20}?)?"
+        filler = rf" (?:my |some |the )?{re.escape(obj)}" if obj else r"(?: [a-z ]{1,20}?)?"
         m = re.match(rf"i (?:just )?{past}{filler} for (?:about |around )?(\d+(?:\.\d+)?|an?|half an) (minutes?|mins?|hours?|hrs?)\b", said)
         if not m:
             continue
