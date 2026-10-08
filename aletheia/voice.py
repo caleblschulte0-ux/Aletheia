@@ -3661,6 +3661,8 @@ def _interpret(transcript: str) -> dict:
     # and the last one refused as SPENDING). It goes on the list; buying
     # it stays his. Anything that starts with a verb is not a thing.
     m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?:the |some )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         # "I used the last of the milk" (2026-10-08: to the planner)
+         or re.fullmatch(r"(?:i|we) (?:just )?(?:used|finished|ate|drank|had) (?:up )?the last of (?:the |our |my )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
     # "I need to pick up my prescription tomorrow" was put on the shopping
@@ -3677,7 +3679,10 @@ def _interpret(transcript: str) -> dict:
             r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
             r"this (?:morning|afternoon|evening|week)|next week|at \d|by \d)\b", m.group("item"))):
         m = None
-    if m and not _TASK_VERB.match(m.group("item")) \
+    # "A new phone charger" is a thing, though "phone" can be a verb (2026-10-08)
+    if m and not (_TASK_VERB.match(m.group("item")) and not re.match(
+            r"(?:phone|ring|text|paint|file|water|wash|clean|print) (?:charger|case|cable|cord|stand|mount|holder|screen protector"
+            r"|light|book|books|brush|brushes|folder|folders|bottle|bottles|filter|cloth|wipes|supplies|paper|cartridge|ink)s?\b", m.group("item"))) \
             and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
                              r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
                              r"idea|ideas|plan|answer|answers|space|quiet|coffee break|drink|win|friend|friends|"

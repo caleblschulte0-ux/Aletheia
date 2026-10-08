@@ -1083,8 +1083,10 @@ class ASpokenListHasNoCommas(unittest.TestCase):
         self.assertEqual(intercom.shopping_items_of("milk eggs and bread"), ["milk", "eggs", "bread"])
         self.assertEqual(intercom.shopping_items_of("eggs milk butter and cheese"),
                          ["eggs", "milk", "butter", "cheese"])
-        for one in ("salt and vinegar chips", "oat milk and eggs", "peanut butter eggs and bread"):
+        for one in ("salt and vinegar chips", "peanut butter eggs and bread"):
             self.assertEqual(len(intercom.shopping_items_of(one)), 1, one)
+        # a two-word name before "and" ends there (2026-10-08): never "oat", "milk"
+        self.assertEqual(intercom.shopping_items_of("oat milk and eggs"), ["oat milk", "eggs"])
         self.assertEqual(voice.interpret("add milk eggs and bread to my list")["command"]["kind"], "shopping_add")
 
 
@@ -6396,6 +6398,22 @@ class TheYearHeWasBorn(unittest.TestCase):
         with mock.patch.object(quick, "_birthday_on_file", return_value=(3, 3, None)):
             self.assertIn("but not the year", quick.answer("what year was I born"))
             self.assertIn("can't say how old", quick.answer("how old am I"))
+
+
+
+class ShoppingSaidTheWayHeSaysIt(unittest.TestCase):
+    """2026-10-08: "I need a new phone charger", "add paper towels and dish
+    soap" and "I used the last of the milk" went to the planner."""
+
+    def test_things_said_as_needs(self):
+        from aletheia import intercom
+        self.assertEqual(voice._interpret("I need a new phone charger")["command"], {"kind": "shopping_add", "item": "phone charger"})
+        self.assertEqual(voice._interpret("I used the last of the milk")["command"], {"kind": "shopping_add", "item": "milk"})
+        self.assertEqual(voice._interpret("I need to call mom")["command"]["kind"], "task_new")
+        self.assertEqual(intercom.shopping_items_of("paper towels and dish soap"), ["paper towels", "dish soap"])
+        self.assertEqual(intercom.shopping_items_of("salt and vinegar chips"), ["salt and vinegar chips"])
+        self.assertEqual(voice._interpret("add paper towels and dish soap")["command"]["kind"], "shopping_add")
+
 
 
 if __name__ == "__main__":

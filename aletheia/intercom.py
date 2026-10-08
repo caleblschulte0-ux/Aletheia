@@ -2114,6 +2114,13 @@ def shopping_items_of(said: str) -> list[str]:
         run = parts[0].split()
         if len(run) >= 2 and all(w.casefold() in GROCERY_WORDS for w in run):
             return run + [parts[1]]
+    # "Paper towels and dish soap", "paper towels and milk" (2026-10-08: to
+    # the planner as one thing): a name runs on AFTER its "and" ("salt and
+    # vinegar chips"), so a side that is already two words before it ends.
+    # Only a two-word side: "peanut butter eggs and bread" is not sure enough.
+    if len(parts) >= 2 and len(re.sub(r"^(?:a|an|some|the|my) ", "", parts[0], flags=re.IGNORECASE).split()) == 2 \
+            and all(len(p.split()) <= 3 for p in parts):
+        return parts
     return [text]
 
 
