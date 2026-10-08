@@ -2913,6 +2913,19 @@ def _interpret(transcript: str) -> dict:
     # planner) is "I need to bring snacks Saturday": remembering is her job.
     low = re.sub(r"^(i (?:need|have|got|gotta|must|should)(?: to)? |i've got to )(?:remember to |not forget to )", r"\1", low)
     low = re.sub(r"^(?:don't let me forget|i can't forget) to ", "i need to ", low)
+    # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
+    # planner). The same rule: his whole list is not one sentence's to undo.
+    # FIRST, before any rule that finds one task by its words: with two
+    # open tasks "delete all my tasks" dropped one of them (2026-10-08).
+    if re.fullmatch(r"(?:delete|remove|clear|wipe|cancel|drop) (?:all|every one of|everything on) (?:of )?(?:my |the )?"
+                    r"(?:tasks|to[- ]?dos?|task list|to[- ]?do list)|(?:clear|wipe|empty) (?:my |the )?(?:task list|to[- ]?do list|tasks)"
+                    r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?"
+                    r" (?:as )?(?:done|complete|completed|finished)"
+                    r"|(?:check|tick|cross) off (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)"
+                    r"(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?", low):
+        return {"command": None,
+                "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
+                       "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
     # "Test", "mic check", "is my computer on", "what's my phone's battery"
     # (2026-10-07: all to a model). The first two are him checking she hears;
     # she runs on the PC, so answering at all says it is on; his phone's
@@ -8740,17 +8753,6 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I won't forget everything about you on one sentence. Say \"what do you know about me\", "
                        "then \"forget\" and the thing, one at a time."}
-    # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
-    # planner). The same rule: his whole list is not one sentence's to undo.
-    if re.fullmatch(r"(?:delete|remove|clear|wipe|cancel|drop) (?:all|every one of|everything on) (?:of )?(?:my |the )?"
-                    r"(?:tasks|to[- ]?dos?|task list|to[- ]?do list)|(?:clear|wipe|empty) (?:my |the )?(?:task list|to[- ]?do list|tasks)"
-                    r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?"
-                    r" (?:as )?(?:done|complete|completed|finished)"
-                    r"|(?:check|tick|cross) off (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)"
-                    r"(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?", low):
-        return {"command": None,
-                "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
-                       "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
     # "Note to self buy stamps" kept "to self buy stamps" (2026-10-07).
     m = re.match(r"(?:(?:make a |take a |a )?note to (?:my)?self(?: that)?|make a note(?: that| of| to(?! (?:my)?self)|:)?|take a note(?: that|:)?|jot down(?: that)?|"
                  # "Write a note that the car needs oil" (2026-10-07: to the planner).

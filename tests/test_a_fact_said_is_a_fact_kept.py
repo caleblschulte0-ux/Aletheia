@@ -7025,6 +7025,18 @@ class HowMuchAdvil(unittest.TestCase):
             self.assertIn("I took 2 pills", quick.answer("how many pills have I taken today"))
 
 
+class TheWholeListIsNotOneSentence(unittest.TestCase):
+    """2026-10-08: with two open tasks, "delete all my tasks" dropped one."""
+
+    def test_refused_before_any_task_is_found_by_its_words(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_task", return_value=({"id": "t1", "description": "call bob"}, "")):
+            for said in ("delete all my tasks", "clear my task list", "mark everything done"):
+                got = voice._interpret(said)
+                self.assertIsNone(got["command"], said)
+                self.assertIn("whole task list", got["say"], said)
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
