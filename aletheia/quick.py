@@ -11376,6 +11376,28 @@ def _until_work(at: str, which: str, said: str) -> str | None:
     return f"{gap[:1].upper() + gap[1:]} - you {'get off' if off else 'start'} at {clock}{day}."
 
 
+def _commute_told(leaving: bool) -> str | None:
+    """Half of the commute sum, when half is all he gave (2026-10-08: "my
+    commute is 25 minutes" then "how long is my commute" asked where work
+    is). None when he said neither."""
+    start = commute = None
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold()
+        start = start or _START_NOTE.match(low)
+        commute = commute or _COMMUTE_NOTE.match(low)
+    if commute:
+        minutes = int(commute.group("n")) * (60 if commute.group("u").startswith("hour") else 1)
+        if not leaving:
+            return (f"About {minutes} minutes, you told me. Say \"work is at\" and the address and I'll time it "
+                    "with traffic.")
+        return (f"You told me your commute is about {minutes} minutes, but not when you start. "
+                "Say \"I start work at 9\" and I'll work it out.")
+    if start and leaving:
+        return (f"You start at {start.group('at').strip()}, but I don't know how long the trip is. "
+                "Say \"my commute is 25 minutes\" and I'll work it out.")
+    return None
+
+
 def _leave_for_work() -> str | None:
     """When to leave, from his own notes: the start time less the commute.
     None unless he told her both - half of it is not an answer."""

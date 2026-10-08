@@ -3203,7 +3203,7 @@ class HisWorkDay(unittest.TestCase):
             self.assertTrue(voice._interpret("when should I leave for work")["say"].startswith("By 8:30 am - you start at 9"))
         with mock.patch.object(quick, "_notes", return_value=notes[:1]), \
                 mock.patch.object(voice, "_known_place", return_value=None):
-            self.assertIn("where work is", voice._interpret("when should I leave for work")["say"])
+            self.assertIn("how long the trip is", voice._interpret("when should I leave for work")["say"])
 
 
 class MonthsInOtherYears(unittest.TestCase):
@@ -7453,6 +7453,26 @@ class SnoozeBeforeItGoesOff(unittest.TestCase):
         turns = [{"he_asked": "remind me in 20 minutes to check the oven"}, {"he_asked": "snooze that"}]
         with mock.patch.object(converse, "recent", return_value=turns):
             self.assertEqual(voice._recent_ask_of("remind_at", "text").get("text"), "check the oven")
+
+
+class HalfTheCommute(unittest.TestCase):
+    """2026-10-08: with only "my commute is 25 minutes" said, "how long is
+    my commute" asked where work is."""
+
+    def _notes(self, *texts):
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"text": t, "ts": ts} for t in texts]
+
+    def test_the_commute_alone(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("my commute is 25 minutes")), \
+                mock.patch.object(voice, "_known_place", return_value=None):
+            self.assertIn("About 25 minutes", voice.interpret("thea how long is my commute")["say"])
+            self.assertIn("not when you start", voice.interpret("thea when should I leave for work")["say"])
+
+    def test_the_start_alone(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I start work at 9")), \
+                mock.patch.object(voice, "_known_place", return_value=None):
+            self.assertIn("how long the trip is", voice.interpret("thea when should I leave for work")["say"])
 
 
 def _needs_today_to_hold(case, span):

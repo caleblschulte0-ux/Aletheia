@@ -6207,6 +6207,11 @@ def _interpret(transcript: str) -> dict:
             told = quick._leave_for_work()
             if told:
                 return {"command": None, "say": told}
+        from aletheia import quick
+        half = quick._commute_told(low.startswith("when should i leave")) \
+            if re.match(r"when should i leave|how long (?:is|will be|'s) (?:my|the) commute", low) else None
+        if half:
+            return {"command": None, "say": half}
         # "How long is my commute" with no work on file (2026-10-07: to a
         # model, which knows no better). The one thing that would let her.
         return {"command": None, "say": "I don't know where work is. Say \"work is at\" and the address, "
