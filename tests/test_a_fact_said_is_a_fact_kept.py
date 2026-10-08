@@ -5709,5 +5709,26 @@ class HowFarIsMyMomsHouse(unittest.TestCase):
         self.assertIn("I don't know where your sister's house is", said)
 
 
+class WhatSomeoneLikes(unittest.TestCase):
+    """2026-10-07: "Sam likes coffee" went to the planner, and "I'm proud of
+    myself" was answered "Noted."."""
+
+    def test_kept_and_read_back(self):
+        for said in ("Sam likes coffee", "my mom loves tulips", "my mom hates cilantro"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        for said in ("he likes it", "who likes pizza", "everyone loves a parade"):
+            self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "note", said)
+        rows = [{"text": t, "ts": "2026-10-07T12:00:00+00:00"} for t in ("my mom hates cilantro", "my mom loves tulips", "Sam likes coffee")]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what does my mom like"), "You told me: your mom loves tulips.")
+            self.assertEqual(quick.answer("what does my mom hate"), "You told me: your mom hates cilantro.")
+            self.assertIsNone(quick._their_likes("what does jess like"))
+
+    def test_proud_gets_a_word_back(self):
+        out = voice._interpret("I'm proud of myself")
+        self.assertEqual(out["command"]["kind"], "note")
+        self.assertIn("You should be", out["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

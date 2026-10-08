@@ -381,6 +381,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who is Dana" (2026-10-07: to the planner) - her contact card and his
     # notes about them. Neither found is NOT "nobody": it may be someone
     # famous, so it goes on to a model.
+    # "What does Sam like" (2026-10-07: to a model, after "Sam likes coffee").
+    ("their_likes", re.compile(
+        r"^what (?:does|do) (?P<tl_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20}) (?P<tl_verb>like|love|hate|enjoy|collect|not like)"
+        r"(?: (?:to (?:eat|drink|do))| best| most)?\s*\??$")),
     ("their_fact", re.compile(
         r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
         r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
@@ -2368,7 +2372,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11097,6 +11101,29 @@ def _job_since(text: str) -> str | None:
     return None
 
 
+def _their_likes(text: str) -> str | None:
+    """"What does Sam like": his notes saying what someone likes or
+    doesn't. None when there are none - a model may know them better."""
+    from aletheia import speech
+    g = _groups("their_likes", text)
+    who = " ".join(str(g.get("tl_who") or "").casefold().split())
+    if not who:
+        return None
+    hate = g.get("tl_verb") in ("hate", "not like")
+    verbs = (r"(?:hates|doesn'?t like|does not like|can'?t stand)" if hate
+             else r"(?:really |also )?(?:likes|loves|adores|prefers|enjoys|is into|is obsessed with|is a fan of|collects)")
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.fullmatch(r"(?:my |our )?" + re.escape(re.sub(r"^(?:my|our) ", "", who)) + r" " + verbs + r" .+", said, re.IGNORECASE):
+            hers = speech.as_she_says_it(said).rstrip(".")
+            if hers.casefold() not in (f.casefold() for f in found):
+                found.append(hers)
+    if not found:
+        return None
+    return "You told me: " + speech.and_list(found[:4]) + "."
+
+
 def _work_at() -> str | None:
     """"Where do I work": the note he made saying so. Nothing kept is left
     to whatever else might know (his profile), never answered "no"."""
@@ -11556,6 +11583,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "role_said": lambda text: _role_said(text),
            "loan_left": lambda text: _loan_left(text),
            "job_since": lambda text: _job_since(text),
+           "their_likes": lambda text: _their_likes(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),

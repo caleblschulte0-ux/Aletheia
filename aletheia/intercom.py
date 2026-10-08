@@ -4122,7 +4122,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 said = None
             if said:
                 return said
-            return f"I don't have anything remembered about {str(about).strip()}."
+            # "about my mom" is "about your mom" in her mouth (2026-10-07).
+            return f"I don't have anything remembered about {re.sub(r'^my ', 'your ', str(about).strip())}."
         return "; ".join(found[:4])
     if kind == "brief":
         from aletheia import brief, journal as _j, pulse as _p

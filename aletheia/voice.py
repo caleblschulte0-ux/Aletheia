@@ -7862,8 +7862,26 @@ def _interpret(transcript: str) -> dict:
                      r"|(?P<proud>i'?m (?:really |so )?proud (?:of (?!you\b|your\b)|that )[a-z].{2,150})", low)
     if m:
         entry = m.group("entry") or m.group("day") or m.group("proud")
+        # "I'm proud of myself" was answered "Noted." (2026-10-07): a
+        # feeling said out loud gets a word back, and still goes in.
+        say = None
+        if m.group("proud"):
+            say = "You should be. I've put it in your journal."
+        elif m.group("day") and re.search(r"\b(?:bad|rough|hard|tough|awful|terrible|long)\b", m.group("day")):
+            say = "Sorry it was a rough one. I've put it in your journal."
+        elif m.group("day") and re.search(r"\b(?:good|great|amazing|fun|productive|nice)\b", m.group("day")):
+            say = "Glad to hear it. I've put it in your journal."
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, entry)},
-                "say": None}
+                "say": say}
+    # WHAT SOMEONE LIKES (2026-10-07: "Sam likes coffee", "my mom loves
+    # tulips" went to the planner). A note in his words, read back by "what
+    # does Sam like" - and by "what did I tell you about Sam".
+    m = re.fullmatch(r"(?P<who>(?:my |our )?[a-z][a-z']{1,20}) (?:really |also )?(?:likes|loves|hates|adores|prefers|enjoys"
+                     r"|doesn'?t like|does not like|can'?t stand|is into|is obsessed with|is a fan of|collects) (?P<what>[a-z0-9].{1,60})", low)
+    if m and m.group("who") not in ("he", "she", "it", "this", "that", "who", "what", "everyone", "everybody", "nobody",
+                                    "somebody", "someone", "thea", "you", "one", "which", "anyone", "anybody") \
+            and not low.endswith("?") and not re.match(r"(?:what|who|which)\b", m.group("what")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # MONEY BETWEEN PEOPLE (2026-10-07: "I owe Sam 20 dollars", "Sam paid me
     # back" each to the planner). Said as a fact, it is a note in his words;
     # "who do I owe" adds the notes up. Nothing here moves any money.
