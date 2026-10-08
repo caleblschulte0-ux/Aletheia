@@ -3800,7 +3800,16 @@ def _birthday_on_file():
     month = next((i + 1 for i, name in enumerate(_MONTHS) if name.startswith(month[:3])), None)
     if not month:
         return None
-    return month, int(day), int(m.group(3)) if m.group(3) else None
+    year = int(m.group(3)) if m.group(3) else None
+    if year is None:
+        # "I was born in 1995" said on its own, beside a birthday with no year.
+        try:
+            from aletheia import memory
+            told = re.fullmatch(r"\s*((?:19|20)\d\d)\s*", str(memory.recall("identity", "birth_year") or ""))
+            year = int(told.group(1)) if told else None
+        except Exception:
+            year = None
+    return month, int(day), year
 
 
 

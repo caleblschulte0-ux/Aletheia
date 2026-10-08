@@ -5977,6 +5977,20 @@ def _interpret(transcript: str) -> dict:
         if (field == "email") == ("@" in m.group("value") or " at " in m.group("value")):
             return {"command": {"kind": "contact_add", "name": _as_he_said(transcript, m.group(1)).strip(),
                                 field: m.group("value").strip().rstrip(".")}, "say": None}
+    # "I was born in 1995" (2026-10-08: to the planner). The year joins the
+    # birthday he gave without one; on its own it is kept as the year.
+    m = re.fullmatch(r"i was born in (?:the year )?((?:19|20)\d\d)", low)
+    if m:
+        try:
+            from aletheia import memory
+            day = str(memory.recall("identity", "birthday") or "").strip()
+        except Exception:
+            day = ""
+        if day and not re.search(r"\b\d{4}\b", day):
+            return {"command": {"kind": "remember", "domain": "identity", "key": "birthday",
+                                "value": f"{day}, {m.group(1)}"}, "say": None}
+        return {"command": {"kind": "remember", "domain": "identity", "key": "birth_year",
+                            "value": m.group(1)}, "say": None}
     # "MY BIRTHDAY IS MARCH 3RD 1995" (2026-10-07: to the planner). One
     # fact about him, kept in her memory, read by "how old am I".
     m = re.fullmatch(r"(?:my birthday is|my birthday's|i was born on|i was born|my date of birth is|my dob is) "

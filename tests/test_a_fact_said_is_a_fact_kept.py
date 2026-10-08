@@ -7773,5 +7773,19 @@ class WhatBillsDoIHave(unittest.TestCase):
 
 
 
+class TheYearHeWasBornJoinsHisBirthday(unittest.TestCase):
+    def test_the_year_joins_a_birthday_without_one(self):
+        with mock.patch("aletheia.memory.recall", return_value="March 3"):
+            got = voice._interpret("I was born in 1995")["command"]
+        self.assertEqual(got["key"], "birthday")
+        self.assertEqual(got["value"], "March 3, 1995")
+
+    def test_on_its_own_it_is_kept_as_the_year(self):
+        with mock.patch("aletheia.memory.recall", return_value=None):
+            got = voice._interpret("I was born in 1990")["command"]
+        self.assertEqual((got["key"], got["value"]), ("birth_year", "1990"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

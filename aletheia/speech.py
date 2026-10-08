@@ -810,7 +810,7 @@ def spoken_receipt(kind: str, detail: str, *,
                     # "Got it - I'll remember your phone" (2026-10-08): the
                     # number said back is the one he can catch wrong.
                     "phone": "your phone number is {}", "email": "your email is {}",
-                    "address": "your address is {}"}.get(slot.group(2))
+                    "address": "your address is {}", "birth_year": "you were born in {}"}.get(slot.group(2))
             if value and said and len(value) <= 60:
                 if slot.group(2) == "birthday":
                     # "may 5 1995" as she says a date: "May 5, 1995".
