@@ -2340,6 +2340,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|how fast did i (?:run|do) (?:the |my |a )?(?:5k|10k|15k|half marathon|marathon|mile))\s*\??$")),
     ("fantasy", re.compile(r"^(?:how(?:'s| is) my fantasy (?:football |baseball |basketball |hockey )?(?:team|league)(?: doing)?|where is my fantasy (?:team|league)(?: in the standings)?"
                            r"|what place is my fantasy (?:team|league)(?: in)?)\s*\??$")),
+    # "What did I borrow from Bob", "how much do I pay the lawn guy", "when
+    # did the power go out", "is the power back" (2026-10-08: to a model).
+    ("borrowed_from", re.compile(r"^what (?:did|have) (?:i|we) borrow(?:ed)? from (?P<borrowed_from>[a-z][a-z' ]{1,30}?)\s*\??$")),
+    ("paid_who", re.compile(r"^how much (?:do|did|should) (?:i|we) (?:pay|give|tip) (?P<paid_who>(?:the|my|our) [a-z][a-z' ]{1,25}?)(?: each time| every time| per visit| a visit| last time)?\s*\??$")),
+    ("outage", re.compile(r"^(?:when did (?:the |our |my )(?P<outage>power|electricity|internet|wifi|wi-fi|water|hot water|heat|heating|ac|a/c|cable|gas) (?:go out|go down|go off|get cut off|come back(?: on)?|get fixed)"
+                          r"|is (?:the |our |my )(?P<outage2>power|electricity|internet|wifi|wi-fi|water|hot water|heat|heating|ac|a/c|cable|gas) (?:back(?: on| up)?|still out|still down|out|down|working|fixed|on))\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3254,7 +3260,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3274,7 +3280,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15740,6 +15746,78 @@ def _fantasy(_what: str = "") -> str | None:
     return None
 
 
+def _borrowed_from(who: str) -> str | None:
+    """What he has borrowed from one person and not given back."""
+    from aletheia import speech
+    who = re.sub(r"^(?:my|our) ", "", " ".join(str(who or "").casefold().split()))
+    if not who or who in ("them", "him", "her", "you", "it"):
+        return None
+    out: dict[str, str] = {}
+    for row in reversed(_notes()):
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?:my |our )?(?P<who>[a-z][a-z' ]{1,30})", low)
+        if m:
+            out[m.group("thing")] = m.group("who")
+            continue
+        back = re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )?(?P<thing>[a-z][a-z' ]{1,30}?)"
+                            r"(?: back)?(?: to [a-z][a-z' ]{1,30})?", low)
+        if back:
+            out.pop(back.group("thing"), None)
+    things = [f"the {thing}" for thing, whom in out.items() if whom == who]
+    if not things:
+        return f"Nothing from {who.title()} that you've told me about."
+    return f"You have {speech.and_list(things)} from {who.title()}, from what you've told me."
+
+
+def _paid_who(who: str) -> str | None:
+    """What he said he paid a person who does a job for him."""
+    from aletheia import speech
+    key = re.sub(r"^(?:the|my|our) ", "", " ".join(str(who or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:i|we) (?:paid|tipped|gave) (?:the |my |our )?{re.escape(key)} \$?\d[\d,.]*(?: dollars| bucks)?(?: [a-z ]{{1,25}})?", said, re.I):
+            return f"You told me {speech.as_she_says_it(_no_when(re.sub(r'(?i)^i ', 'you ', re.sub(r'(?i)^we ', 'you ', said))))}."
+    return None
+
+
+def _outage(text: str) -> str | None:
+    """When he said the power (or the internet) went out, and whether he
+    said it came back. None when he never said either."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("outage", text)
+    what = (g.get("outage") or g.get("outage2") or "").casefold()
+    same = {"electricity": "power", "wi-fi": "wifi", "heating": "heat", "a/c": "ac"}
+    what = same.get(what, what)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        m = re.match(r"(?:the |our |my )(?P<w>[a-z/ -]+?) (?P<how>went out|is out|went down|is down|is off|got cut off|got shut off|was cut off|was shut off"
+                     r"|is back|came back|is working again|is on again|is fixed)", low)
+        if not m or same.get(m.group("w"), m.group("w")) != what:
+            continue
+        back = m.group("how") in ("is back", "came back", "is working again", "is on again", "is fixed")
+        when = ""
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+            when = " " + speech.humanize_time(at.astimezone(localtime.operator_tz()).isoformat())
+        except Exception:  # noqa: BLE001
+            when = ""
+        noun = "the " + what if what not in ("ac",) else "the AC"
+        if re.match(r"is ", _tidy(text)):
+            if back:
+                return f"Yes - you told me {noun} came back{when}."
+            return f"Not that you've told me. You said {noun} went out{when}."
+        if re.search(r"come back|get fixed", _tidy(text)):
+            return f"You told me {noun} came back{when}." if back else f"You haven't told me it came back. You said it went out{when}."
+        if back:
+            continue
+        return f"You told me {noun} went out{when}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16550,6 +16628,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "borrowed_from": _borrowed_from,
+           "paid_who": _paid_who,
+           "outage": _outage,
            "game_score": _game_score,
            "big_fish": _big_fish,
            "race_time": _race_time,

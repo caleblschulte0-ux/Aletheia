@@ -10234,5 +10234,34 @@ class TheScoresHeKeeps(unittest.TestCase):
             self.assertIsNone(quick.answer("what did I shoot at golf"))
 
 
+class NeighborsAndTheHouse(unittest.TestCase):
+    """A sweep of neighborhood sentences (2026-10-08)."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("my neighbor Bob lent me his ladder")["command"],
+                         {"kind": "note", "text": "I borrowed a ladder from Bob"})
+        self.assertEqual(voice._interpret("my neighbor lent me his ladder")["command"]["text"], "I borrowed a ladder from my neighbor")
+        for said in ("the power went out", "the power is back", "the internet is down", "my neighbors dog keeps barking"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        for said in ("the wifi password is sunshine22", "my password is hunter2"):
+            self.assertIsNone(voice._interpret(said)["command"], said)
+            self.assertEqual(voice._interpret(said)["say"], voice._NO_PASSWORDS, said)
+        self.assertNotEqual(voice._interpret("my password is wrong")["say"], voice._NO_PASSWORDS)
+        self.assertNotEqual(voice._interpret("he lent me his car")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "the power went out", "ts": "2026-10-08T14:00:00+00:00"}, {"text": "the power is back"},
+                {"text": "I paid the lawn guy 40"}, {"text": "I gave the drill back to Sam"}, {"text": "I borrowed a drill from Sam"},
+                {"text": "I borrowed a ladder from Bob"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what did I borrow from Bob"), "You have the ladder from Bob, from what you've told me.")
+            self.assertEqual(quick.answer("what did I borrow from Sam"), "Nothing from Sam that you've told me about.")
+            self.assertEqual(quick.answer("how much do I pay the lawn guy"), "You told me you paid the lawn guy 40.")
+            self.assertRegex(quick.answer("when did the power go out"), r"^You told me the power went out .+\.$")
+            self.assertRegex(quick.answer("is the power back"), r"^Not that you've told me\. You said the power went out .+\.$")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the power is back"}, {"text": "the power went out"}]):
+            self.assertEqual(quick.answer("is the power back"), "Yes - you told me the power came back.")
+
+
 if __name__ == "__main__":
     unittest.main()

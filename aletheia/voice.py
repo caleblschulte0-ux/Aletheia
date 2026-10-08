@@ -9253,6 +9253,11 @@ def _interpret(transcript: str) -> dict:
     # one shape of it the fact rule did not know). She does not keep them.
     if re.fullmatch(r"(?:my |the |our )?(?:[a-z]+ )?pass(?:word|code|phrase) (?:for|to|on|at) (?:my |the )?[a-z0-9 .'-]{2,30}? (?:is|=) \S.*", low):
         return {"command": None, "say": _NO_PASSWORDS}
+    # "The wifi password is sunshine22", "my password is hunter2" (2026-10-08:
+    # to the planner). "My password is wrong" is a complaint, not one.
+    if re.fullmatch(r"(?:my |the |our )?(?:[a-z]+ )?pass(?:word|code|phrase) (?:is|=) (?!(?:wrong|not|incorrect|locked|too|bad|weak|old|different|the same|changed|reset|expired"
+                    r"|broken|invalid|missing|forgotten|lost|on|in|written|somewhere|saved|stored)\b)\S+", low):
+        return {"command": None, "say": _NO_PASSWORDS}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.
@@ -10341,6 +10346,30 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:groceries|gas|everything|food|eggs|rent|prices) (?:are|is) (?:so |really |crazy |too )?(?:expensive|pricey|high)(?: now| these days| lately| right now)?", low):
         return {"command": None, "say": "I know - it adds up. If you tell me what you spend, I'll keep the running total."}
+    # "My neighbor Bob lent me his ladder" (2026-10-08: to the planner) is
+    # a thing he borrowed, kept the way "what have I borrowed" reads it.
+    m = re.fullmatch(r"(?P<who>(?:my |our )?(?:neighbou?r|friend|brother|sister|dad|mom|boss|coworker|cousin|uncle|aunt)(?: [a-z][a-z'-]{1,20})?|[a-z][a-z'-]{1,20})"
+                     r" (?:lent|loaned|let) me (?:borrow )?(?:his |her |their |a |an |the |some )?(?P<thing>[a-z][a-z' ]{1,30}?)(?: for [a-z ]{2,20})?", low)
+    if m and m.group("who") not in ("he", "she", "they", "it", "you", "someone", "somebody", "nobody", "the bank", "who"):
+        who = m.group("who")
+        named = re.sub(r"^(?:my |our )?(?:neighbou?r|friend|brother|sister|dad|mom|boss|coworker|cousin|uncle|aunt) ", "", who)
+        if named != who and _said_as_a_title(text, named):
+            who = named
+        elif named != who:
+            who = re.match(r"(?:my |our )?[a-z]+", who).group(0)
+        if who == named and not who.startswith(("my ", "our ")) and not _said_as_a_title(text, who):
+            m = None
+        if m:
+            thing = m.group("thing")
+            art = "an" if thing[:1] in "aeiou" else "a"
+            return {"command": {"kind": "note", "text": f"I borrowed {art} {thing} from {_as_he_said(text, who)}"}, "say": None}
+    # "The power went out", "the internet is back", "my neighbor's dog
+    # keeps barking" (2026-10-08: all to the planner).
+    if re.fullmatch(r"(?:the |our |my )(?:power|electricity|internet|wifi|wi-fi|water|hot water|heat|heating|ac|a/c|air conditioning|cable|gas|phone service|cell service)"
+                    r" (?:went out|is out|went down|is down|is off|got cut off|got shut off|was cut off|was shut off|is back(?: on| up)?|came back(?: on)?|is working again|is on again|is fixed)"
+                    r"(?: again)?(?: today| tonight| this morning| last night)?", low) \
+            or re.fullmatch(r"(?:my |the |our )(?:[a-z]+(?:'s|s'|s) )?[a-z][a-z]{1,15}(?: [a-z]{2,15})? (?:keeps|won't stop|wont stop|will not stop) (?!it\b)[a-z]{3,15}ing(?: [a-z ]{1,25})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # Sports and the scores he keeps: "I have tickets to the Packers game on
     # Sunday", "our seats are section 112 row 8", "I bowled a 180 tonight",
     # "I shot an 89 at golf today", "I caught a 5 pound bass", "I ran a 5k in
