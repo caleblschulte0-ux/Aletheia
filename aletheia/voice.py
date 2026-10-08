@@ -10069,6 +10069,13 @@ def _interpret(transcript: str) -> dict:
                     r"|moved in together|started going out)(?: (?:my|our) (?:wife|husband|partner|girlfriend|boyfriend|fiancee?))?"
                     r" (?:in|on|back in) (?:" + _MONTH + r" )?(?:\d{1,2}(?:st|nd|rd|th)?,? )?(?:19|20)\d\d", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My daughter needs new shoes" (2026-10-08: to the planner) is
+    # something to get for her, on his list.
+    m = re.fullmatch(r"(?P<who>my (?:son|daughter|kid|kids|wife|husband|mom|dad|baby|dog|cat|boy|girl)|the (?:kids|baby|dog|cat))"
+                     r" (?:needs|need|could use) (?P<what>(?:a |an |some |new |more )+[a-z][a-z' ]{1,30}?)(?: for [a-z ]{2,20})?", low)
+    if m and not re.search(r"\b(?:help|to|attention|sleep|rest|a nap|a bath|a walk|me|you|him|her|them|space|time)\b", m.group("what")):
+        whom = m.group("who")
+        return _new_task(f"get {whom} {m.group('what')}")
     # "I got my W2", "I made 85000 last year" (2026-10-08: to the planner).
     if re.fullmatch(r"i (?:just |finally )?(?:got|received) (?:my |the |a |our )?(?:w-?2|1099|tax forms?|tax documents?|tax return|refund|tax refund"
                     r"|passport|new passport|license|new license|id|new id|green card|diploma|results|test results|lab results|paycheck|bonus|raise"

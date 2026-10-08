@@ -2197,6 +2197,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How much did I make last year" after "I made 85000 last year", and
     # "when are taxes due" (2026-10-08: both to a model).
     ("income_year", re.compile(r"^(?:how much (?:did i|money did i) (?:make|earn)|what was my (?:income|salary|pay)) (?P<income_year>last year|this year|in (?:19|20)\d\d)\s*\??$")),
+    # "How long are my parents staying", "what do I need to do before my
+    # sister comes", "what does my daughter need" (2026-10-08: to a model).
+    ("stay_len", re.compile(r"^how long (?:are|is|will) (?P<stay_len>(?:my |our |the )?[a-z][a-z' ]{1,30}?) (?:staying|be staying|here|in town|visiting|be here)(?: for)?\s*\??$")),
+    ("before_they", re.compile(r"^what (?:do i|else do i) (?:need|have) to do before (?P<before_they>(?:my |our |the )?[a-z][a-z' ]{1,30}?) (?:comes?|gets? here|arrives?|visits?|leaves?|starts?)\s*\??$")),
+    ("their_needs", re.compile(r"^what (?:does|do) (?P<their_needs>my [a-z]{2,15}|the kids|[a-z]{2,15}) (?:still )?need\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2757,7 +2762,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # the calendar's own words belong to the calendar's readers
         r"(?!(?:meetings?|calls?|appointments?|events?|calendar|schedule)\b)(?!.* (?:today|tomorrow|tonight|this week)\s*\??$)"
         r"(?P<when_note>[a-z][a-z' ]{1,25}?)"
-        r"(?: go out| come| happen| start| get picked up| picked up| collected| coming| coming over| arriving| here| day)?\s*\??$")),
+        r"(?: go out| come| happen| start| get picked up| picked up| collected| coming| coming over| arriving| here| day"
+        # "When is my sister visiting" (2026-10-08: to a model)
+        r"| visiting| coming to visit| coming to stay| getting here| flying in| leaving| going home)?\s*\??$")),
 )
 
 
@@ -3075,7 +3082,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -8600,6 +8607,10 @@ def _who_coming(when: str) -> str | None:
     when he names one. None when no note says so."""
     from aletheia import speech
     words = [w for w in re.findall(r"[a-z0-9']+", str(when or "").casefold()) if w not in ("the", "my", "our", "a")]
+    # "Who is visiting this month" (2026-10-08: a model) - a window is not
+    # a word his note has to say.
+    if words and set(words) <= {"this", "next", "week", "month", "weekend", "soon", "coming", "up"}:
+        words = []
     found = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
@@ -12207,6 +12218,17 @@ def _do_i_have(rest) -> str | None:
     for row in _notes():
         note = " ".join(str(row.get("text") or "").split())
         low = note.casefold()
+        # "The kids have a half day Friday" (2026-10-08: to the planner) is
+        # school without saying the word.
+        if a in _DAYS and set(words) & {"school", "class", "classes"} and re.search(r"\bhalf[- ]days?\b", low) \
+                and re.search(rf"\b{a}\b", low):
+            try:
+                noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                noted = None
+            if noted and 0 <= (targets[0] - noted).days < 7:
+                told = speech.as_she_says_it(note).rstrip(".")
+                return f"Yes, but only a half day - you told me {told[:1].lower()}{told[1:]}."
         if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             continue
         # "The kids have no school on Monday" (2026-10-08), said this week,
@@ -14259,6 +14281,42 @@ def _taxes_due(_text: str = "") -> str:
             f"{year}. A holiday can push it a day, so check the IRS site before you count on it.")
 
 
+def _stay_len(who: str) -> str | None:
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    key = re.sub(r"^(?:my|our|the) ", "", who)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(rf"\b{re.escape(key)}\b", said.casefold()) and re.search(
+                r"\b(?:staying|visiting|in town|coming)\b.*\b(?:for (?:a|an|one|two|three|four|five|\d+|a few|the) [a-z]+|until [a-z0-9 ]+|through [a-z0-9 ]+)", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _before_they(who: str) -> str | None:
+    from aletheia import intercom, speech
+    rows = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()
+            if re.search(r"\bbefore\b", str(t.get("description") or ""), re.I)]
+    key = re.sub(r"^(?:my|our|the) ", "", " ".join(str(who or "").casefold().split()))
+    rows = [r for r in rows if key and key in r.casefold()] or rows
+    if not rows:
+        return None
+    said = [re.sub(r"\bmy\b", "your", r) for r in rows[:5]]
+    return f"On your list: {speech.and_list(said)}."
+
+
+def _their_needs(who: str) -> str | None:
+    from aletheia import intercom, speech
+    who = " ".join(str(who or "").casefold().split())
+    key = re.sub(r"^my ", "", who)
+    rows = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()
+            if re.search(rf"\b{re.escape(key)}s?\b", str(t.get("description") or ""), re.I)]
+    if not rows:
+        return None
+    said = [re.sub(r"\bmy\b", "your", r) for r in rows[:5]]
+    return f"On your list: {speech.and_list(said)}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15066,6 +15124,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "stay_len": _stay_len,
+           "before_they": _before_they,
+           "their_needs": _their_needs,
            "income_year": _income_year,
            "taxes_due": _taxes_due,
            "undated_tasks": _undated_tasks,

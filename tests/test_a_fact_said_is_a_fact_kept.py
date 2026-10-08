@@ -9440,5 +9440,30 @@ class TaxesAndIncome(unittest.TestCase):
             self.assertIn("April 15", quick.answer("when are taxes due"))
 
 
+class FamilyComingAndGoing(unittest.TestCase):
+    """A sweep of family logistics, most to a model or the planner (2026-10-08)."""
+
+    def test_read(self):
+        from aletheia import intercom
+        rows = [{"text": "my sister is visiting on Saturday"}, {"text": "my parents are staying with us for a week"},
+                {"text": "the kids have a half day friday", "ts": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc).isoformat()}]
+        tasks_ = [{"description": "clean the guest room before my sister comes", "status": "OPEN", "id": "t1"},
+                  {"description": "get my daughter new shoes", "status": "OPEN", "id": "t2"}]
+        with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: tasks_):
+            self.assertIn("Saturday", quick.answer("when is my sister visiting") or "")
+            self.assertEqual(quick.answer("how long are my parents staying"),
+                             "You told me: your parents are staying with us for a week.")
+            self.assertEqual(quick.answer("what do I need to do before my sister comes"),
+                             "On your list: clean the guest room before your sister comes.")
+            self.assertEqual(quick.answer("what does my daughter need"), "On your list: get your daughter new shoes.")
+            self.assertIn("half day", quick.answer("do the kids have school friday") or "")
+
+    def test_a_need_is_a_task_and_a_bath_is_not_shopping(self):
+        self.assertEqual(voice._interpret("my daughter needs new shoes")["command"]["kind"], "task_new")
+        self.assertNotEqual(voice._interpret("the dog needs a bath")["command"]["kind"], "task_new")
+        self.assertNotEqual(voice._interpret("my son needs help")["command"]["kind"], "task_new")
+
+
 if __name__ == "__main__":
     unittest.main()
