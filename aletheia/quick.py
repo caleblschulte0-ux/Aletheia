@@ -2377,7 +2377,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("we_amt", re.compile(r"^how much did (?:we|i) (?P<we_amt>offer|bid|put in|sell (?:it|the house) for|list (?:it|the house) (?:at|for))(?: on (?:the|a) (?:house|condo|place))?\s*\??$")),
     # "What kind of milk do I buy", "what dog food do we use", "how many
     # cans of soup do I have", "what did I meal prep" (2026-10-08: to a model).
-    ("we_use", re.compile(r"^what (?:kind of |brand of |type of )?(?P<we_use>[a-z][a-z ]{1,20}?) (?:do|does) (?:i|we) (?:usually |always |normally )?(?:buy|get|use|drink|eat|feed (?:him|her|them|the dog|the cat))\s*\??$")),
+    ("we_use", re.compile(r"^(?:what|which) (?:kind of |brand of |type of )?(?P<we_use>[a-z][a-z ]{1,20}?) (?:do|does) (?:i|we) (?:usually |always |normally )?(?:buy|get|use|go to|shop at|bank with|see|drink|eat|feed (?:him|her|them|the dog|the cat))\s*\??$")),
     ("have_left", re.compile(r"^how many (?P<have_left>(?:cans|bags|boxes|bottles|rolls|packs|jars|cartons|pods|tubs) of [a-z][a-z ]{1,20}?|[a-z][a-z ]{1,20}?) (?:do i|do we) have(?: left)?\s*\??$")),
     ("meal_prep", re.compile(r"^what did i (?P<meal_prep>meal ?prep|prep|batch cook|cook for the week|make for the week)\s*\??$")),
     # "Whose wedding is it", "did I RSVP", "who am I bringing to the
@@ -2993,7 +2993,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # 2026-10-07, each to the planner.
         r"|^how much rain (?:is there going to be |will there be |are we getting |is coming )?(?:(?P<wm6>today|tonight|tomorrow))?$"
         r"|^what(?:'s| is|s) the chance of (?:rain|snow)(?: (?P<wm7>today|tonight|tomorrow))?$"
-        r"|^(?:is|will) it (?:be |going to be )?(?:windy|sunny|cloudy|humid|nice out|nice outside)(?: (?P<wm8>today|tonight|tomorrow))?$")),
+        r"|^(?:is|will) it (?:be |going to be )?(?:windy|sunny|cloudy|humid|nice out|nice outside)(?: (?P<wm8>today|tonight|tomorrow))?$"
+        # 2026-10-08, each to a model with the forecast one call away: the
+        # forecast is the answer, and he decides from it.
+        r"|^is (?:there )?a storm (?:coming|on the way)(?: (?P<wm9>today|tonight|tomorrow))?$"
+        r"|^is (?:it|(?P<wm12>today|tomorrow)) a good day (?:for|to) (?:a run|run|a walk|walk|a hike|hike|a bike ride|ride my bike|a picnic|the beach|the park|golf|mow(?:ing)?(?: the lawn)?|wash(?:ing)? (?:my|the) car)(?: (?P<wm10>today|tomorrow))?$"
+        r"|^should i (?:water the (?:lawn|grass|garden|plants|yard)|wash (?:my|the) car|mow (?:the lawn|the grass))(?: (?P<wm11>today|tonight|tomorrow))?$")),
     ("fun_fact", re.compile(r"^(?:tell me|give me|got|know) (?:a |another |any )?(?:fun |random |cool |interesting )?facts?$"
                             r"|^tell me something (?:interesting|cool)$")),
     ("quote", re.compile(r"^(?:give me|tell me|say|read me) (?:a |another )?(?:quote|motivational quote|inspiring quote)$"
@@ -11394,7 +11399,8 @@ def _place_where(name: str) -> str | None:
             said = " ".join(str(row.get("text") or "").split()).rstrip(".")
             low = said.casefold()
             if re.fullmatch(rf"(?:the |my |our |their )?(?:[a-z]+ )?{re.escape(key)} (?:is|are|will be) (?:at|in|on) (?!\d)(?!the (?:morning|afternoon|evening|end)\b).+", low) \
-                    or (key == "registry" and re.fullmatch(r"(?:they are|they're|she is|she's|he is|he's) registered (?:at|on) .+", low)):
+                    or (key == "registry" and re.fullmatch(r"(?:they are|they're|she is|she's|he is|he's) registered (?:at|on) .+", low)) \
+                    or re.fullmatch(rf"(?:my |our ){re.escape(key)} is (?:the |a )?[a-z0-9' &-]{{2,30}} (?:on|at|in|by) .+", low):
                 return f"You told me: {speech.as_she_says_it(said)}."
     home_of = re.fullmatch(r"([a-z]+)'s (house|place|apartment|flat|home)", name)
     if home_of:
@@ -16108,7 +16114,10 @@ def _we_use(thing: str) -> str | None:
         low = said.casefold()
         if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words) and (
                 re.match(r"i (?:usually|always|normally|only) (?:buy|get|use|drink|eat|order)\b", low)
-                or re.search(r"\b(?:we|i) (?:use|buy|get|feed (?:him|her|them))\b.* (?:is|are) ", low)):
+                or re.search(r"\b(?:we|i) (?:use|buy|get|feed (?:him|her|them))\b.* (?:is|are) ", low)
+                # "Which pharmacy do I use" after "my pharmacy is the CVS on
+                # Oak Street" (2026-10-08: to a model).
+                or re.fullmatch(rf"(?:my|our) {re.escape(' '.join(words))} is (?!out\b|closed\b|open\b)[a-z].+", low)):
             return f"You told me: {speech.as_she_says_it(said)}."
     return None
 

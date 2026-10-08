@@ -11854,5 +11854,29 @@ class WhereThingsAre(unittest.TestCase):
         self.assertNotEqual((voice._interpret("the milk is gone") or {}).get("command", {}).get("kind"), "file_find")
 
 
+class TheWeatherAskedSideways(unittest.TestCase):
+    def test_the_forecast_answers_a_storm_a_run_and_the_lawn(self):
+        for said, day in (("is there a storm coming", ""), ("is it a good day for a run", ""),
+                          ("should I water the lawn", ""), ("should I water the lawn tomorrow", "tomorrow"),
+                          ("is tomorrow a good day for a hike", "tomorrow")):
+            with mock.patch.object(quick, "_weather", return_value="Sunny, 70.") as w:
+                self.assertEqual(quick.answer(said), "Sunny, 70.", said)
+            w.assert_called_once_with(day)
+
+
+class ThePlacesHeUses(unittest.TestCase):
+    NOTES = [{"text": "my pharmacy is the CVS on Oak Street"}, {"text": "my dentist is Dr Lee"}]
+
+    def test_which_one_he_uses_reads_what_he_said(self):
+        with mock.patch.object(quick, "_notes", lambda: self.NOTES):
+            self.assertIn("CVS on Oak Street", quick.answer("which pharmacy do I use"))
+            self.assertIn("CVS on Oak Street", quick.answer("where is my pharmacy"))
+            self.assertIn("Dr Lee", quick.answer("which dentist do I go to"))
+
+    def test_a_place_he_never_named_is_not_guessed(self):
+        with mock.patch.object(quick, "_notes", lambda: self.NOTES):
+            self.assertNotIn("CVS", quick.answer("which bank do I use") or "")
+
+
 if __name__ == "__main__":
     unittest.main()
