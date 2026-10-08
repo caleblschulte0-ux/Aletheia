@@ -2684,6 +2684,11 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
                   str(transcript or ""), flags=re.I)
     said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
+    # "When is sam birthday" (2026-10-08: to a model) - typed lowercase, so
+    # the capitalised-name rule below never saw it.
+    said = re.sub(r"\b(when is|when's|whens|what day is|how many days until|how long until) "
+                  r"(?!(?:my|your|his|her|their|our|the|a|an|it|this|that)\b)([a-z]{2,15}) (birthday|bday)\b",
+                  r"\1 \2's \3", said, flags=re.I)
     # "Set an alarm for 6 30 tomorrow", "remind me at 3 30" (2026-10-08: to
     # the planner): a dictated clock time loses its colon.
     said = re.sub(r"\b(at|for|by|until|till|around|from|to) (1[0-2]|0?[1-9]) ([0-5]\d)\b(?! ?(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?"

@@ -11945,5 +11945,12 @@ class WhatIsPlaying(unittest.TestCase):
         self.assertEqual(quick.match("what is the top story today")[0], "news")
 
 
+class ABirthdayTypedLowercase(unittest.TestCase):
+    def test_when_is_sam_birthday_is_sams(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Sam's birthday is June 3"}]):
+            self.assertIn("Sam's birthday is", quick.answer("when is sam birthday"))
+            self.assertNotIn("Sam", quick.answer("when is my birthday") or "")
+
+
 if __name__ == "__main__":
     unittest.main()
