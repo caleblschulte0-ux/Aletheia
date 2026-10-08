@@ -2472,7 +2472,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how much (?:money )?(?:have i|did i) (?:saved?|put away|set aside)(?P<saved_w> so far| this week| this month| in total| total)?\s*\??$"
         r"|^how much (?P<saved_more>more )?(?:do i|will i) (?:still )?(?:need|have) to save\s*\??$"
         r"|^how (?P<saved_close>close|far) am i (?:from|to) (?:my |the )?(?:savings )?goal\s*\??$"
-        r"|^how much is left to save\s*\??$")),
+        r"|^how much is left to save\s*\??$"
+        # "How much do I need to save each week" (2026-10-08: to a model,
+        # with the goal and its date in his notes).
+        r"|^how much (?:do|should|will) i (?:need to |have to |got to |gotta )?(?:save|put away|set aside)"
+        r" (?:each|a|per|every) (?P<saved_per>day|week|month)(?: to (?:reach|hit|make) (?:my|the) goal)?\s*\??$")),
     # "When should I water the plants next" (2026-10-07: to a model, with a
     # reminder to water them every 3 days on file).
     ("next_due", re.compile(
@@ -6229,6 +6233,24 @@ _SAVE_GOAL = re.compile(r"^(?:i(?:'m| am)? (?:want to|wanna|need to|trying to|go
                         r"(?: (?:for|towards?) (?P<for>(?:a |an |my |the )?[a-z][a-z ]{1,30}?))?(?: by .*)?$")
 
 
+def _save_by(words: str, today):
+    """The date a goal is due "by": a date he named, or a bare month read as
+    its first day ("by December" is before December). None when unsure."""
+    import datetime as dt
+    try:
+        when = _named_date(words, today) or _his_date(words, today)
+    except Exception:
+        when = None
+    if when is not None:
+        return when
+    month = re.fullmatch(r"(?:the )?(?:start of |beginning of )?(" + "|".join(_MONTHS) + r")(?: (\d{4}))?", words.strip())
+    if not month:
+        return None
+    number = _MONTHS.index(month.group(1)) + 1
+    year = int(month.group(2)) if month.group(2) else today.year + (number <= today.month)
+    return dt.date(year, number, 1)
+
+
 def _saved(text: str) -> str | None:
     """What he told her he saved, against the goal he told her. None when
     he has said neither."""
@@ -6239,7 +6261,7 @@ def _saved(text: str) -> str | None:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     start = {"this week": now - dt.timedelta(days=now.weekday()), "this month": now.replace(day=1)}.get(window)
-    total, goal = 0.0, None
+    total, goal, goal_by = 0.0, None, ""
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).casefold()
         m = _SAVED_NOTE.match(said)
@@ -6255,6 +6277,8 @@ def _saved(text: str) -> str | None:
         if m and goal is None:
             amount = float(m.group("amt").replace(",", "")) * (1000 if m.group("k") else 1)
             goal = (amount, re.sub(r"^my ", "your ", (m.group("for") or "").strip()))
+            by = re.search(r" by (.+)$", said)
+            goal_by = by.group(1).strip() if by else ""
     if not total and not goal:
         return None
     span = f" {window}" if window and window not in ("so far", "in total", "total") else ""
@@ -6267,6 +6291,19 @@ def _saved(text: str) -> str | None:
     if total >= amount:
         return f"You've saved {_money(total)} - that's {aim} reached."
     left = amount - total
+    per = g.get("saved_per")
+    if per:
+        due = _save_by(goal_by, now.date()) if goal_by else None
+        if due is None:
+            return (f"{_money(left)} to go toward {aim}, but you didn't tell me by when. "
+                    "Say \"I want to save 1000 dollars by December\" and I'll work it out.")
+        span_days = (due - now.date()).days
+        if span_days <= 0:
+            return f"Your goal date has passed, and {_money(left)} is still to go toward {aim}."
+        count = {"day": span_days, "week": span_days / 7, "month": span_days / 30.44}[per]
+        each = left / max(count, 1)
+        return (f"About {_money(round(each, 2))} a {per} - {_money(left)} to go toward {aim} "
+                f"by {due.strftime('%B')} {due.day}.")
     return f"You've saved {_money(total)}{span} toward {aim}, so {_money(left)} to go, from what you've told me."
 
 
@@ -10951,9 +10988,13 @@ def _next_payday(said: str):
                 found.append(dt.date(year, month, min(d, size)))
         coming = sorted(x for x in found if x >= today)
         return coming[0] if coming else None
-    weekday = re.search(r"\bevery (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+    # "Every Friday", and "on Fridays" (2026-10-08: "how many days until
+    # payday" read the note back with no date).
+    weekday = re.search(r"\b(?:every (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b"
+                        r"|(?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\b)", low)
     if weekday and not re.search(r"\bother\b", low):
-        want = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(weekday.group(1))
+        want = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(
+            weekday.group(1) or weekday.group(2))
         return today + dt.timedelta(days=(want - today.weekday()) % 7)
     return None
 

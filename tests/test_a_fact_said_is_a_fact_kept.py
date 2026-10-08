@@ -7344,6 +7344,35 @@ class HowOldHeSaidTheyAre(unittest.TestCase):
             self.assertEqual(quick.answer("how old is my sister"), "You told me your sister is 28.")
 
 
+class HowMuchToSaveAndWhenPayday(unittest.TestCase):
+    """2026-10-08: "how much do I need to save each week" went to a model with
+    the goal and its date in his notes, and "on Fridays" gave no payday."""
+
+    def _notes(self, *texts):
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"text": t, "ts": ts} for t in texts]
+
+    def test_a_weekly_amount_from_the_goal_date(self):
+        today = dt.date.today()
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I want to save 700 dollars by december")), \
+                mock.patch.object(quick, "_save_by", return_value=today + dt.timedelta(days=70)):
+            said = quick.answer("how much do I need to save each week")
+        self.assertTrue(said.startswith("About $70"), said)
+
+    def test_no_date_is_said(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I want to save 700 dollars")):
+            self.assertIn("by when", quick.answer("how much do I need to save each week"))
+
+    def test_a_bare_month_is_its_first_day(self):
+        self.assertEqual(quick._save_by("december", dt.date(2026, 10, 8)), dt.date(2026, 12, 1))
+        self.assertEqual(quick._save_by("march", dt.date(2026, 10, 8)), dt.date(2027, 3, 1))
+
+    def test_paid_on_fridays_is_a_weekday(self):
+        nxt = quick._next_payday("I get paid on fridays")
+        self.assertEqual(nxt.weekday(), 4)
+        self.assertIsNone(quick._next_payday("I get paid every other friday"))
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
