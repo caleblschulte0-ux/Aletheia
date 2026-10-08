@@ -11452,6 +11452,22 @@ def _interpret(transcript: str) -> dict:
     from aletheia import quick as _qt
     if re.fullmatch(rf"(?:i|we) (?:just )?ordered (?:in|out|{_qt._TAKEOUT})(?: for (?:dinner|lunch))?(?: tonight| today| last night)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I filled up for 45 dollars" (2026-10-08: to the planner) is gas he
+    # bought, said the way "how much did I spend on gas" adds up.
+    m = re.fullmatch(r"(?:i |we )?(?:just )?(?:filled up|got gas|gassed up|filled the (?:car|tank|truck)(?: up)?) (?:for|and it was|it was) \$?(?P<n>\d[\d,]*(?:\.\d\d)?)(?: dollars| bucks)?(?: today| this morning| tonight)?", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"I spent {m.group('n')} on gas"}, "say": None}
+    # "I set up autopay for the phone bill", "my water bill went up"
+    # (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:set up|turned on|signed up for|put [a-z ]{3,25} on) (?:auto ?pay|automatic payments?)(?: for (?:the |my |our )?[a-z][a-z ]{2,25})?"
+                    r"|(?:i|we) (?:just )?put (?:the |my |our )?[a-z][a-z ]{2,25} on (?:auto ?pay|automatic payments?)"
+                    r"|(?:the |my |our )?[a-z][a-z ]{2,20} (?:bill|payment|rent|insurance|premium) (?:is|are) on (?:auto ?pay|automatic payments?)", low) \
+            or re.fullmatch(r"(?:my|our|the) [a-z][a-z ]{1,20} (?:bill|rent|insurance|premium|payment) (?:went up|went down|doubled|increased|decreased|is going up|is going down)"
+                            r"(?: (?:to|by) \$?\d[\d,]*(?:\.\d\d)?(?: dollars)?)?(?: this month| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The return window is 30 days" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:the |their |its )?return (?:window|policy|period|deadline)(?: (?:at|for) [a-z][a-z' ]{1,20})? is (?:\d{1,3}|thirty|sixty|ninety|fourteen|seven) days", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

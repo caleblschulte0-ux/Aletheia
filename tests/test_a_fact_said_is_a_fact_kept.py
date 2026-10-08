@@ -12732,6 +12732,38 @@ class TheSameTaskTwice(unittest.TestCase):
             create.assert_called_once()
 
 
+class FillingUp(unittest.TestCase):
+    def test_a_fill_up_is_gas_he_spent(self):
+        self.assertEqual(voice.interpret("I filled up for 45 dollars")["command"], {"kind": "note", "text": "I spent 45 on gas"})
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I spent 45 on gas", "ts": now}]):
+            self.assertIn("$45", quick._spent("how much did I spend on gas this month"))
+
+
+class BillsSaidAnyWay(unittest.TestCase):
+    def test_a_bill_in_the_past_tense_counts(self):
+        rows = [{"text": "my phone bill is 85 a month"}, {"text": "my electric bill was 140 this month"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how much do I spend on bills each month").startswith("About $225 a month."))
+
+    def test_autopay_is_kept_and_read(self):
+        for said in ("I set up autopay for the phone bill", "my water bill went up", "the car insurance is on autopay"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I set up autopay for the phone bill"}]):
+            self.assertEqual(quick.answer("which bills are on autopay"), "You told me: you set up autopay for the phone bill.")
+            self.assertIsNone(quick.answer("is the water bill on autopay"))
+
+
+class RefundsAndReturns(unittest.TestCase):
+    def test_kept_and_read(self):
+        self.assertEqual(voice.interpret("the return window is 30 days")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I'm waiting on a refund from Amazon"}]):
+            self.assertEqual(quick.answer("what refunds am I waiting on"), "You told me: you're waiting on a refund from Amazon.")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I got the refund"}, {"text": "I'm waiting on a refund from Amazon"}]):
+            self.assertIn("None that I know of", quick.answer("what refunds am I waiting on"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

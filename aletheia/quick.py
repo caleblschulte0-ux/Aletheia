@@ -2675,6 +2675,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # turn after "my deductible is 1500" and "I've met 600 of my deductible".
     ("deductible_left", re.compile(r"^(?:how much (?:of my deductible is|is) left(?: (?:on|of) my deductible)?|how much (?:more )?(?:do i have|have i got) (?:left )?(?:to (?:pay|meet|go) )?(?:on|toward|towards|until|before) my deductible(?: is met)?"
                                    r"|have i met my deductible(?: yet)?|how close am i to (?:meeting )?my deductible)\s*\??$")),
+    # "Which bills are on autopay" (2026-10-08: "I can't think").
+    ("autopay", re.compile(r"^(?:which|what) (?:bills|payments|things) (?:are|do i have) on (?:auto ?pay|automatic payments?)|^(?:is|are) (?:the |my )?(?P<autopay>[a-z][a-z ]{2,25}?) on (?:auto ?pay|automatic payments?)\s*\??$")),
+    # "What refunds am I waiting on" (2026-10-08: "I can't think").
+    ("refunds_owed", re.compile(r"^(?:what|which) refunds? (?:am i|are we) (?:waiting (?:on|for)|owed|expecting)|^(?:am i|are we) (?:still )?waiting (?:on|for) (?:a |any )?refunds?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3619,7 +3623,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -13613,7 +13617,8 @@ def _cost_mine(text: str) -> str | None:
             if gone:
                 seen.add(gone.group("k"))
                 continue
-            m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
+            # "My electric bill was 140 this month" (2026-10-08) is a bill too.
+            m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are|was|were|came to|comes to) (?P<v>.*\d.*)$", said.casefold())
             # "My car payment is due on the 15th" was summed as $15 a month
             # (2026-10-08). When it is due is not what it costs.
             if m and re.match(r"(?:due|on the|every|on|the) ", m.group("v")) and not re.search(r"\$\d|\d+(?:\.\d+)? ?(?:dollars|bucks|a month|per month|a year|a week)", m.group("v")):
@@ -18493,6 +18498,28 @@ def _insurer(text: str) -> str | None:
     return f"You told me: {speech.and_list(found)}." if found else None
 
 
+def _autopay(text: str) -> str | None:
+    """What he said is on autopay."""
+    from aletheia import speech
+    what = str(_groups("autopay", text).get("autopay") or "").strip()
+    pat = r"\b(?:auto ?pay|automatic payments?)\b"
+    found = _said_lines(pat if not what else rf"{pat}.*\b{re.escape(what)}\b|\b{re.escape(what)}\b.*{pat}", 4)
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
+def _refunds_owed(_text: str = "") -> str | None:
+    """The refunds he said he is waiting on."""
+    from aletheia import speech
+    found = _said_lines(r"\b(?:waiting (?:on|for)|owed|expecting|owe me) (?:a |my |the |another )?refund\b|\brefund (?:from|for) .* (?:is )?(?:coming|pending|on the way)", 4)
+    if not found:
+        return None
+    # "I got the refund" said after it answers the wait (newest first).
+    newest = _said_lines(r"\b(?:waiting (?:on|for)|owed|expecting) (?:a |my |the |another )?refund\b|^i (?:just )?(?:got|received) (?:the|my|a|that) refund\b", 1)
+    if newest and re.match(r"you (?:just )?(?:got|received)\b", newest[0], re.I):
+        return f"None that I know of - the last thing you told me was that {newest[0][:1].lower() + newest[0][1:]}."
+    return f"You told me: {speech.and_list(found)}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19311,6 +19338,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "refunds_owed": _refunds_owed,
+           "autopay": _autopay,
            "deductible_left": _deductible_left,
            "insurer": _insurer,
            "gift_got": _gift_got,
