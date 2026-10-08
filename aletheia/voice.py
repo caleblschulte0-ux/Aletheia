@@ -2684,6 +2684,11 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
                   str(transcript or ""), flags=re.I)
     said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
+    # "Set an alarm for 6 30 tomorrow", "remind me at 3 30" (2026-10-08: to
+    # the planner): a dictated clock time loses its colon.
+    said = re.sub(r"\b(at|for|by|until|till|around|from|to) (1[0-2]|0?[1-9]) ([0-5]\d)\b(?! ?(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?"
+                  r"|months?|years?|percent|dollars?|bucks|pounds?|lbs?|miles?|people|times|of|[a-z]+s\b))",
+                  r"\1 \2:\3", said, flags=re.I)
     # "A doctors appointment" (2026-10-08: held and read back that way).
     said = re.sub(r"\b(doctor|dentist|vet|lawyer|accountant|barber|hairdresser|optometrist|therapist|orthodontist|dermatologist"
                   r"|chiropractor|pediatrician|surgeon|eye doctor)s (appointment|appt|office|visit|checkup|check-up)\b",

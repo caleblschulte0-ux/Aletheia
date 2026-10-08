@@ -11923,5 +11923,17 @@ class HisWorkWeek(unittest.TestCase):
             self.assertIsNone(quick.answer("how many days did I work in the office this week"))
 
 
+class ADictatedClockTime(unittest.TestCase):
+    def test_six_thirty_without_its_colon_is_still_six_thirty(self):
+        for said in ("set an alarm for 6 30 tomorrow", "wake me up at 6 30"):
+            got = voice.interpret(said)["command"]
+            self.assertEqual((got["kind"], got["at"][11:16]), ("remind_at", "06:30"), said)
+        self.assertEqual(voice.interpret("I have a meeting at 2 15 tomorrow")["command"]["start"][11:16], "14:15")
+
+    def test_a_count_is_not_a_clock(self):
+        self.assertNotIn("1:30", voice.interpret("set a timer for 1 30 minutes")["command"].get("text", ""))
+        self.assertNotIn("2:30", voice.interpret("add 2 30 packs")["command"].get("text", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
