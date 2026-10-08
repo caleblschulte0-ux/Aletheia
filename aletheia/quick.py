@@ -2324,8 +2324,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:meeting|call|appointment|one))?(?: (?P<ed_after_day>today|tomorrow))?\s*\??$"
         # "What does Leo have this week" (2026-10-07: to a model, a turn
         # after "Leo has a dentist appointment Monday at 4").
-        r"|^what (?:does|do) (?!(?:i|we|you|it|that|this|he|she|they)\b)(?P<ed_who>[a-z][a-z']{1,20}) have(?: going on| on| coming up)?"
-        r"(?: (?P<ed_who_when>today|tomorrow|this week|next week))?\s*\??$")),
+        r"|^what (?:does|do) (?!(?:i|we|you|it|that|this|he|she|they)\b)(?P<ed_who>(?:my |our )?[a-z][a-z']{1,20}) have(?: going on| on| coming up)?"
+        r"(?: (?:on )?(?P<ed_who_when>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     ("when_note", re.compile(
         r"^(?:when|what day|what time) (?:is|does|do|are) (?:the |my |our )?(?!(?:it|that|this|they|them|he|she|we|you|i)\b)"
         # the calendar's own words belong to the calendar's readers
@@ -5510,13 +5510,26 @@ def _event_detail(text: str) -> str | None:
     if g.get("ed_who"):
         # His calendar's lines that name them; None when none does - their
         # week may be on a calendar of theirs she cannot see.
-        who = g["ed_who"]
+        who = re.sub(r"^(?:my|our) ", "", g["ed_who"])
         when = g.get("ed_who_when") or "this week"
-        first = now.date() + dt.timedelta(days=1 if when == "tomorrow" else 7 - now.weekday() if when == "next week" else 0)
-        last = first if when in ("today", "tomorrow") else first + dt.timedelta(days=6)
+        weekdays = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        if when in weekdays:
+            first = now.date() + dt.timedelta(days=(weekdays.index(when) - now.weekday()) % 7)
+            last = first
+        else:
+            first = now.date() + dt.timedelta(days=1 if when == "tomorrow" else 7 - now.weekday() if when == "next week" else 0)
+            last = first if when in ("today", "tomorrow") else first + dt.timedelta(days=6)
         hits = [(start, title) for start, _end, title in events
                 if first <= start.date() <= last and re.search(r"\b" + re.escape(who) + r"\b", title, re.IGNORECASE)]
         if not hits:
+            # "My son has soccer practice tuesdays at 5" is a note, not a hold.
+            day_name = first.strftime("%A").casefold() if first == last else ""
+            for row in _notes():
+                said = " ".join(str(row.get("text") or "").split())
+                if re.search(r"\b" + re.escape(who) + r"\b", said, re.I) and (
+                        not day_name or re.search(r"\b" + day_name + r"s?\b|\bevery (?:day|weekday)\b", said, re.I)) \
+                        and re.search(r"\b(?:has|have|goes to|go to)\b", said, re.I):
+                    return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
             return None
         said = speech.and_list([f"{t[:1].upper() + t[1:]}, {speech.humanize_time(st.isoformat())}" for st, t in hits[:5]])
         return said + "."

@@ -8125,6 +8125,14 @@ def _interpret(transcript: str) -> dict:
                       r" (?:on |every |each )?(?:other )?(?:" + _days + r"|day)" + _at, low)
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|[a-z]{2,15}) (?:have|has|go to|goes to) "
                          r"(?P<thing2>[a-z][a-z ]{1,20}?) (?:on |every |each )(?:other )?" + _days + _at, low)
+         # "My son has soccer practice tuesdays at 5" (2026-10-07: to the
+         # planner) - a plural day is "every" that day; "I have book club
+         # on the first Thursday of every month".
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to) "
+                         r"(?P<thing5>[a-z][a-z ]{1,20}?) (?:mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays|weekends|weekdays)" + _at, low)
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to) "
+                         r"(?P<thing6>[a-z][a-z ]{1,20}?) (?:on )?(?:the |every )?(?:first|second|third|fourth|last) "
+                         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|day|weekend) of (?:every|each|the) month" + _at, low)
          or re.fullmatch(r"(?:the |my |our )?(?P<thing3>babysitter|sitter|nanny|cleaner|cleaners|plumber|electrician|handyman"
                          r"|contractor|delivery|repair ?man|technician|movers|guests|in-laws|my parents|[a-z]{2,15}) (?:is|are) "
                          r"(?:coming|arriving|coming over|getting here) (?:at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|tonight|tomorrow"
@@ -8135,7 +8143,8 @@ def _interpret(transcript: str) -> dict:
                          r"|concert|game|recital|surgery|checkup|check-up|physical|[a-z]+ appointment) is (?:on )?(?:"
                          + SPOKEN_DATE + r"|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
                          r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low))
-    if m and not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low):
+    if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6")) and low.startswith("i have ")
+              or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
     # daughter is allergic to nuts" and "Leo was born on May 3 2018" went

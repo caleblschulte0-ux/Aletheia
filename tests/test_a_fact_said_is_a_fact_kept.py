@@ -5801,5 +5801,21 @@ class APartyAtEightIsTheEvening(unittest.TestCase):
         self.assertTrue(said.startswith("17 days - "), said)
 
 
+class ActivitiesOnAPluralDay(unittest.TestCase):
+    """2026-10-07: "my son has soccer practice tuesdays at 5" and "I have
+    book club on the first Thursday of every month" went to the planner,
+    and "what does my son have on Tuesday" to a model."""
+
+    def test_kept_and_read_back(self):
+        for said in ("my son has soccer practice tuesdays at 5", "I have book club on the first thursday of every month",
+                     "we have church sundays at 10"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        rows = [{"text": "my son has soccer practice tuesdays at 5", "ts": "2026-10-07T12:00:00+00:00"}]
+        from aletheia import calendar
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertIn("soccer practice", quick.answer("what does my son have on tuesday"))
+            self.assertIsNone(quick._event_detail("what does my son have on friday"))
+
+
 if __name__ == "__main__":
     unittest.main()
