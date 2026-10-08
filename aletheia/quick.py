@@ -2525,6 +2525,10 @@ def _direct(text: str) -> str:
                      r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
     if m:
         return f"what did i tell you about being on {m.group('state')}"
+    # "How often do you remind me to stretch" (2026-10-08: to the planner).
+    m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
+    if m:
+        return f"what time is my {m.group('what')} reminder"
     # "Am I done for the day" (2026-10-08: to the planner) is what's still due.
     if re.fullmatch(r"(?:am i|are we) (?:all )?(?:done|finished|through) (?:for (?:the day|today|tonight)|with (?:my list|everything|today|the day))"
                     r"(?: yet)?\s*\??|is there anything (?:else )?(?:left|due) (?:for )?today\s*\??", text):

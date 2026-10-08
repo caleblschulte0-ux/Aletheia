@@ -7230,6 +7230,28 @@ class WhenHeNeedsToGetUp(unittest.TestCase):
             self.assertIn("no alarm set", quick.answer("what time do I need to get up tomorrow"))
 
 
+class AnIntervalCanBeChanged(unittest.TestCase):
+    """2026-10-08: "change it to every hour" and "how often do you remind me
+    to stretch" both went to the planner."""
+
+    def test_change_it_replaces_the_interval_just_set(self):
+        with mock.patch.object(voice, "_recent_ask_of",
+                               return_value={"kind": "remind_every", "minutes": 30, "text": "stretch"}):
+            cmd = (voice.interpret("thea change it to every hour") or {}).get("command") or {}
+        self.assertEqual(cmd.get("kind"), "remind_every")
+        self.assertEqual(cmd.get("minutes"), 60)
+        self.assertEqual(cmd.get("replaces"), "stretch")
+
+    def test_nothing_set_lately_is_not_a_reminder(self):
+        with mock.patch.object(voice, "_recent_ask_of", return_value={}):
+            cmd = (voice.interpret("thea change it to every hour") or {}).get("command") or {}
+        self.assertNotEqual(cmd.get("replaces"), "stretch")
+
+    def test_how_often_is_asked_of_the_reminder(self):
+        self.assertEqual(quick._direct("how often do you remind me to stretch"),
+                         "what time is my stretch reminder")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

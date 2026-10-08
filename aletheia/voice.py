@@ -4135,6 +4135,14 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group("new")),
                                 "replaces": words}, "say": None}
 
+    # "Change it to every hour" right after "remind me every 30 minutes to
+    # stretch" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:no,? |actually,? )?(?:change|make|set) (?:it|that|the reminder) (?:to )?(?P<every>every .+)", low)
+    if m and _every_minutes(m.group("every")):
+        before = _recent_ask_of("remind_every", "text")
+        if before.get("text"):
+            return {"command": {"kind": "remind_every", "minutes": _every_minutes(m.group("every")),
+                                "text": before["text"], "replaces": before["text"]}, "say": None}
     # reminders — before email so "remind me to email bob" stays a reminder
     #
     # WEEKLY FIRST: "every monday" contains "every", and the daily pattern
