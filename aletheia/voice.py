@@ -8931,6 +8931,12 @@ def _interpret(transcript: str) -> dict:
                          r"|(?:i'?m|we'?re|i am|we are) (?:making|cooking) "
                          r"|(?:i'?m|we'?re|i am|we are) (?:having|eating) [a-z][a-z ]{1,30} for (?:dinner|lunch|breakfast)\b", low):
         told = None
+    # "I am nervous about my interview tomorrow" became a 9 am hold called
+    # "I am nervous about my interview" (2026-10-08). A feeling about a thing
+    # is not the thing.
+    if told and re.match(r"(?:i'?m|im|i am|i feel|i'?m feeling|i am feeling|we'?re|we are) (?:so |really |very |a bit |kind of |kinda |a little |pretty )?"
+                         r"(?:nervous|worried|anxious|scared|excited|stressed|freaking out|psyched|pumped|dreading|ready|not ready|prepared|unprepared|looking forward)\b", low):
+        told = None
     # "I'm meeting Jake for lunch on Friday" is lunch with Jake, not a hold
     # called "I'm meeting Jake for lunch" (2026-10-08): the meeting rule below.
     if told and re.match(r"(?:i'?m|i am|we'?re|we are) (?:meeting|seeing) ", told.group("title")):
@@ -9161,17 +9167,35 @@ def _interpret(transcript: str) -> dict:
                      r" (?:really |so |very |pretty |a bit |kind of |kinda |a little |super |quite )?"
                      r"(?P<mood>stressed(?: out)?|anxious|happy|great|sad|down|exhausted|overwhelmed|lonely|excited"
                      r"|calm|relaxed|depressed|awful|terrible|amazing|nervous|worried|burned out|burnt out|tired"
-                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself|better|much better|a lot better)"
+                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself|better|much better|a lot better"
+                     # "I am in a good mood today", "I'm excited for the weekend",
+                     # "I'm nervous about my interview tomorrow" (2026-10-08).
+                     r"|in a (?:good|great|bad|terrible|weird|funny|grumpy|rotten) mood|scared|dreading [a-z][a-z ]{1,30})"
+                     r"(?: (?:about|for|to|over) (?!you\b|your\b)[a-z0-9][a-z0-9 ',-]{1,60}?)?"
                      r"(?: (?:today|right now|now|tonight|this morning|lately|again))?"
                      r"|(?:i (?:had|have had|'ve had) a(?:n)? (?:really |pretty |very |so )?"
                      r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)", low)
     if m:
         try:
             say = _quick.answer(text)
+            if not say and m.group("mood"):
+                # The kind word for the feeling, with what it is about left off.
+                say = _quick.answer(f"i am {m.group('mood')}")
         except Exception:  # noqa: BLE001
             say = None
+        if not say and m.group("mood") and re.match(r"(?:nervous|worried|anxious|scared|dreading)", m.group("mood")):
+            say = "That's normal - it means it matters to you. You'll do fine. I've put it in your journal."
+        elif not say and m.group("mood") and re.match(r"(?:excited|happy|great|amazing|in a (?:good|great) mood)", m.group("mood")):
+            say = "Love that. I've put it in your journal."
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # "I miss my dad", "wish me luck" (2026-10-08: both to the planner).
+    if re.fullmatch(r"i (?:really |just )?miss (?:my |our )?[a-z][a-z' ]{1,25}?(?: so much| a lot)?", low) \
+            and not re.search(r"\b(?:you|the bus|the train|my flight|my turn|it)\b", low):
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": "I'm sorry - missing someone is hard. I've put it in your journal."}
+    if re.fullmatch(r"(?:wish me luck|fingers crossed|cross your fingers(?: for me)?|here goes nothing|wish me luck (?:today|tonight|tomorrow))", low):
+        return {"command": None, "say": "Good luck - you've got this."}
     # HIS BIG NEWS (2026-10-08: "I got promoted" got its congratulations and
     # was gone, so "when did I get promoted" went to a model). Kept in his
     # journal; the kind word is still quick's.

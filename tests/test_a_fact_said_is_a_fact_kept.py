@@ -10488,5 +10488,27 @@ class SchoolWork(unittest.TestCase):
             self.assertRegex(quick.answer("when is my paper due"), r"^Your paper is due .+\.$")
 
 
+class HowHeFeelsAboutSomething(unittest.TestCase):
+    """A sweep of feelings (2026-10-08): "I am nervous about my interview
+    tomorrow" became a 9 am calendar entry called "I am nervous about my
+    interview"; a good mood, missing his dad and "wish me luck" went to the
+    planner."""
+
+    def test_a_feeling_about_a_thing_is_not_the_thing(self):
+        said = voice._interpret("I am nervous about my interview tomorrow")
+        self.assertEqual(said["command"], {"kind": "note", "text": "Journal: I am nervous about my interview tomorrow"})
+        self.assertTrue(said["say"])
+        self.assertEqual(voice._interpret("I have an interview tomorrow at 10")["command"]["kind"], "calendar_hold")
+
+    def test_said(self):
+        for said in ("I am in a good mood today", "I am excited for the weekend", "I miss my dad"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": "Journal: " + said}, said)
+            self.assertTrue(got["say"], said)
+        self.assertEqual(voice._interpret("wish me luck")["say"], "Good luck - you've got this.")
+        for said in ("I missed the bus", "I miss you"):
+            self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "note", said)
+
+
 if __name__ == "__main__":
     unittest.main()
