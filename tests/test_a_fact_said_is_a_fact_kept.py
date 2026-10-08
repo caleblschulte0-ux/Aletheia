@@ -8055,5 +8055,17 @@ class WhatHeShouldDo(unittest.TestCase):
 
 
 
+class WhatHeBorrowed(unittest.TestCase):
+    def test_borrowed_is_kept_and_given_back_clears_it(self):
+        self.assertEqual(voice._interpret("I borrowed a ladder from Sam")["command"]["kind"], "note")
+        notes = [{"text": "I gave the ladder back to Sam"}, {"text": "I borrowed a book from my sister"},
+                 {"text": "I borrowed a ladder from Sam"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            said = quick.answer("what do I need to give back")
+        self.assertIn("book from your sister", said)
+        self.assertNotIn("ladder", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9128,6 +9128,13 @@ def _interpret(transcript: str) -> dict:
             and m.group("who").split()[0] not in ("who", "what", "he", "she", "they", "it", "this", "that", "somebody",
                                                   "someone", "nobody", "everyone", "i", "you", "where", "why", "when", "how"):
         return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
+    # "I borrowed a ladder from Sam" (2026-10-08: to the planner) - his to
+    # give back; money borrowed is the ledger's, above.
+    m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?P<who>[a-z][a-z' ]{1,30})", fact_low) \
+        or re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )(?P<thing>[a-z][a-z' ]{1,30}?)"
+                        r" back(?: to [a-z][a-z' ]{1,30})?", fact_low)
+    if m and not re.search(r"\d|\b(?:dollars?|bucks|money|cash)\b", m.group("thing")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, fact_low)}, "say": None}
     # "MIKE GAVE BACK MY DRILL" / "I GOT MY DRILL BACK" (2026-10-07: to the
     # planner, and "who has my drill" went on naming Mike). The return is a
     # note too; the newest note about the thing is the one `quick._lent` reads.

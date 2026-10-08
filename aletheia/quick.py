@@ -463,6 +463,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("get_up", re.compile(
         r"^(?:what time|when) (?:do i|should i|will i) (?:need to |have to |got to )?(?:get up|wake up|be up)"
         r"(?P<get_up> tomorrow| in the morning| today)?\s*\??$")),
+    # "What do I need to give back" after "I borrowed a ladder from Sam"
+    # (2026-10-08: to the planner, and "I can't think").
+    ("borrowed", re.compile(
+        r"^(?:what (?:do i|did i) (?:need to |have to |still )?give back(?: to (?:people|anyone|anybody))?"
+        r"|what (?:have i|did i) borrow(?:ed)?(?: from (?:people|anyone|anybody))?|what (?:do i have|have i got) (?:that'?s |that is )?borrowed)\s*\??$")),
     ("lent_out", re.compile(
         r"^(?:what|which things|what stuff) (?:have i|did i|do i have) (?:lend|lent|loan|loaned)(?: out)?(?: to (?:people|anyone|anybody))?\s*\??$"
         r"|^who (?:has|have|borrowed) (?:my|any of my) (?:stuff|things)\s*\??$|^what (?:do i have|have i got) (?:lent|loaned) out\s*\??$")),
@@ -12092,6 +12097,27 @@ def _get_up(rest: str = "") -> str:
     return out + "."
 
 
+def _borrowed() -> str:
+    """Every thing he said he borrowed and has not said he gave back."""
+    from aletheia import speech
+    out: dict[str, str] = {}
+    for row in reversed(_notes()):
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?P<who>[a-z][a-z' ]{1,30})", low)
+        if m:
+            out[m.group("thing")] = m.group("who")
+            continue
+        back = re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )?(?P<thing>[a-z][a-z' ]{1,30}?)"
+                            r"(?: back)?(?: to [a-z][a-z' ]{1,30})?", low)
+        if back:
+            out.pop(back.group("thing"), None)
+    if not out:
+        return "Nothing borrowed that you've told me about."
+    said = [f"the {thing} from {('your ' + who.split(' ', 1)[1]) if who.startswith(('my ', 'our ')) else who.title()}"
+            for thing, who in out.items()]
+    return f"From what you've told me, you have {speech.and_list(said)}."
+
+
 def _lent_out() -> str:
     """Every thing he said he lent and has not said came back."""
     from aletheia import speech
@@ -13569,6 +13595,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "ate": _ate,
            "lent": _lent,
            "lent_out": lambda rest: _lent_out(),
+           "borrowed": lambda rest: _borrowed(),
            "get_up": lambda rest: _get_up(rest),
            "kept": _kept,
            "gift_for": _gift_for,
