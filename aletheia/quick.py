@@ -1357,6 +1357,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # I meeting" (2026-10-07). It is the day's calendar, asked by who.
         r"|^(?:who|where) (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast) with|have (?:lunch|dinner|coffee|breakfast) with|"
         r"have (?:a )?meetings? with)(?: with)? (?P<day13>today|tomorrow|tonight|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        # "What do I need to prepare for Thursday" (2026-10-08: to a model,
+        # beside "my presentation is on Thursday").
+        r"|^what do i (?:need|have) to (?:prepare|prep|get ready|be ready) for (?:on )?(?P<day14>today|tomorrow|this week|next week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         r"|^(?:my |the )?(?:calendar|schedule|agenda) (?:for )?(?P<day3>today|tomorrow|this week|next week|this weekend|the weekend|next weekend)$"
         r"|^what(?:'s| is|s)? (?P<day4>today|tomorrow)(?:'s| like)?(?: looking like| look like)?$"
         # "What's Friday look like" (2026-10-07: to a model).
@@ -3574,7 +3577,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
-                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13",
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13", "day14",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bwin3", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
@@ -4521,7 +4524,7 @@ def _noted_dates() -> list:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if not re.search(r"\b(?:is|are) due\b|\bexpires?\b|\bends?\b|\brenews?\b|\bis up\b|\bruns out\b", low):
+        if not re.search(r"\b(?:is|are) due\b|\bexpires?\b|\bends?\b|\brenews?\b|\bis up\b|\bruns out\b|\bdeadline\b", low):
             continue
         m = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:,? (?P<year>20\d\d))?\b", low)
              # "the report is due Friday 9 October", the way a due day is

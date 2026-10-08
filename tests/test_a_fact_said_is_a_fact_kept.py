@@ -12334,5 +12334,17 @@ class BooksAndFilms(unittest.TestCase):
             self.assertEqual(quick.answer("what movies have I watched this month"), "Nothing this month, from what you've told me.")
 
 
+class DeadlinesSaidAloud(unittest.TestCase):
+    def test_a_deadline_on_a_weekday_keeps_its_date(self):
+        got = voice.interpret("I have a deadline on friday")["command"]
+        self.assertEqual(got["kind"], "note")
+        self.assertRegex(got["text"], r"^I have a deadline Friday \d{1,2} [A-Z][a-z]+$")
+        self.assertEqual(voice.interpret("the project is due next friday")["command"],
+                         {"kind": "note", "text": "the project is due next friday"})
+
+    def test_what_to_prepare_for_a_day_is_that_days_calendar(self):
+        self.assertEqual(quick.match("what do I need to prepare for thursday"), ("agenda", "thursday"))
+
+
 if __name__ == "__main__":
     unittest.main()

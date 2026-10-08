@@ -9944,6 +9944,18 @@ def _interpret(transcript: str) -> dict:
             if who:
                 name = who.group("who")
                 return {"command": {"kind": "note", "text": f"{name} said {_as_he_said(text, m.group('x'))}"}, "say": None}
+    # "I have a deadline on Friday" (2026-10-08: kept undated, so "what
+    # deadlines do I have this week" said nothing was due). The weekday is
+    # only true this week, so the note keeps the date it meant.
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:a |an )?(?:big |hard |work )?deadline (?:on |this |by )?(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low)
+    if m and _spoken_day(m.group("day")):
+        import datetime as dt
+        on = dt.date.fromisoformat(_spoken_day(m.group("day"))[:10])
+        return {"command": {"kind": "note", "text": f"I have a deadline {on.strftime('%A')} {on.day} {on.strftime('%B')}"}, "say": None}
+    # "The project is due next Friday" (2026-10-08: to the planner). "Next
+    # Friday" is ambiguous, so it is kept in his words, undated.
+    if re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:is|are) due (?:next (?:week|month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|at the end of the (?:week|month)|end of (?:the )?(?:week|month)|in (?:a|one|two|three|\d) (?:days?|weeks?))", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My smoke detector is beeping" (2026-10-08: a plain "Noted.").
     if re.fullmatch(r"(?:the|my|our) (?:smoke detector|smoke alarm|carbon monoxide detector|co detector|fire alarm) (?:is|keeps) (?:beeping|chirping)(?: again)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
