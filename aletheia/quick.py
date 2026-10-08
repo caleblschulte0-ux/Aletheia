@@ -2559,6 +2559,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("who_out", re.compile(r"^who(?:'s| is) (?:out|off|out sick|on vacation)(?: (?:today|this week|at work))?\s*\??$")),
     ("wfh_days", re.compile(r"^how many (?:days|times) (?:did|have) i (?:work(?:ed)?|been working) (?:from home|remotely|remote|in the office|from the office)"
                             r"(?: (?P<wfh_w>this week|this month))?\s*\??$")),
+    # "How do I reset my router" (2026-10-08: to a model): the power cycle
+    # every router takes. A factory reset is the maker's, and is not this.
+    ("router_reset", re.compile(r"^how (?:do|can|should) i (?:reset|restart|reboot|power cycle) (?:my |the )?(?:router|modem|wifi|wi-fi|internet)(?: and modem| and router)?\s*\??$"
+                                r"|^(?:my |the )?(?:internet|wifi|wi-fi) (?:is )?(?:down|not working|out)[,.]? what (?:do|should) i do\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -17591,6 +17595,10 @@ def _bake_time(text: str) -> str | None:
     return None
 
 
+_ROUTER_RESET = ("Unplug the router - and the modem, if it's a separate box - wait 30 seconds, plug the modem in "
+                 "first, then the router, and give it two or three minutes for the lights to settle. If it's still "
+                 "down after that, the outage is likely on the provider's side.")
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18406,6 +18414,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "router_reset": lambda _rest="": _ROUTER_RESET,
            "agenda_week": lambda _rest="": _agenda_and_reminders("week"),
            "bake_time": _bake_time,
            "who_out": _who_out,

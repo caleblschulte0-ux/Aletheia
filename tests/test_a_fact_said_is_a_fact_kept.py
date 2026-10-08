@@ -11983,5 +11983,11 @@ class HisWeekAndHisBedtime(unittest.TestCase):
         self.assertIn("Asleep by 11 pm", quick.answer("what time should I go to bed if I want to wake up at 7"))
 
 
+class WhenTheTechActsUp(unittest.TestCase):
+    def test_resetting_the_router_is_the_power_cycle(self):
+        self.assertIn("wait 30 seconds", quick.answer("how do I reset my router"))
+        self.assertIn("wait 30 seconds", quick.answer("my internet is down, what do I do"))
+
+
 if __name__ == "__main__":
     unittest.main()
