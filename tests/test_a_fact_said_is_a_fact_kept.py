@@ -11646,5 +11646,35 @@ class BooksAndShows(unittest.TestCase):
             self.assertIn("Oppenheimer", quick.answer("what did I watch last night"))
 
 
+class RemindMeBeforeIt(unittest.TestCase):
+    """2026-10-08: "remind me before my meeting to print the slides" went to
+    the planner, "remind me the day before the wedding to get a card" looked
+    for an event called "wedding to get a card", and "remind me the day
+    before my flight to Paris" set a reminder for 2027 called "Paris"."""
+
+    def test_the_errand_rides_along(self):
+        import datetime as dt
+        from aletheia import calendar as cal, localtime
+        tz = localtime.operator_tz()
+        soon = (dt.datetime.now(tz) + dt.timedelta(days=3)).replace(hour=14, minute=0, second=0, microsecond=0)
+        events = [{"title": "meeting", "start": soon.isoformat(), "status": "TENTATIVE"},
+                  {"title": "wedding", "start": soon.isoformat(), "status": "TENTATIVE"}]
+        with mock.patch.object(cal, "all_events", lambda: events):
+            r = voice._interpret("remind me before my meeting to print the slides")["command"]
+            self.assertEqual(r["kind"], "remind_at")
+            self.assertTrue(r["text"].startswith("print the slides - meeting in 15 minutes"))
+            r = voice._interpret("remind me the day before the wedding to get a card")["command"]
+            self.assertTrue(r["text"].startswith("get a card - wedding"), r["text"])
+
+    def test_a_place_is_not_an_errand(self):
+        self.assertTrue(voice._an_errand("get a card"))
+        self.assertFalse(voice._an_errand("Paris"))
+        from aletheia import calendar as cal
+        with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(cal, "all_events", lambda: []):
+            r = voice._interpret("remind me the day before my flight to Paris")
+        self.assertIsNone(r["command"])
+        self.assertIn("flight to paris", r["say"].casefold())
+
+
 if __name__ == "__main__":
     unittest.main()

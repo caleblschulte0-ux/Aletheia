@@ -1473,6 +1473,12 @@ def _hours_he_told(place: str) -> str | None:
     return None
 
 
+def _an_errand(words: str) -> bool:
+    """Whether words after "to" are something to do - "get a card", "pack" -
+    rather than the rest of a name: "my flight to Paris"."""
+    return bool(_TASK_VERB.match(words) or re.match(r"(?:get|grab|pack|wrap|make|charge|iron|take|confirm|pick|leave|set|put|start|stop)\b", words))
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -2613,7 +2619,8 @@ def _event_from_notes(what: str) -> dict | None:
     for row in _q._notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if not all(w in low for w in words) or not re.search(r"\b(?:is|leaves|departs|starts)\b", low):
+        # "I have a wedding on Saturday at 4" (2026-10-08) says it too.
+        if not all(w in low for w in words) or not re.search(r"\b(?:is|leaves|departs|starts)\b|^i (?:have|'ve got|got) (?:a|an|my)\b", low):
             continue
         day = re.search(r"\b(?:on |this |next )?" + days + r"\b", low)
         clock = re.search(r"\bat (\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?|noon|midnight)", low)
@@ -2628,7 +2635,10 @@ def _event_from_notes(what: str) -> dict | None:
             hour += 12
         start = dt.datetime.combine(dt.date.fromisoformat(iso), dt.time(hour, minute), tzinfo=tz)
         if start > now:
-            title = re.sub(r"^(?:my |your )?", "your ", " ".join(w for w in re.findall(r"[a-z0-9']+", str(what).casefold())))
+            bare = re.sub(r"^(?:my|your|the) ", "", " ".join(re.findall(r"[a-z0-9']+", str(what).casefold())))
+            # his capitals: "your flight to Paris" (2026-10-08: "to paris")
+            his = re.search(re.escape(bare), said, re.I)
+            title = "your " + (said[his.start():his.end()] if his else bare)
             return {"title": title, "start": start.isoformat()}
     return None
 
@@ -5212,6 +5222,11 @@ def _interpret(transcript: str) -> dict:
     # words he said - less the lead time he gave.
     # "Remind me to leave 20 minutes before lunch with Dana" (2026-10-08:
     # to the planner) is the same lead, with the errand said first.
+    # "Remind me before my meeting to print the slides" (2026-10-08: to the
+    # planner) names no lead: fifteen minutes, said back in the reminder.
+    bare = re.fullmatch(r"remind me (?:right |just )?before (?P<what>(?:my |the )?(?:next )?[a-z][a-z0-9' ]{1,30}?) to (?P<task>[a-z].{2,80})", low)
+    if bare and _an_errand(bare.group("task")):
+        return _interpret(f"remind me to {_as_he_said(text, bare.group('task'))} 15 minutes before {bare.group('what')}")
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<n>\w+(?: an)?) (?P<unit>minutes?|mins?|hours?) before (?:my |the )?(?:next )?"
                      r"(?P<what>.+?)", low)
     if m:
@@ -5256,7 +5271,9 @@ def _interpret(transcript: str) -> dict:
     late = re.fullmatch(r"remind me (?P<when>(?:the day|the night|the morning|a day|one day|(?:\d|two|three|four|five|six|seven|ten) days"
                         r"|a week|one week|two weeks) before (?:my |our |the )?(?:(?:wedding )?anniversary|vacation|trip|holiday|cruise"
                         r"|honeymoon|flight|[a-z]+(?:'s|s') (?:birthday|bday|anniversary))) to (?P<task>.+)", low)
-    if late:
+    # "Remind me the day before my flight to Paris" (2026-10-08: "I'll remind
+    # you 8 October 2027: Paris") - Paris is where the flight goes.
+    if late and _an_errand(late.group("task")):
         return _interpret(f"remind me to {_as_he_said(text, late.group('task'))} {late.group('when')}")
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
@@ -5311,7 +5328,13 @@ def _interpret(transcript: str) -> dict:
     # the night before at seven, the morning of at eight. A birthday or an
     # anniversary is not on the calendar and has its own branch below.
     m = re.fullmatch(r"remind me (?P<lead>the day|the night|the morning|a day|one day|(?P<n>\d|two|three|four|five) days|a week|one week)"
-                     r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40})", low)
+                     r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40}?)(?: to (?P<task>[a-z].{2,80}))?", low)
+    # "Remind me the day before the wedding to get a card" (2026-10-08: read
+    # as an event called "wedding to get a card"). The errand rides along
+    # when it is one; "my flight to Paris" is still the flight.
+    if m and m.group("task") and not _an_errand(m.group("task")):
+        m = re.fullmatch(r"remind me (?P<lead>the day|the night|the morning|a day|one day|(?P<n>\d|two|three|four|five) days|a week|one week)"
+                         r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40})(?P<task>)", low)
     if m and not re.search(r"\b(?:birthday|anniversary|bday)\b", m.group("what")):
         import datetime as dt
         from aletheia import calendar as cal, localtime, speech as _sp_before
@@ -5348,11 +5371,13 @@ def _interpret(transcript: str) -> dict:
             # sentence with its capital, and what is still possible.
             title_ = str(event.get('title') or 'That')
             return {"command": None, "say": f"{title_[:1].upper() + title_[1:]} is {_sp_before.humanize_time(start.isoformat())}, "
-                                            f"so that time has already gone. Say \"remind me in an hour about my {title_.casefold()}\" "
+                                            f"so that time has already gone. Say \"remind me in an hour about my {re.sub(r'^(?:[Yy]our|[Mm]y) ', '', title_)}\" "
                                             f"or another time, and I'll set that instead."}
         clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
-        return {"command": {"kind": "remind_at", "at": when.isoformat(),
-                            "text": f"{event.get('title') or what} {start.strftime('%A')} at {clock}"}, "say": None}
+        about = f"{event.get('title') or what} {start.strftime('%A')} at {clock}"
+        if m.group("task"):
+            about = f"{_as_he_said(text, m.group('task'))} - {about}"
+        return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": about}, "say": None}
 
     m = re.match(r"remind me (?:at ([\w: ]+?)|in (\w+(?: an)?) (minutes?|mins?|hours?)) (?:to|that) (.+)", low)
     if m:
