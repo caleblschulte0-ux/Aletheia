@@ -2139,6 +2139,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # Only "the ..." - a person by name may be in his mail ("what did
         # Dana say" is a model's).
         r"^what did (?P<who_said>the [a-z][a-z' &.-]{1,40}?) (?:say|tell me|tell you)\s*\??$")),
+    # "How many kids does Jake have" after "Jake has two kids" (2026-10-08:
+    # to a model).
+    ("how_many_has", re.compile(
+        r"^(?:how many (?P<hm_what>kids|children|sons|daughters|grandkids|grandchildren|brothers|sisters|siblings|dogs|cats|pets)"
+        r" (?:does|do) (?P<hm_who>(?:my )?[a-z][a-z'-]{1,20}) have"
+        r"|(?:does|do) (?P<hm_who2>(?:my )?[a-z][a-z'-]{1,20}) have (?:any )?(?P<hm_what2>kids|children|sons|daughters|grandkids"
+        r"|grandchildren|brothers|sisters|siblings|dogs|cats|pets))\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2431,7 +2438,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # which may well know how old a famous person is.
     ("age_of", re.compile(
         r"^(?:how old (?:is|will) |what age (?:is|will) )(?P<age_of>(?:my )?[a-z][a-z'-]{1,20}(?: (?!be\b|turn\b|turning\b|now\b)[a-z][a-z'-]{1,20})?)"
-        r"(?: be| turn| be turning| turning| now)?(?: this year| next)?\s*\??$")),
+        r"(?: be| turn| be turning| turning| now)?(?: this year| next| on (?:his|her|their) (?:next )?birthday)?\s*\??$")),
     ("took_today", re.compile(
         r"^(?:did|have) i (?:take|taken|had|have) (?:my |any |an? |some )?(?:morning |evening |night |daily )?(?P<took>medicine|meds|medication|pills?|vitamins?"
         r"|insulin|inhaler|antibiotics?|[a-z]+ pills?|" + _DRUGS + r")(?: today| this morning| tonight| yet| already)?\s*\??$"
@@ -2955,7 +2962,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -4218,6 +4225,14 @@ def _birthdays_coming(window: str = "") -> str:
     return f"Birthdays coming up: {speech.and_list(said)}."
 
 
+def _safe_date(year: int, month: int, day: int):
+    import datetime as dt
+    try:
+        return dt.date(year, month, day)
+    except ValueError:
+        return None
+
+
 def _age_of(who: str) -> str | None:
     """How old somebody he told her about is, from the birthday in his note."""
     import datetime as dt
@@ -4265,6 +4280,27 @@ def _age_of(who: str) -> str | None:
             return f"{shown} is {age}" + (f", and turns {age + 1} on {m.group('mon').title()} {day}."
                                            if (today.month, today.day) != (month, day) else " - and it's today.")
         if not m.group("year"):
+            # "Jake is 30" and "Jake's birthday is June 5" (2026-10-08: "not
+            # the year, so I can't say how old"). The age he said, plus any
+            # birthday since he said it.
+            month, day = _MONTHS.index(m.group("mon")) + 1, int(m.group("day"))
+            had = re.compile(rf"\b(?:{re.escape(label.casefold())}|{re.escape(re.sub(r'^my ', '', who))})"
+                             r"(?: is| just turned| turned) (\d{1,3})(?: years old| yrs old)?\.?$")
+            tz = localtime.operator_tz()
+            today = dt.datetime.now(tz).date()
+            for row in reversed(_notes()):
+                a = had.search(" ".join(str(row.get("text") or "").split()).casefold())
+                if not a:
+                    continue
+                try:
+                    since = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+                except ValueError:
+                    since = today
+                age = int(a.group(1)) + sum(1 for y in range(since.year, today.year + 1)
+                                            if _safe_date(y, month, day) and since < _safe_date(y, month, day) <= today)
+                if (today.month, today.day) == (month, day):
+                    return f"{shown} is {age} - and it's today."
+                return f"{shown} is {age}, and turns {age + 1} on {m.group('mon').title()} {day}."
             told = shown[:1].lower() + shown[1:] if shown.startswith("Your ") else shown
             return (f"You told me {told}'s birthday is {m.group('mon').title()} {int(m.group('day'))}, "
                     f"but not the year, so I can't say how old. Tell me the year and I'll know.")
@@ -13765,6 +13801,31 @@ def _who_said(who: str) -> str | None:
     return None
 
 
+_HAS_KIN = {"kids": r"kids?|children|child|sons?|daughters?|boys?|girls?|twins", "children": r"kids?|children|child|sons?|daughters?|boys?|girls?|twins",
+            "grandkids": r"grandkids?|grandchildren", "grandchildren": r"grandkids?|grandchildren",
+            "siblings": r"brothers?|sisters?|siblings?", "pets": r"pets?|dogs?|cats?"}
+
+
+def _how_many_has(text: str) -> str | None:
+    """What he said somebody has: "Jake has two kids"."""
+    g = _groups("how_many_has", text)
+    who = (g.get("hm_who") or g.get("hm_who2") or "").strip()
+    what = (g.get("hm_what") or g.get("hm_what2") or "").strip()
+    if not who or not what or who in ("you", "i", "he", "she", "they", "it"):
+        return None
+    name = _name_for_relation(who) if who.startswith("my ") else None
+    names = {re.sub(r"^my ", "", who)} | ({name.casefold()} if name else set())
+    nouns = _HAS_KIN.get(what) or (what.rstrip("s") + "s?")
+    has = re.compile(r"\b(?:my )?(?:" + "|".join(re.escape(n) for n in names) + r")(?:'s)? (?:has|have|has got) "
+                     r"(?:no|one|two|three|four|five|six|seven|eight|\d{1,2}|a|an) (?:[a-z-]+ )?(?:" + nouns + r")\b")
+    for row in reversed(_notes()):
+        said = " ".join(str(row.get("text") or "").split())
+        if has.search(said.casefold()):
+            told = re.sub(r"\bmy\b", "your", said.rstrip("."), flags=re.I)
+            return f"You told me {told[:1].lower() + told[1:] if told.startswith('Your') else told}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14572,6 +14633,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "how_many_has": _how_many_has,
            "who_said": _who_said,
            "places_liked": lambda rest: _places_liked(),
            "repeating": _repeating,

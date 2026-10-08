@@ -9153,6 +9153,15 @@ def _interpret(transcript: str) -> dict:
                                                "lunch", "breakfast", "weather", "my", "your", "tonight", "everyone", "thea", "aletheia"))
             or re.search(r"\b(?:movie|film|show|book|series|episode|album|game|season|play|concert|restaurant)$", m.group("what"))):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HOW MANY THEY HAVE (2026-10-08: "Jake has two kids" went to the
+    # planner). A family or pets, counted; a name said with its capital or
+    # a person of his, so "the house has two bathrooms" is not one.
+    m = re.fullmatch(r"(?P<who>my [a-z][a-z'-]{1,20}|[a-z][a-z'-]{1,20}) (?:has|have|has got) (?P<n>no|one|two|three|four|five|six|seven|eight|\d{1,2}|a|an)"
+                     r" (?:little |young |grown |adult |grown-up )?(?P<what>kids?|children|child|sons?|daughters?|boys?|girls?|grandkids?|grandchildren"
+                     r"|brothers?|sisters?|siblings?|dogs?|cats?|pets?|twins)", low)
+    if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("i", "he", "she", "they", "we", "you", "it", "who"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.

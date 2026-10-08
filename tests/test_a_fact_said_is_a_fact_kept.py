@@ -9177,5 +9177,24 @@ class MovingALineBetweenLists(unittest.TestCase):
             self.assertNotEqual(voice._interpret("move pizza to the shopping list")["command"]["kind"], "shopping_add")
 
 
+class WhatSomebodyHasAndHowOldTheyAre(unittest.TestCase):
+    """"Jake has two kids" went to the planner, and "how old will Jake be"
+    after "Jake is 30" and his birthday said it had no year (2026-10-08)."""
+
+    def test_a_family_is_kept_and_read(self):
+        self.assertEqual(voice._interpret("Jake has two kids")["command"], {"kind": "note", "text": "Jake has two kids"})
+        self.assertNotEqual(voice._interpret("the house has two bathrooms")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Jake has two kids"}]):
+            self.assertEqual(quick.answer("how many kids does Jake have"), "You told me Jake has two kids.")
+            self.assertIsNone(quick.answer("how many dogs does Mike have"))
+
+    def test_an_age_said_and_a_birthday_without_a_year(self):
+        rows = [{"text": "Jake's birthday is June 5", "ts": "2026-10-08T13:00:00+00:00"},
+                {"text": "Jake is 30", "ts": "2025-10-08T13:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            said = quick.answer("how old will Jake be on his birthday")
+        self.assertRegex(said, r"^Jake is \d+, and turns \d+ on June 5\.$")
+
+
 if __name__ == "__main__":
     unittest.main()
