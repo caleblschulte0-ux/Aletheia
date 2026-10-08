@@ -13078,5 +13078,16 @@ class ThePetsNews(unittest.TestCase):
             self.assertEqual(quick.answer("what brand of dog food do we use"), "You told me: you use Purina for the dog.")
 
 
+class WhatHeIsHosting(unittest.TestCase):
+    def test_count_turkey_and_what_he_hosts(self):
+        self.assertEqual(voice.interpret("12 people are coming for Thanksgiving")["command"]["kind"], "note")
+        self.assertTrue(voice.interpret("how big a turkey do I need for 12 people")["say"].startswith("About 15 to 18 pounds for 12"))
+        rows = [{"text": "12 people are coming for Thanksgiving"}, {"text": "I'm hosting Thanksgiving this year"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what am I hosting"), "You told me you're hosting Thanksgiving this year.")
+            self.assertEqual(quick.answer("am I hosting Thanksgiving"), "Yes - you told me you're hosting Thanksgiving this year.")
+            self.assertIsNone(quick.answer("am I hosting Christmas"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11008,7 +11008,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:hosting|having|throwing|doing) (?:thanksgiving|christmas|easter|passover|hanukkah|friendsgiving|the [a-z]{3,15} party"
                     r"|(?:a |the )?(?:party|barbecue|bbq|cookout|potluck|dinner party|game night|birthday party|baby shower|bridal shower))"
                     r"(?: (?:this year|at (?:our|my) (?:house|place)|on [a-z0-9 ]{3,20}|this [a-z]{3,10}|next [a-z]{3,10}))?", low) \
-            or re.fullmatch(r"(?:\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)(?: people| guests| of us| adults| kids)? (?:are|is) coming(?: to [a-z][a-z' ]{2,25})?", low) \
+            or re.fullmatch(r"(?:\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)(?: people| guests| of us| adults| kids)? (?:are|is) coming(?: (?:to|for) [a-z][a-z' ]{2,25})?", low) \
             or re.fullmatch(r"(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone|everybody)\b)(?:my [a-z]{2,15}(?: in law)?|[a-z]{2,15}(?: and [a-z]{2,15})?|the [a-z]{2,15}) (?:is|are) bringing (?:the |a |an |some |her |his |their )?(?!up\b|it\b|that\b|this\b|them\b)[a-z][a-z' ]{1,30}", low) \
             or re.fullmatch(r"(?:thanksgiving |christmas |the |easter )?(?:dinner|lunch|brunch|the party|the barbecue|the bbq|the potluck) (?:is|starts) at \d{1,2}(?::\d\d)?(?: ?[ap]m)?(?: (?:on )?(?:thanksgiving|christmas|saturday|sunday|friday))?", low):
         say = None
@@ -11629,6 +11629,14 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:we|i) (?:use|buy|get|feed (?:him|her|them|the (?:dog|cat)))(?: the)? [a-z0-9][a-z0-9 &'-]{1,25}? (?:for (?:the|my|our) (?:dog|cat|puppy|kitten)|(?:dog|cat|puppy|kitten) food)", low) \
             or re.fullmatch(_pet + r" (?:eats|only eats|likes|is on) [a-z0-9][a-z0-9 &'-]{1,25}? (?:food|kibble)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "How big a turkey do I need for 12 people" (2026-10-08: to the
+    # planner) is a rule of thumb: a pound and a half each.
+    m = re.fullmatch(r"how (?:big|large|many pounds|much)(?: of)? (?:a |of a )?turkey (?:do i|should i|do we|should we) (?:need|get|buy|cook)(?: to feed| for) (?P<n>\d{1,3}) (?:people|guests|adults)", low)
+    if m and 0 < int(m.group("n")) <= 100:
+        n = int(m.group("n"))
+        lo, hi = round(n * 1.25), round(n * 1.5)
+        return {"command": None, "say": f"About {lo} to {hi} pounds for {n} - figure a pound and a quarter to a pound and a half each, "
+                                         "and the top of that if you want leftovers."}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
