@@ -9690,6 +9690,25 @@ def _interpret(transcript: str) -> dict:
                     r" (?:after work|before work|after lunch|after dinner|after school|later(?: today| tonight)?|tonight|this afternoon"
                     r"|this evening|in the morning|tomorrow(?: morning| afternoon| evening| night)?)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have a flight to Denver on November 3 at 6am", "I'm staying at the
+    # Hilton in Denver" (2026-10-08: both to the planner). Kept in the shape
+    # the readers already know - "my flight ... is", "my hotel is" - so
+    # "when is my flight" and "where am I staying" answer.
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:a|my) flight(?P<to> (?:to|back to|home to|from) [a-z][a-z .'-]{1,30}?)? "
+                     # a date that stays true when the note is read next week - not "tomorrow"
+                     r"(?:on )?(?P<when>(?:" + _MONTH + r")\.? \d{1,2}(?:st|nd|rd|th)?(?:,? (?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)?)?)", low)
+    if m:
+        to = _as_he_said(text, m.group("to").strip()) if m.group("to") else ""
+        return {"command": {"kind": "note",
+                            "text": f"my flight{' ' + to if to else ''} is {_as_he_said(text, m.group('when'))}"},
+                "say": None}
+    m = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:staying|booked) (?:at|in) (?P<at>(?:the |an? )?[a-z0-9][a-z0-9 &'.-]{1,40}?"
+                     r"(?:hotel|inn|suites|resort|lodge|motel|hostel|airbnb|hilton|marriott|hyatt|westin|sheraton|holiday inn|hampton|"
+                     r"courtyard|ritz|four seasons|best western|motel 6)(?: [a-z][a-z .'-]{1,20}?)?)(?P<in> in [a-z][a-z .'-]{1,30})?"
+                     r"(?: (?:tonight|this weekend|next week|while i'?m there))?", low)
+    if m:
+        where = _as_he_said(text, m.group("at")) + (" " + _as_he_said(text, m.group("in").strip()) if m.group("in") else "")
+        return {"command": {"kind": "note", "text": f"my hotel is {where}"}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|bought|put in|filled up(?: on)?) gas(?: in (?:the|my) (?:car|truck))?"

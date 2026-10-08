@@ -8310,5 +8310,23 @@ class WatchedComesOffTheWatchList(unittest.TestCase):
 
 
 
+class AFlightAndAHotelSaidAsPlans(unittest.TestCase):
+    """"I have a flight to Denver on November 3 at 6am" and "I'm staying at
+    the Hilton in Denver" went to the planner (2026-10-08)."""
+
+    def test_they_are_kept_in_the_shape_the_readers_know(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I have a flight to Denver on November 3 at 6am")["command"],
+                         {"kind": "note", "text": "my flight to Denver is November 3 at 6am"})
+        self.assertEqual(voice._interpret("I am staying at the Hilton in Denver")["command"],
+                         {"kind": "note", "text": "my hotel is the Hilton in Denver"})
+
+    def test_a_relative_day_is_not_written_down_as_words(self):
+        from aletheia import voice
+        cmd = voice._interpret("I have a flight tomorrow at 7")["command"]
+        self.assertNotEqual(cmd.get("text"), "my flight is tomorrow at 7")
+
+
+
 if __name__ == "__main__":
     unittest.main()

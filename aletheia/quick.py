@@ -2658,7 +2658,7 @@ def _direct(text: str) -> str:
     # (2026-10-08: to a model): the fact he gave, asked by its own name.
     m = re.fullmatch(r"(?:what|which|where(?:'s| is)?) (?P<what>hotel|airbnb|campsite|cabin)(?: am i| are we| is it)?"
                      r"(?: staying(?: at| in)?| booked| at)?\s*\??", text) \
-        or re.fullmatch(r"where (?:am i|are we) staying\s*\??", text)
+        or re.fullmatch(r"where (?:am i|are we) staying(?: in [a-z][a-z .'-]{1,30}?| tonight| there)?\s*\??", text)
     if m:
         what = m.groupdict().get("what") or "hotel"
         if _fact_any(what):
