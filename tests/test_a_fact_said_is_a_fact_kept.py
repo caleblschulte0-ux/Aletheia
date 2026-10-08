@@ -12937,5 +12937,25 @@ class WhenHeGetsHomeIsAReminder(unittest.TestCase):
             self.assertEqual(intercom._reminders_answer(), "You have no reminders set.")
 
 
+class WhatTheyWatched(unittest.TestCase):
+    """2026-10-08: "we watched Inception last night" and "my wife wants to
+    watch The Crown" went to the planner, and "what shows have I finished"
+    to a model."""
+
+    def test_kept(self):
+        for said in ("we watched Inception last night", "my wife wants to watch The Crown", "the kids want to see Moana"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_read_back(self):
+        rows = [{"text": "we watched Inception last night"}, {"text": "my wife wants to watch The Crown"},
+                {"text": "I finished Breaking Bad"}, {"text": "I finished the laundry"}, {"text": "we finished watching Ozark"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what movie did we watch last night"), "You told me you watched Inception last night.")
+            self.assertEqual(quick.answer("what does my wife want to watch"), "You told me your wife wants to watch The Crown.")
+            self.assertEqual(quick.answer("what shows have I finished"), "You told me you finished Breaking Bad and Ozark.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("what does my wife want to watch"))
+
+
 if __name__ == "__main__":
     unittest.main()

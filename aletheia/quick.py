@@ -2566,7 +2566,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What are we reading for book club", "what podcast did I listen to",
     # "what did I watch last night" (2026-10-08: to a model).
     ("media_said", re.compile(r"^(?:what (?:are we|am i) reading for (?P<ms_club>book club)|what (?:was the |is the )?(?P<ms_pod>podcast) (?:did i (?:listen to|hear)|was i listening to)"
-                              r"|what did i (?P<ms_watch>watch)(?: last night| yesterday| today| this weekend)?)\s*\??$")),
+                              r"|what (?:movie |show |film )?did (?:i|we) (?P<ms_watch>watch)(?: last night| yesterday| today| this weekend)?)\s*\??$")),
     # "What does my wife have this week" (2026-10-08: to a model), a turn
     # after "my wife has a doctor appointment Thursday at 2" was held.
     ("their_week", re.compile(r"^what (?:does|do) (?P<their_week>my (?:wife|husband|partner|son|daughter|kids?|mom|dad|girlfriend|boyfriend)|the kids|[a-z]{2,15}) have(?: (?:going on|on|coming up|planned))?"
@@ -2691,6 +2691,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("lived_since", re.compile(
         r"^how long (?:have|has) (?:i|we|my (?:wife|husband|family) and i) (?:lived|been living|been) (?P<ls_where>here|in (?:this|the|our|my) (?:house|home|place|apartment|condo)|in [a-z][a-z .'-]{1,30}?)\s*\??$"
         r"|^(?P<ls_when>when|how long ago|what year) did (?:i|we) move (?P<ls_where2>here|in|into (?:this|the|our|my) (?:house|home|place|apartment|condo)|to [a-z][a-z .'-]{1,30}?)\s*\??$")),
+    # "What does my wife want to watch", "what shows have I finished"
+    # (2026-10-08: to a model, a turn after he said so).
+    ("wants_watch", re.compile(r"^what (?:does|do) (?P<ww_who>my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?|son|daughter|kids?|mom|dad)|the kids) wants? to (?P<ww_verb>watch|see|read)\s*\??$")),
+    ("finished_shows", re.compile(r"^what (?P<fs_kind>shows|series|movies|books|seasons) (?:have i|did i|have we|did we) (?:finished|finish|watched all of|binged|read)(?: so far| this year| lately)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3635,7 +3639,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "lived_since", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "wants_watch", "finished_shows", "lived_since", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17712,7 +17716,7 @@ def _media_said(text: str) -> str | None:
     found = _said_lines(pattern, 1)
     if not found:
         return None
-    said = re.sub(r"^we are\b", "you are", found[0], flags=re.I)
+    said = re.sub(r"^we\b", "you", found[0], flags=re.I)
     return f"You told me {said}."
 
 
@@ -18706,6 +18710,39 @@ def _lived_since(text: str) -> str | None:
     return None
 
 
+def _wants_watch(text: str) -> str | None:
+    """What somebody of his wants to watch or read, as he said it."""
+    g = _groups("wants_watch", text)
+    who = re.sub(r"^my ", "", str(g.get("ww_who") or ""))
+    if not who:
+        return None
+    verb = "read" if g.get("ww_verb") == "read" else r"(?:watch|see)"
+    found = _said_lines(rf"^(?:my |our |the ){re.escape(who)}s? wants? to {verb} ", 3)
+    if not found:
+        return None
+    from aletheia import speech
+    return f"You told me {speech.and_list([ln.rstrip('.') for ln in found])}."
+
+
+def _finished_shows(text: str) -> str | None:
+    """What he said he finished: "I finished Breaking Bad", "we finished
+    watching Ozark". Titles are his capitals, so a chore he finished is
+    not a show."""
+    g = _groups("finished_shows", text)
+    books = g.get("fs_kind") == "books"
+    verb = r"finished reading|read" if books else r"finished(?: watching)?|binged|watched all of"
+    out = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".!")
+        m = re.match(rf"(?i:i|we) (?:just |finally )?(?:{verb}) (?P<t>(?:the |season \d+ of )?[A-Z0-9][\w:'&,. -]{{1,60}}?)(?: last night| tonight| today| yesterday| this weekend| again)?$", said)
+        if m and m.group("t") not in out and not re.match(r"(?:the |my )?(?:laundry|dishes|work|homework|report|project|chores?)\b", m.group("t"), re.I):
+            out.append(m.group("t"))
+    if not out:
+        return None
+    from aletheia import speech
+    return f"You told me you finished {speech.and_list(out[:6])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19524,6 +19561,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "wants_watch": _wants_watch,
+           "finished_shows": _finished_shows,
            "lived_since": _lived_since,
            "eating_where": _eating_where,
            "let_go": _let_go,

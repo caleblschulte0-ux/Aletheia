@@ -11560,6 +11560,12 @@ def _interpret(transcript: str) -> dict:
                     r" (?:on |in |back in )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: (?:the )?\d{1,2}(?:st|nd|rd|th)?)?(?:,? \d{4})?|(?:19|20)\d\d)", low) \
             or re.fullmatch(r"(?:i|we)(?:'ve| have) lived (?:here|in (?:this|the|our|my) (?:house|home|place|apartment|condo)|in [a-z][a-z .'-]{1,30}?) since (?:(?:19|20)\d\d|" + _MONTH + r"(?:,? \d{4})?)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My wife wants to watch The Crown", "the kids want to see the new
+    # Pixar movie" (2026-10-08: to the planner). "What does my wife want to
+    # watch" reads it.
+    if re.fullmatch(r"(?:my|our|the) (?:wife|husband|partner|girlfriend|boyfriend|fiancee?|son|daughter|kids?|mom|dad) wants? to (?:watch|see|read) "
+                    r"(?!(?:it|that|this|something|anything|a movie|tv)$)[a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
@@ -12501,11 +12507,11 @@ def _interpret(transcript: str) -> dict:
         return _new_task(f"get {svc}" + (m.group("before") or ""))
     # "I watched Oppenheimer" (2026-10-07: to the planner) - "what movies
     # have I watched" reads it back with his watch list.
-    if re.fullmatch(r"i (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"
                     r"[a-z0-9][a-z0-9 ,:'&-]{1,60}?(?: (?:last night|tonight|today|yesterday|again))?", low):
         # On his watch list, it comes off it (2026-10-08: "what should I
         # watch tonight" offered Dune a turn after "I watched Dune").
-        title = re.sub(r"^i (?:just )?(?:watched|finished watching|binged) | (?:last night|tonight|today|yesterday|again)$", "", low).strip()
+        title = re.sub(r"^(?:i|we) (?:just )?(?:watched|finished watching|binged) | (?:last night|tonight|today|yesterday|again)$", "", low).strip()
         try:
             from aletheia import lists
             listed = {str(t).casefold() for t in (lists.items("watch") or [])}
