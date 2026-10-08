@@ -9287,5 +9287,24 @@ class AtWork(unittest.TestCase):
             self.assertIn("the report is due", quick.answer("what deadlines do I have"))
 
 
+class TheKitchen(unittest.TestCase):
+    """A sweep of kitchen sentences (2026-10-08)."""
+
+    def test_frozen_and_batch_cooked_are_kept(self):
+        for said in ("I froze the leftover soup", "I made a double batch of chili"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice._interpret("I made a mistake")["command"]["kind"], "note")
+
+    def test_the_freezer_is_what_went_in_and_not_out(self):
+        rows = [{"text": "I froze the leftover soup"}, {"text": "I put the chicken in the freezer"},
+                {"text": "I took the chicken out of the freezer"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("whats in the freezer"), "You told me you froze the leftover soup.")
+
+    def test_expiring_and_trying_are_asked_the_known_way(self):
+        self.assertEqual(quick.match("what food is expiring")[0], "tasks_due")
+        self.assertEqual(quick.match("what am I trying to do")[0], "kept")
+
+
 if __name__ == "__main__":
     unittest.main()

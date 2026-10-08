@@ -2166,6 +2166,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("workouts_did", re.compile(
         r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
         r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
+    # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
+    ("freezer", re.compile(r"^what(?:'s| is|s)? (?:in|left in) (?:the |my )?(?:freezer|deep freeze)\s*\??$"
+                           r"|^what (?:do i have|have i got|did i put) in (?:the |my )?freezer\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2834,6 +2837,13 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how long ago did i (?:last )?(?P<rest>[a-z][a-z' ]{2,50}?)\s*\??", text)
     if m and (match(f"how long since i {m.group('rest')}") or ("", ""))[0] == "did_last":
         return f"how long since i {m.group('rest')}"
+    # "What food is expiring" a turn after "the chicken expires Friday", and
+    # "what am I trying to do" (2026-10-08: both to a model).
+    if re.fullmatch(r"what(?:'s| is| are)? (?:food |foods |stuff |things |groceries |in the fridge )?(?:is |are )?(?:expiring|going bad|going off)(?: soon)?\s*\??"
+                    r"|what (?:food |foods |stuff |things |groceries )(?:is |are )?(?:expiring|going bad|about to expire)(?: soon)?\s*\??", text):
+        return "what expires soon"
+    if re.fullmatch(r"what am i (?:trying|working|aiming|hoping) to (?:do|achieve|accomplish|get better at|work on)\s*\??", text):
+        return "what are my goals"
     # "What deadlines do I have" (2026-10-08: "nothing about deadlines on
     # file") is what's due.
     m = re.fullmatch(r"what (?:deadlines|deadline) (?:do i have|have i got|are coming up)(?P<w> today| this week| next week| this month| tomorrow)?\s*\??", text)
@@ -13989,6 +13999,28 @@ def _out_today(state: str) -> str | None:
     return f"You told me {speech.and_list(out)} today." if len(out) > 1 else f"You told me {out[0]} today."
 
 
+def _freezer(_text: str = "") -> str | None:
+    """What he said he froze or put in the freezer, newest first, minus what
+    he said he took out or ate."""
+    from aletheia import speech
+    went_in, came_out = [], set()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        m = re.match(r"i (?:just )?(?:froze|frozen|put|stuck|stored) (?P<w>.+?)(?: in (?:the |my )?freezer)?(?: today| yesterday| last night)?$", low)
+        if m and (low.startswith(("i froze", "i just froze")) or "freezer" in low):
+            went_in.append(re.sub(r"^my ", "your ", m.group("w")))
+        out = re.match(r"i (?:just )?(?:took|thawed|defrosted|ate|finished) (?P<w>.+?)(?: out of (?:the |my )?freezer| out)?(?: today| yesterday| last night)?$", low)
+        if out:
+            came_out.add(re.sub(r"^(?:the|my|some) ", "", out.group("w")))
+    left = [w for w in reversed(went_in) if re.sub(r"^(?:the|your|some) ", "", w) not in came_out]
+    if not went_in:
+        return None
+    if not left:
+        return "Everything you told me you froze, you've since taken out."
+    return f"You told me you froze {speech.and_list(left[:6])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14796,6 +14828,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "freezer": _freezer,
            "out_today": _out_today,
            "workouts_did": _workouts_did,
            "episode_on": _episode_on,

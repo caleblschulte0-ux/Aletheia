@@ -9975,6 +9975,12 @@ def _interpret(transcript: str) -> dict:
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I froze the leftover soup", "I made a double batch of chili"
+    # (2026-10-08: to the planner). What is in the freezer is read back.
+    if re.fullmatch(r"i (?:just )?froze (?:the |some |my |a |our )?[a-z][a-z' ]{1,40}?(?: today| yesterday| last night| for later)?", low) \
+            or re.fullmatch(r"i (?:just )?(?:made|cooked|baked) (?:a |an )?(?:double |triple |big |huge |small )?(?:batch|pot|pan|tray|loaf|dozen|sheet)"
+                            r" of [a-z][a-z' ]{1,30}?(?: today| yesterday| last night| for (?:the week|dinner|lunch|meal prep))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I have a work trip to Chicago next week", "I have a deadline on the
     # report Friday", "I worked 45 hours this week", "my coworker Sam is out
     # sick", "my work email is ..." (2026-10-08: all to the planner).
