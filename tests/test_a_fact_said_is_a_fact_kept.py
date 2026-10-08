@@ -3090,6 +3090,7 @@ class TheGymAndARun(unittest.TestCase):
             for said in ("I went for a run", "I went to the gym", "I worked out", "I meditated"):
                 self.assertEqual((voice._interpret(said) or {}).get("command"), {"kind": "note", "text": said}, said)
         now = dt.datetime.now(dt.timezone.utc)
+        _needs_today_to_hold(self, dt.timedelta(hours=1))
         notes = [{"text": "I went to the gym", "ts": now.isoformat()},
                  {"text": "I went for a run", "ts": (now - dt.timedelta(hours=1)).isoformat()},
                  {"text": "I went to the gym", "ts": (now - dt.timedelta(days=40)).isoformat()}]
@@ -3588,6 +3589,7 @@ class HisWorkDayAndTalkingToHer(unittest.TestCase):
         self.assertEqual(voice._interpret("I'm done with work for the day")["command"], {"kind": "note", "text": "finished work"})
         self.assertEqual(voice._interpret("clocking out")["command"], {"kind": "note", "text": "finished work"})
         now = dt.datetime.now(dt.timezone.utc)
+        _needs_today_to_hold(self, dt.timedelta(hours=3, minutes=35))
         notes = [{"text": "finished work", "ts": (now - dt.timedelta(minutes=5)).isoformat()},
                  {"text": "started work", "ts": (now - dt.timedelta(hours=3, minutes=35)).isoformat()}]
         with mock.patch.object(quick, "_notes", return_value=notes):
@@ -4816,12 +4818,13 @@ class ARemindersTimeAskedByName(unittest.TestCase):
         with mock.patch.object(intercom, "_one_reminder", return_value=(None, "You have no reminders set.")):
             self.assertEqual(quick.answer("what time is my dentist reminder"), "You have no reminders set.")
 
-    def test_skip_and_pause_are_said_plainly(self):
+    def test_skip_is_one_time_and_pause_is_said_plainly(self):
+        # Skipping one time is a door now (2026-10-08); pausing all is not.
         from aletheia import voice
-        for said in ("skip tomorrow's pill reminder", "pause my reminders for today"):
-            got = voice.interpret(said)
-            self.assertIsNone(got["command"], said)
-            self.assertIn("can't", got["say"], said)
+        self.assertEqual(voice.interpret("skip tomorrow's pill reminder")["command"]["once"], "tomorrow")
+        got = voice.interpret("pause my reminders for today")
+        self.assertIsNone(got["command"])
+        self.assertIn("can't", got["say"])
 
 
 class ANumberKeptAsANote(unittest.TestCase):
@@ -5579,6 +5582,7 @@ class WhenHeLeftWork(unittest.TestCase):
     def test_the_times_he_said(self):
         from aletheia import localtime
         now = dt.datetime.now(localtime.operator_tz()).replace(second=0, microsecond=0)
+        _needs_today_to_hold(self, dt.timedelta(minutes=50))
         start, end = now - dt.timedelta(minutes=50), now - dt.timedelta(minutes=5)
         with self._rows(("finished work", end.isoformat()), ("started work", start.isoformat())):
             self.assertIn("done with work", quick.answer("what time did I leave work"))
@@ -6690,7 +6694,7 @@ class LongestRunAndTheReadingGoal(unittest.TestCase):
         self.assertEqual(voice.interpret("I ran 5 miles yesterday")["command"]["text"], "I ran 5 miles yesterday")
         now = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         rows = [{"text": "I ran 3 miles", "ts": now.isoformat()},
-                {"text": "I ran 5 miles yesterday", "ts": (now - dt.timedelta(minutes=5)).isoformat()}]
+                {"text": "I ran 5 miles yesterday", "ts": now.isoformat()}]
         with mock.patch.object(quick, "_notes", return_value=rows):
             said = quick.answer("what's my longest run")
         self.assertTrue(said.startswith("5 miles, yesterday"), said)
@@ -6960,6 +6964,47 @@ class AnEmptyWeekStillHasHisReminders(unittest.TestCase):
         from aletheia import speech
         said = speech.spoken_receipt("remind_weekly", "weekly reminder r1 set for weekdays at 07:00 — 'wake up'")
         self.assertEqual(said, "Alarm set for weekdays at 7 am.")
+
+
+
+class SkipJustOnce(unittest.TestCase):
+    """2026-10-08: "skip tomorrow's vitamin reminder" said she couldn't.
+    One time is skipped; the schedule stays on."""
+
+    def test_the_sentence_asks_for_one_time(self):
+        self.assertEqual(voice._interpret("skip tomorrows vitamin reminder")["command"],
+                         {"kind": "reminder_off", "which": "vitamin", "once": "tomorrow"})
+        self.assertEqual(voice._interpret("skip the gym reminder")["command"]["once"], "next")
+
+    def test_a_skipped_time_does_not_go_off_and_the_next_one_does(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import scheduler
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(scheduler, "SCHEDULE_DIR", Path(tmp) / "s"), \
+                mock.patch.object(scheduler, "RECEIPT_DIR", Path(tmp) / "r"):
+            spec = scheduler.create("vit", {"kind": "notify_operator", "text": "take my vitamins"},
+                                    kind="daily", timezone="America/Chicago", time="09:00")
+            now = dt.datetime.now(dt.timezone.utc)
+            first = scheduler.next_occurrence(spec, now)
+            spec = scheduler.skip_once("vit", first)
+            second = scheduler.next_occurrence(spec, now)
+            self.assertEqual(second - first, dt.timedelta(days=1))
+            self.assertIsNone(scheduler.claim_due(spec, now=first + dt.timedelta(minutes=1)))
+            self.assertIsNotNone(scheduler.claim_due(spec, now=second + dt.timedelta(minutes=1)))
+            spec = scheduler.unskip("vit")
+            self.assertEqual(scheduler.next_occurrence(spec, now), first)
+
+
+
+def _needs_today_to_hold(case, span):
+    """A fixture that puts `span` of his day behind now cannot exist in the
+    first minutes after his midnight: "today" is shorter than that. Found
+    at 00:05 on 2026-10-08, when five such tests went red at once."""
+    from aletheia import localtime
+    now = dt.datetime.now(localtime.operator_tz())
+    if (now - span).date() != now.date():
+        case.skipTest(f"his day is only {now.hour}h{now.minute:02d}m old; this fixture needs {span} of it")
 
 
 if __name__ == "__main__":

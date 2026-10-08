@@ -310,7 +310,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # a notification he has read and cannot act on yet is the commonest
     # thing in the room, and "I can't do that yet" was the answer.
     "notify_snooze":   ({"minutes"}, {"which", "quiet"}),
-    "reminder_off":    ({"which"}, set()),
+    "reminder_off":    ({"which"}, {"once"}),
     "reminder_on":     ({"which"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
@@ -558,7 +558,8 @@ KIND_NOTES: dict[str, str] = {
         'Stop a reminder he has set. which is the words he used for it '
         '("the bins", "the gym one"); she finds the one reminder that '
         'matches and asks him which if two do. It is DISABLED, not '
-        'deleted, so it can be put back.'),
+        'deleted, so it can be put back. once ("today", "tomorrow" or '
+        '"next") skips just that one time of a repeating reminder.'),
     "remind_every": (
         'A reminder that repeats within the day - "every hour to drink '
         'water", "every 30 minutes". minutes is 15 to 720; the first one '
@@ -1513,6 +1514,32 @@ def _until_next_reminder(sort: str = "reminder") -> str:
     return f"Your next {sort}, {what}, is in {gap}."
 
 
+def _skip_once(found: dict, once: str) -> str:
+    """"Skip tomorrow's pill reminder" (2026-10-08): that one time, and the
+    schedule stays on. A one-off has nothing to skip but itself."""
+    from aletheia import localtime, scheduler, speech
+    if found.get("kind") == "once":
+        raise act.Refused(f"that one only goes off once - say \"cancel the {_reminder_words(found).split(' — ')[0]} reminder\" to stop it.")
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(dt.timezone.utc)
+    at = scheduler.next_occurrence(found, now)
+    want = {"today": 0, "tonight": 0, "tomorrow": 1}.get(" ".join(once.casefold().split()))
+    if want is not None:
+        day = dt.datetime.now(tz).date() + dt.timedelta(days=want)
+        while at is not None and at.astimezone(tz).date() < day:
+            at = scheduler.next_occurrence(found, at)
+        if at is None or at.astimezone(tz).date() != day:
+            raise act.Refused(f"it doesn't go off {once} - {_reminder_words(found).split(' — ')[-1]}.")
+    if at is None:
+        raise act.Refused("it has nothing coming up to skip.")
+    scheduler.skip_once(found["id"], at)
+    words = _reminder_words(found).split(" — ")[0]
+    after = scheduler.next_occurrence(scheduler.load(found["id"]), at)
+    return (f"reminder {found['id']} skipped — {speech._yours(words)} won't go off "
+            f"{speech.humanize_time(at.isoformat())}"
+            + (f"; next {speech.humanize_time(after.isoformat())}" if after else ""))
+
+
 def _next_reminder_answer(sort: str = "reminder") -> str:
     """"When's my next alarm" - the soonest one of that sort, not the list."""
     from aletheia import speech
@@ -1648,6 +1675,15 @@ def _reminder_back_on(which: str) -> str:
             hits = [r for r in stopped
                     if words and all(w in str((r.get("command") or {}).get("text") or "").casefold() for w in words)]
         hits = sorted(hits, key=changed, reverse=True)[:1]
+    if not hits and every is None:
+        # "Skip tomorrow's vitamin reminder", then "turn it back on": the
+        # reminder never stopped, one time of it was skipped (2026-10-08).
+        found, _why = _one_reminder(which)
+        if found is not None and found.get("skips"):
+            scheduler.unskip(found["id"])
+            at = scheduler.next_occurrence(scheduler.load(found["id"]), now)
+            return (f"Back on: {speech._yours(_reminder_words(found).split(' — ')[0])}"
+                    + (f", next {speech.humanize_time(at.isoformat())}" if at else "") + ".")
     if not hits:
         raise act.Refused("There's no stopped reminder like that to put back." if every is None
                           else "Nothing was stopped in the last day to put back.")
@@ -4073,6 +4109,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         found, why = _one_reminder(cmd["which"])
         if found is None:
             raise act.Refused(why)
+        if cmd.get("once"):
+            return _skip_once(found, str(cmd["once"]))
         # DISABLED, never deleted: "actually put that back" has to be one
         # command, and a deleted schedule cannot be put back at all.
         scheduler.set_enabled(found["id"], False)

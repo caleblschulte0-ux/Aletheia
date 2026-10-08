@@ -6889,12 +6889,14 @@ def _interpret(transcript: str) -> dict:
     # "Skip tomorrow's pill reminder", "pause my reminders for today"
     # (2026-10-07: to the planner). Neither is a door she has; said plainly,
     # with the two that are.
-    m = re.fullmatch(r"skip (?:(?:tomorrow'?s?|today'?s?|tonight'?s?|the next|my next|this week'?s?|the) )?(?:my )?"
-                     r"(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)(?: (?:tomorrow|today|tonight|this time|once|just once))?", low)
-    if m:
-        return {"command": None,
-                "say": f"I can't skip just one of a repeating reminder yet. Say \"turn off my {m.group('w')} reminder\" "
-                       "and set it again after, or let it go off and ignore it."}
+    m = re.fullmatch(r"(?:skip|cancel just|don'?t remind me about) (?:(?P<d1>tomorrow|today|tonight)'?s? |(?P<d0>the next|my next|the) )?(?:my )?"
+                     r"(?P<w>[a-z][a-z' ]{1,30}?) (?P<sort>reminder|alarm)"
+                     r"(?: (?P<d2>tomorrow|today|tonight|this time|once|just once|next time))?", low)
+    if m and m.group("w") not in ("next", "the next"):
+        once = m.group("d1") or m.group("d2") or "next"
+        once = "next" if once in ("this time", "once", "just once", "next time") else once
+        which = "wake up" if m.group("sort") == "alarm" and m.group("w") in ("my", "the", "morning") else m.group("w")
+        return {"command": {"kind": "reminder_off", "which": which, "once": once}, "say": None}
     if re.fullmatch(r"(?:pause|suspend|hold|stop|mute|silence) (?:all )?(?:my |the )?(?:reminders|alarms)"
                     r"(?: for (?:today|tonight|the day|the rest of the day|now|a while|the weekend|this week))?", low):
         return {"command": None,

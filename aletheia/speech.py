@@ -725,6 +725,12 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
         return text
     if kind == "reminder_off":
+        # "reminder r1 skipped — take your vitamins won't go off tomorrow at
+        # 9 am; next Saturday at 9 am": one time only (2026-10-08).
+        skipped = re.search(r"skipped\s*[—-]\s*(.+?) won't go off (.+?)(?:; next (.+))?$", text)
+        if skipped:
+            what, when, nxt = skipped.groups()
+            return (f"Skipped {when}: {what}." + (f" It's back {nxt}." if nxt else "")).replace("Skipped today at", "Skipped today's, at")
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"
         body = re.search(r"off\s*[—-]\s*(.+)$", text)

@@ -175,7 +175,40 @@ def occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
     return None
 
 
+def _skipped(spec: dict, occurrence: dt.datetime) -> bool:
+    """One occurrence he asked to skip ("skip tomorrow's pill reminder"):
+    the schedule stays on and only that one does not go off."""
+    stamp = occurrence.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M")
+    return stamp in [str(s)[:16] for s in spec.get("skips") or []]
+
+
+def skip_once(schedule_id: str, occurrence: dt.datetime) -> dict:
+    """Mark one coming occurrence of a repeating schedule as skipped."""
+    spec = load(schedule_id)
+    stamp = occurrence.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M")
+    skips = [str(s) for s in spec.get("skips") or [] if str(s)[:16] != stamp]
+    spec["skips"] = (skips + [stamp])[-20:]
+    spec["updated_at"] = utcnow()
+    return save(spec)
+
+
+def unskip(schedule_id: str) -> dict:
+    spec = load(schedule_id)
+    spec.pop("skips", None)
+    spec["updated_at"] = utcnow()
+    return save(spec)
+
+
 def next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
+    at = _next_occurrence(spec, after)
+    for _ in range(20):
+        if at is None or not _skipped(spec, at):
+            return at
+        at = _next_occurrence(spec, at)
+    return at
+
+
+def _next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
     validate(spec)
     if after.tzinfo is None or after.utcoffset() is None:
         raise ValueError("after must be timezone-aware")
@@ -221,7 +254,7 @@ def _receipt_path(schedule_id: str, occurrence: dt.datetime) -> Path:
 def claim_due(spec: dict, *, now: dt.datetime | None = None) -> dict | None:
     now = now or dt.datetime.now(dt.timezone.utc)
     occurrence = occurrence_at_or_before(spec, now)
-    if occurrence is None:
+    if occurrence is None or _skipped(spec, occurrence):
         return None
     path = _receipt_path(spec["id"], occurrence)
     receipt = {"version": 1, "schedule_id": spec["id"], "occurrence": occurrence.isoformat(),

@@ -9366,7 +9366,7 @@ def _reminder_when(what: str) -> str | None:
             at = scheduler.next_occurrence(found, dt.datetime.now(dt.timezone.utc))
             if at and what.startswith("next "):
                 return (f"Your {what} reminder is {speech.humanize_time(at.isoformat())}: "
-                        f"{text.rstrip('.')}. It repeats {when[0].lower() + when[1:]}.")
+                        f"{speech._yours(text.rstrip('.'))}. It repeats {when[0].lower() + when[1:]}.")
             if at:
                 when = f"{when}, next {speech.humanize_time(at.isoformat())}"
         except Exception:  # noqa: BLE001 - the rule alone is still true
@@ -9454,7 +9454,11 @@ def _reminders_on(day: str) -> str | None:
     if not iso:
         return None
     tz = localtime.operator_tz()
-    rows = [(at.astimezone(tz), text) for at, text, store in _coming() if store == "reminder"
+    # From the START of that day: a daily reminder whose next time is today
+    # was missing from tomorrow (2026-10-08).
+    start = max(dt.datetime.now(dt.timezone.utc),
+                dt.datetime.combine(dt.date.fromisoformat(iso), dt.time(0, 0), tzinfo=tz) - dt.timedelta(seconds=1))
+    rows = [(at.astimezone(tz), text) for at, text, store in _coming(start) if store == "reminder"
             and at.astimezone(tz).date().isoformat() == iso]
     if not rows:
         return f"No reminders {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}."
