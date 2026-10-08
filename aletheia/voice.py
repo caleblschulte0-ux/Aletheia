@@ -10857,8 +10857,13 @@ def _interpret(transcript: str) -> dict:
                 "say": f"Noted. Say \"remind me to call {who} this weekend\" and I'll make sure you do."}
     # "I sent the birthday card" (2026-10-08: to the planner): ticks off
     # the task about it, or is kept.
-    m = re.fullmatch(r"i (?:just |finally )?(?P<v>sent|mailed|posted|dropped off|returned|submitted|filed|signed|renewed|booked|scheduled|wrote|bought|picked up)"
+    m = re.fullmatch(r"i (?:just |finally )?(?P<v>sent|mailed|posted|dropped off|returned|submitted|filed|signed|renewed|booked|scheduled|wrote|bought|picked up|paid)"
                      r" (?:the|my|a|an|our) (?P<thing>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this morning|already))?", low)
+    # "I paid the water bill" (2026-10-08: kept, with "pay the water bill"
+    # left on his list). Only a bill: "I paid the dentist" settles what he
+    # owed, which the ledger reads from his words.
+    if m and m.group("v") == "paid" and not re.search(r"\b(?:bill|invoice|tuition|taxes|tax bill|fine|ticket|tolls?|fee|premium|registration|deposit)$", m.group("thing")):
+        m = None
     if m:
         try:
             from aletheia import intercom as _icm2
@@ -11171,6 +11176,14 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:the|my|our) " + _RACE + r" is (?:on |this |next )?(?:" + SPOKEN_DATE + r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next month|next weekend|this weekend)", low) \
             or re.fullmatch(r"(?:i|we) (?:just )?(?:played|shot|went) (?:some )?(?:basketball|hoops|soccer|tennis|pickleball|golf|volleyball|softball|baseball|racquetball|squash|frisbee|ultimate|hockey|football|disc golf|bowling|a round of golf|9 holes|18 holes)"
                             r"(?: with [a-z ]{2,25})?(?: today| tonight| this morning| yesterday| last night)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Debt and refunds (2026-10-08: "I have 3000 in credit card debt" was
+    # refused as spending money; "I got a 50 dollar refund from amazon" went
+    # to the planner). What he owes or got back is a fact; keeping it spends
+    # nothing.
+    if re.fullmatch(r"(?:i|we) (?:have|owe|still owe|have about|have around) (?:about |around )?\$?\d[\d,]*k?(?: dollars)? (?:in|of|on) (?:my |our )?(?:credit card|student loan|student|car|medical|personal)? ?(?:debt|loans?|card)", low) \
+            or re.fullmatch(r"(?:my|our) (?:credit card|student loan|car loan|personal loan|medical) (?:debt|balance) is (?:about |around )?\$?\d[\d,]*k?(?: dollars)?", low) \
+            or re.fullmatch(r"(?:i|we) (?:just )?(?:got|received) (?:a |an |my |our )?(?:\$?\d[\d,]*(?:\.\d\d)? (?:dollar )?)?(?:refund|rebate|reimbursement|credit)(?: of \$?\d[\d,]*(?:\.\d\d)?(?: dollars)?)?(?: (?:from|back from) [a-z0-9][a-z0-9 ]{1,25})?(?: today| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):

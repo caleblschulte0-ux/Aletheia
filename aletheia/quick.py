@@ -2609,6 +2609,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do (?:i|we) owe (?P<fs_owe>(?!(?:you|them|him|her)\b)[a-z]{2,15})\s*\??$"
         r"|^(?:did|has|is) (?P<fs_who>(?!(?:i|we|you|it|he|she|they)\b)[a-z]{2,15}) (?:get|gotten|got|getting) (?P<fs_what>engaged|married|promoted|a new job|a dog|a puppy)\s*\??$")),
     ("race_when", re.compile(r"^when(?:'s| is) (?:my|the|our) (?P<race_when>5k|10k|half marathon|marathon|half|race|fun run|color run|turkey trot|triathlon|tough mudder|spartan race|bike ride|charity walk)\s*\??$")),
+    ("debt_said", re.compile(
+        r"^how much (?:debt|credit card debt|student (?:loan )?debt|student loans?) (?:do (?:i|we) have|(?:do|did) (?:i|we) owe|is (?:left|there))(?: left| in total| total)?\s*\??$"
+        r"|^is (?:my|our|the) (?P<debt_paid>credit card|car|car loan|student loan|loan|mortgage|house) paid off(?: yet)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3551,7 +3554,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -7457,7 +7460,7 @@ def _saved(text: str) -> str | None:
             return f"Your goal date has passed, and {_money(left)} is still to go toward {aim}."
         count = {"day": span_days, "week": span_days / 7, "month": span_days / 30.44}[per]
         each = left / max(count, 1)
-        return (f"About {_money(round(each, 2))} a {per} - {_money(left)} to go toward {aim} "
+        return (f"About {_money(round(each) if each >= 20 else round(each, 2))} a {per} - {_money(left)} to go toward {aim} "
                 f"by {due.strftime('%B')} {due.day}.")
     if g.get("saved_doing") and goal_by:
         due = _save_by(goal_by, now.date())
@@ -17964,6 +17967,27 @@ def _race_when(text: str) -> str | None:
     return f"You told me {found[0]}." if found else None
 
 
+
+def _debt_said(text: str) -> str | None:
+    """"How much debt do I have", "is my credit card paid off" (2026-10-08:
+    to a model, with "I have 3000 in credit card debt" kept). His words, or
+    None - nothing here works out a balance he never gave."""
+    g = _groups("debt_said", text)
+    if g.get("debt_paid"):
+        thing = re.escape(g["debt_paid"])
+        paid = _said_lines(rf"\b(?:i|we) (?:finally |just )?paid off (?:my|our|the) {thing}\b|\b(?:my|our|the) {thing} is (?:finally )?paid off\b", 1)
+        if paid:
+            return f"Yes - you told me {paid[0]}."
+        owed = _said_lines(rf"\b(?:i|we) (?:have|owe|still owe) .*\d.* (?:on|in) (?:my|our|the)? ?{thing}\b|\b{thing} (?:debt|balance) is .*\d", 1)
+        return f"Not that you've told me - you told me {owed[0]}." if owed else None
+    found = _said_lines(r"\b(?:i|we) (?:have|owe|still owe|have about|have around) (?:about |around )?\$?\d[\d,k]* (?:dollars )?(?:in|of|on) (?:my |our )?(?:credit card|student|car|medical|personal)? ?(?:debt|loans?|card)\b"
+                        r"|\b(?:my|our) (?:credit card|student loan|car loan|personal loan|medical) (?:debt|balance) is .*\d", 4)
+    if not found:
+        return None
+    from aletheia import speech
+    return f"You told me {speech.and_list(found)}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18779,6 +18803,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "debt_said": _debt_said,
            "race_when": _race_when,
            "friend_said": _friend_said,
            "homework_of": _homework_of,

@@ -12272,5 +12272,24 @@ class RacesAndGames(unittest.TestCase):
             self.assertIsNone(quick.answer("when is my marathon"))
 
 
+class DebtAndBills(unittest.TestCase):
+    def test_debt_and_a_refund_are_kept_not_refused(self):
+        for said in ("I have 3000 in credit card debt", "I got a 50 dollar refund from amazon"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertEqual(voice.interpret("buy me 3000 in gift cards")["command"]["kind"], "intent")
+
+    def test_debt_questions_read_what_he_said(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I have 3000 in credit card debt"}, {"text": "I paid off my car loan"}]):
+            self.assertEqual(quick.answer("how much debt do I have"), "You told me you have 3000 in credit card debt.")
+            self.assertTrue(quick.answer("is my credit card paid off").startswith("Not that you've told me"))
+            self.assertEqual(quick.answer("is my car loan paid off"), "Yes - you told me you paid off your car loan.")
+            self.assertIsNone(quick.answer("is my mortgage paid off"))
+
+    def test_paying_a_bill_ticks_it_off_and_paying_a_person_is_kept(self):
+        with mock.patch("aletheia.intercom._one_task", return_value=({"id": "t1"}, "")):
+            self.assertEqual(voice.interpret("I paid the water bill")["command"], {"kind": "task_done", "which": "water bill"})
+        self.assertEqual(voice.interpret("I paid the dentist")["command"]["kind"], "note")
+
+
 if __name__ == "__main__":
     unittest.main()
