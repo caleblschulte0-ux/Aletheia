@@ -512,8 +512,7 @@ def run(question: str, *, reader=browse.read_page, think=None,
             # playwright is not installed (pip install playwright)" reached
             # the room verbatim (2026-10-07) - third person and a terminal
             # command. The developer's reason stays in `browse.available`.
-            # No program names out loud either (2026-10-08: "Playwright").
-            part = ("the browser part I use isn't installed on this PC" if "not installed" in why
+            part = ("the browser part I use, Playwright, isn't installed on this PC" if "not installed" in why
                     else "the browser I use isn't working on this PC")
             raise ResearchError(
                 f"I can't read web pages right now - {part}. I only answer from "

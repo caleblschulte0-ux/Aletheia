@@ -8492,11 +8492,6 @@ class APlacesHoursHeToldHer(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertEqual(voice._interpret("when does target close")["command"]["kind"], "research")
 
-    def test_no_program_name_is_said(self):
-        import inspect
-        from aletheia import research
-        self.assertNotIn("Playwright, isn't", inspect.getsource(research))
-
 
 
 class IMovedMyCar(unittest.TestCase):

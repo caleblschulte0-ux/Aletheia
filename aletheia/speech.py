@@ -1060,7 +1060,8 @@ def and_list(items: list[str]) -> str:
         return "; ".join(items[:-1]) + "; and " + items[-1]
     # "Go to the bank and call Sarah and pick up dry cleaning" is two things
     # or three (2026-10-08): an item with its own "and" is kept apart too.
-    if any(" and " in i for i in items):
+    if any(re.search(r" and (?:call|go|pick|buy|get|email|text|clean|pay|send|make|take|book|check|fix|write|finish"
+                     r"|see|meet|visit|drop|return|cancel|order|wash|mow|feed|walk)\b", i) for i in items):
         return "; ".join(items[:-1]) + "; and " + items[-1]
     return ", ".join(items[:-1]) + " and " + items[-1]
 

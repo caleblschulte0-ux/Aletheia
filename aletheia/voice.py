@@ -4657,7 +4657,7 @@ def _interpret(transcript: str) -> dict:
         return _interpret(f"{m.group('rest')} {re.sub(r'^on ', '', m.group('day'))}")
     m = re.fullmatch(r"(?:add|put) (?P<what>(?!it\b|that\b|this\b)[a-z].{2,80}?) (?:to|on|for) (?P<day>today|tomorrow|(?:monday|tuesday|wednesday"
                      r"|thursday|friday|saturday|sunday))(?:'s)?(?: (?:list|to ?do list|tasks|plan))?", low)
-    if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:to|on) (?:my|the) (?:[a-z]+ )?list\b", m.group("what")):
+    if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:to|on) (?:my|the) (?:[a-z]+ )?(?:list|tasks|to ?dos?|to-dos?)\b", m.group("what")):
         return _new_task(_as_he_said(text, f"{m.group('what')} {m.group('day')}"))
     # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
