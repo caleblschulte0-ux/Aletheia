@@ -8869,5 +8869,22 @@ class TasksDueThisWeekend(unittest.TestCase):
 
 
 
+class APartyAndACoffee(unittest.TestCase):
+    """2026-10-08: "what do I need to bring", "who is having the party" and
+    "where am I meeting Tom" each went to a model."""
+
+    def test_read_from_what_he_said(self):
+        import datetime as dt
+        from aletheia import quick, tasks
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=1)
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I have a party at Jakes on Saturday at 8"}]), \
+                mock.patch.object(quick, "_coming", lambda now=None: [(at, "Coffee with Tom", "calendar")]), \
+                mock.patch.object(tasks, "all_tasks", lambda: [{"description": "bring chips to the party", "status": "PENDING"}]):
+            self.assertEqual(quick.answer("what do I need to bring"), "Your list says: bring chips to the party.")
+            self.assertEqual(quick.answer("who is having the party"), "You told me: you have a party at Jakes on Saturday at 8.")
+            self.assertTrue(quick.answer("where am I meeting Tom").endswith("but you didn't tell me where."))
+
+
+
 if __name__ == "__main__":
     unittest.main()

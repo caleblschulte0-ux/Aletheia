@@ -2092,6 +2092,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is|s)? (?:still )?(?:broken|not working|needs fixing|needs to be fixed|needs repair)"
         r"(?: in the house| at home| around the house| at the house)?(?P<broken>)\s*\??$"
         r"|^(?:is|are|did) (?:the|my|our) (?P<broken2>[a-z][a-z' ]{1,25}?) (?:fixed|repaired|still broken|get fixed)(?: yet| now)?\s*\??$")),
+    # "What do I need to bring", "who is having the party", "where am I
+    # meeting Tom" (2026-10-08: each to a model, one turn after he said it).
+    ("to_bring", re.compile(
+        r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_bring>bring|take|pack|wear|make|buy|get)"
+        r"(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,25})?\s*\??$")),
+    ("event_who", re.compile(
+        r"^who(?:'s| is) (?:having|hosting|throwing|doing) (?:the |this |that )?(?P<event_who>[a-z][a-z' ]{1,25}?)\s*\??$"
+        r"|^where am i (?:meeting|seeing|having (?:coffee|lunch|dinner|drinks) with) (?P<event_who2>[a-z][a-z' ]{1,25}?)(?: tomorrow| today| tonight)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2917,7 +2925,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13432,6 +13440,41 @@ def _broken(thing: str = "") -> str | None:
     return f"From what you've told me: {speech.and_list(broken[:5])}."
 
 
+def _to_bring(verb: str) -> str | None:
+    """His open tasks that start with the verb he asked about, read back.
+    None when there are none: a note or a model may know."""
+    from aletheia import speech, tasks
+    verb = verb.casefold().strip()
+    try:
+        rows = [str(t.get("description") or "").strip().rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED
+                and str(t.get("description") or "").casefold().startswith(verb + " ")]
+    except Exception:
+        return None
+    if not rows:
+        return None
+    return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in rows[:5]])}."
+
+
+def _event_who(what: str) -> str | None:
+    """Who is hosting an event, or where he meets somebody: the note or
+    calendar hold he made, read back - and plainly when it never said."""
+    import datetime as dt
+    from aletheia import speech
+    what = " ".join(str(what or "").casefold().split())
+    words = [w for w in re.findall(r"[a-z0-9']+", what) if w not in ("the", "my", "a", "an", "our")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    for at, title, store in _coming():
+        if store == "calendar" and all(re.search(rf"\b{re.escape(w)}", str(title).casefold()) for w in words):
+            return f"{title} is {speech.humanize_time(at.isoformat())}, but you didn't tell me where."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14236,6 +14279,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "news_when": _news_when,
            "plans_for": _plans_for,
            "broken": _broken,
+           "to_bring": _to_bring,
+           "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,
            "born_age": _born_age,
            "his_likes": lambda rest: _his_likes(),
