@@ -1179,7 +1179,9 @@ _TASK_VERB = re.compile(
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
     r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
-    r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical))\b")
+    r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical)"
+    # "I need to get gas" (2026-10-08: the shopping list).
+    r"|get (?:gas|fuel|petrol|diesel)|fill up(?: the (?:car|tank|truck))?|fill (?:the )?(?:car|tank|truck) up)\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -3629,7 +3631,9 @@ def _interpret(transcript: str) -> dict:
                              # SHOPPING list (2026-10-07): a service, or a thing of his, is
                              # an errand.
                              r"|my|our|oil change|tune-?up|car wash|check-?up|physical|flu shot|vaccine|shots?|massage"
-                             r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment)\b", m.group("item")):
+                             r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment"
+                             # "I need to get gas" (2026-10-08: the shopping list) is a stop on the way.
+                             r"|gas|fuel|petrol|diesel)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -8174,6 +8178,11 @@ def _interpret(transcript: str) -> dict:
         job = {"tire pressure": "check the tire pressure", "tyre pressure": "check the tire pressure",
                "low fuel": "get gas"}.get(light, f"get the {light} light looked at")
         return _new_task(job)
+    # "The oil change is due at 45000 miles" (2026-10-08: to the planner).
+    # Kept; "how many miles until my oil change" reads it against his mileage.
+    if re.fullmatch(r"(?:my |the |our )?(?:next )?(?:car'?s? )?(?:oil change|service|tune-?up|tire rotation|inspection|timing belt)"
+                    r" (?:is )?(?:due|needed) (?:at|by|around) [\d,]+(?:k)? ?(?:miles|mi|km)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:my |the |our )(?:car|truck|van|suv)(?:'s| is)? (?:due|overdue) for (?:an? |its |her |his )?"
                     r"(?:inspection|service|oil change|tune-?up|smog check|emissions test|tire rotation|registration)"
                     r"(?: (?:in|on|by|next|this|at) [a-z0-9 ,]{2,30})?", low):

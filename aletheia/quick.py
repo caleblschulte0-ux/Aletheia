@@ -395,6 +395,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("their_kind", re.compile(
         r"^what (?:kind of |kinds of |type of |sort of )?(?P<tk_what>[a-z]{3,20}?)(?:e?s)? (?:does|do) (?P<tk_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20})"
         r" (?:like|love|prefer|enjoy)(?: best| most)?\s*\??$")),
+    # "How many miles until my oil change" (2026-10-08: to a model): the
+    # mileage it is due at, less the last mileage he told her.
+    ("miles_until", re.compile(
+        r"^how (?:many|much) (?:more )?(?:miles|mi) (?:until|till|before|to|left (?:until|before|till)) (?:my |the |our )?(?:next )?"
+        r"(?P<mu_what>oil change|service|tune-?up|tire rotation|inspection|timing belt)(?: is due)?\s*\??$")),
     ("their_fact", re.compile(
         r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
         r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
@@ -2410,7 +2415,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11313,6 +11318,38 @@ def _told_last(text: str) -> str | None:
     return None
 
 
+def _miles_until(text: str) -> str | None:
+    """The miles between his car's last mileage and the one a service is
+    due at, both from his notes. Either missing is said, with how to say it."""
+    what = (_groups("miles_until", text).get("mu_what") or "").casefold()
+    if not what:
+        return None
+    number = r"(?P<n>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?P<k>k)?"
+    due = odo = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        if due is None and what.split()[0] in said and re.search(r"\bdue\b|\bneeded\b", said):
+            m = re.search(r"(?:at|by|around) " + number, said)
+            if m:
+                due = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
+        if odo is None and re.search(r"\b(?:car|truck|van|suv|odometer|mileage|milage)\b", said) \
+                and not re.search(r"\bdue\b", said):
+            m = re.search(r"(?:has|is at|at|reads|says|is) (?:about |around )?" + number + r" ?(?:miles|mi|km)?\b", said)
+            if m:
+                odo = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
+        if due is not None and odo is not None:
+            break
+    if due is None:
+        return f"You haven't told me when your {what} is due. Say \"my {what} is due at 45,000 miles\" and I'll keep it."
+    if odo is None:
+        return (f"Your {what} is due at {due:,.0f} miles, but I don't know your mileage. "
+                "Say \"my car has 43,000 miles\" and I'll work it out.")
+    left = due - odo
+    if left <= 0:
+        return f"It's due now - your {what} was due at {due:,.0f} miles and you told me the car has {odo:,.0f}."
+    return f"About {left:,.0f} miles: it's due at {due:,.0f} and you told me the car has {odo:,.0f}."
+
+
 def _their_kind(text: str) -> str | None:
     """"What flowers does Anna like": "Anna's favorite flower is tulips",
     or a note saying she likes something of that kind. None without one."""
@@ -11824,6 +11861,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "until_leave": lambda text: _until_leave(),
            "just_added": lambda text: _just_added(),
            "their_kind": lambda text: _their_kind(text),
+           "miles_until": lambda text: _miles_until(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

@@ -6005,5 +6005,23 @@ class AMeetingWithANameKeepsItsCapitals(unittest.TestCase):
         self.assertEqual(quick.match("what time do I meet Dana")[0], "when_meeting")
 
 
+class GasAndMilesToTheOilChange(unittest.TestCase):
+    """2026-10-08: "I need to get gas" went on the shopping list, and "the
+    oil change is due at 45000 miles" and "how many miles until my oil
+    change" went to the planner and a model."""
+
+    def test_gas_is_an_errand(self):
+        self.assertEqual(voice._interpret("I need to get gas")["command"]["kind"], "task_new")
+
+    def test_miles_left(self):
+        self.assertEqual(voice._interpret("the oil change is due at 45000 miles")["command"]["kind"], "note")
+        rows = [{"text": "my car has 43,000 miles", "ts": "2026-10-08T01:00:00+00:00"},
+                {"text": "the oil change is due at 45000 miles", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how many miles until my oil change").startswith("About 2,000 miles"))
+        with mock.patch.object(quick, "_notes", return_value=rows[1:]):
+            self.assertIn("don't know your mileage", quick.answer("how many miles until my oil change"))
+
+
 if __name__ == "__main__":
     unittest.main()
