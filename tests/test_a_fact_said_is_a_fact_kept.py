@@ -9219,5 +9219,14 @@ class TheShowHeIsWatching(unittest.TestCase):
             self.assertIn("9 out of 10", quick.answer("how did I rate Severance"))
 
 
+class WhereHeLastHadIt(unittest.TestCase):
+    """"Where did I last have my wallet" went to a model (2026-10-08)."""
+
+    def test_same_as_where_is(self):
+        said = voice._interpret("where did I last have my keys")
+        self.assertIsNone(said["command"])
+        self.assertIn("keys", said["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

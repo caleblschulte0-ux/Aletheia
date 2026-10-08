@@ -7581,7 +7581,7 @@ def _interpret(transcript: str) -> dict:
                            r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
                            m.group("thing") or m.group("thing2") or ""):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?(?: please)?", low)
     if m:
@@ -7592,7 +7592,7 @@ def _interpret(transcript: str) -> dict:
         there = quick._place_where(m.group("thing"))
         if there:
             return {"command": None, "say": there}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:put|leave))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
                      r"(?: please)?", low)
