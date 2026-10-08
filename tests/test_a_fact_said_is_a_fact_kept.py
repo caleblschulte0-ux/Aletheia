@@ -7986,5 +7986,14 @@ class ICorrectTheTaskIJustAdded(unittest.TestCase):
 
 
 
+class AReminderForHisMomsBirthday(unittest.TestCase):
+    def test_set_a_reminder_for_it_is_the_birthday_reminder(self):
+        with mock.patch.object(voice, "_birthday_reminder", return_value={"command": {"kind": "remind_at"}, "say": None}) as made:
+            got = voice._interpret("set a reminder for my mom's birthday")
+        self.assertEqual(got["command"]["kind"], "remind_at")
+        self.assertEqual(made.call_args[0][0].group("who"), "mom")
+
+
+
 if __name__ == "__main__":
     unittest.main()

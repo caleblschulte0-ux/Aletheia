@@ -6226,6 +6226,14 @@ def _interpret(transcript: str) -> dict:
     # "Remind me about the dentist" with nothing kept about the dentist
     # answered "I don't have anything remembered" (2026-10-07): he wanted a
     # reminder, and she asks when rather than look up nothing.
+    # "Set a reminder for my mom's birthday", "remind me about Sam's
+    # birthday" (2026-10-08: to the planner, and a lookup): on the day, the
+    # way "remind me on my mom's birthday" is already planned.
+    m = re.fullmatch(r"(?:(?:set|make|add|create|put in|give me) (?:a |me a )?reminder (?:for|about|of|on)|remind me (?:about|of))"
+                     r" (?P<whose>(?:my |our )?[a-z][a-z' ]{0,25}?(?:'s|s'|s)) (?:birthday|bday)", low)
+    if m and m.group("whose").strip() not in ("it's", "its", "this", "that's", "thats"):
+        whose = re.sub(r"(?<=[a-z])s$", "'s", m.group("whose").strip()) if not m.group("whose").endswith(("'s", "s'")) else m.group("whose")
+        return _interpret(f"remind me on {whose} birthday")
     m = re.fullmatch(r"remind me (?:later |sometime )?about (?P<what>[a-z][a-z0-9' ,-]{1,60})", low)
     # "Remind me about my landlord" is still a lookup: a person or thing of
     # his is what he wants told, and that rule is older than this one.
