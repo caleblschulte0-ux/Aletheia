@@ -8718,5 +8718,23 @@ class WhatIsLeftToDoToday(unittest.TestCase):
 
 
 
+class AnEatingOutBudget(unittest.TestCase):
+    """2026-10-08: "my budget for eating out is 200 a month" went to the
+    planner, and lunch did not count against it."""
+
+    def test_it_is_kept_and_lunch_counts(self):
+        import datetime as dt
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("my budget for eating out is 200 a month")["command"],
+                         {"kind": "note", "text": "my eating out budget is 200 a month"})
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I spent 25 on lunch", "ts": now}, {"text": "I spent 40 on gas", "ts": now},
+                {"text": "my eating out budget is 200 a month", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            said = voice._interpret("how much of my eating out budget is left")["say"]
+        self.assertTrue(said.startswith("$175 left of your $200 eating out budget"), said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

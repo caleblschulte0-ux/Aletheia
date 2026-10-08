@@ -11426,7 +11426,10 @@ def _budget(question: str) -> str | None:
     now = dt.datetime.now(tz)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start = midnight - dt.timedelta(days=now.weekday()) if per == "week" else midnight.replace(day=1)
-    words = {"grocery": ("grocer", "food"), "food": _FOOD_WORDS}.get(category, (category,) if category else ())
+    words = {"grocery": ("grocer", "food"), "food": _FOOD_WORDS,
+             # "I spent 25 on lunch" is eating out (2026-10-08)
+             "eating out": ("eating out", "restaurant", "takeout", "take out", "lunch", "dinner", "breakfast", "brunch",
+                            "fast food", "pizza", "dining")}.get(category, (category,) if category else ())
     spent = 0.0
     for row in _notes():
         m = _SPENT_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())

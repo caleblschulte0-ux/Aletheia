@@ -9212,7 +9212,7 @@ def _interpret(transcript: str) -> dict:
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
                      # below, so "my budget is tight" stays how he feels.
-                     r"|(?:monthly |weekly |daily |grocery |food |step |calorie |water |reading |savings )?(?:budget|goal)"
+                     r"|(?:monthly |weekly |daily |grocery |food |eating out |gas |fun |shopping |step |calorie |water |reading |savings )?(?:budget|goal)"
                      r"|goal weight|target weight|bedtime|employee (?:id|number)|student (?:id|number)"
                      r"|insurance(?: company| provider)?|pharmacy|gym"
                      # "My emergency contact is my mom", "my prescription is
