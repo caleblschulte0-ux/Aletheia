@@ -462,6 +462,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: "Say 'I did 20 sick days'").
     ("days_taken", re.compile(r"^how many (?P<days_taken>sick) (?:days )?(?:have i|did i) (?:taken|take|used|use|had|have)"
                               r"(?: (?:this|so far this) year| so far)?\s*\??$")),
+    # "How much does Max weigh" (2026-10-08: "nothing between you and Max Weigh").
+    ("weighs", re.compile(r"^how (?:much|heavy) (?:does|is) (?P<weighs>(?:my |our |the )?[a-z][a-z'-]{1,20}) (?:weigh|now)?\s*\??$")),
     ("counted", re.compile(
         r"^how many (?P<counted>(?!tasks|reminders|notes|things|emails|people|contacts|days|hours|minutes|weeks)[a-z][a-z -]{1,20}?) "
         r"(?:have i done|did i do|have i walked|did i walk|did i take|have i taken"
@@ -2212,7 +2214,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # sister comes", "what does my daughter need" (2026-10-08: to a model).
     ("stay_len", re.compile(r"^how long (?:are|is|will) (?P<stay_len>(?:my |our |the )?[a-z][a-z' ]{1,30}?) (?:staying|be staying|here|in town|visiting|be here)(?: for)?\s*\??$")),
     ("before_they", re.compile(r"^what (?:do i|else do i) (?:need|have) to do before (?P<before_they>(?:my |our |the )?[a-z][a-z' ]{1,30}?) (?:comes?|gets? here|arrives?|visits?|leaves?|starts?)\s*\??$")),
-    ("their_needs", re.compile(r"^what (?:does|do) (?P<their_needs>my [a-z]{2,15}|the kids|[a-z]{2,15}) (?:still )?need\s*\??$")),
+    ("their_needs", re.compile(r"^what (?:does|do) (?P<their_needs>my [a-z]{2,15}|the [a-z]{2,15}|[a-z]{2,15}) (?:still )?need\s*\??$")),
     # "Where should we get pizza", "who is watching the dog", "what time do
     # I take my vitamins" (2026-10-08: all to a model).
     ("fav_place", re.compile(r"^where (?:should|do|can) (?:we|i) (?:get|go for|order|grab) (?:some )?(?P<fav_place>[a-z][a-z ]{2,20}?)"
@@ -3139,7 +3141,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -4420,6 +4422,11 @@ def _age_of(who: str) -> str | None:
     def names_them(low: str) -> bool:
         return any(ws and all(re.search(rf"\b{re.escape(w)}", low) for w in ws) for ws in either)
     words = either[0]
+    # "Bear is 10 weeks old" (2026-10-08: "you haven't told me when Bear
+    # was born") - a puppy's age in weeks, read back with the day he said it.
+    young = _told_when(rf"^(?:my |our )?{re.escape(label)} is \d{{1,2}} (?:weeks|months) old\.?$")
+    if young:
+        return young
     # "My mom was born in 1965" gives the year a birthday note may lack.
     born_in = None
     for row in _notes():
@@ -14489,7 +14496,7 @@ def _before_they(who: str) -> str | None:
 def _their_needs(who: str) -> str | None:
     from aletheia import intercom, speech
     who = " ".join(str(who or "").casefold().split())
-    key = re.sub(r"^my ", "", who)
+    key = re.sub(r"^(?:my|the) ", "", who)
     rows = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()
             if re.search(rf"\b{re.escape(key)}s?\b", str(t.get("description") or ""), re.I)]
     if not rows:
@@ -14734,6 +14741,18 @@ def _to_ask(text: str) -> str | None:
         return None
     yours = [re.sub(r"(?i)\bmy\b", "your", r) for r in rows[:4]]
     return f"Your list says: {speech.and_list(yours)}."
+
+
+def _weighs(who: str) -> str | None:
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    if who in ("it", "that", "this", "he", "she", "i", "a", "the"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"(?:my |our |the )?{re.escape(re.sub(r'^(?:my|our|the) ', '', who))} (?:now )?weighs \d", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
@@ -15546,6 +15565,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "weighs": _weighs,
            "days_taken": _days_taken,
            "to_ask": _to_ask,
            "learning": lambda rest: _learning(),

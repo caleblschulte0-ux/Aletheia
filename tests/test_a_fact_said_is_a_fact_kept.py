@@ -9768,5 +9768,27 @@ class TravelDayAgain(unittest.TestCase):
             self.assertIsNone(quick.answer("how many days until Tokyo"))
 
 
+class HisPetsAgain(unittest.TestCase):
+    """A sweep of pet sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("Max ate something weird", "Max weighs 60 pounds", "Bear is 10 weeks old"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("we adopted a puppy named Bear")["command"],
+                         {"kind": "note", "text": "my puppy's name is Bear"})
+        self.assertEqual(voice._interpret("the cat needs flea medicine")["command"]["description"],
+                         "get the cat flea medicine")
+        self.assertNotEqual(voice._interpret("the cat needs a bath")["command"]["kind"], "task_new")
+
+    def test_read(self):
+        rows = [{"text": "Bear is 10 weeks old"}, {"text": "my puppy's name is Bear"}, {"text": "Max weighs 60 pounds"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how much does Max weigh"), "You told me: Max weighs 60 pounds.")
+            self.assertIsNone(quick.answer("how much does Sam weigh"))
+            self.assertIsNone(quick.answer("how much does it weigh"))
+            self.assertEqual(quick.answer("what is my puppy's name"), "You told me: your puppy's name is Bear.")
+            self.assertEqual(quick.answer("how old is Bear"), "You told me: Bear is 10 weeks old.")
+
+
 if __name__ == "__main__":
     unittest.main()

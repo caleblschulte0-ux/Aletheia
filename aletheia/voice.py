@@ -9270,7 +9270,27 @@ def _interpret(transcript: str) -> dict:
     if m:
         name = _as_he_said(text, m.group("name"))
         return {"command": {"kind": "note", "text": f"my {m.group('pet')}'s name is {name[:1].upper() + name[1:]}"}, "say": None}
-    m = re.fullmatch(r"(?:my |our )?(?P<who>dog|cat|puppy|kitten|[a-z][a-z'-]{1,20}) (?:is|just turned|turned) \d{1,2}(?: years old| yrs old)?", low)
+    # "We adopted a puppy named Bear" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:we|i) (?:just )?(?:adopted|got|rescued|brought home) (?:a |an |our |my )?(?:new )?(?P<pet>dog|cat|puppy|kitten|bird|hamster"
+                     r"|rabbit|bunny|fish|turtle|guinea pig) (?:named|called) (?P<name>[a-z][a-z'-]{1,20})(?: today| yesterday)?", low)
+    if m:
+        name = _as_he_said(text, m.group("name"))
+        return {"command": {"kind": "note", "text": f"my {m.group('pet')}'s name is {name[:1].upper() + name[1:]}"},
+                "say": f"Welcome home, {name[:1].upper() + name[1:]}! I've kept the name."}
+    # "Max weighs 60 pounds" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|baby|son|daughter)|[a-z][a-z'-]{1,20}) (?:now )?weighs \d{1,3}(?:\.\d)? ?(?:pounds|lbs?|kg|kilos|ounces|oz)", low)
+    if m and (re.match(r"(?:my|our|the) ", m.group("who")) or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
+            and m.group("who") not in ("it", "that", "this", "he", "she", "i", "who", "what", "everything"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The cat needs flea medicine" (2026-10-08: to the planner) is an
+    # errand for the pet.
+    m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet|bird|fish|hamster|rabbit)) needs (?:more |new |some |a |his |her |its )?"
+                     r"(?P<what>(?:flea|tick|heartworm|worm|allergy|ear|eye)? ?(?:medicine|medication|meds|pills|drops|treatment)|food|treats|a bath"
+                     r"|a haircut|a groom(?:ing)?|a walk|shots|vaccines?|a new collar|a collar|a leash|litter|a vet visit|to go to the vet)", low)
+    if m and m.group("what") not in ("a walk", "a bath"):
+        what = re.sub(r"^to go to the vet$", "a vet visit", m.group("what"))
+        return _new_task(f"get {m.group('who').replace('my ', 'the ').replace('our ', 'the ')} {what}")
+    m = re.fullmatch(r"(?:my |our )?(?P<who>dog|cat|puppy|kitten|[a-z][a-z'-]{1,20}) (?:is|just turned|turned) \d{1,2}(?: years old| yrs old| (?:weeks|months) old)?", low)
     if m and (m.group("who") in ("dog", "cat", "puppy", "kitten") if low.startswith(("my ", "our ")) else
               re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
             and m.group("who") not in ("it", "that", "this", "he", "she", "there", "what", "who", "i", "you", "we", "they", "time",
@@ -9282,7 +9302,7 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet|bird|horse|rabbit|bunny)|[a-z][a-z'-]{1,20})"
                      r" (?:just |has |keeps |has been |is |was )?(?:threw up|thrown up|throwing up|vomited|vomiting|is limping|limping|was limping"
                      r"|isn'?t eating|is not eating|won'?t eat|wouldn'?t eat|stopped eating|has diarrh(?:o)?ea|had diarrh(?:o)?ea"
-                     r"|got into the trash|ate (?:something|a sock|chocolate|grapes)|has fleas|got fleas|is scratching a lot)"
+                     r"|got into the trash|ate (?:something(?: weird| bad| strange| off)?|a sock|chocolate|grapes)|has fleas|got fleas|is scratching a lot)"
                      r"(?: (?:today|again|this morning|last night|tonight|all day))?", low)
     if m and (re.match(r"(?:my|our|the) ", m.group("who")) or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
             and m.group("who") not in ("it", "that", "he", "she", "i", "we", "they", "baby", "everyone", "everybody", "someone",
