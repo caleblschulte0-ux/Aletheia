@@ -10606,5 +10606,33 @@ class AVisitToTheGymIsKept(unittest.TestCase):
             self.assertEqual(quick.answer("how many times did I go to the gym this week"), "Once this week, from what you've told me.")
 
 
+class WhatHeOrderedAndWhetherItCame(unittest.TestCase):
+    """2026-10-08: "my headphones arrived", "the refund should be in 5 days",
+    "what did I order", "has my package arrived" and "when will I get my
+    refund" went to the planner or a model."""
+
+    def test_kept(self):
+        for said in ("my headphones arrived", "the refund should be in 5 days", "my amazon order is late", "my package was delivered"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual((voice._interpret("my sister arrived")["command"] or {}).get("kind"), "note")
+
+    def test_read(self):
+        ordered = [{"text": "I ordered new headphones from amazon"}, {"text": "I ordered a lamp from target"}]
+        with mock.patch.object(quick, "_notes", lambda: ordered):
+            self.assertEqual(quick.answer("what did I order"),
+                             "From what you've told me: new headphones from amazon and a lamp from target.")
+            self.assertEqual(quick.answer("what did I order from target"), "From what you've told me: a lamp from target.")
+            self.assertTrue(quick.answer("has my package arrived").startswith("Not that you've told me."))
+            self.assertTrue(quick.answer("is my package here yet").startswith("Not that you've told me."))
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my headphones arrived"}] + ordered):
+            self.assertEqual(quick.answer("did my headphones come"), "Yes - you told me your headphones arrived.")
+            self.assertEqual(quick.answer("has my package arrived"), "Yes - you told me your headphones arrived.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the refund should be in 5 days"}]):
+            self.assertEqual(quick.answer("when will I get my refund"), "You told me: the refund should be in 5 days.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            for q in ("what did I order", "has my package arrived", "when will I get my refund"):
+                self.assertIsNone(quick.answer(q), q)
+
+
 if __name__ == "__main__":
     unittest.main()

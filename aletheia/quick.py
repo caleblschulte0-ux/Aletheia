@@ -2386,6 +2386,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|how many miles are (?:on|in) (?:my|the|our) (?:car|truck|van|suv)"
                              r"|what(?:'s| is|s) (?:my|the|our) (?:car'?s )?(?:mileage|milage|odometer(?: reading)?)"
                              r"|what(?:'s| is|s) (?:my|the|our) (?:car|truck|van|suv)(?:'s)? (?:mileage|milage|at))\s*\??$")),
+    # "What did I order", "has my package arrived", "when will I get my
+    # refund" (2026-10-08: to a model, beside his own notes saying so).
+    ("ordered_what", re.compile(r"^what (?:did|have) i (?:order|ordered|buy|bought) (?:online|recently|lately|from (?P<ordered_from>[a-z][a-z .']{1,20}))?\s*\??$"
+                                r"|^what (?:did|have) i (?:order|ordered)\s*\??$")),
+    ("got_here", re.compile(r"^(?:has|have|did) (?:my|the|our) (?P<got_here>[a-z][a-z' ]{1,25}?) (?:arrived|arrive|come|came|got here|get here|been delivered|get delivered|shown up|show up)(?: yet)?\s*\??$"
+                           r"|^(?:is|are) (?:my|the|our) (?P<got_here2>[a-z][a-z' ]{1,25}?) (?:here|delivered)(?: yet)?\s*\??$")),
+    ("get_my", re.compile(r"^when (?:will|do|should|am i going to|am i gonna) (?:i )?(?:get|see|receive) (?:my|the|our) (?P<get_my>(?:tax )?(?:refund|check|paycheck|deposit|reimbursement|money back|[a-z]+ refund))\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3327,7 +3334,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -16214,6 +16221,64 @@ def _its_weekday(thing: str) -> str | None:
     return None
 
 
+def _ordered_what(shop: str = "") -> str | None:
+    """What he told her he ordered lately, newest first - from one shop
+    when he named it."""
+    from aletheia import speech
+    shop = " ".join(str(shop or "").casefold().split())
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(r"i (?:just )?(?:ordered|bought|purchased) (?P<what>.+)$", said, re.I)
+        if not m or (shop and not re.search(rf"\b{re.escape(shop)}\b", said.casefold())):
+            continue
+        found.append(m.group("what"))
+        if len(found) == 3:
+            break
+    if not found:
+        return None
+    return f"From what you've told me: {speech.and_list(found)}."
+
+
+def _got_here(thing: str) -> str | None:
+    """Did a thing he was waiting on come: his own note saying so, or what
+    he said about it coming. None when no note names it."""
+    from aletheia import speech
+    thing = re.sub(r"^(?:new|amazon) ", "", " ".join(str(thing or "").casefold().split()))
+    if not thing or thing in ("it", "that", "they", "he", "she", "sister", "brother", "mom", "dad", "wife", "husband"):
+        return None
+    words = [w for w in re.findall(r"[a-z0-9']+", thing) if w not in ("new", "the", "my", "a", "an")]
+    generic = thing in ("package", "parcel", "delivery", "order", "stuff", "packages", "order from amazon")
+    coming = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not (generic and re.search(r"\b(?:package|parcel|delivery|order|ordered|arrived|delivered)\b", low)
+                or all(re.search(rf"\b{re.escape(w)}s?\b", low) for w in words)):
+            continue
+        told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+        if re.search(r"\b(?:arrived|came|showed up|got here|was delivered|were delivered|got delivered)\b", low):
+            return f"Yes - you told me {speech.as_she_says_it(said)[:1].lower() + speech.as_she_says_it(said)[1:]}" + \
+                (f", {told}." if told else ".")
+        if coming is None and re.search(r"\b(?:arriving|coming|ordered|bought|due|should|will|late|delayed|shipped|shipping)\b", low):
+            coming = said + _days_from(said, row.get("ts"))
+    if coming:
+        return f"Not that you've told me. The last you said: {speech.as_she_says_it(coming)}."
+    return None
+
+
+def _get_my(thing: str) -> str | None:
+    """"When will I get my refund": what he told her about it."""
+    from aletheia import speech
+    key = re.sub(r"^(?:tax |my )", "", " ".join(str(thing or "").casefold().split()))
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(rf"\b{re.escape(key)}\b", said.casefold()) and \
+                re.search(r"\b(?:in|by|on|within|next|this|should|will|due|days?|weeks?|monday|tuesday|wednesday|thursday|friday)\b", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}{_days_from(said, row.get('ts'))}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17026,13 +17091,17 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "ordered_what": _ordered_what,
+           "got_here": _got_here,
+           "get_my": _get_my,
            "car_miles": _car_miles,
            "my_classes": _my_classes,
            "who_with": _who_with,
            "car_ready": _car_ready,
            "cost_of_it": _cost_of_it,
            "card_limit": _card_limit,
-           "they_said_are": _they_said_are,
+           # "Is my package here yet" is a delivery, not a person running late.
+           "they_said_are": lambda t: _they_said_are(t) or _got_here((re.match(r"is (?:my|the|our) ([a-z][a-z' ]{1,25}?) here yet", _tidy(t)) or [None, ""])[1]),
            "leave_flight": _leave_flight,
            "still_good": _still_good,
            "recipe_has": _recipe_has,

@@ -5735,6 +5735,18 @@ def _interpret(transcript: str) -> dict:
         bye = quick._farewell("leaving work")
         return {"command": {"kind": "note", "text": "finished work"},
                 "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
+    # PACKAGES AND REFUNDS (2026-10-08: "my headphones arrived", "the refund
+    # should be in 5 days" and "my amazon order is late" went to the planner).
+    if re.fullmatch(r"(?:my|the|our) (?:new )?(?!(?:sister|brother|mom|dad|mother|father|wife|husband|son|daughter|kids?|parents|friend|guests?"
+                    r"|boss|family|cousin|aunt|uncle|grandma|grandpa|niece|nephew|neighbou?r|period|time|turn|day|moment)\b)[a-z][a-z' ]{1,25}?"
+                    r" (?:just )?(?:arrived|came|showed up|got here|was delivered|were delivered|got delivered|finally came|finally arrived)"
+                    r"(?: today| yesterday| this morning| this afternoon)?"
+                    r"|(?:my|the|our) (?:tax )?(?:refund|check|paycheck|deposit|reimbursement|package|parcel|order|delivery|[a-z]+ order|[a-z]+ refund)"
+                    r" (?:should|will|is supposed to|is going to|is gonna) (?:be(?: here| there| back)?|arrive|come|show up|post|clear|hit|land)"
+                    r"(?: (?:in|by|on|within|next|this) [a-z0-9 ]{1,25})?"
+                    r"|(?:my|the|our) (?:[a-z]+ )?(?:order|package|parcel|delivery|refund) (?:is|was|got) (?:late|delayed|lost|missing|stuck|stolen|damaged|cancell?ed)"
+                    r"(?: again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm going to the gym", "I just got back from the gym" (2026-10-08):
     # answered and forgotten, so "how many times did I go to the gym this
     # week" said none right after both. One visit, kept once.
