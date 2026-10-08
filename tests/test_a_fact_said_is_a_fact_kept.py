@@ -6313,5 +6313,18 @@ class AnniversariesLeasesAndJobs(unittest.TestCase):
             self.assertTrue(quick.answer("how long have I worked here").endswith("you started in March 2021."))
 
 
+
+class MeetingSomebodyIsCalledWhatItIs(unittest.TestCase):
+    """2026-10-08: "I'm meeting Jake for lunch on Friday at noon" was held
+    as "I'm meeting Jake for lunch", and "I'm meeting Jake" as "Meeting with jake"."""
+
+    def test_the_title_is_what_and_who(self):
+        for said, title in (("I'm meeting Jake for lunch on Friday at noon", "Lunch with Jake"),
+                            ("I'm meeting Jake on Friday at noon", "Meeting with Jake"),
+                            ("we're meeting the Smiths for dinner Saturday at 7", "Dinner with the Smiths")):
+            got = voice._interpret(said)["command"]
+            self.assertEqual((got["kind"], got["title"]), ("calendar_hold", title), said)
+
+
 if __name__ == "__main__":
     unittest.main()

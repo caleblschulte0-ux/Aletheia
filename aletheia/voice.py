@@ -7897,6 +7897,10 @@ def _interpret(transcript: str) -> dict:
                          r"|(?:i'?m|we'?re|i am|we are) (?:making|cooking) "
                          r"|(?:i'?m|we'?re|i am|we are) (?:having|eating) [a-z][a-z ]{1,30} for (?:dinner|lunch|breakfast)\b", low):
         told = None
+    # "I'm meeting Jake for lunch on Friday" is lunch with Jake, not a hold
+    # called "I'm meeting Jake for lunch" (2026-10-08): the meeting rule below.
+    if told and re.match(r"(?:i'?m|i am|we'?re|we are) (?:meeting|seeing) ", told.group("title")):
+        told = None
     m = m or told
     # "I HAVE A MEETING WITH DANA AT 2" names no day (2026-10-07: to the
     # planner): told about with a time, it is today's.
@@ -7980,13 +7984,13 @@ def _interpret(transcript: str) -> dict:
         # planner, and "who am I meeting tomorrow" found nothing). The same
         # hold, called what it is and who with.
         mt = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:meeting(?: up with)?|seeing|having (?P<what0>coffee|lunch|dinner|drinks"
-                          r"|breakfast|brunch) with) (?P<who>(?!(?:a|an|the|him|her|them|up|you|it|someone|somebody)\b)[a-z][a-z']{1,20}"
+                          r"|breakfast|brunch) with) (?P<who>(?:the (?=[a-z]{3}))?(?!(?:a|an|the|him|her|them|up|you|it|someone|somebody)\b)[a-z][a-z']{1,20}"
                           r"(?: (?!(?:" + _cal_days + r"|on|this|next|for|at)\b)[a-z][a-z']{1,20})?)(?: for (?P<what>coffee|lunch|dinner|drinks|breakfast|brunch|a drink|a beer|a walk))?"
                           r"(?: (?:on |this |next )?(?P<day>" + _cal_days + r"))?(?: (?P<part>morning|afternoon|evening|night))?"
                           r"(?: at (?P<time>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))?(?: (?:on |this |next )?(?P<day2>" + _cal_days + r"))?", low)
         if mt and (mt.group("day") or mt.group("day2") or mt.group("time")) and not (mt.group("day") and mt.group("day2")):
             what = re.sub(r"^an? ", "", mt.group("what0") or mt.group("what") or "meeting")
-            held = _calendar_hold(text, f"{what} with {mt.group('who')}", mt.group("day") or mt.group("day2") or "",
+            held = _calendar_hold(text, f"{what} with {_as_he_said(text, mt.group('who'))}", mt.group("day") or mt.group("day2") or "",
                                   mt.group("part"), mt.group("time"))
             if held:
                 held["command"]["title"] = held["command"]["title"][:1].upper() + held["command"]["title"][1:]
