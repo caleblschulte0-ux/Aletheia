@@ -79,6 +79,11 @@ def _closed_bucket(record: dict) -> str:
     if kind in CLOSED_KINDS:
         if kind == "not-a-form":
             return f"not_a_form_{_why_not_a_form(why)}_on_{_system_of(record.get('url'))}"
+        if kind == "gone":
+            # A posting a board still LISTS and whose form is gone is a stale
+            # listing on that system, not a job that closed in the ordinary
+            # way: live 2026-10-08 "gone" was 15 of three days' closures.
+            return f"gone_on_{_system_of(record.get('url'))}"
         return CLOSED_KINDS[kind]
     if named:
         return named
