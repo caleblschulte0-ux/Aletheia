@@ -1858,7 +1858,9 @@ def _one_of_her_holds(words: str):
     except Exception:
         return None, ""
     said = " ".join(str(words or "").casefold().split())
-    said = re.sub(r"^(?:my|the|our) ", "", said)
+    # "Cancel that meeting", one breath after it was pencilled in
+    # (2026-10-08: "I can't cancel things on your calendar").
+    said = re.sub(r"^(?:my|the|our|that|this) ", "", said)
     said = re.sub(r" (?:today|tomorrow)$", "", said)
     # "My Thursday meeting", "the 3pm on Friday" (2026-10-07): a weekday
     # narrows it to holds on that day.

@@ -5859,5 +5859,37 @@ class TwoTimesSaidFirst(unittest.TestCase):
                          ["remind me at 8 friday about the rent", "remind me at noon friday about the rent"])
 
 
+class AHoldsReminderMovesWithIt(unittest.TestCase):
+    """2026-10-08: the dentist moved from 3 to 4 and the day-before reminder
+    still said "Tuesday at 3 pm"; "cancel that meeting" right after it was
+    pencilled in said she can't cancel things."""
+
+    def test_the_reminder_follows_the_hold(self):
+        import uuid
+        from aletheia import intercom, localtime, scheduler
+        tz = localtime.operator_tz()
+        was = (dt.datetime.now(tz) + dt.timedelta(days=30)).replace(hour=15, minute=0, second=0, microsecond=0)
+        now = was + dt.timedelta(hours=1)
+        clock = lambda t: t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        title = "dentist " + uuid.uuid4().hex[:6]
+        sid = "remind-" + uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": f"{title} {was.strftime('%A')} at {clock(was)}"},
+                         kind="once", at=(was - dt.timedelta(days=1)).replace(hour=9).isoformat())
+        moved = intercom._carry_hold_reminders({"title": title, "start": was.isoformat()},
+                                               {"title": title, "start": now.isoformat()})
+        self.assertEqual(moved, 1)
+        self.assertFalse(scheduler.load(sid)["enabled"])
+        new = [x for x in scheduler.all_schedules() if x["enabled"] and title in x["command"].get("text", "")]
+        self.assertEqual(len(new), 1)
+        self.assertIn(clock(now), new[0]["command"]["text"])
+        self.assertEqual(dt.datetime.fromisoformat(new[0]["at"]).astimezone(tz).hour, 10)
+
+    def test_that_meeting_is_her_hold(self):
+        from aletheia import calendar
+        hold = {"id": "h1", "title": "meeting", "start": "2099-01-01T15:00:00+00:00", "status": "TENTATIVE", "source": "hold:x"}
+        with mock.patch.object(calendar, "all_events", return_value=[hold]):
+            self.assertEqual(voice._one_of_her_holds("that meeting")[0]["id"], "h1")
+
+
 if __name__ == "__main__":
     unittest.main()

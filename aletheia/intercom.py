@@ -2963,6 +2963,47 @@ def _projects_answer() -> str:
     return said[0].upper() + said[1:]
 
 
+def _carry_hold_reminders(old: dict, new: dict) -> int:
+    """A reminder she set "the day before" a hold says the hold's time in
+    its words ("dentist appointment Tuesday at 3 pm"). When the hold moves,
+    the reminder moves the same distance and says the new time, or it
+    would fire with the old one (2026-10-08). Returns how many moved."""
+    import datetime as _dt
+    import uuid as _uuid
+    from aletheia import calendar as _calendar, scheduler
+
+    def words(event, start):
+        clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        return f"{event.get('title')} {start.strftime('%A')} at {clock}"
+    try:
+        tz = localtime.operator_tz()
+        was = _calendar.parse_time(old["start"]).astimezone(tz)
+        now = _calendar.parse_time(new["start"]).astimezone(tz)
+    except (KeyError, TypeError, ValueError):
+        return 0
+    if was == now:
+        return 0
+    said, moved = words(old, was), 0
+    for spec in scheduler.all_schedules():
+        command = spec.get("command") or {}
+        if spec.get("kind") != "once" or not spec.get("enabled") or command.get("text") != said:
+            continue
+        try:
+            at = _dt.datetime.fromisoformat(str(spec.get("at")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=tz)
+        when = at + (now - was)
+        if when <= _dt.datetime.now(tz) or when >= now:
+            continue
+        scheduler.set_enabled(spec["id"], False)
+        scheduler.create("remind-" + _uuid.uuid4().hex[:8], {**command, "text": words(new, now)},
+                         kind="once", at=when.isoformat())
+        moved += 1
+    return moved
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
@@ -3617,9 +3658,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):
             return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
                     "tentative, on your calendar here only.")
+        carried = _carry_hold_reminders(old, held["event"]) if old else 0
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
                 f"{'to ' if old else ''}{when}{until}, "
-                "tentative, on your calendar here only.")
+                "tentative, on your calendar here only."
+                + (" Your reminder moved with it." if carried == 1 else
+                   f" Your {carried} reminders moved with it." if carried else ""))
     if kind == "calendar_propose":
         from aletheia import conversations
         try:
