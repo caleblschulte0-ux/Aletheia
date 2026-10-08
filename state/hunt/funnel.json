@@ -218,16 +218,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 45,
-      "found": 70,
+      "filled": 50,
+      "found": 75,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 30
+      "sent": 32
     }
   },
-  "generated_at": "2026-10-08T00:17:32Z",
-  "sent_all_time": 264,
+  "generated_at": "2026-10-08T00:48:32Z",
+  "sent_all_time": 266,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -272,21 +272,21 @@
     }
   },
   "totals": {
-    "filled": 324,
-    "found": 684,
+    "filled": 329,
+    "found": 689,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 264
+    "sent": 266
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
+      "address": 2,
       "agreements": 1,
       "demographic": 3,
       "education": 1,
       "on_site": 1,
-      "other": 5,
+      "other": 7,
       "referral": 1,
       "travel": 1
     },
@@ -323,9 +323,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 9,
-    "oldest_days": 24,
-    "to_send": 1
+    "needs_answer": 11,
+    "oldest_days": 25,
+    "to_send": 0
   },
   "window_days": 30
 }
