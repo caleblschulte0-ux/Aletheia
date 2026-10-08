@@ -676,8 +676,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
     ("off_lists", re.compile(
-        r"^what (?P<off_w>movies |shows |films |tv shows )?have i (?:watched|seen|finished watching)(?: lately| recently| this year| so far)?\s*\??$"
-        r"|^what (?P<off_r>books )?have i (?:read|finished reading)(?: lately| recently| this year| so far)?\s*\??$"
+        r"^what (?P<off_w>movies |shows |films |tv shows )?have i (?:watched|seen|finished watching)(?: lately| recently| this year| so far| this month)?\s*\??$"
+        r"|^what (?P<off_r>books )?have i (?:read|finished reading)(?: lately| recently| this year| so far| this month)?\s*\??$"
         r"|^how many (?P<off_n>books|movies|shows|films) have i (?:read|watched|seen|finished)(?P<off_y> this year| so far)?\s*\??$"
         r"|^what was the last (?P<off_l>book|movie|show|film) i (?:read|watched|saw|finished)\s*\??$"
         r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$"
@@ -13468,6 +13468,11 @@ def _off_lists(text: str) -> str | None:
     if g.get("off_y") or "this year" in low:
         year = str(dt.date.today().year)
         done = [r for r in done if r[1].startswith(year)]
+    # "What movies have I watched this month" (2026-10-08: to a model).
+    if "this month" in low:
+        done = [r for r in done if r[1].startswith(dt.date.today().strftime("%Y-%m"))]
+        if not done:
+            return "Nothing this month, from what you've told me."
     if g.get("off_n"):
         # "1 book this year, off your list" (2026-10-08) - the count came
         # from his notes too, and a goal he set is the other half.
@@ -15138,6 +15143,10 @@ def _episode_on(show: str) -> str | None:
         m = re.match(r"^i'?m (?P<ep>halfway|a third of the way|most of the way|almost done|nearly done|near the end) (?:through|into|with) (?P<show>.+?)\.?$", said, re.I)
         if m and (not show or m.group("show").casefold() == show.casefold()):
             return f"You told me you're {m.group('ep')} through {m.group('show')}."
+        # "I am on chapter 5" with no book named (2026-10-08: to a model).
+        m = re.match(r"^i(?:'m| am) (?:now |currently )?on (?P<ep>(?:chapter|page|episode|season) \d{1,4})(?: (?:of|in) (?P<show>.+?))?\.?$", said, re.I)
+        if m and (not show or (m.group("show") or "").casefold() == show.casefold()):
+            return f"You told me you're on {m.group('ep')}" + (f" of {m.group('show')}." if m.group("show") else ".")
     return None
 
 

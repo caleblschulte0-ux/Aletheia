@@ -12321,5 +12321,18 @@ class TheCarsRunningCosts(unittest.TestCase):
             self.assertEqual(quick.answer("what mpg does my car get"), "You told me your car gets 30 miles a gallon.")
 
 
+class BooksAndFilms(unittest.TestCase):
+    def test_what_he_thought_is_kept_and_read_back(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "dune was amazing"}, {"text": "I am on chapter 5"}]):
+            self.assertEqual(quick.answer("what did I think of dune"), "You told me: dune was amazing.")
+            self.assertEqual(quick.answer("what chapter am I on"), "You told me you're on chapter 5.")
+
+    def test_watched_this_month_counts_this_month_only(self):
+        import datetime as dt
+        old = (dt.date.today().replace(day=1) - dt.timedelta(days=40)).isoformat() + "T12:00:00+00:00"
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I watched oppenheimer", "ts": old}]):
+            self.assertEqual(quick.answer("what movies have I watched this month"), "Nothing this month, from what you've told me.")
+
+
 if __name__ == "__main__":
     unittest.main()
