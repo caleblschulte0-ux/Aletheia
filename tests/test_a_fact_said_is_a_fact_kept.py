@@ -6259,5 +6259,15 @@ class WhatHeShouldKnowToday(unittest.TestCase):
         self.assertNotRegex(said, r", and say[.;]")
 
 
+
+class GiftIdeasForSomebody(unittest.TestCase):
+    """2026-10-08: "add a scarf to gift ideas for my sister" went to the planner."""
+
+    def test_gift_ideas_for_is_the_gift_list(self):
+        for said, item in (("add a scarf to gift ideas for my sister", "a scarf for my sister"),
+                           ("add a scarf to the gift list for Anna", "a scarf for Anna")):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "list_add", "list": "gift", "item": item})
+
+
 if __name__ == "__main__":
     unittest.main()

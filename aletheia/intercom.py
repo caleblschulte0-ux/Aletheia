@@ -2523,7 +2523,9 @@ def _named_list(kind: str, cmd: dict) -> str:
         added = lists.add(name, shopping_items_of(str(cmd["item"])))
         if not added:
             return f"That's already on your {name} list."
-        return f"Added to your {name} list: {speech.and_list(added)}."
+        # "a scarf for my sister" is read back as his: "for your sister" (2026-10-08)
+        said_back = re.sub(r"\bmy\b", "your", speech.and_list(added))
+        return f"Added to your {name} list: {said_back}."
     if kind == "list_off" and str(cmd["item"]).strip().lower() in ("the list", "the whole list", "the list itself"):
         had = lists.drop(name)
         if had is None:

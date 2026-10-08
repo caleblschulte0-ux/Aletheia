@@ -8710,10 +8710,12 @@ def _interpret(transcript: str) -> dict:
                      r"(?:gift|present)(?: idea)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas))?"
                      # "Add perfume to Anna's gift list" (2026-10-07: to the planner).
                      r"|(?:add|put) (?P<what3>[a-z0-9][a-z0-9 '-]{1,40}?) (?:to|on) (?:(?P<who3>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)"
-                     r"|my gift (?:list|ideas) for (?P<who4>(?:my )?[a-z][a-z' ]{1,25}?))", low)
+                     r"|my gift (?:list|ideas) for (?P<who4>(?:my )?[a-z][a-z' ]{1,25}?)"
+                     # "Add a scarf to gift ideas for my sister" (2026-10-08: to the planner).
+                     r"|(?:the |my )?gift (?:list|ideas)(?: list)? for (?P<who5>(?:my )?[a-z][a-z' ]{1,25}?))", low)
     if m and not re.match(r"(?:it|that|this|what)\b", m.group("what") or m.group("what2") or m.group("what3")):
         what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
-        who = _as_he_said(text, m.group("who") or m.group("who2") or m.group("who3") or m.group("who4"))
+        who = _as_he_said(text, m.group("who") or m.group("who2") or m.group("who3") or m.group("who4") or m.group("who5"))
         return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
     # HIS MEAL PLAN (2026-10-07: "add chicken to my meal plan for monday"
     # went to the planner). A line "Monday: chicken" on the list called

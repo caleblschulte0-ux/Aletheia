@@ -5123,7 +5123,8 @@ def _did_last(text: str) -> str | None:
     if g.get("did_o6"):
         # "I gave Max his flea medicine", his capitals and his pronoun
         who6 = str(g.get("did_who6") or "")
-        say = f"I {past} {who6 if re.match(r"(?:the|my) ", who6) else _named(who6)} {g.get('did_pro6')} {g['did_o6']}"
+        shown = who6 if re.match(r"(?:the|my) ", who6) else _named(who6)
+        say = f"I {past} {shown} {g.get('did_pro6')} {g['did_o6']}"
     return (f"Not that you've told me. Say \"{say}\" when you do and I'll keep track."
             if g.get("did_v2") or g.get("did_v4") else
             f"You haven't told me. Say \"{say}\" when you do and I'll keep track.")
