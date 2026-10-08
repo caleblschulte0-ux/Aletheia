@@ -2059,7 +2059,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
-        r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
+        r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r"|gas)(?: last| done)?\s*\??$"
         # "When did the dog get his heartworm pill" (2026-10-08: to a model,
         # a turn after "I gave the dog his heartworm pill").
         r"|^when did (?P<did_who6>the (?:dog|cat|puppy|kitten|baby|kids?)|my (?:dog|cat|son|daughter|kids?|wife|husband|mom|dad)"

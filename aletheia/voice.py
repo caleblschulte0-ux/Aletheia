@@ -9676,11 +9676,17 @@ def _interpret(transcript: str) -> dict:
                     r" (?:after work|before work|after lunch|after dinner|after school|later(?: today| tonight)?|tonight|this afternoon"
                     r"|this evening|in the morning|tomorrow(?: morning| afternoon| evening| night)?)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
+    # last get gas" has an answer.
+    if re.fullmatch(r"i (?:just )?(?:got|bought|put in|filled up(?: on)?) gas(?: in (?:the|my) (?:car|truck))?"
+                    r"(?: (?:today|this morning|yesterday|earlier|tonight|on the way home))?(?: for \$?\d[\d.,]*(?: dollars| bucks)?)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I GOT A HAIRCUT", "I need an oil change" (2026-10-07: both to the
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.
+    # "...at 45,000 miles" (2026-10-08: to the planner) is kept with it.
     m = re.fullmatch(r"i (?:just |finally )?(?:got|had|have had|'ve had|got done) (?P<svc>" + _quick._SERVICES + r")"
-                     r"(?: done)?(?: today| yesterday| this morning| last week| earlier)?", low)
+                     r"(?: done)?(?: today| yesterday| this morning| last week| earlier)?(?: at \d[\d,]* (?:miles|mi|km))?", low)
     if m:
         # "get a haircut" on his list is ticked off; the note is kept either way
         svc = re.sub(r"^(?:a|an|my|the) ", "", m.group("svc"))

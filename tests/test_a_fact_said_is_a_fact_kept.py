@@ -8230,5 +8230,26 @@ class WhatsWithoutTheApostrophe(unittest.TestCase):
 
 
 
+class IGotGasToday(unittest.TestCase):
+    """"I got gas today" and "I got an oil change today at 45000 miles"
+    each went to the planner (2026-10-08)."""
+
+    def test_they_are_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I got gas today")["command"], {"kind": "note", "text": "I got gas today"})
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False):
+            cmd = voice._interpret("I got an oil change today at 45000 miles")["command"]
+        self.assertEqual(cmd["kind"], "note")
+        self.assertIn("45000 miles", cmd["text"])
+
+    def test_when_did_i_last_get_gas_reads_it(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "I got gas today", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("you got gas", quick.answer("when did I last get gas"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
