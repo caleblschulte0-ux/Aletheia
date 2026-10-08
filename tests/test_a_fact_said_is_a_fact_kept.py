@@ -7978,5 +7978,13 @@ class AReminderForWhenHeGetsToWork(unittest.TestCase):
 
 
 
+class ICorrectTheTaskIJustAdded(unittest.TestCase):
+    def test_no_i_meant_renames_it(self):
+        with mock.patch.object(voice, "_previous_turn", return_value=("add a task to call Sam", "Added a task: call Sam.")):
+            got = voice._interpret("no I meant call Pam")["command"]
+        self.assertEqual(got, {"kind": "task_change", "which": "call Sam", "description": "call Pam"})
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8331,6 +8331,16 @@ def _interpret(transcript: str) -> dict:
             item = re.sub(r"^(?:some|a|an|the) ", "", fixed)
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, item),
                                 "replaces": just.group(1)}, "say": None}
+    # "Add a task to call Sam", then "no I meant call Pam" (2026-10-08: to
+    # the planner): the task just added, renamed.
+    if re.match(r"(?:\W*)(?:sorry|i meant|no|nope|oops|actually|wait)\b", text.lower().strip()) \
+            and re.fullmatch(r"[a-z][a-z0-9' -]{2,60}", fixed) and not re.search(
+                r"\b(?:it|that|this|them|cancel|stop|never ?mind|yes|okay|ok)\b", fixed):
+        _said, answered = _previous_turn()
+        just = re.match(r"Added a task: (.+?)\.$", answered or "")
+        if just and _TASK_VERB.match(fixed):
+            return {"command": {"kind": "task_change", "which": just.group(1),
+                                "description": _as_he_said(text, fixed)}, "say": None}
 
     # "CALL IN SICK FOR ME" (2026-10-07: to the planner). She can't phone
     # anybody; she can draft the email, which he sees before it goes.
