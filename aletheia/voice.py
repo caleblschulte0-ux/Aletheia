@@ -1303,6 +1303,8 @@ _TASK_VERB = re.compile(
     r"print|sign|read|review|update|install|set up|back up|look into|look up|talk to|meet|visit|water|sort|organize|organise|vacuum|take out|bring|replace|feed|prepare|study|research|cook|buy|clear out|tidy|"
     # "Add write the report to my list" went on the SHOPPING list (2026-10-07).
     r"write|draft|plan|go to|practi[cs]e|prep|start|learn|figure out|find|reply to|respond to|answer|confirm|"
+    # "I need to catch up with Mike" (2026-10-08: to the planner).
+    r"catch up with|reach out to|check in (?:on|with)|get together with|hang out with|grab (?:lunch|coffee|dinner|drinks|a drink|a beer) with|"
     r"register|sign up|fill out|complete|repair|refill|re-fill|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
@@ -2709,6 +2711,11 @@ def _apostrophes(transcript: str) -> str:
     # each to a model) - typed without the apostrophe, they missed every
     # pattern written "what's". The question word gets it back.
     said = re.sub(r"\b(what|where|who|how|when)s\b", r"\1's", said, flags=re.I)
+    # "What is jake wife name" (2026-10-08: to a model) - a friend's wife,
+    # both apostrophes dropped. Only right after "what is", where a bare
+    # word before "wife name" can be nobody but whose.
+    said = re.sub(r"\b(what(?:'s| is) )(?!(?:my|our|your|the|his|her|their)\b)([a-z]{2,15}) (wife|husband|girlfriend|boyfriend|fiance|fiancee|son|daughter|kid|baby|dog|cat|mom|dad|partner) name\b",
+                  r"\1\2's \3's name", said, flags=re.I)
     # "Emmas teacher is Mrs Brown", "when is Emmas dentist appointment"
     # (2026-10-08: to the planner). A capitalised name with an s stuck on,
     # before something a person has, is that person's - except a name that
@@ -11148,6 +11155,15 @@ def _interpret(transcript: str) -> dict:
                             r" (?:is|are|come out|comes out|go out|will be|are due)(?: (?:on|this|next))? " + _DAY, low) \
             or re.fullmatch(r"(?:my son|my daughter|my kid|[a-z]{2,15}) (?:lost|forgot|left) (?:his|her|their) (?:lunchbox|lunch box|lunch|backpack|jacket|coat|homework|water bottle|glasses|retainer|library book|permission slip|phone|shoes)(?: at school| at home| on the bus)?(?: again| today)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Friends (2026-10-08, each to the planner): "I owe jake a beer",
+    # "my friend sarah got engaged", "jake's wife is named amy".
+    if re.fullmatch(r"i owe (?!(?:you|it|them|him|her|money)\b)[a-z]{2,15} (?:a|an|one|two) (?:beer|drink|coffee|lunch|dinner|favor|favour|round|pizza|call|apology|thank you|visit)(?: or two)?", low) \
+            or re.fullmatch(r"(?!(?:who|what|when|where|how|did|has|is)\b)(?:my )?(?:friend |buddy |cousin |coworker |neighbor )?[a-z]{2,15}(?:'s)? (?:wife|husband|girlfriend|boyfriend|fiance|fiancee|son|daughter|baby|dog|cat|partner)(?:'s name)? is (?:named|called) [a-z]{2,15}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:my )?(?:friend |buddy |best friend |cousin |coworker |neighbor )?(?P<who>(?!(?:who|what|did|has|is|i|we|you)\b)[a-z]{2,15}(?: and [a-z]{2,15})?) (?:just )?(?:got|are|is) (?P<what>engaged|married|promoted|a new job|a dog|a puppy|into (?:college|grad school|law school|med school))", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"That's great news - congratulations to {_as_he_said(text, m.group('who')).title() if m.group('who').islower() else _as_he_said(text, m.group('who'))}. I've kept it."}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

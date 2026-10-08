@@ -12238,5 +12238,27 @@ class HisMorning(unittest.TestCase):
         self.assertEqual(quick.match("what do I have going on today")[0], "agenda")
 
 
+class HisFriends(unittest.TestCase):
+    def test_friends_news_and_debts_are_kept(self):
+        for said in ("I owe jake a beer", "jake's wife is named amy"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        got = voice.interpret("my friend sarah got engaged")
+        self.assertEqual(got["command"]["kind"], "note")
+        self.assertIn("congratulations to Sarah", got["say"])
+        self.assertEqual(voice.interpret("I need to catch up with mike")["command"]["description"], "catch up with mike")
+        self.assertNotEqual(voice.interpret("did sarah get engaged")["command"]["kind"], "note")
+
+    def test_friend_questions_read_what_he_said(self):
+        notes = [{"text": "sam and I are going hiking saturday"}, {"text": "I owe jake a beer"},
+                 {"text": "my friend sarah got engaged"}, {"text": "jake's wife is named amy"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertIn("going hiking Saturday", quick.answer("when are we going hiking"))
+            self.assertEqual(quick.answer("what do I owe jake"), "You told me you owe jake a beer.")
+            self.assertEqual(quick.answer("did sarah get engaged"), "Yes - you told me your friend sarah got engaged.")
+            self.assertIn("amy", quick.answer(voice.interpret("what is jake wife name")["command"]["text"]))
+            self.assertIsNone(quick.answer("did mike get engaged"))
+        self.assertEqual(quick.match("what are we doing friday")[0], "agenda")
+
+
 if __name__ == "__main__":
     unittest.main()
