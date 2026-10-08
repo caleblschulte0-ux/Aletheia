@@ -1976,7 +1976,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what birthdays (?:are|do i have|have i got) (?:coming up|soon|next)\s*\??$"
         r"|^(?:what|which) birthdays? (?:is|are) (?:next|soon)\s*\??$"
         # "Who has a birthday this month" (2026-10-07: to a model).
-        r"|^(?:whose|who(?:'s| has a| has)) birthdays? (?:is |are )?(?:in )?(?P<bwin3>this week|this month)\s*\??$")),
+        r"|^(?:whose|who(?:'s| has a| has)) birthdays? (?:is |are )?(?:in )?(?P<bwin3>this week|this month|next week|next month)\s*\??$")),
     ("birthday_when", re.compile(
         r"^when(?:'s| is) (?:my )?(?P<bday>(?!my\b|your\b|our\b)[a-z][a-z ]{0,30}?)(?:'s|s'|’s) (?:birthday|bday)\s*\??$")),
     # A FACT HE TOLD HER, asked back (2026-10-07: "what's my favorite
@@ -4359,11 +4359,18 @@ def _birthdays_coming(window: str = "") -> str:
         inside = [r for r in rows if r[0] <= 6 - today.weekday()]
     elif window == "this month":
         inside = [r for r in rows if r[1].month == today.month and r[1].year == today.year]
+    # "Who has a birthday next month" (2026-10-08: to a model).
+    elif window == "next week":
+        inside = [r for r in rows if 7 - today.weekday() <= r[0] <= 13 - today.weekday()]
+    elif window == "next month":
+        nxt = (today.month % 12) + 1
+        inside = [r for r in rows if r[1].month == nxt and r[0] <= 62]
     else:
         inside = [r for r in rows if r[0] <= 60]
     if not inside:
         days, when, shown = rows[0]
-        lead = {"this week": "No birthdays this week.", "this month": "No birthdays this month."}.get(
+        lead = {"this week": "No birthdays this week.", "this month": "No birthdays this month.",
+                "next week": "No birthdays next week.", "next month": "No birthdays next month."}.get(
             window, "No birthdays in the next two months.")
         return f"{lead} The next is {shown}'s, on {when.strftime('%A')} {when.day} {when.strftime('%B')}, {days} days away."
     if len(inside) == 1:
@@ -6019,7 +6026,7 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
+_PAST = {"saw": "saw", "met": "met", "spoke to": "talked to", "spoke with": "talked to", "make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
          "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
          "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
@@ -6166,7 +6173,9 @@ def _did_last(text: str) -> str | None:
         if any(str(t.get("status") or "").upper() not in _TASK_CLOSED for t in rows):
             desc = re.sub(r"\bmy\b", "your", str(rows[0].get("description") or "").strip().rstrip("."), flags=re.I)
             return f"Not yet - {desc} is still on your list."
-    say = f"I {past} {thing}"
+    # "Say "I saw sam"" (2026-10-08): a person he names keeps a capital.
+    shown_thing = _named(thing) if past in _WITH_SOMEBODY and re.fullmatch(r"[a-z]{2,15}", thing) else thing
+    say = f"I {past} {shown_thing}"
     if g.get("did_o6"):
         # "I gave Max his flea medicine", his capitals and his pronoun
         who6 = str(g.get("did_who6") or "")

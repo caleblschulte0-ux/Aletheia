@@ -9646,5 +9646,36 @@ class InTheKitchenAgain(unittest.TestCase):
         self.assertNotEqual((quick.match("when did I make an appointment") or ("",))[0], "did_last")
 
 
+class FriendsAndPlans(unittest.TestCase):
+    """A sweep of sentences about a friend (2026-10-08). "How long since I
+    saw Sam" said "Say 'I sawed sam'"."""
+
+    def test_saw_and_met(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I saw Sam today", "ts": now}]):
+            self.assertIn("you saw Sam", quick.answer("how long since I saw Sam"))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIn('"I saw Dana"', quick.answer("when did I last see Dana"))
+
+    def test_birthdays_next_month_and_plans(self):
+        import datetime as dt
+        from aletheia import localtime
+        nxt = dt.datetime.now(localtime.operator_tz()).date().replace(day=1) + dt.timedelta(days=32)
+        month = nxt.strftime("%B")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": f"my mom's birthday is {month} 12"}]):
+            self.assertTrue(quick.answer("who has a birthday next month").startswith("Your mom's birthday is"))
+        self.assertEqual(voice._interpret("Sam and I are going fishing saturday")["command"],
+                         {"kind": "note", "text": "Sam and I are going fishing saturday"})
+        self.assertEqual(voice._interpret("my wife and I are having dinner with the Smiths friday at 7")["command"]["title"],
+                         "dinner with the Smiths")
+
+    def test_reaching_somebody(self):
+        from aletheia import contacts
+        with mock.patch.object(contacts, "all_contacts", lambda: [{"id": "sam", "display_name": "Sam"}]):
+            self.assertEqual(voice._interpret("how do I reach Sam")["command"], {"kind": "contacts", "which": "sam"})
+            self.assertNotEqual(voice._interpret("how do I reach Comcast")["command"]["kind"], "contacts")
+
+
 if __name__ == "__main__":
     unittest.main()

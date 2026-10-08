@@ -734,6 +734,18 @@ def _spell_his_name(which: str) -> str:
     return "; ".join(f"{p}: " + "-".join(ch.upper() for ch in p if ch.isalpha()) for p in parts) + "."
 
 
+def _a_contact_named(name: str) -> bool:
+    """Whether he has a contact by that name: "how do I reach Comcast" is
+    the web's, "how do I reach Sam" is his contacts'."""
+    try:
+        from aletheia import contacts
+        low = name.casefold()
+        return any(low == str(c.get("display_name") or "").casefold().split(" ")[0] or low == str(c.get("id") or "").casefold()
+                   for c in contacts.all_contacts())
+    except Exception:  # noqa: BLE001
+        return False
+
+
 _GROCERY = (r"eggs?|milk|bread|butter|cheese|coffee|tea|sugar|flour|rice|pasta|cereal|oats|oatmeal|yogh?urt|cream|juice|water|soda|beer|wine"
             r"|chicken|beef|pork|bacon|ham|turkey|fish|salmon|tuna|shrimp|tofu|beans|lentils|onions?|garlic|potatoes?|tomatoes?|lettuce"
             r"|spinach|carrots?|apples?|bananas?|oranges?|lemons?|limes?|avocados?|berries|strawberries|grapes|peppers?|broccoli|cucumbers?"
@@ -3696,6 +3708,11 @@ def _interpret(transcript: str) -> dict:
         his = "your " + bare if who.startswith(("my ", "our ")) or bare in _RELATIONS else bare.title()
         says = re.sub(r"^your ", "my ", his)
         return {"command": None, "say": f"I don't have {his}'s address. Say \"{says} lives at\" and the address, and I'll keep it."}
+    # "How do I reach Sam" (2026-10-08: to a model) is his details.
+    m = re.fullmatch(r"how (?:do|can) i (?:reach|contact|get (?:a )?hold of|get in touch with) (?P<who>my [a-z][a-z ]{1,20}|[a-z]{2,15})", low)
+    if m and m.group("who") not in ("you", "them", "him", "her", "it", "support", "someone", "somebody", "anyone") \
+            and (m.group("who").startswith("my ") or _a_contact_named(m.group("who"))):
+        return {"command": {"kind": "contacts", "which": m.group("who")}, "say": None}
     m = re.fullmatch(r"what'?s? (?:is )?(.+?)'?s? (?:phone )?(?:number|email|"
                      r"address|details)", low)
     # "What's MY email" is a question about HIM, and this pattern captured
@@ -8975,7 +8992,12 @@ def _interpret(transcript: str) -> dict:
             cmd["title"] = f"{kind} with {_as_he_said(text, bk.group('who').strip())}"
             return again
     if m:
-        held = _calendar_hold(text, m.group("title"), m.group("day") or "", m.group("part"), m.group("time"))
+        # "My wife and I are having dinner with the Smiths Friday at 7"
+        # (2026-10-08) was a hold called "wife and I are having dinner with
+        # the Smiths". The plan is the dinner.
+        title = re.sub(r"^(?:(?:my|our) )?[a-z]{2,15} and i (?:are|'re|will be) (?:having|going to|going for|getting|grabbing|doing) (?:a |an |the )?",
+                       "", m.group("title"))
+        held = _calendar_hold(text, title, m.group("day") or "", m.group("part"), m.group("time"))
         if held:
             return held
     # "Add a meeting with the team on Thursday at 3 for an hour" (2026-10-07:
@@ -10215,6 +10237,12 @@ def _interpret(transcript: str) -> dict:
     # the way "I had tacos for dinner" is.
     m = re.fullmatch(r"i (?:just )?(?:made|cooked) (?P<what>(?:a |an |some |homemade )?[a-z][a-z' ]{2,30}?) (?:for dinner |for lunch )?(?:tonight|today|for dinner|for lunch|last night)", low)
     if m and not re.search(r"\b(?:mistake|reservation|appointment|call|decision|plan|it|that|money|progress|time|friends?)\b", m.group("what")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Sam and I are going fishing Saturday" (2026-10-08: to the planner) is
+    # a plan with somebody, kept for "what am I doing Saturday".
+    if re.fullmatch(r"(?:my [a-z]{2,15}|[a-z]{2,15}) and i (?:are|will be|'re) (?:going|heading|getting|having|doing|playing|meeting|grabbing)"
+                    r" [a-z' ]{2,30}? (?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|this weekend"
+                    r"|next week)(?: (?:morning|afternoon|evening|night))?(?: at [0-9: apm]{1,8})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
     # to leave, and "Jake is picking me up from the airport" is kept.
