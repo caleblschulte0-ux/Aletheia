@@ -12864,5 +12864,38 @@ class TheNextHaircut(unittest.TestCase):
             self.assertIsNone(quick.answer("when should I get my next haircut"))
 
 
+class HowLongSinceADateHeNamed(unittest.TestCase):
+    """2026-10-08: "we moved into this house in 2019", "I quit smoking on
+    January 5th" went to the planner, and "how old is my car" asked for the
+    birthday of a car he had said was a 2015 Honda Civic."""
+
+    def test_kept(self):
+        for said in ("we moved into this house in 2019", "I moved to Denver in March 2015", "we've lived here since 2019",
+                     "I quit smoking on January 5th", "I stopped drinking last year"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_the_day_he_named_is_read_against_the_day_he_said_it(self):
+        told = dt.date(2026, 10, 8)
+        self.assertEqual(quick._said_on("I quit smoking on January 5th", told), (dt.date(2026, 1, 5), "day"))
+        self.assertEqual(quick._said_on("I quit on December 1st", told), (dt.date(2025, 12, 1), "day"))
+        self.assertEqual(quick._said_on("I moved to Denver in March 2015", told), (dt.date(2015, 3, 1), "month"))
+        self.assertEqual(quick._said_on("we moved here in 2019", told), (dt.date(2019, 1, 1), "year"))
+        self.assertIsNone(quick._said_on("we moved here", told))
+        self.assertEqual(quick._how_long_since(dt.date(2026, 1, 5), "day", told), "about 9 months")
+        self.assertEqual(quick._how_long_since(dt.date(2019, 1, 1), "year", told), "about 7 years")
+
+    def test_how_long_here(self):
+        year = dt.date.today().year - 7
+        with mock.patch.object(quick, "_notes", return_value=[{"text": f"we moved into this house in {year}"}]):
+            self.assertEqual(quick.answer("how long have we lived here"), f"About 7 years - you told me you moved into this house in {year}.")
+            self.assertEqual(quick.answer("when did we move here"), f"You told me you moved into this house in {year}.")
+            self.assertIsNone(quick.answer("how long have I lived in Denver"))
+
+    def test_how_old_a_thing_is_is_its_year(self):
+        year = dt.date.today().year - 11
+        with mock.patch.object(quick, "_notes", return_value=[{"text": f"my car is a {year} Honda Civic"}]):
+            self.assertEqual(quick.answer("how old is my car"), f"About 11 years old - you told me your car is a {year} Honda Civic.")
+
+
 if __name__ == "__main__":
     unittest.main()

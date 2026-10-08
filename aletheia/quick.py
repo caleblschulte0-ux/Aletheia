@@ -2686,6 +2686,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Where are we eating tonight" (2026-10-08: a file search for "we
     # eating") a turn after "we have a reservation at Olive Garden at 7".
     ("eating_where", re.compile(r"^where (?:are|am) (?:we|i) (?:eating|going (?:out )?(?:for|to) (?:dinner|lunch|brunch))(?P<eating_where> tonight| today| tomorrow(?: night)?)?\s*\??$")),
+    # "How long have we lived here", "when did we move to Denver"
+    # (2026-10-08: to a model, a turn after "we moved into this house in 2019").
+    ("lived_since", re.compile(
+        r"^how long (?:have|has) (?:i|we|my (?:wife|husband|family) and i) (?:lived|been living|been) (?P<ls_where>here|in (?:this|the|our|my) (?:house|home|place|apartment|condo)|in [a-z][a-z .'-]{1,30}?)\s*\??$"
+        r"|^(?P<ls_when>when|how long ago|what year) did (?:i|we) move (?P<ls_where2>here|in|into (?:this|the|our|my) (?:house|home|place|apartment|condo)|to [a-z][a-z .'-]{1,30}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3630,7 +3635,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "lived_since", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -5032,6 +5037,27 @@ def _age_of(who: str) -> str | None:
             told = (name[:1].upper() + name[1:] if name
                     else f"your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
             return f"You told me {told} is {int(m.group(1))}."
+    # "My car is a 2015 Honda Civic", "the house was built in 1985"
+    # (2026-10-08: "how old is my car" asked for the car's birthday). A
+    # thing's age is its model year, said plainly.
+    if who.startswith("my ") and label not in _relation_words():
+        thing = re.escape(label.casefold())
+        made = re.compile(rf"^(?:my |our |the )?{thing} (?:is|'s) an? (?P<y>(?:19|20)\d\d) (?P<what>[a-z0-9][a-z0-9 .'-]{{1,40}}?)\.?$"
+                          rf"|^(?:my |our |the )?{thing} was (?:built|made) in (?P<y2>(?:19|20)\d\d)\.?$")
+        year_now = dt.datetime.now(localtime.operator_tz()).year
+        for row in reversed(_notes()):
+            said = " ".join(str(row.get("text") or "").split())
+            m = made.search(said.casefold())
+            if not m:
+                continue
+            y = int(m.group("y") or m.group("y2"))
+            if y > year_now + 1:
+                continue
+            n = year_now - y
+            from aletheia import speech
+            told = re.sub(r"(?i)^(?:my|our)\b", "your", speech.as_she_says_it(said).rstrip("."))
+            return (f"About {speech.count_phrase(n, 'year')} old - you told me {told}." if n > 0
+                    else f"Less than a year old - you told me {told}.")
     # "How old is Emma" with notes about Emma and none about her birthday
     # (2026-10-08: to a model). Somebody of his he never dated is his to
     # say; a name she has never heard of may be anybody's, so a model may.
@@ -18297,6 +18323,52 @@ def _step_goal(text: str) -> str | None:
     return f"Not yet - {steps:,} steps {day}, {goal - steps:,} short of your goal of {goal:,}."
 
 
+def _said_on(said: str, told):
+    """The day a sentence of his names, read against the day he said it:
+    "on January 5th", "in March 2021", "in 2019", "last year". Returns
+    (date, "day" | "month" | "year"), or None when it names no day."""
+    import datetime as dt
+    low = said.casefold().rstrip(" .")
+    if re.search(r"\blast year$", low):
+        return dt.date(told.year - 1, 1, 1), "lastyear"
+    if re.search(r"\blast month$", low):
+        first = told.replace(day=1) - dt.timedelta(days=1)
+        return first.replace(day=1), "month"
+    mon_re = "|".join(_MONTHS)
+    m = (re.search(rf"\b(?:the )?(?P<a>\d{{1,2}})(?:st|nd|rd|th)? of (?P<mon>(?:{mon_re}|[a-z]{{3}}))(?:,? (?P<y>(?:19|20)\d\d))?$", low)
+         or re.search(rf"\b(?P<mon>{mon_re}|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)(?: (?:the )?(?P<a>\d{{1,2}})(?:st|nd|rd|th)?)?(?:,? (?P<y>(?:19|20)\d\d))?$", low))
+    if m:
+        mon = next((i + 1 for i, name in enumerate(_MONTHS) if name.startswith(m.group("mon")[:3])), None)
+        if not mon:
+            return None
+        year = int(m.group("y") or told.year)
+        try:
+            day = dt.date(year, mon, int(m.group("a") or 1))
+        except ValueError:
+            return None
+        if not m.group("y") and day > told:
+            day = day.replace(year=year - 1)
+        return day, ("day" if m.group("a") else "month")
+    m = re.search(r"\b((?:19|20)\d\d)$", low)
+    if m and int(m.group(1)) <= told.year:
+        return dt.date(int(m.group(1)), 1, 1), "year"
+    return None
+
+
+def _how_long_since(began, precision: str, today) -> str:
+    """"37 days", "about 7 months", "about 6 years" - a span said the way a
+    person does, never finer than the day he named."""
+    days = (today - began).days
+    if precision in ("year", "lastyear"):
+        n = today.year - began.year
+        return ("about a year" if n == 1 else f"about {n} years") if n else "less than a year"
+    if days < 60:
+        return f"{days} day{'s' if days != 1 else ''}"
+    if days < 730:
+        return f"about {round(days / 30.44)} months"
+    return f"about {days // 365} years"
+
+
 def _quit_since(text: str) -> str | None:
     """"How long since I quit smoking", "how many days sober am I"
     (2026-10-08: to a model, with "I quit smoking today" kept). Counted from
@@ -18324,6 +18396,12 @@ def _quit_since(text: str) -> str | None:
             told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
         except ValueError:
             return None
+        # "I quit smoking on January 5th" names the day (2026-10-08).
+        on = _said_on(said, told) if re.search(r"\b(?:on|in|since|last) [a-z0-9]", said, re.I) else None
+        if on and on[0] <= dt.datetime.now(tz).date():
+            span = _how_long_since(on[0], on[1], dt.datetime.now(tz).date())
+            from aletheia import speech
+            return f"{span[:1].upper() + span[1:]} - you told me {speech.as_she_says_it(said)}. Keep going."
         already = re.search(r"\b(?:in|for) (\d{1,4}) days\b|\b(\d{1,4}) days (?:sober|clean)\b", said, re.I)
         days = (dt.datetime.now(tz).date() - told).days + (int(already.group(1) or already.group(2)) if already else 0)
         if days <= 0:
@@ -18574,6 +18652,42 @@ def _eating_where(text: str) -> str | None:
                 return f"{title[:1].upper() + title[1:]}{place}, {speech.humanize_time(at.isoformat())}."
     except Exception:  # noqa: BLE001
         return None
+    return None
+
+
+def _lived_since(text: str) -> str | None:
+    """How long he has lived here, or in a city, from "we moved into this
+    house in 2019" or "I've lived in Denver since 2015". What he said, or
+    None for a model."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("lived_since", text)
+    where = (g.get("ls_where") or g.get("ls_where2") or "").strip()
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    home = bool(re.fullmatch(r"here|in|into .*|in (?:this|the|our|my) .*", where))
+    city = None if home else re.sub(r"^(?:in|to) ", "", where)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if home:
+            if not re.match(r"(?:i|we) moved (?:in|here|into (?:this|the|our|my) (?:house|home|place|apartment|condo))\b"
+                            r"|(?:i|we)(?:'ve| have) lived (?:here|in (?:this|the|our|my) (?:house|home|place|apartment|condo)) since\b", low):
+                continue
+        elif not re.match(rf"(?:i|we) (?:moved to|(?:'ve| have) lived in) {re.escape(city)}\b", low):
+            continue
+        try:
+            told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            told = today
+        on = _said_on(said, told)
+        heard = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said))
+        if not on or on[0] > today:
+            return f"You told me {heard}."
+        if g.get("ls_when"):
+            return f"You told me {heard}."
+        span = _how_long_since(on[0], on[1], today)
+        return f"{span[:1].upper() + span[1:]} - you told me {heard}."
     return None
 
 
@@ -19395,6 +19509,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "lived_since": _lived_since,
            "eating_where": _eating_where,
            "let_go": _let_go,
            "refunds_owed": _refunds_owed,

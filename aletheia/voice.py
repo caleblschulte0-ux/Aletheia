@@ -11393,6 +11393,8 @@ def _interpret(transcript: str) -> dict:
     # "I quit smoking today", "I haven't had a drink in 30 days" (2026-10-08:
     # to the planner). Kept, with a word for it.
     if re.fullmatch(r"i (?:just |finally |officially )?(?:quit|stopped|gave up) (?:smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)(?: today| yesterday| this week| for good)?", low) \
+            or re.fullmatch(r"i (?:quit|stopped|gave up) (?:smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)"
+                            r" (?:on |in |back in )?(?:last (?:year|month)|" + SPOKEN_DATE + r"|" + _MONTH + r"(?: (?:the )?\d{1,2}(?:st|nd|rd|th)?)?(?:,? \d{4})?|(?:19|20)\d\d)", low) \
             or re.fullmatch(r"i (?:have not|haven't) (?:had a drink|had a cigarette|smoked|vaped|had alcohol) (?:in|for) \d{1,4} days", low) \
             or re.fullmatch(r"i(?:'m| am) (?:\d{1,4} days|one week|two weeks|a month|\d{1,2} months) (?:sober|clean|smoke free|smoke-free)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "That's a big one - good for you. I'll keep count."}
@@ -11543,6 +11545,13 @@ def _interpret(transcript: str) -> dict:
     # no day: their news, kept.
     if re.fullmatch(r"(?:the|my|our) (?:neighbors?|neighbours?|people next door|people upstairs|people downstairs) (?:is|are) having (?:a |an |another )?"
                     r"(?:party|barbecue|bbq|cookout|garage sale|yard sale|baby|get together|get-together|bonfire)(?: tonight| today| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "We moved into this house in 2019", "I moved to Denver in March 2015",
+    # "we've lived here since 2019" (2026-10-08: to the planner). When they
+    # moved is a note; "how long have we lived here" reads it.
+    if re.fullmatch(r"(?:i|we) (?:moved|moved in|moved into (?:this|the|our|my) (?:house|home|place|apartment|condo)|moved here|moved to [a-z][a-z .'-]{1,30}?)"
+                    r" (?:on |in |back in )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: (?:the )?\d{1,2}(?:st|nd|rd|th)?)?(?:,? \d{4})?|(?:19|20)\d\d)", low) \
+            or re.fullmatch(r"(?:i|we)(?:'ve| have) lived (?:here|in (?:this|the|our|my) (?:house|home|place|apartment|condo)|in [a-z][a-z .'-]{1,30}?) since (?:(?:19|20)\d\d|" + _MONTH + r"(?:,? \d{4})?)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
