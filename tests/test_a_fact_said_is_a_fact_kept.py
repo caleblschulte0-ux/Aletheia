@@ -9080,5 +9080,26 @@ class RemindersTonightAndRepeating(unittest.TestCase):
 
 
 
+class PlacesAndOrders(unittest.TestCase):
+    """2026-10-08: "my usual coffee order is an oat latte" and "I tried a
+    new place called Nobu and loved it" went to the planner, and "what
+    restaurants do I like" to a model."""
+
+    def test_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my usual coffee order is an oat latte")["command"],
+                         {"kind": "note", "text": "my coffee order is an oat latte"})
+        self.assertEqual(voice._interpret("I tried a new place called Nobu and loved it")["command"]["kind"], "note")
+
+    def test_read(self):
+        from aletheia import quick
+        rows = [{"text": "my coffee order is an oat latte"}, {"text": "I tried a new place called Nobu and loved it"},
+                {"text": "my favorite restaurant is Olive Garden"}, {"text": "we went to Joe's Diner and hated it"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how do I like my coffee"), "You told me: your coffee order is an oat latte.")
+            self.assertEqual(quick.answer("what restaurants do I like"), "From what you've told me: Nobu and Olive Garden.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2125,6 +2125,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("repeating", re.compile(
         r"^what (?:do|will) (?:you|u) remind me (?:about |of |to do )?every (?P<repeating>morning|day|night|evening|week|month)\s*\??$"
         r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|recurring|repeating|regular|morning|nightly) reminders?\s*\??$")),
+    # "What restaurants do I like" (2026-10-08: to a model, with his
+    # favorite and "I tried Nobu and loved it" kept).
+    ("places_liked", re.compile(
+        r"^(?:what|which) (?:restaurants|places(?: to eat)?|spots) do (?:i|we) (?:like|love|enjoy)\s*\??$"
+        r"|^what are (?:my|our) favou?rite (?:restaurants|places to eat|places)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -12627,7 +12632,8 @@ def _liked_how(text: str) -> str | None:
         return None
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        if re.match(rf"i (?:like|take|have|drink|want|prefer) my {re.escape(thing)}\b", said.casefold()):
+        # "my coffee order is an oat latte" says it too (2026-10-08)
+        if re.match(rf"i (?:like|take|have|drink|want|prefer) my {re.escape(thing)}\b|my {re.escape(thing)} order is ", said.casefold()):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     return f"You haven't told me how you like your {thing}. Tell me once and I'll remember it."
 
@@ -13698,6 +13704,30 @@ def _repeating(which: str = "") -> str:
     return f"{speech.count_phrase(len(rows), 'repeating reminder')}: " + "; ".join(said) + "."
 
 
+def _places_liked() -> str | None:
+    """Restaurants he told her he likes: his favorite and the ones he
+    tried and liked. None when there are none - a model may know more."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        fav = re.match(r"(?:my|our) (?:favou?rite|go-to) (?:restaurant|place to eat|place|spot)s? (?:is|are) (?P<x>.+?)\.?$", said, re.I)
+        tried = re.match(r"(?:i|we) (?:tried|went to|ate at|had (?:dinner|lunch|breakfast|brunch) at|checked out) (?:a |this |the |that )?(?:new )?"
+                         r"(?:(?:place|restaurant|spot|cafe|bar|bakery|diner)(?: called| named)? )?(?P<x>.+?) (?:and|but) (?:i |we )?"
+                         r"(?:really |absolutely )?(?:loved|liked|enjoyed) it", said, re.I)
+        liked = re.match(r"(?:i|we) (?:really |absolutely )?(?:love|loved|like|liked|enjoy|enjoyed) (?:the )?(?P<x>.+?)"
+                         r" (?:restaurant|place)\b", said, re.I)
+        m = fav or tried or liked
+        if m and not re.search(r"\b(?:didn'?t|did not|not)\b", low):
+            name = m.group("x").strip()
+            if name.casefold() not in (f.casefold() for f in found):
+                found.append(name)
+    if not found:
+        return None
+    return f"From what you've told me: {speech.and_list(found[:5])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14505,6 +14535,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "places_liked": lambda rest: _places_liked(),
            "repeating": _repeating,
            "bills_due": lambda rest: _bills_due(),
            "can_eat": _can_eat,

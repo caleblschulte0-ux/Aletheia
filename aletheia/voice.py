@@ -9054,6 +9054,16 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:the|my|our|this month'?s) (?:[a-z]+ ){0,2}(?:bill|payment|invoice) (?:was|is|came to|came out to|ended up being)"
                     r" (?:about |around |only |almost )?\$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?(?: this month| this time)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My usual coffee order is an oat latte" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:my|our) (?:usual |regular |normal |go-to |default )?(?P<k>coffee|drink|starbucks|tea|lunch|pizza|burger|sandwich|takeout|chipotle|smoothie)"
+                     r" (?:order|usual) is (?:usually |always )?(?P<v>.{2,60})", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"my {m.group('k')} order is {_as_he_said(text, m.group('v'))}"}, "say": None}
+    # "I tried a new place called Nobu and loved it" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:tried|went to|ate at|had (?:dinner|lunch|breakfast|brunch) at|checked out) (?:a |this |the |that )?(?:new )?"
+                    r"(?:(?:place|restaurant|spot|cafe|bar|bakery|diner)(?: called| named)? )?[a-z0-9][a-z0-9 '&.-]{1,30}?"
+                    r" (?:and|but) (?:i |we )?(?:really |absolutely |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t like|did not like|wasn'?t a fan of) it", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
     # "the landlord fixed the sink" both to the planner). Notes; "what's
     # broken" and "is the sink fixed" read them.
