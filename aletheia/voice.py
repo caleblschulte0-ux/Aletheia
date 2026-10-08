@@ -2767,7 +2767,31 @@ def interpret(transcript: str) -> dict:
     transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(_a_clock_said(_apostrophes(transcript)))))
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(
-                             _the_day_before(transcript, _interpret(transcript)))))
+                             _a_question_is_never_kept(transcript,
+                                                       _the_day_before(transcript, _interpret(transcript))))))
+
+
+#: What a question must never become. "Who is bringing dessert" was kept as
+#: a note, "what's for dinner tonight" put "what's" on the meal plan, and
+#: "who is at 20 Oak Ave" saved a place called "who" (2026-10-08) - each a
+#: statement pattern a question happened to fit.
+_WRITES = frozenset({"note", "list_add", "task_new", "calendar_hold", "shopping_add", "place_add", "contact_add",
+                     "remember", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"})
+_QUESTION = re.compile(r"(?:who|what|which|whose)(?:'s| is| are| was| were| has| have| had| owes| did| does| do| said| says| called| texted"
+                       r"| got| gets| wants| needs| took| lent| brought| will| can| should| would)\b"
+                       r"|(?:when|where|why|how)(?:'s| is| are| was| were| do| does| did| can| should| will| has| have| would)\b")
+
+
+def _a_question_is_never_kept(transcript: str, said: dict) -> dict:
+    """A sentence asked as a question goes to the readers and the planner,
+    never into a store, whichever statement pattern it fitted."""
+    cmd = (said or {}).get("command") or {}
+    if cmd.get("kind") not in _WRITES:
+        return said
+    low = " ".join(strip_wake_word(str(transcript or "")).casefold().split())
+    if _QUESTION.match(low):
+        return {"command": {"kind": "intent", "text": strip_wake_word(str(transcript or "")).strip()}, "say": None}
+    return said
 
 
 def _the_day_before(transcript: str, said: dict) -> dict:
@@ -11807,7 +11831,7 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:think i )?(?:nailed|bombed|aced) (?:the|my) interview(?: today| yesterday)?", low) \
             or re.fullmatch(r"i (?:work from home|wfh|work remotely) (?:on |every )?(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?)"
                             r"(?:(?:,| and|, and) (?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?))*", low) \
-            or re.fullmatch(r"(?:my (?:coworker|boss|manager|friend at work) )?[a-z][a-z'-]{1,20} (?:is|are) leaving (?:the company|the team|work)(?: (?:next|this) (?:week|month)| on [a-z]+| soon)?", low) \
+            or re.fullmatch(r"(?:my (?:coworker|boss|manager|friend at work) )?(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone)\b)[a-z][a-z'-]{1,20} (?:is|are) leaving (?:the company|the team|work)(?: (?:next|this) (?:week|month)| on [a-z]+| soon)?", low) \
             or re.fullmatch(r"i got a (?:\$?\d[\d,]*k? )?(?:bonus|raise)(?: of \$?\d[\d,]*k?)?(?: today| this year| yesterday)?", low) \
             or re.fullmatch(r"i have (?:a |my )?(?:performance review|annual review|review|one on one|1 on 1|team meeting|all hands|training|work trip|conference)"
                             r" (?:next week|this week|next month|this month|soon)", low):

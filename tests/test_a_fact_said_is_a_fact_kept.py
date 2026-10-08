@@ -12681,6 +12681,22 @@ class QuestionsThatWereWrites(unittest.TestCase):
         self.assertEqual(quick._direct("what are the plans for saturday"), "what do i have to do saturday")
 
 
+class AQuestionIsNeverKept(unittest.TestCase):
+    """2026-10-08: a sweep that turned two and a half thousand kept
+    sentences into "who ..." and "what ..." questions found thirty that were
+    kept anyway: "who owes me 50" as a note, "who is at 20 Oak Ave" as a
+    place called "who", "who is grounded until Friday" as a note."""
+
+    def test_questions_reach_the_readers_not_the_stores(self):
+        for said in ("who owes me 50", "who is at 20 Oak Ave", "who is grounded until Friday", "who has a day off friday",
+                     "who said they would get back to me next week", "who is leaving the company", "what's for dinner tonight"):
+            self.assertNotIn((voice.interpret(said)["command"] or {}).get("kind"), voice._WRITES, said)
+
+    def test_statements_are_still_kept(self):
+        for said in ("Sam owes me 15", "the gym is at 20 Oak Ave", "my son is grounded until Friday", "Dave is leaving the company"):
+            self.assertIn((voice.interpret(said)["command"] or {}).get("kind"), voice._WRITES, said)
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
