@@ -24,21 +24,21 @@
       "weak_shot": 5
     },
     "2026-10-08": {
-      "duplicate": 11,
+      "duplicate": 13,
       "employer_full": 0,
-      "minutes": 227,
+      "minutes": 237,
       "needs_account": 0,
-      "needs_answer": 14,
-      "not_realistic": 542,
-      "offered": 693,
+      "needs_answer": 15,
+      "not_realistic": 560,
+      "offered": 714,
       "ready": 13,
-      "runs": 8,
+      "runs": 9,
       "unfit_clearance": 2,
-      "unfit_language": 8,
+      "unfit_language": 9,
       "unfit_license": 34,
-      "unfit_model": 22,
-      "unfit_pay": 118,
-      "unfit_sales": 348,
+      "unfit_model": 24,
+      "unfit_pay": 119,
+      "unfit_sales": 362,
       "unfit_years": 10,
       "unjudged": 47,
       "unreachable": 2,
@@ -55,7 +55,7 @@
       "left_captcha": 2,
       "left_error": 3,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 4,
+      "left_no_way_forward": 5,
       "left_out_of_steps": 1,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 15,
@@ -265,14 +265,14 @@
     },
     "2026-10-08": {
       "filled": 29,
-      "found": 39,
+      "found": 40,
       "interviews": 1,
       "rejections": 0,
       "replies": 3,
       "sent": 14
     }
   },
-  "generated_at": "2026-10-08T18:24:11Z",
+  "generated_at": "2026-10-08T18:54:14Z",
   "sent_all_time": 284,
   "stuck_at": {
     "approval_denied": {
@@ -297,6 +297,7 @@
     },
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
+      "nothing_to_press_on_content+no_apply/observed": 1,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form/observed": 5,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -333,6 +334,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
+        "nothing_to_press_on_content+no_apply/observed": 1,
         "nothing_to_press_on_content/observed": 2,
         "nothing_to_press_on_form/observed": 3,
         "unclear_button/observed": 3
@@ -347,7 +349,7 @@
   },
   "totals": {
     "filled": 364,
-    "found": 728,
+    "found": 729,
     "interviews": 3,
     "rejections": 4,
     "replies": 36,
@@ -377,7 +379,7 @@
       "left_captcha": 14,
       "left_error": 12,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 73,
+      "left_no_way_forward": 74,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 1,
