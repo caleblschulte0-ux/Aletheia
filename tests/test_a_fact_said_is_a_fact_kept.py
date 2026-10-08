@@ -8499,5 +8499,17 @@ class APlacesHoursHeToldHer(unittest.TestCase):
 
 
 
+class IMovedMyCar(unittest.TestCase):
+    """"I moved my car to the garage" went to the planner, and "where did I
+    park" kept the old spot (2026-10-08)."""
+
+    def test_it_is_a_new_spot(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I moved my car to the garage")["command"],
+                         {"kind": "note", "text": "I parked in the garage"})
+        self.assertNotEqual((voice._interpret("I put the car in drive")["command"] or {}).get("text"), "I parked in drive")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9780,6 +9780,12 @@ def _interpret(transcript: str) -> dict:
                     r"\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?(?:(?: to| until| till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?)?"
                     r"(?: (?:on )?(?:weekdays|weekends|every day|daily|on sundays|on saturdays|on sunday|on saturday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I moved my car to the garage" (2026-10-08: to the planner, after
+    # "where did I park" had been answered from the old spot) - a new spot.
+    m = re.fullmatch(r"i (?:just )?(?:moved|re-?parked|left|put) (?:my|the) (?:car|truck|van) (?P<prep>to|in|into|at|on|by|outside|behind) (?P<where>(?!(?:drive|park|neutral|reverse|gear|sport mode)\b).{2,60})", low)
+    if m:
+        prep = {"to": "in", "into": "in"}.get(m.group("prep"), m.group("prep"))
+        return {"command": {"kind": "note", "text": f"I parked {prep} {_as_he_said(text, m.group('where'))}"}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|bought|put in|filled up(?: on)?) gas(?: in (?:the|my) (?:car|truck))?"
