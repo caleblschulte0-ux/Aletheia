@@ -3733,6 +3733,19 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
         return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
 
+    # "I need gas", "I need a nap", "I need to lose weight" (2026-10-08: all
+    # to the planner). Gas is an errand; the other two are his, said kindly
+    # with the one thing she can do about each.
+    if re.fullmatch(r"(?:i|we) (?:need|gotta get|need to get|have to get|should get) (?:some )?(?:gas|fuel|petrol|diesel)"
+                    r"(?: in the car| for the car)?", low):
+        return _new_task("get gas")
+    if re.fullmatch(r"i (?:really )?need (?:a nap|to nap|a rest|some rest|to rest|a break|some sleep|to lie down)", low):
+        return {"command": None,
+                "say": "Go for it. Say \"set a timer for 20 minutes\" and I'll wake you."}
+    if re.fullmatch(r"i (?:really )?(?:need|want|have) to (?:lose|drop) (?:some )?weight", low):
+        return {"command": None,
+                "say": "Tell me what you weigh - \"I weigh 190\" - and your goal - \"my goal weight is 175\" - "
+                       "and I'll keep track of how it's going."}
     # "My car needs an oil change at 45000 miles" (2026-10-08: to the
     # planner). Kept; "when does my car need an oil change" reads it.
     if re.fullmatch(r"(?:my|our|the) (?:car|truck|van|suv|bike|motorcycle|furnace|ac|a/c|water heater|lawn mower|mower)"

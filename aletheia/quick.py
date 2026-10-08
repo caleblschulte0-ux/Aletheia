@@ -2512,6 +2512,10 @@ def _direct(text: str) -> str:
                      r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
     if m:
         return f"what did i tell you about being on {m.group('state')}"
+    # "How is my weight loss going" read the FLEET's status (2026-10-08).
+    m = re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:weight loss|weight|diet)(?: going| coming along| doing)?\s*\??", text)
+    if m:
+        return "how am i doing on my weight loss"
     # "When does my car need an oil change" (2026-10-08: to a model) is the
     # note he gave her about it.
     m = re.fullmatch(r"when (?:does|do|will) (?:my|our|the) (?P<thing>car|truck|van|suv|bike|motorcycle|furnace|ac|water heater"

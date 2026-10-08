@@ -7088,6 +7088,17 @@ class NextFridayAndTwoCities(unittest.TestCase):
                          {"kind": "travel_time", "place": "the airport"})
 
 
+class INeedThings(unittest.TestCase):
+    """2026-10-08: "I need gas", "I need a nap", "I need to lose weight" went
+    to the planner; "how is my weight loss going" read the fleet."""
+
+    def test_each_has_its_one_answer(self):
+        self.assertEqual(voice.interpret("I need gas")["command"]["description"], "get gas")
+        self.assertIn("timer", voice.interpret("I need a nap")["say"])
+        self.assertIn("goal weight", voice.interpret("I need to lose weight")["say"])
+        self.assertEqual(quick._direct("how is my weight loss going"), "how am i doing on my weight loss")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
