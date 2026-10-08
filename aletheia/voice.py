@@ -10411,6 +10411,16 @@ def _interpret(transcript: str) -> dict:
                      r"(?: (?:on |this |next )?(?P<day2>[a-z]+day|tomorrow|today|tonight))?", low)
     if m and (m.group("day") or m.group("day2")) and (m.group("day") or m.group("day2")) in WEEKDAYS + ("tomorrow", "today", "tonight"):
         return _interpret(f"i need to finish {m.group('what')} by {m.group('day') or m.group('day2')}")
+    # "I'm going out with friends tonight", "I'll be home late" (2026-10-08:
+    # "I can't think" and the planner). Kept, so "what time will I be home"
+    # has his words to read.
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:going out|heading out|going out for drinks|going for drinks|going out to eat)"
+                    r"(?: with (?:some |a few |my )?(?:friends|the guys|the girls|coworkers|work friends|the team|[a-z]{2,15}))?"
+                    r"(?: (?:tonight|this evening|after work|later|tomorrow night|on (?:friday|saturday) night|friday night|saturday night))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Have fun."}
+    if re.fullmatch(r"(?:i'?ll|i will|i'?m going to|i'?m gonna) be (?:home|back) (?:late|early|around \d{1,2}(?::\d\d)?(?: ?[ap]m)?|by \d{1,2}(?::\d\d)?(?: ?[ap]m)?|after \d{1,2}(?::\d\d)?(?: ?[ap]m)?)"
+                    r"(?: (?:tonight|today|tomorrow))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

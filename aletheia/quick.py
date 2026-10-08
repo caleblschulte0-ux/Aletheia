@@ -2439,6 +2439,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What size does my wife wear" (2026-10-08: "I can't think"), after
     # "my wife wears a size 8".
     ("wears", re.compile(r"^what size (?:(?P<wears_k>[a-z]{3,10}) )?(?:do|does) (?P<wears>i|(?:my|our) [a-z]{2,12}|[a-z]{2,12}) (?:wear|take)(?: in (?P<wears_k2>[a-z -]{3,12}))?\s*\??$")),
+    # "What time will I be home" (2026-10-08: "I can't think"), after "I'll
+    # be home late".
+    ("home_when", re.compile(r"^(?:what time|when) (?:will|am) i (?:be |getting |going to be |gonna be )?(?:home|back)(?: tonight| today)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2846,7 +2849,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "I'm running 10 minutes late" (2026-10-08: "I can't think").
         r"|running (?:about |like |maybe )?(?:a (?:few|little|bit|couple)|\d{1,3}|five|ten|fifteen|twenty|thirty|an hour|half an hour)(?: of)?(?: minutes?| mins?)? late"
         r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now| lately| recently| all week| this week| all day)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
-        r"|^(?P<feel2>i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
+        r"|^(?P<feel2>i(?: have|'ve got| got) nothing to do|(?:suggest|give me|find me) something to do|i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         r"|give me a compliment|compliment me|say something nice about me"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
@@ -6371,12 +6374,14 @@ def _did_last(text: str) -> str | None:
         return None
     past = _past_of(verb)
     base = re.sub(r"(?:ied)$", "y", past)
-    words = [w for w in re.findall(r"[a-z0-9']+", thing.casefold())
+    # "I got my hair cut today" is a haircut (2026-10-08: "you haven't told me").
+    _cut = lambda x: re.sub(r"\bhair ?cut\b", "haircut", re.sub(r"\bgot (?:my|a) hair cut\b", "got a haircut", x))
+    words = [w for w in re.findall(r"[a-z0-9']+", _cut(thing.casefold()))
              if w not in ("the", "my", "our", "his", "her", "a", "an", "some", "its")]
     tz = localtime.operator_tz()
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        low = said.casefold()
+        low = _cut(said.casefold())
         # talking to somebody is any of the ways he says he did
         said_as = ("(?:got|had|gotten)" if service else
                    r"(?:talked (?:to|with)|spoke (?:to|with)|called|texted|saw|met(?: up)?(?: with)?|hung out with|caught up with|visited)"
@@ -8816,6 +8821,8 @@ def _feeling(text: str) -> str | None:
     if m:
         return (f"Want them to know? Say \"text\" and the name and what to say, like "
                 f"\"text Sam I'm running {m.group(1)} late\".")
+    if "nothing to do" in said or "something to do" in said:
+        said = "bored"
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
     if said in ("cheer me up", "make me smile", "give me a compliment", "compliment me", "say something nice about me"):
@@ -16626,6 +16633,25 @@ def _pay_now(_rest: str = "") -> str | None:
     return None
 
 
+def _home_when(_rest: str = "") -> str | None:
+    """When he said he'd be home, from a note of today's."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(r"(?:i'?ll|i will|i'?m going to|i'?m gonna) be (?:home|back)\b", line, re.I):
+            continue
+        try:
+            on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            on = None
+        if on is not None and on != dt.datetime.now(tz).date() and not re.search(r"\btomorrow\b", line, re.I):
+            return None
+        return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17439,6 +17465,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "home_when": _home_when,
            "pay_now": _pay_now,
            "wears": _wears,
            "gifts_owed": _gifts_owed,

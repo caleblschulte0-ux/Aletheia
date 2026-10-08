@@ -11076,5 +11076,27 @@ class AtWork(unittest.TestCase):
             self.assertEqual(quick.answer("what is my salary"), "You told me: you got a raise to 85000.")
 
 
+class AnEveningOut(unittest.TestCase):
+    """2026-10-08: "I got my hair cut today" did not count as a haircut, and
+    going out, home late, "what time will I be home" and "I have nothing to
+    do" went to the planner or "I can't think"."""
+
+    def test_a_hair_cut_is_a_haircut(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I got my hair cut today"}]):
+            self.assertEqual(quick.answer("when did I last get a haircut"), "You told me you got your hair cut.")
+
+    def test_out_and_home(self):
+        got = voice._interpret("I am going out with friends tonight")
+        self.assertEqual((got["command"]["kind"], got["say"]), ("note", "Have fun."))
+        self.assertEqual(voice._interpret("I will be home late")["command"], {"kind": "note", "text": "I will be home late"})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I will be home late"}]):
+            self.assertEqual(quick.answer("what time will I be home"), "You told me: you will be home late.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("what time will I be home"))
+
+    def test_nothing_to_do(self):
+        self.assertEqual(quick.answer("I have nothing to do"), quick.answer("I am bored"))
+
+
 if __name__ == "__main__":
     unittest.main()
