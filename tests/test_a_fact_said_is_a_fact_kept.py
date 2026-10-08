@@ -7995,5 +7995,16 @@ class AReminderForHisMomsBirthday(unittest.TestCase):
 
 
 
+class WhatHePaysIsAFactNotAnOrder(unittest.TestCase):
+    def test_i_pay_for_netflix_is_kept_as_a_bill(self):
+        self.assertEqual(voice._interpret("I pay 15 a month for Netflix")["command"],
+                         {"kind": "note", "text": "my Netflix is 15 a month"})
+
+    def test_an_order_to_buy_is_not_caught_here(self):
+        got = voice._interpret("buy Netflix for 15 a month")
+        self.assertNotEqual((got.get("command") or {}).get("kind"), "note")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -3944,6 +3944,19 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
         return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
 
+    # "I pay 15 a month for Netflix" (2026-10-08: refused at the money door
+    # as an order to spend). It is what he already pays - a fact, kept the
+    # way "my Netflix is 15 a month" is, which the bill readers read. Only a
+    # bill they know, and only with how often: nothing here buys anything.
+    m = re.fullmatch(r"(?:i|we) (?:pay|spend) \$?(?P<amt>\d[\d,]*(?:\.\d\d)?)(?: dollars| bucks)? (?P<per>a|per|each|every) "
+                     r"(?P<unit>month|year|week) (?:for|on) (?:my |our |the )?(?P<what>[a-z][a-z +']{1,30})", low)
+    if m:
+        from aletheia import quick
+        if re.fullmatch(quick._BILL_KEYS, m.group("what").strip()):
+            per = "a" if m.group("per") in ("a", "per", "each", "every") else m.group("per")
+            what = _as_he_said(text, m.group("what").strip())
+            return {"command": {"kind": "note", "text": f"my {what} is {m.group('amt')} {per} {m.group('unit')}"},
+                    "say": None}
     # "I need gas", "I need a nap", "I need to lose weight" (2026-10-08: all
     # to the planner). Gas is an errand; the other two are his, said kindly
     # with the one thing she can do about each.
