@@ -2298,7 +2298,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                                 r" [a-z][a-z ]{1,30}?)(?<! next)(?<! again)\s*\??$")),
     # "How much did the mulch cost" (2026-10-08: to a model, after "the
     # mulch was 40 dollars").
-    ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
+    ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do|will|is) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
     # "What needs doing around the house" (2026-10-08: to a model).
     ("house_todo", re.compile(r"^what (?:needs|need|has) (?:doing|to be done|fixing|to get done|work)(?: around| at| in)? (?P<house_todo>the house|the yard|home|the garden|the apartment)\s*\??$")),
     # "Where am I", "where am I going" a turn after "I'm at the gym" or
@@ -2380,6 +2380,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("car_ready", re.compile(r"^(?:when (?:will|is|does) my (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
     ("cost_of_it", re.compile(r"^how much (?:was|is|did) (?:the|my) (?P<cost_of_it>(?:parking |speeding |traffic )?ticket|fine|repair|tow|deductible|copay|bill from [a-z ]+)(?: cost)?\s*\??$")),
     ("my_classes", re.compile(r"^what (?:classes|courses) (?:am i|i'm) (?:taking|in|enrolled in)(?: this (?:semester|term|year))?\s*\??$")),
+    # "How many miles does my car have" (2026-10-08: to a model, beside "my
+    # car has 45000 miles").
+    ("car_miles", re.compile(r"^(?:how many miles (?:does|is) (?:my|the|our) (?:car|truck|van|suv) (?:have|at|have on it)"
+                             r"|how many miles are (?:on|in) (?:my|the|our) (?:car|truck|van|suv)"
+                             r"|what(?:'s| is|s) (?:my|the|our) (?:car'?s )?(?:mileage|milage|odometer(?: reading)?)"
+                             r"|what(?:'s| is|s) (?:my|the|our) (?:car|truck|van|suv)(?:'s)? (?:mileage|milage|at))\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -15397,6 +15403,28 @@ def _thing_cost(thing: str) -> str | None:
         if re.match(rf"(?:the |my |our )?{re.escape(thing)} (?:was|were|cost|came to|ran me|is|costs) (?:me )?(?:about |around )?\$?\d", low) \
                 or re.match(rf"i (?:paid|spent) \$?\d[\d,.]* (?:dollars |bucks )?(?:on|for) (?:the |my |some )?{re.escape(thing)}\b", low):
             return f"You told me: {speech.as_she_says_it(said)}."
+    # "How much will the repair cost", a turn after "the mechanic said it
+    # will cost 400" (2026-10-08: to a model).
+    if re.fullmatch(r"(?:car )?(?:repair|repairs|fix|work|job|bill)", thing):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(r"(?:the |my )?(?:mechanic|shop|garage|dealer|dealership|body shop|repair shop|plumber|electrician|contractor)"
+                        r" (?:said|says|told me|quoted(?: me)?)\b.*\b(?:cost|be|run|charge|come to|quoted)\b.*\d", said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _car_miles(_text: str = "") -> str | None:
+    """"How many miles does my car have": the newest mileage he told her.
+    None when he never said."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:is at|has|has got|is over|has over) (?:about |around |over |just over )?"
+                         r"(?P<n>\d[\d,]*k?) miles(?: on it)?(?: now)?", said.casefold())
+        if m:
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"Your car is at {m.group('n')} miles" + (f", as of {told}." if told else ".")
     return None
 
 
@@ -16997,6 +17025,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "car_miles": _car_miles,
            "my_classes": _my_classes,
            "who_with": _who_with,
            "car_ready": _car_ready,

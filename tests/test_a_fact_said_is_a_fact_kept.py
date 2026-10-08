@@ -10564,5 +10564,28 @@ class NewsAboutSomebodyIsNotADiaryEntry(unittest.TestCase):
         self.assertEqual(voice._interpret("my dad is having surgery tomorrow")["command"]["title"], "dad's surgery")
 
 
+class WhatTheCarNeeds(unittest.TestCase):
+    """2026-10-08: "my tire is low", "I need to get my brakes checked" and
+    "how many miles does my car have" (beside "my car has 45000 miles")
+    went to the planner or a model; so did the mechanic's quote."""
+
+    def test_tasks(self):
+        for said, task in (("my tire is low", "put air in the tires"), ("I have a flat tire", "get the flat tire fixed"),
+                           ("I need to get my brakes checked", "get my brakes checked")):
+            cmd = voice._interpret(said)["command"]
+            self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", task), said)
+
+    def test_mileage(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my car has 45000 miles"}, {"text": "my car is at 40000 miles"}]):
+            for q in ("how many miles does my car have", "what is my mileage", "how many miles are on my car"):
+                self.assertEqual(quick.answer(q), "Your car is at 45000 miles.", q)
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("how many miles does my car have"))
+
+    def test_the_quote(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the mechanic said it will cost 400"}]):
+            self.assertEqual(quick.answer("how much will the repair cost"), "You told me: the mechanic said it will cost 400.")
+
+
 if __name__ == "__main__":
     unittest.main()

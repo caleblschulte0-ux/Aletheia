@@ -1302,7 +1302,7 @@ _TASK_VERB = re.compile(
     r"register|sign up|fill out|complete|repair|refill|re-fill|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
-    r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
+    r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes|brakes|battery|windshield|alignment|transmission|ac|a/c)"
     r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical)"
     # "I need to iron my suit" (2026-10-08: to the planner).
     r"|iron (?:my|the|a)|steam (?:my|the|a)|press (?:my|the) (?:suit|shirt|dress|pants|slacks)|hem (?:my|the)|polish (?:my|the)|shine (?:my|the)"
@@ -7311,9 +7311,11 @@ def _interpret(transcript: str) -> dict:
     # "I'm at 45200 miles", "I have 45,000 miles on my car" (2026-10-08: to a
     # model). A number that size is the car's, kept as the car's.
     m = re.fullmatch(r"i(?:'m| am) (?:at|on) (?:about |around |over )?(?P<n>\d{1,3},?\d{3}|\d{2,3}k)(?: miles)?(?: on (?:my|the) car)?(?: now)?"
-                     r"|i (?:have|'ve got|got) (?:about |around |over )?(?P<n2>\d[\d,]*k?) miles on (?:my|the) (?:car|truck|van|suv)(?: now)?", low)
+                     r"|i (?:have|'ve got|got) (?:about |around |over )?(?P<n2>\d[\d,]*k?) miles on (?:my|the) (?:car|truck|van|suv)(?: now)?"
+                     # "My car has 45000 miles" (2026-10-08: to the planner).
+                     r"|(?:my|the|our) (?:car|truck|van|suv) (?:has|has got|is at|is over|has over) (?:about |around |over |just over )?(?P<n3>\d[\d,]*k?) miles(?: on it)?(?: now)?", low)
     if m and ("miles" in low or "car" in low):
-        return {"command": {"kind": "note", "text": f"my car is at {m.group('n') or m.group('n2')} miles"}, "say": None}
+        return {"command": {"kind": "note", "text": f"my car is at {m.group('n') or m.group('n2') or m.group('n3')} miles"}, "say": None}
     # "The car is making a weird noise" (2026-10-08: to the planner).
     m = re.fullmatch(r"(?:my|the|our) (?P<v>car|truck|van|suv|bike|motorcycle|washer|dryer|fridge|furnace|dishwasher|ac|a/c|heater)"
                      r" (?:is making|makes|has been making|keeps making) (?:an? |this |some )?(?P<how>[a-z]+ )?(?:noise|sound)s?(?: again| lately)?", low)
@@ -9637,6 +9639,14 @@ def _interpret(transcript: str) -> dict:
         job = {"tire pressure": "check the tire pressure", "tyre pressure": "check the tire pressure",
                "low fuel": "get gas"}.get(light, f"get the {light} light looked at")
         return _new_task(job)
+    # "My tire is low", "I have a flat tire" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:my |the |our |a )?(?:car'?s? )?(?:front |back |rear )?(?:left |right )?(?:front |back |rear )?(?:tire|tyre)s? "
+                     r"(?:is|are|looks?|seems?|is looking|went|keeps going) (?:a (?:bit|little) |really |kind of |kinda )?(?P<how>low|flat|soft|going flat|getting low|bald)(?: again)?"
+                     r"|i (?:have|got|'ve got|just got) a (?P<flat>flat)(?: tire| tyre)?(?: again)?", low)
+    if m:
+        how = m.group("how") or ""
+        return _new_task("get the flat tire fixed" if m.group("flat") or how in ("flat", "going flat")
+                         else "get new tires" if how == "bald" else "put air in the tires")
     # "The oil change is due at 45000 miles" (2026-10-08: to the planner).
     # Kept; "how many miles until my oil change" reads it against his mileage.
     if re.fullmatch(r"(?:my |the |our )?(?:next )?(?:car'?s? )?(?:oil change|service|tune-?up|tire rotation|inspection|timing belt)"
