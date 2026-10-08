@@ -8450,5 +8450,19 @@ class WhatsMyMaxBench(unittest.TestCase):
 
 
 
+class WhatDoINeedToDoIsTasks(unittest.TestCase):
+    """"What do I need to do" read the shopping list a turn after a birthday
+    card went on it (2026-10-08)."""
+
+    def test_to_do_is_tasks_after_a_shopping_turn(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "I need to buy a birthday card for mom",
+                  "she_answered": "Added to the shopping list: birthday card for mom."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice._interpret("what do I need to do")["command"], {"kind": "tasks"})
+            self.assertEqual(voice._interpret("what do I need")["command"], {"kind": "shopping_list"})
+
+
+
 if __name__ == "__main__":
     unittest.main()

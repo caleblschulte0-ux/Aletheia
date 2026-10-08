@@ -3820,7 +3820,10 @@ def _interpret(transcript: str) -> dict:
     # "I'm at the store", then "what do I need" (2026-10-08: to a model).
     # Bare, it is whichever list the last turns were about.
     if re.fullmatch(r"what (?:else )?do i (?:still )?need(?: to (?:do|get))?", low):
-        return {"command": {"kind": "shopping_list" if _in_a_shopping_turns() or low.endswith("get") else "tasks"}, "say": None}
+        # "...need TO DO" is his tasks whatever came before (2026-10-08: it
+        # read the shopping list a turn after a birthday card went on it).
+        return {"command": {"kind": "shopping_list" if not low.endswith("to do") and (_in_a_shopping_turns() or low.endswith("get"))
+                            else "tasks"}, "say": None}
     # "I left the stove on" (2026-10-08: to the planner). Nothing of hers
     # reaches it; the honest answer is what would.
     m = re.fullmatch(r"i (?:think i |might have |may have )?left (?:the |my )?(?P<thing>stove|oven|iron|hair straightener|straightener"
