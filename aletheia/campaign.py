@@ -857,6 +857,13 @@ def answer_from_facts(record: dict, resume_text: str, *, think=None) -> dict:
     if not questions or think is False:
         return dict(sure)
     facts = dict(profile.known())
+    # His BDR/SDR yes travels with the "no sales, no cold calling" it carves
+    # out of. Read raw, an SDR form's "Are you comfortable making cold calls?"
+    # was answered from the old words alone: No, on a job he said yes to.
+    wanted, unwanted = job_fit.preferences(facts)
+    for field, value in (("work_wanted", wanted), ("work_not_wanted", unwanted)):
+        if value:
+            facts[field] = value
     context = {
         "job": record.get("job_title") or record.get("url"),
         "found_this_job_on": record.get("found_on") or "",
