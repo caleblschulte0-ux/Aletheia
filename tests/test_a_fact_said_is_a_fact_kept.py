@@ -11535,5 +11535,25 @@ class AroundTheHouseAgain(unittest.TestCase):
             self.assertIn("garage door is stuck", quick.answer("what is broken in the house"))
 
 
+class TheKidsAgain(unittest.TestCase):
+    """2026-10-08: "the tooth fairy needs to come tonight", "my son is
+    grounded until Friday" and "I am coaching the soccer team" went to the
+    planner; "what does my son need signed" to a model."""
+
+    def test_said(self):
+        fairy = voice._interpret("the tooth fairy needs to come tonight")["command"]
+        self.assertEqual((fairy["kind"], fairy["description"]), ("task_new", "tooth fairy"))
+        self.assertIn("deadline", fairy)
+        self.assertRegex(voice._interpret("my son is grounded until Friday")["command"]["text"], r"^my son is grounded until Friday \d+ \w+$")
+        self.assertEqual(voice._interpret("I am coaching the soccer team")["command"]["kind"], "note")
+
+    def test_read(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", lambda: [{"description": "sign my son's permission slip"}]):
+            self.assertEqual(quick.answer("what does my son need signed"), "Your list says: sign your son's permission slip.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my son is grounded until Friday 9 October"}]):
+            self.assertIn("Friday 9 October", quick.answer("when is my son ungrounded"))
+
+
 if __name__ == "__main__":
     unittest.main()

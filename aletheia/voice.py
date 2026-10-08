@@ -10721,6 +10721,20 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:the )?(?:recycling|trash|garbage|yard waste|compost|bulk pickup|street sweeping|lawn service|cleaning lady|cleaner)"
                             r" (?:is|comes|goes out|gets picked up|pickup is) (?:every other|every|on|each|once a|twice a) [a-z ]{3,20}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THE KIDS AGAIN (2026-10-08: "the tooth fairy needs to come tonight",
+    # "my son is grounded until Friday", "I'm coaching the soccer team" - to
+    # the planner).
+    if re.fullmatch(r"(?:the )?tooth fairy (?:needs to|has to|should|must) (?:come|visit|stop by)(?: tonight)?", low):
+        return _new_task("tooth fairy tonight")
+    m = re.fullmatch(r"(?P<who>my (?:son|daughter|kid|boy|girl)|[a-z]{2,15}) (?:is|'s) grounded (?:until|till|through) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)", low)
+    if m and _spoken_day(m.group("day")):
+        import datetime as _dtg
+        on = _dtg.date.fromisoformat(_spoken_day(m.group("day"))[:10])
+        return {"command": {"kind": "note", "text": f"{_as_he_said(text, m.group('who'))} is grounded until {on:%A} {on.day} {on:%B}"}, "say": None}
+    if re.fullmatch(r"(?:i'?m|i am) (?:coaching|helping coach|assistant coaching|the coach of|volunteering (?:for|with|at)|leading|running) (?:the |my (?:son'?s|daughter'?s|kids'?) |a )?[a-z][a-z' ]{1,30}"
+                    r"(?: (?:this|next) (?:season|year|fall|spring|summer|winter))?", low) \
+            and re.search(r"\b(?:team|league|troop|club|class|group|pta|scouts|practice)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
