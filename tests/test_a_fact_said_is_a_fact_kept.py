@@ -6200,5 +6200,24 @@ class TonightsDinnerAndAVisitAhead(unittest.TestCase):
         self.assertIsNone(quick._relative_in_note("my parents are nice", said_at, base))
 
 
+
+class AWeighInFromBefore(unittest.TestCase):
+    """2026-10-08: "I weighed 185 last week" went to the planner, and "how
+    much have I lost" to a model."""
+
+    NOTES = [{"text": "I weighed 185 last week", "ts": "2026-10-08T02:00:00+00:00"},
+             {"text": "I weigh 182 pounds", "ts": "2026-10-08T01:00:00+00:00"}]
+
+    def test_it_is_kept_and_counted_as_older(self):
+        self.assertEqual(voice._interpret("I weighed 185 last week")["command"], {"kind": "note", "text": "I weighed 185 last week"})
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertEqual(quick.answer("how much have I lost"), "Down about 3 pounds since 30 September, from what you've told me.")
+            self.assertTrue(quick.answer("what's my weight").startswith("You told me you weigh 182 pounds"))
+
+    def test_lost_with_no_weights_is_not_assumed_to_be_weight(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how much have I lost"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -581,7 +581,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s) my (?:current )?weight|how much do i weigh(?: now)?|what do i weigh|what did i weigh(?: last)?)\s*\??$")),
     ("body", re.compile(
         r"^(?P<body>how tall am i|what(?:'s| is) my height|what(?:'s| is) my bmi|what(?:'s| is) my body mass index"
-        r"|how much weight (?:have i|did i) (?:lost|lose|gained|gain)(?: so far)?|how(?:'s| is| am i doing (?:on|with)) my weight(?: loss)?(?: goal)?"
+        r"|how much weight (?:have i|did i) (?:lost|lose|gained|gain)(?: so far)?|how much have i (?:lost|gained)(?: so far)?|how(?:'s| is| am i doing (?:on|with)) my weight(?: loss)?(?: goal)?"
         # "What did I weigh last week" (2026-10-07: to a model).
         r"|what (?:did i weigh|was my weight)(?: (?:last week|last month|yesterday|a week ago|a month ago|last time))?"
         r"|how much (?:do|did) i weigh(?: (?:last week|last month|yesterday|a week ago|a month ago|last time))?"
@@ -11201,8 +11201,23 @@ def _weights() -> list[tuple[str, float]]:
         m = _WEIGHED.match(said)
         if m and (said.startswith("i weigh") or m.group("u")):
             n = float(m.group("n"))
-            out.append((str(row.get("ts") or ""), n if (m.group("u") or "").startswith(("kg", "kilo")) else n * 0.4536))
-    return out
+            out.append((_when_weighed(said, str(row.get("ts") or "")), n if (m.group("u") or "").startswith(("kg", "kilo")) else n * 0.4536))
+    # "I weighed 185 last week", said after today's 182, is the older one
+    return sorted(out, key=lambda r: r[0], reverse=True)
+
+
+def _when_weighed(said: str, ts: str) -> str:
+    """When a weigh-in was, not when he said it: "last week" moves it back."""
+    import datetime as dt
+    m = re.search(r"\b(yesterday|last week|last month|a week ago|a month ago|(?:two|three|2|3) weeks ago)$", said)
+    if not m or not ts:
+        return ts
+    back = {"yesterday": 1, "last week": 7, "a week ago": 7, "last month": 30, "a month ago": 30, "two weeks ago": 14,
+            "2 weeks ago": 14, "three weeks ago": 21, "3 weeks ago": 21}[m.group(1)]
+    try:
+        return (dt.datetime.fromisoformat(ts.replace("Z", "+00:00")) - dt.timedelta(days=back)).isoformat()
+    except ValueError:
+        return ts
 
 
 def _body(text: str) -> str | None:
@@ -11269,10 +11284,14 @@ def _body(text: str) -> str | None:
                 change += n if c.group(1) in ("lost", "dropped") else -n
         if change:
             return f"{'Down' if change > 0 else 'Up'} about {abs(change):.0f} pounds, from what you've told me."
+        if not w and re.fullmatch(r"how much have i (?:lost|gained)(?: so far)?\??", asked):
+            return None  # "how much have I lost" with no weights may be money
         return ("I only have one weight from you so far - tell me again as it changes and I'll keep track."
                 if w else "You haven't told me your weight yet. Say \"I weigh\" and the number.")
     pounds = (w[-1][1] - w[0][1]) / 0.4536
     first = speech.humanize_time(w[-1][0]) if w[-1][0] else "the first time"
+    # the day is the point; "since 30 September at 9 pm" is a clock nobody weighed at
+    first = re.sub(r" at \d{1,2}(?::\d\d)? ?(?:am|pm)$", "", first)
     if abs(pounds) < 0.5:
         return f"About the same as {first}, from what you've told me."
     return f"{'Down' if pounds > 0 else 'Up'} about {abs(pounds):.0f} pounds since {first}, from what you've told me."
@@ -11409,6 +11428,8 @@ def _weight() -> str | None:
     for row in _notes():
         text = str(row.get("text") or "")
         m = said.search(text)
+        if re.search(r"\b(?:yesterday|last week|last month|weeks? ago|a month ago)\W*$", text, re.I):
+            continue  # a weigh-in from before, not what he weighs
         if m and (text.casefold().startswith("i weigh") or m.group(2)):
             unit = {"lb": "pounds", "lbs": "pounds", "kilos": "kg", "kilograms": "kg"}.get((m.group(2) or "").casefold(),
                                                                                       (m.group(2) or "").casefold())

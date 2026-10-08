@@ -8675,7 +8675,8 @@ def _interpret(transcript: str) -> dict:
     # "I weigh 180", "I spent 40 dollars on gas" (2026-10-07: to the planner).
     # Kept in his words; "what's my weight" reads the newest one back.
     if re.fullmatch(r"i(?: weigh| weighed| am|'m) \d{2,3}(?:\.\d)?(?: ?(?:pounds|lbs?|kg|kilos|kilograms))?"
-                    r"(?: (?:today|now|this morning))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
+                    # "I weighed 185 last week" (2026-10-08: to the planner)
+                    r"(?: (?:today|now|this morning|yesterday|last week|last month|a week ago|a month ago|(?:two|three|2|3) weeks ago))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
             or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
