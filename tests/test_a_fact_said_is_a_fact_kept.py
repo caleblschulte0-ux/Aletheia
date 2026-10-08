@@ -6698,5 +6698,30 @@ class LongestRunAndTheReadingGoal(unittest.TestCase):
                          ("off_lists", "how many books have i read this year"))
 
 
+
+class TheCatTheTrashAndTheStore(unittest.TestCase):
+    """2026-10-08: "what's my cat's name" read back every note about the
+    cat, "did anyone feed the cat", "I took out the trash", "what do I
+    need" at the store and "I left the stove on" went to a model."""
+
+    def test_a_name_asked_is_the_name_told(self):
+        rows = [{"text": "I fed the cat", "ts": "2026-10-07T22:00:00-05:00"},
+                {"text": "the cat's name is Milo", "ts": "2026-10-07T21:00:00-05:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what's my cat's name"), "You told me: the cat's name is Milo.")
+            self.assertEqual(quick.answer("did anyone feed the cat").split(" - ")[0], "You told me you fed the cat")
+
+    def test_the_trash_taken_out(self):
+        self.assertEqual(voice.interpret("I took the trash out")["command"], {"kind": "note", "text": "I took out the trash"})
+        self.assertEqual(quick.match("did someone take out the trash"), ("did_last", "did i take out the trash"))
+
+    def test_what_do_i_need_and_the_stove(self):
+        from aletheia import converse
+        shop = [{"he_asked": "I'm at the store", "she_answered": "Nothing on your shopping list."}]
+        with mock.patch.object(converse, "recent", return_value=shop):
+            self.assertEqual(voice.interpret("what do I need")["command"], {"kind": "shopping_list"})
+        self.assertIn("can't reach your stove", voice.interpret("I left the stove on")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

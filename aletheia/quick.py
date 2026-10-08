@@ -1891,7 +1891,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<sw_what>[a-z][a-z' ]{1,25}?) (?P<sw_verb>start|starting|begin|beginning|end|ending|finish|over|open|close|get out|let out)\s*\??$")),
     ("recall", re.compile(
         r"^what did i (?:tell|say to) (?:you|u) about (?:the |my )?(?P<recall>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
-        r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?:name|number|address|email|birthday|code|password|pin)\s*\??$"
+        r"|^what(?:'s| is|s)? (?:my |the )(?P<recall2>[a-z0-9][a-z0-9 '-]{1,30}?)(?:'s)? (?P<recall_attr>name|number|address|email|birthday|code|password|pin)\s*\??$"
         r"|^when (?:is|does|was) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         # "Remember that my car is a 2019 Civic" is an instruction, not a
         # question (2026-10-07: answered "I have nothing about that...").
@@ -1947,12 +1947,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
         r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
-        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out) (?P<did_o>[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
         r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
-        r"|turn off|turned off) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|turn off|turned off|take out|taken out|took out) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -2477,6 +2477,19 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "Did anyone feed the cat" (2026-10-08: to a model, a turn after "I
+    # fed the cat"): what she knows is what he told her he did.
+    m = re.fullmatch(r"(?:did|has) (?:anyone|anybody|someone|somebody|we) (?P<rest>(?:feed|fed|walk|walked|water|watered|take out|taken out"
+                     r"|took out|let out|lock|locked|pay|paid|give|given|gave|change|changed|empty|emptied|clean|cleaned) .{2,40}?)(?: yet| today)?\s*\??", text)
+    if m:
+        base = {"fed": "feed", "walked": "walk", "watered": "water", "taken out": "take out", "took out": "take out",
+                "locked": "lock", "paid": "pay", "given": "give", "gave": "give", "changed": "change", "emptied": "empty",
+                "cleaned": "clean"}
+        verb, _, obj = m.group("rest").partition(" ")
+        two = re.match(r"(taken out|took out|take out|let out) (.+)", m.group("rest"))
+        if two:
+            verb, obj = two.group(1), two.group(2)
+        return f"did i {base.get(verb, verb)} {obj}"
     # "How am I doing on my reading goal" (2026-10-08: to a model) is the
     # book count this year, which says the goal beside it.
     if re.fullmatch(r"(?:how (?:am i doing|am i tracking|close am i|far along am i) (?:on|with|to|toward|towards)|am i on track (?:with|for))"
@@ -2512,6 +2525,11 @@ def match(question: str) -> tuple[str, str] | None:
         captured = found.groupdict()
         if name == "status_of":
             return name, text
+        # "What's my cat's name" read back every note about the cat
+        # (2026-10-08: "...and you told me: you fed the cat"). What he asked
+        # for travels with it.
+        if name == "recall" and captured.get("recall2") and captured.get("recall_attr"):
+            return name, f"{captured['recall2']}|{captured['recall_attr']}"
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
@@ -5171,7 +5189,7 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
+_PAST = {"take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
          "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
          "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
@@ -8776,6 +8794,7 @@ def _recall(words: str) -> str | None:
     """What he told her about `words`: his notes and her memory, by the
     words themselves. Nothing matching is said as nothing - never guessed."""
     from aletheia import memory, speech
+    words, _bar, attr = str(words or "").partition("|")
     wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in _STOP_WORDS]
     if not wanted:
         return None
@@ -8812,6 +8831,9 @@ def _recall(words: str) -> str | None:
                 found.append(f"{key.replace('_', ' ')}: {text}")
             if len(found) >= 5:
                 break
+    if attr and len(found) > 1:
+        asked = [f for f in found if attr in f.casefold() or (attr == "name" and re.search(r"\bnamed|\bcalled\b", f.casefold()))]
+        found = asked or found
     if not found:
         # "What am I allergic to" read back "nothing about allergic".
         shown = {"allergic": "allergies", "allergic to": "allergies"}.get(str(words).strip(), words)

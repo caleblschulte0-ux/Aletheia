@@ -58,7 +58,10 @@ WISHES: tuple[tuple[re.Pattern, str, str], ...] = (
     (re.compile(r"^(?:turn|switch) (?:on|off) (?:the |my )?(?:\w+ ){0,2}(?:lights?|lamp"
                 r"|heating|heat|ac|air con\w*|thermostat|fan|tv)\b"
                 r"|^(?:dim|brighten) the lights?\b"
-                r"|^set the (?:thermostat|temperature)\b", re.I),
+                r"|^set the (?:thermostat|temperature)\b"
+                # "What's the temperature inside" (2026-10-08: to a model).
+                r"|^(?:what'?s|what is) (?:the )?(?:temperature|temp|thermostat)(?: set to)? (?:inside|in here|in the house"
+                r"|at home|indoors)\??$|^what'?s the thermostat (?:set to|at)\??$", re.I),
      "room.scene", "control the lights and devices"),
     # "Lock the front door", "is the garage door closed" (2026-10-07: to
     # the planner). Asked or ordered, the answer is the same no.

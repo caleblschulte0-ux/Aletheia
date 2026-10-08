@@ -1279,7 +1279,9 @@ _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuum
                # "I talked to mom", "I saw Sam today" (2026-10-07: to the planner).
                "|talked to|talked with|spoke to|spoke with|saw|met with|met up with|hung out with|texted|caught up with"
                # "I locked the front door" - "did I lock the door" reads it back
-               "|locked|closed|shut|unplugged|turned off")
+               "|locked|closed|shut|unplugged|turned off"
+               # "I took out the trash" (2026-10-08: to the planner).
+               "|took out")
 
 
 def _would_spend(said: str) -> bool:
@@ -3562,6 +3564,17 @@ def _interpret(transcript: str) -> dict:
     named = _named_list_said(low, text)
     if named:
         return named
+    # "I'm at the store", then "what do I need" (2026-10-08: to a model).
+    # Bare, it is whichever list the last turns were about.
+    if re.fullmatch(r"what (?:else )?do i (?:still )?need(?: to (?:do|get))?", low):
+        return {"command": {"kind": "shopping_list" if _in_a_shopping_turns() or low.endswith("get") else "tasks"}, "say": None}
+    # "I left the stove on" (2026-10-08: to the planner). Nothing of hers
+    # reaches it; the honest answer is what would.
+    m = re.fullmatch(r"i (?:think i |might have |may have )?left (?:the |my )?(?P<thing>stove|oven|iron|hair straightener|straightener"
+                     r"|curling iron|space heater|heater|burner|grill|water|tap|faucet|bath)(?: running)? on", low)
+    if m:
+        return {"command": None,
+                "say": f"I can't reach your {m.group('thing')} from here. If nobody's home, call someone nearby who can check it."}
     # "I picked up the dry cleaning" ("Done: ..."), then "what's left on my
     # list" read the empty SHOPPING list (2026-10-08). "My list" with no
     # kind is the one the last turns were about; tasks unless shopping.
@@ -8729,6 +8742,10 @@ def _interpret(transcript: str) -> dict:
     # June 2027" each went to the planner). Last before the planner, so
     # every verb with its own door keeps it: said as a fact, it is a note in
     # his words, and "when did I last change the oil" reads it back.
+    out = re.fullmatch(r"i (?:just )?took (?P<what>(?:the |our |my )?(?:trash|garbage|recycling|rubbish|bins?|compost|dog|cat)) out"
+                       r"(?P<when> (?:today|yesterday|this morning|tonight|last night|earlier))?", low)
+    if out:
+        return {"command": {"kind": "note", "text": f"I took out {out.group('what')}{out.group('when') or ''}"}, "say": None}
     if re.fullmatch(r"i (?:just )?(?:" + _DONE_VERBS + r") (?:the |my |our |his |her |a |an |some )?[a-z][a-z' ]{1,50}"
                     r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
