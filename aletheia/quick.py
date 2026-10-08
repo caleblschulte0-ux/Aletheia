@@ -314,6 +314,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # a "how" question about anything else is not one.
         r" (?:the |my |our )?(?!(?:many|much|long|old|far|often|soon|have|has|had|did|do|does|can|could|should|am|was|were|will|would)\b)"
         r"(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+    # "What's happening with my family" (2026-10-08: to a model).
+    ("family_news", re.compile(r"^(?:what(?:'s| is|s) (?:happening|going on|new|the latest) with (?:my|the|our) family|any (?:family|news from (?:my|the) family)"
+                               r"|(?:any|what(?:'s| is)) (?:new )?family news|what(?:'s| is) new in (?:my|the|our) family)\s*\??$")),
     # "What's the latest with DevRev" names the thing without calling it an
     # application; when the words match an opportunity or a record, that is
     # the answer, and when they match nothing the model may still think.
@@ -15534,6 +15537,31 @@ def _yard_todo(_text: str = "") -> str | None:
     return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in yard[:6]])}."
 
 
+_KIN = (r"mom|mother|dad|father|parents|brother|sister|son|daughter|kids|cousin|aunt|uncle|niece|nephew|grandma|grandpa|grandmother"
+        r"|grandfather|grandparents|wife|husband|sister in law|brother in law|mother in law|father in law|in laws|family")
+
+
+def _family_news(_text: str = "") -> str | None:
+    """The newest few things he told her about his family, this month."""
+    import datetime as dt
+    from aletheia import speech
+    now = dt.datetime.now(dt.timezone.utc)
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(rf"(?:my|our) (?:{_KIN})(?:'s)?\b", said.casefold()):
+            continue
+        try:
+            if now - dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")) > dt.timedelta(days=31):
+                continue
+        except (ValueError, TypeError):
+            pass
+        found.append(speech.as_she_says_it(said))
+        if len(found) == 4:
+            break
+    return f"The latest you told me: {speech.and_list(found)}." if found else None
+
+
 def _said_today(rx: str) -> list:
     """(text, local time) of today's notes and spoken turns matching rx,
     newest first - "I'm at the gym" is a turn as often as a note."""
@@ -17169,6 +17197,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "family_news": _family_news,
            "yard_todo": _yard_todo,
            "mow_last": lambda t: _did_last("when did i last mow the lawn"),
            "make_with": lambda t: (lambda items: (f"How about {_dish_from(items)}? Just an idea." if items and _dish_from(items) else None))(_food_said(t)),

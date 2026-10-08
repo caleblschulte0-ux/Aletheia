@@ -10473,6 +10473,20 @@ def _interpret(transcript: str) -> dict:
         name = _as_he_said(text, m.group("name"))
         name = name[:1].upper() + name[1:]
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"Congratulations to them! Welcome, {name}."}
+    # "My wife is pregnant" (2026-10-08: to the planner, and "my sister is
+    # pregnant" was a plain "Noted."): kept, with the kind word it wants.
+    happy = re.fullmatch(r"(?:my|our) (?P<who>mom|mother|dad|father|parents|brother|sister|son|daughter|cousin|aunt|uncle|niece|nephew|best friend|friend [a-z]+"
+                         r"|wife|husband|partner|girlfriend|boyfriend|fiancee?|sister in law|brother in law|grandma|grandpa|grandmother|grandfather|boss|coworker [a-z]+)"
+                         r" (?:is|are) (?:finally )?(?P<what>getting married|engaged|having a baby|expecting|pregnant|graduating|retiring)"
+                         r"(?: (?:again|with (?:twins|a (?:girl|boy))))?(?: (?:in|on|this|next) [a-z0-9 ]{2,20})?", low)
+    if happy:
+        who = happy.group("who")
+        whose = ("you both" if who in ("wife", "husband", "partner", "girlfriend", "boyfriend", "fiance", "fiancee")
+                 else "her" if who in ("mom", "mother", "sister", "daughter", "aunt", "niece", "grandma", "grandmother", "sister in law")
+                 else "him" if who in ("dad", "father", "brother", "son", "uncle", "nephew", "grandpa", "grandfather", "brother in law")
+                 else "them")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"That's wonderful news - congratulations to {whose}."}
     if re.fullmatch(r"(?:my|our) (?:mom|mother|dad|father|parents|brother|sister|son|daughter|cousin|aunt|uncle|niece|nephew|best friend|friend [a-z]+"
                     r"|grandma|grandpa|grandmother|grandfather|boss|coworker [a-z]+) (?:is|are) (?:getting married|getting divorced|moving|retiring|graduating"
                     r"|having a baby|expecting|pregnant|due)(?: to [a-z ]{2,25})?(?: (?:in|on|this|next) [a-z0-9 ]{2,20})?", low) \

@@ -10700,5 +10700,24 @@ class HisDevices(unittest.TestCase):
                              "From what you've told me: your computer is running slow and the internet is down.")
 
 
+class HappyNewsInTheFamily(unittest.TestCase):
+    """2026-10-08: "my wife is pregnant" went to the planner, "my sister is
+    pregnant" got a plain "Noted.", and "what's happening with my family"
+    went to a model."""
+
+    def test_kind_words(self):
+        for said, to in (("my wife is pregnant", "you both"), ("my mom is retiring", "her"), ("my brother is getting married in may", "him")):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"]["kind"], "note", said)
+            self.assertEqual(got["say"], f"That's wonderful news - congratulations to {to}.", said)
+        self.assertIsNone(voice._interpret("my parents are getting divorced")["say"])
+
+    def test_read(self):
+        notes = [{"text": "my sister is pregnant"}, {"text": "my car is in the shop"}, {"text": "my mom is retiring"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("what is happening with my family"),
+                             "The latest you told me: your sister is pregnant and your mom is retiring.")
+
+
 if __name__ == "__main__":
     unittest.main()
