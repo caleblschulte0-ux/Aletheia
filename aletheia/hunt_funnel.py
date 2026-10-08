@@ -326,8 +326,15 @@ QUESTION_TOPICS = (("sponsor", "sponsorship"), ("visa", "sponsorship"), ("author
                    ("how many years", "years_experience"), ("why do you", "why_this_job"),
                    ("why are you", "why_this_job"), ("interest", "why_this_job"),
                    ("linkedin", "links"), ("portfolio", "links"), ("website", "links"),
-                   ("gender", "demographic"), ("race", "demographic"), ("veteran", "demographic"),
-                   ("disab", "demographic"), ("ethnic", "demographic"), ("hispanic", "demographic"), ("pronoun", "demographic"),
+                   # Which self-identification question, not one lump: he has
+                   # answered veteran and disability already, so a lump of
+                   # "demographic" could not say which one is still his to answer.
+                   ("gender", "demographic_gender"), ("race", "demographic_race"),
+                   ("veteran", "demographic_veteran"), ("disab", "demographic_disability"),
+                   ("ethnic", "demographic_race"), ("hispanic", "demographic_race"),
+                   ("pronoun", "demographic_pronouns"),
+                   ("sexual orientation", "demographic_orientation"),
+                   ("transgender", "demographic_gender"),
                    ("refer", "referral"), ("hear about", "referral"), ("cover letter", "cover_letter"),
                    ("security clearance", "clearance"), ("clearance", "clearance"),
                    ("background check", "background_check"), ("convicted", "background_check"),
