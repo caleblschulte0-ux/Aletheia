@@ -7134,6 +7134,25 @@ class FoodIsLunchToo(unittest.TestCase):
         self.assertEqual(voice._interpret("my budget for food is 400 a month")["command"]["kind"], "note")
 
 
+class TheOtherHalfOfRemindMeTomorrow(unittest.TestCase):
+    """2026-10-08: "remind me tomorrow", "Remind you of what?", "to call Sam"
+    went to the planner."""
+
+    def test_the_what_fills_the_when(self):
+        from aletheia import converse
+        turn = [{"he_asked": "remind me tomorrow", "she_answered": "Remind you of what? Say it whole."}]
+        with mock.patch.object(converse, "recent", return_value=turn):
+            cmd = voice._interpret("to call Sam")["command"]
+        self.assertEqual((cmd["kind"], cmd["text"]), ("remind_at", "call Sam"))
+
+    def test_not_when_she_said_something_else(self):
+        from aletheia import converse
+        turn = [{"he_asked": "remind me tomorrow", "she_answered": "Noted."}]
+        with mock.patch.object(converse, "recent", return_value=turn):
+            got = voice._interpret("call Sam")
+        self.assertNotEqual(((got or {}).get("command") or {}).get("kind"), "remind_at")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

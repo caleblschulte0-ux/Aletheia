@@ -9339,7 +9339,29 @@ def _fills_a_bare_ask(text: str, low: str) -> dict | None:
         return None
     if re.match(r"(?:remind me|add|note|remember|put|set)\b", low):
         return None                 # a whole ask of its own; the patterns below read it
-    before = _BARE_ASK.fullmatch(_previous_ask().casefold().rstrip(".?!"))
+    previous = _previous_ask().casefold().rstrip(".?!")
+    # "Remind me tomorrow" -> "Remind you of what?" -> "to call Sam"
+    # (2026-10-08: to the planner). The when came a turn ago.
+    half = re.fullmatch(r"remind me (?P<when>tomorrow(?: morning| afternoon| evening| night)?|tonight|later today"
+                        r"|this (?:morning|afternoon|evening)|next week|on (?:mon|tues|wednes|thurs|fri|satur|sun)day"
+                        r"|(?:tomorrow )?(?:at|around) (?:\d{1,2}(?::\d\d)?(?: ?[ap]m)?|noon|midnight)(?: (?:today|tomorrow|tonight))?)",
+                        previous)
+    if half:
+        # Only straight after she asked: "turn off the lights" an hour later
+        # is not the reminder's missing half.
+        try:
+            from aletheia import converse
+            asked = str(((converse.recent(limit=1) or [{}])[-1]).get("she_answered") or "")
+        except Exception:  # noqa: BLE001
+            asked = ""
+        half = half if asked.startswith("Remind you of what") else None
+    if half:
+        said = re.sub(r"^(?:to|that) ", "", text.strip().rstrip("."), flags=re.IGNORECASE)
+        how = "that" if re.match(r"(?i)that ", text.strip()) else "to"
+        again = _interpret(f"remind me {half.group('when')} {how} {said}")
+        if ((again or {}).get("command") or {}).get("kind") in ("remind_at", "remind_daily", "remind_weekly"):
+            return again
+    before = _BARE_ASK.fullmatch(previous)
     if not before:
         # "Set a reminder" -> "stretch" -> "When should I remind you?" -> "at 6":
         # the what came a turn ago, and this is the when.
