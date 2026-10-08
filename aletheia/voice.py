@@ -2702,7 +2702,9 @@ def _apostrophes(transcript: str) -> str:
     # (2026-10-08: to the planner) - the apostrophe and its s both dropped.
     said = re.sub(r"\b((?:my|our) (?:wife|husband|mom|mother|dad|father|son|daughter|sister|brother|girlfriend|boyfriend|partner"
                   r"|grandma|grandpa|fiance|fiancee|baby|dog|cat|boss|manager|coworker|landlord|neighbor|neighbour|doctor|dentist|teacher|friend)) (name|weight|breed|vet|ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
-                  r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy)\b", r"\1's \2", said, flags=re.I)
+                  r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy"
+                  # "My daughter teacher is Mrs Smith" (2026-10-08: read back as "your daughter teacher").
+                  r"|teacher|coach|principal|pediatrician|homework|grades|bus stop|school bus)\b", r"\1's \2", said, flags=re.I)
     # "Whats coming up", "whats the most important thing today" (2026-10-08:
     # each to a model) - typed without the apostrophe, they missed every
     # pattern written "what's". The question word gets it back.
@@ -11138,6 +11140,14 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:the|my|our) (?P<f>(?:air |furnace |hvac |ac |water |fridge |refrigerator )?filter) (?:needs|need) (?:changing|replacing|to be changed|to be replaced|changed|replaced)", low)
     if m:
         return _new_task(f"change the {m.group('f')}")
+    # School (2026-10-08, each to the planner): "the kids have early release
+    # wednesday", "report cards come out friday", "my son lost his lunchbox".
+    _DAY = r"(?:today|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|next week|this week|" + SPOKEN_DATE + r")"
+    if re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have|get|gets) (?:an? )?(?:early release|early dismissal|a half day|half day|no school|a day off|a snow day|late start)(?: (?:on|this|next))? " + _DAY, low) \
+            or re.fullmatch(r"(?:report cards|progress reports|grades|school pictures|picture day|spirit week|book fair|field day|the field trip|the science fair|the school play|the school concert|open house|graduation|the spelling bee)"
+                            r" (?:is|are|come out|comes out|go out|will be|are due)(?: (?:on|this|next))? " + _DAY, low) \
+            or re.fullmatch(r"(?:my son|my daughter|my kid|[a-z]{2,15}) (?:lost|forgot|left) (?:his|her|their) (?:lunchbox|lunch box|lunch|backpack|jacket|coat|homework|water bottle|glasses|retainer|library book|permission slip|phone|shoes)(?: at school| at home| on the bus)?(?: again| today)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

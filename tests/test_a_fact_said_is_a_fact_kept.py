@@ -12212,5 +12212,17 @@ class AroundTheHouse(unittest.TestCase):
         self.assertIn("three months", quick.answer("how often should I change the air filter"))
 
 
+class School(unittest.TestCase):
+    def test_school_days_and_lost_things_are_kept(self):
+        for said in ("the kids have early release wednesday", "report cards come out friday", "my son lost his lunchbox"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertEqual(voice.interpret("my daughter teacher is mrs smith")["command"]["text"], "my daughter's teacher is mrs smith")
+
+    def test_homework_reads_what_he_said_is_due(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my daughter has a project due monday"}]):
+            self.assertEqual(quick.answer("what homework does my daughter have"), "You told me your daughter has a project due Monday.")
+            self.assertIsNone(quick.answer("what homework does my son have"))
+
+
 if __name__ == "__main__":
     unittest.main()
