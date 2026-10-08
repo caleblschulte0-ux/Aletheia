@@ -1047,6 +1047,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How long to bake chicken breast at 400" (2026-10-08: to a model, and
     # the "until" pattern below took it as time until an event). From a
     # table, always with the temperature that says it is done.
+    ("kitchen_tip", re.compile(
+        r"^what (?:can|could|do) (?:i|you|we) (?:use|substitute|sub) (?:for|instead of) (?P<sub_for>buttermilk|eggs?|an egg|sour cream|heavy cream|heavy whipping cream|brown sugar|baking powder|baking soda|self rising flour|self-rising flour|cake flour|butter|white wine|red wine|cornstarch|milk|breadcrumbs|bread crumbs|honey)\s*\??$"
+        r"|^what(?:'s| is) a (?:good )?(?:substitute|sub|replacement) for (?P<sub_for2>buttermilk|eggs?|an egg|sour cream|heavy cream|heavy whipping cream|brown sugar|baking powder|baking soda|self rising flour|self-rising flour|cake flour|butter|white wine|red wine|cornstarch|milk|breadcrumbs|bread crumbs|honey)\s*\??$"
+        r"|^how long (?:do (?:i|you) (?:cook|boil|simmer)|does it take to cook|to cook|to boil|does) (?P<rice>(?:white |brown |jasmine |basmati )?rice)(?: take| cook)?(?: for)?\s*\??$"
+        r"|^how long (?:is|are|do|does|will) (?:cooked |leftover )?(?P<keeps>leftovers|left overs|chicken|rice|pasta|soup|chili|pizza|meat|beef|pork|turkey|fish|salmon|ham|lasagna|casserole|stew)"
+        r" (?:good|ok|okay|safe|last|keep)(?: for)?(?: in the (?:fridge|refrigerator))?\s*\??$"
+        r"|^how (?:do (?:i|you)|to|can i) (?P<soften>soften|quickly soften) butter(?: quickly| fast)?\s*\??$"
+        r"|^(?:how much|how many (?:tablespoons|cups|ounces|grams)) (?:is|are|in) (?P<stick>a stick of butter|one stick of butter|a stick)\s*\??$")),
     ("bake_time", re.compile(
         r"^how long (?:do i|should i|do you|to|does it take to|should you) (?:bake|roast|cook) (?:a |an |the |some |my )?"
         r"(?P<bake>[a-z][a-z -]{1,30}?)(?: in the oven)?(?: (?:at|on) (?P<bake_t>\d{3})(?: degrees| f| fahrenheit)?)?(?: for)?\s*\??$")),
@@ -2612,6 +2620,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("debt_said", re.compile(
         r"^how much (?:debt|credit card debt|student (?:loan )?debt|student loans?) (?:do (?:i|we) have|(?:do|did) (?:i|we) owe|is (?:left|there))(?: left| in total| total)?\s*\??$"
         r"|^is (?:my|our|the) (?P<debt_paid>credit card|car|car loan|student loan|loan|mortgage|house) paid off(?: yet)?\s*\??$")),
+    ("have_food", re.compile(r"^(?:do|did) (?:we|i) (?:still )?have (?:any )?(?P<have_food>[a-z][a-z ]{1,20}?)(?: left| at home| in the (?:fridge|house|pantry))?\s*\??$")),
+    ("their_dish", re.compile(r"^what (?:does|do) (?P<their_dish>my [a-z]{2,15}|the kids|[a-z]{2,15}) (?:like|love|enjoy)(?: that| when)? (?:i|we) (?:cook|make)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3554,7 +3564,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17988,6 +17998,92 @@ def _debt_said(text: str) -> str | None:
     return f"You told me {speech.and_list(found)}."
 
 
+
+#: Common kitchen swaps, the ones on every cooking site.
+_SUBSTITUTES = {
+    "buttermilk": "a cup of milk with a tablespoon of lemon juice or white vinegar, left 5 minutes",
+    "egg": "for one egg in baking, 3 tablespoons of applesauce or mashed banana, or a tablespoon of ground flax in 3 of water",
+    "sour cream": "plain Greek yogurt, cup for cup",
+    "heavy cream": "3/4 cup of milk with 1/4 cup of melted butter, for cooking - it won't whip",
+    "brown sugar": "a cup of white sugar with a tablespoon of molasses",
+    "baking powder": "1/4 teaspoon of baking soda with 1/2 teaspoon of cream of tartar, for each teaspoon",
+    "baking soda": "three times as much baking powder - baking soda is stronger",
+    "self rising flour": "a cup of flour with 1 1/2 teaspoons of baking powder and 1/4 teaspoon of salt",
+    "cake flour": "a cup of flour, take out 2 tablespoons, add 2 tablespoons of cornstarch",
+    "butter": "the same amount of oil in cooking, or 3/4 as much oil in baking",
+    "white wine": "chicken or vegetable broth with a splash of vinegar",
+    "red wine": "beef broth with a splash of red wine vinegar",
+    "cornstarch": "twice as much flour to thicken",
+    "milk": "water with a little butter, or any plant milk, cup for cup",
+    "breadcrumbs": "crushed crackers or oats",
+    "honey": "maple syrup, cup for cup",
+}
+
+#: How long cooked food keeps in the fridge (USDA, 40F or below).
+_FRIDGE_DAYS = {"pizza": "3 to 4 days", "rice": "4 to 6 days", "ham": "3 to 5 days"}
+
+
+def _kitchen_tip(text: str) -> str | None:
+    """Swaps, rice, how long cooked food keeps, softening butter and a stick
+    of butter (2026-10-08, each to a model). From fixed tables."""
+    g = _groups("kitchen_tip", text)
+    want = (g.get("sub_for") or g.get("sub_for2") or "").replace("-", " ").replace("bread crumbs", "breadcrumbs")
+    if want:
+        want = {"eggs": "egg", "an egg": "egg", "heavy whipping cream": "heavy cream"}.get(want, want)
+        swap = _SUBSTITUTES.get(want)
+        if not swap:
+            return None
+        return f"{swap[0].upper()}{swap[1:]}." if swap.startswith("for ") else f"For {want}, use {swap}."
+    if g.get("rice"):
+        if "brown" in g["rice"]:
+            return "Brown rice: about 45 minutes simmering, covered, with 2 1/2 cups of water to a cup of rice, then 10 minutes resting."
+        return "White rice: about 18 minutes simmering, covered, with 1 1/2 to 2 cups of water to a cup of rice, then 5 minutes resting."
+    if g.get("keeps"):
+        days = _FRIDGE_DAYS.get(g["keeps"], "3 to 4 days")
+        return f"About {days} in the fridge, and 2 to 3 months in the freezer. When in doubt, throw it out."
+    if g.get("soften"):
+        return ("Cut it into small cubes and leave it 15 minutes, or put a warm glass upside down over it for a few minutes. "
+                "In the microwave, 5 seconds at a time - it melts fast.")
+    if g.get("stick"):
+        return "A stick of butter is half a cup: 8 tablespoons, 4 ounces, about 113 grams."
+    return None
+
+
+def _have_food(text: str) -> str | None:
+    """"Do we have eggs" (2026-10-08: to a model, a turn after "we're out of
+    eggs" put them on the list). She can't see the fridge; the list is the
+    one thing she knows. None when the list doesn't say."""
+    g = _groups("have_food", text)
+    want = " ".join(str(g.get("have_food") or "").casefold().split())
+    if want not in _STAPLES and want.rstrip("s") not in _STAPLES:
+        return None
+    try:
+        from aletheia import intercom
+        rows = intercom._shopping_items()
+    except Exception:
+        return None
+    stem = want[:-1] if len(want) > 3 and want.endswith("s") else want
+    hits = [str(r.get("need") or "") for r in rows if stem in " ".join(str(r.get("need") or "").casefold().split())]
+    if hits:
+        return f"Probably not - {hits[0]} {'are' if hits[0].endswith('s') else 'is'} on your shopping list."
+    return None
+
+
+
+def _their_dish(text: str) -> str | None:
+    """"What does my wife like that I cook" (2026-10-08: to a model, with
+    "my wife loves my lasagna" kept)."""
+    g = _groups("their_dish", text)
+    who = re.escape(str(g.get("their_dish") or ""))
+    if not who:
+        return None
+    found = _said_lines(rf"^{who} (?:really )?(?:loves?|likes?|loved|liked|enjoys?) (?:my|our|the way i make|when i make) [a-z]", 4)
+    if not found:
+        return None
+    from aletheia import speech
+    return f"You told me {speech.and_list(found)}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18803,6 +18899,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "their_dish": _their_dish,
+           "kitchen_tip": _kitchen_tip,
+           "have_food": _have_food,
            "debt_said": _debt_said,
            "race_when": _race_when,
            "friend_said": _friend_said,

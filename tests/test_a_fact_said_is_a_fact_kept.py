@@ -12291,5 +12291,26 @@ class DebtAndBills(unittest.TestCase):
         self.assertEqual(voice.interpret("I paid the dentist")["command"]["kind"], "note")
 
 
+class TheKitchen(unittest.TestCase):
+    def test_kitchen_answers_from_fixed_tables(self):
+        self.assertIn("lemon juice", quick.answer("what can I substitute for buttermilk"))
+        self.assertTrue(quick.answer("what is a good substitute for eggs").startswith("For one egg in baking"))
+        self.assertTrue(quick.answer("how long to cook rice").startswith("White rice"))
+        self.assertIn("3 to 4 days", quick.answer("how long is cooked chicken good for"))
+        self.assertIn("8 tablespoons", quick.answer("how much is a stick of butter"))
+        self.assertIn("cubes", quick.answer("how do I soften butter"))
+        self.assertIn("20 to 25 minutes", quick.answer("how long to bake chicken breast at 400"))
+
+    def test_do_we_have_reads_the_list_and_nothing_else(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_shopping_items", lambda: [{"need": "eggs"}]):
+            self.assertEqual(quick.answer("do we have eggs"), "Probably not - eggs are on your shopping list.")
+            self.assertIsNone(quick.answer("do we have milk"))
+
+    def test_what_she_likes_that_he_cooks(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my wife loves my lasagna"}]):
+            self.assertEqual(quick.answer("what does my wife like that I cook"), "You told me your wife loves your lasagna.")
+
+
 if __name__ == "__main__":
     unittest.main()
