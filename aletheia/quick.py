@@ -2156,6 +2156,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^where (?:am i|was i|did i leave off|did i get to) (?:in|with|on) (?P<episode_on2>[a-z0-9][a-z0-9' :-]{1,40}?)\s*\??$")),
     ("rated", re.compile(
         r"^(?:what|how) did i (?:rate|score|give) (?P<rated>[a-z0-9][a-z0-9' :-]{1,40}?)\s*\??$")),
+    # "What workouts did I do this week" after "I ran 3 miles" and "I did
+    # yoga" (2026-10-08: to a model).
+    ("workouts_did", re.compile(
+        r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
+        r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2992,7 +2997,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13883,6 +13888,37 @@ def _rated(what: str) -> str | None:
     return None
 
 
+def _workouts_did(window: str) -> str | None:
+    """His workouts in a window, each in his own words."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    window = " ".join(str(window or "this week").split()) or "this week"
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    start, end = {"today": (today, today), "yesterday": (today - dt.timedelta(days=1),) * 2,
+                  "this week": (today - dt.timedelta(days=today.weekday()), today),
+                  "last week": (today - dt.timedelta(days=today.weekday() + 7), today - dt.timedelta(days=today.weekday() + 1)),
+                  "this month": (today.replace(day=1), today)}[window]
+    workout = re.compile(_went_said("work out"))
+    done = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not workout.search(said.casefold()):
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if start <= day <= end:
+            line = re.sub(r"^i (?:just )?", "", said.rstrip("."), flags=re.I)
+            # "today" in a note from Monday is wrong by Thursday
+            line = re.sub(r" (?:today|tonight|this morning|this afternoon|this evening|yesterday|last night|earlier)$", "", line, flags=re.I)
+            done.append(re.sub(r"\bmy\b", "your", line, flags=re.I))
+    if not done:
+        return f"No workouts {window} that you've told me about. Say \"I ran 3 miles\" or \"I went to the gym\" and I'll count it."
+    return f"{window[:1].upper() + window[1:]} you {speech.and_list(done[:8])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14690,6 +14726,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "workouts_did": _workouts_did,
            "episode_on": _episode_on,
            "rated": _rated,
            "how_many_has": _how_many_has,

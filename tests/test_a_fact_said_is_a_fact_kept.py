@@ -9228,5 +9228,17 @@ class WhereHeLastHadIt(unittest.TestCase):
         self.assertIn("keys", said["say"])
 
 
+class TheWeeksWorkouts(unittest.TestCase):
+    """"What workouts did I do this week" went to a model (2026-10-08)."""
+
+    def test_listed_in_his_words(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I ran 3 miles today", "ts": now}, {"text": "I did yoga this morning", "ts": now},
+                {"text": "I ran into Sam", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what workouts did I do this week"), "This week you ran 3 miles and did yoga.")
+
+
 if __name__ == "__main__":
     unittest.main()
