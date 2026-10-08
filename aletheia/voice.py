@@ -713,6 +713,17 @@ def _spell_his_name(which: str) -> str:
         known = {}
     first = str(known.get("first_name") or "").strip()
     last = str(known.get("last_name") or "").strip()
+    # "My name is Caleb" is kept in her memory of him; "how do you spell my
+    # name" one turn later said she had none (2026-10-08).
+    if not first and not last:
+        try:
+            from aletheia import memory
+            first = " ".join(str(memory.recall("identity", "operator_name") or memory.recall("identity", "full_name")
+                                 or "").split())
+            if " " in first and which not in ("first",):
+                first, last = first.split(" ", 1)
+        except Exception:  # noqa: BLE001
+            first = ""
     parts = ([first] if which == "first" else [last] if which in ("last", "sur") else [first, last])
     parts = [p for p in parts if p]
     if not parts:

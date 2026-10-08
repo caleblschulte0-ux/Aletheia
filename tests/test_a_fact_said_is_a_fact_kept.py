@@ -7672,5 +7672,30 @@ class OutAndBack(unittest.TestCase):
         self.assertFalse(quick.answer("I'm leaving for work").startswith("Safe trip home"))
 
 
+class HisOwnDetailsSaidBack(unittest.TestCase):
+    """2026-10-08: "how do you spell my name" said she had no name a turn
+    after "my name is Caleb", "what's my address" went to the planner a turn
+    after she kept it, and "I'll remember your phone" said nothing back."""
+
+    def _memory(self, **identity):
+        return mock.patch("aletheia.memory.recall", side_effect=lambda d, k: identity.get(k) if d == "identity" else None)
+
+    def test_spelling_the_name_she_was_told(self):
+        with mock.patch("aletheia.profile.known", return_value={}), self._memory(operator_name="Caleb"):
+            self.assertEqual(voice._spell_his_name(""), "Caleb: C-A-L-E-B.")
+
+    def test_the_address_she_was_told(self):
+        with mock.patch.object(quick, "_notes", return_value=[]), \
+                mock.patch("aletheia.profile.answer", return_value=None), \
+                mock.patch("aletheia.memory.everything", return_value={"identity": {"address": {"value": "12 Oak St"}}}):
+            self.assertEqual(quick.answer("whats my address"), "Your address is 12 Oak St.")
+
+    def test_the_number_is_said_back(self):
+        from aletheia import speech
+        with self._memory(phone="555 123 4567"):
+            self.assertEqual(speech.spoken_receipt("remember", "remembered identity.phone"),
+                             "Got it - your phone number is 555 123 4567.")
+
+
 if __name__ == "__main__":
     unittest.main()

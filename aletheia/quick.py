@@ -8600,6 +8600,10 @@ def _jobs_left() -> str:
 # store has a preferred name, a legal name and a first name, any of which
 # is a true answer. First one she has, in the order a person would say it.
 _MINE = {"email": ("email",), "email address": ("email",),
+         # "My address is 12 Oak St", then "what's my address" (2026-10-08:
+         # to the planner - her memory keeps it as identity.address).
+         "address": ("address", "street"), "home address": ("address", "street"),
+         "street address": ("street", "address"),
          "phone": ("phone",), "phone number": ("phone",),
          "number": ("phone",),
          "city": ("city",), "town": ("city",),
@@ -8729,7 +8733,8 @@ def _mine(what: str) -> str | None:
 _SAID_AS_YOURS = {"email": "email", "email address": "email", "phone": "phone number",
                   "phone number": "phone number", "number": "phone number", "city": "city", "town": "town",
                   "first name": "first name", "last name": "last name", "full name": "full name",
-                  "zip": "zip code", "zip code": "zip code", "postcode": "zip code", "postal code": "zip code"}
+                  "zip": "zip code", "zip code": "zip code", "postcode": "zip code", "postal code": "zip code",
+                  "address": "address", "home address": "address", "street address": "address"}
 
 
 def _yours(asked: str, value: str) -> str:
@@ -9342,6 +9347,10 @@ def _fact_any(thing: str, whose: str = "my") -> str | None:
         owner = "my" if whose == "my" else "(?:my|our|the)(?: [a-z]+){0,2}"
         if re.match(rf"^(?:that )?{owner} {re.escape(thing)}s? (?:is|are|=) \S", said.casefold()):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    # "What's my address" a turn after "my address is 12 Oak St" (2026-10-08:
+    # to the planner): a fact of his profile, read where it is kept.
+    if whose == "my" and thing in _MINE:
+        return _mine(thing)
     return None
 
 
