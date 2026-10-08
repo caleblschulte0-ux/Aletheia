@@ -12717,6 +12717,21 @@ class TheSameAlarmTwice(unittest.TestCase):
             create.assert_called_once()
 
 
+class TheSameTaskTwice(unittest.TestCase):
+    def test_an_open_task_is_not_added_again(self):
+        from aletheia import intercom, speech, tasks
+        open_ = [{"id": "call-mom", "description": "call mom", "status": "QUEUED"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=open_), mock.patch.object(tasks, "create") as create:
+            said = intercom.execute_command({"kind": "task_new", "id": "call-mom-2", "description": "Call mom"}, {"repos": {}}, quote="q")
+            create.assert_not_called()
+            self.assertEqual(speech.spoken_receipt("task_new", said), "That's already on your list: call mom.")
+        done = [{"id": "call-mom", "description": "call mom", "status": "DONE"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=done), \
+                mock.patch.object(tasks, "create", return_value={"id": "call-mom-2", "description": "call mom"}) as create:
+            intercom.execute_command({"kind": "task_new", "id": "call-mom-2", "description": "call mom"}, {"repos": {}}, quote="q")
+            create.assert_called_once()
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

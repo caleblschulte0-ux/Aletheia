@@ -777,6 +777,9 @@ def spoken_receipt(kind: str, detail: str, *,
         several = re.match(r"(\d+) tasks queued\s*[—-]\s*(.+)", text)
         if several:
             return f"Added {several.group(1)} tasks: {several.group(2).strip()}."
+        already = re.search(r"task [a-z0-9-]+ already open\s*[—-]\s*(.+)", text)
+        if already:
+            return f"That's already on your list: {already.group(1).strip()}."
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
         if named:

@@ -3302,6 +3302,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             made_parts.append(part)
         return f"{len(made_parts)} tasks queued — {speech.and_list(made_parts)}"
     if kind == "task_new":
+        # "Add a task to call mom" twice made two (2026-10-08), and the list
+        # read "call mom and call mom". The same open task is one task.
+        same = [t for t in tasks.all_tasks()
+                if " ".join(str(t.get("description") or "").split()).casefold() == " ".join(str(cmd["description"]).split()).casefold()
+                and t.get("status") not in ("DONE", "CANCELLED")
+                and (not cmd.get("deadline") or t.get("deadline") == cmd.get("deadline"))]
+        if same:
+            return f"task {same[-1]['id']} already open — {_task_words(same[-1])}"
         made = tasks.create(cmd["id"], cmd["description"], goal=cmd.get("goal"),
                             assigned_worker=cmd.get("worker"),
                             deadline=cmd.get("deadline"))
@@ -3803,6 +3811,11 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):
             return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
                     "tentative, on your calendar here only.")
+        # The same hold said twice is already there (2026-10-08: "Pencilled in
+        # dentist" twice read as two appointments).
+        if not old and not held.get("created"):
+            title = held["event"]["title"]
+            return f"{title[:1].upper() + title[1:]} is already on your calendar, {when}{until}."
         carried = _carry_hold_reminders(old, held["event"]) if old else 0
         try:
             same_start = bool(old) and _dt.datetime.fromisoformat(str(old["start"]).replace("Z", "+00:00")) == \
