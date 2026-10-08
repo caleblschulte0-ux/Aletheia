@@ -9260,5 +9260,30 @@ class TheCar(unittest.TestCase):
         self.assertEqual(speech.as_she_says_it("my cars are old"), "your cars are old")
 
 
+class AtWork(unittest.TestCase):
+    """A sweep of work sentences, every one to the planner or a model (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("I have a work trip to Chicago next week", "I worked 45 hours this week",
+                     "my coworker Sam is out sick", "my work email is caleb@acme.com"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I have a deadline on the report Friday")["command"]["kind"], "note")
+        self.assertNotEqual(voice._interpret("the printer is out")["command"]["kind"], "note")
+
+    def test_read_back(self):
+        import datetime as dt
+        from aletheia import intercom
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        due = dt.date.today() + dt.timedelta(days=2)
+        rows = [{"text": "my coworker Sam is out sick", "ts": now}, {"text": "I worked 45 hours this week", "ts": now},
+                {"text": "I have a work trip to Chicago next week", "ts": now},
+                {"text": "the report is due " + due.strftime("%A ") + str(due.day) + due.strftime(" %B"), "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: []):
+            self.assertEqual(quick.answer("who is out sick"), "You told me Sam is out sick today.")
+            self.assertEqual(quick.answer("how many hours did I work this week"), "You told me you worked 45 hours this week.")
+            self.assertIn("work trip to Chicago", quick.answer("when is my work trip"))
+            self.assertIn("the report is due", quick.answer("what deadlines do I have"))
+
+
 if __name__ == "__main__":
     unittest.main()

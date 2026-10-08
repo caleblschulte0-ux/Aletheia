@@ -9975,6 +9975,29 @@ def _interpret(transcript: str) -> dict:
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have a work trip to Chicago next week", "I have a deadline on the
+    # report Friday", "I worked 45 hours this week", "my coworker Sam is out
+    # sick", "my work email is ..." (2026-10-08: all to the planner).
+    if re.fullmatch(r"i (?:have|'ve got|have got|got) (?:a |an |my |our )?(?:work |business |family |road |ski |camping |weekend |girls'? |guys'? )?"
+                    r"(?:trip|conference|offsite|retreat|visit) to [a-z][a-z' ]{1,30}? " + _when, low) \
+            and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
+                          r"|\d{1,2}(?:st|nd|rd|th)|" + _MONTH + r")\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"i (?:have|'ve got|have got|got) (?:a |the )?deadline (?:on|for) (?P<w>(?:the|my|our) [a-z][a-z' ]{1,30}?) (?:on |by |this |next )?"
+                     r"(?P<d>today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:" + _MONTH + r") \d{1,2})", low)
+    if m:
+        again = _interpret(f"{m.group('w')} is due {m.group('d')}")
+        if again and (again.get("command") or {}).get("kind") == "note":
+            return again
+    if re.fullmatch(r"i (?:worked|put in) \d{1,3}(?:\.\d+)? hours?(?: of work)? (?:today|yesterday|this week)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:my (?:coworker|co-worker|colleague|boss|manager|teammate|assistant) )?(?P<who>[a-z][a-z'-]{1,20}) (?:is|called in) "
+                     r"(?:out sick|off sick|sick today|out today|off today|on vacation(?: this week)?|out of (?:the )?office(?: today)?|working from home(?: today)?)"
+                     r"(?: today)?", low)
+    if m and re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text) and m.group("who") not in ("i", "he", "she", "it", "who"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"my (?:work|personal|school|other|business) (?:email|e-mail|email address|phone|phone number|number|cell) is \S.{1,60}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm going to Denver next weekend", "I'm visiting my parents next
     # week" (2026-10-07: both to the planner). A trip with a when is a note
     # in his words; "I'm going to call mom tomorrow" is something to DO and

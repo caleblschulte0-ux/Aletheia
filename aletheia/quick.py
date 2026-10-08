@@ -434,6 +434,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| are) (?:coming over|coming to visit|coming|visiting|staying with us)"
         # "Who's coming Saturday" (2026-10-08) was a person called "coming saturday"
         r"(?: (?:(?:for|on|over|this|to|at) )?(?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
+    # "Who is out sick" after "my coworker Sam is out sick" (2026-10-08: to
+    # a model). Today's notes only: who was out last week is not today.
+    ("out_today", re.compile(
+        r"^who(?:'s| is| was) (?P<out_today>out sick|off sick|sick|out|off|on vacation|out of (?:the )?office|working from home|wfh|away)"
+        r"(?: today| this week)?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -2829,6 +2834,11 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how long ago did i (?:last )?(?P<rest>[a-z][a-z' ]{2,50}?)\s*\??", text)
     if m and (match(f"how long since i {m.group('rest')}") or ("", ""))[0] == "did_last":
         return f"how long since i {m.group('rest')}"
+    # "What deadlines do I have" (2026-10-08: "nothing about deadlines on
+    # file") is what's due.
+    m = re.fullmatch(r"what (?:deadlines|deadline) (?:do i have|have i got|are coming up)(?P<w> today| this week| next week| this month| tomorrow)?\s*\??", text)
+    if m:
+        return "what's due" + (m.group("w") or "")
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
@@ -2997,7 +3007,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -3933,7 +3943,9 @@ def _noted_dates() -> list:
         if not re.search(r"\b(?:is|are) due\b|\bexpires?\b|\bends?\b|\brenews?\b|\bis up\b|\bruns out\b", low):
             continue
         m = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:,? (?P<year>20\d\d))?\b", low)
-             or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? of (?P<mon>{month_re})(?:,? (?P<year>20\d\d))?\b", low))
+             # "the report is due Friday 9 October", the way a due day is
+             # written down (2026-10-08)
+             or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? (?:of )?(?P<mon>{month_re})(?:,? (?P<year>20\d\d))?\b", low))
         if not m:
             continue
         try:
@@ -4014,9 +4026,11 @@ def _tasks_due(which: str = "") -> str | None:
     # "My car registration is due November 30", then "what's due next month"
     # (2026-10-08): nothing on the list, and the date he told her unsaid.
     told = ([speech.as_she_says_it(text).rstrip(".") for day, text in _noted_dates()
-             if now.date() <= day <= limit.date()] if not overdue_only and which.startswith("due ") else [])
+             if now.date() <= day <= limit.date()] if not overdue_only and (which == "due" or which.startswith("due ")) else [])
     if told and not dated:
-        return (f"Nothing on your list is {which}, but you told me: " + "; ".join(told[:3]) + "." + also)
+        # "What deadlines do I have" after "the report is due Friday" (2026-10-08)
+        return (f"Nothing on your list is {'due in the next week' if which == 'due' else which}, but you told me: "
+                + "; ".join(told[:3]) + "." + also)
     if told:
         also = f"{also} You also told me: " + "; ".join(told[:3]) + "."
     if not dated:
@@ -11908,6 +11922,17 @@ def _worked(text: str) -> str | None:
         if first <= at.date() <= last:
             marks.append((at, said))
     if not any(s == "started work" for _a, s in marks):
+        # "I worked 45 hours this week" said as a total (2026-10-08: "you
+        # didn't tell me you started work this week", one turn later).
+        for row in reversed(_notes()):
+            said = " ".join(str(row.get("text") or "").split())
+            total = re.match(rf"i (?:worked|put in|did) (\d{{1,3}}(?:\.\d+)?) hours?(?: of work)? {re.escape(when)}\.?$", said, re.I)
+            try:
+                on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            if total and first <= on <= last:
+                return f"You told me you worked {total.group(1)} hours {when}."
         return None if when == "today" and not marks else f"You didn't tell me you started work {when}."
     # A start and a finish in the same second are a start, then a finish.
     marks.sort(key=lambda m: (m[0], m[1] != "started work"))
@@ -13433,7 +13458,10 @@ def _when_note(text: str) -> str | None:
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
         if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) and re.search(
-                r"\d|\b(?:mon|tues|wednes|thurs|fri|satur|sun|week)days?\b|\b(?:today|tonight|tomorrow|weekends?)\b", low):
+                r"\d|\b(?:mon|tues|wednes|thurs|fri|satur|sun|week)days?\b|\b(?:today|tonight|tomorrow|weekends?)\b"
+                # "I have a work trip to Chicago next week" (2026-10-08)
+                r"|\b(?:next|this) (?:week|month|year|weekend)\b|\b(?:january|february|march|april|may|june|july|august"
+                r"|september|october|november|december)\b", low):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     # "When is the recital" after "my daughter has a recital on Friday at 6"
     # went on the calendar (2026-10-08: to a model). The soonest one.
@@ -13929,6 +13957,36 @@ def _workouts_did(window: str) -> str | None:
     if not done:
         return f"No workouts {window} that you've told me about. Say \"I ran 3 miles\" or \"I went to the gym\" and I'll count it."
     return f"{window[:1].upper() + window[1:]} you {speech.and_list(done[:8])}."
+
+
+def _out_today(state: str) -> str | None:
+    """Who he said is out, today."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    state = " ".join(str(state or "").split())
+    words = {"sick": r"out sick|off sick|sick", "out sick": r"out sick|off sick|sick", "off sick": r"out sick|off sick|sick",
+             "out": r"out(?: sick| today| of (?:the )?office)?|off(?: sick| today)?", "off": r"off(?: sick| today)?|out(?: sick)?",
+             "wfh": r"working from home|wfh", "working from home": r"working from home|wfh"}.get(state, re.escape(state))
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    said = re.compile(r"^(?:my (?:coworker|co-worker|colleague|boss|manager|teammate|assistant|friend) )?(?P<who>[A-Z][a-z'-]+(?: [A-Z][a-z'-]+)?|my [a-z]+)"
+                      r" (?:is|was|called in) (?:" + words + r")\b")
+    out = []
+    for row in _notes():
+        text = " ".join(str(row.get("text") or "").split())
+        m = said.match(text)
+        if not m:
+            continue
+        try:
+            on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if on == today and not any(o.startswith(re.sub(r"^my ", "your ", m.group("who")) + " ") for o in out):
+            how = re.search(r" (?:is|was|called in) (" + words + r")\b", text).group(1)
+            out.append(re.sub(r"^my ", "your ", m.group("who")) + f" is {how}")
+    if not out:
+        return None
+    return f"You told me {speech.and_list(out)} today." if len(out) > 1 else f"You told me {out[0]} today."
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
@@ -14738,6 +14796,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "out_today": _out_today,
            "workouts_did": _workouts_did,
            "episode_on": _episode_on,
            "rated": _rated,
