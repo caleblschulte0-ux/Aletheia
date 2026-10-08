@@ -14400,6 +14400,12 @@ def _woke(act: str) -> str:
                 noted = dt.datetime.fromisoformat(str(row["ts"]).replace("Z", "+00:00")).astimezone(tz)
                 ago = (dt.datetime.now(tz).date() - noted.date()).days
                 woke = kin[0] == "woke up"
+                night = None if woke else _bed_night(at, noted)
+                if night is not None:
+                    back = (dt.datetime.now(tz).date() - night).days
+                    when = (" tonight" if back == 0 else " last night" if back == 1 else
+                            " the night before last" if back == 2 else f" on {night.strftime('%A')} night")
+                    return f"You told me you {m.group(1).casefold()} at {at}{when}."
                 # Told at 12:21 pm, bed was last night (2026-10-08: "midnight
                 # tonight") - the evening starts at five, not at noon.
                 when = (" this morning" if woke else " last night" if noted.hour < 17 else " tonight") if ago == 0 else \
@@ -18786,6 +18792,36 @@ def _idea_said(text: str) -> str | None:
         if not kind or re.search(rf"\b{re.escape(kind.rstrip('s'))}", idea, re.I):
             return f"Your {kind + ' ' if kind else 'latest '}idea: {speech.as_she_says_it(idea)}."
     return None
+
+
+def _bed_night(at: str, noted):
+    """The night he went to bed, from the clock time he said and when he
+    said it: "I went to bed at midnight", said at 6:47 pm, was last night
+    (2026-10-08: "midnight tonight"). The night of a time after midnight
+    is the evening before. None when the time is not a clock time."""
+    import datetime as dt
+    m = re.fullmatch(r"(midnight|noon)|(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?", at.strip().casefold())
+    if not m:
+        return None
+    if m.group(1):
+        hour, minute = (0 if m.group(1) == "midnight" else 12), 0
+    else:
+        hour, minute = int(m.group(2)), int(m.group(3) or 0)
+        if hour > 23 or minute > 59:
+            return None
+        ampm = (m.group(4) or "").replace(".", "")
+        if ampm == "pm" and hour < 12:
+            hour += 12
+        elif ampm == "am" and hour == 12:
+            hour = 0
+        elif not ampm and 7 <= hour <= 11:
+            hour += 12          # "went to bed at 11" is the evening
+        elif not ampm and hour == 12:
+            hour = 0            # "at 12" is midnight
+    went = noted.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if went > noted:
+        went -= dt.timedelta(days=1)
+    return went.date() if went.hour >= 12 else went.date() - dt.timedelta(days=1)
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}

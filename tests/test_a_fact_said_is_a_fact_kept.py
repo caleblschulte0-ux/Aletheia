@@ -13043,5 +13043,17 @@ class WishesAndIdeas(unittest.TestCase):
             self.assertIsNone(quick.answer("what was my recipe idea"))
 
 
+class BedLastNight(unittest.TestCase):
+    def test_the_night_is_from_the_clock_time(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        told = dt.datetime(2026, 10, 8, 18, 47, tzinfo=tz)
+        self.assertEqual(quick._bed_night("midnight", told), dt.date(2026, 10, 7))
+        self.assertEqual(quick._bed_night("11", told), dt.date(2026, 10, 7))
+        self.assertEqual(quick._bed_night("11", told.replace(hour=23, minute=30)), dt.date(2026, 10, 8))
+        self.assertEqual(quick._bed_night("1 am", told.replace(day=9, hour=7)), dt.date(2026, 10, 8))
+        self.assertIsNone(quick._bed_night("around the usual time", told))
+
+
 if __name__ == "__main__":
     unittest.main()
