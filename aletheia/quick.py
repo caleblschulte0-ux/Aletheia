@@ -2175,6 +2175,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("workouts_did", re.compile(
         r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
         r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
+    # "Which locker is mine", "which parking spot is mine" (2026-10-08: to a model).
+    ("which_mine", re.compile(r"^(?:which|what) (?P<which_mine>locker|gym locker|parking spot|parking space|spot|seat|room|desk|cubicle"
+                              r"|gate|unit|apartment) (?:is mine|is my one|am i in|do i have|did i get)\s*\??$")),
     # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
     ("freezer", re.compile(r"^what(?:'s| is|s)? (?:in|left in) (?:the |my )?(?:freezer|deep freeze)\s*\??$"
                            r"|^what (?:do i have|have i got|did i put) in (?:the |my )?freezer\s*\??$")),
@@ -3026,7 +3029,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -14062,6 +14065,16 @@ def _reminders_week(which: str) -> str:
     return f"{speech.count_phrase(len(rows), 'reminder')} {which}: {speech.and_list(said)}{more}."
 
 
+def _which_mine(thing: str) -> str | None:
+    from aletheia import speech
+    thing = " ".join(str(thing or "").split())
+    for row in reversed(_notes()):
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"my (?:[a-z]+ )?{re.escape(thing)}(?: number| combo| combination)? (?:is|are) .*\d.*", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14869,6 +14882,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "which_mine": _which_mine,
            "reminder_next": _reminder_next,
            "reminders_week": _reminders_week,
            "freezer": _freezer,

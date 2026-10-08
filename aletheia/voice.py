@@ -876,6 +876,22 @@ def _bought_yet(item: str) -> str | None:
     return None
 
 
+def _his_words_about(thing: str) -> str | None:
+    """"Where is my parking spot" after "my parking spot is B12" (2026-10-08:
+    searched his Documents). His own "my X is ..." is the answer."""
+    try:
+        from aletheia import quick
+        rows = quick._notes()
+    except Exception:  # noqa: BLE001
+        return None
+    key = re.escape(re.sub(r"^(?:my|the|our) ", "", " ".join(str(thing or "").casefold().split())))
+    for row in rows:
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if key and re.fullmatch(rf"(?:my|our|the) {key} (?:is|are) .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 def _said_as_a_title(text: str, title: str) -> bool:
     """Whether he gave a title its capital ("Severance", "The Bear") - what
     tells a show from "watching the kids"."""
@@ -5977,7 +5993,7 @@ def _interpret(transcript: str) -> dict:
         # "The gym is at 20 Oak Ave", then "where is the gym" searched his
         # Documents for a file called gym. A place she keeps answers first.
         from aletheia import quick
-        there = quick._place_where(m.group(1))
+        there = quick._place_where(m.group(1)) or _his_words_about(m.group(1))
         if there:
             return {"command": None, "say": there}
     if m and not _not_a_file(m.group(1)):
@@ -7629,6 +7645,9 @@ def _interpret(transcript: str) -> dict:
         there = quick._place_where(m.group("thing"))
         if there:
             return {"command": None, "say": there}
+        told = _his_words_about(m.group("thing"))
+        if told:
+            return {"command": None, "say": told}
     m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
@@ -9466,7 +9485,10 @@ def _interpret(transcript: str) -> dict:
                      # "My insurance member id is ABC123", "my library card
                      # number is 12345" (2026-10-08: to the planner).
                      r"|(?:insurance |health insurance |dental |vision |gym |library |costco )?(?:member(?:ship)?|library card"
-                     r"|card|passport|driver'?s license|license|licence|vin|patient|group) (?:id|number|#))"
+                     r"|card|passport|driver'?s license|license|licence|vin|patient|group) (?:id|number|#)"
+                     # "My parking spot is B12", "my hotel room is 512" (2026-10-08: to the planner)
+                     r"|parking spot|parking space|spot|hotel room|room|seat|desk|cubicle|apartment|apartment number|unit|suite|gate"
+                     r"|(?:netflix|hulu|spotify|amazon|work|school|email|[a-z]+) (?:login|username|user name))"
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
                      # below, so "my budget is tight" stays how he feels.

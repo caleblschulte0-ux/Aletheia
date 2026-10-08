@@ -9339,5 +9339,19 @@ class WhenWillYouRemindMe(unittest.TestCase):
             self.assertIn("don't have a reminder", quick.answer("when will you remind me to call bob"))
 
 
+class SpotsRoomsAndLockers(unittest.TestCase):
+    """"My parking spot is B12" went to the planner and "where is my parking
+    spot" searched his Documents (2026-10-08)."""
+
+    def test_kept_and_read(self):
+        for said in ("my parking spot is B12", "my hotel room is 512"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice._interpret("my room is a mess")["command"]["kind"], "note")
+        rows = [{"text": "my gym locker is 42"}, {"text": "my parking spot is B12"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(voice._interpret("where is my parking spot")["say"], "You told me: your parking spot is B12.")
+            self.assertEqual(quick.answer("which locker is mine"), "You told me: your gym locker is 42.")
+
+
 if __name__ == "__main__":
     unittest.main()
