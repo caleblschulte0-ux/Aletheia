@@ -8597,5 +8597,15 @@ class WhatDoILike(unittest.TestCase):
 
 
 
+class ShoppingDaysAndSleeps(unittest.TestCase):
+    """"How many shopping days until Christmas" went to a model (2026-10-08)."""
+
+    def test_it_is_the_same_count(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("how many shopping days until christmas"), "how many days until christmas")
+        self.assertEqual(quick._direct("how many sleeps until my birthday"), "how many days until my birthday")
+
+
+
 if __name__ == "__main__":
     unittest.main()

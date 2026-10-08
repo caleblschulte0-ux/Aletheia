@@ -2697,6 +2697,11 @@ def _direct(text: str) -> str:
                      r"|friday|saturday|sunday))?\s*\??", text)
     if m:
         return f"what's on my calendar {m.group('day')}" if m.group("day") else "what's coming up"
+    # "How many shopping days until Christmas", "how many sleeps until my
+    # birthday" (2026-10-08: to a model) - the same count.
+    m = re.fullmatch(r"how many (?:shopping |more |working |school )?(?:days|sleeps) (?:left )?(?:until|till|til|before|to) (?P<what>.{2,40}?)\s*\??", text)
+    if m and re.match(r"how many (?:shopping|more|sleeps|days left)", text):
+        return f"how many days until {m.group('what')}"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
