@@ -12925,5 +12925,17 @@ class AppointmentsThisWeekAreWhatIsOn(unittest.TestCase):
         self.assertEqual(cmd["kind"], "contact_add")
 
 
+class WhenHeGetsHomeIsAReminder(unittest.TestCase):
+    def test_listed_with_the_rest(self):
+        from aletheia import intercom
+        with mock.patch.object(quick, "_home_reminders", return_value=["call mom"]), \
+                mock.patch.object(intercom, "_reminder_schedules", return_value=[]):
+            self.assertEqual(intercom._reminders_answer(), "When you get home: call mom.")
+            self.assertEqual(intercom._reminders_answer("wake up"), "You have no alarms set.")
+        with mock.patch.object(quick, "_home_reminders", return_value=[]), \
+                mock.patch.object(intercom, "_reminder_schedules", return_value=[]):
+            self.assertEqual(intercom._reminders_answer(), "You have no reminders set.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1464,12 +1464,22 @@ def _reminders_answer(which: str = "") -> str:
             if noun != "reminder":
                 return f"You have no {noun}s set."
             return f"No reminder matching {which!r}."
+    # "Remind me when I get home to call mom" is a reminder too, kept as a
+    # note until he says he's home (2026-10-08: "You have no reminders set").
+    home = []
+    if not which:
+        try:
+            from aletheia import quick
+            home = quick._home_reminders()
+        except Exception:
+            home = []
+    at_home = f"When you get home: {speech.and_list([speech._yours(h) for h in home])}." if home else ""
     if not rows:
-        return "You have no reminders set."
+        return at_home or "You have no reminders set."
     rows = _soonest_first(rows)
     said = speech.and_list([_alarm_words(r, alone=noun == "alarm") for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
-    return f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+    return f"{speech.count_phrase(len(rows), noun)}: {said}{more}." + (f" {at_home}" if at_home else "")
 
 
 def _alarm_words(spec: dict, *, alone: bool = True) -> str:
