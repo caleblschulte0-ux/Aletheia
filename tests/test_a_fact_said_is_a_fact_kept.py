@@ -12043,5 +12043,14 @@ class PlanningAParty(unittest.TestCase):
             self.assertTrue(quick.answer("did I invite Tom").startswith("Not that you told me"))
 
 
+class KeepingFit(unittest.TestCase):
+    def test_sore_a_cheat_day_and_calories(self):
+        self.assertIn("easy stretch", quick.answer("I am sore"))
+        self.assertEqual(voice.interpret("I had a cheat day")["command"], {"kind": "note", "text": "I had a cheat day"})
+        self.assertEqual(quick.answer("how many calories in a banana"), "About 105 calories in a medium banana.")
+        self.assertIsNone(quick.answer("how many calories in a big mac"))
+        self.assertEqual(quick.match("how many calories did I eat today")[0], "counted")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11060,6 +11060,9 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:worked|am working|'m working|was working|will work|'ll work) (?:from home|remotely|remote|in the office|from the office)"
                             r"(?: (?:today|yesterday|this morning|this afternoon|tomorrow))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
     # Planning a party (2026-10-08, each to the planner): "I'm planning a
     # party for my wife", "I invited Sam, Mike and Jess", "the theme is 80s".
     if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:planning|throwing|hosting|having|putting together|organi[sz]ing) (?:a |an )?(?:surprise |birthday |retirement |going away |going-away |graduation |dinner |holiday |christmas |halloween |housewarming |baby shower |bridal shower )?"
