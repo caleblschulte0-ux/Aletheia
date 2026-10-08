@@ -10709,6 +10709,17 @@ def _off_lists(text: str) -> str | None:
     said = (r"i (?:just )?(?:finished reading|read) (?P<t>.+?)\.?$" if want == "read"
             else r"i (?:just )?(?:watched|finished watching|binged) (?P<t>.+?)(?: (?:last night|tonight|today|yesterday|again))?\.?$")
     seen = {t.casefold() for t, _ in done}
+    # "I finished Dune" after "I started reading Dune" (2026-10-08: "what
+    # books have I read" to a model). A bare "finished" is a book only when
+    # it is one he said he was reading or meant to read.
+    if want == "read":
+        books = {m.group("b").casefold() for m in (
+            re.match(r"i(?:'ve| have|'m| am)? (?:just |currently |now |still )?(?:(?:started|begun|began) (?:reading|on)|reading) (?P<b>.+?)\.?$",
+                     " ".join(str(r.get("text") or "").split()), re.I) for r in _notes()) if m}
+        books |= {t.casefold() for h in lists.all_lists() if lists.kind_of(h["name"]) == "read" for t in (lists.items(h["name"]) or [])}
+        if books:
+            said = (r"i (?:just )?(?:finished reading |read |finished (?:the book )?(?=(?:" + "|".join(re.escape(b) for b in books)
+                    + r")\.?$))(?P<t>.+?)\.?$")
     for row in _notes():
         m = re.match(said, " ".join(str(row.get("text") or "").split()), re.I)
         if m and m.group("t").casefold() not in seen and not re.match(r"(?:it|that|the book|the movie|the show)$", m.group("t"), re.I):
@@ -10721,7 +10732,10 @@ def _off_lists(text: str) -> str | None:
     if g.get("off_l"):
         if not done:
             return f"Nothing's come off your {'reading' if want == 'read' else 'watch'} list yet."
-        return f"{done[0][0]}, from your list."
+        # "Dune, from your list" when Dune was only ever said (2026-10-08).
+        listed = {t.casefold() for h in lists.all_lists() if lists.kind_of(h["name"]) == want
+                  for t, _at in lists.done_items(h["name"])}
+        return f"{done[0][0]}, " + ("from your list." if done[0][0].casefold() in listed else "from what you've told me.")
     if g.get("off_y") or "this year" in low:
         year = str(dt.date.today().year)
         done = [r for r in done if r[1].startswith(year)]

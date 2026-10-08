@@ -3638,7 +3638,10 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
         listed = "reading" if m.group("v") == "read" else "watch"
         return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}
-    m = re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
+    # "I started a new book called Dune", "I just started reading Dune"
+    # (2026-10-08: to the planner) - the same note as "I'm reading Dune".
+    m = re.fullmatch(r"i (?:just )?(?:started|began|picked up|am starting|'m starting) (?:reading |(?:a |the )?(?:new )?book (?:called |named )?)"
+                     r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
     if m and not re.match(r"(?:it|that|this|them|a |an |some|the news|my |your |about |up on |through |over )", m.group("t")) \
             and "?" not in text:
         return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
@@ -4507,6 +4510,14 @@ def _interpret(transcript: str) -> dict:
     # "Remind me to buy flowers two days before our anniversary", "remind me
     # a week before my anniversary", "remind me to get a card the day before
     # Mom's birthday" (2026-10-08: to the planner). The date is in his note.
+    # "Remind me the day before my flight to pack" (2026-10-08: read as a
+    # calendar event called "flight to pack") is the same sentence with the
+    # errand said last.
+    late = re.fullmatch(r"remind me (?P<when>(?:the day|the night|the morning|a day|one day|(?:\d|two|three|four|five|six|seven|ten) days"
+                        r"|a week|one week|two weeks) before (?:my |our |the )?(?:(?:wedding )?anniversary|vacation|trip|holiday|cruise"
+                        r"|honeymoon|flight|[a-z]+(?:'s|s') (?:birthday|bday|anniversary))) to (?P<task>.+)", low)
+    if late:
+        return _interpret(f"remind me to {_as_he_said(text, late.group('task'))} {late.group('when')}")
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
                      r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"

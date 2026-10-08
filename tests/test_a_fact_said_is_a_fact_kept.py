@@ -6572,5 +6572,29 @@ class NextWednesdayOnAWednesday(unittest.TestCase):
         self.assertEqual(voice._split_deadline("call mom by friday at 3"), ("call mom", "2026-10-09T15:00:00"))
 
 
+
+class ABookHeStartedAndFinished(unittest.TestCase):
+    """2026-10-08: "I started a new book called Dune" went to the planner,
+    and "what books have I read" a turn after "I finished Dune" to a model."""
+
+    def test_started_a_book_is_reading_it(self):
+        said = voice.interpret("I started a new book called Dune")["command"]
+        self.assertEqual(said, {"kind": "note", "text": "I'm reading Dune"})
+        self.assertEqual(voice.interpret("I started a new job")["command"]["text"], "I started a new job")
+
+    def test_a_finished_book_is_read_and_the_dishes_are_not(self):
+        rows = [{"text": "I'm reading Dune", "ts": "2026-10-01T10:00:00+00:00"},
+                {"text": "I finished the dishes", "ts": "2026-10-02T10:00:00+00:00"},
+                {"text": "I finished Dune", "ts": "2026-10-03T10:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what was the last book I read"), "Dune, from what you've told me.")
+            self.assertNotIn("dishes", quick.answer("what books have I read") or "")
+
+    def test_the_errand_said_after_the_day_before(self):
+        with mock.patch.object(voice, "_interpret", wraps=voice._interpret) as seen:
+            voice.interpret("remind me the day before my flight to pack")
+        self.assertIn("remind me to pack the day before my flight", [c.args[0] for c in seen.call_args_list])
+
+
 if __name__ == "__main__":
     unittest.main()
