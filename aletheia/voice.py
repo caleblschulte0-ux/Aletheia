@@ -11387,6 +11387,15 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(rf"(?:i|we) (?:already |just )?(?:got|bought|ordered|picked up|found) (?!(?:home|back|up|out|in|off|there|it|this|that|them|him|her|lost|sick|paid|married|engaged|a|an|the|some|my|our|to|into)\b)[a-z]{{2,15}} (?:a |an |some |the |new )?[a-z][a-z' ]{{2,30}}?{_occ}", low) \
             or re.fullmatch(rf"(?:{_rel}|(?!(?:i|we|you|he|she|they|it|who|what)\b)[a-z]{{2,15}}) (?:is|are) (?:starting|going to start) (?:kindergarten|preschool|pre-k|daycare|first grade|second grade|middle school|high school|college|school|a new school|a new job|work|swim lessons|piano lessons|soccer|t-ball|little league)(?: (?:this|next) (?:week|month|year|fall|monday|tuesday|wednesday|thursday|friday)| tomorrow| on monday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Max needs his flea medicine monthly" (2026-10-08: to the planner) is
+    # the monthly reminder he would have asked for, like "the plants need
+    # watering every 3 days".
+    m = re.fullmatch(r"(?P<pet>(?:my|the|our) (?:dog|cat|puppy|kitten|dogs|cats)|(?!(?:i|we|he|she|it|who|what)\b)[a-z]{2,15}) needs? (?P<whose>his|her|its|their)"
+                     r" (?P<med>(?:flea and tick|flea|tick|heartworm|flea & tick) (?:medicine|meds|medication|pill|pills|treatment|drops|chew|chews|shot))"
+                     r" (?:monthly|every month|once a month)", low)
+    if m:
+        pet = re.sub(r"^(?:my|our|the) ", "the ", _as_he_said(text, m.group("pet")))
+        return _interpret(f"remind me every month to give {pet} {m.group('whose')} {m.group('med')}")
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

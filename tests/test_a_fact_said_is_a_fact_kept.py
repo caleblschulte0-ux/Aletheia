@@ -12610,6 +12610,13 @@ class BackFromATrip(unittest.TestCase):
         self.assertNotEqual(voice.interpret("i'm back from work")["command"]["kind"], "note")
 
 
+class APetsMonthlyMedicine(unittest.TestCase):
+    def test_it_is_a_monthly_reminder(self):
+        said = voice.interpret("Max needs his flea medicine monthly")["command"]
+        self.assertEqual((said["kind"], said["text"]), ("remind_monthly", "give Max his flea medicine"))
+        self.assertEqual(voice.interpret("my dog needs her heartworm pill every month")["command"]["text"], "give the dog her heartworm pill")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
