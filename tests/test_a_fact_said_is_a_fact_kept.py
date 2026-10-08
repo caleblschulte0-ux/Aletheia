@@ -11519,5 +11519,21 @@ class ARoadTrip(unittest.TestCase):
             self.assertIsNone(quick.answer("where are we staying"))
 
 
+class AroundTheHouseAgain(unittest.TestCase):
+    """2026-10-08: "the garage door is stuck", "the plumber charged 250" and
+    "recycling is every other week" went to the planner, and "how much did
+    the plumber charge" to a model."""
+
+    def test_said(self):
+        for said in ("the garage door is stuck", "the plumber charged 250", "recycling is every other week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual((voice._interpret("the kids are out") or {}).get("command", {}).get("kind"), "note")
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the plumber charged 250"}, {"text": "the garage door is stuck"}]):
+            self.assertEqual(quick.answer("how much did the plumber charge"), "You told me the plumber charged 250.")
+            self.assertIn("garage door is stuck", quick.answer("what is broken in the house"))
+
+
 if __name__ == "__main__":
     unittest.main()

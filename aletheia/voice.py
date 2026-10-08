@@ -9786,7 +9786,9 @@ def _interpret(transcript: str) -> dict:
                      # "The smoke detector is beeping" (2026-10-08: to the planner).
                      r"|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining|not turning on|not starting|tripping"
                      # "My laptop is slow", "my phone screen cracked" (2026-10-08: to the planner).
-                     r"|frozen|cracked|crashing|freezing|overheating|not charging)(?: again)?", low)
+                     r"|frozen|cracked|crashing|freezing|overheating|not charging"
+                     # "The garage door is stuck" (2026-10-08: to the planner).
+                     r"|stuck|jammed|loose|wobbly|off track)(?: again| open| shut| closed)?", low)
             or re.fullmatch(r"i (?:just )?replaced the batter(?:y|ies) in (?:the|my|our) [a-z][a-z' ]{1,25}", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)(?: anymore)?", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:broke|stopped working|died|quit working|cracked|shattered|froze)(?: today| again| yesterday)?", low)
@@ -10711,6 +10713,14 @@ def _interpret(transcript: str) -> dict:
         head = low[:m.start("day")].strip()
         head = re.sub(r" (?:on|this|next)$", "", head)
         return {"command": {"kind": "note", "text": f"{_as_he_said(text, head)} on {on:%A} {on.day} {on:%B}"}, "say": None}
+    # "The plumber charged 250", "recycling is every other week" (2026-10-08:
+    # to the planner). What somebody charged is a fact he was told, not
+    # money she spends.
+    if re.fullmatch(r"(?:the|my|our) (?:plumber|electrician|mechanic|handyman|contractor|roofer|vet|dentist|doctor|cleaner|landscaper|painter|locksmith|exterminator|movers?|tow truck|shop|dealer|garage)"
+                    r" (?:charged(?: me| us)?|quoted(?: me| us)?|wants|said it(?:'s| is| would be| will be)|billed(?: me| us)?) (?:about |around )?\$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?(?: for [a-z][a-z' ]{1,25})?", low) \
+            or re.fullmatch(r"(?:the )?(?:recycling|trash|garbage|yard waste|compost|bulk pickup|street sweeping|lawn service|cleaning lady|cleaner)"
+                            r" (?:is|comes|goes out|gets picked up|pickup is) (?:every other|every|on|each|once a|twice a) [a-z ]{3,20}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

@@ -2496,6 +2496,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|what time (?:are we|am i|do we) (?P<tf_leave>leaving|heading out|taking off)"
                              r"|what (?:do|does) (?P<tf_want>the kids|my kids|my son|my daughter|my wife|my husband|[a-z]{2,15}) want to (?:do|see|visit)"
                              r"|what time is (?:the )?(?:hotel )?(?P<tf_check>check[- ]?in|check[- ]?out))\s*\??$")),
+    # "How much did the plumber charge" (2026-10-08: to a model).
+    ("charged", re.compile(r"^how much (?:did|does|will) (?:the|my|our) (?P<charged>plumber|electrician|mechanic|handyman|contractor|roofer|vet|dentist|doctor|cleaner|landscaper|painter|locksmith|exterminator|movers?|tow truck|shop|dealer|garage) (?:charge|cost|want|quote)(?: (?:me|us))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3427,7 +3429,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -14526,7 +14528,8 @@ _BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|k
                     r"|making a (?:weird |strange |loud )?noise|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining"
                     r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging"
                     # "My computer is running slow", "the internet is down" (2026-10-08).
-                    r"|running slow|so slow|really slow|slow|dying|full|lagging|glitching|not connecting|down|out of (?:ink|toner))"
+                    r"|running slow|so slow|really slow|slow|dying|full|lagging|glitching|not connecting|down|out of (?:ink|toner)"
+                    r"|stuck|jammed|loose|wobbly|off track)"
                     r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working|cracked|shattered|froze)"
                     r"|^(?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25}?) (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)")
 _FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
@@ -17089,6 +17092,16 @@ def _trip_fact(text: str) -> str | None:
     return f"You told me {said}."
 
 
+def _charged(text: str) -> str | None:
+    """What he said somebody charged or quoted him."""
+    g = _groups("charged", text)
+    who = str(g.get("charged") or "")
+    if not who:
+        return None
+    found = _said_lines(rf"^(?:the|my|our) {re.escape(who)} (?:charged|quoted|wants|said it|billed)\b", 1)
+    return f"You told me {found[0]}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17904,6 +17917,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "charged": _charged,
            "trip_fact": _trip_fact,
            "who_brings": _who_brings,
            "coming_count": _coming_count,
