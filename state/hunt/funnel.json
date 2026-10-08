@@ -273,7 +273,7 @@
       "sent": 14
     }
   },
-  "generated_at": "2026-10-08T20:18:58Z",
+  "generated_at": "2026-10-08T21:04:20Z",
   "sent_all_time": 284,
   "stuck_at": {
     "approval_denied": {
@@ -361,14 +361,12 @@
     "asked_about": {
       "address": 1,
       "demographic_gender": 1,
-      "demographic_pronouns": 1,
       "demographic_race": 4,
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 9,
+      "other": 10,
       "pay": 1,
-      "referral": 1,
       "travel": 1,
       "years_experience": 1
     },
