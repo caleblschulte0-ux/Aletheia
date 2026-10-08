@@ -9825,13 +9825,21 @@ def _went_said(asked: str) -> str:
         return (rf"\bwent to (?:the )?{re.escape(place)}\b|\b(?:i'?m|i am|just got) (?:at|to) (?:the )?{re.escape(place)}\b"
                 + (r"|\bworked out at the gym\b" if place == "gym" else ""))
     noun = re.sub(r"^go ", "", a)
+    # "Did I work out today" after "I ran 3 miles" and "I did 30 pushups"
+    # (2026-10-08: "Not that you've told me today"). A run, a ride, a lift
+    # or a set of anything is a workout.
+    workout = (r"\bworked out\b|\bexercised\b|went to (?:the )?gym|\b(?:ran|jogged|swam|biked|cycled|hiked|rowed|lifted)\b"
+               # "I ran into Sam", "ran out of milk", "ran late" are not runs.
+               r"(?! (?:into|out|late|over|errands|across|up|a|an|the|my|our|his|her|some|it|them)\b)"
+               r"|went (?:for a |on a )?(?:run|jog|swim|bike ride|ride|hike)|went (?:running|jogging|swimming|cycling|biking|hiking)"
+               r"|\bdid (?:\d+ |a |some )?(?:push-?ups|sit-?ups|squats|pull-?ups|crunches|burpees|lunges|planks?|reps|sets|yoga|pilates"
+               r"|cardio|a workout|weights|crossfit|hiit)\b|\b(?:played|had) (?:basketball|soccer|tennis|pickleball|squash|volleyball)\b")
     runs = {"run": r"\bran\b|went (?:for a |on a )?run|went running", "running": r"\bran\b|went (?:for a |on a )?run|went running",
             "jog": r"\bjogged\b|went (?:for a )?jog|went jogging", "jogging": r"\bjogged\b|went (?:for a )?jog|went jogging",
             "ran": r"\bran\b|went (?:for a |on a )?run|went running", "jogged": r"\bjogged\b|went (?:for a )?jog|went jogging",
             "swim": r"\bswam\b|went (?:for a )?swim|went swimming", "swum": r"\bswam\b|went (?:for a )?swim|went swimming",
             "swimming": r"\bswam\b|went (?:for a )?swim|went swimming",
-            "work out": r"\bworked out\b|\bexercised\b|went to (?:the )?gym", "worked out": r"\bworked out\b|\bexercised\b|went to (?:the )?gym",
-            "exercise": r"\bworked out\b|\bexercised\b|went to (?:the )?gym", "exercised": r"\bworked out\b|\bexercised\b|went to (?:the )?gym",
+            "work out": workout, "worked out": workout, "exercise": workout, "exercised": workout,
             "meditate": r"\bmeditated\b", "meditated": r"\bmeditated\b",
             "do yoga": r"\bdid yoga\b|went to yoga", "done yoga": r"\bdid yoga\b|went to yoga"}
     if noun in runs:

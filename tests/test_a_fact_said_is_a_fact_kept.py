@@ -5924,5 +5924,19 @@ class WhatHappensOnADayAndWhenToLeave(unittest.TestCase):
             self.assertIn("haven't told me when you need to leave", quick.answer("when do I need to leave"))
 
 
+class ARunIsAWorkout(unittest.TestCase):
+    """2026-10-08: "I ran 3 miles today" and "I did 30 pushups", then "did I
+    work out today" answered "Not that you've told me today"."""
+
+    def test_each(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        for said in ("I ran 3 miles today", "I did 30 pushups", "I did yoga", "I played tennis", "I went for a bike ride"):
+            with mock.patch.object(quick, "_notes", return_value=[{"text": said, "ts": now}]):
+                self.assertTrue(quick.answer("did I work out today").startswith("Yes"), said)
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I ran into Sam", "ts": now}]):
+            self.assertFalse(quick.answer("did I work out today").startswith("Yes"))
+
+
 if __name__ == "__main__":
     unittest.main()
