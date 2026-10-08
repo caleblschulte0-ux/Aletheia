@@ -2851,6 +2851,10 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:%s)\b[\s,.!?:;]*" % "|".join(WAKE_WORDS), "", low)
     if not low:
         return {"command": None, "say": "I'm listening."}
+    # "I need to remember to bring snacks Saturday" (2026-10-08: to the
+    # planner) is "I need to bring snacks Saturday": remembering is her job.
+    low = re.sub(r"^(i (?:need|have|got|gotta|must|should)(?: to)? |i've got to )(?:remember to |not forget to )", r"\1", low)
+    low = re.sub(r"^(?:don't let me forget|i can't forget) to ", "i need to ", low)
     # "Test", "mic check", "is my computer on", "what's my phone's battery"
     # (2026-10-07: all to a model). The first two are him checking she hears;
     # she runs on the PC, so answering at all says it is on; his phone's
@@ -8721,6 +8725,21 @@ def _interpret(transcript: str) -> dict:
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHO SOMEBODY IS TO HIM, BY NAME (2026-10-08: "my wife is Anna" and
+    # "my neighbor is Bob" went to the planner; "Bob's wife is Linda" too).
+    # Only a name he said with a capital - "my wife is sick" is how she is.
+    _people = (r"wife|husband|sister|brother|mom|mum|mother|dad|father|son|daughter|kids?|grandma|grandpa|girlfriend|boyfriend"
+               r"|partner|fiancee?|roommate|neighbou?r|next door neighbou?r|cousin|aunt|uncle|niece|nephew|best friend|coworker"
+               r"|co-worker|colleague|stepmom|stepdad|stepson|stepdaughter|in-laws|mother-in-law|father-in-law|plumber|electrician"
+               r"|handyman|contractor|cleaner|housekeeper|gardener|landscaper|chiropractor|dermatologist|financial advisor|insurance agent")
+    m = re.fullmatch(r"(?:(?:my|our) |(?P<whose>[a-z]{2,15})'s )(?:new |older |younger |little |big )?(?P<rel>" + _people + r") (?:is|'s) (?:called |named )?"
+                     r"(?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m:
+        name = _as_he_said(text, m.group("name"))
+        whose = _as_he_said(text, m.group("whose") or "")
+        if all(w[:1].isupper() for w in name.split()) and (not whose or whose[:1].isupper()) \
+                and name.split()[0].casefold() not in ("in", "on", "at", "a", "an", "the", "not", "very", "so", "my", "i"):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A GIFT IDEA FOR SOMEBODY (2026-10-07: "add a gift idea for my sister:
     # a scarf" went to the planner). A line on his gift list naming who it
     # is for; "what gift ideas do I have for my sister" reads it back.

@@ -1843,6 +1843,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when are (?:my |the |our )?(?!(?:they|those|these)\b)(?P<due4>[a-z0-9][a-z0-9 '-]{1,40}?) due(?: back)?\s*\??$")),
     ("place_addr", re.compile(
         r"^what(?:'s| is|s) (?:my |the )(?P<place_a>(?!email\b|e-mail\b|ip\b|web\b|mac\b|mailing\b)[a-z][a-z' ]{0,30}?) address\s*\??$")),
+    # "What's Jen's kid's name", "who is Bob married to" (2026-10-08: to a
+    # model a turn after "Jen's kid's name is Mia", "Bob's wife is Linda").
+    ("their_person", re.compile(
+        r"^what(?:'s| is) (?P<tp_who>(?!my\b|your\b|the\b)[a-z]{2,15})'s (?P<tp_rel>[a-z][a-z -]{1,20}?)'s name\s*\??$"
+        r"|^who(?:'s| is) (?P<tp_who2>(?!my\b|your\b|the\b|it\b|that\b|he\b|she\b)[a-z]{2,15}) married to\s*\??$")),
     # "When does school start" read back every note naming school, the
     # pictures day first (2026-10-08).
     ("starts_when", re.compile(
@@ -2463,7 +2468,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -8593,6 +8598,9 @@ def _recall(words: str) -> str | None:
 
     def hit(text: str) -> bool:
         low = str(text or "").casefold()
+        # "What's my wife's name" read back "Bob's wife is Linda" (2026-10-08)
+        if any(re.match(rf"[a-z]{{2,15}}'s {re.escape(s)}\b", low) for s in stems if s in _relation_words() | {"neighbor", "neighbour"}):
+            return False
         return any(s in low for s in stems)
 
     found: list[str] = []
@@ -11382,6 +11390,23 @@ def _plural(text: str) -> str | None:
     return f"{said[:1].upper() + said[1:]}." if said != word else f"{word[:1].upper() + word[1:]} - it's the same in the plural."
 
 
+def _their_person(text: str) -> str | None:
+    """Somebody's person, from his note: "Jen's kid's name is Mia", "Bob's
+    wife is Linda", "Bob is married to Linda". None when no note says."""
+    from aletheia import speech
+    g = _groups("their_person", text)
+    who = (g.get("tp_who") or g.get("tp_who2") or "").casefold()
+    rel = (g.get("tp_rel") or "").casefold().strip()
+    rels = [rel] if rel else ["wife", "husband", "partner", "spouse", "fiancee", "fiance"]
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if any(re.match(rf"{re.escape(who)}'s {re.escape(r)}s?(?:'s name)? (?:is|are) ", low) for r in rels) \
+                or (not rel and re.match(rf"{re.escape(who)} is married to ", low)):
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _it_due() -> str | None:
     """The task his last exchange named, and when it is due."""
     from aletheia import voice
@@ -12171,6 +12196,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "trip_length": lambda text: _trip_length(text),
            "starts_when": lambda text: _starts_when(text),
            "it_due": lambda text: _it_due(),
+           "their_person": lambda text: _their_person(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

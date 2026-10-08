@@ -6359,5 +6359,32 @@ class LatelyAndInAMonth(unittest.TestCase):
             self.assertEqual(quick.answer("when is my next checkup"), "You told me: your next checkup is in January.")
 
 
+
+class WhoSomebodyIsByName(unittest.TestCase):
+    """2026-10-08: "my neighbor is Bob", "Bob's wife is Linda" and "I need
+    to remember to bring snacks Saturday" went to the planner; "who is Bob
+    married to" and "what's Jen's kid's name" to a model."""
+
+    NOTES = [{"text": "my neighbor is Bob"}, {"text": "Bob's wife is Linda"}, {"text": "Jen's kid's name is Mia"},
+             {"text": "my wife is Anna"}]
+
+    def test_a_name_said_with_a_capital_is_kept(self):
+        for said in ("my wife is Anna", "my neighbor is Bob", "Bob's wife is Linda"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice._interpret("my wife is in Ohio")["command"]["kind"], "note")
+
+    def test_their_people_are_read_back(self):
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertEqual(quick.answer("who is Bob married to"), "You told me: Bob's wife is Linda.")
+            self.assertEqual(quick.answer("what's Jen's kid's name"), "You told me: Jen's kid's name is Mia.")
+            self.assertEqual(quick.answer("what's my wife's name"), "You told me: your wife is Anna.")
+            self.assertIsNone(quick.answer("who is Sam married to"))
+
+    def test_remember_to_is_her_job(self):
+        got = voice._interpret("I need to remember to bring snacks for the game Saturday")["command"]
+        self.assertEqual((got["kind"], got["description"]), ("task_new", "bring snacks for the game"))
+        self.assertEqual(voice._interpret("don't let me forget to call mom")["command"]["description"], "call mom")
+
+
 if __name__ == "__main__":
     unittest.main()
