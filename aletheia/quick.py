@@ -677,7 +677,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # said it).
     ("reading", re.compile(
         r"^(?:what(?:'s| is| was|s)|what were) my (?:last |latest |most recent )?(?P<reading>blood pressure|bp|heart rate|resting heart rate"
-        r"|pulse|blood sugar|glucose|blood glucose|a1c|temperature|temp|oxygen|o2)(?: reading| readings| numbers)?"
+        r"|pulse|blood sugar|glucose|blood glucose|a1c|temperature|temp|oxygen|o2"
+        # "What was my cholesterol" (2026-10-08: "I can't think").
+        r"|cholesterol|ldl|hdl|triglycerides|vitamin d|iron|psa|body fat)(?: reading| readings| numbers| level| levels)?"
         r"(?: today| this morning| yesterday| last time)?\s*\??$")),
     # "How long have I been awake" (2026-10-07: to a model, after "I woke up at 6:30").
     ("awake_for", re.compile(r"^how long (?:have i been|am i) (?:awake|up)(?: for| today| now)?\s*\??$")),
@@ -13631,7 +13633,9 @@ _READINGS = {"blood pressure": r"(?:blood pressure|bp)", "bp": r"(?:blood pressu
              "pulse": r"(?:resting )?(?:heart rate|pulse)", "blood sugar": r"(?:blood sugar|glucose|blood glucose)",
              "glucose": r"(?:blood sugar|glucose|blood glucose)", "blood glucose": r"(?:blood sugar|glucose|blood glucose)",
              "a1c": r"a1c", "temperature": r"(?:temperature|temp)", "temp": r"(?:temperature|temp)",
-             "oxygen": r"(?:oxygen|o2)", "o2": r"(?:oxygen|o2)"}
+             "oxygen": r"(?:oxygen|o2)", "o2": r"(?:oxygen|o2)",
+             "cholesterol": r"(?:total )?cholesterol", "ldl": r"ldl", "hdl": r"hdl", "triglycerides": r"triglycerides",
+             "vitamin d": r"vitamin d(?: level)?", "iron": r"iron(?: level)?", "psa": r"psa", "bmi": r"bmi", "body fat": r"body fat"}
 
 
 def _reading(text: str) -> str:
@@ -13644,7 +13648,7 @@ def _reading(text: str) -> str:
     pattern = _READINGS.get(asked)
     if not pattern:
         return None
-    named = "blood pressure" if asked == "bp" else asked
+    named = "blood pressure" if asked == "bp" else {"ldl": "LDL", "hdl": "HDL", "psa": "PSA", "bmi": "BMI", "a1c": "A1C"}.get(asked, asked)
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         m = re.match(r"(?:my )?" + pattern + r" (?:was|is|reading was|came out|came out at|was at)? ?(.+?)\.?$", said, re.I)

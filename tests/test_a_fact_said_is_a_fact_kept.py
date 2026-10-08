@@ -11320,5 +11320,15 @@ class AtTheShop(unittest.TestCase):
             self.assertEqual(voice._interpret("I got milk")["command"]["kind"], "shopping_off")
 
 
+class HisLabNumbers(unittest.TestCase):
+    """2026-10-08: "what was my cholesterol" got "I can't think" a turn after
+    "my cholesterol was 210"."""
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my cholesterol was 210"}]):
+            self.assertEqual(quick.answer("what was my cholesterol"), "Your cholesterol was 210.")
+            self.assertIn("your LDL", quick.answer("what was my ldl"))
+
+
 if __name__ == "__main__":
     unittest.main()
