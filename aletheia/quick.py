@@ -2534,6 +2534,18 @@ def _direct(text: str) -> str:
                      r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
     if m:
         return f"what did i tell you about being on {m.group('state')}"
+    # "When is trash day" with a weekly trash reminder set (2026-10-08: to a
+    # model). Only when one reminder names it; otherwise the question goes on
+    # as it was, so this can only add an answer.
+    m = re.fullmatch(r"(?:when|what day)(?:'s| is) (?:the |my )?(?P<what>trash|garbage|recycling|bins?|yard waste|compost)"
+                     r" (?:day|pickup|pick up|collection)\s*\??", text)
+    if m:
+        try:
+            from aletheia import intercom
+            if intercom._one_reminder(m.group("what"))[0] is not None:
+                return f"what time is my {m.group('what')} reminder"
+        except Exception:
+            pass
     # "How often do you remind me to stretch" (2026-10-08: to the planner).
     m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
     if m:

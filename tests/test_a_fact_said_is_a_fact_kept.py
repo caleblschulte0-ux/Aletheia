@@ -7314,6 +7314,21 @@ class AQuestionAboutAVisitIsNotAVisit(unittest.TestCase):
         self.assertIn("don't keep passwords", said.get("say") or "")
 
 
+class TrashDayIsTheTrashReminder(unittest.TestCase):
+    """2026-10-08: "when is trash day" went to a model with a weekly trash
+    reminder sitting in her store."""
+
+    def test_a_trash_reminder_answers_it(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_reminder", return_value=({"id": "r"}, "")):
+            self.assertEqual(quick._direct("when is trash day"), "what time is my trash reminder")
+
+    def test_no_reminder_leaves_the_question_alone(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_reminder", return_value=(None, "none")):
+            self.assertEqual(quick._direct("when is trash day"), "when is trash day")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
