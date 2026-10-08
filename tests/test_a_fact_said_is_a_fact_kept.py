@@ -7755,5 +7755,15 @@ class ARepeatingAlarmCanBeMoved(unittest.TestCase):
 
 
 
+class AShortFormAsksForTheLongOne(unittest.TestCase):
+    def test_combo_finds_combination(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my locker combination is 12 34 56"}]):
+            self.assertIn("12 34 56", quick._fact_any("locker combo"))
+
+    def test_a_gym_locker_combo_is_kept(self):
+        self.assertEqual(voice._interpret("my gym locker combo is 5 10 15")["command"]["kind"], "note")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8886,7 +8886,8 @@ def _interpret(transcript: str) -> dict:
                      # "Anna's favorite flower is tulips" (2026-10-08: to the planner).
                      r"|(?:favou?rite|fave) [a-z]{2,20}(?: [a-z]{2,20})?)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name| network(?: name| password)?)?|wi-fi(?: password| network)?"
-                     r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
+                     r"|gate code|door code|garage code|(?:gym |school |work |bike )?locker(?: number| combination| combo| code)?|bike lock(?: code| combo| combination)?"
+                     r"|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"

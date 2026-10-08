@@ -9356,11 +9356,18 @@ def _fact_any(thing: str, whose: str = "my") -> str | None:
     if not thing or "password" in thing or "passcode" in thing:
         return None
     from aletheia import speech
+    # "What's my locker combo" a turn after "my locker combination is ..."
+    # (2026-10-08: "nothing remembered"): a short form asks for the long one.
+    short = {"combo": "combination", "combination": "combo", "info": "information", "information": "info",
+             "appt": "appointment", "bday": "birthday", "b-day": "birthday", "dob": "date of birth",
+             "num": "number", "#": "number", "id": "id number"}
+    things = [thing] + [re.sub(rf"(?<![a-z]){re.escape(a)}(?![a-z])", b, thing) for a, b in short.items()
+                        if re.search(rf"(?<![a-z]){re.escape(a)}(?![a-z])", thing)]
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         # "What's our room number" is answered by "the hotel room number is 312".
         owner = "my" if whose == "my" else "(?:my|our|the)(?: [a-z]+){0,2}"
-        if re.match(rf"^(?:that )?{owner} {re.escape(thing)}s? (?:is|are|=) \S", said.casefold()):
+        if any(re.match(rf"^(?:that )?{owner} {re.escape(t)}s? (?:is|are|=) \S", said.casefold()) for t in things):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     # "What's my address" a turn after "my address is 12 Oak St" (2026-10-08:
     # to the planner): a fact of his profile, read where it is kept.
