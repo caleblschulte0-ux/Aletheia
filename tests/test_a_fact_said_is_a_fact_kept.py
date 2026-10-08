@@ -7203,6 +7203,19 @@ class WhatHeDidOnSaturday(unittest.TestCase):
         self.assertTrue(said in ("Nothing ticked off your list on Saturday.", "Nothing ticked off your list today."), said)
 
 
+class HowLongUntilBedtime(unittest.TestCase):
+    def test_from_his_note_or_said_plainly(self):
+        # 2026-10-08: to a model.
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_reminder", return_value=(None, "")), \
+                mock.patch.object(quick, "_notes", return_value=[{"text": "I go to bed at 11 usually"}]):
+            said = quick.answer("how long until bedtime")
+        self.assertIn("11 pm", said)
+        with mock.patch.object(intercom, "_one_reminder", return_value=(None, "")), \
+                mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("haven't told me a bedtime", quick.answer("how long until bed"))
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

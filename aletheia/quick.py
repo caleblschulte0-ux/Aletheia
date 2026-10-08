@@ -4050,6 +4050,8 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     # (2026-09-23 night sweep: it fell through here to a model).
     if re.fullmatch(r"(?:my |the )?next (?:meeting|appointment|event)", " ".join(str(words or "").casefold().split())):
         return _next_meeting(until=True)
+    if re.fullmatch(r"(?:my )?(?:bedtime|bed time|bed)", " ".join(str(words or "").casefold().split())):
+        return _until_bedtime()
     # "How many days until the end of the month" (2026-10-07: no answer).
     end = re.fullmatch(r"(?:the )?end of (?:the |this )?(month|year)", " ".join(str(words or "").casefold().split()))
     if end:
@@ -4084,6 +4086,54 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     if which_day:
         return f"{said}, {days} days from now."
     return f"{days} days, {said}."
+
+
+def _until_bedtime() -> str:
+    """"How long until bedtime" (2026-10-08: to a model): his bedtime
+    reminder, or the bedtime he told her, from now."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    at, why = None, ""
+    try:
+        from aletheia import intercom, scheduler
+        found, _w = intercom._one_reminder("bed")
+        if found is not None:
+            at = scheduler.next_occurrence(found, now)
+            why = "your bedtime reminder"
+    except Exception:  # noqa: BLE001
+        at = None
+    if at is None:
+        for row in _notes():
+            m = re.match(r"i (?:usually |normally |always )?(?:go to bed|go to sleep|turn in) (?:at |around |by )?"
+                         r"(\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?)", " ".join(str(row.get("text") or "").split()), re.I)
+            if m:
+                from aletheia import voice
+                hhmm = voice._spoken_time(m.group(1))
+                if hhmm:
+                    hour, minute = map(int, hhmm.split(":"))
+                    if voice._is_bare_hour(m.group(1)) and 6 <= hour <= 11:
+                        hour += 12
+                    at = now.replace(hour=hour % 24, minute=minute, second=0, microsecond=0)
+                    if at <= now:
+                        at += dt.timedelta(days=1)
+                    why = "the bedtime you told me"
+                break
+    if at is None:
+        return "You haven't told me a bedtime. Say \"remind me to go to bed at 10:30 every night\" and I'll keep it."
+    def span_of(minutes):
+        hours, mins = divmod(max(1, minutes), 60)
+        return " and ".join(p for p in (f"{hours} hour{'s' if hours != 1 else ''}" if hours else "",
+                                        f"{mins} minute{'s' if mins != 1 else ''}" if mins else "") if p)
+    at = at.astimezone(tz)
+    gone = int((now - (at - dt.timedelta(days=1))).total_seconds() // 60)
+    clock = at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    if 0 < gone < 6 * 60:
+        # Asked at 1 am, "22 hours" is true and useless: bedtime has gone by.
+        return f"Past it - {why} was {clock}, {span_of(gone)} ago."
+    span = span_of(int((at - now).total_seconds() // 60))
+    return f"{span[:1].upper() + span[1:]} - {why} is {speech.humanize_time(at.isoformat())}."
 
 
 def _holiday_year(text: str) -> str | None:
