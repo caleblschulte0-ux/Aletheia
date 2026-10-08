@@ -10372,6 +10372,21 @@ def _interpret(transcript: str) -> dict:
                     r"(?: again)?(?: today| tonight| this morning| last night)?", low) \
             or re.fullmatch(r"(?:my |the |our )(?:[a-z]+(?:'s|s'|s) )?[a-z][a-z]{1,15}(?: [a-z]{2,15})? (?:keeps|won't stop|wont stop|will not stop) (?!it\b)[a-z]{3,15}ing(?: [a-z ]{1,25})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The baby is named Lily" a turn after "my sister had her baby", "my
+    # dad got out of the hospital" (2026-10-08: both to the planner).
+    m = re.fullmatch(r"(?:the |her |his |their )?baby(?:'s name)? is (?:named |called )?(?P<n>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)"
+                     r"|(?:they|she|he) named (?:the baby|her|him|it) (?P<n2>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m and _said_as_a_title(text, m.group("n") or m.group("n2")):
+        name = _as_he_said(text, m.group("n") or m.group("n2"))
+        before = _previous_turn()[0].casefold()
+        whose = re.search(r"\b(my [a-z]+(?: in law)?)(?:'s wife)? (?:had|has had|just had) (?:her|his|their|a|the) baby\b", before)
+        if m.group("n2") and "baby" not in before and not re.search(r"\bthe baby\b", low):
+            # "They named her Lily" is a baby only right after one.
+            return {"command": {"kind": "intent", "text": text}, "say": None}
+        return {"command": {"kind": "note", "text": f"{whose.group(1)}'s baby is named {name}" if whose else f"the baby is named {name}"},
+                "say": None}
+    if re.fullmatch(r"(?:my |our )[a-z]+(?: in law)? (?:got out of|came home from|is out of|was discharged from|is home from|left|is back home from) the hospital(?: today| yesterday| this morning)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I started a new medication called lisinopril", "I stopped taking
     # lisinopril", "the doctor took me off lisinopril" (2026-10-08: to the
     # planner), kept the way "what medications am I on" reads them.

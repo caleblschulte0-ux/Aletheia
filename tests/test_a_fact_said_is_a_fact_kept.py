@@ -10284,5 +10284,35 @@ class WhatHeTakes(unittest.TestCase):
                              "You told me: you started taking metformin and you take vitamin D every morning.")
 
 
+class FamilyNews(unittest.TestCase):
+    """A sweep of family news (2026-10-08): the baby's name and a parent
+    coming home from the hospital went to the planner, and "what am I
+    doing Sunday" said its one reminder twice."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("the baby is named Lily")["command"], {"kind": "note", "text": "the baby is named Lily"})
+        with mock.patch.object(voice, "_previous_turn", return_value=("my sister had her baby", "That's lovely news")):
+            self.assertEqual(voice._interpret("they named her Lily Rose")["command"]["text"], "my sister's baby is named Lily Rose")
+        with mock.patch.object(voice, "_previous_turn", return_value=("", "")):
+            self.assertNotEqual(voice._interpret("they named her Lily Rose")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("my dad got out of the hospital")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "my sister's baby is named Lily"}, {"text": "my dad got out of the hospital"}, {"text": "my dad is in the hospital"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("is my dad still in the hospital"), "No - you told me your dad got out of the hospital.")
+            self.assertEqual(quick.answer("what was the baby named"), "Lily - you told me your sister's baby is named Lily.")
+            self.assertIsNone(quick.answer("is my mom still in the hospital"))
+        with mock.patch.object(quick, "_notes", lambda: rows[2:]):
+            self.assertEqual(quick.answer("is my dad still in the hospital"),
+                             "As far as you've told me, yes: your dad is in the hospital.")
+
+    def test_one_reminder_is_said_once(self):
+        empty = "Nothing on your calendar Sunday. You do have 1 reminder: Sunday at 9 am, call your mom."
+        with mock.patch.object(quick, "_agenda", return_value=empty), \
+                mock.patch.object(quick, "_reminders_on", return_value="1 reminder on Sunday: 9 am, call your mom."):
+            self.assertEqual(quick._agenda_and_reminders("sunday"), empty)
+
+
 if __name__ == "__main__":
     unittest.main()
