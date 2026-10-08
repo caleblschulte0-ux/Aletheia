@@ -194,7 +194,9 @@ SUBJECT_KINDS = {"memory": "remember", "task": "task_new"}
 SPEAKS_FOR_ITSELF = ("planner", "intent", "scheduling", "applications", "work", "approval", "session",
                      # "apply: was refused by the site at..." and "jobs: I found 14009
                      # openings today" on his page (2026-09-24): labels on sentences.
-                     "apply", "jobs")
+                     "apply", "jobs",
+                     # "calendar:: released the hold on lunch with Sam" (2026-10-08).
+                     "calendar")
 
 #: A line that labels itself. "Did it:" is how the planner marks a finished
 #: plan on a SCREEN, where the label is doing work. Read back in answer to
@@ -282,7 +284,7 @@ def _row(entry: dict) -> dict:
                 else f"{subject}: {said}")
     what = _SELF_LABEL.sub("", what).strip() or what
     what = _whole_words(what, TEXT_CHARS)
-    if head in ("apply", "jobs") and what[:1].islower():
+    if head in ("apply", "jobs", "calendar") and what[:1].islower():
         # Their lines start mid-sentence ("was refused by the site at ...");
         # every other subject keeps its own first word - "refused — no
         # address" and "repo:aletheia: ..." are read exactly as written.
@@ -397,8 +399,14 @@ def _something_she_did(entry: dict) -> bool:
 
 def _once_each(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
-    for row in rows:
+    for i, row in enumerate(rows):
         if out and out[-1]["what"] == row["what"] and out[-1]["at"] == row["at"]:
+            continue
+        # One act, two writers: the hold store's "released the hold on X"
+        # beside the command's "Took X ... off your calendar" (2026-10-08).
+        gone = re.match(r"released the hold on (.+)", str(row["what"]), re.I)
+        if gone and any("off your calendar" in str(r["what"]) and gone.group(1).casefold() in str(r["what"]).casefold()
+                        for r in rows[max(0, i - 2):i + 3]):
             continue
         out.append(row)
     return out

@@ -698,6 +698,9 @@ def spoken_receipt(kind: str, detail: str, *,
         if when and what:
             days = when.group(1)
             lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
+            if what.group(1).strip().casefold() == "wake up":
+                # "Weekdays at 7 am I'll remind you: wake up" (2026-10-08).
+                return f"Alarm set for {lead} at {clock_words(when.group(2))}."
             return (f"{lead[0].upper()}{lead[1:]} at "
                     f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_yours(what.group(1))}.")
@@ -722,6 +725,12 @@ def spoken_receipt(kind: str, detail: str, *,
     if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
         return text
     if kind == "reminder_off":
+        # "reminder r1 skipped — take your vitamins won't go off tomorrow at
+        # 9 am; next Saturday at 9 am": one time only (2026-10-08).
+        skipped = re.search(r"skipped\s*[—-]\s*(.+?) won't go off (.+?)(?:; next (.+))?$", text)
+        if skipped:
+            what, when, nxt = skipped.groups()
+            return (f"Skipped {when}: {what}." + (f" It's back {nxt}." if nxt else "")).replace("Skipped today at", "Skipped today's, at")
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"
         body = re.search(r"off\s*[—-]\s*(.+)$", text)

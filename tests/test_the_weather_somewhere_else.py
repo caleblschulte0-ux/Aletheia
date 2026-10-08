@@ -95,4 +95,4 @@ class HisRemindersOnADay(unittest.TestCase):
                 (tomorrow, "Dentist", "calendar")]
         with mock.patch.object(quick, "_coming", return_value=rows):
             said = quick.answer("what are my reminders for tomorrow")
-        self.assertEqual(said, "1 reminder tomorrow: 9 am, take my pills.")
+        self.assertEqual(said, "1 reminder tomorrow: 9 am, take your pills.")
