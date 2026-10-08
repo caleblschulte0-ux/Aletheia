@@ -12028,5 +12028,20 @@ class MoneyBothWays(unittest.TestCase):
                              "Sam owes you $15, but you owe Sam $20 - so on balance you owe Sam $5.")
 
 
+class PlanningAParty(unittest.TestCase):
+    def test_what_he_says_about_the_party_is_kept(self):
+        for said in ("I am planning a party for my wife", "I invited Sam, Mike and Jess", "the theme is 80s"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
+        held = voice.interpret("the party is on the 24th at 7")["command"]
+        self.assertEqual((held["kind"], held["start"][8:16]), ("calendar_hold", "24T19:00"))
+        self.assertEqual(voice.interpret("I put the keys on the counter")["command"]["kind"], "note")
+
+    def test_who_he_invited(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I invited Sam, Mike and Jess"}]):
+            self.assertEqual(quick.answer("who did I invite"), "You told me: you invited Sam, Mike and Jess.")
+            self.assertTrue(quick.answer("did I invite Jess").startswith("Yes"))
+            self.assertTrue(quick.answer("did I invite Tom").startswith("Not that you told me"))
+
+
 if __name__ == "__main__":
     unittest.main()

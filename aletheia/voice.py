@@ -8136,8 +8136,11 @@ def _interpret(transcript: str) -> dict:
                      r"(?:the|my|our|a) .+", low)
     # An appointment "is on the 15th" is a date, not a shelf (2026-10-07).
     if m and not re.search(r"\b(?:car|calendar|list|schedule|computer|pc|account|name|password|birthday"
-                           r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
-                           m.group("thing") or m.group("thing2") or ""):
+                           r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam"
+                           # "The party is on the 24th at 7" (2026-10-08: kept as where he put it).
+                           r"|party|wedding|shower|game|concert|recital|practice|conference|review|test|recital|reunion|trip|vacation)\b",
+                           m.group("thing") or m.group("thing2") or "") \
+            and not re.search(r"\b(?:on|in) the \d{1,2}(?:st|nd|rd|th)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I can not find my phone", "the remote is missing" (2026-10-08: to the
     # planner) ask the same thing.
@@ -11056,6 +11059,13 @@ def _interpret(transcript: str) -> dict:
                     r"(?: (?:today|this week|again))?", low) \
             or re.fullmatch(r"i (?:worked|am working|'m working|was working|will work|'ll work) (?:from home|remotely|remote|in the office|from the office)"
                             r"(?: (?:today|yesterday|this morning|this afternoon|tomorrow))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Planning a party (2026-10-08, each to the planner): "I'm planning a
+    # party for my wife", "I invited Sam, Mike and Jess", "the theme is 80s".
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:planning|throwing|hosting|having|putting together|organi[sz]ing) (?:a |an )?(?:surprise |birthday |retirement |going away |going-away |graduation |dinner |holiday |christmas |halloween |housewarming |baby shower |bridal shower )?"
+                    r"(?:party|shower|get together|get-together|barbecue|bbq|cookout|celebration)(?: for [a-z' ]{2,30})?(?: (?:on|this|next) [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"(?:i|we) (?:invited|have invited|'ve invited|asked) (?!(?:you|her|him|them|it)\b)[a-z][a-z ,'&]{1,80}?(?: (?:to|over for) (?:the |my |our )?[a-z ]{2,30})?", low) \
+            or re.fullmatch(r"the (?:party |wedding |shower )?(?:theme|dress code|color scheme|colou?rs) (?:is|are|will be) [a-z0-9][a-z0-9 '&-]{1,30}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
