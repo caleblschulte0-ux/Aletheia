@@ -3043,18 +3043,22 @@ def _logged(text: str) -> str | None:
     if g.get("logged_med"):
         med = g["logged_med"]
         stem = med[:-1] if med in ("pills", "tablets", "painkillers") else med
-        total, last = 0.0, None
+        total, last, last_said = 0.0, None, ""
         for at, said in rows:
             m = re.match(rf"i (?:just )?(?:took|had|taken) (?:(an?|one|two|three|four|\d+) )?(?:\w+ )?{stem}s?\b", said)
             if m and at >= start:
                 n = 1.0 if not m.group(1) or m.group(1) in ("a", "an") else amount(m.group(1))
                 if n:
                     total += n
-                    last = at if last is None or at > last else last
+                    if last is None or at > last:
+                        # "I took 2 advil at 3" said at 5:44 was "the last at
+                        # 5:44 am" (2026-10-08): the time he said, when he said one.
+                        told = re.search(r"\bat (\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)(?: today| this morning| this afternoon)?\s*$", said)
+                        last, last_said = at, (f"at {told.group(1)}" if told else "")
         if not total:
             return f"You haven't told me about any {med} {when}."
         return (f"{_plain(total)} {med if med.endswith('s') else med} {when}, the last "
-                f"{speech.humanize_time(last.isoformat()).replace('today ', '')}, from what you've told me.")
+                f"{last_said or speech.humanize_time(last.isoformat()).replace('today ', '')}, from what you've told me.")
     if g.get("logged_longest"):
         kind = g["logged_longest"]
         verb = {"run": "ran", "walk": "walked", "hike": "hiked", "bike ride": "biked", "ride": "biked", "swim": "swam",

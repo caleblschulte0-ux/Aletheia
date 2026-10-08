@@ -8381,5 +8381,19 @@ class AmIBusyTomorrowMorning(unittest.TestCase):
 
 
 
+class TheLastDoseIsWhenHeSaidHeTookIt(unittest.TestCase):
+    """"I took 2 advil at 3", said at 5:44, was counted as "the last at 5:44
+    am" (2026-10-08)."""
+
+    def test_the_time_he_said_is_the_time_said_back(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "I took 2 advil at 3", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("how much advil have I taken today")
+        self.assertIn("2 advil today, the last at 3", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()
