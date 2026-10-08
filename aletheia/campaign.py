@@ -1396,6 +1396,16 @@ def run(role: str = "", *, count: int = 5, resume: str = "", where: str = "",
     describe = describer or (jobs.posting_text if real_search else None)
     known_now = profile.known()
     early = bool(_seniority_to_leave_out(known_now))
+    # What is already filled in answers to his rules as they are NOW, before
+    # anything new is chosen: the send itself reads only a title.
+    if real_search:
+        try:
+            for row in job_fit.recheck_waiting(describe=describe, known=known_now):
+                journal.append("action", "campaign",
+                               f"closed a waiting application to {row['company'] or 'an employer'}: "
+                               f"{row['why']}", actor=ACTOR)
+        except Exception:
+            pass
     # VALUE ORDER, not title-overlap order: pay against his floor and the
     # place's cost of living, geography, the employer, recency, ease, and every
     # rule he cannot be talked out of - with the reasons written on each page

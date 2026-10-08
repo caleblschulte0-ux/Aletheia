@@ -547,6 +547,72 @@ def quick_reason(record: dict, resume_text: str = "", known: dict | None = None)
 WAITING_STATES = ("NEEDS_YOU", "AWAITING_YOU", "APPROVED")
 
 
+def rules_changed_at() -> str:
+    """When the newest rule a waiting application must pass came in: what he
+    said about the work, or his pay floor ("" if he has said neither)."""
+    stamps = [preferences_changed_at()]
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("pay_floor") or {}
+        if ruled.get("on"):
+            stamps += [str(q.get("on") or "") for q in ruled.get("quotes") or []]
+    except Exception:
+        pass
+    return max(stamps)
+
+
+def recheck_waiting(*, describe, known: dict | None = None, limit: int = 40) -> list[dict]:
+    """Every application already filled in, read again by the rules alone
+    against what he has said since, and closed when it no longer passes.
+
+    The rules ran when a job was CHOSEN, so a job chosen before a ruling was
+    sent under the old one: his "I'm not a cold caller" and his $95K floor
+    (2026-10-08 12:15Z) and an hour later two Sales Development
+    Representative applications filled the night before went out on the
+    standing grant, because the send reads only the title and the form's
+    questions. This reads the posting once per record per ruling - no
+    model - and stamps what passed, so the next batch skips it. A posting
+    that cannot be read is left for next time, never closed on a guess.
+    """
+    since = rules_changed_at()
+    if not since:
+        return []
+    from aletheia import apply_run, job_value, stateio
+    if known is None:
+        from aletheia import profile
+        known = profile.known()
+    out, read = [], 0
+    for record in [r for state in WAITING_STATES for r in apply_run.all_runs(state)]:
+        if record.get("engine") == apply_run.ENGINE_LOOP:
+            continue
+        if str(record.get("rechecked_at") or "") >= since:
+            continue
+        if read >= max(0, int(limit)):
+            break
+        read += 1
+        job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
+        try:
+            text = str(describe(job) or "")
+        except Exception:
+            text = ""
+        if not text:
+            continue
+        title = bare_title(job["job_title"], job["company"])
+        why = hard_reason(title, text, known=known) or job_value.under_his_floor(job, text)
+        if why:
+            try:
+                apply_run.close(record["id"], f"not realistic: {why}")
+            except Exception:
+                continue
+            out.append({"id": record["id"], "company": job["company"], "title": title, "why": why})
+            continue
+        try:
+            apply_run.remember(record["id"], rechecked_at=stateio.utcnow())
+        except Exception:
+            pass
+    return out
+
+
 def review_staged(*, apply: bool = False, think=None, describe=None,
                   resume_text: str = "", known: dict | None = None,
                   early: bool = True) -> list[dict]:
