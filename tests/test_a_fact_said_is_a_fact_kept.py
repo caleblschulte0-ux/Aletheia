@@ -7820,5 +7820,17 @@ class HowFarFromMyGoal(unittest.TestCase):
 
 
 
+class NothingSpentSaysHowToTellHer(unittest.TestCase):
+    def test_the_empty_spending_answer_names_the_sentence(self):
+        from aletheia import intercom
+        worth = {"accounts": 0, "assets": 0.0, "liabilities": 0.0, "net": 0.0}
+        with mock.patch("aletheia.finance.net_worth", return_value=worth), \
+                mock.patch("aletheia.finance.handoffs", return_value=[]):
+            said = intercom.execute_command({"kind": "money", "about": "spending"}, {}, quote="x")
+        self.assertIn("I spent 40 on gas", said)
+        self.assertIn("no bank connected", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

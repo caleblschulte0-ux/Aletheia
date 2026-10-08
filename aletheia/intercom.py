@@ -4556,6 +4556,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said = (f"You haven't got any accounts recorded, so I have no "
                     f"{about} to report. There's no bank connected - "
                     f"I can only hold what you or I record.")
+            if about == "spending":
+                # The way to record it, said where he asked (2026-10-08).
+                said = ("You haven't told me anything you spent, and there's no bank connected. "
+                        "Tell me as you go - \"I spent 40 on gas\" - and I'll add it up.")
             if about == "balance":
                 # "My checking account has 2400" is a note (2026-10-07), and
                 # this said nothing was recorded one breath later.
