@@ -2167,8 +2167,14 @@ def _emailed_code(employer: str | list = "", reader=None, since: float = 0.0) ->
             time.sleep(CODE_WAIT_S)
         return ""
     for _ in range(CODE_WAIT_TRIES):
+        # By DATE once the click is known, read or unread: a code he opened
+        # on his phone first is still this page's code, and the unread flag
+        # is how the inbox poll missed his mail until 2026-10-02.
         try:
-            unread = mail.SmtpImapTransport().fetch_unread(30)
+            transport = mail.SmtpImapTransport()
+            fetch_since = getattr(transport, "fetch_since", None)
+            unread = (fetch_since(since - 5.0, 30) if since and fetch_since
+                      else transport.fetch_unread(30))
         except Exception:
             unread = []
         mine = [m for m in unread

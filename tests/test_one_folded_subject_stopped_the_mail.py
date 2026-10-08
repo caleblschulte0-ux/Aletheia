@@ -201,3 +201,18 @@ class TheEmployerIsNamedTheWayTheEmailNamesItCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ACodeHeAlreadyOpenedIsStillThisPagesCode(unittest.TestCase):
+    def test_after_the_click_the_code_is_found_by_date_read_or_unread(self):
+        class ReadOnHisPhone(CodeTransport):
+            def fetch_unread(self, _limit):
+                return []                                   # he opened it
+            def fetch_since(self, since_epoch, _limit):
+                return CodeTransport.fetch_unread(self, _limit)
+        for target, name, value in ((mail, "SmtpImapTransport", ReadOnHisPhone),
+                                    (apply_run, "CODE_WAIT_TRIES", 1),
+                                    (apply_run, "CODE_WAIT_S", 0)):
+            p = mock.patch.object(target, name, value); p.start(); self.addCleanup(p.stop)
+        clicked = dt.datetime(2026, 9, 13, 5, 17, 24, tzinfo=dt.timezone.utc).timestamp()
+        self.assertEqual(apply_run._emailed_code("Acme Technologies", since=clicked), "acmeCD01")
