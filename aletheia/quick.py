@@ -7515,6 +7515,15 @@ def _saved(text: str) -> str | None:
             goal_by = by.group(1).strip() if by else ""
     if balance is not None:
         total = balance
+    # "How much should I save each month" after "I want to save 500 a month"
+    # (2026-10-08: nothing): the rate he set himself.
+    if g.get("saved_per") and not goal:
+        for row in _notes():
+            rate = re.search(r"\bsave \$?(\d[\d,]*)(k| thousand)?(?: dollars| bucks)? (?:a|per|each|every) (month|week|paycheck|year)\b",
+                             " ".join(str(row.get("text") or "").split()).casefold())
+            if rate:
+                amount = float(rate.group(1).replace(",", "")) * (1000 if rate.group(2) else 1)
+                return f"You said you want to save {_money(amount)} a {rate.group(3)}."
     if not total and not goal:
         return None
     span = f" {window}" if window and window not in ("so far", "in total", "total") else ""

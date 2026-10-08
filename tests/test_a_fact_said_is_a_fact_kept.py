@@ -12826,6 +12826,13 @@ class OutForTheWeekend(unittest.TestCase):
             self.assertIsNone(quick.answer("where are we eating tonight"))
 
 
+class ASavingsRate(unittest.TestCase):
+    def test_a_rate_is_a_goal_and_is_read_back(self):
+        self.assertEqual(voice.interpret("I want to save 500 a month")["command"]["text"], "My goal is to save 500 a month")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "My goal is to save 500 a month"}]):
+            self.assertEqual(quick.answer("how much should I save each month"), "You said you want to save $500 a month.")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
