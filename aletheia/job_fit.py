@@ -505,7 +505,8 @@ def verdict(job: dict, resume_text: str = "", known: dict | None = None, *,
     # When, and what kind of employment: a decision is only as current as what
     # he had said by then, and a part-time job is his to see before it goes.
     stamp = {"at": stateio.utcnow(), "employment": employment_type(title, text)}
-    why = hard_reason(title, text, resume_text=resume_text, known=known, early=early)
+    why = (rival_reason(company)
+           or hard_reason(title, text, resume_text=resume_text, known=known, early=early))
     if why:
         return {"realistic": False, "why": why, "by": "rules", **stamp}
     said = (judge(title, company, text, resume_text, think=think, known=known)
@@ -517,6 +518,32 @@ def verdict(job: dict, resume_text: str = "", known: dict | None = None, *,
     return {"realistic": True, "why": (said or {}).get("why", ""), "by": by, **stamp}
 
 
+def _folded(name: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", str(name or "").casefold()).split())
+
+
+def rival_reason(company: str) -> str:
+    """Why this employer is off limits as his employer's competitor, or "".
+
+    His ruling, 2026-10-08 (`config/rulings.json`, no-ecg-rivals): "refrain
+    from applying anywhere that's ECGs direct competition like enova". Matched
+    on whole words of the employer's name, so "Enova" is not "Renova"."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("rivals")
+    except Exception:
+        return ""
+    if not (ruled and ruled.get("on")):
+        return ""
+    name = f" {_folded(company)} "
+    if not name.strip():
+        return ""
+    for rival in ruled.get("employers") or []:
+        if f" {_folded(rival)} " in name:
+            return f"{rival} competes directly with his employer"
+    return ""
+
+
 def quick_reason(record: dict, resume_text: str = "", known: dict | None = None) -> str:
     """Why a staged application should not go, from what is ALREADY on it.
 
@@ -524,6 +551,9 @@ def quick_reason(record: dict, resume_text: str = "", known: dict | None = None)
     before a send. A verdict the campaign stored (`fit`) counts, and so do
     the rules that read a title alone.
     """
+    rival = rival_reason(record.get("company") or "")
+    if rival:
+        return rival
     fit = record.get("fit") if isinstance(record.get("fit"), dict) else {}
     if fit and fit.get("realistic") is False:
         return fit.get("why") or "the posting does not fit his resume"
@@ -545,6 +575,81 @@ def quick_reason(record: dict, resume_text: str = "", known: dict | None = None)
 
 
 WAITING_STATES = ("NEEDS_YOU", "AWAITING_YOU", "APPROVED")
+
+
+def rules_changed_at() -> str:
+    """When the newest rule a waiting application must pass came in: what he
+    said about the work, or his pay floor ("" if he has said neither)."""
+    stamps = [preferences_changed_at()]
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("pay_floor") or {}
+        if ruled.get("on"):
+            stamps += [str(q.get("on") or "") for q in ruled.get("quotes") or []]
+    except Exception:
+        pass
+    return max(stamps)
+
+
+def recheck_waiting(*, describe, known: dict | None = None, limit: int = 40) -> list[dict]:
+    """Every application already filled in, read again by the rules alone
+    against what he has said since, and closed when it no longer passes.
+
+    The rules ran when a job was CHOSEN, so a job chosen before a ruling was
+    sent under the old one: his "I'm not a cold caller" and his $95K floor
+    (2026-10-08 12:15Z) and an hour later two Sales Development
+    Representative applications filled the night before went out on the
+    standing grant, because the send reads only the title and the form's
+    questions. This reads the posting once per record per ruling - no
+    model - and stamps what passed, so the next batch skips it. A posting
+    that cannot be read is left for next time, never closed on a guess.
+    """
+    since = rules_changed_at()
+    if not since:
+        return []
+    from aletheia import apply_run, job_value, stateio
+    if known is None:
+        from aletheia import profile
+        known = profile.known()
+    out, read = [], 0
+    for record in [r for state in WAITING_STATES for r in apply_run.all_runs(state)]:
+        if record.get("engine") == apply_run.ENGINE_LOOP:
+            continue
+        if str(record.get("rechecked_at") or "") >= since:
+            continue
+        job = {k: record.get(k, "") for k in ("company", "job_title", "url", "posting")}
+        rival = rival_reason(job["company"])
+        if rival:
+            try:
+                apply_run.close(record["id"], f"not realistic: {rival}")
+                out.append({"id": record["id"], "company": job["company"],
+                            "title": bare_title(job["job_title"], job["company"]), "why": rival})
+            except Exception:
+                pass
+            continue
+        if read >= max(0, int(limit)):
+            break
+        read += 1
+        try:
+            text = str(describe(job) or "")
+        except Exception:
+            text = ""
+        if not text:
+            continue
+        title = bare_title(job["job_title"], job["company"])
+        why = hard_reason(title, text, known=known) or job_value.under_his_floor(job, text)
+        if why:
+            try:
+                apply_run.close(record["id"], f"not realistic: {why}")
+            except Exception:
+                continue
+            out.append({"id": record["id"], "company": job["company"], "title": title, "why": why})
+            continue
+        try:
+            apply_run.remember(record["id"], rechecked_at=stateio.utcnow())
+        except Exception:
+            pass
+    return out
 
 
 def review_staged(*, apply: bool = False, think=None, describe=None,

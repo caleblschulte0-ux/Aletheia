@@ -731,7 +731,10 @@ REMEMBERED = ("job_title", "company", "posting", "found_on", "answered_for_you",
               "angle",
               # How many times this form has been filled in (`stage` counts every
               # rebuild), so a form that refused is not rebuilt every batch for ever.
-              "stagings")
+              "stagings",
+              # When the rules alone last read its posting again
+              # (`job_fit.recheck_waiting`), so a ruling is applied once per record.
+              "rechecked_at")
 # What an employer did about an application he sent, in his words. "No
 # answer yet" is not one: that is the absence of an outcome, not an outcome.
 OUTCOMES = ("replied", "interview", "offer", "rejected", "closed")
