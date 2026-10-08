@@ -681,9 +681,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # holds the answer to every one.
     ("tasks_done", re.compile(
         r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off|accomplish(?:ed)?|achieve(?:d)?)"
-        r"(?P<what> today| yesterday| this week)?$"
+        r"(?P<what> today| yesterday| this week| last week| last weekend| this weekend| over the weekend"
+        r"| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^what (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|do|done|get done|tick(?:ed)? off)"
-        r"(?P<what2> today| yesterday| this week)?$"
+        r"(?P<what2> today| yesterday| this week| last week| last weekend)?$"
         r"|^(?:what(?:'s| is|s)? (?:on )?)?my (?:done|finished|completed) (?:list|tasks)$"
         r"|^(?:which|what) tasks? (?:did|have) i (?:finish|finished|complete|completed|tick off|ticked off)\s*\??$"
         r"|^(?:finished|completed|done) tasks\s*\??$"
@@ -5165,8 +5166,20 @@ def _tasks_done(when: str = "") -> str:
     when = asked or "today"
     tz = localtime.operator_tz()
     today = dt.datetime.now(tz).date()
+    monday = today - dt.timedelta(days=today.weekday())
     first, last = {"yesterday": (today - dt.timedelta(days=1),) * 2,
-                   "this week": (today - dt.timedelta(days=today.weekday()), today)}.get(when, (today, today))
+                   "this week": (monday, today),
+                   # "What did I do on Saturday", "last weekend" (2026-10-08: to a model).
+                   "last week": (monday - dt.timedelta(days=7), monday - dt.timedelta(days=1)),
+                   "last weekend": (monday - dt.timedelta(days=2), monday - dt.timedelta(days=1)),
+                   "over the weekend": (monday - dt.timedelta(days=2), monday - dt.timedelta(days=1)),
+                   "this weekend": (monday + dt.timedelta(days=5), min(today, monday + dt.timedelta(days=6))),
+                   }.get(when, (today, today))
+    day = re.fullmatch(r"(?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)", when)
+    if day:
+        back = (today.weekday() - _WEEKDAYS.index(day.group(1))) % 7
+        first = last = today - dt.timedelta(days=back)
+        when = "today" if back == 0 else f"on {day.group(1).capitalize()}"
     done, earlier = [], []
     for t in tasks.all_tasks():
         if str(t.get("status") or "").upper() != "COMPLETED" or not tasks.is_his(t):

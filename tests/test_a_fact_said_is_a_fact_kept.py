@@ -7193,6 +7193,16 @@ class DoneForTheDay(unittest.TestCase):
             self.assertIn("nothing open", voice._interpret("I finished everything")["say"])
 
 
+class WhatHeDidOnSaturday(unittest.TestCase):
+    def test_a_past_weekday_and_last_weekend(self):
+        # 2026-10-08: both to a model.
+        from aletheia import tasks
+        with mock.patch.object(tasks, "all_tasks", return_value=[]), mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn(quick.answer("what did I do last weekend"), ("Nothing ticked off your list last weekend.",))
+            said = quick.answer("what did I do on saturday")
+        self.assertTrue(said in ("Nothing ticked off your list on Saturday.", "Nothing ticked off your list today."), said)
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
