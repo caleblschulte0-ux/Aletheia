@@ -372,6 +372,60 @@ def _book_the_link(url: str, event: dict, entry: dict, *, company: str, window: 
             "url": url}
 
 
+_CONFIRMS = re.compile(
+    r"\bconfirm(?:ed|ing|ation)\b|\ball set\b|\byou(?:'|’| a)?re (?:all )?(?:scheduled|booked)\b"
+    r"|\bhas been (?:scheduled|booked)\b|\bis (?:now )?(?:scheduled|booked)\b", re.I)
+#: An email that confirms a time and still asks for one is an ask.
+_STILL_ASKS = re.compile(r"\b(?:what|which) (?:times?|days?) (?:work|suit)|\bplease (?:submit|send|share|provide)"
+                         r"[^.]{0,40}\bavailab|\bnot (?:yet )?confirmed\b|\bonce (?:you )?confirm", re.I)
+
+
+def confirms(subject: str, text: str) -> bool:
+    """Does this email confirm an interview time, rather than ask for one?"""
+    from aletheia import reply_understanding as ru
+    fresh = ru.fresh_text(text)[:4000]
+    return bool(_CONFIRMS.search(f"{subject}\n{fresh}")) and not _STILL_ASKS.search(fresh)
+
+
+def _confirmed(slot: dict, event: dict, entry: dict, *, company: str, window: dict,
+               marker=None, notify=None, calendar_writer=None) -> dict:
+    """An interview time the employer confirmed: on her calendar as CONFIRMED,
+    on the Open Range Interactive calendar, and said to him once. No reply is
+    drafted - there is nothing to answer. Never raises past `consider`."""
+    from aletheia import calendar as cal, calendly, notifications
+    eid = f"interview-{re.sub(r'[^a-z0-9]+', '-', company.casefold())[:30]}-{slot['start'][:10]}"
+    hold = None
+    try:
+        hold = cal.create(eid, f"Interview: {company}", slot["start"], slot["end"], source="interviews",
+                          status="CONFIRMED", movable=False)
+    except FileExistsError:
+        # Her own earlier pencil mark for the same day becomes the real time.
+        try:
+            hold = cal.update(eid, start=slot["start"], end=slot["end"], status="CONFIRMED", movable=False)
+        except Exception:
+            hold = {"id": eid}
+    except Exception:
+        hold = None
+    live = (calendar_writer or calendly.put_on_his_calendar)(title=f"Interview: {company}",
+                                                             start=slot["start"], end=slot["end"])
+    if entry.get("id"):
+        try:
+            from aletheia import apply_run
+            (marker or apply_run.mark)(entry["id"], "interview",
+                                       note=f"confirmed for {said_when(slot['start'], window)}")
+        except Exception:
+            pass
+    sentence = (f"{company} confirmed your interview for {said_when(slot['start'], window)}"
+                + (f"; {live['say']}" if live.get("say") else (" and it is on your calendar" if hold else ""))
+                + ".")
+    (notify or notifications.publish)(
+        f"{company} interview confirmed", sentence, priority="IMPORTANT", source="interviews",
+        about=notifications.CHANGED, dedupe_key=f"interview:{entry.get('id')}:{event.get('id')}",
+        related={"application": entry.get("id"), "event": (hold or {}).get("id", "")})
+    journal.append("action", "interviews", sentence, actor=ACTOR)
+    return {"state": "confirmed", "chosen": slot, "hold": (hold or {}).get("id"), "live": live.get("state")}
+
+
 def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.datetime | None = None,
              busy=None, drafter=None, holder=None, marker=None, notify=None, known: dict | None = None,
              booker=None, calendar_writer=None, filler=None) -> dict:
@@ -400,6 +454,19 @@ def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.
             return _book_the_link(links[0], event, entry, company=company, window=window, busy=busy,
                                   now=now, known=known, marker=marker, notify=notify, booker=booker,
                                   calendar_writer=calendar_writer)
+        # A TIME THEY CONFIRMED IS NOT A TIME THEY ASKED FOR. Live
+        # 2026-10-08, Via: "I've got the details for your phone interview all
+        # set up: Oct 13, 2026 1:00pm-1:30pm". Read as an ask, it would have
+        # drafted a reply picking the time they had just confirmed and left
+        # only a TENTATIVE pencil mark where his ruling wants it "on the
+        # calendar, the Open Range Interactive Calendar".
+        if text and confirms(subject, text):
+            from aletheia import reply_understanding as ru
+            times = ru.extract_times(ru.fresh_text(text), reference=now, timezone=window["timezone"],
+                                     minutes=DURATION_MIN)
+            if len({t["start"] for t in times}) == 1:
+                return _confirmed(times[0], event, entry, company=company, window=window,
+                                  marker=marker, notify=notify, calendar_writer=calendar_writer)
         pages = calendly.find_availability_links(text) if text else []
         if pages:
             return _availability_page(pages[0], event, entry, company=company, window=window, busy=busy,
