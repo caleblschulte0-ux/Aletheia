@@ -3839,6 +3839,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "shopping_off", "item": item},
                 "say": None}
 
+    # "Add 2 pounds of chicken" (2026-10-08: to the planner): an amount of a
+    # thing, with no list named, is the shopping list - the amount kept.
+    m = re.fullmatch(r"add (?P<item>(?:a|an|one|two|three|four|five|six|a few|a couple(?: of)?|\d+(?:\.\d+)?|half a)"
+                     r" (?:pounds?|lbs?|kilos?|kg|cans?|bags?|boxes?|bottles?|dozen|gallons?|packs?|packages?|loaves|loaf|jars?"
+                     r"|cartons?|bunch(?:es)?|heads?|sticks?|rolls?|cases?|liters?|litres?|ounces?|oz)"
+                     r"(?: of)? [a-z][a-z' -]{1,30})", low)
+    if m and not re.search(r"\b(?:to|on|for|from|into|task|reminder|note|calendar)\b", m.group("item")):
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item"))}, "say": None}
     # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
     # place a bare thing goes. A verb is a task; anything naming another
     # store, or with a preposition in it, is left to the patterns for those.

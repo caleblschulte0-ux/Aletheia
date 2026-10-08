@@ -498,6 +498,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?P<liked>movies?|films?|shows?|books?|restaurants?|places?|songs?|albums?|games?) (?:did|have) i (?:like|liked|love|loved|enjoy|enjoyed)\s*\??$"
         r"|^what did i (?:rate|give) (?:the |that )?(?P<rated>[a-z0-9][a-z0-9' -]{1,40}?)\s*\??$")),
     # "What did I add to the list today" (2026-10-07: to the planner).
+    # "How much chicken do I need" a turn after "add 2 pounds of chicken"
+    # (2026-10-08: "I can't think"): the amount on the list. None when the
+    # list holds no such thing, so a recipe question still reaches a model.
+    ("shop_qty", re.compile(
+        r"^how (?:much|many) (?P<shop_qty>[a-z][a-z' -]{1,25}?) (?:do|did) (?:i|we) (?:need|need to (?:get|buy)|have on (?:my|the) list)\s*\??$")),
     ("shop_added", re.compile(
         r"^what (?:did i|have i|did we|have we) (?:add|added|put)(?: on| to)? (?:to |on )?(?:my |the |our )?(?:shopping |grocery )?list"
         r"(?: (?P<shop_added>today|yesterday|this week))?\s*\??$")),
@@ -2743,7 +2748,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -8936,6 +8941,24 @@ def _told_on(rest) -> str:
 _CALLED = r"\b(?:called|rang|texted|messaged|stopped by|came by|dropped by|came over|phoned)\b"
 
 
+def _shop_qty(rest) -> str | None:
+    """The amount of a thing on his shopping list, in his words."""
+    thing = " ".join(str(rest or "").casefold().split())
+    if not thing:
+        return None
+    try:
+        from aletheia import intercom
+        rows = intercom._shopping_items()
+    except Exception:
+        return None
+    stem = thing[:-1] if len(thing) > 3 and thing.endswith("s") else thing
+    for row in rows or []:
+        need = " ".join(str(row.get("need") or "").split())
+        if re.search(rf"\b{re.escape(stem)}", need.casefold()) and re.search(r"\d|\b(?:a|an|one|two|three|four|five|six|dozen|half)\b", need.casefold()):
+            return f"Your list says {need}."
+    return None
+
+
 def _who_called(rest) -> str:
     """Who he told her called or came by, from the day's notes."""
     import datetime as dt
@@ -13611,6 +13634,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),
            "how_did_i_do": _how_did_i_do,

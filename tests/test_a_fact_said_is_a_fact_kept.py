@@ -7840,5 +7840,17 @@ class WhatRecurringRemindersDoIHave(unittest.TestCase):
 
 
 
+class AnAmountGoesOnTheListAndIsReadBack(unittest.TestCase):
+    def test_add_an_amount_is_shopping(self):
+        self.assertEqual(voice._interpret("add 2 pounds of chicken")["command"],
+                         {"kind": "shopping_add", "item": "2 pounds of chicken"})
+
+    def test_how_much_reads_the_amount(self):
+        with mock.patch("aletheia.intercom._shopping_items", return_value=[{"need": "2 pounds of chicken"}]):
+            self.assertEqual(quick.answer("how much chicken do I need"), "Your list says 2 pounds of chicken.")
+            self.assertIsNone(quick.answer("how much flour do I need"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
