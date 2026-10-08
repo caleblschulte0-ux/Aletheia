@@ -3602,7 +3602,7 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need) to (?P<v>watch|see|read) (?P<t>[a-z0-9].{1,60}?)"
                      r"(?: (?:sometime|someday|soon|at some point|one day|eventually))?", low)
     if m and not re.match(r"(?:a|an|some|something|anything|more|less|it|that|this|them|tv|television|the news|the game"
-                          r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)", m.group("t")) \
+                          r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)\b", m.group("t")) \
             and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
         listed = "reading" if m.group("v") == "read" else "watch"
         return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}

@@ -6080,8 +6080,9 @@ class WatchAndReadingLists(unittest.TestCase):
         self.assertEqual(voice._interpret("I want to watch Oppenheimer")["command"],
                          {"kind": "list_add", "list": "watch", "item": "Oppenheimer"})
         self.assertEqual(voice._interpret("I want to read Circe")["command"]["list"], "reading")
-        got = voice._interpret("I want to watch a movie tonight")
-        self.assertNotEqual((got.get("command") or {}).get("kind"), "list_add")
+        for said in ("I want to watch a movie tonight", "I want to watch the news", "I want to read something"):
+            got = voice._interpret(said)
+            self.assertNotEqual((got.get("command") or {}).get("kind"), "list_add", said)
         self.assertEqual(voice._interpret("I'm reading Project Hail Mary")["command"]["text"], "I'm reading Project Hail Mary")
         self.assertEqual(voice._interpret("what movies do I want to watch")["command"], {"kind": "list_read", "list": "watch"})
 
