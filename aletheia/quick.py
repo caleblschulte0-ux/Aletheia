@@ -1975,7 +1975,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("until_weeks", re.compile(r"^how many (?P<what2>weeks|months) (?:until|till|to|before) (?:the )?(?P<what>[a-z][a-z' ]{2,30}?)$")),
     ("tip", re.compile(r"^(?:what(?:'s| is|s)?|how much is|calculate) (?:a |the )?(?P<what>\d{1,2}(?:\.\d)?) ?(?:%|percent) tip on "
                        r"(?:a |an )?\$?(?P<what2>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$"
-                       r"|^(?:what(?:'s| is|s)? the )?tip on \$?(?P<what3>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$"
+                       r"|^(?:(?:what(?:'s| is|s)?|how much is) the )?tip on \$?(?P<what3>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$"
                        r"|^how much (?:should i|do i) tip on (?:a |an )?\$?(?P<what4>[\d,]+(?:\.\d{1,2})?)(?: dollars?| bucks)?(?: bill)?$")),
     # "HOW MUCH IS 50 EUROS IN DOLLARS" (2026-10-07: to a model, which
     # cannot know today's rate). The ECB's published rate, or "I couldn't
@@ -2102,7 +2102,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is) \$?(?P<bill2>[\d.,]+)(?: dollars)? split (?P<ways2>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten) ways$"
         # "Split 120 between 4" (2026-10-07: to the planner).
         r"|^(?:split|divide) (?:a |the )?\$?(?P<bill3>[\d.,]+)(?: dollars?| bucks)?(?: bill| check)? (?:between|among|by|with|for) "
-        r"(?P<ways3>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: people| of us| ways| friends)?$")),
+        r"(?P<ways3>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: people| of us| ways| friends)?$"
+        # "Split 120 three ways with tip" (2026-10-08: refused as spending).
+        # Arithmetic on a bill, with the tip said or a 20% one named.
+        r"|^(?:split|divide) (?:a |the )?\$?(?P<bill4>[\d.,]+)(?: dollars?| bucks)?(?: bill| check)? (?:(?:between|among|by|for) )?"
+        r"(?P<ways4>\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)(?: people| of us| ways| friends)?"
+        r",? (?:with|plus|including|and) (?:a )?(?:(?P<tip_pct>\d{1,2}) ?(?:%|percent) )?(?:tip|gratuity)$")),
     ("area", re.compile(
         r"^(?:what(?:'s| is) the )?(?:square footage|area) of (?:a )?(?P<w>[\d.]+) by (?P<l>[\d.]+)(?: room| foot room)?$"
         r"|^how many square feet is (?:a )?(?P<w2>[\d.]+) by (?P<l2>[\d.]+)(?: room)?$")),
@@ -6344,13 +6349,18 @@ def _height_cm(text: str) -> str | None:
 def _split(text: str) -> str | None:
     g = _groups("split", text)
     try:
-        bill = float((g.get("bill") or g.get("bill2") or g.get("bill3")).replace(",", ""))
-        raw = g.get("ways") or g.get("ways2") or g.get("ways3")
+        bill = float((g.get("bill") or g.get("bill2") or g.get("bill3") or g.get("bill4")).replace(",", ""))
+        raw = g.get("ways") or g.get("ways2") or g.get("ways3") or g.get("ways4")
         ways = int(raw) if raw.isdigit() else _WAYS[raw]
     except (AttributeError, KeyError, ValueError):
         return None
     if ways < 2:
         return None
+    if g.get("bill4"):
+        pct = int(g.get("tip_pct") or 20)
+        total = bill * (1 + pct / 100)
+        return (f"With a {pct}% tip, {_money(round(total / ways, 2))} each - {_money(round(total, 2))} in all."
+                + ("" if g.get("tip_pct") else " Say \"with a 15% tip\" for a different one."))
     return f"{_money(round(bill / ways, 2))} each."
 
 

@@ -6023,5 +6023,15 @@ class GasAndMilesToTheOilChange(unittest.TestCase):
             self.assertIn("don't know your mileage", quick.answer("how many miles until my oil change"))
 
 
+class ASplitWithATipIsArithmetic(unittest.TestCase):
+    """2026-10-08: "split 120 three ways with tip" was refused as spending,
+    and "how much is the tip on 64 dollars" went to a model."""
+
+    def test_each(self):
+        self.assertTrue(quick.answer("split 120 three ways with tip").startswith("With a 20% tip, $48 each - $144 in all."))
+        self.assertTrue(quick.answer("split 120 between 4 with a 15% tip").startswith("With a 15% tip, $34.50 each"))
+        self.assertIn("20% is $12.80", quick.answer("how much is the tip on 64 dollars"))
+
+
 if __name__ == "__main__":
     unittest.main()
