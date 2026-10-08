@@ -146,7 +146,10 @@ class WhatIsAhead(unittest.TestCase):
         self.assertEqual(voice._interpret("is friday free")["command"]["kind"], "free_time")
 
     def test_a_title_keeps_no_next(self):
-        self.assertEqual(voice._interpret("schedule lunch with sam next tuesday at noon")["command"]["title"],
+        # A weekday four days out, so "next" is never the near one that is asked about.
+        from aletheia import localtime
+        day = voice.WEEKDAYS[(localtime.today().weekday() + 4) % 7]
+        self.assertEqual(voice._interpret(f"schedule lunch with sam next {day} at noon")["command"]["title"],
                          "lunch with sam")
 
     def test_due_and_overdue_asked_about_tasks(self):

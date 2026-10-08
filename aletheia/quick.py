@@ -6752,7 +6752,7 @@ _HOW_TO = {
              'Say "what notes do I have", or "what did I tell you about the plumber".'),
     "list": ('Say "add milk to my shopping list", or "make a packing list" for a new one.',
              'Say "take milk off my shopping list".', 'Say "what\'s on my shopping list".'),
-    "event": ('Say "add a dentist appointment next Tuesday at 10" and I\'ll put a hold on your calendar.',
+    "event": ('Say "add a dentist appointment on Tuesday at 10" and I\'ll put a hold on your calendar.',
               "I can't take things off your calendar yet - only add holds. Remove it in your calendar itself.",
               'Say "what\'s on my calendar tomorrow".'),
     "stopwatch": ('Say "start a stopwatch".', 'Say "stop the stopwatch".', 'Say "how long has the stopwatch been running".'),

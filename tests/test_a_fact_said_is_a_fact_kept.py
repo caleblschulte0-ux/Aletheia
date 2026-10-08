@@ -1261,8 +1261,11 @@ class AnAppointmentOnADateCase(unittest.TestCase):
 class NextTuesdayOnTheCalendarCase(unittest.TestCase):
     def test_a_meeting_next_tuesday_is_held_like_lunch_next_tuesday(self):
         from aletheia import voice
-        told = voice._interpret("i have a meeting next tuesday at 3")["command"]
-        asked = voice._interpret("schedule a meeting next tuesday at 3")["command"]
+        # A weekday four days out, so "next" is never the near one that is asked about.
+        from aletheia import localtime
+        day = voice.WEEKDAYS[(localtime.today().weekday() + 4) % 7]
+        told = voice._interpret(f"i have a meeting next {day} at 3")["command"]
+        asked = voice._interpret(f"schedule a meeting next {day} at 3")["command"]
         self.assertEqual(told["kind"], "calendar_hold")
         self.assertEqual(told["start"], asked["start"])
 
@@ -2995,7 +2998,7 @@ class HowDoIUseHer(unittest.TestCase):
         # Every sentence it recommends is one she understands without a model.
         for said in ("remind me at 3 to call the dentist", "wake me up at 6", "set a timer for 10 minutes",
                      "add call the vet to my list", "note that the plumber is coming Friday",
-                     "add a dentist appointment next Tuesday at 10", "start a stopwatch", "cancel the timer",
+                     "add a dentist appointment on Tuesday at 10", "start a stopwatch", "cancel the timer",
                      "turn off my 7 am alarm", "take milk off my shopping list", "make a packing list"):
             self.assertTrue((voice._interpret(said) or {}).get("command"), said)
 
@@ -5750,6 +5753,32 @@ class CallAnUberIsARide(unittest.TestCase):
     def test_a_ride_is_not_a_person_to_ring(self):
         self.assertEqual(voice._interpret("call an uber")["command"]["kind"], "intent")   # to the money door
         self.assertIn("can't place phone calls", voice._interpret("call mom")["say"])
+
+
+class NextThursdayIsAsked(unittest.TestCase):
+    """2026-10-07, a Wednesday: "I have a dentist appointment next Thursday
+    at 9" was held for tomorrow; "I need to get an oil change" went on the
+    shopping list; "I have to take the car in for service on Monday" went
+    to the planner."""
+
+    def test_next_weekday_hold_asks_and_the_answer_holds_it(self):
+        from aletheia import localtime
+        today = localtime.today()
+        day = voice.WEEKDAYS[(today.weekday() + 1) % 7]          # tomorrow's name: always ambiguous
+        out = voice._interpret(f"I have a dentist appointment next {day} at 9")
+        self.assertIsNone(out["command"])
+        self.assertRegex(out["say"], r"^Which \w+ — the \d+\w\w, or the week after on the \d+\w\w\? Say '.+' and it's held\.$")
+        later = (today + dt.timedelta(days=8)).day
+        with mock.patch.object(voice, "_previous_turn", return_value=("", out["say"])):
+            held = voice._interpret("the week after")["command"]
+        self.assertEqual(held["kind"], "calendar_hold")
+        self.assertEqual(dt.datetime.fromisoformat(held["start"]).day, later)
+
+    def test_errands_are_tasks_not_shopping(self):
+        for said in ("I need to get an oil change", "I need to get my hair cut", "I have to take the car in for service on monday"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "task_new", said)
+        for said in ("I need milk", "we need paper towels", "I need to buy batteries"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "shopping_add", said)
 
 
 if __name__ == "__main__":

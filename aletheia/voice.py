@@ -1176,7 +1176,10 @@ _TASK_VERB = re.compile(
     # "Add write the report to my list" went on the SHOPPING list (2026-10-07).
     r"write|draft|plan|go to|practi[cs]e|prep|start|learn|figure out|find|reply to|respond to|answer|confirm|"
     r"register|sign up|fill out|complete|repair|refill|re-fill|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
-    r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) )\b")
+    r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
+    # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
+    r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
+    r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical))\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -1281,6 +1284,21 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
         return None
     if str(day).strip().casefold() == "tonight":
         part = part or "night"          # "a party tonight at 8" is eight in the evening
+    # "I have a dentist appointment next Thursday at 9", said on a
+    # Wednesday, was held for TOMORROW (2026-10-07): "next" went into the
+    # title and was stripped there. "Next Thursday" is the one phrase worth
+    # asking about, and the answer comes back as the sentence that holds it.
+    said_next = re.search(r"\bnext (" + "|".join(WEEKDAYS) + r")\b", str(transcript or "").casefold())
+    # Only when the coming one is a day or two away: "next Tuesday" on a
+    # Wednesday is plainly the 13th, "next Thursday" on a Wednesday is not.
+    near = said_next and (WEEKDAYS.index(said_next.group(1)) - localtime.today().weekday()) % 7 in (1, 2)
+    if near and said_next.group(1) == str(day).strip().casefold():
+        asked = _ambiguous_next_weekday(f"next {said_next.group(1)}")
+        if asked:
+            soon = re.search(r"the (\d+\w\w)", asked).group(1)
+            again = re.sub(r"\bnext " + said_next.group(1) + r"\b", f"on the {soon}", str(transcript).strip().rstrip(".?!"),
+                           count=1, flags=re.IGNORECASE)
+            return {"command": None, "say": f"{asked} Say '{again}' and it's held."}
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
@@ -2915,6 +2933,24 @@ def _interpret(transcript: str) -> dict:
             got = _interpret(f"remind me on the {day}{rest}")
             if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
                 return got
+    # The same for a hold: "Which Thursday - the 8th, or the week after on
+    # the 15th? Say 'I have a dentist appointment on the 8th at 9' and it's
+    # held." - "the 15th", "the week after", "the first one" (2026-10-07).
+    held = re.match(r"Which \w+ — the (\d+\w\w), or the week after on the (\d+\w\w)\? "
+                    r"Say '(.+?)' and it's held", answered or "")
+    if held and len(low.split()) <= 6:
+        soon, later, sentence = held.groups()
+        day = None
+        if re.search(r"\b" + soon[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:first|sooner|earlier|this|coming|this one|that one|yes|that)\b", low):
+            day = soon
+        if re.search(r"\b" + later[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:second|later|after|following|other)\b", low):
+            day = later if day is None or "after" in low or "second" in low else day
+        if day:
+            got = _interpret(sentence.replace(f"on the {soon}", f"on the {day}", 1))
+            if ((got or {}).get("command") or {}).get("kind") == "calendar_hold":
+                return got
     answered = _answering_her(low)
     if answered:
         return answered
@@ -3565,7 +3601,12 @@ def _interpret(transcript: str) -> dict:
                              r"|luck|love|attention|clarity|closure|sunshine|exercise|therapy|fresh air|a walk|walk|nap"
                              r"|more time|more sleep|a minute|a moment|a sec|a second|a day|a week|a drink|a raise|raise"
                              r"|a new job|new job|a job|work|motivating|cheering up|to vent|someone|somebody|company"
-                             r"|out|in|food|to eat|to sleep|to rest|to relax|relaxation|a vacation)\b", m.group("item")):
+                             r"|out|in|food|to eat|to sleep|to rest|to relax|relaxation|a vacation"
+                             # "I need to get an oil change", "...my hair cut" went on the
+                             # SHOPPING list (2026-10-07): a service, or a thing of his, is
+                             # an errand.
+                             r"|my|our|oil change|tune-?up|car wash|check-?up|physical|flu shot|vaccine|shots?|massage"
+                             r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -4383,8 +4424,12 @@ def _interpret(transcript: str) -> dict:
             when = (start - dt.timedelta(days=int(days))).replace(hour=19 if lead == "the night" else 9,
                                                                    minute=0, second=0, microsecond=0)
         if when <= now or when >= start:
-            return {"command": None, "say": f"{event.get('title') or 'That'} is too soon for that - "
-                                            f"it's {_sp_before.humanize_time(start.isoformat())}."}
+            # "dentist appointment is too soon for that" (2026-10-07): a
+            # sentence with its capital, and what is still possible.
+            title_ = str(event.get('title') or 'That')
+            return {"command": None, "say": f"{title_[:1].upper() + title_[1:]} is {_sp_before.humanize_time(start.isoformat())}, "
+                                            f"so that time has already gone. Say \"remind me in an hour about my {title_.casefold()}\" "
+                                            f"or another time, and I'll set that instead."}
         clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": f"{event.get('title') or what} {start.strftime('%A')} at {clock}"}, "say": None}
