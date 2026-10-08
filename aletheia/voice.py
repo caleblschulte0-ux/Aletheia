@@ -9935,6 +9935,10 @@ def _interpret(transcript: str) -> dict:
             if who:
                 name = who.group("who")
                 return {"command": {"kind": "note", "text": f"{name} said {_as_he_said(text, m.group('x'))}"}, "say": None}
+    # "My smoke detector is beeping" (2026-10-08: a plain "Noted.").
+    if re.fullmatch(r"(?:the|my|our) (?:smoke detector|smoke alarm|carbon monoxide detector|co detector|fire alarm) (?:is|keeps) (?:beeping|chirping)(?: again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "A chirp every minute or so is almost always a low battery - a fresh one usually stops it. If it's a long, loud alarm, get out and call 911."}
     # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
     # "the landlord fixed the sink" both to the planner). Notes; "what's
     # broken" and "is the sink fixed" read them.
@@ -9948,7 +9952,7 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:just )?replaced the batter(?:y|ies) in (?:the|my|our) [a-z][a-z' ]{1,25}", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)(?: anymore)?", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:broke|stopped working|died|quit working|cracked|shattered|froze)(?: today| again| yesterday)?", low)
-            or re.fullmatch(r"(?:i|we|the [a-z]{3,15}|my [a-z]{3,15}|[a-z]{3,15}) (?:finally |just )?(?:fixed|repaired|unclogged) (?:the|my|our) [a-z][a-z' ]{1,25}", low)
+            or re.fullmatch(r"(?!(?:who|what|when|how|did|has|have)\b)(?:i|we|the [a-z]{3,15}|my [a-z]{3,15}|[a-z]{3,15}) (?:finally |just )?(?:fixed|repaired|unclogged) (?:the|my|our) [a-z][a-z' ]{1,25}", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|got|was) (?:fixed|repaired|working again)(?: now| today)?", low)) \
             and not re.search(r"\b(?:heart|leg|arm|back|bone|nose|wrist|ankle|finger|toe|record|promise|news|ice|build|ci|pipeline|repo|tests?"
                               r"|day|week|traffic|internet|wifi|line|service|business|game|battery|plant|plants|fish|dog|cat)\b", low):
@@ -10879,7 +10883,8 @@ def _interpret(transcript: str) -> dict:
     # "The plumber charged 250", "recycling is every other week" (2026-10-08:
     # to the planner). What somebody charged is a fact he was told, not
     # money she spends.
-    if re.fullmatch(r"(?:the|my|our) (?:plumber|electrician|mechanic|handyman|contractor|roofer|vet|dentist|doctor|cleaner|landscaper|painter|locksmith|exterminator|movers?|tow truck|shop|dealer|garage)"
+    from aletheia.quick import TRADES
+    if re.fullmatch(r"(?:the|my|our) " + TRADES +
                     r" (?:charged(?: me| us)?|quoted(?: me| us)?|wants|said it(?:'s| is| would be| will be)|billed(?: me| us)?) (?:about |around )?\$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?(?: for [a-z][a-z' ]{1,25})?", low) \
             or re.fullmatch(r"(?:the )?(?:recycling|trash|garbage|yard waste|compost|bulk pickup|street sweeping|lawn service|cleaning lady|cleaner)"
                             r" (?:is|comes|goes out|gets picked up|pickup is) (?:every other|every|on|each|once a|twice a) [a-z ]{3,20}", low):
@@ -11120,6 +11125,19 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(rf"(?:i|we) (?:just )?(?:test drove|test-drove|test drive|drove|looked at|checked out|went to see) (?:a |the |that )?(?:used |new )?{CAR_MODELS}(?: today| yesterday| this weekend)?", low) \
             or re.fullmatch(r"(?:my|our) (?:(?:new )?car budget|budget for (?:a|the|our|my) (?:new |used )?car) is (?:about |around |up to )?\$?\d[\d,]*k?(?: dollars)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Around the house (2026-10-08, each to the planner): "the pest control
+    # guy is coming friday", "the water heater is 10 years old", "we
+    # painted the bedroom blue", "the furnace filter needs changing".
+    if re.fullmatch(r"(?:the|my|our) " + TRADES + r" (?:is|are) (?:coming|coming out|coming by|scheduled|booked)(?: (?:on|this|next))? (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                    r"(?: (?:at|between) \d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:and|to|-) \d{1,2}(?::\d\d)? ?(?:am|pm)?)?)?(?: (?:morning|afternoon))?", low) \
+            or re.fullmatch(r"(?:the|my|our) (?:water heater|furnace|roof|ac|air conditioner|hvac|fridge|refrigerator|dishwasher|washer|dryer|washing machine|oven|stove|garage door opener|mattress|deck|fence|boiler)"
+                            r" (?:is|was) (?:about |around |almost |over )?\d+ (?:years?|months?) old", low) \
+            or re.fullmatch(r"(?:i|we) (?:just )?painted (?:the|my|our) (?:[a-z]{3,15}(?: room)?|living room|dining room|guest room) [a-z][a-z ]{2,25}", low) \
+            or re.fullmatch(r"the paint colou?r (?:in|for) (?:the|my|our) [a-z ]{3,20} is [a-z][a-z ]{2,25}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:the|my|our) (?P<f>(?:air |furnace |hvac |ac |water |fridge |refrigerator )?filter) (?:needs|need) (?:changing|replacing|to be changed|to be replaced|changed|replaced)", low)
+    if m:
+        return _new_task(f"change the {m.group('f')}")
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

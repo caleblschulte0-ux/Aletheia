@@ -2525,7 +2525,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|what (?:do|does) (?P<tf_want>the kids|my kids|my son|my daughter|my wife|my husband|[a-z]{2,15}) want to (?:do|see|visit)"
                              r"|what time is (?:the )?(?:hotel )?(?P<tf_check>check[- ]?in|check[- ]?out))\s*\??$")),
     # "How much did the plumber charge" (2026-10-08: to a model).
-    ("charged", re.compile(r"^how much (?:did|does|will) (?:the|my|our) (?P<charged>plumber|electrician|mechanic|handyman|contractor|roofer|vet|dentist|doctor|cleaner|landscaper|painter|locksmith|exterminator|movers?|tow truck|shop|dealer|garage) (?:charge|cost|want|quote)(?: (?:me|us))?\s*\??$")),
+    ("charged", re.compile(r"^how much (?:did|does|will) (?:the|my|our) (?P<charged>[a-z][a-z ]{1,25}?) (?:charge|cost|want|quote)(?: (?:me|us))?\s*\??$")),
     # "What does my son need signed", "when is my son ungrounded" (2026-10-08:
     # to a model).
     ("need_signed", re.compile(r"^what (?:do(?:es)?) (?P<need_signed>my [a-z]{2,15}|the kids|[a-z]{2,15}) need (?:me to )?(?:sign(?:ed)?)\s*\??$")),
@@ -2594,6 +2594,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)|how much is) (?:my|our) (?P<car_budget>(?:new )?car budget|budget for (?:a|the|our|my) (?:new |used )?car)\s*\??$"
         r"|^(?:which|what) (?:car|one) did (?:i|we) (?P<car_liked>like|love|prefer|like best|like the most)\s*\??$"
         r"|^(?:which|what) cars? (?:am i|are we|was i|were we) (?P<car_looking>looking at|considering|thinking about|test driving)\s*\??$")),
+    ("house_fact", re.compile(
+        r"^how old is (?:the|my|our) (?P<hf_age>water heater|furnace|roof|ac|air conditioner|hvac|fridge|refrigerator|dishwasher|washer|dryer|washing machine|oven|stove|microwave|garage door opener|car seat|mattress|couch|deck|fence|boiler)\s*\??$"
+        r"|^what colou?r (?:did (?:i|we) paint|is) (?:the|my|our) (?P<hf_room>[a-z]{3,15}(?: room)?|living room|dining room|guest room)(?: walls?)?\s*\??$"
+        r"|^who (?:fixed|repaired|replaced|did) (?:the|my|our) (?P<hf_fixed>[a-z][a-z ]{1,20}?)\s*\??$")),
+    ("filter_how_often", re.compile(r"^how often (?:should|do) (?:i|we|you) (?:change|replace|swap) (?:the|my|our|a) (?:air |furnace |hvac |ac )?filters?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3536,7 +3541,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17319,7 +17324,7 @@ def _charged(text: str) -> str | None:
     """What he said somebody charged or quoted him."""
     g = _groups("charged", text)
     who = str(g.get("charged") or "")
-    if not who:
+    if not who or not re.fullmatch(TRADES, who):
         return None
     found = _said_lines(rf"^(?:the|my|our) {re.escape(who)} (?:charged|quoted|wants|said it|billed)\b", 1)
     return f"You told me {found[0]}." if found else None
@@ -17851,6 +17856,37 @@ def _car_shop(text: str) -> str | None:
         return None
     seen = list(dict.fromkeys(seen))[:4]
     return "From what you've told me: " + "; ".join(speech.as_she_says_it(x).rstrip(".") for x in seen) + "."
+
+
+
+#: The people who come to fix things, by the names he uses for them.
+TRADES = (r"(?:plumber|electrician|mechanic|handyman|contractor|roofer|vet|dentist|doctor|cleaner|landscaper|painter|locksmith|exterminator"
+          r"|movers?|tow truck|shop|dealer|garage|hvac (?:guy|tech|company)|ac (?:guy|tech)|furnace (?:guy|tech)|pest control(?: guy)?"
+          r"|pool (?:guy|company)|lawn (?:guy|company)|tree (?:guy|company|service)|cable guy|internet guy|repair ?man|appliance (?:guy|repair)"
+          r"|gardener|window (?:guy|cleaner)|carpet cleaners?|inspector|home inspector|chimney sweep|septic (?:guy|company)|installer|technician|tech)")
+
+
+def _house_fact(text: str) -> str | None:
+    """Around the house (2026-10-08, each to a model): "how old is the water
+    heater", "what color did we paint the bedroom", "who fixed our roof".
+    What he said, or None."""
+    g = _groups("house_fact", text)
+    if g.get("hf_age"):
+        thing = re.escape(g["hf_age"])
+        found = _said_lines(rf"^(?:the|my|our) {thing} (?:is|was) (?:about |around |almost |over )?\d+ (?:years?|months?) old\b"
+                            rf"|^(?:the|my|our) {thing} (?:was|got) (?:installed|put in|replaced|bought) (?:in|on)\b"
+                            rf"|^(?:i|we) (?:got|bought|installed|replaced|put in) (?:a |the |our |my )?(?:new )?{thing} (?:in|on)\b", 1)
+        return f"You told me {found[0]}." if found else None
+    if g.get("hf_room"):
+        room = re.escape(g["hf_room"])
+        found = _said_lines(rf"^(?:i|we) (?:just )?painted (?:the|my|our) {room} [a-z]|^(?:the|my|our) {room}(?: walls?)? (?:is|are) painted [a-z]"
+                            rf"|^the paint (?:color )?(?:in|for) (?:the|my|our) {room} is [a-z]", 1)
+        return f"You told me {found[0]}." if found else None
+    if g.get("hf_fixed"):
+        thing = re.escape(g["hf_fixed"])
+        found = _said_lines(rf"^(?!(?:i|we)\b)(?:the |my |our )?[a-z][a-z ]{{1,25}} (?:finally |just )?(?:fixed|repaired|replaced|unclogged|patched) (?:the|my|our) {thing}\b", 1)
+        return f"You told me {found[0]}." if found else None
+    return None
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
@@ -18668,6 +18704,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "house_fact": _house_fact,
+           "filter_how_often": lambda text: "Every one to three months for the usual 1-inch furnace filter, closer to monthly with pets or allergies. The thicker 4-inch ones go six months to a year. The label on the filter says.",
            "car_shop": _car_shop,
            "whose_turn": _whose_turn,
            "did_bare": _did_bare,

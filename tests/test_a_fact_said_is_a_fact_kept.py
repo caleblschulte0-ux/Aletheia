@@ -12191,5 +12191,26 @@ class ShoppingForACar(unittest.TestCase):
             self.assertIsNone(quick.answer("how much is the camry"))
 
 
+class AroundTheHouse(unittest.TestCase):
+    def test_house_facts_are_kept_and_a_question_is_not(self):
+        for said in ("the hvac guy charged 200", "the water heater is 10 years old", "we painted the bedroom blue",
+                     "the pest control guy is coming friday"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice.interpret("who fixed our roof")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("the furnace filter needs changing")["command"]["description"], "change the furnace filter")
+        self.assertIn("low battery", voice.interpret("my smoke detector is beeping")["say"])
+
+    def test_house_questions_read_what_he_said(self):
+        notes = [{"text": "the hvac guy charged 200"}, {"text": "the water heater is 10 years old"},
+                 {"text": "we painted the bedroom blue"}, {"text": "Mike fixed our roof"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how much did the hvac guy charge"), "You told me the hvac guy charged 200.")
+            self.assertEqual(quick.answer("how old is the water heater"), "You told me the water heater is 10 years old.")
+            self.assertEqual(quick.answer("what color did we paint the bedroom"), "You told me we painted the bedroom blue.")
+            self.assertEqual(quick.answer("who fixed our roof"), "You told me Mike fixed our roof.")
+            self.assertIsNone(quick.answer("who fixed the sink"))
+        self.assertIn("three months", quick.answer("how often should I change the air filter"))
+
+
 if __name__ == "__main__":
     unittest.main()
