@@ -8730,6 +8730,18 @@ def _interpret(transcript: str) -> dict:
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # A PLACE HE WANTS TO GO, A RATING (2026-10-08: to the planner): "I'd
+    # like to visit Japan someday", "rate Inception 5 stars". Kept in his
+    # words; "where do I want to travel" and "what did I rate Inception" read them.
+    if re.fullmatch(r"(?:i'?d|i would|i really want to|i want to|we'?d|we would) (?:love|like)? ?(?:to )?(?:visit|go to|see|travel to)"
+                    r" (?:[a-z][a-z' ]{1,30}?)(?: someday| one day| sometime| before i die| eventually)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:rate|i(?:'d)? (?:rate|give)|i rated|i gave) (?P<what>[a-z0-9][a-z0-9' :-]{1,40}?) (?P<n>[0-5](?:\.5)?|one|two|three|four|five)"
+                     r" (?:stars?|out of (?:5|five|10|ten))", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"I rated {_as_he_said(text, m.group('what'))} {m.group('n')} "
+                                                    f"{'stars' if 'star' in low else low.split(m.group('n') + ' ', 1)[1]}"},
+                "say": None}
     # HABITS HE KEEPS (2026-10-08: to the planner): "I want to work out 4
     # times a week", "I smoked a cigarette", "I didn't drink today". Kept in
     # his words; "am I on track with my workouts" and "how many cigarettes

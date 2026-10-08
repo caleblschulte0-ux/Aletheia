@@ -475,7 +475,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what did i think (?:of|about)|how did i like|did i like|did i enjoy) (?:the |that |this |my |our )?(?P<opinion>[a-z0-9][a-z0-9' -]{1,40}?)\s*\??$"
         r"|^what (?P<want_try>restaurants?|places?|foods?|things?|movies?|shows?|books?|bars?|cafes?|coffee shops?|games?)? ?(?:do|did) i (?:want|wanna|say i wanted) to"
         r" (?:try|check out|go to|visit)\s*\??$"
-        r"|^what (?:was|am|were) i thinking (?:about|of)(?: (?:getting|buying|doing|trying|starting))?\s*\??$")),
+        r"|^what (?:was|am|were) i thinking (?:about|of)(?: (?:getting|buying|doing|trying|starting|learning|taking up|getting into))?\s*\??$"
+        # "Where do I want to travel", "what movies did I like", "what did I
+        # rate Inception" (2026-10-08: to a model, with his notes on file).
+        r"|^(?P<want_go>where) (?:do|did) i (?:want|wanna|say i wanted) to (?:travel|go|visit)(?: someday| one day)?\s*\??$"
+        r"|^what (?P<liked>movies?|films?|shows?|books?|restaurants?|places?|songs?|albums?|games?) (?:did|have) i (?:like|liked|love|loved|enjoy|enjoyed)\s*\??$"
+        r"|^what did i (?:rate|give) (?:the |that )?(?P<rated>[a-z0-9][a-z0-9' -]{1,40}?)\s*\??$")),
     # "What did I add to the list today" (2026-10-07: to the planner).
     ("shop_added", re.compile(
         r"^what (?:did i|have i|did we|have we) (?:add|added|put)(?: on| to)? (?:to |on )?(?:my |the |our )?(?:shopping |grocery )?list"
@@ -7530,13 +7535,44 @@ def _opinion(text: str) -> str | None:
                         said.casefold()) and words and all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
         return None
+    if g.get("rated"):
+        words = [w for w in re.findall(r"[a-z0-9]+", g["rated"]) if w not in ("the", "that", "this")]
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            if re.match(r"i (?:rated|gave) ", said.casefold()) and all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+        return None
+    if g.get("liked"):
+        kind = g["liked"].rstrip("s")
+        kinds = {"movie": r"movie|film", "film": r"movie|film", "show": r"show|series", "book": r"book|novel",
+                 "restaurant": r"restaurant|place", "place": r"place|restaurant", "song": r"song", "album": r"album", "game": r"game"}[kind]
+        rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()
+                if re.match(r"(?:i|we) (?:really |absolutely |totally )?(?:loved|liked|enjoyed|rated)\b.*\b(?:" + kinds + r")\b",
+                            str(r.get("text") or "").casefold())
+                and not re.search(r"\b(?:didn'?t|did not|not)\b", str(r.get("text") or "").casefold())]
+        if not rows:
+            return None
+        return f"You told me: {speech.and_list([speech.as_she_says_it(r).rstrip('.') for r in rows[:4]])}."
     if "thinking" in low:
         rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()
                 if re.match(r"(?:i'?m|i am|we'?re|we are) thinkin", str(r.get("text") or "").casefold())]
     else:
         rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()
-                if re.match(r"(?:i|we) (?:want|wanna|would like|'d like|need) to (?:try|check out|go to|visit)",
+                if re.match(r"(?:i|we)(?:'d| would)? (?:want|wanna|like|love|need|really want) to (?:try|check out|go to|visit|see|travel to)",
                             str(r.get("text") or "").casefold())]
+        if (g.get("want_try") or "").rstrip("s") not in ("", "place", "thing"):
+            # "what restaurants do I want to try" is not "visit Japan someday"
+            rows = [r for r in rows if not re.search(r"\b(?:visit|see|travel to)\b", r.casefold())]
+        if g.get("want_go"):
+            # a place, not a restaurant to try; and his bucket list too
+            rows = [r for r in rows if re.search(r"\b(?:visit|go to|see|travel to)\b", r.casefold())]
+            try:
+                from aletheia import lists as _lists
+                bucket = [str(i) for i in (_lists.items("bucket") or [])]
+            except Exception:
+                bucket = []
+            if bucket:
+                rows.append("your bucket list has " + speech.and_list(bucket[:4]))
     if not rows:
         return None
     said = [speech.as_she_says_it(r).rstrip(".") for r in rows[:4]]

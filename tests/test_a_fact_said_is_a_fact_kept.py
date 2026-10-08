@@ -6456,5 +6456,30 @@ class AFractionOfACup(unittest.TestCase):
         self.assertEqual(quick.answer("how many tablespoons in 3/4 cup"), "12 tablespoons.")
 
 
+
+class WishesLikesAndRatings(unittest.TestCase):
+    """2026-10-08: "I'd like to visit Japan someday", "where do I want to
+    travel", "what movies did I like", "rate Inception 5 stars" and "what was
+    I thinking about learning" went to the planner or a model."""
+
+    def test_kept_in_his_words(self):
+        self.assertEqual(voice._interpret("I'd like to visit Japan someday")["command"],
+                         {"kind": "note", "text": "I'd like to visit Japan someday"})
+        self.assertEqual(voice._interpret("rate Inception 5 stars")["command"], {"kind": "note", "text": "I rated Inception 5 stars"})
+
+    def test_read_back(self):
+        from aletheia import lists
+        notes = [{"text": "I'd like to visit Japan someday"}, {"text": "I want to try the new Thai place"},
+                 {"text": "I loved that movie Inception"}, {"text": "I rated Inception 5 stars"},
+                 {"text": "I'm thinking about learning guitar"}]
+        with mock.patch.object(quick, "_notes", return_value=notes), mock.patch.object(lists, "items", return_value=["Iceland"]):
+            self.assertEqual(quick.answer("where do I want to travel"),
+                             "You told me: you'd like to visit Japan someday and your bucket list has Iceland.")
+            self.assertEqual(quick.answer("what restaurants do I want to try"), "You told me: you want to try the new Thai place.")
+            self.assertIn("Inception", quick.answer("what movies did I like"))
+            self.assertEqual(quick.answer("what did I rate Inception"), "You told me: you rated Inception 5 stars.")
+            self.assertIn("learning guitar", quick.answer("what was I thinking about learning"))
+
+
 if __name__ == "__main__":
     unittest.main()
