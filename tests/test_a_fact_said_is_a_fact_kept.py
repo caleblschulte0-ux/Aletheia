@@ -7832,5 +7832,13 @@ class NothingSpentSaysHowToTellHer(unittest.TestCase):
 
 
 
+class WhatRecurringRemindersDoIHave(unittest.TestCase):
+    def test_it_reads_her_recurring_reminders(self):
+        self.assertIsNone(quick.match("what recurring reminders do I have"))
+        self.assertEqual(voice._interpret("what recurring reminders do I have")["command"],
+                         {"kind": "reminders", "which": "recurring"})
+
+
+
 if __name__ == "__main__":
     unittest.main()

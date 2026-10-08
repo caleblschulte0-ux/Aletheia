@@ -4121,6 +4121,8 @@ def _interpret(transcript: str) -> dict:
                     # "Did you set any reminders" (2026-10-07: to the planner).
                     r"|(?:did|have) (?:you|u) (?:set|made|make|add|added|got) (?:any|my|the) (?:reminders?|alarms?|timers?)(?: for me)?(?: today| yet)?"
                     r"|(?:what are |show me |read me )?my (?:recurring|repeating|regular) reminders"
+                    # "What recurring reminders do I have" (2026-10-08: read as a thing he owns).
+                    r"|what (?:recurring|repeating|regular) reminders (?:do i have|have i (?:got|set))(?: set)?"
                     # "How many reminders do I have" (2026-10-07: to a model)
                     r"|how many (?:reminders|alarms|timers) (?:do i have|have i got|are (?:there|set|running))(?: set| running| on)?", low):
         # "What alarms do I have" was answered "2 reminders: wake up -

@@ -2069,7 +2069,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # recall; the things she keeps stores of are not, and are excluded by
     # name so "what reminders do I have" still reaches its own reader.
     ("recall_owned", re.compile(
-        r"^what (?:kind of |type of |make of |sort of )?(?!(?:notes?|reminders?|tasks?|lists?|meetings?|appointments?"
+        r"^what (?:kind of |type of |make of |sort of )?(?!(?:(?:recurring|repeating|regular|daily|weekly|monthly|other|upcoming|open|active) )?(?:notes?|reminders?|tasks?|lists?|meetings?|appointments?"
         r"|events?|plans?|alarms?|timers?|e?mails?|messages?|drafts?|applications?|interviews?|jobs?|time|bills?"
         r"|subscriptions?|projects?|calls?|texts?|things?|files?|documents?|approvals?)\b)"
         r"(?P<recall>[a-z][a-z '-]{1,24}?) do i (?:drive|have|own|use|ride)\s*\??$")),
