@@ -4400,8 +4400,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 told = _quick._cost_mine("what are my bills")
             except Exception:  # noqa: BLE001
                 told = None
+            # "What bills are due" beside a task "pay the water bill, due
+            # Friday" (2026-10-08): the bill on his list is a bill.
+            bills = [t for t in _open_tasks() if re.search(r"\b(?:bills?|rent|mortgage|invoice|payment)\b",
+                                                         str(t.get("description") or ""), re.IGNORECASE)]
+            listed = ("On your list: " + speech.and_list([_task_words(t) for t in bills[:4]]) + ".") if bills else ""
             if told:
-                return "I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
+                return ("I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
+                        + (" " + listed if listed else ""))
+            if listed:
+                return "I'm not tracking any subscriptions. " + listed
             return "No subscriptions are being tracked."
         monthly = [subscriptions.monthly_equivalent(r) for r in rows]
         total = sum(m for m in monthly if m)

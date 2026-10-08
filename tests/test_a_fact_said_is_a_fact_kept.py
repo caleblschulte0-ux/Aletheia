@@ -5951,5 +5951,26 @@ class WhatHeJustAdded(unittest.TestCase):
             self.assertIsNone(quick.answer("what did I just add"))
 
 
+class ATaskMovesToNextWeekAndABillIsABill(unittest.TestCase):
+    """2026-10-08: "move renew my license to next week" went to the planner,
+    and "what bills are due" said nothing was tracked beside a task to pay
+    the water bill."""
+
+    def test_next_week_and_a_date(self):
+        with mock.patch.object(voice, "_names_one_open_task", return_value=True):
+            got = voice._interpret("move renew my license to next week")["command"]
+            self.assertEqual(got["kind"], "task_change")
+            self.assertEqual(dt.date.fromisoformat(got["deadline"][:10]).weekday(), 0)
+            self.assertEqual(voice._interpret("push renew my license to november 15")["command"]["deadline"][5:10], "11-15")
+
+    def test_a_bill_on_his_list(self):
+        from aletheia import intercom, subscriptions
+        with mock.patch.object(subscriptions, "all_subscriptions", return_value=[]), \
+                mock.patch.object(intercom, "_open_tasks", return_value=[{"id": "t1", "description": "pay the water bill"}]), \
+                mock.patch.object(quick, "_cost_mine", return_value=None):
+            said = intercom.execute_command({"kind": "subscriptions"}, {"repos": {}})
+        self.assertIn("pay the water bill", said)
+
+
 if __name__ == "__main__":
     unittest.main()
