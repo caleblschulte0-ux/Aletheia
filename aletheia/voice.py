@@ -2086,6 +2086,30 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
                         "replaces": previous["text"]}, "say": None}
 
 
+def _her_holds_on(day_word: str) -> list:
+    """Her own tentative holds on the weekday or day he named, soonest first:
+    (local start, event). Empty when there are none or the store won't read."""
+    import datetime as dt
+    try:
+        from aletheia import calendar, localtime
+        tz = localtime.operator_tz()
+        iso = _spoken_day(day_word)
+        if not iso:
+            return []
+        day = dt.date.fromisoformat(iso[:10])
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") != "TENTATIVE" or not str(event.get("source") or "").startswith("hold:"):
+                continue
+            start = calendar.parse_time(event["start"])
+            if start > now and start.astimezone(tz).date() == day:
+                rows.append((start.astimezone(tz), event))
+        return sorted(rows, key=lambda r: r[0])
+    except Exception:
+        return []
+
+
 def _one_of_her_holds(words: str):
     """(hold, why-not): the one tentative hold SHE pencilled in that his
     words name - by its time ("my 2pm") or its title ("meeting with sam").
@@ -7545,6 +7569,17 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+        # "Clear my calendar Friday" (2026-10-08: "I can't cancel things",
+        # though the holds she pencilled in are hers to take off). Name them,
+        # one by one - emptying a day is not one word.
+        day_word = re.search(r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$", low)
+        held = _her_holds_on(day_word.group(1)) if day_word else []
+        if held:
+            from aletheia import speech as _sp_clear
+            names = [f"{e.get('title') or 'a hold'} at {t.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}" for t, e in held]
+            return {"command": None,
+                    "say": f"On {day_word.group(1).capitalize()} I pencilled in {_sp_clear.and_list(names)}. Say \"cancel\" and which, and I'll take it off. "
+                           "Anything else that day is on your own calendar, so clear it there."}
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
@@ -10874,6 +10909,22 @@ def _interpret(transcript: str) -> dict:
         if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
             again["command"]["title"] = f"session with my {m.group('who')}"
             return again
+    # "Put a hold on Thursday at 4 for a call with the bank", "I have a
+    # conference all day Wednesday" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:put|place|make) (?:a )?hold (?:on|for) (?P<when>.{3,30}?) for (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,40})", low) \
+        or re.fullmatch(r"(?:put|place|make) (?:a )?hold for (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,40}?) (?:on |at )(?P<when>.{3,30})", low)
+    if m:
+        again = _interpret(f"i have a meeting {m.group('when')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            again["command"]["title"] = _as_he_said(text, m.group("what"))
+            return again
+    m = re.fullmatch(r"(?:i (?:have|'ve got|got)|there(?:'s| is)) (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,30}?) all day (?:on |this |next )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)", low) \
+        or re.fullmatch(r"(?:i (?:have|'ve got|got)|there(?:'s| is)) (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,30}?) (?:on |this |next )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow) all day", low)
+    if m:
+        held = _calendar_hold(text, _as_he_said(text, m.group("what")), m.group("day"), None, "9am")
+        if held:
+            held["command"]["minutes"] = 8 * 60
+            return held
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

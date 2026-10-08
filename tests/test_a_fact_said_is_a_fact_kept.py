@@ -11766,5 +11766,40 @@ class AtTheGym(unittest.TestCase):
             self.assertTrue(quick.answer("am I on track with my workouts").startswith("1 workout so far"))
 
 
+class TheCalendarAgain(unittest.TestCase):
+    """2026-10-08: "put a hold on Thursday at 4 for a call with the bank" and
+    "I have a conference all day Wednesday" went to the planner, "when is my
+    next free afternoon" to a model, and "clear my calendar Friday" said she
+    could not cancel anything though her own holds are hers to take off."""
+
+    def test_holds(self):
+        held = voice._interpret("put a hold on Thursday at 4 for a call with the bank")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "call with the bank"))
+        day = voice._interpret("I have a conference all day Wednesday")["command"]
+        self.assertEqual((day["title"], day["minutes"]), ("conference", 480))
+        self.assertIn("T09:00:00", day["start"])
+
+    def test_next_free_afternoon(self):
+        import datetime as dt
+        from aletheia import calendar as cal, localtime
+        tz = localtime.operator_tz()
+        tomorrow = (dt.datetime.now(tz) + dt.timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0)
+        with mock.patch.object(cal, "all_events", lambda: [{"title": "x", "start": tomorrow.isoformat(),
+                                                             "end": (tomorrow + dt.timedelta(hours=1)).isoformat()}]):
+            said = quick.answer("when is my next free afternoon")
+        after = (tomorrow + dt.timedelta(days=1)).date()
+        self.assertEqual(said, f"{after:%A} afternoon, {after.day} {after:%B} - nothing on your calendar then.")
+
+    def test_clearing_a_day_names_her_holds(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        when = (dt.datetime.now(tz) + dt.timedelta(days=2)).replace(hour=12, minute=0, second=0, microsecond=0)
+        rows = [(when, {"title": "lunch with Sam"})]
+        with mock.patch.object(voice, "_her_holds_on", lambda day: rows):
+            said = voice._interpret(f"clear my calendar {when:%A}".lower())["say"]
+        self.assertIn("lunch with Sam at 12 pm", said)
+
+
 if __name__ == "__main__":
     unittest.main()
