@@ -6723,5 +6723,33 @@ class TheCatTheTrashAndTheStore(unittest.TestCase):
         self.assertIn("can't reach your stove", voice.interpret("I left the stove on")["say"])
 
 
+
+class WhereTheLunchIs(unittest.TestCase):
+    """2026-10-08: "where am I having lunch Friday" went to a model, "it's
+    at Olive Garden" to the planner, "where is lunch with Dana" to a FILE
+    search, and "remind me to leave 20 minutes before lunch with Dana" to
+    the planner."""
+
+    def test_the_place_is_put_on_the_hold_just_made(self):
+        held = {"title": "lunch with Dana", "start": "2026-10-09T12:00:00-05:00"}
+        with mock.patch.object(voice, "_recent_ask_of", return_value=held), \
+                mock.patch.object(voice, "_hold_as_it_is_now", side_effect=lambda h: h):
+            said = voice.interpret("it's at Olive Garden")["command"]
+            clock = (voice.interpret("it's at 3") or {}).get("command") or {}
+            self.assertNotIn("location", clock)              # a time is not a place
+        self.assertEqual(said, {"kind": "calendar_hold", "title": "lunch with Dana", "start": held["start"],
+                                "location": "Olive Garden", "replaces": held["start"]})
+
+    def test_where_is_read_off_the_calendar(self):
+        import datetime as _dt
+        from aletheia import calendar
+        start = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(days=2)).replace(microsecond=0)
+        events = [{"title": "lunch with Dana", "start": start.isoformat(), "end": (start + _dt.timedelta(hours=1)).isoformat(),
+                   "location": "Olive Garden", "status": "TENTATIVE"}]
+        with mock.patch.object(calendar, "all_events", return_value=events):
+            self.assertTrue(quick.answer("where is lunch with Dana").startswith("Lunch with Dana is at Olive Garden, "))
+            self.assertTrue(quick.answer("where am I having lunch").startswith("Lunch with Dana is at Olive Garden"))
+
+
 if __name__ == "__main__":
     unittest.main()

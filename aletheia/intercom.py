@@ -3692,6 +3692,23 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
                     "tentative, on your calendar here only.")
         carried = _carry_hold_reminders(old, held["event"]) if old else 0
+        try:
+            same_start = bool(old) and _dt.datetime.fromisoformat(str(old["start"]).replace("Z", "+00:00")) == \
+                _dt.datetime.fromisoformat(str(held["event"]["start"]).replace("Z", "+00:00"))
+        except (KeyError, TypeError, ValueError):
+            same_start = False
+        # "It's at Olive Garden", "make it 30 minutes" (2026-10-08) changed
+        # where or how long, and were confirmed as "Moved ... to" a time
+        # that had not moved.
+        title = held["event"]["title"]
+        if same_start and cmd.get("location") and cmd.get("location") != old.get("location"):
+            return f"{title[:1].upper() + title[1:]} is at {cmd['location']}, {when}."
+        if same_start and str(old.get("end")) != str(held["event"].get("end")):
+            from aletheia import speech as _speech
+            length = int((end - start).total_seconds() // 60)
+            said = (_speech.count_phrase(length // 60, "hour") if length % 60 == 0 else
+                    "an hour and a half" if length == 90 else _speech.count_phrase(length, "minute"))
+            return f"{title[:1].upper() + title[1:]} is {said} now, {when}{until}."
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
                 f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only."

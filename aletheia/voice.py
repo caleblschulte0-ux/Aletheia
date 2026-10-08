@@ -4506,7 +4506,9 @@ def _interpret(transcript: str) -> dict:
     # "REMIND ME 15 MINUTES BEFORE MY MEETING" (2026-10-07: to the planner).
     # The next event on his calendar - or the next one whose title has the
     # words he said - less the lead time he gave.
-    m = re.fullmatch(r"remind me (?P<n>\w+(?: an)?) (?P<unit>minutes?|mins?|hours?) before (?:my |the )?(?:next )?"
+    # "Remind me to leave 20 minutes before lunch with Dana" (2026-10-08:
+    # to the planner) is the same lead, with the errand said first.
+    m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<n>\w+(?: an)?) (?P<unit>minutes?|mins?|hours?) before (?:my |the )?(?:next )?"
                      r"(?P<what>.+?)", low)
     if m:
         import datetime as dt
@@ -4533,9 +4535,10 @@ def _interpret(transcript: str) -> dict:
             at = (cal.parse_time(event["start"]) - lead).astimezone(dt.timezone.utc).isoformat()
             said = f"{int(amount) if float(amount).is_integer() else amount} {m.group('unit').rstrip('s')}"
             plural = "s" if amount != 1 else ""
-            return {"command": {"kind": "remind_at", "at": at,
-                                "text": f"{event.get('title') or 'your next event'} in {said}{plural}"},
-                    "say": None}
+            soon = f"{event.get('title') or 'your next event'} in {said}{plural}"
+            if m.group("task"):
+                soon = f"{_as_he_said(text, m.group('task'))} - {soon}"
+            return {"command": {"kind": "remind_at", "at": at, "text": soon}, "say": None}
 
     # "Remind me to buy flowers two days before our anniversary", "remind me
     # a week before my anniversary", "remind me to get a card the day before
@@ -7793,6 +7796,18 @@ def _interpret(transcript: str) -> dict:
     # "Push it to 6" (2026-10-07: to the planner) is the same move.
     m = re.fullmatch(r"(?:make (?:that|it)|(?:change|move|push|bump|shift|switch|reschedule) (?:that|it) to|actually,? make (?:that|it)|"
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
+    # "It's at Olive Garden" right after a hold (2026-10-08: to the
+    # planner): the same hold, with the place.
+    place = re.fullmatch(r"(?:it'?s|it is|that'?s|that is|it'?ll be|it will be)(?: going to be)? (?:at|in) (?P<place>(?!\d{1,2}(?::\d\d)?(?: ?[ap]m)?$)"
+                         r"(?!(?:the )?(?:morning|afternoon|evening|night|noon)$)[a-z0-9][a-z0-9'&., -]{1,50})", low)
+    if place:
+        held = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
+        if held and held.get("title"):
+            command = {"kind": "calendar_hold", "title": held["title"], "start": held["start"],
+                       "location": _as_he_said(text, place.group("place").strip().rstrip(".")), "replaces": held["start"]}
+            if held.get("minutes"):
+                command["minutes"] = held["minutes"]
+            return {"command": command, "say": None}
     # "Make it 30 minutes" after "how long is my meeting with Tom"
     # (2026-10-08: to a model): the hold he just made, a new length.
     length = m and re.fullmatch(r"(?:(?P<n>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty"

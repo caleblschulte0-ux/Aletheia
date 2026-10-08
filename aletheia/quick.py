@@ -2441,6 +2441,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("event_detail", re.compile(
         r"^how long (?:is|will be) (?:my|the) (?:next )?(?P<ed_long>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner)"
         r"(?: with [a-z][a-z' ]{1,25}?)?)(?: today| tomorrow)?\s*\??$"
+        # "Where am I having lunch Friday", "where is lunch with Dana"
+        # (2026-10-08: to a model, and to a FILE search).
+        r"|^where(?:'s| is| am i having| am i meeting| are we having| are we meeting| do i have) (?:my |the |our )?"
+        r"(?P<ed_where>(?:[a-z]+ )?(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner|breakfast|brunch|coffee"
+        r"|drinks|party)(?: with [a-z][a-z' ]{1,25}?)?)(?: (?:on )?(?P<ed_where_day>today|tonight|tomorrow|monday|tuesday|wednesday"
+        r"|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^who(?:'s| is) my (?:meeting|call|appointment|lunch|dinner) (?:with )?(?:at|for) (?P<ed_at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)(?: (?P<ed_day>today|tomorrow))?\s*\??$"
         r"|^(?:what(?:'s| is)|which (?:day|is)) my (?P<ed_busy>busiest|quietest|least busy|freest) day(?: (?:this|next) week)?\s*\??$"
         # "What's after my 2pm", "what do I have after 3" (2026-10-07: to a model).
@@ -5861,6 +5867,33 @@ def _event_detail(text: str) -> str | None:
     except Exception:
         return None
     events.sort(key=lambda e: e[0])
+    if g.get("ed_where"):
+        from aletheia import voice
+        words = [w for w in re.findall(r"[a-z0-9']+", g["ed_where"]) if w not in ("with", "the", "my", "a", "our")]
+        day = voice._spoken_day("today" if g.get("ed_where_day") == "tonight" else g["ed_where_day"]) \
+            if g.get("ed_where_day") else None
+        try:
+            held = [e for e in calendar.all_events() if e.get("status") != "CANCELLED"]
+        except Exception:
+            return None
+        hits = []
+        for event in held:
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            title = str(event.get("title") or "")
+            if start >= now - dt.timedelta(hours=1) and (not day or start.date().isoformat() == day) \
+                    and all(re.search(r"\b" + re.escape(w), title.casefold()) for w in words):
+                hits.append((start, title, str(event.get("location") or "").strip()))
+        if not hits:
+            return None
+        start, title, where = sorted(hits)[0]
+        title = title[:1].upper() + title[1:]
+        when = speech.humanize_time(start.isoformat())
+        if where:
+            return f"{title} is at {where}, {when}."
+        return f"{title} is {when} - you haven't told me where. Say \"it's at\" and the place and I'll add it."
     if g.get("ed_long"):
         words = [w for w in re.findall(r"[a-z0-9']+", g["ed_long"]) if w not in ("with", "the", "my", "a")]
         hits = [e for e in events if all(re.search(r"\b" + re.escape(w), e[2].casefold()) for w in words)]
@@ -9449,6 +9482,12 @@ def _place_where(name: str) -> str | None:
     name = " ".join(str(name or "").casefold().split())
     if not name:
         return None
+    # "Where is lunch with Dana" is a place on his calendar, not a saved
+    # place or a file (2026-10-08: searched his Documents).
+    if re.search(r"\b(?:meeting|call|appointment|appt|interview|class|session|lunch|dinner|breakfast|brunch|coffee|drinks|party)\b", name):
+        said = _event_detail(f"where is {name}")
+        if said:
+            return said
     try:
         from aletheia import places
         place = places.resolve(name)

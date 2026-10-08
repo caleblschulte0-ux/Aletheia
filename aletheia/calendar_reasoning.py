@@ -290,8 +290,11 @@ def hold(title: str, start: str, end: str, *, location: str | None = None, threa
                                 calendar.parse_time(end).isoformat(), location=location,
                                 source=f"hold:{thread_id or 'caleb'}", status="TENTATIVE", movable=True)
     except FileExistsError:
+        # The same hold put back (a new length, or "it's at Olive Garden"):
+        # what it says now is what it says (2026-10-08: the place was lost).
         event = calendar.update(event_id, status="TENTATIVE", start=calendar.parse_time(start).isoformat(),
-                                end=calendar.parse_time(end).isoformat())
+                                end=calendar.parse_time(end).isoformat(),
+                                **({"location": location} if location else {}))
     record = {"version": 1, "id": event_id, "thread_id": thread_id, "purpose": purpose, "state": "HELD",
               "created_at": stateio.utcnow(), "updated_at": stateio.utcnow(), "history": []}
     _save_hold(record, f"held {human(event['start'], timezone=timezone, now=now)}")
