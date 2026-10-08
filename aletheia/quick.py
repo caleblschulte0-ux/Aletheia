@@ -467,7 +467,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What time do I need to get up tomorrow" (2026-10-08: a memory search
     # for "get up"): his alarm, and the first thing on his calendar.
     ("get_up", re.compile(
-        r"^(?:what time|when) (?:do i|should i|will i) (?:need to |have to |got to )?(?:get up|wake up|be up)"
+        r"^(?:what time|when) (?:do i|should i|will i|am i) (?:need to |have to |got to )?(?:get up|wake up|be up|waking up|getting up)"
         r"(?P<get_up> tomorrow| in the morning| today)?\s*\??$")),
     # "What do I need to give back" after "I borrowed a ladder from Sam"
     # (2026-10-08: to the planner, and "I can't think").

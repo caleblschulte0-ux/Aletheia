@@ -8908,5 +8908,12 @@ class IsItStillValid(unittest.TestCase):
 
 
 
+class WhenAmIWakingUp(unittest.TestCase):
+    def test_it_is_the_morning_answer(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("when am I waking up tomorrow")[0], "get_up")
+
+
+
 if __name__ == "__main__":
     unittest.main()
