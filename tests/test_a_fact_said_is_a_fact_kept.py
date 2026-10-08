@@ -7175,6 +7175,14 @@ class BeforeAFlightHeToldHer(unittest.TestCase):
         self.assertIn("your flight in 2 hours", cmd["text"])
 
 
+class WhatHeLentOut(unittest.TestCase):
+    def test_lent_and_not_given_back(self):
+        # 2026-10-08: "what have I lent out" went to a model.
+        rows = [{"text": "Mike gave my drill back"}, {"text": "I lent my ladder to my brother"}, {"text": "I lent Mike my drill"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what have I lent out"), "From what you've told me: your ladder with your brother.")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

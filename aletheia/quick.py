@@ -456,6 +456,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("ate", re.compile(
         r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
         r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
+    # "What have I lent out" (2026-10-08: to a model, with "I lent Mike my
+    # drill" kept): every lend not since given back.
+    ("lent_out", re.compile(
+        r"^(?:what|which things|what stuff) (?:have i|did i|do i have) (?:lend|lent|loan|loaned)(?: out)?(?: to (?:people|anyone|anybody))?\s*\??$"
+        r"|^who (?:has|have|borrowed) (?:my|any of my) (?:stuff|things)\s*\??$|^what (?:do i have|have i got) (?:lent|loaned) out\s*\??$")),
     ("lent", re.compile(
         r"^who (?:has|borrowed|took|has got) (?:my|our) (?P<lent>[a-z][a-z' ]{1,25}?)\s*\??$"
         r"|^(?:who did i|did i) (?:lend|loan|give) (?:my|our|the) (?P<lent2>[a-z][a-z' ]{1,25}?) to(?: anyone| anybody| someone)?\s*\??$")),
@@ -11285,6 +11290,32 @@ def _lent(text: str) -> str | None:
     return f"You haven't told me you lent your {thing} to anybody."
 
 
+def _lent_out() -> str:
+    """Every thing he said he lent and has not said came back."""
+    from aletheia import speech
+    out: dict[str, str] = {}
+    for row in reversed(_notes()):
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        m = (re.fullmatch(r"i (?:lent|loaned|gave) (?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30})", low)
+             or re.fullmatch(r"i (?:lent|loaned) (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30}?) to (?P<who>[a-z][a-z' ]{1,30})", low))
+        if m:
+            out[m.group("thing")] = m.group("who")
+            continue
+        back = (re.fullmatch(r"[a-z][a-z' ]{1,30}? (?:gave|brought|returned) (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30}?) back", low)
+                or re.fullmatch(r"[a-z][a-z' ]{1,30}? returned (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30})", low)
+                or re.fullmatch(r"i got (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,30}?) back(?: from .+)?", low))
+        if back:
+            out.pop(back.group("thing"), None)
+    if not out:
+        return "Nothing lent out that you've told me about."
+    def person(who):
+        if who.startswith(("my ", "our ")):
+            return "your " + who.split(" ", 1)[1]
+        return "your " + who if who in _relation_words() else who.title()
+    said = [f"your {thing} with {person(who)}" for thing, who in out.items()]
+    return f"From what you've told me: {speech.and_list(said)}."
+
+
 _KEPT = {
     # which: (what his note starts with, what a row is called, said when none)
     "idea": (r"idea: ", "idea", "No ideas kept yet. Say \"I have an idea for...\" and I'll hold on to it."),
@@ -12706,6 +12737,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "counted": _counted,
            "ate": _ate,
            "lent": _lent,
+           "lent_out": lambda rest: _lent_out(),
            "kept": _kept,
            "gift_for": _gift_for,
            "meal_plan": _meal_plan,
