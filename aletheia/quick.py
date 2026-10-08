@@ -1603,6 +1603,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|talking to|calling)(?: with)? (?P<when_meeting>[a-z][a-z' ]{1,25}?)(?: next| again)?\s*\??$"
         # "What do I have with Sam" (2026-10-07: to a model).
         r"|^(?:what do i have|do i have anything|have i got anything)(?: (?:on|coming up|scheduled|planned))? with (?P<when_meeting2>[a-z][a-z' ]{1,25}?)\s*\??$")),
+    # "When will you remind me to pay rent", "what time is my reminder to
+    # check the mail", "what reminders do I have this week" (2026-10-08: to
+    # a model, with the reminders right there).
+    ("reminder_next", re.compile(
+        r"^(?:when|what time|what day)(?: will| are) you (?:going to )?remind(?:ing)? me (?:to|about|that) (?P<reminder_next>[a-z0-9][a-z0-9' ]{1,50}?)\s*\??$"
+        r"|^(?:when|what time|what day)(?:'s| is) (?:my |the )?reminder (?:to|about|for) (?P<reminder_next2>[a-z0-9][a-z0-9' ]{1,50}?)\s*\??$")),
+    ("reminders_week", re.compile(
+        r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week)\s*\??$"
+        r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week)\s*\??$")),
     ("reminders_on", re.compile(
         r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
         r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
@@ -3017,7 +3026,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -14021,6 +14030,38 @@ def _freezer(_text: str = "") -> str | None:
     return f"You told me you froze {speech.and_list(left[:6])}."
 
 
+def _reminder_next(what: str) -> str | None:
+    """When the reminder whose words he names next goes off."""
+    from aletheia import localtime, speech
+    words = [w for w in re.findall(r"[a-z0-9']+", str(what or "").casefold()) if w not in ("my", "the", "a", "an", "to", "your")]
+    if not words:
+        return None
+    tz = localtime.operator_tz()
+    for at, text, store in _coming():
+        low = str(text).casefold()
+        if store == "reminder" and all(re.search(r"\b" + re.escape(w), low) for w in words):
+            when = speech.humanize_time(at.astimezone(tz).isoformat())
+            return f"{when[:1].upper() + when[1:]}: {speech._yours(str(text).strip())}."
+    return f"I don't have a reminder to {' '.join(words)}. Say \"remind me\" and when, and I'll set one."
+
+
+def _reminders_week(which: str) -> str:
+    import datetime as dt
+    from aletheia import localtime, speech
+    which = " ".join(str(which or "this week").split())
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    start = today if which == "this week" else today + dt.timedelta(days=7 - today.weekday())
+    end = today + dt.timedelta(days=6 - today.weekday()) if which == "this week" else start + dt.timedelta(days=6)
+    rows = [(at.astimezone(tz), text) for at, text, store in _coming()
+            if store == "reminder" and start <= at.astimezone(tz).date() <= end]
+    if not rows:
+        return f"No reminders {which}."
+    said = [f"{speech._yours(str(t).strip())}, {speech.humanize_time(a.isoformat())}" for a, t in rows[:6]]
+    more = f", and {len(rows) - 6} more" if len(rows) > 6 else ""
+    return f"{speech.count_phrase(len(rows), 'reminder')} {which}: {speech.and_list(said)}{more}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14828,6 +14869,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "reminder_next": _reminder_next,
+           "reminders_week": _reminders_week,
            "freezer": _freezer,
            "out_today": _out_today,
            "workouts_did": _workouts_did,

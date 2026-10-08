@@ -9325,5 +9325,19 @@ class RemindMeBeforeADay(unittest.TestCase):
                          {"kind": "note", "text": "remind me to start laundry when I get home"})
 
 
+class WhenWillYouRemindMe(unittest.TestCase):
+    """"When will you remind me to pay rent" and "what reminders do I have
+    this week" went to a model (2026-10-08)."""
+
+    def test_read_from_the_reminders(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [(now + dt.timedelta(minutes=5), "check the mail", "reminder"), (now + dt.timedelta(days=40), "pay rent", "reminder")]
+        with mock.patch.object(quick, "_coming", lambda now=None: rows):
+            self.assertTrue(quick.answer("when will you remind me to pay rent").endswith(": pay rent."))
+            self.assertTrue(quick.answer("what reminders do I have this week").startswith("1 reminder this week: check the mail"))
+            self.assertIn("don't have a reminder", quick.answer("when will you remind me to call bob"))
+
+
 if __name__ == "__main__":
     unittest.main()
