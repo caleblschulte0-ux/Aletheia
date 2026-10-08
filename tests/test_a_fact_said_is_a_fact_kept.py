@@ -5891,5 +5891,17 @@ class AHoldsReminderMovesWithIt(unittest.TestCase):
             self.assertEqual(voice._one_of_her_holds("that meeting")[0]["id"], "h1")
 
 
+class AMoveToABareEarlyHourIsTheAfternoon(unittest.TestCase):
+    """2026-10-08: an 11 am appointment, "push it to 2", went to 2 am."""
+
+    def test_push_it_to_2(self):
+        start = "2099-01-02T11:00:00-07:00"
+        with mock.patch.object(voice, "_recent_ask_of", return_value={"title": "doctor", "start": start}):
+            got = voice._moved_hold("2")
+        self.assertEqual(dt.datetime.fromisoformat(got["command"]["start"]).hour, 14)
+        with mock.patch.object(voice, "_recent_ask_of", return_value={"title": "doctor", "start": start}):
+            self.assertEqual(dt.datetime.fromisoformat(voice._moved_hold("9")["command"]["start"]).hour, 9)
+
+
 if __name__ == "__main__":
     unittest.main()

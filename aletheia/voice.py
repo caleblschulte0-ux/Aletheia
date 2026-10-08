@@ -1897,6 +1897,8 @@ def _moved_hold(time_words: str) -> dict | None:
     hhmm = _spoken_time(time_words) if previous else None
     if not hhmm:
         return None
+    # "Push it to 2" from 11 am is two in the afternoon, not 2 am
+    # (2026-10-08): a bare hour before EARLIEST_BARE_HOUR is never meant.
     try:
         was = dt.datetime.fromisoformat(str(previous["start"]).replace("Z", "+00:00"))
     except (TypeError, ValueError):
@@ -1904,7 +1906,7 @@ def _moved_hold(time_words: str) -> dict | None:
     hour, minute = map(int, hhmm.split(":"))
     # A bare hour keeps the half of the day the hold was in: dinner at 7
     # "made 8" is eight in the evening.
-    if _is_bare_hour(time_words) and was.hour >= 12 and hour < 12:
+    if _is_bare_hour(time_words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12
     new = was.replace(hour=hour, minute=minute)
     command = {"kind": "calendar_hold", "title": previous["title"], "start": new.isoformat(),
@@ -1952,7 +1954,7 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
         return {"command": None, "say": "Which one - " + speech.or_list([w for _, w in found[:4]]) + "?"}
     was, words = found[0]
     hour, minute = map(int, hhmm.split(":"))
-    if _is_bare_hour(time_words) and was.hour >= 12 and hour < 12:
+    if _is_bare_hour(time_words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12                       # "move my 3pm reminder to 4" means 4 pm
     at = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
     return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words, "replaces": words}, "say": None}
@@ -6369,7 +6371,7 @@ def _interpret(transcript: str) -> dict:
             ends = _cal.parse_time(hold["end"]).astimezone(tz) if hold.get("end") else was + dt.timedelta(hours=1)
             words = to.group("when").replace("at ", "")
             hour, minute = map(int, _spoken_time(words).split(":"))
-            if _is_bare_hour(words) and was.hour >= 12 and hour < 12:
+            if _is_bare_hour(words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
                 hour += 12
             new = was.replace(hour=hour, minute=minute)
             return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
@@ -7562,7 +7564,7 @@ def _interpret(transcript: str) -> dict:
                 was = int(str(found.get("time") or "0:0").split(":")[0])
             except ValueError:
                 was = 0
-            if _is_bare_hour(m.group("time")) and was >= 12 and hour < 12:
+            if _is_bare_hour(m.group("time")) and hour < 12 and (was >= 12 or hour <= EARLIEST_BARE_HOUR):
                 hour += 12
             return {"command": {"kind": "remind_daily", "time": f"{hour:02d}:{minute:02d}", "text": said_text,
                                 "replaces": said_text}, "say": None}
