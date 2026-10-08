@@ -2404,6 +2404,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("get_my", re.compile(r"^when (?:will|do|should|am i going to|am i gonna) (?:i )?(?:get|see|receive) (?:my|the|our) (?P<get_my>(?:tax )?(?:refund|check|paycheck|deposit|reimbursement|money back|[a-z]+ refund))\s*\??$")),
     # "What can I make with chicken and rice" (2026-10-08: to a model).
     ("make_with", re.compile(r"^what (?:can|could|should) (?:i|we) (?:make|cook|do) with (?P<make_with>[a-z][a-z, ]{2,60}?)(?: for (?:dinner|lunch|tonight))?\s*\??$")),
+    # "How long did I nap" (2026-10-08: to a model, after "I napped for an hour").
+    ("nap_len", re.compile(r"^how long (?:did|was) (?:i|my) (?:nap|napping|sleep(?:ing)? (?:today|this afternoon))(?: for)?(?: today| this afternoon)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -15562,6 +15564,20 @@ def _family_news(_text: str = "") -> str | None:
     return f"The latest you told me: {speech.and_list(found)}." if found else None
 
 
+def _nap_len(_text: str = "") -> str | None:
+    """How long his newest nap was, from what he said."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".").casefold()
+        m = re.match(r"i (?:just )?(?:napped|dozed off|took a nap) for (?P<n>.+?)(?: today| this afternoon)?$", said) \
+            or re.match(r"i (?:just )?took a (?P<n2>\d{1,3}[- ](?:minute|min|hour)) nap", said)
+        if m:
+            n = m.group("n") if m.groupdict().get("n") else re.sub(r"[- ]", " ", m.group("n2")) + "s"
+            return f"You told me you napped for {n.replace('mins', 'minutes').replace('min ', 'minute ')}."
+        if re.match(r"i (?:just )?took a (?:short |long |quick |power )?nap\b|i napped\b", said):
+            return "You told me you took a nap, but not for how long."
+    return None
+
+
 def _said_today(rx: str) -> list:
     """(text, local time) of today's notes and spoken turns matching rx,
     newest first - "I'm at the gym" is a turn as often as a note."""
@@ -17197,6 +17213,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "nap_len": _nap_len,
            "family_news": _family_news,
            "yard_todo": _yard_todo,
            "mow_last": lambda t: _did_last("when did i last mow the lawn"),

@@ -10265,6 +10265,15 @@ def _interpret(transcript: str) -> dict:
                     r"|i slept (?:badly|terribly|poorly|well|great|fine|ok|okay|awful|horribly|like a baby|like crap|like garbage)"
                     r"(?: last night)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I couldn't sleep last night", "I had a nightmare", "I napped for an
+    # hour" (2026-10-08: to the planner). Kept, with a kind word where one fits.
+    if re.fullmatch(r"i (?:could not|couldn'?t|can'?t|cannot|didn'?t|did not|barely|hardly) (?:get to )?sleep(?: (?:at all|much|well|a wink))?(?: last night| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Sorry - that's rough. Go easy on yourself today."}
+    if re.fullmatch(r"i had (?:a |another |the worst |such a )?(?:nightmare|bad dream|horrible dream|awful dream|scary dream)(?: last night| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Sorry - that's no fun. It's over now."}
+    if re.fullmatch(r"i (?:just )?(?:napped|dozed off|took a nap) for (?:about |around |like )?(?:an hour|half an hour|(?:\d{1,3}|twenty|thirty|forty|fifteen|ten|two|three) (?:minutes?|mins?|hours?))(?: today| this afternoon)?"
+                    r"|i (?:just )?took a (?:\d{1,3}[- ](?:minute|min|hour) |short |long |quick |power )nap(?: today| this afternoon)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I STARTED READING THE HOBBIT" (2026-10-07: to the planner); "what am
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):

@@ -10719,5 +10719,23 @@ class HappyNewsInTheFamily(unittest.TestCase):
                              "The latest you told me: your sister is pregnant and your mom is retiring.")
 
 
+class ARoughNightAndANap(unittest.TestCase):
+    """2026-10-08: "I couldn't sleep last night", "I had a nightmare" and "I
+    napped for an hour" went to the planner; "how long did I nap" to a model."""
+
+    def test_said(self):
+        for said in ("I could not sleep last night", "I had a nightmare"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"]["kind"], "note", said)
+            self.assertTrue(got["say"].startswith("Sorry"), said)
+        self.assertEqual(voice._interpret("I napped for an hour")["command"]["kind"], "note")
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I napped for an hour"}, {"text": "I slept for 7 hours"}]):
+            self.assertEqual(quick.answer("how long did I nap"), "You told me you napped for an hour.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I slept for 7 hours"}]):
+            self.assertIsNone(quick.answer("how long did I nap"))
+
+
 if __name__ == "__main__":
     unittest.main()
