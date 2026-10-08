@@ -268,7 +268,9 @@ def _row(entry: dict) -> dict:
     elif subject == "operator" and entry.get("kind") == "note":
         # His own words, kept: "operator: my landlord's name is Dana" was
         # read out as something she did (2026-09-24). Noting it is the act.
-        what = "Noted: " + speech.tidy(speech.strip_ids(text))
+        # Said back as hers to say: "Noted: I finished the report" read his
+        # own "I" as hers (2026-10-08).
+        what = "Noted: " + speech.as_she_says_it(speech.tidy(speech.strip_ids(text)))
     elif head in SUBJECT_KINDS:
         said = speech.spoken_receipt(SUBJECT_KINDS[head], text)
         what = said if said != text else speech.tidy(speech.strip_ids(text))

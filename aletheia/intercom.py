@@ -298,7 +298,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # so "remind me every monday to take out the trash" compiled to a
     # generic `do_task` under a summary that promised a weekly reminder.
     # A capability nothing can ask for is not a capability.
-    "remind_weekly":   ({"days", "time", "text"}, {"tz", "every"}),
+    "remind_weekly":   ({"days", "time", "text"}, {"tz", "every", "replaces"}),
     # "What reminders do I have" / "stop reminding me about the bins".
     # `scheduler` has listed and disabled schedules since it was written;
     # asking for either OUT LOUD compiled a gap called `reminder.cancel`
@@ -2537,6 +2537,10 @@ def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:
     if busy:
         first = busy[0]
         title = str(first.get("title") or "something")
+        # "You have meeting then" (2026-10-08): a bare noun takes its article.
+        if re.fullmatch(r"(?:meeting|call|appointment|interview|lunch meeting|dentist appointment|doctor's appointment"
+                        r"|doctor appointment|haircut|class|practice|game|session|event|hold)", title.casefold()):
+            title = ("an " if title[0].casefold() in "aeiou" else "a ") + title
         return f"You have {title} then ({when})."
     # No "yes" or "no": "am I BUSY at 3" reaches here as the same command
     # as "am I free at 3", and "Yes, you're free" answered it backwards
@@ -2625,7 +2629,9 @@ def _named_list(kind: str, cmd: dict) -> str:
         return f"Nothing's on a {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
     if not rows:
         return f"Your {name} list is empty."
-    shown = rows[:10] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
+    # "Sunscreen and my charger" read his own words back as hers (2026-10-08).
+    # Only a leading "my": a title ("I Am Legend") is never rewritten.
+    shown = [re.sub(r"^[Mm]y ", "your ", str(r)) for r in rows[:10]] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])
     return f"{speech.count_phrase(len(rows), 'thing')} on your {name} list: {speech.and_list(shown)}."
 
 
@@ -4086,6 +4092,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         from aletheia import scheduler
         import uuid as _uuid
         days = _weekday_numbers(cmd["days"])
+        if cmd.get("replaces"):
+            # "Change my alarm to 6:15" with only a weekday alarm set
+            # (2026-10-08): the old time goes off (never deleted).
+            found, _why = _one_reminder(str(cmd["replaces"]))
+            if found is not None and found.get("kind") == "weekly":
+                scheduler.set_enabled(found["id"], False)
         sid = "remind-weekly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="weekly",
@@ -4550,6 +4562,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said = (f"You haven't got any accounts recorded, so I have no "
                     f"{about} to report. There's no bank connected - "
                     f"I can only hold what you or I record.")
+            if about == "spending":
+                # The way to record it, said where he asked (2026-10-08).
+                said = ("You haven't told me anything you spent, and there's no bank connected. "
+                        "Tell me as you go - \"I spent 40 on gas\" - and I'll add it up.")
             if about == "balance":
                 # "My checking account has 2400" is a note (2026-10-07), and
                 # this said nothing was recorded one breath later.
