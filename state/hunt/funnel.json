@@ -27,14 +27,13 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 9,
-      "gone_on_greenhouse": 5,
+      "gone_on_ashbyhq": 8,
+      "gone_on_greenhouse": 4,
       "gone_on_lever": 1,
-      "left_captcha": 3,
-      "left_error": 5,
-      "left_going_in_circles": 2,
-      "left_no_way_forward": 7,
-      "left_sign_in": 1,
+      "left_captcha": 1,
+      "left_error": 3,
+      "left_going_in_circles": 1,
+      "left_no_way_forward": 2,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 15,
       "not_realistic": 3
@@ -234,15 +233,23 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 67,
-      "found": 92,
+      "filled": 56,
+      "found": 81,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 36
+    },
+    "2026-10-08": {
+      "filled": 12,
+      "found": 12,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-10-08T04:36:26Z",
+  "generated_at": "2026-10-08T13:03:45Z",
   "sent_all_time": 270,
   "stuck_at": {
     "approval_denied": {
@@ -291,11 +298,11 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 3
+        "nothing_to_press_on_captcha/filled": 2
       },
       "error": {
         "nothing_to_press_on_unread/filled": 1,
-        "nothing_to_press_on_unread/observed": 4,
+        "nothing_to_press_on_unread/observed": 3,
         "nothing_to_press_on_unread/submit_clicked": 1
       },
       "going_in_circles": {
@@ -303,7 +310,7 @@
         "nothing_to_press_on_form/review_reached": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content/observed": 5,
+        "nothing_to_press_on_content/observed": 2,
         "nothing_to_press_on_form/observed": 3,
         "unclear_button/observed": 2
       },
@@ -313,8 +320,8 @@
     }
   },
   "totals": {
-    "filled": 346,
-    "found": 703,
+    "filled": 347,
+    "found": 704,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
@@ -324,14 +331,12 @@
     "asked_about": {
       "address": 1,
       "demographic_gender": 2,
-      "demographic_race": 4,
+      "demographic_race": 3,
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 1,
-      "other": 10,
-      "travel": 1,
-      "why_this_job": 1,
-      "work_authorization": 1
+      "other": 9,
+      "travel": 1
     },
     "closed": {
       "duplicate": 3,
@@ -359,9 +364,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 75
     },
-    "failed": 11,
+    "failed": 13,
     "failed_because": {
-      "ApplyError": 5,
+      "ApplyError": 7,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -370,7 +375,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 15,
+    "needs_answer": 13,
     "oldest_days": 25,
     "to_send": 0
   },

@@ -101,6 +101,13 @@ _COLD_CALLING = re.compile(
     r"cold[- ]?call|outbound prospecting|prospect(?:ing)?\s+(?:for\s+)?new\s+"
     r"(?:business|customers|clients|accounts|logos)|\b\d{2,3}\+?\s*(?:calls|dials)\b|"
     r"high[- ]volume (?:outbound|calling|calls)|new[- ]logo acquisition", re.I)
+#: Calling strangers on the phone, and nothing wider: a development rep who
+#: prospects by email is not a cold caller, and his 2026-10-08 words were
+#: about the calls ("I'm not a cold caller").
+COLD_CALLS = re.compile(
+    r"cold[- ]?call|\b\d{2,3}\+?\s*(?:outbound\s+)?(?:calls|dials)\b|"
+    r"high[- ]volume (?:outbound )?(?:calling|calls|dials)|phone prospecting|"
+    r"(?:outbound|prospecting) (?:phone )?calls\b|dialing", re.I)
 #: A job built around chasing a number. His words, 2026-09-13: "I'm not
 #: trying to chase quotas all day." Business development without a quota is
 #: fine, so this reads the DUTIES, never the title.
@@ -273,9 +280,10 @@ _DEVELOPMENT_REP = re.compile(
 DEVELOPMENT_REP_ROLES = ("Business Development Representative", "Sales Development Representative")
 _DEVELOPMENT_REP_WANTED = ("business development and sales development representative roles "
                            "(BDR, SDR, and the same role called account, market or lead "
-                           "development representative), prospecting and quota included")
-_DEVELOPMENT_REP_EXCEPT = ("except business and sales development representative roles (BDR, SDR), "
-                           "which he said yes to on 2026-10-07")
+                           "development representative), quota included, but never cold calling")
+_DEVELOPMENT_REP_EXCEPT = ("except business and sales development representative roles (BDR, SDR) "
+                           "that involve no cold calling, which he said yes to on 2026-10-07; "
+                           "he is not a cold caller")
 
 
 def development_reps_welcome() -> bool:
@@ -309,6 +317,12 @@ def preferences(known: dict | None = None) -> tuple[str, str]:
 def unwanted_reason(title: str, text: str = "", known: dict | None = None) -> str:
     """The kind of work he said he will not do, if this job is it."""
     if _DEVELOPMENT_REP.search(str(title or "")) and development_reps_welcome():
+        # His yes to BDR/SDR never covered cold calling. His words,
+        # 2026-10-08: "I am not comfortable with cold calls ... I'm not a
+        # cold caller." So the one rule that still reads a development-rep
+        # posting is that one.
+        if COLD_CALLS.search(str(text or "")):
+            return "the job involves cold calling, which he will not do"
         return ""
     # His own words only: the carve-out sentence names "sales" and must not
     # switch the sales rule on for a man who never said it.
