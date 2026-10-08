@@ -18,7 +18,7 @@ touching the gates, because the output is only ever a command object.
 from __future__ import annotations
 
 import datetime as dt
-import re
+from aletheia import rx as re
 import threading
 
 from aletheia import capabilities, policy, speech, tasks

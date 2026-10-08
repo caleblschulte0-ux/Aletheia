@@ -29,7 +29,7 @@ everything else. It is a shortcut, not a replacement.
 """
 from __future__ import annotations
 
-import re
+from aletheia import rx as re
 
 MAX_QUESTION = 200
 
