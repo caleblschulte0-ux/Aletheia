@@ -4160,6 +4160,12 @@ def _interpret(transcript: str) -> dict:
     # "I need gas", "I need a nap", "I need to lose weight" (2026-10-08: all
     # to the planner). Gas is an errand; the other two are his, said kindly
     # with the one thing she can do about each.
+    # "I need a passport photo" (2026-10-08: on the shopping list) is an
+    # errand, not shopping.
+    m = re.fullmatch(r"i (?:need|have to get|gotta get|need to get) (?:a |an |my |new )?(?P<w>passport photos?|new passport|passport renewed|visa|background check"
+                     r"|fingerprints taken|eye exam|physical|vaccine|flu shot|blood test|blood work|x-ray)", low)
+    if m:
+        return _new_task(f"get {'a ' if m.group('w') in ('passport photo', 'visa', 'background check', 'eye exam', 'physical', 'vaccine', 'flu shot', 'blood test', 'x-ray') else ''}{m.group('w')}")
     # "I need new tires" (2026-10-08: on the shopping list). Car work is
     # done at a shop, so it is a job on his list, not a thing to pick up.
     m = re.fullmatch(r"(?:i|we) (?:need|gotta get|need to get|have to get|should get) (?:a |an |some |new )*"
@@ -9621,6 +9627,8 @@ def _interpret(transcript: str) -> dict:
                      # planner) - held to a digit below.
                      r"|(?P<coded>(?:flight|confirmation|booking|reservation|tracking|order|case|ticket|claim|seat|gate"
                      r"|frequent flyer|rewards|loyalty|room|parking spot|spot) (?:number|code|#)"
+                     # "My flight confirmation is XJ4K2" (2026-10-08: to the planner).
+                     r"|(?:flight|hotel|booking|rental car|car rental|airbnb|trip) confirmation(?: number| code| #)?"
                      # "My insurance member id is ABC123", "my library card
                      # number is 12345" (2026-10-08: to the planner).
                      r"|(?:insurance |health insurance |dental |vision |gym |library |costco )?(?:member(?:ship)?|library card"
@@ -10263,6 +10271,9 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my [a-z]{2,15}|[a-z]{2,15}) and i (?:are|will be|'re) (?:going|heading|getting|having|doing|playing|meeting|grabbing)"
                     r" [a-z' ]{2,30}? (?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight|this weekend"
                     r"|next week)(?: (?:morning|afternoon|evening|night))?(?: at [0-9: apm]{1,8})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I checked in for my flight" (2026-10-08: to the planner) is kept.
+    if re.fullmatch(r"i (?:just |already )?checked in (?:for|to) (?:my |the |our )?(?:flight|hotel|appointment|room)(?: today| already| online)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
     # to leave, and "Jake is picking me up from the airport" is kept.

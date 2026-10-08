@@ -9749,5 +9749,24 @@ class AtWorkAgain(unittest.TestCase):
             self.assertEqual(quick.answer("what do I need to ask Linda"), "Your list says: ask Linda about the budget.")
 
 
+class TravelDayAgain(unittest.TestCase):
+    """A sweep of travel sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("my flight confirmation is XJ4K2", "I checked in for my flight"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I need a passport photo")["command"]["description"], "get a passport photo")
+
+    def test_read(self):
+        rows = [{"text": "I checked in for my flight"}, {"text": "my flight confirmation is XJ4K2"},
+                {"text": "my gate is B22"}, {"text": "I'm going to Hawaii in December"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("did I check in for my flight"), "You told me you checked in for your flight.")
+            self.assertEqual(quick.answer("what is my confirmation number"), "You told me: your flight confirmation is XJ4K2.")
+            self.assertEqual(quick.answer("what gate do I go to"), "You told me: your gate is B22.")
+            self.assertIn("but not the day", quick.answer("how many days until Hawaii"))
+            self.assertIsNone(quick.answer("how many days until Tokyo"))
+
+
 if __name__ == "__main__":
     unittest.main()

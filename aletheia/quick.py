@@ -2254,7 +2254,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
     # "Which locker is mine", "which parking spot is mine" (2026-10-08: to a model).
     ("which_mine", re.compile(r"^(?:which|what) (?P<which_mine>locker|gym locker|parking spot|parking space|spot|seat|room|desk|cubicle"
-                              r"|gate|unit|apartment) (?:is mine|is my one|am i in|do i have|did i get)\s*\??$")),
+                              r"|gate|unit|apartment) (?:is mine|is my one|am i in|do i have|did i get|do i go to|am i at|is my flight at)\s*\??$")),
     # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
     ("freezer", re.compile(r"^what(?:'s| is|s)? (?:in|left in) (?:the |my )?(?:freezer|deep freeze)\s*\??$"
                            r"|^what (?:do i have|have i got|did i put) in (?:the |my )?freezer\s*\??$")),
@@ -2262,12 +2262,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
         r"|vaccinate|deworm|descale|defrost|call|visit|pay|talk to|talk with|speak to|speak with|see|meet with|meet up with|meet"
-        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out|make|cook|bake) (?P<did_o>(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
+        r"|hang out with|text|catch up with|lock|close|shut|unplug|turn off|take out|make|cook|bake|check in for) (?P<did_o>(?!(?:an? |the |my )?(?:appointment|reservation|booking|decision|mistake)\b)[a-z][a-z' ]{1,40}?)(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v2>change|changed|give|given|feed|fed|walk|walked|water|watered|clean|cleaned"
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
         r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
-        r"|turn off|turned off|take out|taken out|took out|file|filed|submit|submitted) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|turn off|turned off|take out|taken out|took out|file|filed|submit|submitted|check in for|checked in for) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -4717,13 +4717,21 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
         if re.fullmatch(r"(?:my )?birthday", " ".join(str(words or "").casefold().split())):
             return "I don't know your birthday yet. Say \"my birthday is March 3\" and I'll remember it."
         found = _until_mine(words)  # a thing, not a date: the model may think
-        if found is None and re.fullmatch(r"(?:my |our |the )?(?:trip|vacation|holiday|getaway)", " ".join(str(words or "").casefold().split())):
+        bare = " ".join(str(words or "").casefold().split())
+        trip = re.fullmatch(r"(?:my |our |the )?(?:trip|vacation|holiday|getaway)", bare)
+        # "How many days until Hawaii" after "I'm going to Hawaii in December"
+        # (2026-10-08: to a model) is the same trip, named by where.
+        place = None if trip or not re.fullmatch(r"[a-z][a-z .'-]{2,25}", bare) else bare
+        if found is None and (trip or place):
             # "I'm going to Paris next month" names no day (2026-10-08: a
             # model was asked to count to it).
             for row in _notes():
                 said = " ".join(str(row.get("text") or "").split())
-                if re.search(r"\b(?:trip|vacation|holiday|going to|heading to|flying to|driving to)\b", said, re.I) \
-                        and re.search(r"\b(?:next|this) (?:week|month|year|summer|winter|spring|fall|weekend)\b|\bin (?:the )?(?:summer|winter|spring|fall)\b", said, re.I):
+                there = (rf"\b(?:going|heading|flying|driving|trip|off) to {re.escape(place)}\b" if place else
+                         r"\b(?:trip|vacation|holiday|going to|heading to|flying to|driving to)\b")
+                if re.search(there, said, re.I) \
+                        and re.search(r"\b(?:next|this) (?:week|month|year|summer|winter|spring|fall|weekend)\b|\bin (?:the )?(?:summer|winter|spring|fall)\b"
+                                      r"|\bin (?:january|february|march|april|may|june|july|august|september|october|november|december)\b", said, re.I):
                     return (f"You told me {speech.as_she_says_it(said).rstrip('.')}, but not the day. "
                             "Tell me the date and I'll count down to it.")
         return found
@@ -6040,7 +6048,7 @@ def _owed(question: str = "") -> str:
     return " ".join(said)
 
 
-_PAST = {"saw": "saw", "met": "met", "spoke to": "talked to", "spoke with": "talked to", "make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
+_PAST = {"check in for": "checked in for", "checked in for": "checked in for", "saw": "saw", "met": "met", "spoke to": "talked to", "spoke with": "talked to", "make": "made", "cook": "cooked", "bake": "baked", "take out": "took out", "taken out": "took out", "took out": "took out", "talk to": "talked to", "talk with": "talked to", "speak to": "talked to", "spoken to": "talked to",
          "speak with": "talked to", "talked to": "talked to", "see": "saw", "seen": "saw", "meet": "met", "meet with": "met",
          "meet up with": "met", "hang out with": "hung out with", "text": "texted", "texted": "texted",
          "catch up with": "caught up with", "shut": "shut", "turn off": "turned off", "turned off": "turned off",
