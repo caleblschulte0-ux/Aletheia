@@ -5648,5 +5648,16 @@ class HowLongAtHisJob(unittest.TestCase):
             self.assertIsNone(quick._job_since("how long have i been at my job"))
 
 
+class TheDentistIsTheFifteenth(unittest.TestCase):
+    """2026-10-07: "the dentist is the 15th at 10" and "my wifi network is
+    called Home5G" went to the planner."""
+
+    def test_kept_as_notes(self):
+        for said in ("the dentist is the 15th at 10", "the game is tomorrow at 7", "my wifi network is called Home5G"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        # A password is still refused, however it is said.
+        self.assertIsNone(voice._interpret("my wifi network password is hunter2")["command"])
+
+
 if __name__ == "__main__":
     unittest.main()

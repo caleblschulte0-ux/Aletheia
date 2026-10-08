@@ -8044,7 +8044,12 @@ def _interpret(transcript: str) -> dict:
                          r"|contractor|delivery|repair ?man|technician|movers|guests|in-laws|my parents|[a-z]{2,15}) (?:is|are) "
                          r"(?:coming|arriving|coming over|getting here) (?:at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|tonight|tomorrow"
                          r"(?: at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
-                         + _at + r")", low))
+                         + _at + r")", low)
+         # "The dentist is the 15th at 10" (2026-10-07: to the planner).
+         or re.fullmatch(r"(?:the |my |our )?(?P<thing4>dentist|doctor|vet|haircut|interview|meeting|party|wedding|game|recital"
+                         r"|concert|game|recital|surgery|checkup|check-up|physical|[a-z]+ appointment) is (?:on )?(?:"
+                         + SPOKEN_DATE + r"|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                         r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low))
     if m and not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
@@ -8075,7 +8080,7 @@ def _interpret(transcript: str) -> dict:
                      # Elementary" (2026-10-07: to the planner).
                      r"|teacher|school|coach|pediatrician|doctor|dentist|class|grade|team|best friend|nickname|shoe size"
                      r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name)"
-                     r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name)?|wi-fi(?: password)?"
+                     r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name| network(?: name| password)?)?|wi-fi(?: password| network)?"
                      r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
                      # who someone IS to him, read back by "who's my doctor".
