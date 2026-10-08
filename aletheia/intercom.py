@@ -2007,6 +2007,16 @@ def _one_notice(which: str = ""):
     from aletheia import notifications, speech
     rows = [n for n in notifications.all_notifications(state="UNREAD", limit=50)]
     if not rows:
+        # "Snooze that" a turn after setting one (2026-10-08): nothing has
+        # gone off, so say which is next and how to push it.
+        try:
+            from aletheia import quick
+            nxt = next((r for r in quick._coming() if r[2] == "reminder"), None)
+        except Exception:
+            nxt = None
+        if nxt:
+            return None, (f"Nothing has gone off yet - your next reminder, {nxt[1].rstrip('.')}, is "
+                          f"{speech.humanize_time(nxt[0].isoformat())}. Say \"move it to\" and a time to push it.")
         return None, "Nothing is waiting to be snoozed."
     needle = " ".join(str(which or "").split()).casefold()
     if not needle or needle in ("that", "it", "this", "them"):

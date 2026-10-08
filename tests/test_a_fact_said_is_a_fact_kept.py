@@ -7433,6 +7433,28 @@ class RanOutAndSleptThisWeek(unittest.TestCase):
         self.assertEqual(quick.match("how did I sleep this week")[0], quick.match("how much did I sleep this week")[0])
 
 
+class SnoozeBeforeItGoesOff(unittest.TestCase):
+    """2026-10-08: "snooze that" right after setting a reminder said only
+    that nothing was waiting, and "move it to 2:30" then went to the
+    planner (and, without the snooze, to 2:30 in the AFTERNOON)."""
+
+    def test_snooze_with_nothing_fired_names_the_next_reminder(self):
+        from aletheia import intercom, notifications
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=20)
+        with mock.patch.object(notifications, "all_notifications", return_value=[]), \
+                mock.patch.object(quick, "_coming", return_value=[(at, "check the oven", "reminder")]):
+            found, why = intercom._one_notice("")
+        self.assertIsNone(found)
+        self.assertIn("check the oven", why)
+        self.assertIn("move it to", why)
+
+    def test_a_snooze_is_stepped_over(self):
+        from aletheia import converse
+        turns = [{"he_asked": "remind me in 20 minutes to check the oven"}, {"he_asked": "snooze that"}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice._recent_ask_of("remind_at", "text").get("text"), "check the oven")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

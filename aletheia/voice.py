@@ -1717,6 +1717,10 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         if cmd.get("kind") == "intent" and re.match(
                 r"(?:what|when|where|who|why|how|which|is|are|do|does|did|can|could|will|would)\b", said.casefold()):
             continue
+        # "Snooze that" acts on a notice, never on what he asked for, so
+        # "move it to 2:30" after it still means the reminder (2026-10-08).
+        if cmd.get("kind") == "notify_snooze":
+            continue
         if cmd.get("kind") not in intercom.READ_ONLY_KINDS:
             return {}
     return {}
@@ -1876,10 +1880,12 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         tz = localtime.operator_tz()
         was = dt.datetime.fromisoformat(str(previous.get("at") or "").replace("Z", "+00:00")).astimezone(tz)
         hour, minute = map(int, hhmm.split(":"))
-        if bare and 1 <= hour <= EARLIEST_BARE_HOUR:
+        if bare and 1 <= hour <= EARLIEST_BARE_HOUR and not was.hour <= EARLIEST_BARE_HOUR:
             # "Make it 4" on a 10 am reminder is four in the afternoon,
             # the way a bare hour is read everywhere else; "make it 7" on a
             # 9 am one is still the morning, the half it was already in.
+            # And "move it to 2:30" on a 2 am one is 2:30 am (2026-10-08:
+            # it went to the afternoon).
             hour += 12
         same_day = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if same_day > dt.datetime.now(tz):
