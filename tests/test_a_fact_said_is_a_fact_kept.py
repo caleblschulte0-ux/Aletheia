@@ -6780,5 +6780,23 @@ class PartOfItPaidBack(unittest.TestCase):
             self.assertEqual(quick.answer("how much does Jake owe me now"), "Jake owes you $30.")
 
 
+
+class EmmasSizeAndAge(unittest.TestCase):
+    """2026-10-08: "what size shoes does Emma wear" and "how old is Emma"
+    (no birthday told) went to a model."""
+
+    def test_her_size_asked_the_other_way_round(self):
+        rows = [{"text": "Emma's shoe size is 2", "ts": "2026-10-08T03:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what size shoes does Emma wear"), "You told me: Emma's shoe size is 2.")
+
+    def test_an_age_never_told_is_said_for_his_people_only(self):
+        rows = [{"text": "Emma has soccer practice every Tuesday at 5", "ts": "2026-10-08T03:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("You haven't told me when Emma was born", quick.answer("how old is Emma"))
+            self.assertIn('Say "My mom\'s birthday is"', quick.answer("how old is my mom"))
+            self.assertIsNone(quick.answer("how old is Obama"))
+
+
 if __name__ == "__main__":
     unittest.main()

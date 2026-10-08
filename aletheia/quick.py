@@ -2485,6 +2485,13 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "What size shoes does Emma wear" (2026-10-08: to a model, a turn
+    # after "Emma's shoe size is 2") is her shoe size.
+    m = re.fullmatch(r"what size (?P<what>shoe|shirt|pants|dress|ring|jacket|coat|diaper|clothes)s? (?:does|do) (?P<who>(?!i\b|you\b|we\b)[a-z]{2,15}|my [a-z]{2,15})"
+                     r" (?:wear|take|have|need)\s*\??", text)
+    if m:
+        who = m.group("who")
+        return f"what is {who}'s {m.group('what')} size"
     # "Did anyone feed the cat" (2026-10-08: to a model, a turn after "I
     # fed the cat"): what she knows is what he told her he did.
     m = re.fullmatch(r"(?:did|has) (?:anyone|anybody|someone|somebody|we) (?P<rest>(?:feed|fed|walk|walked|water|watered|take out|taken out"
@@ -3791,6 +3798,16 @@ def _age_of(who: str) -> str | None:
         year = dt.datetime.now(localtime.operator_tz()).year
         return (f"{shown} is {year - born_in - 1} or {year - born_in}, depending on whether the birthday has come yet "
                 f"this year. Tell me the birthday and I'll know.")
+    # "How old is Emma" with notes about Emma and none about her birthday
+    # (2026-10-08: to a model). Somebody of his he never dated is his to
+    # say; a name she has never heard of may be anybody's, so a model may.
+    if who.startswith("my ") or label in _relation_words() or any(names_them(" ".join(str(r.get("text") or "").split()).casefold())
+                                                                 for r in _notes()):
+        shown = (name[:1].upper() + name[1:] if name
+                 else f"your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
+        head = re.sub(r"^your ", "My ", shown) if shown.startswith("your ") else shown[:1].upper() + shown[1:]
+        return (f"You haven't told me when {shown} was born. Say \"{head}'s birthday is\" and the date with the year, "
+                "and I'll know.")
     return None
 
 
