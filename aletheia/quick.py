@@ -3326,6 +3326,18 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "Give me a rundown of tomorrow", "what's first on my calendar
+    # tomorrow", "what's the last thing on my calendar today" (2026-10-08:
+    # to a model) are the agenda and its ends.
+    m = re.fullmatch(r"(?:give me |can i get |what'?s |what is )?(?:a |the )?(?:rundown|run down|run-down|overview|lay of the land)"
+                     r" (?:of|for) (?:my |the )?(?P<d>today|tomorrow|day|week|this week)\s*\??", text)
+    if m:
+        d = {"day": "today", "week": "this week"}.get(m.group("d"), m.group("d"))
+        # Today is the day's plan, tasks and all, like "give me a summary of my day".
+        return "what's my day look like" if d == "today" else f"what's on my calendar {d}"
+    m = re.fullmatch(r"what(?:'s| is) (?:the )?(?P<end>first|last) (?:thing |event |appointment )?on my (?:calendar|schedule)(?P<d> today| tomorrow)?\s*\??", text)
+    if m:
+        return f"when's my {m.group('end')} meeting{m.group('d') or ' today'}"
     # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
     # model, after he said so) is what he told her about it.
     m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"

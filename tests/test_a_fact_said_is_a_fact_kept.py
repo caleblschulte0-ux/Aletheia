@@ -13098,5 +13098,13 @@ class LentUntilSunday(unittest.TestCase):
             self.assertEqual(quick.answer("how much do I owe my landlord"), "You owe your landlord $1,200.")
 
 
+class ARundownOfTheDay(unittest.TestCase):
+    def test_said_the_long_way_round(self):
+        for said, same in (("give me a rundown of tomorrow", "what's on my calendar tomorrow"),
+                           ("what's first on my calendar tomorrow", "when's my first meeting tomorrow"),
+                           ("what's the last thing on my calendar today", "when's my last meeting today")):
+            self.assertEqual(quick.match(said), quick.match(same), said)
+
+
 if __name__ == "__main__":
     unittest.main()
