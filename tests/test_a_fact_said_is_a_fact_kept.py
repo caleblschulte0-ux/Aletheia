@@ -9055,5 +9055,30 @@ class HisBills(unittest.TestCase):
 
 
 
+class RemindersTonightAndRepeating(unittest.TestCase):
+    """2026-10-08: "what reminders do I have tonight" and "what do you
+    remind me every morning" both went to a model."""
+
+    def test_tonight(self):
+        import datetime as dt
+        from aletheia import quick, localtime
+        late = dt.datetime.now(localtime.operator_tz()).replace(hour=21, minute=0, second=0, microsecond=0)
+        if late < dt.datetime.now(localtime.operator_tz()):
+            self.skipTest("past 9 pm here")
+        with mock.patch.object(quick, "_coming", lambda start=None: [(late, "take out the trash", "reminder")]):
+            self.assertEqual(quick.answer("what reminders do I have tonight"), "1 reminder tonight: 9 pm, take out the trash.")
+
+    def test_repeating(self):
+        from aletheia import quick, scheduler
+        specs = [{"enabled": True, "kind": "daily", "time": "09:00", "command": {"text": "take your vitamins"}},
+                 {"enabled": True, "kind": "weekly", "time": "19:00", "weekdays": [1], "command": {"text": "take out the trash"}},
+                 {"enabled": True, "kind": "once", "at": "x", "command": {"text": "x"}}]
+        with mock.patch.object(scheduler, "all_schedules", lambda: specs):
+            self.assertEqual(quick.answer("what do you remind me every morning"),
+                             "1 repeating reminder: take your vitamins, every day at 9 am.")
+            self.assertIn("every Tuesday at 7 pm", quick.answer("what are my recurring reminders"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

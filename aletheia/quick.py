@@ -1595,8 +1595,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("reminders_on", re.compile(
         r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
         r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
-        r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tomorrow|monday|tuesday|wednesday|thursday"
-        r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tomorrow"
+        r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday"
+        r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tonight|tomorrow"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     # A WORD'S MEANING (2026-10-07): "define serendipity" and "what does
     # ubiquitous mean" went to the planner. Not "what does that mean",
@@ -2120,6 +2120,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bills_due", re.compile(
         r"^(?:what|which) bills (?:do i (?:need|have) to pay|(?:do i have |have i got |are )?(?:coming up|due|to pay|left to pay))"
         r"(?: this (?:week|month)| soon| next)?\s*\??$")),
+    # "What do you remind me every morning", "what are my daily reminders"
+    # (2026-10-08: to a model and to a memory search).
+    ("repeating", re.compile(
+        r"^what (?:do|will) (?:you|u) remind me (?:about |of |to do )?every (?P<repeating>morning|day|night|evening|week|month)\s*\??$"
+        r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|recurring|repeating|regular|morning|nightly) reminders?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2945,7 +2950,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -10335,6 +10340,11 @@ def _reminders_on(day: str) -> str | None:
     """His reminders and alarms that go off on the day he names."""
     import datetime as dt
     from aletheia import localtime, voice
+    # "What reminders do I have tonight" (2026-10-08: to a model): today's
+    # from 5 pm on.
+    tonight = day == "tonight"
+    if tonight:
+        day = "today"
     iso = voice._spoken_day(day)
     if not iso:
         return None
@@ -10344,12 +10354,14 @@ def _reminders_on(day: str) -> str | None:
     start = max(dt.datetime.now(dt.timezone.utc),
                 dt.datetime.combine(dt.date.fromisoformat(iso), dt.time(0, 0), tzinfo=tz) - dt.timedelta(seconds=1))
     rows = [(at.astimezone(tz), text) for at, text, store in _coming(start) if store == "reminder"
-            and at.astimezone(tz).date().isoformat() == iso]
+            and at.astimezone(tz).date().isoformat() == iso and (not tonight or at.astimezone(tz).hour >= 17)]
+    if tonight:
+        day = "tonight"
     if not rows:
-        return f"No reminders {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}."
+        return f"No reminders {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}."
     from aletheia import speech
     said = [f"{at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}, {speech._yours(text.rstrip('.'))}" for at, text in rows[:6]]
-    lead = f"{speech.count_phrase(len(rows), 'reminder')} {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}: "
+    lead = f"{speech.count_phrase(len(rows), 'reminder')} {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}: "
     return lead + "; ".join(said) + (f"; and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
 
 
@@ -13637,6 +13649,55 @@ def _bills_due() -> str | None:
     return f"From what you've told me: {speech.and_list(said[:5])}."
 
 
+def _repeating(which: str = "") -> str:
+    """His reminders that come back, with how often - every one switched
+    on, or only the kind he named."""
+    import datetime as dt
+    from aletheia import speech
+    try:
+        from aletheia import scheduler
+        specs = [sp for sp in scheduler.all_schedules() if sp.get("enabled") and sp.get("kind") != "once"
+                 and str((sp.get("command") or {}).get("text") or "").strip()]
+    except Exception:
+        specs = []
+    days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    def clock(sp):
+        try:
+            h, m = (int(x) for x in str(sp.get("time") or "").split(":")[:2])
+        except ValueError:
+            return ""
+        return dt.time(h, m).strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+
+    def how(sp):
+        kind = sp.get("kind")
+        if kind == "interval":
+            n = int(sp.get("every_minutes") or 0)
+            return f"every {speech.count_phrase(n // 60, 'hour')}" if n % 60 == 0 else f"every {speech.count_phrase(n, 'minute')}"
+        if kind == "daily":
+            return f"every day at {clock(sp)}"
+        if kind == "weekly":
+            return f"every {speech.and_list([days[d] for d in sp.get('weekdays') or []])} at {clock(sp)}"
+        if kind == "monthly":
+            return f"on the {_ordinal(int(sp.get('monthday') or 1))} of every month at {clock(sp)}"
+        return ""
+    which = (which or "").strip()
+    keep = {"morning": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("am"),
+            "night": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("pm"),
+            "evening": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("pm"),
+            "nightly": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("pm"),
+            "day": lambda sp: sp.get("kind") == "daily", "daily": lambda sp: sp.get("kind") == "daily",
+            "week": lambda sp: sp.get("kind") == "weekly", "weekly": lambda sp: sp.get("kind") == "weekly",
+            "month": lambda sp: sp.get("kind") == "monthly", "monthly": lambda sp: sp.get("kind") == "monthly"}.get(which)
+    rows = [sp for sp in specs if keep is None or keep(sp)]
+    if not rows:
+        every = {"daily": "day", "weekly": "week", "monthly": "month", "nightly": "night"}.get(which, which)
+        every = every if every in ("morning", "day", "night", "evening", "week", "month") else "day"
+        return f"No reminders like that are set. Say \"remind me every {every} to\" and what, and I'll set one."
+    said = [f"{speech._yours(str(sp['command']['text']).strip().rstrip('.'))}, {how(sp)}" for sp in rows[:6]]
+    return f"{speech.count_phrase(len(rows), 'repeating reminder')}: " + "; ".join(said) + "."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14444,6 +14505,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "repeating": _repeating,
            "bills_due": lambda rest: _bills_due(),
            "can_eat": _can_eat,
            "event_who": lambda rest: _event_who(rest),
