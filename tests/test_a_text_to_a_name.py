@@ -911,8 +911,12 @@ class CountingIsNotASubject(unittest.TestCase):
             self.assertIsNone(quick.answer("and the second one"))
 
     def test_when_is_it_due_names_nothing_to_recall(self):
-        from aletheia import quick
-        self.assertIsNone(quick.match("when is it due"))
+        # "it" is never looked up as a thing called "it"; it is the task
+        # just added (2026-10-08), and with none there is no answer here.
+        from aletheia import quick, voice
+        self.assertNotIn((quick.match("when is it due") or ("",))[0], ("recall", "task_due"))
+        with mock.patch.object(voice, "_the_task_just_added", return_value=""):
+            self.assertIsNone(quick.answer("when is it due"))
 
 
 
