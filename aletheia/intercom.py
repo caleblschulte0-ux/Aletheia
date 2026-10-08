@@ -3312,6 +3312,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # among others) then raised UnboundLocalError. Found by the full suite.
         from aletheia import memory
         about = " ".join(str(cmd.get("about") or "").split())
+        # "Forget that my boss is Karen" (2026-10-08): "that" introduces it.
+        about = re.sub(r"^that (?=(?:my|our|the|i|i'm|we)\b)", "", about, flags=re.IGNORECASE)
         about = _what_it_is_about(about, keep_whose=True)
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
