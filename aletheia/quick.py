@@ -2104,6 +2104,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("where_was_i", re.compile(
         r"^(?:what was i (?:working on|in the middle of)(?: before)?"
         r"|remind me what i was (?:working on|doing|in the middle of))\s*\??$")),
+    # "What did I just add" (2026-10-08: to a model): her last "Added ..."
+    # in this conversation, said back.
+    ("just_added", re.compile(
+        r"^what (?:did i|have i) (?:just )?(?:add|put)(?:ed)?(?: (?:to|on) (?:the|my) (?:[a-z]+ )?list)?\s*\??$")),
     ("date_what", re.compile(
         r"^what(?:'s| is|s) (?:(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|the \d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     ("weekday_of", re.compile(
@@ -2400,7 +2404,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6399,6 +6403,26 @@ def _a_date(words: str, today):
         return _named_date(w, today)
     except Exception:
         return None
+
+
+def _just_added(turns: int = 8) -> str | None:
+    """Her last "Added to the shopping list: bread." or "Added a task: X."
+    in the conversation, said back. None without one in the last few turns:
+    a model may have added it."""
+    try:
+        from aletheia import converse
+        thread = list(converse._thread() or [])[-turns:]
+    except Exception:
+        return None
+    for turn in reversed(thread):
+        her = " ".join(str(turn.get("her") or "").split())
+        m = re.match(r"Added (to (?:the|your) [a-z' ]+?): (.+?)\.?$", her)
+        if m:
+            return f"You just added {m.group(2)} {m.group(1).replace('to the ', 'to your ', 1)}."
+        m = re.match(r"Added a task: (.+?)\.?$", her)
+        if m:
+            return f"You just added a task: {m.group(1)}."
+    return None
 
 
 def _on_days(text: str) -> str | None:
@@ -11768,6 +11792,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "where_was_i": lambda text: _where_was_i(),
            "on_days": lambda text: _on_days(text),
            "until_leave": lambda text: _until_leave(),
+           "just_added": lambda text: _just_added(),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

@@ -5938,5 +5938,18 @@ class ARunIsAWorkout(unittest.TestCase):
             self.assertFalse(quick.answer("did I work out today").startswith("Yes"))
 
 
+class WhatHeJustAdded(unittest.TestCase):
+    """2026-10-08: "what did I just add" went to a model."""
+
+    def test_her_last_add(self):
+        from aletheia import converse
+        turns = [{"you": "add eggs", "her": "Added to the shopping list: eggs."},
+                 {"you": "also bread", "her": "Added to the shopping list: bread."}]
+        with mock.patch.object(converse, "_thread", return_value=turns):
+            self.assertEqual(quick.answer("what did I just add"), "You just added bread to your shopping list.")
+        with mock.patch.object(converse, "_thread", return_value=[{"you": "hi", "her": "Hello."}]):
+            self.assertIsNone(quick.answer("what did I just add"))
+
+
 if __name__ == "__main__":
     unittest.main()
