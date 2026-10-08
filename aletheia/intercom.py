@@ -361,7 +361,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "handle":          ({"text"}, set()),
     "travel_time":     ({"place"}, set()),
     "place_add":       ({"name", "address"}, set()),
-    "shopping_add":    ({"item"}, {"budget", "replaces"}),
+    "shopping_add":    ({"item"}, {"budget", "replaces", "moved_from"}),
     # Reading the list back, and taking something off it. `shopping_add`
     # shipped without either, so she confirmed "Added to the shopping
     # list: milk" and then said she had no shopping list.
@@ -370,7 +370,9 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # HIS OWN NAMED LISTS - packing, gift ideas, movies to watch. The
     # shopping list stays its own store (buying is its own path).
     "list_new":        ({"list"}, set()),
-    "list_add":        ({"list", "item"}, set()),
+    # `moved_from` is the list it comes off ("move chicken to the shopping
+    # list"): "shopping" or one of his named lists.
+    "list_add":        ({"list", "item"}, {"moved_from"}),
     "list_read":       (set(), {"list"}),
     "list_off":        ({"list", "item"}, set()),
     # HIS STOPWATCH - counts up until he says stop (a timer counts down).
@@ -2578,6 +2580,32 @@ def _nothing_on_it_at_all(cal, day) -> str:
             "different calendar than the one you use.")
 
 
+def _list_called(name: str) -> str:
+    return "shopping list" if str(name).strip().casefold() == "shopping" else f"{name} list"
+
+
+def _moved_off(cmd: dict) -> list[str]:
+    """What came off the list it was moved FROM, once it is on the new one.
+    Nothing raised: the add has already happened, and a line that was not
+    on the old list is simply not said to have moved."""
+    source = " ".join(str(cmd.get("moved_from") or "").split())
+    if not source:
+        return []
+    try:
+        if source.casefold() == "shopping":
+            found, _why = _one_shopping_item(str(cmd["item"]))
+            if found is None:
+                return []
+            from aletheia import shopping
+            shopping.cancel(found["id"])
+            return [str(found.get("need") or cmd["item"])]
+        from aletheia import lists
+        taken, _why = lists.take_off(source, str(cmd["item"]))
+        return list(taken)
+    except Exception:  # noqa: BLE001
+        return []
+
+
 def _named_list(kind: str, cmd: dict) -> str:
     """His own named lists, each answer a sentence."""
     from aletheia import lists
@@ -2602,6 +2630,9 @@ def _named_list(kind: str, cmd: dict) -> str:
             f" Say \"add ... to my {name} list\"."
     if kind == "list_add":
         added = lists.add(name, shopping_items_of(str(cmd["item"])))
+        moved = _moved_off(cmd)
+        if moved:
+            return f"Moved {speech.and_list(moved)} from your {_list_called(cmd['moved_from'])} to your {name} list."
         if not added:
             return f"That's already on your {name} list."
         # "a scarf for my sister" is read back as his: "for your sister" (2026-10-08)
@@ -4461,6 +4492,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             added.append(str(workflow["need"]))
         if swapped:
             return f"Swapped {swapped} for {speech.and_list(added)} on the shopping list."
+        if cmd.get("moved_from"):
+            moved = _moved_off(cmd)
+            if moved:
+                return f"Moved {speech.and_list(moved)} from your {_list_called(cmd['moved_from'])} to the shopping list."
         if not added:
             return f"Already on your shopping list: {speech.and_list(already)}."
         return (f"Added to the shopping list: {speech.and_list(added)}."

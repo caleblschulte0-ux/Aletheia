@@ -9162,5 +9162,20 @@ class ChoresSaidAnyWay(unittest.TestCase):
             self.assertIsNone(quick.answer("how long ago did I go to Paris"))
 
 
+class MovingALineBetweenLists(unittest.TestCase):
+    """"Move chicken to the shopping list" went to the planner (2026-10-08)."""
+
+    def test_move_names_the_one_list_it_comes_from(self):
+        from aletheia import lists
+        with mock.patch.object(lists, "all_lists", lambda: [{"name": "costco", "open": 1}]), \
+                mock.patch.object(lists, "items", lambda name: ["chicken"] if name == "costco" else None), \
+                mock.patch.object(voice, "_on_the_shopping_list", lambda item: False):
+            self.assertEqual(voice._interpret("move chicken to the shopping list")["command"],
+                             {"kind": "shopping_add", "item": "chicken", "moved_from": "costco"})
+            self.assertEqual(voice._interpret("move chicken from my costco list to my party list")["command"],
+                             {"kind": "list_add", "list": "party", "item": "chicken", "moved_from": "costco"})
+            self.assertNotEqual(voice._interpret("move pizza to the shopping list")["command"]["kind"], "shopping_add")
+
+
 if __name__ == "__main__":
     unittest.main()

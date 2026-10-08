@@ -5429,6 +5429,32 @@ def _interpret(transcript: str) -> dict:
             holds = []
         if len(holds) == 1:
             return {"command": {"kind": "list_off", "list": holds[0], "item": m.group("w").strip()}, "say": None}
+    # "Move chicken to the shopping list", "move the tent from my camping
+    # list to my packing list" (2026-10-08: to the planner). Only when the
+    # line is on exactly one other list, or on the list he named.
+    mv = re.fullmatch(r"(?:move|put|switch|transfer) (?:the |some )?(?P<w>[a-z][a-z' ]{1,30}?)"
+                      r"(?: from (?:my |the )?(?P<src>[a-z][a-z' ]{1,25}?) list)? (?:to|onto|over to) (?:my |the )?(?P<dst>[a-z][a-z' ]{1,25}?) list", low)
+    if mv and mv.group("w") not in ("it", "that", "them", "this", "everything"):
+        bare = lambda x: re.sub(r"^(?:a|an|the|some|my) ", "", " ".join(str(x).casefold().split()))
+        dst = "shopping" if mv.group("dst") in ("shopping", "grocery", "groceries") else mv.group("dst")
+        try:
+            from aletheia import lists as _lists
+            holds = [held["name"] for held in _lists.all_lists()
+                     if any(bare(line) == bare(mv.group("w")) for line in (_lists.items(held["name"]) or []))]
+        except Exception:  # noqa: BLE001
+            holds = []
+        if _on_the_shopping_list(mv.group("w")):
+            holds.append("shopping")
+        src = mv.group("src")
+        if src:
+            src = "shopping" if src in ("shopping", "grocery", "groceries") else src
+            holds = [h for h in holds if h.casefold() == src]
+        holds = [h for h in holds if h.casefold() != dst.casefold()]
+        if len(holds) == 1:
+            item = _as_he_said(text, mv.group("w").strip())
+            if dst == "shopping":
+                return {"command": {"kind": "shopping_add", "item": item, "moved_from": holds[0]}, "say": None}
+            return {"command": {"kind": "list_add", "list": dst, "item": item, "moved_from": holds[0]}, "say": None}
     # "What do I need at Target" with a Target list (2026-10-08: to a
     # model). That list; without one, the shopping list.
     w = re.fullmatch(r"what (?:do i|else do i) (?:still )?need (?:at|from) (?:the )?(?P<shop>[a-z][a-z' &-]{1,25}?)", low)
