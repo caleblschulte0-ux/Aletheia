@@ -15,6 +15,23 @@ HIS = {"work_not_wanted": "sales, cold calling, quota", "work_wanted": "partners
 COLD = "You will make 60 calls a day doing outbound prospecting and exceed a monthly quota."
 
 
+def _facts_a_form_is_answered_from():
+    """The facts the form-question writer is shown for an SDR form."""
+    seen = {}
+
+    def think(system, text, **kw):
+        seen.update(kw["context"]["facts"])
+        return {"answers": {}}
+
+    record = {"url": "https://jobs.example/sdr", "job_title": "Sales Development Representative",
+              "questions": [{"selector": "#q1", "label": "Are you comfortable making cold calls?",
+                             "type": "text", "required": True}]}
+    with mock.patch.object(profile, "known", return_value=dict(HIS)), \
+            mock.patch.object(campaign, "obvious_answers", return_value={}):
+        campaign.answer_from_facts(record, "resume", think=think)
+    return seen
+
+
 class WithHisRuling(unittest.TestCase):
     def setUp(self):
         p = mock.patch.object(rulings, "DEFAULT_PATH", rulings.REPO_RULINGS)
@@ -56,6 +73,11 @@ class WithHisRuling(unittest.TestCase):
                 "work_not_wanted": {"value": "sales", "at": "2026-09-13T12:00:00Z"}}):
             self.assertEqual(job_fit.preferences_changed_at(), "2026-10-07T22:39:02Z")
 
+    def test_a_form_question_about_cold_calls_hears_his_yes(self):
+        facts = _facts_a_form_is_answered_from()
+        self.assertIn("BDR", facts["work_wanted"])
+        self.assertIn("except", facts["work_not_wanted"])
+
     def test_the_search_looks_for_them(self):
         with mock.patch.object(profile, "roles_added", return_value=[]):
             roles = campaign._with_his_roles(["Partnerships Associate"], HIS)
@@ -71,6 +93,8 @@ class WithoutARuling(unittest.TestCase):
             self.assertEqual(job_fit.preferences(HIS), ("partnerships", "sales, cold calling, quota"))
             with mock.patch.object(profile, "roles_added", return_value=[]):
                 self.assertEqual(campaign._with_his_roles(["X"], HIS), ["X"])
+            facts = _facts_a_form_is_answered_from()
+            self.assertEqual(facts["work_not_wanted"], "sales, cold calling, quota")
 
 
 if __name__ == "__main__":
