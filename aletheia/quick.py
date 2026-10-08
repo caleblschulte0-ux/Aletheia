@@ -2796,6 +2796,17 @@ def _direct(text: str) -> str:
     if m:
         what = "new job" if m.group("what") in ("new job", "job") else m.group("what")
         return f"how {m.group('how')} until my {what} starts" if what == "new job" else f"how {m.group('how')} until {what} starts"
+    # "Did I take the trash out" (2026-10-08: to the planner, one turn after
+    # "I took the trash out") is "did I take out the trash".
+    m = re.fullmatch(r"(?P<q>did i|have i|when did i(?: last)?) (?:take|taken|put) (?P<o>(?:the |my )?(?:trash|garbage|rubbish"
+                     r"|recycling|bins?|trash cans?|garbage cans?|compost))(?: out)(?P<t> today| yet| this morning)?\s*\??", text)
+    if m:
+        return f"{m.group('q')} take out {m.group('o')}{m.group('t') or ''}"
+    # "How long ago did I water the plants" (2026-10-08: to a model) is
+    # "how long since I watered the plants".
+    m = re.fullmatch(r"how long ago did i (?:last )?(?P<rest>[a-z][a-z' ]{2,50}?)\s*\??", text)
+    if m and (match(f"how long since i {m.group('rest')}") or ("", ""))[0] == "did_last":
+        return f"how long since i {m.group('rest')}"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
@@ -5890,6 +5901,10 @@ def _did_last(text: str) -> str | None:
         said_as = ("(?:got|had|gotten)" if service else
                    r"(?:talked (?:to|with)|spoke (?:to|with)|called|texted|saw|met(?: up)?(?: with)?|hung out with|caught up with|visited)"
                    if past in _WITH_SOMEBODY else re.escape(past))
+        # "I took the trash out" is "I took out the trash" (2026-10-08).
+        if " " in past and not service and past not in _WITH_SOMEBODY:
+            head, _, particle = past.partition(" ")
+            said_as = rf"(?:{re.escape(past)}|{re.escape(head)}\b.{{1,40}}?\b{re.escape(particle)})"
         if not re.search(r"\bi (?:just )?" + said_as + r"\b", low) or not all(
                 re.search(r"\b" + re.escape(w), low) for w in words):
             continue

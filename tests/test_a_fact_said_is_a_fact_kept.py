@@ -9144,5 +9144,23 @@ class BookingTimeWithSomebodyIsAHold(unittest.TestCase):
         self.assertNotEqual(voice._interpret("my library card is lost")["command"]["kind"], "note")
 
 
+class ChoresSaidAnyWay(unittest.TestCase):
+    """"Did I take the trash out" after "I took the trash out", and "how long
+    ago did I water the plants", went to a model (2026-10-08)."""
+
+    ROWS = [{"text": "I took the trash out", "ts": "2026-10-08T13:00:00+00:00"},
+            {"text": "I watered the plants", "ts": "2026-10-06T13:00:00+00:00"}]
+
+    def test_the_particle_can_go_either_side(self):
+        with mock.patch.object(quick, "_notes", lambda: self.ROWS):
+            self.assertIn("you took the trash out", quick.answer("did I take the trash out"))
+            self.assertIn("you took the trash out", quick.answer("when did I last take out the trash"))
+
+    def test_how_long_ago(self):
+        with mock.patch.object(quick, "_notes", lambda: self.ROWS):
+            self.assertIn("you watered the plants", quick.answer("how long ago did I water the plants"))
+            self.assertIsNone(quick.answer("how long ago did I go to Paris"))
+
+
 if __name__ == "__main__":
     unittest.main()
