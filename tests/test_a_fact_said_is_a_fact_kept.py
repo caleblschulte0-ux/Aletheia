@@ -8212,5 +8212,23 @@ class AThingDoneEverySoOftenRepeats(unittest.TestCase):
 
 
 
+class WhatsWithoutTheApostrophe(unittest.TestCase):
+    """Typed "whats", "wheres", "whos" missed every pattern written with the
+    apostrophe (2026-10-08: "whats the most important thing today", "whats
+    coming up" each to a model), and "who's coming Saturday" asked about a
+    person called "coming saturday"."""
+
+    def test_the_question_word_gets_its_apostrophe(self):
+        from aletheia import quick
+        for said, name in (("whats the most important thing today", "focus"), ("whats coming up", "coming_up"),
+                           ("whos coming saturday", "who_coming"), ("who's coming saturday", "who_coming")):
+            self.assertEqual((quick.match(said) or ("",))[0], name, said)
+
+    def test_a_person_is_still_a_person(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("who is sam"), ("who_named", "sam"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

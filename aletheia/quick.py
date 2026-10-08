@@ -428,8 +428,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who's coming for Thanksgiving" (2026-10-07: to a model, with "my
     # in-laws are coming for Thanksgiving" kept).
     ("who_coming", re.compile(
-        r"^who(?:'s| is| are) (?:coming|visiting|coming over|coming to visit|staying with us)"
-        r"(?: (?:for|on|over|this|to|at) (?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
+        r"^who(?:'s| is| are) (?:coming over|coming to visit|coming|visiting|staying with us)"
+        # "Who's coming Saturday" (2026-10-08) was a person called "coming saturday"
+        r"(?: (?:(?:for|on|over|this|to|at) )?(?P<who_coming>[a-z][a-z' ]{1,30}?))?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -12512,7 +12513,7 @@ def _no_password(text: str = "") -> str:
     from aletheia import memory, voice
     asked = [w for w in re.findall(r"[a-z0-9]+", _tidy(text)) if w not in _STOP_WORDS
              and w not in ("password", "passcode", "passphrase", "remember", "know", "tell", "give", "read", "remind",
-                           "what", "whats", "is", "was", "the", "for", "to", "on", "of", "do", "you", "have")]
+                           "what", "whats", "s", "is", "was", "the", "for", "to", "on", "of", "do", "you", "have")]
     try:
         held = memory.everything(max_chars=8000)
     except Exception:  # noqa: BLE001

@@ -2530,6 +2530,10 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b(doctor|dentist|vet|lawyer|accountant|barber|hairdresser|optometrist|therapist|orthodontist|dermatologist"
                   r"|chiropractor|pediatrician|surgeon|eye doctor)s (appointment|appt|office|visit|checkup|check-up)\b",
                   r"\1's \2", said, flags=re.I)
+    # "Whats coming up", "whats the most important thing today" (2026-10-08:
+    # each to a model) - typed without the apostrophe, they missed every
+    # pattern written "what's". The question word gets it back.
+    said = re.sub(r"\b(what|where|who|how|when)s\b", r"\1's", said, flags=re.I)
     return re.sub(r"(?<![\w'])(?!(?:My|The|Our|What|When|Where|Who|How|Is|Set|Add|Call|Text|Email)\b)([A-Z][a-z]{1,15}(?<!s)) "
                   r"(number|phone number|cell number|cell|email|email address|birthday|address)\b(?! is (?:a|an|the)\b)",
                   r"\1's \2", said)
@@ -8863,7 +8867,8 @@ def _interpret(transcript: str) -> dict:
             and m.group("who").split()[0] not in ("this", "that", "it", "he", "she", "they", "who", "what", "there", "here",
                                           # "When is my dentist" was filed as a note about
                                           # somebody called When (2026-10-07).
-                                          "when", "where", "why", "how", "which", "whose", "whats", "wheres", "whens"):
+                                          "when", "where", "why", "how", "which", "whose", "whats", "wheres", "whens",
+                                          "what's", "where's", "when's", "who's", "how's"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHAT HE DOESN'T EAT, AND HIS KIDS (2026-10-07: "I don't like
     # mushrooms", "I'm vegetarian", "I have 3 kids", "my kids are Emma, Leo
