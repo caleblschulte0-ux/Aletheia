@@ -9121,6 +9121,19 @@ class WhatTheySaid(unittest.TestCase):
             self.assertIsNone(quick.match("what did my mom say"))
 
 
+class BookingTimeWithSomebodyIsAHold(unittest.TestCase):
+    """"Book 30 minutes with Sam at 4" was offered as a web task (2026-10-08)."""
+
+    def test_booked_time_is_a_hold_as_long_as_he_said(self):
+        cmd = voice._interpret("book 30 minutes with Sam at 4")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"], cmd["minutes"]), ("calendar_hold", "meeting with Sam", 30))
+        cmd = voice._interpret("schedule a call with Dana tomorrow at 10")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"]), ("calendar_hold", "call with Dana"))
+
+    def test_a_table_or_a_pronoun_is_not_his_calendar(self):
+        self.assertNotEqual(voice._interpret("book a table for 2 at 7")["command"]["kind"], "calendar_hold")
+        self.assertNotEqual(voice._interpret("schedule a meeting with him at 4")["command"]["kind"], "calendar_hold")
+
 
 if __name__ == "__main__":
     unittest.main()

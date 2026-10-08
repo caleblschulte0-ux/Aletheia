@@ -8786,6 +8786,26 @@ def _interpret(transcript: str) -> dict:
             again = _interpret(f"i have a {mine.group('what')} {mine.group('when')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
                 return again
+    # "Book 30 minutes with Sam at 4", "schedule a call with Dana tomorrow
+    # at 10" (2026-10-08: offered as a WEB task, and to the planner). A hold
+    # on his own calendar, as long as he said.
+    bk = re.fullmatch(r"(?:book|schedule|set up|grab|pencil in|put in|add|block(?: off| out)?) (?:me )?(?:a |an )?"
+                      r"(?:(?P<n>\d{1,3}|fifteen|thirty|forty-five|forty five|ninety) ?(?:-| )?(?:minutes?|mins?)(?: (?P<k>meeting|call|chat|sync))?"
+                      r"|(?P<k2>meeting|call|chat|catch[- ]up|sync|one on one|1:1|video call|zoom|zoom call))"
+                      r" with (?P<who>(?!(?:me|him|her|them|you|someone|somebody)\b)[a-z][a-z' ]{1,30}?)(?: on my calendar)?"
+                      r" (?P<when>(?:today|tomorrow|tonight|on [a-z]+|this [a-z]+|next [a-z]+|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                      r"|at \d|at noon)(?: .{0,30})?)", low)
+    if bk:
+        kind = (bk.group("k") or bk.group("k2") or "meeting").replace("catch up", "catch-up")
+        again = _interpret(f"i have a {kind} with {bk.group('who')} {bk.group('when')}")
+        cmd = (again or {}).get("command") or {}
+        if cmd.get("kind") == "calendar_hold":
+            n = bk.group("n")
+            if n:
+                cmd["minutes"] = int(n) if n.isdigit() else {"fifteen": 15, "thirty": 30, "forty-five": 45,
+                                                              "forty five": 45, "ninety": 90}[n]
+            cmd["title"] = f"{kind} with {_as_he_said(text, bk.group('who').strip())}"
+            return again
     if m:
         held = _calendar_hold(text, m.group("title"), m.group("day") or "", m.group("part"), m.group("time"))
         if held:
