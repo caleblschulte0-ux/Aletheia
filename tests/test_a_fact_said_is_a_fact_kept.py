@@ -11704,5 +11704,28 @@ class HisWife(unittest.TestCase):
         self.assertNotIn("dentist", said)
 
 
+class AtWorkAgain(unittest.TestCase):
+    """2026-10-08: a one on one, "my team lunch is at noon", "my manager is
+    out next week", a new title, a PTO balance and a coworker leaving went to
+    the planner; "what is my job title", "am I off Friday" and "who is
+    leaving" to a model."""
+
+    def test_said(self):
+        one = voice._interpret("I have a one on one with my manager at 3")["command"]
+        self.assertEqual((one["kind"], one["title"]), ("calendar_hold", "one on one with my manager"))
+        self.assertEqual(voice._interpret("my team lunch is at noon")["command"]["title"], "team lunch")
+        self.assertEqual(voice._interpret("my PTO balance is 12 days")["command"]["text"], "I have 12 vacation days left")
+        for said in ("my manager is out next week", "my new title is senior engineer", "my coworker Jen is leaving"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual((voice._interpret("he is leaving") or {}).get("command", {}).get("kind"), "note")
+
+    def test_read(self):
+        notes = [{"text": "my new title is senior engineer"}, {"text": "I am taking Friday off"}, {"text": "my coworker Jen is leaving"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("what is my job title"), "You told me your new title is senior engineer.")
+            self.assertEqual(quick.answer("am I off Friday"), "You told me you are taking Friday off.")
+            self.assertEqual(quick.answer("who is leaving"), "You told me: your coworker Jen is leaving.")
+
+
 if __name__ == "__main__":
     unittest.main()

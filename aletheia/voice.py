@@ -9402,7 +9402,7 @@ def _interpret(transcript: str) -> dict:
                                r"|checkup|check-up|surgery|exam|recital|practice"
                                # "The groomer is on Saturday at 9" (2026-10-08: a note).
                                r"|groomer|grooming|vet|party|wedding|shower|concert|playdate|sleepover|rehearsal)\b", mine.group("what"))
-                and re.search(r"\d|" + _cal_days, mine.group("when"))):
+                and re.search(r"\d|\bnoon\b|" + _cal_days, mine.group("when"))):
             what = mine.group("what")
             if re.fullmatch(r"(?:[a-z]+'s )?(?:groomer|vet)", what):
                 what += " appointment"
@@ -10836,6 +10836,26 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i (?:forgot|missed) (?:our|my wife'?s|my husband'?s|her|his) (?:anniversary|birthday)", low):
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": "Oof. It's not too late to make it right today - say \"add flowers to the list\" or \"remind me in an hour to call\" and I'll help. And tell me the date, and I'll make sure it never sneaks up again."}
+    # AT WORK (2026-10-08: "I have a one on one with my manager at 3", "my new
+    # title is senior engineer", "my PTO balance is 12 days", "my coworker Jen
+    # is leaving" - to the planner).
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:a |my )?(?P<what>one on one|1 on 1|one-on-one|1:1|check-in|check in|standup|stand-up|sync|catch-up|catch up|skip level)"
+                     r"(?P<rest>(?: with [a-z][a-z' ]{1,25}?)?(?: (?:at|on|this|next|tomorrow|today) .{1,25}))", low)
+    if m:
+        again = _interpret(f"i have a meeting{m.group('rest')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            title = again["command"]["title"]
+            again["command"]["title"] = re.sub(r"^meeting", "one on one" if re.match(r"(?:one|1)", m.group("what")) else m.group("what"), title)
+            return again
+    m = re.fullmatch(r"(?:my )?(?:pto|vacation|paid time off|leave) (?:balance )?is (?P<n>\d{1,3}(?:\.\d)?) (?:days|hours)", low) \
+        or re.fullmatch(r"i have (?P<n>\d{1,3}(?:\.\d)?) days of (?:pto|vacation|paid time off)(?: left)?", low)
+    if m:
+        return _interpret(f"I have {m.group('n')} vacation days left")
+    if re.fullmatch(r"my (?:new )?(?:job )?title is [a-z][a-z' -]{2,40}", low) \
+            or re.fullmatch(r"(?:my (?:coworker|co-worker|colleague|teammate|boss|manager|supervisor|assistant) )?[a-z]{2,15}(?: from [a-z ]{2,15})? (?:is leaving|is quitting|quit|got fired|got let go|is retiring|retired|got promoted|is moving teams|is going on leave|put in (?:her|his|their) notice)"
+                            r"(?: today| this week| next week| on [a-z]+| at the end of the (?:week|month))?", low) \
+            and not re.match(r"(?:i|you|he|she|it|they|we|who|what|everyone|somebody|someone)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
@@ -11601,7 +11621,7 @@ def _interpret(transcript: str) -> dict:
     # to the planner) - the role is who.
     if re.fullmatch(r"my (?:coworker|co-worker|colleague|boss|manager|supervisor|teammate|assistant) (?:is|called in) "
                     r"(?:out sick|off sick|sick|out|off|on vacation|on leave|out of (?:the )?office|working from home)"
-                    r"(?: today| this week| until [a-z]+| all week| tomorrow)?", low):
+                    r"(?: today| this week| until [a-z]+| all week| tomorrow| next week| on [a-z]+)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"my (?:work|personal|school|other|business) (?:email|e-mail|email address|phone|phone number|number|cell) is \S.{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
