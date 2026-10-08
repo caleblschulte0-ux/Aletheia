@@ -7644,5 +7644,33 @@ class DatesHeGaveThingsOfHis(unittest.TestCase):
             self.assertIn("passport expires", cmd["text"])
 
 
+class OutAndBack(unittest.TestCase):
+    """2026-10-08: "how long was I at the gym" (after "I'm going to the gym"
+    and "I'm back") went to a model, and "I'm leaving the store" to the
+    planner."""
+
+    def _asked(self, *pairs):
+        from aletheia import converse
+        rows = [{"kind": "note", "subject": converse.ASKED_SUBJECT, "text": t, "ts": ts.isoformat()} for t, ts in pairs]
+        return mock.patch("aletheia.journal.entries", return_value=rows)
+
+    def test_from_his_own_words(self):
+        now, clock = _her_clock_at_noon()
+        with clock, self._asked(("I'm going to the gym", now - dt.timedelta(minutes=90)),
+                                ("add eggs to the list", now - dt.timedelta(minutes=60)),
+                                ("I'm back", now - dt.timedelta(minutes=5))):
+            said = quick.answer("how long was I at the gym")
+        self.assertTrue(said.startswith("About 1 hour and 25 minutes"), said)
+
+    def test_not_back_yet(self):
+        now, clock = _her_clock_at_noon()
+        with clock, self._asked(("I'm going to the gym", now - dt.timedelta(minutes=30))):
+            self.assertIn("haven't told me you're back", quick.answer("how long was I at the gym"))
+
+    def test_leaving_a_place_is_on_the_way(self):
+        self.assertTrue(quick.answer("I'm leaving the store").startswith("Safe trip home"))
+        self.assertFalse(quick.answer("I'm leaving for work").startswith("Safe trip home"))
+
+
 if __name__ == "__main__":
     unittest.main()

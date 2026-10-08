@@ -531,6 +531,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("left_on", re.compile(
         r"^how (?:many (?P<left_unit>days|weeks|months)|long|much (?:time|longer)) (?:is |do i have )?(?:left on|left before|left until"
         r"|until the end of|before the end of) (?:my |our )(?P<left_on>[a-z][a-z' ]{1,30}?)\s*\??$")),
+    # "How long was I at the gym" after "I'm going to the gym" ... "I'm back"
+    # (2026-10-08: to a model). His own words, with their times, say it.
+    ("how_long_out", re.compile(
+        r"^how long was i (?:(?:at|out at|in) (?:the )?(?P<how_long_out>[a-z][a-z' ]{1,25}?)|(?P<how_long_out2>gone|out|away))"
+        r"(?: for)?(?: today)?\s*\??$")),
     # "When did I last eat" after "I ate at 7" (2026-10-08: to a model; an
     # irregular verb the did-last reader cannot make).
     ("last_ate", re.compile(
@@ -1665,7 +1670,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "I'm going to the gym" (2026-10-07: queued for a model to plan).
         r"|^(?:(?:i'?m|im|i am) )?(?:going|off|heading|leaving|popping out) (?:to|for) (?:the |a |my )?"
         r"(?:gym|store|shops?|grocery store|supermarket|walk|run|jog|class|practice|appointment|doctor'?s?|dentist'?s?|"
-        r"school|church|lunch|dinner|coffee|movies|party|game|meeting|errands?|park|office|airport)(?: now| for a bit)?$")),
+        r"school|church|lunch|dinner|coffee|movies|party|game|meeting|errands?|park|office|airport)(?: now| for a bit)?$"
+        # "I'm leaving the store" (2026-10-08: to the planner) is on his way.
+        r"|^(?:(?:i'?m|im|i am) )?(?:leaving|done at|finished at|walking out of|out of) (?:the )?"
+        r"(?:gym|store|shops?|grocery store|supermarket|doctor'?s?|dentist'?s?|school|church|park|office|airport|mall|bank"
+        r"|post office|pharmacy|library)(?: now)?$")),
     # Replies from employers, from the application records.
     ("replies", re.compile(
         r"^(?:did|have) i (?:get|got|gotten|receive|received|hear) (?:any |anything )?(?:replies|responses|"
@@ -2708,7 +2717,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -6559,11 +6568,14 @@ def _farewell(text: str) -> str:
     low = str(text or "").lower()
     if any(w in low for w in ("night", "sleep", "bed")):
         return "Goodnight. I'll keep going quietly."
-    if re.search(r"\b(?:gym|run|jog|walk)\b", low):
+    # "Leaving the gym" is on his way back, not out (2026-10-08).
+    leaving_a_place = re.search(r"\b(?:leaving|done at|finished at|walking out of|out of) the [a-z' ]+$", low)
+    if re.search(r"\b(?:gym|run|jog|walk)\b", low) and not leaving_a_place:
         return "Have a good one. I'll keep at it while you're out."
     # "I'm heading home" was answered "I'll keep at it while you're out"
     # (2026-10-07) - he is coming back, and what waits is what he wants.
-    if re.search(r"\b(?:heading|going|on my way|way) home\b|\b(?:leaving work|leaving the office|off work|done for the day)\b", low):
+    if re.search(r"\b(?:heading|going|on my way|way) home\b|\b(?:leaving work|leaving the office|off work|done for the day)\b", low) \
+            or leaving_a_place:
         try:
             from aletheia import needs_you
             from aletheia import speech
@@ -8955,6 +8967,46 @@ def _asked_on(rest) -> str:
     if len(asks) > 5:
         said += f" - and {speech.count_phrase(len(asks) - 5, 'other thing')}"
     return said + "."
+
+
+def _how_long_out(place) -> str | None:
+    """How long he was out, from his own words today: the last "I'm going to
+    the gym" and the first "I'm back" after it. None when he never said he
+    was going, so the question goes on."""
+    import datetime as dt
+    from aletheia import converse, journal, localtime, recollection, speech
+    place = re.sub(r"^(?:gone|out|away)$", "", str(place or "").strip())
+    tz = localtime.operator_tz()
+    date = dt.datetime.now(tz).strftime("%Y-%m-%d")
+    try:
+        rows = [e for e in journal.entries()
+                if e.get("kind") == "note" and e.get("subject") == converse.ASKED_SUBJECT
+                and recollection._local_date(str(e.get("ts") or "")) == date]
+    except Exception:
+        return None
+    rows.sort(key=lambda e: str(e.get("ts") or ""))
+    there = (rf"\b(?:going|heading|headed|off|leaving|went|driving|walking|running) (?:out )?to (?:the )?{re.escape(place)}\b" if place
+             else r"\b(?:going|heading|headed|off) (?:out|to)\b|\bleaving\b|\bstepping out\b")
+    back = r"\b(?:i'?m|i am|just got|got|we'?re) (?:back|home)\b|\bback from\b|\bhome now\b"
+    left = None
+    for i, e in enumerate(rows):
+        if re.search(there, " ".join(str(e.get("text") or "").casefold().split())):
+            left = i
+    if left is None:
+        return None
+    def at(e):
+        return dt.datetime.fromisoformat(str(e.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+    went = at(rows[left])
+    clock = lambda t: t.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    for e in rows[left + 1:]:
+        if re.search(back, " ".join(str(e.get("text") or "").casefold().split())):
+            minutes = max(1, int((at(e) - went).total_seconds() // 60))
+            h, m = divmod(minutes, 60)
+            span = speech.count_phrase(m, "minute") if not h else speech.count_phrase(h, "hour") + (
+                f" and {speech.count_phrase(m, 'minute')}" if m else "")
+            return (f"About {span} - you said you were going at {clock(went)} and you were back at {clock(at(e))}.")
+    where = f"to the {place}" if place else "out"
+    return f"You said you were going {where} at {clock(went)}, and you haven't told me you're back yet."
 
 
 def _hunt_why() -> str:
@@ -13493,6 +13545,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),
            "how_did_i_do": _how_did_i_do,
+           "how_long_out": _how_long_out,
            "left_on": lambda rest: _left_on(rest),
            "do_i_have": _do_i_have,
            "task_age": _task_age,
