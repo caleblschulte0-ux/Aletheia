@@ -5996,5 +5996,14 @@ class BeforeADayHeToldHer(unittest.TestCase):
             self.assertIn("don't know when Sam's birthday", voice._interpret("remind me to call Sam the day before Sam's birthday")["say"])
 
 
+class AMeetingWithANameKeepsItsCapitals(unittest.TestCase):
+    """2026-10-08: "I have a meeting with Dana at 2 tomorrow" was held as
+    "meeting with dana", and "what time do I meet Dana" went to a model."""
+
+    def test_each(self):
+        self.assertEqual(voice._interpret("I have a meeting with Dana at 2 tomorrow")["command"]["title"], "meeting with Dana")
+        self.assertEqual(quick.match("what time do I meet Dana")[0], "when_meeting")
+
+
 if __name__ == "__main__":
     unittest.main()

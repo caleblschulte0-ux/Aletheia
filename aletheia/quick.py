@@ -1448,7 +1448,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: today| tomorrow)?\s*\??$")),
     # "When am I meeting John" (2026-10-07: to a model).
     ("when_meeting", re.compile(
-        r"^when (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast|a call) with|have (?:lunch|dinner|coffee|breakfast|a call) with"
+        # "What time do I meet Dana" (2026-10-08: to a model).
+        r"^(?:when|what time) (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast|a call) with|have (?:lunch|dinner|coffee|breakfast|a call) with"
         r"|talking to|calling)(?: with)? (?P<when_meeting>[a-z][a-z' ]{1,25}?)(?: next| again)?\s*\??$"
         # "What do I have with Sam" (2026-10-07: to a model).
         r"|^(?:what do i have|do i have anything|have i got anything)(?: (?:on|coming up|scheduled|planned))? with (?P<when_meeting2>[a-z][a-z' ]{1,25}?)\s*\??$")),

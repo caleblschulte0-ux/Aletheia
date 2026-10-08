@@ -7893,6 +7893,9 @@ def _interpret(transcript: str) -> dict:
         if swap:
             again = _interpret(f"{swap.group('head')} {swap.group('day')} at {swap.group('time')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                # The sentence was rebuilt lowercased: "meeting with dana"
+                # (2026-10-08). His capitals go back on the title.
+                again["command"]["title"] = _as_he_said(text, again["command"]["title"])
                 return again
         # "I'M MEETING SAM FOR COFFEE AT 10 TOMORROW" (2026-10-07: to the
         # planner, and "who am I meeting tomorrow" found nothing). The same
