@@ -11257,5 +11257,36 @@ class RentingAndMoving(unittest.TestCase):
             self.assertIn("1600 a month", quick.answer("what apartments have I looked at"))
 
 
+class TheKidsThisWeek(unittest.TestCase):
+    """2026-10-08: field trip money, a sick day, no school, the team, goals,
+    who picks the kids up and bedtime went to the planner, and the
+    questions about them got "I can't think"."""
+
+    def test_said(self):
+        for said in ("my son needs 10 dollars for the field trip", "my son stayed home from school", "the kids have no school Monday",
+                     "my daughter scored 2 goals", "my wife is picking up the kids today", "bedtime for the kids is 8"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("my son is sick today")["say"], "Oh no - I hope he feels better soon.")
+        self.assertEqual(voice._interpret("my daughter made the team")["say"], "That's great - congratulations to her!")
+        self.assertEqual(voice._interpret("my son needs new shoes")["command"]["kind"], "task_new")
+
+    def test_read(self):
+        from aletheia import intercom, localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        notes = [{"text": "my son needs 10 dollars for the field trip", "ts": now.isoformat()},
+                 {"text": "my son is sick today", "ts": now.isoformat()},
+                 {"text": "my son stayed home from school", "ts": (now - dt.timedelta(days=2)).isoformat()},
+                 {"text": "my daughter scored 2 goals", "ts": now.isoformat()}, {"text": "my daughter scored a goal", "ts": now.isoformat()},
+                 {"text": "my wife is picking up the kids today", "ts": now.isoformat()}]
+        with mock.patch.object(quick, "_notes", lambda: notes), \
+                mock.patch.object(intercom, "_open_tasks", lambda: [{"description": "get my son new shoes"}]):
+            self.assertEqual(quick.answer("what does my son need for the field trip"),
+                             "You told me: your son needs 10 dollars for the field trip.")
+            self.assertIn("On your list: get your son new shoes.", quick.answer("what does my son need"))
+            self.assertTrue(quick.answer("how many days has my son missed").startswith("2 days"))
+            self.assertTrue(quick.answer("how many goals has my daughter scored").startswith("3 goals"))
+            self.assertEqual(quick.answer("who is picking up the kids"), "You told me: your wife is picking up the kids today.")
+
+
 if __name__ == "__main__":
     unittest.main()

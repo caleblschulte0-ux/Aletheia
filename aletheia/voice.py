@@ -10512,6 +10512,29 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i (?:need|have|gotta|got to|should)(?: to)? (?P<what>give (?:my |the |a )?(?:\d{1,3}|thirty|sixty|two weeks?'?) ?(?:days?'?|weeks?'?)? ?notice(?: to (?:my |the )?[a-z]+)?)", low)
     if m:
         return _new_task(_as_he_said(text, m.group("what")))
+    # THE KIDS (2026-10-08: a field trip's money, a sick day, no school, the
+    # team, goals, who picks them up and bedtime all went to the planner).
+    _kd = r"(?:my|our) (?:son|daughter|kid|boy|girl|oldest|youngest|baby)|the kids|my kids|our kids"
+    pron = "they"
+    km = re.match(rf"(?P<kid>{_kd})\b", low)
+    if km and re.search(r"\b(?:son|boy)\b", km.group("kid")):
+        pron = "he"
+    elif km and re.search(r"\b(?:daughter|girl)\b", km.group("kid")):
+        pron = "she"
+    if re.fullmatch(rf"(?:{_kd}) (?:needs?|has to bring|must bring) (?:\$?\d[\d.]* (?:dollars|bucks)|\$\d[\d.]*|(?:to bring|to wear) [a-z0-9][a-z0-9' ]{{0,30}}?) for (?:the |his |her |their |a )?[a-z][a-z ]{{1,25}}", low) \
+            or re.fullmatch(rf"(?:{_kd}) (?:has|have) no school (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|next week|this friday|this monday)", low) \
+            or re.fullmatch(rf"(?:{_kd}) scored (?:\d{{1,3}}|a|an|one|two|three|four|five|six) (?:goals?|points?|baskets?|touchdowns?|runs?|home runs?)(?: today| tonight| this weekend| in (?:the|her|his|their) game)?", low) \
+            or re.fullmatch(r"(?:my (?:wife|husband|mom|dad|partner|sister|brother)|grandma|grandpa|i|[a-z]{2,15}) (?:is|am|will be) (?:picking up the kids|picking the kids up|getting the kids|dropping off the kids|dropping the kids off)(?: today| tomorrow| tonight| this week)?", low) \
+            or re.fullmatch(rf"(?:bedtime|lights out) for (?:{_kd}|the baby) is (?:at )?\d{{1,2}}(?::\d\d)?(?: ?[ap]m)?|(?:the kids'?|my (?:son|daughter)'s) bedtime is (?:at )?\d{{1,2}}(?::\d\d)?(?: ?[ap]m)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(rf"(?:{_kd}) (?:is|are) (?:home )?sick(?: today| again)?|(?:{_kd}) (?:stayed|is staying|are staying) home(?: from school)?(?: sick)?(?: today)?|(?:{_kd}) missed school(?: today)?", low):
+        sick = "sick" in low
+        verb = "feel" if pron == "they" else "feels"
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"Oh no - I hope {pron} {verb} better soon." if sick else None}
+    if re.fullmatch(rf"(?:{_kd}) (?:made|got (?:into|on)) (?:the |a )?(?:team|varsity|jv|play|musical|band|choir|honor roll|dean's list|travel team|all-stars|all stars)", low):
+        obj = {"he": "him", "she": "her"}.get(pron, "them")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"That's great - congratulations to {obj}!"}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
