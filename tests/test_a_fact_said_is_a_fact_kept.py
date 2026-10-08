@@ -6342,5 +6342,22 @@ class WhatToDoOnADayIncludesItsReminders(unittest.TestCase):
             self.assertTrue(quick._tasks_due("tomorrow").startswith("Nothing's due tomorrow."))
 
 
+
+class LatelyAndInAMonth(unittest.TestCase):
+    """2026-10-08: "I've been feeling tired lately" and "my next checkup is
+    in January" went to the planner, and "when is my next checkup" to a model."""
+
+    def test_a_feeling_said_over_time_is_still_a_feeling(self):
+        self.assertTrue(quick.answer("I've been feeling tired lately").startswith("Then rest."))
+        self.assertIsNone(quick.answer("I have been late"))
+
+    def test_a_thing_in_a_month_is_kept_and_read(self):
+        self.assertEqual(voice._interpret("my next checkup is in January")["command"],
+                         {"kind": "note", "text": "my next checkup is in January"})
+        self.assertNotEqual(voice._interpret("my mom is in Ohio")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my next checkup is in January"}]):
+            self.assertEqual(quick.answer("when is my next checkup"), "You told me: your next checkup is in January.")
+
+
 if __name__ == "__main__":
     unittest.main()

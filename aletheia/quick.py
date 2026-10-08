@@ -2266,11 +2266,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:with|using|on|to|from) you| on (?:my|the|your) (?:list|calendar))?\s*\??$")),
     ("fraction_pct", re.compile(r"^what(?:'s| is) (?P<num>\d+)/(?P<den>\d+) (?:as a |in )?percent(?:age)?$")),
     ("feeling", re.compile(
-        r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling) (?:so |really |kind of |pretty |a bit |very )?"
+        # "I've been feeling tired lately" (2026-10-08: to the planner)
+        r"^(?:i(?:'m| am)(?: feeling)?|im(?: feeling)?|i feel|feeling|i(?:'ve| have) been(?: feeling)?) (?:so |really |kind of |pretty |a bit |very )?"
         r"(?P<feel>hungry|bored|tired|exhausted|sleepy|stressed|stressed out|overwhelmed|anxious|sad|down|lonely|sick"
         # "I'm procrastinating" (2026-10-07: to the planner)
         r"|procrastinating|unmotivated|distracted|stuck|thirsty|cold|freezing|hot|nervous|scared|worried|running late|stuck in traffic"
-        r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
+        r"|late|frustrated|annoyed|angry|mad|pissed off|fed up|sick of (?:this|it|everything|work)|so done)(?: today| again| now| right now| lately| recently| all week| this week| all day)?(?P<feel_about> (?:about|for|before) (?:my |the |a |an )?[a-z][a-z ]{1,30})?$"
         r"|^(?P<feel2>i can'?t sleep|i can'?t (?:focus|concentrate)|i need a break|motivate me|i'?m having a (?:bad|rough|hard) day|i had a (?:bad|rough|hard|long) day"
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         r"|give me a compliment|compliment me|say something nice about me"
@@ -7232,6 +7233,9 @@ _FEELINGS = {
 def _feeling(text: str) -> str | None:
     g = _match_of("feeling", text)
     said = (g.get("feel") or g.get("feel2") or "").strip()
+    # "I've been late" is a habit, not a text to send now
+    if said in ("late", "running late", "stuck in traffic") and re.match(r"i(?:'ve| have) been\b", _tidy(text)):
+        return None
     if "pep talk" in said or "motivation" in said:
         said = "motivate me"
     if said in ("cheer me up", "make me smile", "give me a compliment", "compliment me", "say something nice about me"):
@@ -9065,7 +9069,9 @@ def _when_mine(what: str, until: bool = False) -> str | None:
                "vacation": r"\b(?:vacation|holiday|trip)\b"}
         if all(re.search(kin.get(w.rstrip("s"), rf"\b{re.escape(w.rstrip('s'))}"), said.casefold()) for w in words) \
                 and re.search(r"\b\d{1,2}(?:st|nd|rd|th|:\d\d| ?[ap]\.?m\b)|\b(?:at|on|the|by) \d{1,2}\b|\b\d{1,2}/\d{1,2}\b"
-                              r"|day\b|tomorrow|tonight|noon|\bweekend\b|\b(?:next|this) (?:week|month|year)\b", said.casefold()):
+                              r"|day\b|tomorrow|tonight|noon|\bweekend\b|\b(?:next|this) (?:week|month|year)\b"
+                              # "My next checkup is in January" (2026-10-08)
+                              r"|\bin (?:" + "|".join(_MONTHS) + r"|spring|summer|fall|autumn|winter)\b", said.casefold()):
             # A when, not just a number: "my rent is 1500" answered "when
             # is rent due" (2026-10-07).
             return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."

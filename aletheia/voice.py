@@ -8307,6 +8307,8 @@ def _interpret(transcript: str) -> dict:
          # and "Leo has a field trip Thursday" (2026-10-08: to the planner).
          or re.fullmatch(r"(?:the |my |our |[a-z]{2,15}'s )?(?P<thing7>[a-z][a-z ]{1,25}?) (?:starts?|begins?|ends?|finishes|opens|closes"
                          r"|is|are|is over|gets out|lets out) (?:on |back )?(?:" + SPOKEN_DATE
+                         # "My next checkup is in January" (2026-10-08: to the planner)
+                         + r"|in " + _MONTH + r"(?: \d{4})?|next (?:week|month|year)|in (?:the )?(?:spring|summer|fall|autumn|winter)"
                          + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday|thursday"
                          r"|friday|saturday|sunday))" + _at, low)
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )(?P<thing8>[a-z][a-z ]{1,25}?)"
