@@ -2641,6 +2641,21 @@ def _direct(text: str) -> str:
         what = m.groupdict().get("what") or "hotel"
         if _fact_any(what):
             return f"what's my {what}"
+    # "How long has it been since my last haircut" (2026-10-08: to a model,
+    # with "I got a haircut" kept): the "when did I last" reader says when.
+    m = re.fullmatch(r"how long (?:has it been |is it )?since (?:my last (?P<noun>haircut|oil change|massage|manicure|pedicure"
+                     r"|flu shot|checkup|check-up|physical|eye exam|car wash)|i last (?P<verb>[a-z][a-z ']{2,30}?))\s*\??", text)
+    if m and m.group("noun"):
+        noun = m.group("noun")
+        return f"when did i last get {'an' if noun[0] in 'aeiou' else 'a'} {noun}"
+    if m:
+        first, _, after = m.group("verb").partition(" ")
+        present = {"went": "go", "called": "call", "talked": "talk", "saw": "see", "visited": "visit", "ate": "eat",
+                   "ran": "run", "worked": "work", "cleaned": "clean", "washed": "wash", "fed": "feed", "walked": "walk",
+                   "texted": "text", "mowed": "mow", "watered": "water", "did": "do", "had": "have", "got": "get",
+                   "took": "take", "changed": "change", "vacuumed": "vacuum"}.get(first)
+        if present:
+            return f"when did i last {present} {after}".strip()
     # "What should I eat" (2026-10-08: "I can't think just now"): the meal
     # it is time for, asked the way the meal-idea reader already answers.
     if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \

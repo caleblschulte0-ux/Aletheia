@@ -3065,6 +3065,16 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
                        "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
+    # "I got a haircut today" (2026-10-08: held on the calendar for 9 am
+    # today). "Got" with today is done, not had: kept, and "when did I last
+    # get a haircut" reads it.
+    # Said without "today" it already ticks off a task or is kept, so the
+    # day is dropped and the sentence read the way it always was.
+    got = re.fullmatch(r"(?P<did>i (?:just )?got (?:a |an |my )?(?:haircut|hair cut|trim|massage|manicure|pedicure|mani pedi|flu shot"
+                       r"|covid shot|booster|tattoo|piercing|facial|teeth cleaned|teeth cleaning|eye exam|physical|checkup|check-up"
+                       r"|car wash|oil change)) (?:today|this morning|this afternoon|earlier|earlier today|tonight)", low)
+    if got:
+        return _interpret(text[:len(got.group("did"))] if text.lower().startswith(got.group("did")) else got.group("did"))
     # "Test", "mic check", "is my computer on", "what's my phone's battery"
     # (2026-10-07: all to a model). The first two are him checking she hears;
     # she runs on the PC, so answering at all says it is on; his phone's

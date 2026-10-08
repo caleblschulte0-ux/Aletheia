@@ -7948,5 +7948,18 @@ class PayingBackSettlesHisHalfOnly(unittest.TestCase):
 
 
 
+class AHaircutGotIsDone(unittest.TestCase):
+    def test_got_a_haircut_today_is_a_note_not_a_hold(self):
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]), \
+                mock.patch("aletheia.intercom._open_tasks", return_value=[]):
+            self.assertEqual(voice._interpret("I got a haircut today")["command"],
+                             {"kind": "note", "text": "I got a haircut"})
+
+    def test_how_long_since_reads_when_he_last_did_it(self):
+        self.assertEqual(quick._direct("how long has it been since my last haircut"), "when did i last get a haircut")
+        self.assertEqual(quick._direct("how long since i last went to the gym"), "when did i last go to the gym")
+
+
+
 if __name__ == "__main__":
     unittest.main()
