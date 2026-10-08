@@ -10200,5 +10200,39 @@ class AWeddingToGoTo(unittest.TestCase):
                              "On your list: get a haircut before the wedding and buy gift for the wedding.")
 
 
+class TheScoresHeKeeps(unittest.TestCase):
+    """A sweep of sports sentences (2026-10-08): his tickets, his seats, his
+    bowling, golf, fishing and race times all went to the planner."""
+
+    def test_said(self):
+        for said in ("I have tickets to the Packers game on Sunday", "our seats are section 112 row 8", "I bowled a 180 tonight",
+                     "I shot an 89 at golf today", "I caught a 5 pound bass", "I ran a 5k in 28 minutes",
+                     "my fantasy team is in first place", "I joined a softball league", "softball is every Thursday at 6",
+                     "my tee time is 8am Saturday", "I walked 2 miles in 40 minutes"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        for said in ("I shot a video today", "I caught a cold", "I have tickets to it"):
+            self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_read(self):
+        rows = [{"text": "I bowled a 150"}, {"text": "I bowled a 180 tonight"}, {"text": "I shot an 89 at golf today"},
+                {"text": "I shot an 85 at golf"}, {"text": "I caught a 3 pound trout"}, {"text": "I caught a 5 pound bass today"},
+                {"text": "I ran a 5k in 28 minutes"}, {"text": "I ran a 5k in 26:30"}, {"text": "my fantasy team is in first place"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what was my best bowling score"),
+                             "Your best bowling score is 180, of the 2 games you've told me about.")
+            self.assertEqual(quick.answer("what is my bowling average"), "Your bowling average is 165, over the 2 games you've told me about.")
+            self.assertEqual(quick.answer("what did I bowl"), "You told me you bowled a 150.")
+            self.assertEqual(quick.answer("what did I shoot at golf"), "You told me you shot an 89 at golf.")
+            self.assertEqual(quick.answer("what is my best golf score"), "Your best golf score is 85, of the 2 rounds you've told me about.")
+            self.assertEqual(quick.answer("what was the biggest fish I caught"), "The biggest you've told me about: a 5 pound bass.")
+            self.assertEqual(quick.answer("what is my 5k time"), "You told me you ran a 5k in 28 minutes.")
+            self.assertEqual(quick.answer("what is my best 5k time"), "Your fastest 5k you've told me: you ran a 5k in 26:30.")
+            self.assertEqual(quick.answer("how is my fantasy team doing"),
+                             "You told me your fantasy team is in first place. I can't see the league itself.")
+            self.assertIsNone(quick.answer("what is my marathon time"))
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I shot a video today"}]):
+            self.assertIsNone(quick.answer("what did I shoot at golf"))
+
+
 if __name__ == "__main__":
     unittest.main()

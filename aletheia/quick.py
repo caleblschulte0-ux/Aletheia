@@ -2329,6 +2329,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("for_event", re.compile(r"^what (?:do|else do) (?:i|we) (?:need|have) (?:to (?:do|get|buy|bring) )?(?:for|before) (?:the |my |our )(?P<for_event>"
                              r"wedding|party|funeral|shower|baby shower|reunion|graduation|birthday party|recital|bachelor party|bachelorette party"
                              r"|housewarming|reception|trip|move|interview|game|concert|holidays?|thanksgiving|christmas)\s*\??$")),
+    # "What was my best bowling score", "what did I shoot at golf", "what
+    # was the biggest fish I caught", "what is my 5k time", "how is my
+    # fantasy team doing" (2026-10-08: all to a model).
+    ("game_score", re.compile(r"^(?:what(?: was|'s| is|s)? my (?P<gs_q>best|highest|top|lowest|worst|last|latest|most recent|average) (?P<game_score>bowling|golf) score"
+                              r"|what(?: was|'s| is|s)? my (?P<gs_k>bowling|golf) (?:score|(?P<gs_avg>average))|what did i (?P<gs_v>bowl|shoot)(?: at golf| in golf| at bowling)?(?: last time| last)?)\s*\??$")),
+    ("big_fish", re.compile(r"^(?:what(?: was|'s| is|s)? the (?:biggest|largest|heaviest) (?P<big_fish>fish|[a-z]+) (?:i've|i have|i ever|i've ever|i) caught"
+                            r"|what(?: was|'s| is|s)? my (?:biggest|largest|heaviest) (?:fish|catch|[a-z]+))\s*\??$")),
+    ("race_time", re.compile(r"^(?:what(?: was|'s| is|s)? my (?P<rt_q>best |fastest |last |latest |slowest )?(?P<race_time>5k|10k|15k|half marathon|marathon|mile) time"
+                             r"|how fast did i (?:run|do) (?:the |my |a )?(?:5k|10k|15k|half marathon|marathon|mile))\s*\??$")),
+    ("fantasy", re.compile(r"^(?:how(?:'s| is) my fantasy (?:football |baseball |basketball |hockey )?(?:team|league)(?: doing)?|where is my fantasy (?:team|league)(?: in the standings)?"
+                           r"|what place is my fantasy (?:team|league)(?: in)?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3243,7 +3254,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3263,7 +3274,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "fantasy", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15620,6 +15631,115 @@ def _for_event(event: str) -> str | None:
     return f"On your list: {speech.and_list(said)}."
 
 
+def _game_score(text: str) -> str | None:
+    """His bowling or golf scores as he told them: the newest, or his best
+    (the highest in bowling, the lowest in golf). None when he never said."""
+    g = _groups("game_score", text)
+    game = g.get("game_score") or g.get("gs_k") or {"bowl": "bowling", "shoot": "golf"}.get(g.get("gs_v") or "", "")
+    if not game:
+        return None
+    from aletheia import speech
+    said_rx = (r"^i (?:bowled|rolled) (?:a |an )?(?P<n>\d{2,3})\b" if game == "bowling"
+               else r"^i shot (?:a |an )?(?P<n>\d{2,3})\b(?!.*\b(?:video|photo|picture|film)\b)")
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(said_rx, said, re.I)
+        if m and (game == "bowling" or 50 <= int(m.group("n")) <= 150):
+            rows.append((int(m.group("n")), said))
+    if not rows:
+        return None
+    q = (g.get("gs_q") or ("average" if g.get("gs_avg") else "")).casefold()
+    if q in ("best", "highest", "top", "lowest", "worst"):
+        # Higher is better in bowling and lower is better in golf.
+        high = q in ("highest",) or (q in ("best", "top") and game == "bowling") or (q == "worst" and game == "golf")
+        n, _said = (max if high else min)(rows)
+        noun = "best" if q == "top" else q
+        unit = "game" if game == "bowling" else "round"
+        return f"Your {noun} {game} score is {n}" + (f", of the {len(rows)} {unit}s you've told me about." if len(rows) > 1 else ", the only one you've told me.")
+    if q == "average":
+        avg = sum(n for n, _ in rows) / len(rows)
+        return f"Your {game} average is {round(avg)}, over the {speech.count_phrase(len(rows), 'game' if game == 'bowling' else 'round')} you've told me about."
+    verb = re.sub(r"^i\b", "you", _no_when(rows[0][1]), flags=re.I)
+    return f"You told me {verb}."
+
+
+_FISH_LB = re.compile(r"^i caught (?:a |an )?(?P<n>\d+(?:\.\d+)?) ?(?:pound|lb)s? (?P<fish>[a-z ]+?)(?: (?:at|on|in) .+| today| tonight| yesterday| last night| this morning| this weekend)?$", re.I)
+
+
+def _big_fish(text: str) -> str | None:
+    """The heaviest fish he said he caught, by the pounds he gave."""
+    from aletheia import speech
+    kind = (_groups("big_fish", text).get("big_fish") or "fish").casefold()
+    if kind in ("catch",):
+        kind = "fish"
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = _FISH_LB.match(said)
+        if m and (kind == "fish" or kind.rstrip("s") in m.group("fish").casefold()):
+            rows.append((float(m.group("n")), said))
+    if not rows:
+        return None
+    _n, said = max(rows)
+    return f"The biggest you've told me about: {speech.as_she_says_it(re.sub(r'(?i)^i caught ', '', _no_when(said)))}."
+
+
+def _no_when(said: str) -> str:
+    """A note read back on another day: its "today" or "tonight" was true
+    the day he said it, not now."""
+    return re.sub(r"(?i) (?:today|tonight|yesterday|last night|this morning|this afternoon|this weekend)$", "", said)
+
+
+def _secs(said: str) -> float | None:
+    m = re.search(r"\bin (\d{1,2}):(\d\d)(?::(\d\d))?\b", said)
+    if m:
+        a, b, c = int(m.group(1)), int(m.group(2)), m.group(3)
+        return a * 3600 + b * 60 + int(c) if c else a * 60 + b
+    m = re.search(r"\bin (\d+(?:\.\d+)?) ?(minutes|mins|min|hours|hrs)\b", said)
+    if m:
+        return float(m.group(1)) * (3600 if m.group(2).startswith("h") else 60)
+    return None
+
+
+def _race_time(text: str) -> str | None:
+    """His time for a race distance as he told it: the newest, or his best."""
+    g = _groups("race_time", text)
+    race = (g.get("race_time") or re.search(r"(5k|10k|15k|half marathon|marathon|mile)\b", _tidy(text)).group(1)).casefold()
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.match(r"i (?:ran|walked|swam|biked|rode|did|finished|completed) (?:a |the |my )?" + re.escape(race) + r"\b", low):
+            continue
+        if race == "marathon" and "half" in low:
+            continue
+        at = _secs(low)
+        if at is not None:
+            rows.append((at, said))
+    if not rows:
+        return None
+    q = (g.get("rt_q") or "").strip()
+    if q in ("best", "fastest") and len(rows) > 1:
+        _t, said = min(rows)
+        return f"Your fastest {race} you've told me: {re.sub(r'(?i)^i ', 'you ', _no_when(said))}."
+    if q == "slowest" and len(rows) > 1:
+        _t, said = max(rows)
+        return f"Your slowest {race} you've told me: {re.sub(r'(?i)^i ', 'you ', _no_when(said))}."
+    return f"You told me {re.sub(r'(?i)^i ', 'you ', _no_when(rows[0][1]))}."
+
+
+def _fantasy(_what: str = "") -> str | None:
+    """What he said about his fantasy team."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"my fantasy (?:[a-z]+ )?(?:team|league)\b", said, re.I):
+            yours = re.sub(r"(?i)^my\b", "your", said)
+            return f"You told me {speech.as_she_says_it(yours)}. I can't see the league itself."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16430,6 +16550,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "game_score": _game_score,
+           "big_fish": _big_fish,
+           "race_time": _race_time,
+           "fantasy": _fantasy,
            "whose_event": _whose_event,
            "did_rsvp": _did_rsvp,
            "plus_one": _plus_one,

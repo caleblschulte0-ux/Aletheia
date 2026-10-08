@@ -10341,6 +10341,29 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:groceries|gas|everything|food|eggs|rent|prices) (?:are|is) (?:so |really |crazy |too )?(?:expensive|pricey|high)(?: now| these days| lately| right now)?", low):
         return {"command": None, "say": "I know - it adds up. If you tell me what you spend, I'll keep the running total."}
+    # Sports and the scores he keeps: "I have tickets to the Packers game on
+    # Sunday", "our seats are section 112 row 8", "I bowled a 180 tonight",
+    # "I shot an 89 at golf today", "I caught a 5 pound bass", "I ran a 5k in
+    # 28 minutes", "my fantasy team is in first place", "I joined a softball
+    # league", "softball is every Thursday at 6", "my tee time is 8am
+    # Saturday" (2026-10-08: all to the planner).
+    when_said = r"(?: (?:today|tonight|yesterday|last night|this morning|this afternoon|this weekend|on (?:mon|tues|wednes|thurs|fri|satur|sun)day))?"
+    day = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+    if re.fullmatch(r"(?:i|we) (?:have|got|bought|have got|'ve got) (?:two |2 |four |4 |a pair of )?tickets (?:to|for) (?:the |a |an )?(?!it\b|that\b)[a-z0-9][a-z0-9 .'&-]{2,40}", low) \
+            or re.fullmatch(r"(?:our|my) seats? (?:are|is) (?:in )?(?:section|sec|row|seat|box|the (?:upper|lower|club)) ?[a-z0-9][a-z0-9 ,]{0,40}", low) \
+            or re.fullmatch(r"i (?:bowled|rolled) (?:a |an )?\d{2,3}(?: game| series)?" + when_said, low) \
+            or re.fullmatch(r"i shot (?:a |an )?\d{2,3}(?: (?:at|in|playing) golf| on the course| at [a-z][a-z ]{2,25})?" + when_said, low) \
+            or re.fullmatch(r"i caught (?:a |an |two |2 |three |3 )?(?:\d+(?:\.\d+)? ?(?:pound|lb|inch|in)s? )?(?:[a-z]+ )?(?:bass|trout|walleye|pike|salmon|catfish|perch|crappie|musky|muskie|fish|bluegill|tuna|redfish|snapper|carp|sunfish|halibut|marlin)"
+                            r"(?: (?:at|on|in) (?:the )?[a-z][a-z ]{2,25}?)?" + when_said, low) \
+            or re.fullmatch(r"i (?:ran|walked|swam|biked|rode|did|finished|completed) (?:a |the |my )?(?:5k|10k|15k|half marathon|half|marathon|mile|\d+(?:\.\d+)? ?(?:k|km|miles?))(?: race)?"
+                            r" in (?:\d{1,2}:\d\d(?::\d\d)?|\d+(?:\.\d+)? ?(?:minutes|mins|min|hours|hrs))" + when_said, low) \
+            or re.fullmatch(r"my fantasy (?:football |baseball |basketball |hockey )?(?:team|league) is (?:in |now in )?(?:\d|first|second|third|last|1st|2nd|3rd|[a-z]+th|undefeated|winning|losing|[0-9]+ and [0-9]+)[a-z0-9 -]{0,30}", low) \
+            or re.fullmatch(r"i (?:just )?joined (?:a |the |our )?(?:[a-z]+ )?(?:softball|baseball|basketball|soccer|volleyball|hockey|bowling|golf|tennis|pickleball|kickball|dodgeball|darts|pool|flag football|rec|running|cycling|hiking)"
+                            r" (?:league|team|club|group)", low) \
+            or re.fullmatch(r"(?:my |our )?(?:[a-z]+ )?(?:softball|baseball|basketball|soccer|volleyball|hockey|bowling|golf|tennis|pickleball|kickball|poker|trivia|darts|book club|band practice|choir|yoga|pilates|spin class|league)"
+                            r"(?: night| league| game| games| practice| class)? (?:is|are) (?:every|on) " + day + r"(?: and " + day + r")?(?: (?:at|from) [0-9: apm-]+(?: to [0-9: apm]+)?)?(?: nights?)?", low) \
+            or re.fullmatch(r"my tee time is (?:at )?[0-9: apm.]+(?: (?:on )?(?:today|tomorrow|" + day + r"))?|my tee time is (?:on )?(?:today|tomorrow|" + day + r")(?: at [0-9: apm.]+)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A wedding, a party, a funeral: "it is my cousin's wedding", "the
     # wedding starts at 4", "the wedding is at the Grand Hotel", "the dress
     # code is cocktail", "I RSVPd yes", "I am bringing Sarah as my plus
