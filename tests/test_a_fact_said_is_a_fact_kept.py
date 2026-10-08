@@ -9825,5 +9825,30 @@ class EveryOtherFriday(unittest.TestCase):
                              "You told me: you get paid every other Friday.")
 
 
+class AroundTheHouseSizes(unittest.TestCase):
+    """Sizes, trash night and a task with no reason (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("the trash goes out Tuesday night", "the furnace filter is 16x25x1", "my tire size is 225/65R17"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("my shirt is dirty")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "my shoe size is 11"}, {"text": "the furnace filter is 16x25x1"}, {"text": "my tire size is 225/65R17"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what size is the furnace filter"), "You told me: the furnace filter is 16x25x1.")
+            self.assertEqual(quick.answer("what size filter do I need"), "You told me: the furnace filter is 16x25x1.")
+            self.assertEqual(quick.answer("what size tires do I have"), "You told me: your tire size is 225/65R17.")
+            self.assertIsNone(quick.answer("what size is my bed"))
+
+    def test_a_task_with_no_reason_says_so(self):
+        from aletheia import tasks
+        rows = [{"description": "call the cable company", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("why do I need to call the cable company"),
+                             "Your task just says to call the cable company - you didn't tell me more than that.")
+            self.assertIsNone(quick.answer("why do I need to call the bank"))
+
+
 if __name__ == "__main__":
     unittest.main()

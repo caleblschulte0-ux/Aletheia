@@ -9538,6 +9538,13 @@ def _interpret(transcript: str) -> dict:
                     r"|i have (?:an? |a severe |a mild )?(?:[a-z]+ )?allerg(?:y|ies) to [a-z][a-z ,'-]{1,60}"
                     r"|my allerg(?:y is|ies are) [a-z][a-z ,'-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The furnace filter is 16x25x1", "my tire size is 225/65R17"
+    # (2026-10-08: to the planner) - a size he will need at the store.
+    m = re.fullmatch(r"(?:the |my |our )?(?P<what>(?:furnace |air |ac |hvac |fridge |refrigerator |water )?filter|tires?|tire size|wiper blades?|wipers"
+                     r"|light bulbs?|bulbs?|mattress|bed|ring|shoe|shirt|pants|jeans|dress|bra|glove|hat|coat|jacket)"
+                     r"(?: size)? (?:is|are|is a|takes|take|uses|use) (?:a |an |size )?(?P<size>\d[\dx./r -]{1,15}[a-z0-9]{0,4}|(?:small|medium|large|x-?large|xl|xxl|king|queen|twin|full))", low)
+    if m and (re.search(r"\d.*[x/r]|\d", m.group("size")) or re.search(r"\bsize\b", low) or m.group("what") in ("mattress", "bed")):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHEN SOMETHING HAPPENS AT HIS HOUSE (2026-10-07: "the trash goes out
     # on Tuesdays", "recycling is every other Wednesday", "the kids have
     # soccer on Saturdays at 9", "the babysitter is coming at 6" - all to
@@ -9547,7 +9554,7 @@ def _interpret(transcript: str) -> dict:
     m = (re.fullmatch(r"(?:the )?(?P<thing>trash|garbage|recycling|rubbish|bins?|compost|yard waste|cleaner|cleaners|cleaning lady"
                       r"|gardener|lawn guy|mail|newspaper|street cleaning|piano lessons?|[a-z]+ practice|[a-z]+ lessons?|[a-z]+ class)"
                       r" (?:goes out|go out|is|are|comes|come|happens|gets picked up|is picked up|is collected|day is)"
-                      r" (?:on |every |each )?(?:other )?(?:" + _days + r"|day)" + _at, low)
+                      r" (?:on |every |each )?(?:other )?(?:" + _days + r"|day)(?: night| nights| morning| mornings| evening| evenings)?" + _at, low)
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|[a-z]{2,15}) (?:have|has|go to|goes to) "
                          r"(?P<thing2>[a-z][a-z ]{1,20}?) (?:on |every |each )(?:other )?" + _days + _at, low)
          # "My son has soccer practice tuesdays at 5" (2026-10-07: to the

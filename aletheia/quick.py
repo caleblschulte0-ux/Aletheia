@@ -2251,6 +2251,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("learning", re.compile(r"^what (?:am i|was i) (?:learning|studying|trying to learn)\s*\??$")),
     ("to_ask", re.compile(r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_ask>ask|tell|give|show|send|remind|pay|return to)"
                           r" (?P<ta_who>my [a-z]{2,15}|[a-z]{2,15})(?: about)?\s*\??$")),
+    # "What size is the furnace filter", "what size tires do I have"
+    # (2026-10-08: to a model, or every size he ever said read at once).
+    ("size_of", re.compile(r"^what size (?:is|are) (?:the |my |our )?(?P<size_of>[a-z][a-z ]{1,25}?)\s*\??$"
+                           r"|^what size (?P<size_of2>[a-z][a-z ]{1,25}?) (?:do i|do we|does (?:the |my |our )?[a-z]{2,12}) (?:have|need|take|use|wear|buy|get)"
+                           r"(?: for (?:the |my |our )?[a-z ]{2,20})?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3141,7 +3146,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13888,6 +13893,14 @@ def _task_about(what: str) -> str | None:
         have = [w for w in re.findall(r"[a-z0-9']+", desc.casefold()) if w not in ("the", "my", "a", "an")]
         if have[:len(words)] == words and len(have) > len(words):
             return f"Your task says: {desc}."
+    # "Why do I need to call the cable company" with the task saying just
+    # that (2026-10-08: to a model, which could only guess at why).
+    for t in rows:
+        desc = " ".join(str(t.get("description") or "").split()).rstrip(".")
+        have = [w for w in re.findall(r"[a-z0-9']+", desc.casefold()) if w not in ("the", "my", "a", "an")]
+        if have == words:
+            from aletheia import speech
+            return f"Your task just says to {speech.as_she_says_it(desc)} - you didn't tell me more than that."
     return None
 
 
@@ -14783,6 +14796,23 @@ def _weighs(who: str) -> str | None:
     return None
 
 
+def _size_of(what: str) -> str | None:
+    """The size he told her for a thing - the filter, the tires - read
+    back. None when no note gives one: a model or the web may know."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(what or "").casefold()) if w not in ("the", "my", "our", "a", "an", "size")]
+    if not words or words[-1] in ("it", "that", "this", "them", "he", "she", "i", "you"):
+        return None
+    stem = re.sub(r"(?:es|s)$", "", words[-1]) if len(words[-1]) > 4 else words[-1]
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.search(rf"\b{re.escape(stem)}", low) and (re.search(r"\bsize\b", low) or re.search(r"\d", low)) \
+                and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words[:-1]):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15593,6 +15623,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "size_of": _size_of,
            "weighs": _weighs,
            "days_taken": _days_taken,
            "to_ask": _to_ask,
