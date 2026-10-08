@@ -3595,6 +3595,19 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
 
+    # "I'm out of my medicine" (2026-10-08: to the planner; "my" kept it off
+    # the shopping list). A prescription is refilled, not bought off a list.
+    m = re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)|im) (?:all |almost |nearly |running )?(?:out of|low on) (?:my |the )?"
+                     r"(?P<rx>medicine|medication|meds|pills|prescription|inhaler|insulin|blood pressure (?:pills|meds|medicine)"
+                     r"|[a-z]+ (?:pills|meds|tablets)|contacts|contact lenses)", low)
+    if m:
+        return _new_task(f"refill my {m.group('rx')}")
+    # "I have 10 pills left", "I take 2 a day" (2026-10-08: to the planner).
+    # Kept; "how many pills do I have left" and "when will I run out" read them.
+    if re.fullmatch(r"i(?:'ve| have)(?: got)? (?:about |only |just )?\d{1,3} (?:pills|tablets|capsules|doses)(?: of (?:my )?[a-z ]{2,30})? left", low) \
+            or re.fullmatch(r"i take (?:\d|one|two|three|four) (?:pills?|tablets?|capsules?|doses?)?(?: of (?:it|them|my [a-z ]{2,30}))? ?(?:a|per|each|every) day", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+
     # "WE'RE OUT OF COFFEE", "we need paper towels", "I need to buy
     # batteries": a thing to buy, said as a need (2026-10-07: the planner,
     # and the last one refused as SPENDING). It goes on the list; buying

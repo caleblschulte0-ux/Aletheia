@@ -400,6 +400,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("miles_until", re.compile(
         r"^how (?:many|much) (?:more )?(?:miles|mi) (?:until|till|before|to|left (?:until|before|till)) (?:my |the |our )?(?:next )?"
         r"(?P<mu_what>oil change|service|tune-?up|tire rotation|inspection|timing belt)(?: is due)?\s*\??$")),
+    # "How many pills do I have left", "when will I run out of my pills"
+    # (2026-10-08: to a model). His count, less his daily dose since.
+    ("pills_left", re.compile(
+        r"^(?:how many (?:pills|tablets|capsules|doses) (?:do i have|have i got|are) left"
+        r"|when (?:will|do|am) i (?:going to )?run(?:ning)? out(?: of (?:my )?(?:pills|tablets|capsules|meds|medicine|medication))?"
+        r"|how long (?:will|do) my (?:pills|tablets|meds|medicine) last)\s*\??$")),
     ("their_fact", re.compile(
         r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
         r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
@@ -2420,7 +2426,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11328,6 +11334,45 @@ def _told_last(text: str) -> str | None:
     return None
 
 
+def _pills_left(text: str) -> str | None:
+    """His last "I have 10 pills left", less "I take 2 a day" for each day
+    since. None without a count when he asked about running out of
+    something unnamed: that may not be pills at all."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    words = {"one": 1, "two": 2, "three": 3, "four": 4}
+    count = dose = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        if count is None:
+            m = re.fullmatch(r"i(?:'ve| have)(?: got)? (?:about |only |just )?(\d{1,3}) (?:pills|tablets|capsules|doses).* left\.?", said)
+            if m:
+                try:
+                    at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+                except ValueError:
+                    continue
+                count = (int(m.group(1)), at)
+        if dose is None:
+            m = re.fullmatch(r"i take (\d|one|two|three|four) .*?(?:a|per|each|every) day\.?", said)
+            if m:
+                dose = words.get(m.group(1)) or int(m.group(1))
+    if count is None:
+        if re.search(r"\bout\b(?!.*\b(?:pills|tablets|capsules|meds|medicine|medication)\b)", text.casefold()):
+            return None
+        return "You haven't told me how many you have. Say \"I have 10 pills left\" and I'll keep count."
+    n, at = count
+    told = f"you told me {speech.humanize_time(at.isoformat())} you had {n}"
+    if not dose:
+        return f"{told[:1].upper() + told[1:]}. Say \"I take 2 a day\" and I'll work out when they run out."
+    now = dt.datetime.now(at.tzinfo)
+    left = max(0, n - dose * (now.date() - at.date()).days)
+    if left == 0:
+        return f"By now you're out: {told}, at {dose} a day."
+    out = now.date() + dt.timedelta(days=left // dose)
+    return (f"About {left} left - {told}, at {dose} a day. They run out around "
+            f"{out.strftime('%A')}, {out.strftime('%B')} {out.day}.")
+
+
 def _miles_until(text: str) -> str | None:
     """The miles between his car's last mileage and the one a service is
     due at, both from his notes. Either missing is said, with how to say it."""
@@ -11872,6 +11917,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "just_added": lambda text: _just_added(),
            "their_kind": lambda text: _their_kind(text),
            "miles_until": lambda text: _miles_until(text),
+           "pills_left": lambda text: _pills_left(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

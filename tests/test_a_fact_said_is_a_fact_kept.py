@@ -6033,5 +6033,25 @@ class ASplitWithATipIsArithmetic(unittest.TestCase):
         self.assertIn("20% is $12.80", quick.answer("how much is the tip on 64 dollars"))
 
 
+class PillsLeftAndARefill(unittest.TestCase):
+    """2026-10-08: "I'm out of my medicine", "I have 10 pills left", "I take
+    2 a day" and "when will I run out" each went to the planner or a model."""
+
+    def test_refill_is_a_task(self):
+        self.assertEqual(voice._interpret("I'm out of my medicine")["command"]["description"], "refill my medicine")
+
+    def test_count_and_dose(self):
+        import datetime as dt
+        for said in ("I have 10 pills left", "I take 2 a day"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        when = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat()
+        rows = [{"text": "I take 2 a day", "ts": when}, {"text": "I have 10 pills left", "ts": when}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how many pills do I have left").startswith("About 6 left"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("when will I run out"))
+            self.assertIn("I have 10 pills left", quick.answer("how many pills do I have left"))
+
+
 if __name__ == "__main__":
     unittest.main()
