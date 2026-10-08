@@ -11466,5 +11466,32 @@ class HostingAHoliday(unittest.TestCase):
             self.assertIsNone(quick.answer("who is bringing the pie"))
 
 
+class CallsAndNotesHeOwes(unittest.TestCase):
+    """2026-10-08: "I missed a call from my mom", "I owe Sam a text" and "I
+    sent the birthday card" went to the planner; "who do I owe a text",
+    "who do I need to thank" to a model; "did I mail the package" to the
+    planner a turn after "I mailed the package"."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I missed a call from my mom")["command"]["description"], "call my mom back")
+        self.assertEqual(voice._interpret("I owe Sam a text")["command"]["description"], "text Sam")
+        self.assertIn("remind me to call my brother", voice._interpret("I have not talked to my brother in a while")["say"])
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_task", lambda which: ({"id": "t1"}, "")):
+            self.assertEqual(voice._interpret("I sent the birthday card")["command"], {"kind": "task_done", "which": "birthday card"})
+        with mock.patch.object(intercom, "_one_task", lambda which: (None, "Nothing open")):
+            self.assertEqual(voice._interpret("I sent the birthday card")["command"]["kind"], "note")
+
+    def test_read(self):
+        from aletheia import tasks
+        rows = [{"id": "a", "description": "text Sam", "status": "OPEN"},
+                {"id": "b", "description": "write a thank you note to grandma", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("who do I owe a text"), "Text Sam.")
+            self.assertEqual(quick.answer("who do I need to thank"), "Write a thank you note to grandma.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I mailed the package"}]):
+            self.assertEqual(quick.answer("did I mail the package"), "You told me you mailed the package.")
+
+
 if __name__ == "__main__":
     unittest.main()

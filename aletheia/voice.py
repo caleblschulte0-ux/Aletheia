@@ -10656,6 +10656,37 @@ def _interpret(transcript: str) -> dict:
         if re.match(r"(?:i'?m|i am|we'?re|we are) ", low):
             say = "Noted. Tell me who's coming and what they're bringing, and I'll keep it straight."
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": say}
+    # CALLS AND NOTES HE OWES (2026-10-08: "I missed a call from my mom", "I
+    # owe Sam a text", "I haven't talked to my brother in a while" - to the
+    # planner).
+    m = re.fullmatch(r"i (?:just )?missed (?:a |two |\d )?(?:calls?|facetime|video call) from (?P<who>my [a-z]{2,15}(?: in law)?|[a-z]{2,15}(?: [a-z]{2,15})?)", low)
+    if m and m.group("who") not in ("you", "someone", "somebody", "work", "a number", "an unknown number"):
+        return _new_task(_as_he_said(text, f"call {m.group('who')} back"))
+    m = re.fullmatch(r"i (?:still )?owe (?P<who>my [a-z]{2,15}|[a-z]{2,15}) (?:a |an )?(?P<what>text|call|email|reply|text back|call back|thank you(?: note| card)?)", low)
+    if m and m.group("who") not in ("you", "it", "them", "him", "her", "money"):
+        what, who = m.group("what"), _as_he_said(text, m.group("who"))
+        job = (f"write {who} a thank you {what.split()[-1] if what.endswith(('note', 'card')) else 'note'}" if what.startswith("thank")
+               else f"reply to {who}" if what == "reply"
+               else f"{what.split()[0]} {who}" + (" back" if what.endswith("back") else ""))
+        return _new_task(job)
+    m = re.fullmatch(r"i (?:have(?:n'?t| not)|haven't) (?:talked to|spoken to|called|seen|heard from|caught up with) (?P<who>my [a-z]{2,15}|[a-z]{2,15}) in (?:a while|ages|forever|a long time|weeks|months|a few weeks|a few months)", low)
+    if m and m.group("who") not in ("you", "anyone", "anybody", "them"):
+        who = _as_he_said(text, m.group("who"))
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"Noted. Say \"remind me to call {who} this weekend\" and I'll make sure you do."}
+    # "I sent the birthday card" (2026-10-08: to the planner): ticks off
+    # the task about it, or is kept.
+    m = re.fullmatch(r"i (?:just |finally )?(?P<v>sent|mailed|posted|dropped off|returned|submitted|filed|signed|renewed|booked|scheduled|wrote|bought|picked up)"
+                     r" (?:the|my|a|an|our) (?P<thing>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this morning|already))?", low)
+    if m:
+        try:
+            from aletheia import intercom as _icm2
+            found, _why = _icm2._one_task(m.group("thing"))
+        except Exception:
+            found = None
+        if found is not None:
+            return {"command": {"kind": "task_done", "which": m.group("thing")}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

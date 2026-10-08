@@ -1410,7 +1410,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|schedule|book|cancel|renew|clean|wash|finish|sign|file|read|write|print|ship|sell|clean up|book|look into|follow up on"
         # "What do I need to reschedule" (2026-10-08: to a model)
         r"|reschedule|confirm|submit|order|replace|update|prepare|plan|organize|research)\s*\??$"
-        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with|reply to|respond to|get back to|message)\s*\??$"
+        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with|reply to|respond to|get back to|message|thank)\s*\??$"
+        # "Who do I owe a text" (2026-10-08: to a model).
+        r"|^who do i (?:still )?owe (?:a |an )?(?P<tv4>text|call|email|thank you(?: note| card)?)\s*\??$"
         # "What calls do I need to make" (2026-10-07: to a model).
         r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
     ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?the list$")),
@@ -6419,7 +6421,10 @@ def _did_last(text: str) -> str | None:
     if not verb or not thing:
         return None
     if re.search(r"\b(?:email|emails|mail|message|messages|text|texts|call|calls|reply|replies|package|parcel)\b", thing) \
-            and verb in ("get", "mail", "mailed", "see", "seen", "text", "texted"):
+            and verb in ("get", "mail", "mailed", "see", "seen", "text", "texted") \
+            and not (verb in ("mail", "mailed") and re.search(r"\b(?:package|parcel)\b", thing)):
+        # "Did I mail the package" (2026-10-08: to the planner, a turn after
+        # "I mailed the package") is his own act; "did I get any mail" is not.
         return None
     past = _past_of(verb)
     base = re.sub(r"(?:ied)$", "y", past)
@@ -13801,7 +13806,7 @@ def _tasks_verb(text: str) -> str | None:
     they're due. None when none do: the thing may be in his notes or mail."""
     from aletheia import speech, tasks
     g = _groups("tasks_verb", text)
-    verb = (g.get("tv") or g.get("tv2") or {"calls": "call", "emails": "email", "returns": "return", "payments": "pay",
+    verb = (g.get("tv") or g.get("tv2") or ("thank" if str(g.get("tv4") or "").startswith("thank") else g.get("tv4")) or {"calls": "call", "emails": "email", "returns": "return", "payments": "pay",
                                               "errands": ""}.get(g.get("tv3") or "", "") or "").strip()
     if g.get("tv3") == "errands":
         return _tasks()
@@ -13815,7 +13820,8 @@ def _tasks_verb(text: str) -> str | None:
         what = " ".join(str(t.get("description") or "").split()).rstrip(".")
         # "call the dentist to reschedule" is something to reschedule too
         if re.match(re.escape(verb if head in ("pick", "drop", "clean", "look", "follow") else head) + r"\b", what, re.I) \
-                or (head in ("reschedule", "confirm", "cancel", "renew", "return") and re.search(r"\bto " + re.escape(head) + r"\b", what, re.I)):
+                or (head in ("reschedule", "confirm", "cancel", "renew", "return") and re.search(r"\bto " + re.escape(head) + r"\b", what, re.I)) \
+                or (head == "thank" and re.search(r"\bthank", what, re.I)):
             when = tasks.parse_deadline(t.get("deadline"))
             due = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat())) if when else ""
             what = re.sub(r"\bmy\b", "your", what)     # "send my grandma a card" is his, said to him
