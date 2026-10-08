@@ -26,23 +26,24 @@
     "2026-10-08": {
       "duplicate": 13,
       "employer_full": 0,
-      "minutes": 266,
+      "minutes": 285,
       "needs_account": 0,
       "needs_answer": 17,
-      "not_realistic": 584,
-      "offered": 743,
+      "not_realistic": 591,
+      "offered": 753,
       "ready": 13,
-      "runs": 13,
+      "runs": 17,
       "unfit_clearance": 2,
       "unfit_language": 11,
       "unfit_license": 34,
-      "unfit_model": 25,
+      "unfit_model": 27,
       "unfit_pay": 119,
-      "unfit_sales": 383,
+      "unfit_sales": 388,
       "unfit_years": 10,
       "unjudged": 47,
-      "unreachable": 5,
+      "unreachable": 8,
       "unreachable_ApplyError": 5,
+      "unreachable_left_till_tomorrow": 3,
       "weak_shot": 2
     }
   },
@@ -272,7 +273,7 @@
       "sent": 14
     }
   },
-  "generated_at": "2026-10-08T19:24:22Z",
+  "generated_at": "2026-10-08T20:18:58Z",
   "sent_all_time": 284,
   "stuck_at": {
     "approval_denied": {
@@ -327,7 +328,7 @@
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
-        "nothing_to_press_on_unread/observed": 3,
+        "nothing_to_press_on_unread/observed": 2,
         "nothing_to_press_on_unread/submit_clicked": 1
       },
       "going_in_circles": {
@@ -360,12 +361,14 @@
     "asked_about": {
       "address": 1,
       "demographic_gender": 1,
+      "demographic_pronouns": 1,
       "demographic_race": 4,
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
       "other": 9,
       "pay": 1,
+      "referral": 1,
       "travel": 1,
       "years_experience": 1
     },
