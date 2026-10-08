@@ -7183,6 +7183,16 @@ class WhatHeLentOut(unittest.TestCase):
             self.assertEqual(quick.answer("what have I lent out"), "From what you've told me: your ladder with your brother.")
 
 
+class DoneForTheDay(unittest.TestCase):
+    """2026-10-08: "am I done for the day" went to the planner; "I finished
+    everything" on an empty list was offered as an approval."""
+
+    def test_both(self):
+        self.assertEqual(quick._direct("am i done for the day"), "what's due today")
+        with mock.patch.object(voice.tasks, "all_tasks", return_value=[]):
+            self.assertIn("nothing open", voice._interpret("I finished everything")["say"])
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

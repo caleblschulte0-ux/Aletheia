@@ -7901,6 +7901,13 @@ def _interpret(transcript: str) -> dict:
         except Exception:
             pass
 
+    # "I finished everything" with nothing open (2026-10-08: the planner
+    # offered to mark everything done, on an empty list).
+    if re.fullmatch(r"i (?:finished|did|completed|got through|crossed off) (?:everything|it all|all of it|all my tasks|my (?:whole )?(?:list|to-?do list))"
+                    r"(?: today| on my list)?", low):
+        from aletheia import contracts
+        if not [t for t in tasks.all_tasks() if str(t.get("status")) not in contracts.TASK_TERMINAL]:
+            return {"command": None, "say": "Nice work. There's nothing open on your list."}
     # "Set a bedtime reminder" (2026-10-08: to the planner) needs only a time.
     if re.fullmatch(r"(?:set|make|add|create|give me) (?:a |an |my )?(?:bedtime|bed time|go to bed|sleep) reminder", low):
         return {"command": None, "say": "What time? Say \"remind me to go to bed at 10:30 every night\" and it's set."}
