@@ -1358,7 +1358,9 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)"
                        r"|(?:i'?m|we'?re|i am|we are) (?:having|hosting|throwing|going to|off to) (?:a|an|my|our|the) (.+)",
                        str(title), flags=re.IGNORECASE)
-    theirs = re.fullmatch(r"([a-z][a-z']{1,20}) (?:has|has got|'s got) (?:(?:a|an|his|her|their) )?(.+)", str(title), flags=re.IGNORECASE)
+    # "The dog has a vet appointment" too (2026-10-08): "the dog's vet appointment".
+    theirs = re.fullmatch(r"((?:(?:the|my|our) )?[a-z][a-z']{1,20}) (?:has|has got|'s got) (?:(?:a|an|his|her|their|its) )?(.+)",
+                          str(title), flags=re.IGNORECASE)
     if own:
         title = own.group(1) or own.group(2)
     elif theirs and theirs.group(1).casefold() not in ("he", "she", "it", "who", "what", "that", "this", "there", "everyone",
@@ -1366,7 +1368,7 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
         # A name in its capitals ("Leo's", not "leo's"); "mom" stays a word.
         from aletheia import quick
         who = theirs.group(1)
-        who = who if who.casefold() in quick._relation_words() else who[:1].upper() + who[1:]
+        who = who if (who.casefold() in quick._relation_words() or " " in who) else who[:1].upper() + who[1:]
         title = f"{who}'s {theirs.group(2)}"
     if time_words:
         hhmm = _spoken_time(time_words)
@@ -2356,6 +2358,22 @@ def _bare_verb(low: str) -> str | None:
     return None
 
 
+#: Who has a name, a birthday, a vet: one of his, said without the
+#: apostrophe a transcript never hears ("my dogs name is Max", 2026-10-08:
+#: to the planner, and "what is my dogs name" found nothing about "dogs").
+_WHOSE = (r"dog|cat|puppy|kitten|pet|wife|husband|son|daughter|mom|mum|dad|sister|brother|boss|friend|kid|baby"
+          r"|neighbor|neighbour|landlord|girlfriend|boyfriend|partner|fiance|fiancee|grandma|grandpa|aunt|uncle"
+          r"|niece|nephew|cousin|car|horse|bird|fish|hamster|rabbit|bunny")
+_OWNED = (r"name|birthday|age|vet|doctor|dentist|food|medicine|meds|number|phone number|email|address|teacher|school"
+          r"|size|shoe size|favorite [a-z]+|allergies|allergy|breed|weight|appointment|party|anniversary|plate|license plate")
+
+
+def _apostrophes(transcript: str) -> str:
+    """"My dogs name" -> "my dog's name", keeping his capitals."""
+    return re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
+                  str(transcript or ""), flags=re.I)
+
+
 def interpret(transcript: str) -> dict:
     """One spoken sentence -> a command to gate-check, or words to say.
 
@@ -2364,7 +2382,7 @@ def interpret(transcript: str) -> dict:
     Doing it here rather than in thirty patterns means the next pattern
     somebody writes gets it for free.
     """
-    transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(_a_clock_said(transcript))))
+    transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(_a_clock_said(_apostrophes(transcript)))))
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
 

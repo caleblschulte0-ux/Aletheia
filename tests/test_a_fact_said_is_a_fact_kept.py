@@ -6997,6 +6997,20 @@ class SkipJustOnce(unittest.TestCase):
 
 
 
+class TheApostropheHeNeverSays(unittest.TestCase):
+    """2026-10-08: "my dogs name is Max" went to the planner, "the dog has a
+    vet appointment" was held under that whole sentence."""
+
+    def test_both_doors_put_it_back(self):
+        self.assertEqual(voice.interpret("my dogs name is Max")["command"], {"kind": "note", "text": "my dog's name is Max"})
+        self.assertEqual(quick._tidy("what is my wifes birthday"), "what is my wife's birthday")
+        self.assertEqual(voice._apostrophes("my parents are visiting"), "my parents are visiting")
+
+    def test_the_dogs_appointment_is_the_dogs(self):
+        cmd = voice._interpret("the dog has a vet appointment friday at 10")["command"]
+        self.assertEqual(cmd["title"], "the dog's vet appointment")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
