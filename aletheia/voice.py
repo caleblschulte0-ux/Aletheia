@@ -4373,7 +4373,12 @@ def _interpret(transcript: str) -> dict:
                              r"|filling|root canal|crown|tooth pulled|wisdom teeth|teeth whitened|x-?rays?|prescription"
                              r"|prescription refill|refill|hearing test|allergy test"
                              # "I need a dog sitter" (2026-10-08: the shopping list) is a person to find.
-                             r"|(?:dog |pet |cat |house |baby ?)?sitter|babysitter|dog walker|nanny|plumber|electrician|handyman)\b", m.group("item")):
+                             r"|(?:dog |pet |cat |house |baby ?)?sitter|babysitter|dog walker|nanny|plumber|electrician|handyman"
+                             r"|bloodwork|labs?|lab work)\b", m.group("item")) \
+            and not re.search(r"\b(?:done|cleaned|fixed|repaired|checked|changed|replaced|serviced|inspected|washed|installed"
+                              # "I need to get the gutters cleaned" (2026-10-08: the
+                              # shopping list, as "the gutters cleaned") is a job.
+                              r"|painted|removed|looked at|tested|pumped|trimmed|sharpened|tuned|refilled|renewed|signed|notarized)$", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -10609,6 +10614,35 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:turned down|declined|accepted|took|got|signed|countered|rejected) (?:the|their|an?) (?:job )?(?:offer|counteroffer|counter offer)(?: from [a-z][a-z ]{1,20})?", low) \
             or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:negotiating|asking for more|countering)(?: (?:the|my) (?:salary|offer|raise|pay|rent|price))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to get bloodwork done", "my prescription needs a refill"
+    # (2026-10-08: to the planner) are jobs for his list.
+    m = re.fullmatch(r"i (?:need|have|gotta|got to|should)(?: to)? get (?P<job>(?:my |the |some |a |an )?[a-z][a-z' ]{1,25}? (?:done|checked|tested|drawn|looked at))", low)
+    if m:
+        job = "get " + m.group("job")
+        return _new_task(_as_he_said(text, job))
+    m = re.fullmatch(r"(?P<whose>my|the|our) (?P<thing>prescription|meds|medication|inhaler|insulin|license|licence|passport|registration|membership|subscription|lease|car insurance|insurance)"
+                     r" (?:needs|need|is due for) (?:a |an |to be )?(?P<act>refill|refilled|renewal|renewed)", low)
+    if m:
+        verb = "refill" if m.group("act").startswith("refill") else "renew"
+        job = f"{verb} {'my' if m.group('whose') != 'our' else 'our'} {m.group('thing')}"
+        return _new_task(job)
+    # "I have a follow up in 2 weeks" (2026-10-08: to the planner) is kept
+    # with the day it means, so "when is my follow up" can say it.
+    m = re.fullmatch(r"(?P<head>i (?:have|'ve got|got) (?:a|an|my) [a-z][a-z' -]{1,30}?) in (?P<n>\d{1,2}|a|one|two|three|four|five|six) (?P<unit>days?|weeks?|months?)", low)
+    if m:
+        import datetime as _dtf
+        from aletheia import localtime as _ltf
+        n = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}.get(m.group("n")) or int(m.group("n"))
+        today = _dtf.datetime.now(_ltf.operator_tz()).date()
+        unit = m.group("unit")
+        if unit.startswith("month"):
+            mo = today.month - 1 + n
+            day = today.replace(year=today.year + mo // 12, month=mo % 12 + 1, day=min(today.day, 28))
+        else:
+            day = today + _dtf.timedelta(days=n * (7 if unit.startswith("week") else 1))
+        when = f"{day:%A} {day.day} {day:%B}"
+        return {"command": {"kind": "note", "text": f"{_as_he_said(text, m.group('head'))} around {when}"},
+                "say": f"Noted - that's around {when}."}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

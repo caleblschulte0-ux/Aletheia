@@ -2296,7 +2296,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                                 r"(?P<ldt_verb>serviced|inspected|cleaned|tuned up|flushed|replaced|installed|painted|pumped|sealed|treated|rotated)(?: last)?\s*\??$")),
     ("learning", re.compile(r"^what (?:am i|was i) (?:learning|studying|trying to learn)\s*\??$")),
     ("to_ask", re.compile(r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_ask>ask|tell|give|show|send|remind|pay|return to)"
-                          r" (?P<ta_who>my [a-z]{2,15}|[a-z]{2,15})(?: about)?\s*\??$")),
+                          r" (?P<ta_who>my [a-z]{2,15}|the [a-z]{2,15}|[a-z]{2,15})(?: about)?\s*\??$")),
     # "What size is the furnace filter", "what size tires do I have"
     # (2026-10-08: to a model, or every size he ever said read at once).
     ("size_of", re.compile(r"^what size (?:is|are) (?:the |my |our )?(?P<size_of>[a-z][a-z ]{1,25}?)\s*\??$"

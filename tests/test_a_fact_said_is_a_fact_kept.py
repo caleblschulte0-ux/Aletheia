@@ -11416,5 +11416,25 @@ class AJobInterview(unittest.TestCase):
             self.assertEqual(quick.answer("who is my boss"), "Your boss is Mike.")
 
 
+class AtTheDoctor(unittest.TestCase):
+    """2026-10-08: "I need to get bloodwork done" went on the SHOPPING list,
+    "my prescription needs a refill" and "I have a follow up in 2 weeks" to
+    the planner, and "what do I need to ask the doctor" to a model."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I need to get bloodwork done")["command"]["description"], "get bloodwork done")
+        self.assertEqual(voice._interpret("I need to get the gutters cleaned")["command"]["kind"], "task_new")
+        self.assertEqual(voice._interpret("I need to get eggs")["command"]["kind"], "shopping_add")
+        self.assertEqual(voice._interpret("my prescription needs a refill")["command"]["description"], "refill my prescription")
+        kept = voice._interpret("I have a follow up in 2 weeks")
+        self.assertEqual(kept["command"]["kind"], "note")
+        self.assertRegex(kept["command"]["text"], r"^I have a follow up around \w+day \d+ \w+$")
+
+    def test_read(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_open_tasks", lambda: [{"description": "ask the doctor about my knee"}]):
+            self.assertEqual(quick.answer("what do I need to ask the doctor"), "Your list says: ask the doctor about your knee.")
+
+
 if __name__ == "__main__":
     unittest.main()
