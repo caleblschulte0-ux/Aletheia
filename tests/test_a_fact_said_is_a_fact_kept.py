@@ -6053,5 +6053,23 @@ class PillsLeftAndARefill(unittest.TestCase):
             self.assertIn("I have 10 pills left", quick.answer("how many pills do I have left"))
 
 
+class WhereSomeoneLives(unittest.TestCase):
+    """2026-10-08: "when am I seeing Kate" read back "Kate lives at 44 Pine
+    St"; "what time is it where my sister lives" went to a model."""
+
+    def test_an_address_is_not_a_when(self):
+        rows = [{"text": "Kate lives at 44 Pine St", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick.answer("when am I seeing Kate"))
+        rows.insert(0, {"text": "I'm visiting Kate next weekend", "ts": "2026-10-08T01:00:00+00:00"})
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIn("visiting Kate next weekend", quick.answer("when am I seeing Kate"))
+
+    def test_the_time_where_she_lives(self):
+        rows = [{"text": "my sister lives in Denver", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("in Denver", quick.answer("what time is it where my sister lives"))
+
+
 if __name__ == "__main__":
     unittest.main()

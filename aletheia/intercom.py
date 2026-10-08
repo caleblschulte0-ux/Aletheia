@@ -4241,30 +4241,35 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 named = " ".join(w[:1].upper() + w[1:] for w in place.split())
             else:
                 named = place
-            if named[:1].isupper() and named not in ("work", "home"):
-                raise act.Refused(
-                    f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
-                    f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
             # "How far is my mom's house" said "I don't know where my mom's
             # house is" one breath after "my mom lives at 12 Oak St"
-            # (2026-10-07). Her words say "your", and what he told her is
-            # offered back as the sentence that saves it.
+            # (2026-10-07), and "how far is Kate's house" the same after
+            # "Kate lives at 44 Pine St" (2026-10-08). Her words say "your",
+            # and what he told her is offered back as the sentence that saves it.
             spoken = re.sub(r"^my ", "your ", named)
-            whose = re.fullmatch(r"my ([a-z][a-z' ]{1,25}?)'s (?:house|place|home|apartment)", named)
+            whose = re.fullmatch(r"(my )?([a-z][a-z' ]{1,25}?)'s (?:house|place|home|apartment)", named, re.IGNORECASE)
             if whose:
                 try:
                     from aletheia import quick as _quick
                     for row in _quick._notes():
-                        told = re.fullmatch(r"my " + re.escape(whose.group(1)) + r" lives (?:at|on) (.+?)\.?",
+                        told = re.fullmatch(r"(?:my )?" + re.escape(whose.group(2)) + r" lives (?:at|on) (.+?)\.?",
                                             " ".join(str(row.get("text") or "").split()), re.IGNORECASE)
                         if told:
+                            owner, _, noun = named.partition("'s ")
+                            say_it = f"{owner}'s {noun.casefold()}"
+                            who = (f"your {whose.group(2)}" if whose.group(1)
+                                   else whose.group(2)[:1].upper() + whose.group(2)[1:])
                             raise act.Refused(
-                                f"You told me your {whose.group(1)} lives at {told.group(1)}, but it isn't one of your "
-                                f"saved places. Say \"{named} is at {told.group(1)}\" and I'll measure to it.") from None
+                                f"You told me {who} lives at {told.group(1)}, but it isn't one of your "
+                                f"saved places. Say \"{say_it} is at {told.group(1)}\" and I'll measure to it.") from None
                 except act.Refused:
                     raise
                 except Exception:  # noqa: BLE001
                     pass
+            if named[:1].isupper() and named not in ("work", "home"):
+                raise act.Refused(
+                    f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
+                    f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
             raise act.Refused(
                 f"I don't know where {spoken} is. Say \"{named} is at\" and the address, "
                 "and I'll remember it.") from None

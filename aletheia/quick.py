@@ -983,6 +983,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # (2026-10-07: to a model) - the same answer says how far.
         r"|^how (?:far|many hours) (?:ahead|behind) (?:of (?:me|us) )?is (?P<time_in4>[a-z][a-z .'-]{1,40}?)\s*\??$"
         r"|^what(?:'s| is|s)? the time difference (?:with|to|between (?:me|here|us) and) (?P<time_in5>[a-z][a-z .'-]{1,40}?)\s*\??$")),
+    # "What time is it where my sister lives" (2026-10-08: to a model): the
+    # town his note says she lives in, then its clock.
+    ("time_where", re.compile(
+        r"^what(?:'s| is)? (?:the )?time (?:is it )?(?:where|for) (?P<tw_who>(?:my |our )?[a-z][a-z']{1,20}(?: (?!lives\b|is\b|now\b)[a-z]{2,20})?)"
+        r"(?: (?:lives|is|lives now|is now))?(?: right now| now)?\s*\??$")),
     # "What time is it there" after asking about a place (2026-10-07).
     ("time_there", re.compile(r"^(?:what(?:'s| is) the time|what time is it) (?:there|over there)(?: now| right now)?\s*\??$")),
     # A CLOCK TIME IN ANOTHER ZONE (2026-10-07: "convert 3pm est to pst",
@@ -2426,7 +2431,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3056,6 +3061,23 @@ _ZONES = {
     "east coast": "America/New_York", "central time": "America/Chicago", "mountain time": "America/Denver",
     "pacific time": "America/Los_Angeles", "the west coast": "America/Los_Angeles", "west coast": "America/Los_Angeles",
 }
+
+
+def _time_where(text: str) -> str | None:
+    """"What time is it where my sister lives": "my sister lives in Denver"
+    from his notes, then the clock there. None without a town she knows."""
+    who = re.sub(r"^(?:my|our) ", "", " ".join(str(_groups("time_where", text).get("tw_who") or "").casefold().split()))
+    if not who or who in ("i", "you", "we", "it", "here"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.fullmatch(r"(?:my |our )?" + re.escape(who) + r" (?:lives|is living|is based|moved|lives now) (?:in|to) "
+                         r"(?P<town>[A-Za-z][A-Za-z .'-]{1,40}?)\.?", said, re.IGNORECASE)
+        if m:
+            clock = _time_in(m.group("town").casefold())
+            if clock:
+                return clock
+    return None
 
 
 def _time_there() -> str | None:
@@ -8893,9 +8915,14 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     # calendar hold for it (2026-10-07: to the planner, with the note held).
     for row in ([] if until else _notes()):
         said = " ".join(str(row.get("text") or "").split())
+        # "Kate lives at 44 Pine St" answered "when am I seeing Kate"
+        # (2026-10-08): an address is not a when.
+        if re.search(r"\b(?:lives?|living|address|located|moved) (?:is )?(?:at|on|to)\b|\b(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|blvd)\b",
+                     said.casefold()):
+            continue
         if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", said.casefold()) for w in words) \
                 and re.search(r"\b\d{1,2}(?:st|nd|rd|th|:\d\d| ?[ap]\.?m\b)|\b(?:at|on|the|by) \d{1,2}\b|\b\d{1,2}/\d{1,2}\b"
-                              r"|day\b|tomorrow|tonight|noon", said.casefold()):
+                              r"|day\b|tomorrow|tonight|noon|\bweekend\b|\b(?:next|this) (?:week|month|year)\b", said.casefold()):
             # A when, not just a number: "my rent is 1500" answered "when
             # is rent due" (2026-10-07).
             return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
@@ -11918,6 +11945,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "their_kind": lambda text: _their_kind(text),
            "miles_until": lambda text: _miles_until(text),
            "pills_left": lambda text: _pills_left(text),
+           "time_where": lambda text: _time_where(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),
