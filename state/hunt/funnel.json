@@ -233,23 +233,23 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 67,
-      "found": 92,
+      "filled": 59,
+      "found": 84,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 1,
-      "found": 1,
+      "filled": 9,
+      "found": 9,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-08T12:21:29Z",
+  "generated_at": "2026-10-08T12:33:14Z",
   "sent_all_time": 270,
   "stuck_at": {
     "approval_denied": {
