@@ -42,8 +42,10 @@ class APlaceIsNotATimeCase(unittest.TestCase):
         for said in ("thea remind me to call mom when I get home", "thea remind me to take the bins out when I'm home",
                      "thea remind me that the oven is on when I get back"):
             with self.subTest(said=said):
+                # Kept for "I'm home" since 2026-10-08, and still never a guess
+                # about where he is: the sentence says she can't see it.
                 out = voice.interpret(said)
-                self.assertIsNone(out["command"])
+                self.assertEqual(out["command"]["kind"], "note")
                 self.assertIn("where you are", out["say"])
         self.assertEqual(voice.interpret("thea remind me to call mom at 6")["command"]["kind"], "remind_at")
 

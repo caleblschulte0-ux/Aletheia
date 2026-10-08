@@ -6230,7 +6230,7 @@ def _slow() -> str | None:
         return None
 
 
-_FOR_HOME = re.compile(r"^remind me (?:to|that) (?P<what>.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?"
+_FOR_HOME = re.compile(r"^remind me (?P<how>to|that) (?P<what>.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?"
                        r"(?:back )?(?:home|back)$", re.I)
 
 
@@ -6262,7 +6262,7 @@ def _home_reminders() -> list[str]:
         except ValueError:
             continue
         if since is None or at > since:
-            out.append(m.group("what"))
+            out.append(m.group("what") if m.group("how") == "to" else "that " + m.group("what"))
     return out
 
 

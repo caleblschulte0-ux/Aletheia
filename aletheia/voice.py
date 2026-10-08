@@ -4776,14 +4776,14 @@ def _interpret(transcript: str) -> dict:
                  r"|leave(?: work| home| the house| the office)?|out|$)$", low) \
         or re.match(r"remind me (?:to|that) (.+?) when i leave(?: work| home| the house| the office)?$", low) \
         or re.match(r"remind me (?:to|that) (.+?) on (?:my|the) way (?:home|to work|back|out|in|to the [a-z]+)$", low)
-    home = re.fullmatch(r"remind me (?:to|that) (.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?(?:back )?(?:home|back)", low)
+    home = re.fullmatch(r"remind me (to|that) (.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?(?:back )?(?:home|back)", low)
     if home:
         # "Remind me to call mom when I get home" (2026-10-08): she can't
         # see where he is, but he tells her - "I'm home" says it then.
-        what = _as_he_said(text, home.group(1).strip())
+        what = _as_he_said(text, home.group(2).strip())
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"I can't see where you are, so tell me \"I'm home\" when you get there and I'll remind you "
-                       f"to {speech._yours(what)}."}
+                       f"{home.group(1)} {speech._yours(what)}."}
     if m:
         return {"command": None,
                 "say": "I can't tell where you are yet, so a place can't set off a reminder. "
