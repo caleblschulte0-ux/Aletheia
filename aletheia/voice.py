@@ -9006,6 +9006,11 @@ def _interpret(transcript: str) -> dict:
             and m.group("who") not in ("it", "that", "he", "she", "i", "we", "they", "everyone", "everybody", "someone",
                                        "somebody", "nobody", "who", "what", "this"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have to work late tonight" (2026-10-08: to the planner). "What
+    # time do I get off tonight" reads it.
+    if re.fullmatch(r"i(?:'m| am| have to| need to|'ve got to| got to| gotta| will| will be|'ll be|'ll)? (?:be )?work(?:ing)? "
+                    r"(?:late|(?:until|till) \d{1,2}(?::\d\d)? ?(?:am|pm)?)(?: tonight| today| tomorrow)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.

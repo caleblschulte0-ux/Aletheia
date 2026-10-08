@@ -565,7 +565,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:do|will) i (?:have to |need to |got to |gotta )?work (?P<do_i_work>today|tomorrow|tonight|this weekend"
         r"|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
     ("work_hours", re.compile(
-        r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
+        r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow| tonight)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
         # "How long until I get off work" (2026-10-08: to a model).
         r"|^how (?:long|much longer|much time) (?:until|till|before) i (?P<work_hours3>get off|finish|clock out|start|clock in)(?: work)?\s*\??$")),
@@ -10203,7 +10203,10 @@ def _when_mine(what: str, until: bool = False) -> str | None:
                         else speech.count_phrase(d, "day") + (f" and {speech.count_phrase(h, 'hour')}" if h and d < 3 else ""))
                 return f"{span[:1].upper() + span[1:]} - {text.rstrip('.')} is {when}."
             if store == "calendar":
-                return f"{text[:1].upper() + text[1:]} is {when}."
+                # "Your haircut is Saturday", not "Haircut is Saturday"
+                # (2026-10-08); a title he gave capitals keeps them.
+                said = f"your {text}" if text[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", text) else text
+                return f"{said[:1].upper() + said[1:]} is {when}."
             return f"You have a reminder {when}: {text.rstrip('.')}."
     # A note he told her: "the dentist is the 15th at 10" before there was a
     # calendar hold for it (2026-10-07: to the planner, with the note held).
@@ -11747,6 +11750,15 @@ def _work_hours(text: str) -> str | None:
     g = _groups("work_hours", text)
     which = g.get("work_hours") or g.get("work_hours2") or g.get("work_hours3") or ""
     note = _END_NOTE if which in ("get off", "finish", "clock out", "end") else _START_NOTE
+    # "I have to work late tonight" (2026-10-08) is today's end, said first.
+    late = _working_late_today() if note is _END_NOTE and not re.search(r"\btomorrow\b", _tidy(text)) else None
+    if late:
+        for row in _notes():
+            found = note.match(" ".join(str(row.get("text") or "").split()).casefold())
+            clock = _work_clock(found.group("at"), True) if found else None
+            if clock:
+                return f"{late}, so later than your usual {clock}."
+        return f"{late}, but not until when."
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         found = note.match(said.casefold())
@@ -11758,6 +11770,27 @@ def _work_hours(text: str) -> str | None:
             clock = _work_clock(found.group("at"), which in ("get off", "finish", "clock out", "end"))
             told = f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
             return f"At {clock}. {told}" if clock else told
+    return None
+
+
+def _working_late_today() -> str | None:
+    """His note from today saying he works late, said back; None without."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not re.search(r"\bwork(?:ing)? late\b|\bworking (?:until|till) \d", said, re.I):
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if day == today and not re.search(r"\btomorrow\b", said, re.I):
+            return f"You told me {speech.as_she_says_it(said).rstrip('.')}"
+        if day == today - dt.timedelta(days=1) and re.search(r"\btomorrow\b", said, re.I):
+            return f"You told me yesterday {speech.as_she_says_it(said).rstrip('.')}"
     return None
 
 
@@ -13200,7 +13233,7 @@ def _when_note(text: str) -> str | None:
         low = str(what or "").casefold()
         if store == "calendar" and all(re.search(rf"\b{re.escape(w)}", low) for w in stems):
             name = str(what).strip().rstrip(".")
-            if name.casefold().split("'")[0] in _relation_words():
+            if name[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", name):
                 name = "your " + name
             return f"{name[:1].upper() + name[1:]} is {speech.humanize_time(at.isoformat())}."
     # "When is our anniversary" with nothing told (2026-10-08: "I can't

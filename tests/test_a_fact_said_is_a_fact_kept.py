@@ -4734,7 +4734,7 @@ class LunchWithSomeoneByName(unittest.TestCase):
     def test_what_time(self):
         from aletheia import quick
         with mock.patch.object(quick, "_coming", side_effect=self._coming):
-            self.assertTrue((quick.answer("what time is lunch with jess") or "").startswith("Lunch with jess is "))
+            self.assertTrue((quick.answer("what time is lunch with jess") or "").startswith("Your lunch with jess is "))
 
     def test_how_long_until(self):
         from aletheia import quick
@@ -7558,7 +7558,7 @@ class TheDoctorsAppointmentMoved(unittest.TestCase):
         sooner = later - dt.timedelta(days=1)
         rows = [(sooner, "doctor's appointment Tuesday at 10 am", "reminder"), (later, "doctor's appointment", "calendar")]
         with mock.patch.object(quick, "_coming", return_value=rows):
-            self.assertTrue(quick._when_mine("my doctor's appointment").startswith("Doctor's appointment is"))
+            self.assertTrue(quick._when_mine("my doctor's appointment").startswith("Your doctor's appointment is"))
 
     def test_a_part_of_the_day_keeps_the_deadline(self):
         self.assertEqual(voice._split_deadline("call the bank tomorrow morning"),
@@ -8755,6 +8755,32 @@ class HisPets(unittest.TestCase):
         with mock.patch.object(quick, "_notes", lambda: rows):
             self.assertEqual(quick.answer("how old is my cat"), "You told me Luna is 4.")
             self.assertEqual(quick.answer("how old is Luna"), "You told me Luna is 4.")
+
+
+
+class WorkingLateTonight(unittest.TestCase):
+    """2026-10-08: "I have to work late tonight" went to the planner, and
+    "what time do I get off tonight" became a memory search."""
+
+    def test_it_is_kept_and_read_against_his_usual_end(self):
+        import datetime as dt
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("I have to work late tonight")["command"]["kind"], "note")
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I have to work late tonight", "ts": now}, {"text": "I work 9 to 5", "ts": "2026-10-01T10:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what time do I get off tonight"),
+                             "You told me you have to work late tonight, so later than your usual 5 pm.")
+            self.assertTrue(quick.answer("when do I get off work tomorrow").startswith("At 5 pm."))
+
+
+class ACalendarAnswerSaysYour(unittest.TestCase):
+    def test_your_haircut(self):
+        import datetime as dt
+        from aletheia import quick
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=2)
+        with mock.patch.object(quick, "_coming", lambda now=None: [(at, "haircut", "calendar")]):
+            self.assertTrue(quick.answer("when is my haircut").startswith("Your haircut is "))
 
 
 
