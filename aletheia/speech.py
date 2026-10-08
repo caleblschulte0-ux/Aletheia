@@ -470,7 +470,13 @@ def as_she_says_it(phrase: str) -> str:
     # "The plumber comes tuesday": speech-to-text and a lowercased match
     # both lose a day's capital. Days, and the months that are never also
     # an ordinary word ("may" and "march" are), get theirs back.
-    return _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+    said = _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+    # "You want to learn spanish" (2026-10-08): a language is a name.
+    return _LANGUAGES.sub(lambda m: m.group(0).capitalize(), said)
+
+
+_LANGUAGES = re.compile(r"\b(?:spanish|french|german|italian|japanese|chinese|mandarin|cantonese|korean|english|portuguese"
+                        r"|russian|arabic|hindi|dutch|swedish|greek|hebrew|polish|turkish|vietnamese|latin)\b")
 
 
 # March and May are words too, so only beside a day of the month: "march

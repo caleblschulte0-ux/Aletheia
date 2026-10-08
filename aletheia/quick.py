@@ -1013,9 +1013,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s| was) my (?:longest|farthest|furthest|biggest) (?P<logged_longest>run|walk|hike|bike ride|ride|swim|jog)"
         r"(?: this week| this month| this year| ever)?\s*\??$"
         r"|^how (?:far|many (?:miles|km|kilometers)) (?:did|have) i (?P<logged_move>run|ran|walk|walked|jog|jogged|bike|biked|cycle|cycled|swim|swum|swam|hike|hiked)"
-        r"(?P<logged_w2> today| this week)?\s*\??$"
+        r"(?P<logged_w2> today| this week| this month)?\s*\??$"
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
-        r"(?: for)?(?P<logged_w4> today| this week)?\s*\??$"
+        r"(?: for)?(?P<logged_w4> today| this week| this month)?\s*\??$"
         r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
         # "How did I sleep last night", "what's my average sleep" (2026-10-08:
         # to a model, a turn after "I slept 7 hours last night").
@@ -3109,6 +3109,9 @@ def _logged(text: str) -> str | None:
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     if window == "this week":
         start -= dt.timedelta(days=now.weekday())
+    elif window == "this month":
+        # "How far have I run this month" (2026-10-08: to a model)
+        start = start.replace(day=1)
     rows = []
     for row in _notes():
         try:
@@ -3120,7 +3123,7 @@ def _logged(text: str) -> str | None:
         if said.endswith(" yesterday"):
             at -= dt.timedelta(days=1)
         rows.append((at, said))
-    when = "today" if window == "today" else "this week"
+    when = window if window in ("today", "this month") else "this week"
 
     def amount(word):
         return float(word) if re.fullmatch(r"\d+(?:\.\d+)?", word) else _COUNT_WORDS.get(word)

@@ -8954,5 +8954,20 @@ class WhatHeThoughtOfIt(unittest.TestCase):
 
 
 
+class RunThisMonthAndALanguage(unittest.TestCase):
+    def test_this_month(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "I ran 5 miles today", "ts": now.isoformat()}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how far have I run this month"), "5 miles this month.")
+
+    def test_spanish_has_its_capital(self):
+        from aletheia import speech
+        self.assertEqual(speech.as_she_says_it("I want to learn spanish"), "you want to learn Spanish")
+
+
+
 if __name__ == "__main__":
     unittest.main()
