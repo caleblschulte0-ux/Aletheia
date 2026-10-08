@@ -15404,6 +15404,18 @@ def _stay_len(who: str) -> str | None:
         if re.search(rf"\b{re.escape(key)}\b", said.casefold()) and re.search(
                 r"\b(?:staying|visiting|in town|coming)\b.*\b(?:for (?:a|an|one|two|three|four|five|\d+|a few|the) [a-z]+|until [a-z0-9 ]+|through [a-z0-9 ]+)", said.casefold()):
             return f"You told me: {speech.as_she_says_it(said)}."
+    # "She is staying until Sunday" said a turn after "my sister is coming
+    # to visit" (2026-10-08): the pronoun is her, when it came after.
+    rows = [" ".join(str(r.get("text") or "").split()).rstrip(".") for r in _notes()]
+    visit = next((i for i, t in enumerate(rows) if re.search(rf"\b{re.escape(key)}\b", t.casefold())
+                  and re.search(r"\b(?:staying|visiting|visit|in town|coming)\b", t.casefold())), None)
+    if visit is None:
+        return None
+    for said in rows[:visit]:
+        m = re.match(r"(?:she|he|they) (?:is|are|'s|'re|will be) (?:staying|here|in town|visiting) (?P<rest>(?:until|till|through|for) .+)$", said, re.I)
+        if m:
+            return f"You told me your {key} is staying {speech.as_she_says_it(m.group('rest'))}." if who.startswith("my ") \
+                else f"You told me {_named(key)} is staying {speech.as_she_says_it(m.group('rest'))}."
     return None
 
 
@@ -15779,7 +15791,11 @@ def _how_kin(who: str) -> str | None:
             found.append(speech.as_she_says_it(said))
         if len(found) >= 2:
             break
-    return f"The latest you told me: {speech.and_list(found)}." if found else None
+    if found:
+        return f"The latest you told me: {speech.and_list(found)}."
+    # "How is my mom" after "my mom is having surgery on Tuesday" went on
+    # her calendar (2026-10-08: to the planner). What's coming for them.
+    return _plans_for(who)
 
 
 def _kin_called(who: str) -> str | None:

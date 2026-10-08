@@ -12381,5 +12381,19 @@ class FeelingSick(unittest.TestCase):
             self.assertTrue(quick.answer("what was my temperature").startswith("Your temperature was 101"))
 
 
+class AVisit(unittest.TestCase):
+    def test_how_long_she_stays_reads_the_pronoun_said_after_the_visit(self):
+        self.assertEqual(voice.interpret("she is staying until sunday")["command"],
+                         {"kind": "note", "text": "she is staying until sunday"})
+        notes = [{"text": "she is staying until sunday"}, {"text": "my sister is coming to visit next week"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how long is my sister staying"), "You told me your sister is staying until Sunday.")
+        with mock.patch.object(quick, "_notes", lambda: list(reversed(notes))):
+            self.assertIsNone(quick.answer("how long is my sister staying"))
+
+    def test_getting_a_room_ready_is_a_task_not_shopping(self):
+        self.assertEqual(voice.interpret("we need to get the guest room ready")["command"]["description"], "get the guest room ready")
+
+
 if __name__ == "__main__":
     unittest.main()

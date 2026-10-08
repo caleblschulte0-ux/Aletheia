@@ -4460,7 +4460,10 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:done|cleaned|fixed|repaired|checked|changed|replaced|serviced|inspected|washed|installed"
                               # "I need to get the gutters cleaned" (2026-10-08: the
                               # shopping list, as "the gutters cleaned") is a job.
-                              r"|painted|removed|looked at|tested|pumped|trimmed|sharpened|tuned|refilled|renewed|signed|notarized)$", m.group("item")):
+                              r"|painted|removed|looked at|tested|pumped|trimmed|sharpened|tuned|refilled|renewed|signed|notarized"
+                              # "We need to get the guest room ready" (2026-10-08: the
+                              # shopping list, as "the guest room ready").
+                              r"|ready|set up|organi[sz]ed|sorted|packed|wrapped|ready for [a-z ]{2,20})$", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -11233,6 +11236,16 @@ def _interpret(transcript: str) -> dict:
         say = ("That's high. Call your doctor, and if there's a stiff neck, confusion or trouble breathing, call 911. I've put it in your journal."
                if high else "Rest and fluids. If it goes past 103, or lasts more than three days, call your doctor. I've put it in your journal.")
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)}, "say": say}
+    # "We need to get the guest room ready" (2026-10-08: the shopping list).
+    m = re.fullmatch(r"(?:i|we) (?:need|have|got) to get (?P<what>(?:the|my|our) (?!(?:kids?|son|daughter|baby|wife|husband)\b)[a-z][a-z ]{1,25}? (?:ready|set up|organi[sz]ed|sorted|packed)(?: for [a-z ]{2,20})?)", low)
+    if m:
+        return _new_task("get " + _as_he_said(text, m.group("what")))
+    # "She is staying until Sunday" (2026-10-08: to the planner, a turn after
+    # "my sister is coming to visit"). Kept in his words; "how long is my
+    # sister staying" reads it.
+    if re.fullmatch(r"(?:she|he|they|my [a-z]{2,15}|[a-z]{2,15}) (?:is|are|'s|'re|will be) (?:staying|here|in town|visiting) (?:until|till|through|for) [a-z0-9][a-z0-9 ]{1,20}", low) \
+            and not re.match(r"(?:who|what|how|when|where|it|that|this)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
