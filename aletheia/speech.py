@@ -1032,6 +1032,11 @@ def and_list(items: list[str]) -> str:
         return ""
     if len(items) == 1:
         return items[0]
+    # "Move money, pay bills or trade assets, play a particular song, album
+    # or artist by name and lock..." is three things nobody can hear apart
+    # (2026-10-08): items that carry their own commas are kept apart by more.
+    if len(items) > 2 and any("," in i for i in items):
+        return "; ".join(items[:-1]) + "; and " + items[-1]
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 

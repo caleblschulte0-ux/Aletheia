@@ -72,6 +72,9 @@ class SpeechCase(unittest.TestCase):
         self.assertEqual(speech.and_list(["a", "b"]), "a and b")
         self.assertEqual(speech.and_list(["a", "b", "c"]), "a, b and c")
         self.assertEqual(speech.and_list([]), "")
+        # items with their own commas are kept apart by more (2026-10-08)
+        self.assertEqual(speech.and_list(["move money, pay bills", "play a song", "lock doors"]),
+                         "move money, pay bills; play a song; and lock doors")
 
     def test_counts_agree_with_their_nouns(self):
         self.assertEqual(speech.count_phrase(1, "thing"), "1 thing")

@@ -1385,6 +1385,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:summari[sz]e|sum up) my day\s*\??$"
         r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
         r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$"
+        # "Anything I should know about today" (2026-10-08: to the planner).
+        r"|^(?:is there )?anything (?:i should|i need to|to) know (?:about )?(?:for )?today\s*\??$"
+        r"|^what (?:should i|do i need to) know (?:about )?(?:for )?today\s*\??$"
         # "How's my day look" fell to the planner (2026-10-07).
         r"|^how(?:'s| is| does|s)? (?:my day|today|the day) (?:look|looking)(?: like)?(?: today)?\s*\??$")),
     # A BARE YES OR NO with nothing pending went to the planner and, offline,
@@ -5328,7 +5331,14 @@ def _cannot() -> str | None:
         parts.append("Some things wait on setup from you; say \"what do you still need "
                      "from me\" and I'll check each one live")
     if unbuilt:
-        named = [speech.shorten(intents._in_english(c), 60).rstrip(".") for c in unbuilt[:3]]
+        # "...open or close the garage, and say" was a sentence cut at a
+        # character count (2026-10-08): a long one is cut at a clause.
+        def clause(said: str) -> str:
+            said = str(said or "").rstrip(".")
+            while len(said) > 60 and ", " in said:
+                said = said.rsplit(", ", 1)[0]
+            return speech.shorten(said, 60).rstrip(".")
+        named = [clause(intents._in_english(c)) for c in unbuilt[:3]]
         parts.append("Not built yet: " + speech.and_list(named)
                      + (f", and {speech.count_phrase(len(unbuilt) - 3, 'other')}"
                         if len(unbuilt) > 3 else ""))

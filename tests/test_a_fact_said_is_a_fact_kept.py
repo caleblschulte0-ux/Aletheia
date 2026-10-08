@@ -6245,5 +6245,19 @@ class ThatMeansTheTaskJustAdded(unittest.TestCase):
         self.assertEqual(voice._without_preamble("never mind the milk"), "never mind the milk")
 
 
+
+class WhatHeShouldKnowToday(unittest.TestCase):
+    """2026-10-08: "anything I should know about today" went to the
+    planner, and "what can't you do" ended "...the garage, and say"."""
+
+    def test_anything_to_know_today_is_the_day(self):
+        for said in ("anything I should know about today", "what do I need to know today"):
+            self.assertEqual(quick.match(said)[0], "plan_today", said)
+
+    def test_what_cant_you_do_is_whole_clauses(self):
+        said = quick.answer("what can't you do")
+        self.assertNotRegex(said, r", and say[.;]")
+
+
 if __name__ == "__main__":
     unittest.main()
