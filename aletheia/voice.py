@@ -9975,8 +9975,15 @@ def _interpret(transcript: str) -> dict:
     # "I got a speeding ticket" (2026-10-08: to the planner). Kept, so
     # "when did I get the ticket" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|received) (?:a |another )?(?:speeding|parking|traffic|red light) (?:ticket|fine|citation)"
+                    # "I got a parking ticket for 40" (2026-10-08: to the planner).
+                    r"(?: (?:for|of) \$?\d{1,4}(?:\.\d\d)?(?: dollars| bucks)?)?"
                     r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|i (?:just )?got pulled over(?: today| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Ugh, sorry. I've noted it."}
+    # "My car got towed" (2026-10-08: to the planner). Kept, with where to start.
+    if re.fullmatch(r"(?:my|our) (?:car|truck|van) (?:got|was|has been|just got) towed(?: today| last night| this morning| from [a-z ]{2,30})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Ugh, sorry - I've noted it. The local police non-emergency line can tell you which lot has it, "
+                       "and bring your license and registration to get it back."}
     # "I got in a fender bender" (2026-10-08: to the planner).
     if re.fullmatch(r"i (?:just )?(?:got in|got into|was in|had|have been in) (?:a |an )?(?:little |small |minor |bad |car )?(?:fender bender|accident|wreck|crash|car crash|collision)"
                     r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|(?:someone|somebody|a car|a truck) (?:hit|rear[- ]ended|backed into|sideswiped) (?:me|my car|my truck)(?: today| yesterday)?", low):

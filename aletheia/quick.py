@@ -13458,9 +13458,12 @@ def _cost_mine(text: str) -> str | None:
         return _spent(f"how much did i spend on {thing} this month")
     # "How much was my security deposit" (2026-10-08: "I can't think"). A
     # one-off sum, never a monthly bill.
-    if thing and re.fullmatch(r"(?:security )?deposit|down payment|closing costs?|pet deposit|retainer|bail|deductible", thing):
+    # "How much was my parking ticket" after "I got a parking ticket for 40" (2026-10-08).
+    if thing and re.fullmatch(r"(?:security )?deposit|down payment|closing costs?|pet deposit|retainer|bail|deductible"
+                              r"|(?:(?:parking|speeding|traffic|red light) )?(?:ticket|fine|citation)|tow(?:ing)?(?: fee)?", thing):
         for said in rows:
-            if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|was|will be|came to) .*\d", said.casefold()):
+            if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|was|will be|came to) .*\d", said.casefold()) \
+                    or re.match(rf"i (?:just )?(?:got|received) (?:a |an |another )?{re.escape(thing)} (?:for|of) .*\d", said.casefold()):
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
         return None
     if not thing or not re.fullmatch(_BILL_KEYS, thing):

@@ -11989,5 +11989,17 @@ class WhenTheTechActsUp(unittest.TestCase):
         self.assertIn("wait 30 seconds", quick.answer("my internet is down, what do I do"))
 
 
+class TroubleWithTheCar(unittest.TestCase):
+    def test_a_ticket_with_its_amount_and_a_tow_are_kept(self):
+        for said in ("I got a parking ticket for 40", "my car got towed"):
+            got = voice.interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": said})
+        self.assertIn("non-emergency", voice.interpret("my car got towed")["say"])
+
+    def test_how_much_the_ticket_was(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I got a parking ticket for 40"}]):
+            self.assertEqual(quick.answer("how much was my parking ticket"), "You told me: you got a parking ticket for 40.")
+
+
 if __name__ == "__main__":
     unittest.main()
