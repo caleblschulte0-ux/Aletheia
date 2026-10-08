@@ -624,6 +624,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many (?P<off_n>books|movies|shows|films) have i (?:read|watched|seen|finished)(?P<off_y> this year| so far)?\s*\??$"
         r"|^what was the last (?P<off_l>book|movie|show|film) i (?:read|watched|saw|finished)\s*\??$"
         r"|^what (?P<off_now>book )?am i (?:currently )?reading(?: right now| now| at the moment)?\s*\??$"
+        # "What show am I watching" after "I started a new show called
+        # Severance" (2026-10-08: to a model).
+        r"|^what (?P<off_tv>show |series |tv show )?am i (?:currently )?watching(?: right now| now| at the moment| these days)?\s*\??$"
         # "What did I watch recently" (2026-10-08: to a model).
         r"|^what (?:movies |shows |films |tv shows |books )?did i (?:watch|see|read|finish(?: watching| reading)?)(?: lately| recently| last| this year)\s*\??$")),
     # "What time do I usually wake up" (2026-10-07: to a model, two turns
@@ -2146,6 +2149,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r" (?:does|do) (?P<hm_who>(?:my )?[a-z][a-z'-]{1,20}) have"
         r"|(?:does|do) (?P<hm_who2>(?:my )?[a-z][a-z'-]{1,20}) have (?:any )?(?P<hm_what2>kids|children|sons|daughters|grandkids"
         r"|grandchildren|brothers|sisters|siblings|dogs|cats|pets))\s*\??$")),
+    # "What episode am I on" after "I'm on episode 4 of Severance", and
+    # "what did I rate Severance" (2026-10-08: to a model).
+    ("episode_on", re.compile(
+        r"^what (?:episode|season|ep) (?:am i on|was i on|did i get to|am i up to)(?: (?:of|in|with) (?P<episode_on>[a-z0-9][a-z0-9' :-]{1,40}?))?\s*\??$"
+        r"|^where (?:am i|was i|did i leave off|did i get to) (?:in|with|on) (?P<episode_on2>[a-z0-9][a-z0-9' :-]{1,40}?)\s*\??$")),
+    ("rated", re.compile(
+        r"^(?:what|how) did i (?:rate|score|give) (?P<rated>[a-z0-9][a-z0-9' :-]{1,40}?)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2303,7 +2313,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # he told her he likes comes first.
     ("pick_for_me", re.compile(
         r"^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_watch>movie|film|show|something to watch|watch)(?: to watch)?(?: tonight)?\s*\??$"
-        r"|^what (?:should|could|can) (?:i|we) (?P<pick_watch2>watch)(?: tonight| now| next)?\s*\??$"
+        r"|^what (?:movie |film |show |tv show )?(?:should|could|can) (?:i|we) (?P<pick_watch2>watch)(?: tonight| now| next)?\s*\??$"
         r"|^what (?:should|could|can) (?:i|we) (?P<pick_read>read)(?: next)?\s*\??$"
         # "Recommend a book" (2026-10-07: to the planner) - off his reading list.
         r"|^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_read2>book|read|novel)(?: to read)?(?: next)?\s*\??$"
@@ -2982,7 +2992,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -12325,6 +12335,22 @@ def _off_lists(text: str) -> str | None:
                 return f"The last book you told me about was {book}, and you've finished it. Tell me when you start the next one."
         # nothing kept is said, not guessed at (2026-10-07: to a model)
         return "You haven't told me what you're reading. Say \"I started reading\" and the title, and I'll keep it."
+    if g.get("off_tv") is not None or re.match(r"^what (?:show |series |tv show )?am i (?:currently )?watching", low):
+        for row in _notes():
+            m = re.match(r"i'?m watching (?P<s>.+?)\.?$", " ".join(str(row.get("text") or "").split()), re.I)
+            if not m:
+                continue
+            show = m.group("s")
+            gone = any(re.match(rf"i (?:just )?(?:finished|watched|finished watching) {re.escape(show.casefold())}\b",
+                                str(r.get("text") or "").casefold()) for r in _notes())
+            gone = gone or show.casefold() in {t.casefold() for name in (h["name"] for h in lists.all_lists()
+                                                                          if lists.kind_of(h["name"]) == "watch")
+                                               for t, _at in lists.done_items(name)}
+            if gone:
+                return f"The last show you told me about was {show}, and you've finished it. Tell me when you start the next one."
+            episode = _episode_of(show)
+            return f"You told me you're watching {show}" + (f", and you're on {episode}." if episode else ".")
+        return "You haven't told me what you're watching. Say \"I started watching\" and the title, and I'll keep it."
     noun = g.get("off_n") or g.get("off_l") or ""
     want = "read" if (g.get("off_r") is not None or noun == "book" or noun == "books"
                       or re.search(r"\bread\b", low)) else "watch"
@@ -13826,6 +13852,37 @@ def _how_many_has(text: str) -> str | None:
     return None
 
 
+_EPISODE = re.compile(r"^i'?m (?:on|up to|at) (?P<ep>(?:season \d{1,2},? )?episode \d{1,3}|season \d{1,2}) of (?P<show>.+?)\.?$", re.I)
+
+
+def _episode_of(show: str = "") -> str | None:
+    """The newest "I'm on episode 4 of X" for that show, or for any show."""
+    for row in reversed(_notes()):
+        m = _EPISODE.match(" ".join(str(row.get("text") or "").split()))
+        if m and (not show or m.group("show").casefold() == show.casefold()):
+            return m.group("ep").replace(",", "")
+    return None
+
+
+def _episode_on(show: str) -> str | None:
+    show = " ".join(str(show or "").split())
+    for row in reversed(_notes()):
+        m = _EPISODE.match(" ".join(str(row.get("text") or "").split()))
+        if m and (not show or m.group("show").casefold() == show.casefold()):
+            return f"You told me you're on {m.group('ep').replace(',', '')} of {m.group('show')}."
+    return None
+
+
+def _rated(what: str) -> str | None:
+    what = " ".join(str(what or "").split()).casefold()
+    for row in reversed(_notes()):
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(r"i (?:rated|gave|scored) (?P<t>.+?) (?:a )?(?P<n>\d{1,3}(?:\.\d)?(?: out of \d{1,3}| stars?|/\d{1,3})?)\.?$", said, re.I)
+        if m and m.group("t").casefold() == what:
+            return f"You gave {m.group('t')} {m.group('n')}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14633,6 +14690,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "episode_on": _episode_on,
+           "rated": _rated,
            "how_many_has": _how_many_has,
            "who_said": _who_said,
            "places_liked": lambda rest: _places_liked(),

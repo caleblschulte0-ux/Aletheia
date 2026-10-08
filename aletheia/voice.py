@@ -876,6 +876,13 @@ def _bought_yet(item: str) -> str | None:
     return None
 
 
+def _said_as_a_title(text: str, title: str) -> bool:
+    """Whether he gave a title its capital ("Severance", "The Bear") - what
+    tells a show from "watching the kids"."""
+    words = [w for w in re.findall(r"[A-Za-z0-9']+", str(text or "")) if w.casefold() in str(title or "").casefold().split()]
+    return any(w[:1].isupper() or w[:1].isdigit() for w in words)
+
+
 def _on_the_shopping_list(item: str) -> bool:
     """Is that actually on his shopping list right now?
 
@@ -3980,6 +3987,21 @@ def _interpret(transcript: str) -> dict:
             and "?" not in text:
         return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
                 "say": "Noted. Ask me \"what am I reading\" and I'll tell you."}
+    # "I started a new show called Severance", "I'm watching The Bear",
+    # "I'm on episode 4 of Severance", "I rated Severance 9 out of 10"
+    # (2026-10-08: to the planner). A title said with its capital.
+    m = re.fullmatch(r"i (?:just )?(?:started|began|am starting|'m starting) (?:watching |(?:a |the )?(?:new )?(?:show|series|tv show) (?:called |named )?)"
+                     r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"(?:i'?m|i am) (?:currently |now |still )?watching (?P<t>[a-z0-9].{1,60})", low)
+    if m and "?" not in text and _said_as_a_title(text, m.group("t")) \
+            and not re.match(r"(?:it|that|this|them|tv|the news|the game|the kids|the dog|you|my |your |a |an |some|out )", m.group("t")):
+        return {"command": {"kind": "note", "text": "I'm watching " + _as_he_said(text, m.group("t"))},
+                "say": "Noted. Ask me \"what am I watching\" and I'll tell you."}
+    m = re.fullmatch(r"(?:i'?m|i am) (?:on|up to|at) (?P<ep>(?:season \d{1,2},? )?episode \d{1,3}|season \d{1,2}) of (?P<t>[a-z0-9].{1,60})", low)
+    if m and "?" not in text:
+        return {"command": {"kind": "note", "text": f"I'm on {m.group('ep')} of {_as_he_said(text, m.group('t'))}"}, "say": None}
+    m = re.fullmatch(r"i (?:rated|gave|would give|'d give) (?P<t>[a-z0-9].{1,50}?) (?:a )?(?P<n>\d{1,2}(?:\.\d)?(?: out of (?:5|10|100)| stars?|/(?:5|10)))", low)
+    if m and "?" not in text and _said_as_a_title(text, m.group("t")):
+        return {"command": {"kind": "note", "text": f"I rated {_as_he_said(text, m.group('t'))} {m.group('n')}"}, "say": None}
     if re.fullmatch(r"what (?:movies|shows|films|tv shows|things|stuff) (?:do|did) i (?:want|say i wanted) to (?:watch|see)\s*\??", low):
         return {"command": {"kind": "list_read", "list": "watch"}, "say": None}
     if re.fullmatch(r"what books? (?:do|did) i (?:want|say i wanted) to read\s*\??", low):

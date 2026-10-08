@@ -9196,5 +9196,28 @@ class WhatSomebodyHasAndHowOldTheyAre(unittest.TestCase):
         self.assertRegex(said, r"^Jake is \d+, and turns \d+ on June 5\.$")
 
 
+class TheShowHeIsWatching(unittest.TestCase):
+    """"I started a new show called Severance", "I'm on episode 4" and "I
+    rated it 9 out of 10" all went to the planner (2026-10-08)."""
+
+    def test_kept(self):
+        self.assertEqual(voice._interpret("I started a new show called Severance")["command"],
+                         {"kind": "note", "text": "I'm watching Severance"})
+        self.assertEqual(voice._interpret("I am on episode 4 of Severance")["command"],
+                         {"kind": "note", "text": "I'm on episode 4 of Severance"})
+        self.assertEqual(voice._interpret("I rated Severance 9 out of 10")["command"],
+                         {"kind": "note", "text": "I rated Severance 9 out of 10"})
+        self.assertNotEqual(voice._interpret("I'm watching the kids")["command"]["kind"], "note")
+
+    def test_read_back(self):
+        rows = [{"text": "I'm watching Severance"}, {"text": "I'm on episode 4 of Severance"},
+                {"text": "I rated Severance 9 out of 10"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what show am I watching"),
+                             "You told me you're watching Severance, and you're on episode 4.")
+            self.assertEqual(quick.answer("what episode am I on"), "You told me you're on episode 4 of Severance.")
+            self.assertIn("9 out of 10", quick.answer("how did I rate Severance"))
+
+
 if __name__ == "__main__":
     unittest.main()
