@@ -12550,6 +12550,23 @@ class WhoDidTheChore(unittest.TestCase):
             self.assertIsNone(quick.answer("who walked the dog"))
 
 
+class GiftsAndFamilyNews(unittest.TestCase):
+    def test_congratulations_go_to_your_brother(self):
+        self.assertIn("congratulations to your brother", voice.interpret("my brother got engaged")["say"])
+        self.assertIn("congratulations to Sarah", voice.interpret("my friend sarah got engaged")["say"])
+
+    def test_a_gift_is_kept_and_read(self):
+        for said in ("I got my sister a necklace", "I got mom a scarf for her birthday", "I bought Jake a watch for his birthday",
+                     "my niece is starting kindergarten"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual(voice.interpret("I got home late")["command"]["kind"], "note")
+        rows = [{"text": "I got my sister a necklace"}, {"text": "my brother got engaged"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what did I get my sister"), "You told me you got your sister a necklace.")
+            self.assertEqual(quick.answer("who got engaged"), "You told me your brother got engaged.")
+            self.assertIsNone(quick.answer("what did I get my dad"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

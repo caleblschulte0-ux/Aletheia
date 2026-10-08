@@ -11240,8 +11240,13 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:my )?(?:friend |buddy |best friend |cousin |coworker |neighbor )?(?P<who>(?!(?:who|what|did|has|is|i|we|you)\b)[a-z]{2,15}(?: and [a-z]{2,15})?) (?:just )?(?:got|are|is) (?P<what>engaged|married|promoted|a new job|a dog|a puppy|into (?:college|grad school|law school|med school))", low)
     if m:
+        # "My brother got engaged" said "congratulations to Brother" (2026-10-08).
+        if low.startswith("my " + m.group("who")):
+            whom = "your " + m.group("who")
+        else:
+            whom = _as_he_said(text, m.group('who')).title() if m.group('who').islower() else _as_he_said(text, m.group('who'))
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
-                "say": f"That's great news - congratulations to {_as_he_said(text, m.group('who')).title() if m.group('who').islower() else _as_he_said(text, m.group('who'))}. I've kept it."}
+                "say": f"That's great news - congratulations to {whom}. I've kept it."}
     # A race and a game (2026-10-08, each to the planner): "I signed up for
     # a 5k", "the 5k is on november 2", "I played basketball tonight".
     _RACE = r"(?:5k|10k|half marathon|marathon|half|race|fun run|color run|turkey trot|triathlon|tough mudder|spartan race|charity walk)"
@@ -11352,6 +11357,15 @@ def _interpret(transcript: str) -> dict:
                     r" (?:already |just )?(?:did|finished|took out|emptied|mowed|vacuumed|unloaded|loaded|walked|fed|cleaned|folded|washed)"
                     r" (?:the |our )?(?:dishes|laundry|trash|garbage|recycling|lawn|dishwasher|dog|cat|kitchen|bathroom|floors?|car|vacuuming|groceries)"
                     r"(?: today| tonight| this morning| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got my sister a necklace" (2026-10-08: to the planner). A gift he
+    # got somebody, kept so "what did I get my sister" has an answer.
+    _rel = (r"(?:my |our )?(?:wife|husband|partner|mom|mother|dad|father|sister|brother|son|daughter|kids|grandma|grandpa|grandmother|grandfather"
+            r"|aunt|uncle|cousin|niece|nephew|boss|girlfriend|boyfriend|fiance|fiancee|best friend|mother in law|father in law|in laws|teacher)")
+    _occ = r"(?: for (?:her|his|their|my|our|the) (?:birthday|bday|anniversary|christmas|graduation|wedding|baby shower|retirement|housewarming|valentine'?s(?: day)?|mother'?s day|father'?s day))"
+    if re.fullmatch(rf"(?:i|we) (?:already |just )?(?:got|bought|ordered|picked up|found) {_rel} (?:a |an |some |the |new )?[a-z][a-z' ]{{2,30}}?{_occ}?", low) \
+            or re.fullmatch(rf"(?:i|we) (?:already |just )?(?:got|bought|ordered|picked up|found) (?!(?:home|back|up|out|in|off|there|it|this|that|them|him|her|lost|sick|paid|married|engaged|a|an|the|some|my|our|to|into)\b)[a-z]{{2,15}} (?:a |an |some |the |new )?[a-z][a-z' ]{{2,30}}?{_occ}", low) \
+            or re.fullmatch(rf"(?:{_rel}|(?!(?:i|we|you|he|she|they|it|who|what)\b)[a-z]{{2,15}}) (?:is|are) (?:starting|going to start) (?:kindergarten|preschool|pre-k|daycare|first grade|second grade|middle school|high school|college|school|a new school|a new job|work|swim lessons|piano lessons|soccer|t-ball|little league)(?: (?:this|next) (?:week|month|year|fall|monday|tuesday|wednesday|thursday|friday)| tomorrow| on monday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
