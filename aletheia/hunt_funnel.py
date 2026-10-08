@@ -479,7 +479,11 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     rows = apply_run.all_runs()
     fresh = counts(rows, now=now)
     fresh["batches"] = batches(_tallies(), now=now)
-    fresh["stuck_at"] = stuck_at(_left_missions(), now=now)
+    left = _left_missions()
+    fresh["stuck_at"] = stuck_at(left, now=now)
+    # The month mixes stops already fixed with ones still happening.
+    fresh["stuck_recently"] = {"days": RECENT_DAYS,
+                               "where": stuck_at(left, now=now, days=RECENT_DAYS)}
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
