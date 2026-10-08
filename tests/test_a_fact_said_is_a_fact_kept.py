@@ -6925,5 +6925,18 @@ class WhatHeToldHerToday(unittest.TestCase):
             self.assertEqual(quick._told_on("today"), "asks")
 
 
+
+class ACalendarReleaseIsOneAct(unittest.TestCase):
+    """2026-10-08: "how was my week" said "calendar:: released the hold on
+    lunch with Sam" beside "Took lunch with Sam ... off your calendar"."""
+
+    def test_the_release_is_said_once_and_in_english(self):
+        from aletheia import recollection
+        row = recollection._row({"subject": "calendar:", "text": "released the hold on lunch with Sam", "ts": ""})
+        self.assertEqual(row["what"], "Released the hold on lunch with Sam")
+        rows = [row, {"what": "Took lunch with Sam Friday at 1 pm off your calendar.", "at": "x"}]
+        self.assertEqual(len(recollection._once_each(rows)), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
