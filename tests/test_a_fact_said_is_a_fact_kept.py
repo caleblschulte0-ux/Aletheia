@@ -11330,5 +11330,30 @@ class HisLabNumbers(unittest.TestCase):
             self.assertIn("your LDL", quick.answer("what was my ldl"))
 
 
+class AWeddingHeIsGoingTo(unittest.TestCase):
+    """2026-10-08: "I am the best man" got "I can't think", "I need to RSVP"
+    went to the planner, and "where is Jake registered" searched his files a
+    turn after "Jake registered at Crate and Barrel"."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I have a wedding to go to on the 24th")["command"],
+                         {"kind": "note", "text": "I have a wedding on the 24th"})
+        self.assertEqual(voice._interpret("I need to RSVP to the wedding")["command"]["kind"], "task_new")
+        best = voice._interpret("I am the best man")
+        self.assertEqual(best["command"]["kind"], "note")
+        self.assertIn("congratulations", best["say"])
+        self.assertEqual(voice._interpret("my speech is 3 minutes")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("Jake registered at Crate and Barrel")["command"]["text"],
+                         "Jake registered at Crate and Barrel")
+
+    def test_read(self):
+        notes = [{"text": "Jake registered at Crate and Barrel"}, {"text": "my friend Jake is getting married"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertIn("Crate and Barrel", quick.answer("where is Jake registered"))
+            self.assertIn("Jake is getting married", quick.answer("who is getting married"))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("where is Jake registered"))
+
+
 if __name__ == "__main__":
     unittest.main()

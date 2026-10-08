@@ -1315,7 +1315,9 @@ _TASK_VERB = re.compile(
     # "I need to pack lunches tonight" (2026-10-08: the packing list).
     r"|pack (?:the |school |the kids'? |their |my )?lunch(?:es)?"
     # "I need to move the car by 8 for street cleaning" (2026-10-08: to the planner).
-    r"|move (?:the|my) (?:car|truck|van|suv|bins?|trash cans?))\b")
+    r"|move (?:the|my) (?:car|truck|van|suv|bins?|trash cans?)"
+    # "I need to RSVP to the wedding" (2026-10-08: to the planner).
+    r"|rsvp)\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -10555,6 +10557,20 @@ def _interpret(transcript: str) -> dict:
                    r"|water|soda|beer|wine|groceries|paper towels|toilet paper|dish soap|detergent|dog food|cat food|diapers|wipes")
         if parts and all(re.fullmatch(rf"(?:{grocery})", p) for p in parts):
             return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have a wedding to go to on the 24th" (2026-10-08: to the planner) is
+    # "I have a wedding on the 24th".
+    m = re.fullmatch(r"(?P<head>i (?:have|'ve got|have got|got) (?:a|an) [a-z][a-z' ]{1,30}?) to (?:go to|attend|get to)(?P<rest> .{2,40})", low)
+    if m:
+        return _interpret(_as_he_said(text, m.group("head")) + " " + _as_he_said(text, m.group("rest").strip()))
+    # "I'm the best man", "my speech is 3 minutes", "Jake registered at
+    # Crate and Barrel" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:i'?m|i am) (?:the |a )?(?P<role>best man|maid of honor|matron of honor|groomsman|bridesmaid|officiant|ring bearer|usher|godfather|godmother|pallbearer|mc|emcee)(?: (?:at|in|for) [a-z][a-z' ]{1,30})?", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "That's an honor - congratulations." if m.group("role") != "pallbearer" else "I'm sorry. That's a kind thing to be asked to do."}
+    if re.fullmatch(r"my (?:speech|toast|talk|presentation|eulogy|reading) (?:is|has to be|should be|needs to be) (?:about |under |less than |no more than )?\d{1,2} minutes?(?: long)?", low) \
+            or re.fullmatch(r"(?:[a-z]{2,15}|my [a-z]{2,15}|they|we) (?:(?:is|are) )?registered (?:at|on|with) [a-z][a-z&' -]{1,30}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

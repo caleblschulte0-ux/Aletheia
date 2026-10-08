@@ -2467,6 +2467,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # scored" (2026-10-08: "I can't think").
     ("kid_missed", re.compile(r"^how many (?:days|days of school) (?:has|have|did) (?P<kid_missed>my [a-z]{2,10}|the kids|[a-z]{2,15}) (?:missed|been out|stayed home)(?: this (?:year|month|week))?\s*\??$")),
     ("kid_scored", re.compile(r"^how many (?P<ks_what>goals?|points?|baskets?|touchdowns?|runs?|home runs?) (?:has|have|did) (?P<kid_scored>my [a-z]{2,10}|[a-z]{2,15}) scored(?: this (?:season|year|month|week))?\s*\??$")),
+    # "Where is Jake registered" (2026-10-08: it searched his Documents) and
+    # "who is getting married" (to a model).
+    ("registered_at", re.compile(r"^where (?:is|are) (?P<registered_at>[a-z]{2,15}|my [a-z]{2,15}|they) registered\s*\??$")),
+    ("who_marrying", re.compile(r"^who(?:'s| is) getting married\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3398,7 +3402,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16899,6 +16903,33 @@ def _shopping_here(text: str = "") -> str | None:
     return there if str(said or "").startswith("Nothing") else f"{there} {said}"
 
 
+def _registered_at(who: str) -> str | None:
+    """Where somebody has a gift registry, from his note."""
+    from aletheia import speech
+    m = re.match(r"where (?:is|are) (.+?) registered", " ".join(str(who or "").casefold().split()))
+    if not m:
+        return None
+    who = m.group(1)
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"{re.escape(who)} (?:(?:is|are) )?registered (?:at|on|with)\b", line, re.I):
+            return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
+def _who_marrying(_rest: str = "") -> str | None:
+    """Who he told her is getting married."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\b(?:is|are) getting married\b|\bgot engaged\b", line, re.I):
+            found.append(speech.as_she_says_it(line))
+        if len(found) >= 3:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17712,6 +17743,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "registered_at": _registered_at,
+           "who_marrying": _who_marrying,
            "kid_missed": _kid_missed,
            "kid_scored": _kid_scored,
            "places_seen": _places_seen,
