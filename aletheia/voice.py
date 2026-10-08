@@ -810,6 +810,10 @@ def _not_a_file(said: str) -> bool:
     # a file search for "note about dana").
     if re.match(r"notes? (?:about|on|for|mentioning)\b", low):
         return True
+    # "Where's the party" searched his Documents for "party" (2026-10-08).
+    # An occasion is somewhere he goes, never a file.
+    if re.fullmatch(rf"(?:the |my |our )?(?:{_EVENT_WORDS}|game|match|meeting|concert|show|dinner|lunch|reunion|recital)(?: tonight| tomorrow| on [a-z]+)?", low):
+        return True
     # "Find a time for lunch" is the calendar.
     if re.match(r"(?:a |some )?time (?:for|to)\b", low):
         return True
@@ -10935,7 +10939,7 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:a |the )?(?:party|barbecue|bbq|cookout|potluck|dinner party|game night|birthday party|baby shower|bridal shower))"
                     r"(?: (?:this year|at (?:our|my) (?:house|place)|on [a-z0-9 ]{3,20}|this [a-z]{3,10}|next [a-z]{3,10}))?", low) \
             or re.fullmatch(r"(?:\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)(?: people| guests| of us| adults| kids)? (?:are|is) coming(?: to [a-z][a-z' ]{2,25})?", low) \
-            or re.fullmatch(r"(?:my [a-z]{2,15}(?: in law)?|[a-z]{2,15}(?: and [a-z]{2,15})?|the [a-z]{2,15}) (?:is|are) bringing (?:the |a |an |some |her |his |their )?(?!up\b|it\b|that\b|this\b|them\b)[a-z][a-z' ]{1,30}", low) \
+            or re.fullmatch(r"(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone|everybody)\b)(?:my [a-z]{2,15}(?: in law)?|[a-z]{2,15}(?: and [a-z]{2,15})?|the [a-z]{2,15}) (?:is|are) bringing (?:the |a |an |some |her |his |their )?(?!up\b|it\b|that\b|this\b|them\b)[a-z][a-z' ]{1,30}", low) \
             or re.fullmatch(r"(?:thanksgiving |christmas |the |easter )?(?:dinner|lunch|brunch|the party|the barbecue|the bbq|the potluck) (?:is|starts) at \d{1,2}(?::\d\d)?(?: ?[ap]m)?(?: (?:on )?(?:thanksgiving|christmas|saturday|sunday|friday))?", low):
         say = None
         if re.match(r"(?:i'?m|i am|we'?re|we are) ", low):

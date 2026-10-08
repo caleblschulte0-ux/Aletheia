@@ -12660,6 +12660,27 @@ class CuttingBack(unittest.TestCase):
         self.assertNotEqual(voice.interpret("I'm giving up on it")["command"]["kind"], "note")
 
 
+class QuestionsThatWereWrites(unittest.TestCase):
+    """2026-10-08: "who is bringing dessert" was kept as a note, "where's the
+    party" searched his Documents, and "what's the plan for Saturday" went to
+    a model."""
+
+    def test_who_is_bringing_is_a_question(self):
+        self.assertNotEqual(voice.interpret("who is bringing dessert")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("my sister is bringing the pie")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my sister is bringing dessert"}]):
+            self.assertEqual(quick.answer("who is bringing dessert"), "You told me: your sister is bringing dessert.")
+
+    def test_an_occasion_is_not_a_file(self):
+        for said in ("where's the party", "where is the wedding"):
+            self.assertNotEqual(voice.interpret(said)["command"]["kind"], "file_find", said)
+        self.assertEqual(voice.interpret("where is the budget spreadsheet")["command"]["kind"], "file_find")
+
+    def test_the_plan_for_a_day_is_his_day(self):
+        self.assertEqual(quick._direct("what's the plan for saturday"), "what do i have to do saturday")
+        self.assertEqual(quick._direct("what are the plans for saturday"), "what do i have to do saturday")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

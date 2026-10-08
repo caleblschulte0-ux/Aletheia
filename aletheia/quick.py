@@ -3465,7 +3465,9 @@ def _direct(text: str) -> str:
     if m:
         return f"what day is {m.group('x')}"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
-    m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
+    # "What's the plan for Saturday" (2026-10-08: to a model) too.
+    m = re.fullmatch(r"what(?:'s| is| are) (?:the|my|our) (?:plans?|schedule|agenda|game plan)(?: for)? (?:on )?(?P<day>today|tomorrow|tonight"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what do i have to do {m.group('day')}"
     # "What expires soon" (2026-10-08: to a model, with "my license expires
