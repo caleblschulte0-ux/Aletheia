@@ -1316,7 +1316,7 @@ _BILL_WORDS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? 
                r"|gym membership|hoa(?: fees?)?|childcare|car loan|trash bill|sewer bill"
                # "My Netflix is 15 a month" (2026-10-07: to the planner).
                r"|netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
-_DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced"
+_DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuumed|replaced|renewed|fixed|serviced|filed|submitted"
                "|rotated|flushed|emptied|refilled|filled|charged|backed up|updated|trimmed|cut|groomed|bathed"
                "|dropped off|picked up|returned|mailed|posted|vaccinated|dewormed|descaled|defrosted"
                # "I called mom" (2026-10-07: to the planner). A call he made is
@@ -9514,6 +9514,8 @@ def _interpret(transcript: str) -> dict:
                      r"|card|passport|driver'?s license|license|licence|vin|patient|group) (?:id|number|#)"
                      # "My parking spot is B12", "my hotel room is 512" (2026-10-08: to the planner)
                      r"|parking spot|parking space|spot|hotel room|room|seat|desk|cubicle|apartment|apartment number|unit|suite|gate"
+                     # "My tax refund is 1200" (2026-10-08: to the planner)
+                     r"|(?:federal |state )?tax refund|refund|tax bill|property tax(?:es)?|income|annual income|bonus|take[- ]home pay|hourly rate|pay rate"
                      r"|(?:netflix|hulu|spotify|amazon|work|school|email|[a-z]+) (?:login|username|user name))"
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
@@ -10066,6 +10068,12 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:we|(?:my|our) (?:wife|husband|partner|girlfriend|boyfriend|fiancee?) and i|i) (?:first )?(?:met|started dating|got together|got engaged"
                     r"|moved in together|started going out)(?: (?:my|our) (?:wife|husband|partner|girlfriend|boyfriend|fiancee?))?"
                     r" (?:in|on|back in) (?:" + _MONTH + r" )?(?:\d{1,2}(?:st|nd|rd|th)?,? )?(?:19|20)\d\d", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got my W2", "I made 85000 last year" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:just |finally )?(?:got|received) (?:my |the |a |our )?(?:w-?2|1099|tax forms?|tax documents?|tax return|refund|tax refund"
+                    r"|passport|new passport|license|new license|id|new id|green card|diploma|results|test results|lab results|paycheck|bonus|raise"
+                    r"|security deposit|deposit back)(?: (?:back|in the mail|today|yesterday))?(?: (?:today|yesterday|in the mail))?", low) \
+            or re.fullmatch(r"i (?:made|earned|got paid) (?:about |around )?\$?[\d,.]+k?(?: dollars)? (?:last year|this year|in (?:19|20)\d\d)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I froze the leftover soup", "I made a double batch of chili"
     # (2026-10-08: to the planner). What is in the freezer is read back.

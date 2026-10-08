@@ -9423,5 +9423,22 @@ class MoreAboutHisTasks(unittest.TestCase):
                              "Added to your tasks today: cancel my gym membership and call the bank.")
 
 
+class TaxesAndIncome(unittest.TestCase):
+    """A sweep of tax sentences, most to the planner or a model (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("my tax refund is 1200", "I filed my taxes", "I got my W2", "I made 85000 last year"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read(self):
+        rows = [{"text": "I filed my taxes", "ts": "2026-10-08T13:00:00+00:00"}, {"text": "I made 85000 last year"},
+                {"text": "my tax refund is 1200"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertTrue(quick.answer("did I file my taxes").startswith("You told me you filed your taxes"))
+            self.assertEqual(quick.answer("how much did I make last year"), "You told me you made 85000 last year.")
+            self.assertEqual(quick.answer("how much is my tax refund"), "You told me: your tax refund is 1200.")
+            self.assertIn("April 15", quick.answer("when are taxes due"))
+
+
 if __name__ == "__main__":
     unittest.main()

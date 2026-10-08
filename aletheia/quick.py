@@ -2014,6 +2014,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When is it due" a turn after "add a task to renew my passport by
     # Friday" (2026-10-08: to a model): the task just added.
     ("it_due", re.compile(r"^when(?:'s| is| was) (?:it|that|this)(?: one| task)? due\s*\??$")),
+    ("taxes_due", re.compile(r"^when (?:are|is) (?:my |our |the )?(?:taxes|tax day|tax returns?|income taxes|federal taxes) due(?: this year)?\s*\??$"
+                             r"|^when (?:is|'s) tax day\s*\??$|^when do i (?:have|need) to file (?:my )?taxes(?: by)?\s*\??$")),
     ("task_due", re.compile(
         r"^when(?:'s| is) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<due>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)? due\s*\??$"
         r"|^when do i (?:need|have) to (?P<due2>[a-z][a-z0-9 '-]{1,40}?)(?: by)?\s*\??$"
@@ -2192,6 +2194,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                             r"|^how long ago did (?:we|i) (?:meet|first meet|start dating|get together)\s*\??$")),
     # "What tasks have no due date" (2026-10-08: to a model).
     ("undated_tasks", re.compile(r"^(?:what|which) (?:tasks|things on my list|of my tasks) (?:have no|don'?t have a|have no set|are without a) (?:due )?(?:date|deadline)\s*\??$")),
+    # "How much did I make last year" after "I made 85000 last year", and
+    # "when are taxes due" (2026-10-08: both to a model).
+    ("income_year", re.compile(r"^(?:how much (?:did i|money did i) (?:make|earn)|what was my (?:income|salary|pay)) (?P<income_year>last year|this year|in (?:19|20)\d\d)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2210,7 +2215,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|wash|washed|mow|mowed|vacuum|vacuumed|replace|replaced|renew|renewed|charge|charged|empty|emptied|refill|refilled"
         r"|drop off|dropped off|pick up|picked up|return|returned|mail|mailed|call|called|visit|visited|pay|paid"
         r"|talk to|talked to|speak to|spoken to|see|seen|text|texted|lock|locked|close|closed|shut|unplug|unplugged"
-        r"|turn off|turned off|take out|taken out|took out) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
+        r"|turn off|turned off|take out|taken out|took out|file|filed|submit|submitted) (?P<did_o2>(?!any\b)[a-z][a-z' ]{1,40}?)"
         r"(?P<did_today> today| yet| this morning| this week| this month)?\s*\??$"
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
@@ -2876,6 +2881,11 @@ def _direct(text: str) -> str:
         return "what expires soon"
     if re.fullmatch(r"what am i (?:trying|working|aiming|hoping) to (?:do|achieve|accomplish|get better at|work on)\s*\??", text):
         return "what are my goals"
+    # "How much is my tax refund" after "my tax refund is 1200" (2026-10-08:
+    # to a model) is what his refund is.
+    m = re.fullmatch(r"how much (?:is|was) my (?P<w>(?:federal |state )?tax refund|refund|tax bill|property tax|bonus|take[- ]home pay|hourly rate|pay rate|income)\s*\??", text)
+    if m:
+        return f"what is my {m.group('w')}"
     # "Who cuts my hair", "who does my taxes" (2026-10-08: to a model) are
     # who his barber and his accountant are.
     m = re.fullmatch(r"who (?:cuts|does) my (?P<w>hair|taxes|nails|teeth|books)\s*\??|who (?:fixes|works on|services) my (?P<w2>car|truck|teeth)\s*\??", text)
@@ -3065,7 +3075,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -14221,6 +14231,34 @@ def _undated_tasks(_text: str = "") -> str:
     return f"{speech.count_phrase(len(rows), 'task')} with no date: {speech.and_list(said)}{more}."
 
 
+def _income_year(when: str) -> str | None:
+    from aletheia import speech
+    when = " ".join(str(when or "").split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(rf"i (?:made|earned|got paid) (?:about |around )?(\$?[\d,.]+k?)(?: dollars)? {re.escape(when)}", said, re.I)
+        if m:
+            return f"You told me you made {m.group(1)} {when}."
+    return None
+
+
+def _taxes_due(_text: str = "") -> str:
+    """Tax day in the US: April 15, or the next weekday when it falls on a
+    weekend. His own note about it wins (a state, an extension)."""
+    import datetime as dt
+    from aletheia import localtime
+    told = _due_note("taxes")
+    if told and told.startswith("You told me"):
+        return told
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    year = today.year if today <= dt.date(today.year, 4, 18) else today.year + 1
+    day = dt.date(year, 4, 15)
+    while day.weekday() >= 5:
+        day += dt.timedelta(days=1)
+    return (f"US federal taxes are usually due April 15 - for {year - 1} taxes that's {day.strftime('%A')} {day.strftime('%B')} {day.day}, "
+            f"{year}. A holiday can push it a day, so check the IRS site before you count on it.")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15028,6 +15066,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "income_year": _income_year,
+           "taxes_due": _taxes_due,
            "undated_tasks": _undated_tasks,
            "together": _together,
            "symptoms": _symptoms,
