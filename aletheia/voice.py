@@ -793,6 +793,10 @@ def _not_a_file(said: str) -> bool:
     # own approvals and what waits on him are hers to read.
     if re.fullmatch(r"(?:any |anything )?(?:pending |open )?(?:approvals?|requests?|decisions?|things? waiting(?: on me| for me)?)(?: pending| waiting)?", low):
         return True
+    # "Do I have any coupons" searched his Documents (2026-10-08): a coupon he
+    # mentioned is a note.
+    if re.fullmatch(r"(?:any )?(?:coupons?|gift cards?|store credit|vouchers?|discount codes?|promo codes?)(?: for [a-z' ]{2,20})?", low):
+        return True
     # "Find ME a plumber near me": a person or a service, never a file.
     if re.match(r"(?:me|us) (?:a|an|some)\b", low) or re.search(r"\b(?:near me|nearby|around here|in town)\b", low) \
             or re.match(r"(?:the )?(?:nearest|closest)\b", low):
@@ -11301,6 +11305,9 @@ def _interpret(transcript: str) -> dict:
         if cmd.get("kind") == "calendar_hold":
             cmd["title"] = f"{m.group('what')} for the baby"
             return again
+    # "I have a coupon for Kohl's" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:have|got|'ve got) (?:a |an |\d{1,3} )?(?:\d{1,3}(?: percent| %|%)? off |\$?\d{1,4} (?:dollar )?off )?(?:coupons?|vouchers?|store credit|discount code|promo code|rebate)(?: (?:for|at|to) [a-z0-9' ]{2,25})?(?: that expires? [a-z0-9 ]{2,20})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

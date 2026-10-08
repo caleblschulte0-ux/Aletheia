@@ -12484,5 +12484,22 @@ class Moving(unittest.TestCase):
             self.assertEqual(quick.answer("when is the closing"), "You told me: the closing is on November 3.")
 
 
+class CouponsAndGroceries(unittest.TestCase):
+    def test_a_coupon_is_kept_and_found(self):
+        self.assertEqual(voice.interpret("I have a coupon for kohls")["command"], {"kind": "note", "text": "I have a coupon for kohls"})
+        self.assertNotEqual(voice.interpret("do I have any coupons")["command"]["kind"], "file_find")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I have a coupon for kohls"}]):
+            self.assertEqual(quick.answer("do I have any coupons"), "You told me you have a coupon for kohls.")
+            self.assertIsNone(quick.answer("do I have any coupons for target"))
+
+    def test_the_grocery_store_counts_as_groceries(self):
+        import datetime as dt
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz()).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I spent 85 at the grocery store", "ts": now}]):
+            self.assertEqual(voice.interpret("how much did I spend on groceries this week")["say"],
+                             "$85 on groceries this week, from what you've told me.")
+
+
 if __name__ == "__main__":
     unittest.main()
