@@ -7114,6 +7114,12 @@ class PutThemBack(unittest.TestCase):
             self.assertEqual(voice._interpret("put them back")["command"], {"kind": "reminder_on", "which": "all reminders"})
 
 
+class WhatsLeftForSaturday(unittest.TestCase):
+    def test_is_what_is_due_then(self):
+        # 2026-10-08: to a model.
+        self.assertEqual(quick.match("what is left for saturday"), ("due", "saturday"))
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

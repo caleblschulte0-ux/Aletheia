@@ -2512,6 +2512,11 @@ def _direct(text: str) -> str:
                      r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
     if m:
         return f"what did i tell you about being on {m.group('state')}"
+    # "What's left for Saturday" (2026-10-08: to a model) is what is due then.
+    m = re.fullmatch(r"what(?:'s| is|s) (?:left|still to do|still on my list|left to do) (?:for|on) "
+                     r"(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
+    if m:
+        return f"what's due {m.group('day')}"
     # "How is my weight loss going" read the FLEET's status (2026-10-08).
     m = re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:weight loss|weight|diet)(?: going| coming along| doing)?\s*\??", text)
     if m:
