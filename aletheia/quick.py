@@ -2183,7 +2183,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What did I just add" (2026-10-08: to a model): her last "Added ..."
     # in this conversation, said back.
     ("just_added", re.compile(
-        r"^what (?:did i|have i) (?:just )?(?:add|put)(?:ed)?(?: (?:to|on) (?:the|my) (?:[a-z]+ )?list)?\s*\??$")),
+        r"^what (?:did i|have i) (?:just )?(?:add|put)(?:ed)?(?: (?:to|on) (?:the|my) (?:[a-z]+ )?list)?\s*\??$"
+        # "What did I just do", "what did I just say" (2026-10-08: to a model)
+        r"|^what did i just (?P<ja_do>do|say|ask(?: you)?(?: for)?|tell you)\s*\??$")),
     ("date_what", re.compile(
         r"^what(?:'s| is|s) (?:(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|the \d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     ("weekday_of", re.compile(
@@ -6617,7 +6619,7 @@ def _a_date(words: str, today):
         return None
 
 
-def _just_added(turns: int = 8) -> str | None:
+def _just_added(turns: int = 8, text: str = "") -> str | None:
     """Her last "Added to the shopping list: bread." or "Added a task: X."
     in the conversation, said back. None without one in the last few turns:
     a model may have added it."""
@@ -6625,6 +6627,14 @@ def _just_added(turns: int = 8) -> str | None:
         from aletheia import converse
         thread = list(converse._thread() or [])[-turns:]
     except Exception:
+        return None
+    if _groups("just_added", text).get("ja_do") if text else False:
+        # the turn before this one, his words and what came of them
+        for turn in reversed(thread):
+            you = " ".join(str(turn.get("you") or "").split())
+            her = " ".join(str(turn.get("her") or "").split())
+            if you and not re.match(r"what did i just\b", you, re.I):
+                return f"You said \"{you}\", and I answered: {her}"
         return None
     for turn in reversed(thread):
         her = " ".join(str(turn.get("her") or "").split())
@@ -12337,7 +12347,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "where_was_i": lambda text: _where_was_i(),
            "on_days": lambda text: _on_days(text),
            "until_leave": lambda text: _until_leave(),
-           "just_added": lambda text: _just_added(),
+           "just_added": lambda text: _just_added(text=text),
            "their_kind": lambda text: _their_kind(text),
            "miles_until": lambda text: _miles_until(text),
            "pills_left": lambda text: _pills_left(text),

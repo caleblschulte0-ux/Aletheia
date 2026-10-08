@@ -6505,5 +6505,24 @@ class RepeatingAndMonthEndReminders(unittest.TestCase):
         self.assertEqual((at + dt.timedelta(days=1)).day, 1)
 
 
+
+class TakingBackDoneAndWhatHeJustDid(unittest.TestCase):
+    """2026-10-08: "mark it done" then "undo that" said "Nothing to undo",
+    and "what did I just do" went to a model."""
+
+    def test_undo_puts_a_finished_task_back(self):
+        from aletheia import converse, intercom
+        turns = [{"he_asked": "mark it done", "she_answered": "Done: email the landlord."}]
+        with mock.patch.object(converse, "recent", return_value=turns), \
+                mock.patch.object(intercom, "execute_command", return_value="ok") as run:
+            self.assertEqual(intercom._undo_his_last_ask(), "Undone: email the landlord is back on your list.")
+        self.assertEqual(run.call_args[0][0]["description"], "email the landlord")
+
+    def test_what_did_i_just_do(self):
+        from aletheia import converse
+        with mock.patch.object(converse, "_thread", return_value=[{"you": "mark it done", "her": "Done: email the landlord."}]):
+            self.assertEqual(quick.answer("what did I just do"), 'You said "mark it done", and I answered: Done: email the landlord.')
+
+
 if __name__ == "__main__":
     unittest.main()

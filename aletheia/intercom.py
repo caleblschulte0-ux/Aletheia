@@ -2224,6 +2224,20 @@ def _undo_his_last_ask() -> str | None:
         kind = str(command.get("kind") or "")
         if kind == "undo":
             continue                        # his previous undo; look one further back
+        # "Mark it done", then "undo that" (2026-10-08: "Nothing to undo").
+        # A finished task never changes again, so it goes back on as itself.
+        done = re.match(r"Done: (.+?)\.$", str(turn.get("she_answered") or "").strip())
+        if done:
+            what = done.group(1).strip()
+            try:
+                import time as _time
+                slug = re.sub(r"[^a-z0-9]+", "-", what.casefold()).strip("-")[:32] or "task"
+                execute_command({"kind": "task_new", "id": f"{slug}-{int(_time.time()) % 100000}",
+                                 "description": what}, {}, quote="undo that")
+            except act.Refused as exc:
+                from aletheia import speech
+                return f"I couldn't put {what} back on your list: {speech.plainly(str(exc))}"
+            return f"Undone: {what} is back on your list."
         # A QUESTION in between changes nothing: "put lunch on Friday",
         # "who is it with", "cancel it" means the lunch (2026-10-07).
         # A note is journaled at the read-only tier, so it read as a question
