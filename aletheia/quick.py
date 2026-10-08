@@ -6806,6 +6806,17 @@ def _did_last(text: str) -> str | None:
         if any(str(t.get("status") or "").upper() not in _TASK_CLOSED for t in rows):
             desc = re.sub(r"\bmy\b", "your", str(rows[0].get("description") or "").strip().rstrip("."), flags=re.I)
             return f"{'You have not yet' if _tidy(text).startswith(('when', 'how long')) else 'Not yet'} - {desc} is still on your list."
+    # "The dog got his rabies shot today" (2026-10-08: to the planner, and
+    # then "you haven't told me") is the same news in the dog's words.
+    if g.get("did_o6"):
+        who6 = re.sub(r"^(?:the|my|our) ", "", str(g.get("did_who6") or "").casefold())
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(rf"(?:the |my |our )?{re.escape(who6)} (?:got|had|has had) (?:his|her|its|their|a|an) {re.escape(str(g['did_o6']).casefold())}\b", said, re.I):
+                when = speech.humanize_time(str(row["ts"])) if row.get("ts") else ""
+                if when:
+                    said = re.sub(r" (?:today|yesterday|this morning|this week)$", "", said, flags=re.I)
+                return f"You told me {speech.as_she_says_it(said)}" + (f" - that was {when}." if when else ".")
     # "Say "I saw sam"" (2026-10-08): a person he names keeps a capital.
     shown_thing = _named(thing) if past in _WITH_SOMEBODY and re.fullmatch(r"[a-z]{2,15}", thing) else thing
     say = f"I {past} {shown_thing}"
@@ -16506,13 +16517,17 @@ def _we_use(thing: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).rstrip(".")
         low = said.casefold()
-        if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words) and (
-                re.match(r"i (?:usually|always|normally|only) (?:buy|get|use|drink|eat|order)\b", low)
+        # "We use Purina for the dog" is the dog food (2026-10-08: to a model).
+        fed = words[-1] in ("food", "kibble") and re.search(r"\bfor (?:the|my|our) (?:dog|cat|puppy|kitten)s?\b", low)
+        if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in (words[:-1] if fed else words)) and (
+                re.match(r"(?:i|we) (?:usually |always |normally |only )?(?:use|buy|get) [a-z0-9].* for (?:the|my|our) [a-z]+$", low)
+                or re.match(r"i (?:usually|always|normally|only) (?:buy|get|use|drink|eat|order)\b", low)
                 or re.search(r"\b(?:we|i) (?:use|buy|get|feed (?:him|her|them))\b.* (?:is|are) ", low)
                 # "Which pharmacy do I use" after "my pharmacy is the CVS on
                 # Oak Street" (2026-10-08: to a model).
                 or re.fullmatch(rf"(?:my|our) {re.escape(' '.join(words))} is (?!out\b|closed\b|open\b)[a-z].+", low)):
-            return f"You told me: {speech.as_she_says_it(said)}."
+            heard = re.sub(r"^we\b", "you", speech.as_she_says_it(said), flags=re.I)
+            return f"You told me: {heard}."
     return None
 
 

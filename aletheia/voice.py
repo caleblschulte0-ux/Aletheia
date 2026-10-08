@@ -10054,6 +10054,11 @@ def _interpret(transcript: str) -> dict:
         if m.group("bad") and re.match(r"(?:my|our|the) (?:dog|cat|puppy|kitten|pet)", m.group("who")):
             urgent = ("That can be dangerous for a pet. Call your vet or the ASPCA Animal Poison Control Center "
                       "at 888-426-4435 now - don't wait for symptoms.")
+        # "The dog ate a sock" (2026-10-08: a plain "Noted.") can block the gut.
+        elif re.match(r"(?:my|our|the) (?:dog|cat|puppy|kitten|pet)", m.group("who")) \
+                and re.search(r"\b(?:ate|swallowed) (?:a |an |some |the |my |his |her )?(?:socks?|toys?|bones?|chicken bones?|string|hair ties?|rubber bands?|corn cob|underwear|batter(?:y|ies)|coins?)\b", low):
+            urgent = ("That can get stuck. Call your vet now if you're unsure, and straight away if there's vomiting, "
+                      "no appetite or a sore belly.")
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": urgent}
     m = re.fullmatch(r"(?P<who>(?:my|our|the) (?:dog|cat|puppy|kitten|pet)|[a-z][a-z'-]{1,20}) needs (?:his|her|its|their|a|the|to get (?:his|her|its|a|the)) "
                      r"[a-z][a-z' ]{2,40}? (?:on|by) (?:the )?(?:\d{1,2}(?:st|nd|rd|th)?|(?:mon|tues|wednes|thurs|fri|satur|sun)day"
@@ -11616,6 +11621,14 @@ def _interpret(transcript: str) -> dict:
     if m:
         what = _as_he_said(text, (m.group("what") or m.group("what2")).strip(" ,"))
         return {"command": {"kind": "list_add", "list": "bucket", "item": what}, "say": None}
+    # "The dog got his rabies shot today", "we use Purina for the dog", "the
+    # dog ate a sock" (2026-10-08: to the planner). A pet's news is a note.
+    _pet = r"(?:the|my|our) (?:dog|cat|puppy|kitten|pup|bunny|rabbit|hamster|bird|horse)"
+    if re.fullmatch(_pet + r" (?:got|had) (?:his|her|its|their|a|an) (?:[a-z]+ ){0,2}(?:shots?|vaccines?|vaccinations?|booster|checkup|check-up|dental|teeth cleaned|nails trimmed|bath|haircut|groomed)"
+                    r"(?: today| yesterday| this morning| this week)?", low) \
+            or re.fullmatch(r"(?:we|i) (?:use|buy|get|feed (?:him|her|them|the (?:dog|cat)))(?: the)? [a-z0-9][a-z0-9 &'-]{1,25}? (?:for (?:the|my|our) (?:dog|cat|puppy|kitten)|(?:dog|cat|puppy|kitten) food)", low) \
+            or re.fullmatch(_pet + r" (?:eats|only eats|likes|is on) [a-z0-9][a-z0-9 &'-]{1,25}? (?:food|kibble)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

@@ -13062,5 +13062,21 @@ class TheCompanyGuyIsComing(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
 
 
+class ThePetsNews(unittest.TestCase):
+    """2026-10-08: "the dog got his rabies shot today" and "we use Purina for
+    the dog" went to the planner, and "the dog ate a sock" was a plain Noted."""
+
+    def test_kept(self):
+        for said in ("the dog got his rabies shot today", "we use Purina for the dog", "the cat got her shots today"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+        self.assertIn("vet", voice.interpret("the dog ate a sock")["say"])
+
+    def test_read_back(self):
+        rows = [{"text": "the dog got his rabies shot today", "ts": "2026-10-08T23:50:00+00:00"}, {"text": "we use Purina for the dog"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("when did the dog get his rabies shot").startswith("You told me the dog got his rabies shot - that was "))
+            self.assertEqual(quick.answer("what brand of dog food do we use"), "You told me: you use Purina for the dog.")
+
+
 if __name__ == "__main__":
     unittest.main()
