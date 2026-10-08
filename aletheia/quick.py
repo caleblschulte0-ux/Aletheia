@@ -2313,6 +2313,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When do we close on the house", "how many days until we move", "how
     # much did we offer" (2026-10-08: to a model).
     ("we_amt", re.compile(r"^how much did (?:we|i) (?P<we_amt>offer|bid|put in|sell (?:it|the house) for|list (?:it|the house) (?:at|for))(?: on (?:the|a) (?:house|condo|place))?\s*\??$")),
+    # "What kind of milk do I buy", "what dog food do we use", "how many
+    # cans of soup do I have", "what did I meal prep" (2026-10-08: to a model).
+    ("we_use", re.compile(r"^what (?:kind of |brand of |type of )?(?P<we_use>[a-z][a-z ]{1,20}?) (?:do|does) (?:i|we) (?:usually |always |normally )?(?:buy|get|use|drink|eat|feed (?:him|her|them|the dog|the cat))\s*\??$")),
+    ("have_left", re.compile(r"^how many (?P<have_left>(?:cans|bags|boxes|bottles|rolls|packs|jars|cartons|pods|tubs) of [a-z][a-z ]{1,20}?|[a-z][a-z ]{1,20}?) (?:do i|do we) have(?: left)?\s*\??$")),
+    ("meal_prep", re.compile(r"^what did i (?P<meal_prep>meal ?prep|prep|batch cook|cook for the week|make for the week)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3018,6 +3023,11 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "What am I out of", "what do we need" (2026-10-08: to a model, a turn
+    # after "I'm out of coffee" put coffee on the list).
+    if re.fullmatch(r"what (?:am i|are we) (?:out of|low on|running low on)|what do we (?:need|still need)(?: from the store| at the store)?"
+                    r"|what (?:do|does) the house need\s*\??", text.rstrip("?").strip()):
+        return "what do i need from the store"
     # "Who is our realtor" (2026-10-08: to a model, a turn after "the
     # realtor is Linda") is who his realtor is.
     m = re.fullmatch(r"who(?:'s| is) our (?P<r>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|babysitter|nanny|tutor|vet|dentist|doctor|pediatrician)\s*\??", text)
@@ -3242,7 +3252,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15463,6 +15473,49 @@ def _we_amt(what: str) -> str | None:
     return None
 
 
+def _we_use(thing: str) -> str | None:
+    """The brand or kind of a thing he said he buys or uses."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("the", "a", "an")]
+    if not words or words[0] in ("it", "that", "this", "you", "i"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words) and (
+                re.match(r"i (?:usually|always|normally|only) (?:buy|get|use|drink|eat|order)\b", low)
+                or re.search(r"\b(?:we|i) (?:use|buy|get|feed (?:him|her|them))\b.* (?:is|are) ", low)):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _have_left(thing: str) -> str | None:
+    """How many of a thing he said he has left."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("of", "the")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:i|we) (?:have|have got|'ve got|only have|still have) (?:\d+|one|two|three|four|five|six|a few|a couple)\b", low) \
+                and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _meal_prep(_what: str = "") -> str | None:
+    """What he said he meal prepped."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"i (?:just )?(?:meal ?prepped|prepped|batch cooked|made) .*\b(?:for the week|this week|for lunches|for the next)", said, re.I) \
+                or re.match(r"i (?:just )?meal ?prepped\b", said, re.I):
+            plain = speech.as_she_says_it(said)
+            return f"You told me {plain[:1].lower() + plain[1:]}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16273,6 +16326,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "we_use": _we_use,
+           "have_left": _have_left,
+           "meal_prep": _meal_prep,
            "we_when": _we_when,
            "we_amt": _we_amt,
            "kid_did": _kid_did,
@@ -16527,7 +16583,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "we_when", "we_amt"})
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
 
 def answer(question: str) -> str | None:

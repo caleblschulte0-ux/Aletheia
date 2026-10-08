@@ -10125,5 +10125,34 @@ class BuyingAHouseAndMoving(unittest.TestCase):
             self.assertRegex(quick.answer("how many days until we move"), r"^(?:\d+ days|Today|Tomorrow) - you told me you move on December 1\.$")
 
 
+class GroceriesAndThePantry(unittest.TestCase):
+    """A sweep of grocery sentences (2026-10-08). "I usually buy oat milk"
+    was refused at the money door as an order to spend."""
+
+    def test_said(self):
+        for said in ("I usually buy oat milk", "the dog food we use is Purina", "I have 3 cans of soup left",
+                     "I meal prepped chicken for the week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("I usually buy it for me")["command"]["kind"], "note")
+        self.assertIsNone(voice._interpret("groceries are so expensive")["command"])
+
+    def test_a_habit_is_not_an_order(self):
+        from aletheia import webtask
+        # The money door is unchanged; the habit simply never reaches it.
+        self.assertEqual(voice._interpret("I usually buy oat milk")["command"]["kind"], "note")
+        self.assertTrue(callable(webtask.would_spend))
+
+    def test_read(self):
+        rows = [{"text": "I usually buy oat milk"}, {"text": "the dog food we use is Purina"},
+                {"text": "I have 3 cans of soup left"}, {"text": "I meal prepped chicken for the week"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what kind of milk do I buy"), "You told me: you usually buy oat milk.")
+            self.assertEqual(quick.answer("what dog food do we use"), "You told me: the dog food we use is Purina.")
+            self.assertEqual(quick.answer("how many cans of soup do I have"), "You told me: you have 3 cans of soup left.")
+            self.assertEqual(quick.answer("what did I meal prep"), "You told me you meal prepped chicken for the week.")
+        self.assertEqual(quick.match("what am I out of")[0], "shopping")
+        self.assertEqual(quick.match("what do we need")[0], "shopping")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -10320,6 +10320,19 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "I usually buy oat milk" (2026-10-08: refused at the money door as an
+    # instruction to spend) is a habit he is telling her about - kept, and
+    # nothing is bought. "The dog food we use is Purina", "I have 3 cans of
+    # soup left", "I meal prepped chicken for the week" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:usually|always|normally|only|tend to) (?:buy|get|use|drink|eat) (?:the |a |an )?[a-z0-9][a-z0-9 %'-]{1,30}?(?: (?:from|at) [a-z][a-z' ]{1,20})?", low) \
+            and not re.search(r"\b(?:for me|now|today|tonight|tomorrow|please|again)\b", low) \
+            or re.fullmatch(r"(?:the |our |my )[a-z][a-z ]{1,20}? (?:we|i) (?:use|buy|get|like) is [a-z0-9][a-z0-9' -]{1,30}", low) \
+            or re.fullmatch(r"(?:i|we) (?:have|only have|still have|'ve got) (?:\d{1,3}|one|two|three|four|five|six|a few|a couple of) (?:cans|bags|boxes|bottles|rolls|packs|jars|cartons|pods|tubs|loaves|dozen)"
+                            r" (?:of )?[a-z][a-z ]{1,20}? left", low) \
+            or re.fullmatch(r"i (?:just )?(?:meal ?prepped|prepped|batch cooked) [a-z][a-z ,]{1,40}?(?: for the week| for lunches| this week)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:groceries|gas|everything|food|eggs|rent|prices) (?:are|is) (?:so |really |crazy |too )?(?:expensive|pricey|high)(?: now| these days| lately| right now)?", low):
+        return {"command": None, "say": "I know - it adds up. If you tell me what you spend, I'll keep the running total."}
     # "The realtor is Linda" (2026-10-08: to the planner) is who his
     # realtor is, kept the way "who is our realtor" reads it.
     m = re.fullmatch(r"the (?P<role>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|mover|babysitter|nanny|tutor|vet|dentist|doctor)"
