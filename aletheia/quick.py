@@ -2933,6 +2933,11 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how much (?:is|was) my (?P<w>(?:federal |state )?tax refund|refund|tax bill|property tax|bonus|take[- ]home pay|hourly rate|pay rate|income)\s*\??", text)
     if m:
         return f"what is my {m.group('w')}"
+    # "What's my mood been like this week" (2026-10-08: "I don't have
+    # anything remembered about mood been like") is his journal.
+    if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
+                    r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
+        return "how have i been feeling lately"
     # "What level did I park on" (2026-10-08: to a model) is where he parked.
     if re.fullmatch(r"what (?:level|floor|deck|row|section|spot|space|lot|aisle) (?:did i|am i) park(?:ed)?(?: (?:on|in|at))?\s*\??", text):
         return "where did i park"

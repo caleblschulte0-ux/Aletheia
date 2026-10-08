@@ -9677,5 +9677,13 @@ class FriendsAndPlans(unittest.TestCase):
             self.assertNotEqual(voice._interpret("how do I reach Comcast")["command"]["kind"], "contacts")
 
 
+class HisMood(unittest.TestCase):
+    def test_mood_is_his_journal(self):
+        """"What's my mood been like this week" (2026-10-08) answered "I don't
+        have anything remembered about mood been like this week"."""
+        for said in ("what's my mood been like this week", "how has my mood been"):
+            self.assertEqual(quick.match(said), quick.match("how have I been feeling lately"), said)
+
+
 if __name__ == "__main__":
     unittest.main()
