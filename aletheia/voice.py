@@ -3944,6 +3944,18 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
         return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
 
+    # "I keep forgetting to drink water", "I might go to the gym later"
+    # (2026-10-08: to the planner): the one sentence that would help.
+    m = re.fullmatch(r"i (?:keep|always) forget(?:ting)? to (?P<do>[a-z][a-z0-9' ]{2,40})", low)
+    if m:
+        do = _as_he_said(text, m.group("do"))
+        return {"command": None, "say": f"I can nudge you. Say \"remind me every 2 hours to {do}\" or "
+                                        f"\"remind me every day at 9 to {do}\", and I'll keep at it."}
+    m = re.fullmatch(r"i (?:might|may|could|will probably) (?P<do>go to the gym|go for a (?:run|walk|swim|ride)|work out|go shopping"
+                     r"|go to the store|go out|head out)(?: later| tonight| today| this afternoon| this evening)?", low)
+    if m:
+        do = _as_he_said(text, m.group("do"))
+        return {"command": None, "say": f"Want a nudge? Say \"remind me at 5 to {do}\" with the time you want."}
     # "I pay 15 a month for Netflix" (2026-10-08: refused at the money door
     # as an order to spend). It is what he already pays - a fact, kept the
     # way "my Netflix is 15 a month" is, which the bill readers read. Only a
@@ -4589,9 +4601,15 @@ def _interpret(transcript: str) -> dict:
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
     # Only when what follows starts like a thing to do - "I need to know"
     # and "I have to say" are not tasks.
-    m = re.fullmatch(r"(?:i (?:need|have|got) to|i've got to|i gotta|i must|i should(?: really)?|"
+    # "Maybe I should call mom", "I should probably clean the garage"
+    # (2026-10-08: to the planner) are the same; going to bed is not a task.
+    m = re.fullmatch(r"(?:(?:maybe|i think|honestly|ok(?:ay)?),? )?"
+                     r"(?:i (?:need|have|got) to|i've got to|i gotta|i must|i (?:probably |really )?should(?: really| probably)?|"
                      r"(?:don'?t|do not) let me forget to|make sure i|remember i (?:need|have) to)"
                      r" (?P<what>.{3,120})", low)
+    if m and re.match(r"(?:go to (?:bed|sleep)|call it a (?:night|day)|get (?:some )?sleep|go home)\b", m.group("what")):
+        return {"command": None, "say": "Safe trip home." if m.group("what").startswith("go home")
+                else "Goodnight. I'll keep going quietly."}
     if m and (_TASK_VERB.match(m.group("what")) or low.startswith(("don't let me", "dont let me", "do not let me"))):
         if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b", m.group("what")):
             # A clock time makes it a reminder: "pick up the kids at 3".

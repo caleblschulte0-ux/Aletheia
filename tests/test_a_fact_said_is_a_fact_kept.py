@@ -8039,5 +8039,21 @@ class VisitsAndDeliveries(unittest.TestCase):
 
 
 
+class WhatHeShouldDo(unittest.TestCase):
+    def test_maybe_and_probably_are_still_tasks(self):
+        self.assertEqual(voice._interpret("maybe I should call mom")["command"]["description"], "call mom")
+        self.assertEqual(voice._interpret("I should probably clean the garage this weekend")["command"]["description"],
+                         "clean the garage")
+
+    def test_going_to_bed_is_not_a_task(self):
+        got = voice._interpret("I should go to bed")
+        self.assertIsNone(got["command"])
+        self.assertIn("Goodnight", got["say"])
+
+    def test_a_habit_he_forgets_gets_the_sentence_that_helps(self):
+        self.assertIn("remind me every 2 hours to drink water", voice._interpret("I keep forgetting to drink water")["say"])
+
+
+
 if __name__ == "__main__":
     unittest.main()
