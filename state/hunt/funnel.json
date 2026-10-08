@@ -26,20 +26,21 @@
     "2026-10-08": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 98,
+      "minutes": 120,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 97,
-      "offered": 180,
-      "ready": 9,
-      "runs": 2,
-      "unfit_clearance": 1,
-      "unfit_license": 1,
-      "unfit_model": 9,
-      "unfit_pay": 38,
-      "unfit_sales": 45,
-      "unfit_years": 3,
-      "unjudged": 0,
+      "not_realistic": 178,
+      "offered": 270,
+      "ready": 10,
+      "runs": 3,
+      "unfit_clearance": 2,
+      "unfit_language": 1,
+      "unfit_license": 2,
+      "unfit_model": 12,
+      "unfit_pay": 56,
+      "unfit_sales": 100,
+      "unfit_years": 5,
+      "unjudged": 8,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
       "weak_shot": 2
@@ -263,16 +264,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 25,
-      "found": 31,
+      "filled": 27,
+      "found": 33,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 9
+      "sent": 10
     }
   },
-  "generated_at": "2026-10-08T15:23:37Z",
-  "sent_all_time": 279,
+  "generated_at": "2026-10-08T15:54:18Z",
+  "sent_all_time": 280,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -347,23 +348,23 @@
     }
   },
   "totals": {
-    "filled": 360,
-    "found": 720,
+    "filled": 362,
+    "found": 722,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 279
+    "sent": 280
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
+      "address": 2,
       "demographic_gender": 1,
-      "demographic_race": 3,
+      "demographic_race": 4,
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
       "other": 11,
-      "pay": 2,
+      "pay": 1,
       "travel": 1,
       "years_experience": 1
     },
@@ -404,7 +405,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 15,
+    "needs_answer": 16,
     "oldest_days": 25,
     "to_send": 0
   },
