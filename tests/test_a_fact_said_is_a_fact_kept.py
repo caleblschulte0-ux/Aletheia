@@ -8175,5 +8175,19 @@ class HowManyCaloriesDidIEat(unittest.TestCase):
 
 
 
+class WhatAppointmentsDoIHave(unittest.TestCase):
+    """"What appointments do I have", "whats coming up" and "what meetings
+    do I have" each went to a model (2026-10-08)."""
+
+    def test_they_read_whats_ahead(self):
+        from aletheia import quick
+        for said, name in (("whats coming up", "coming_up"), ("what do I have coming up", "coming_up"),
+                           ("what appointments do I have", "meetings_ahead"),
+                           ("any appointments coming up", "meetings_ahead"),
+                           ("what meetings do I have", "meetings_ahead")):
+            self.assertEqual((quick.match(said) or ("",))[0], name, said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

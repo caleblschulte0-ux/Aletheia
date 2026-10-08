@@ -943,12 +943,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # tonight", "how many meetings do I have tomorrow" went to the planner.
     # Her calendar and reminders, soonest first.
     ("coming_up", re.compile(
-        r"^(?:what(?:'s| is)|anything|is anything|do i have anything) coming up(?: (?P<coming>today|tonight|tomorrow))?\s*\??$"
+        r"^(?:what(?:'s| is|s)|what do i have|what have i got|anything|is anything|do i have anything) coming up(?: (?P<coming>today|tonight|tomorrow))?\s*\??$"
         r"|^what(?:'s| is) (?:on )?(?:for )?(?P<coming2>tonight)\s*\??$|^what am i doing (?P<coming3>tonight|this evening)\s*\??$"
         r"|^what do i have (?:on |going on )?(?P<coming4>tonight|this evening)\s*\??$")),
     ("meetings_count", re.compile(
         r"^how many (?:meetings|appointments|events)(?: (?:do i have|are on my calendar|have i got))?"
         r" (?P<coming5>today|tomorrow|tonight)\s*\??$")),
+    # "What appointments do I have", "any meetings coming up" (2026-10-08:
+    # to a model): the calendar's next few, the way meetings_count reads it.
+    ("meetings_ahead", re.compile(
+        r"^(?:what|which) (?:appointments|meetings|events) (?:do i have|have i got|are (?:on my calendar|coming up))(?: coming up)?\s*\??$"
+        r"|^(?:do i have |have i got )?any (?:appointments|meetings|events) coming up\s*\??$")),
     # "How many meetings do I have this week" (2026-10-07: to a model).
     ("meetings_week", re.compile(
         r"^how many (?:meetings|appointments|events|calls)(?: (?:do i have|are on my calendar|have i got))?"
@@ -13785,6 +13790,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "alarm_left": lambda rest: _alarm_left(),
            "coming_up": lambda rest: _coming_up(rest),
            "meetings_count": lambda rest: _coming_up(rest, calendar_only=True),
+           "meetings_ahead": lambda rest: _coming_up("", calendar_only=True),
            "meetings_week": lambda rest: _meetings_week(rest),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
