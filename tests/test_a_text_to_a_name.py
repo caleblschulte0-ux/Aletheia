@@ -68,9 +68,10 @@ class AReminderMoved(unittest.TestCase):
         self.assertIn("call mom or call dad", got["say"])
 
     def test_a_place_is_not_a_time(self):
+        # Never a time: since 2026-10-08 it is kept for "I'm home" to say.
         got = voice._interpret("remind me when i get home to feed the cat")
-        self.assertIsNone(got["command"])
-        self.assertIn('remind me at 6 to feed the cat', got["say"])
+        self.assertEqual(got["command"], {"kind": "note", "text": "remind me to feed the cat when I get home"})
+        self.assertIn("I'm home", got["say"])
 
 
 class ListsAndBills(unittest.TestCase):

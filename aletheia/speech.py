@@ -470,14 +470,27 @@ def as_she_says_it(phrase: str) -> str:
     # "The plumber comes tuesday": speech-to-text and a lowercased match
     # both lose a day's capital. Days, and the months that are never also
     # an ordinary word ("may" and "march" are), get theirs back.
-    return _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+    said = _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+    # "Your cars mileage is 45000" (2026-10-08): typed without the
+    # apostrophe, and only before what a car has.
+    said = re.sub(r"\b(car|truck|van|bike|boat)s (?=(?:mileage|milage|odometer|registration|insurance|oil|tires|battery|vin|plate)\b)",
+                  r"\1's ", said, flags=re.I)
+    # "You want to learn spanish" (2026-10-08): a language is a name.
+    return _LANGUAGES.sub(lambda m: m.group(0).capitalize(), said)
+
+
+_LANGUAGES = re.compile(r"\b(?:spanish|french|german|italian|japanese|chinese|mandarin|cantonese|korean|english|portuguese"
+                        r"|russian|arabic|hindi|dutch|swedish|greek|hebrew|polish|turkish|vietnamese|latin)\b")
 
 
 # March and May are words too, so only beside a day of the month: "march
 # 3", "the 3rd of may" ("Dana's birthday is march 3", 2026-10-07).
 _NAMED_DAYS = re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|january|february|april"
                          r"|june|july|august|september|october|november|december)\b"
-                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b")
+                         r"|\b(?:march|may)(?= \d{1,2}\b)|(?<=\d(?:st|nd|rd|th) of )(?:march|may)\b"
+                         # "expires in march", "by may" (2026-10-08)
+                         r"|(?:(?<= in )|(?<= by )|(?<= until )|(?<= since )|(?<= before )|(?<= after )|(?<= early )"
+                         r"|(?<= late )|(?<= next )|(?<= last ))(?:march|may)\b(?! (?:be|have|go|need|want|not|i|we|you)\b)")
 
 
 #: Words that should not start a file name: they describe whose it is,
