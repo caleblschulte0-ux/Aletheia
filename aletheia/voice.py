@@ -1332,7 +1332,10 @@ _TASK_VERB = re.compile(
     # "I need to move the car by 8 for street cleaning" (2026-10-08: to the planner).
     r"|move (?:the|my) (?:car|truck|van|suv|bins?|trash cans?)"
     # "I need to RSVP to the wedding" (2026-10-08: to the planner).
-    r"|rsvp)\b")
+    r"|rsvp"
+    # "I need to fertilize the lawn" (2026-10-08: to the planner).
+    r"|fertili[sz]e|prune|mulch|aerate|overseed|reseed|seed (?:the|my)|plant|harvest|repot|deadhead|till (?:the|my)|spray (?:the|my)"
+    r"|pull (?:the )?weeds|cover (?:the|my) (?:plants|tomatoes|garden|flowers|pool))\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -7421,7 +7424,9 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:my|the|our) (?P<t>smoke (?:detector|alarm)|carbon monoxide (?:detector|alarm)|furnace|ac|a/c|air conditioner"
                      r"|dishwasher|washer|washing machine|dryer|fridge|refrigerator|freezer|sink|toilet|faucet|shower|bathtub|tub|gutters?"
                      r"|lawn|grass|roof|fence|deck|plants?|garden|house|kitchen|bathroom|garage|yard|hedges?|pool|hot tub|water heater"
-                     r"|air filter|filter|oven|stove|microwave|windows?|carpets?|floors?|car seat|printer|bike|lights?|light bulb|doorbell)"
+                     r"|air filter|filter|oven|stove|microwave|windows?|carpets?|floors?|car seat|printer|bike|lights?|light bulb|doorbell"
+                     # "The roses need pruning" (2026-10-08: to the planner).
+                     r"|roses|rose ?bush(?:es)?|bush(?:es)?|shrubs?|trees?|tomatoes|tomato plants|flowers|flower ?beds?|herbs|basil|vegetables|veggies|weeds|leaves)"
                      r" needs? (?P<what>.{3,40}?)(?P<when> soon| this week| this weekend| this month| this fall| this spring| today| tomorrow)?"
                      r"(?: every (?P<n>\d{1,2}|other|two|three|four|five|six|seven) days?)?", low)
     if m:
@@ -7434,7 +7439,10 @@ def _interpret(transcript: str) -> dict:
                  "weeding": "weed", "vacuuming": "vacuum", "unclogging": "unclog", "sealing": "seal", "staining": "stain",
                  # "The plants need water" (2026-10-08: to the planner).
                  "water": "water", "raking": "rake", "fertilizing": "fertilize", "fertilizer": "fertilize", "a trim": "trim",
-                 "a cut": "mow", "cutting": "mow" if thing in ("lawn", "grass") else "cut"}
+                 "a cut": "mow", "cutting": "mow" if thing in ("lawn", "grass") else "cut",
+                 "pruning": "prune", "pruned": "prune", "deadheading": "deadhead", "staking": "stake", "spraying": "spray",
+                 "mulching": "mulch", "repotting": "repot", "picking": "pick", "harvesting": "harvest", "pulling": "pull",
+                 "aerating": "aerate", "covering": "cover", "planting": "plant"}
         word = re.sub(r"^to be ", "", what)
         if m.group("n"):
             if word in verbs:
@@ -11322,6 +11330,12 @@ def _interpret(transcript: str) -> dict:
             return again
     # "I have a coupon for Kohl's" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:have|got|'ve got) (?:a |an |\d{1,3} )?(?:\d{1,3}(?: percent| %|%)? off |\$?\d{1,4} (?:dollar )?off )?(?:coupons?|vouchers?|store credit|discount code|promo code|rebate)(?: (?:for|at|to) [a-z0-9' ]{2,25})?(?: that expires? [a-z0-9 ]{2,20})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I picked 10 tomatoes" (2026-10-08: to the planner). What came out of
+    # his garden, kept so "how many tomatoes have I picked" can add it up.
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:picked|harvested) (?:\d{1,3}|a dozen|a few|a bunch of|some) (?:more )?[a-z][a-z ]{2,25}?"
+                    r"(?: (?:from|out of|in) (?:the|my|our) (?:garden|yard|tree|backyard))?(?: today| this morning| tonight| yesterday)?", low) \
+            or re.fullmatch(r"(?:i|we) planted (?!a tree\b)[a-z][a-z ]{2,30}?(?: (?:in|on) (?:the|my|our) [a-z ]{2,20})?(?: today| yesterday| this weekend| this morning)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):

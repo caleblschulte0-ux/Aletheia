@@ -2652,6 +2652,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:are we having|is (?:the|our) baby|is it) (?P<bc_sex>a boy or a girl)\s*\??$"
         r"|^what (?:are we|did we decide to|did we|are we going to) (?:naming|name|call|calling) (?P<bc_name>the baby|her|him)\s*\??$"
         r"|^how far along is (?P<bc_along>my wife|she|my partner|my girlfriend)\s*\??$")),
+    # "How many tomatoes have I picked" (2026-10-08: "I can't think"):
+    # added up from "I picked 10 tomatoes".
+    ("picked_count", re.compile(r"^how many (?P<pick_what>[a-z][a-z ]{2,25}?) (?:have|did) (?:i|we) (?:picked|picked so far|pick|harvested|harvest)(?: so far)?(?: this (?:year|season|summer|week|month))?\s*\??$")),
+    # "When should I plant tulips" (2026-10-08: "I can't think"): a fixed
+    # rule of thumb for the common ones, nothing for the rest.
+    ("plant_when", re.compile(r"^when (?:should|do|can) (?:i|we|you) plant (?:the |my |our )?(?P<plant_when>[a-z][a-z ]{2,25}?)(?: bulbs?| seeds?)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3594,7 +3600,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18308,6 +18314,55 @@ def _coupons(text: str) -> str | None:
     return f"You told me {speech.and_list(found)}."
 
 
+_PLANT_WHEN = {
+    "tulip": "in the fall, about six weeks before the ground freezes",
+    "daffodil": "in the fall, about six weeks before the ground freezes",
+    "crocus": "in the fall, before the ground freezes",
+    "garlic": "in the fall, a few weeks before the ground freezes",
+    "tomato": "after the last frost, once nights stay above 50 degrees",
+    "pepper": "after the last frost, once the soil is warm",
+    "cucumber": "after the last frost, once the soil is warm",
+    "squash": "after the last frost, once the soil is warm",
+    "zucchini": "after the last frost, once the soil is warm",
+    "basil": "after the last frost; it hates the cold",
+    "pumpkin": "in late spring, after the last frost, about 100 days before you want them",
+    "pea": "in early spring, as soon as the soil can be worked",
+    "lettuce": "in early spring or late summer; it bolts in the heat",
+    "spinach": "in early spring or in the fall; it bolts in the heat",
+    "potato": "in early spring, two to four weeks before the last frost",
+    "grass": "in early fall, or in spring as a second choice",
+    "sunflower": "after the last frost",
+}
+
+
+def _plant_when(text: str) -> str | None:
+    """When to plant the common things, from a fixed rule of thumb."""
+    what = " ".join(str(_groups("plant_when", text).get("plant_when") or "").casefold().split())
+    key = what if what in ("grass", "lettuce", "squash") else re.sub(r"(?<=o)es$|s$", "", what)
+    for name, when in _PLANT_WHEN.items():
+        if key == name or what == name:
+            return f"Plant {what} {when}. Your area's frost dates move that by a few weeks."
+    return None
+
+
+def _picked_count(text: str) -> str | None:
+    """What came out of his garden, added up from what he said he picked."""
+    what = " ".join(str(_groups("picked_count", text).get("pick_what") or "").casefold().split())
+    if not what:
+        return None
+    stem = re.sub(r"(?<=o)es$|s$", "", what)
+    total, times = 0, 0
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = re.match(r"(?:i|we) (?:just )?(?:picked|harvested) (\d{1,3}|a dozen) (?:more )?([a-z][a-z ]{2,25}?)(?: (?:from|out of|in) .*| today| this morning| tonight| yesterday)?$", said)
+        if m and re.sub(r"(?<=o)es$|s$", "", m.group(2)) == stem:
+            total += 12 if m.group(1) == "a dozen" else int(m.group(1))
+            times += 1
+    if not times:
+        return None
+    return f"{total} {what}, from the {times} time{'s' if times != 1 else ''} you told me you picked them."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19126,6 +19181,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "picked_count": _picked_count,
+           "plant_when": _plant_when,
            "coupons": _coupons,
            "baby_coming": _baby_coming,
            "step_goal": _step_goal,

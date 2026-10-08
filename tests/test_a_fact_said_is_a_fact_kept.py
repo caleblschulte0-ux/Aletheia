@@ -12509,5 +12509,30 @@ class DoIHaveAny(unittest.TestCase):
         self.assertEqual(voice.interpret("do I have any receipts")["command"]["kind"], "file_find")
 
 
+class TheGarden(unittest.TestCase):
+    """2026-10-08: "I need to fertilize the lawn", "the roses need pruning"
+    and "I picked 10 tomatoes" went to the planner, and "how many tomatoes
+    have I picked" and "when should I plant tulips" to a model."""
+
+    def test_garden_jobs_are_tasks(self):
+        self.assertEqual(voice.interpret("I need to fertilize the lawn")["command"]["description"], "fertilize the lawn")
+        self.assertEqual(voice.interpret("the roses need pruning")["command"]["description"], "prune the roses")
+        self.assertEqual(voice.interpret("the leaves need raking")["command"]["description"], "rake the leaves")
+        self.assertEqual(voice.interpret("I need to plan the trip")["command"]["description"], "plan the trip")
+
+    def test_what_he_picked_is_added_up(self):
+        self.assertEqual(voice.interpret("I picked 10 tomatoes")["command"]["kind"], "note")
+        self.assertNotEqual(voice.interpret("I picked up 10 boxes")["command"]["kind"], "note")
+        rows = [{"text": "I picked 10 tomatoes"}, {"text": "I picked 6 tomatoes from the garden today"}, {"text": "I picked 3 peppers"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how many tomatoes have I picked"), "16 tomatoes, from the 2 times you told me you picked them.")
+            self.assertIsNone(quick.answer("how many cucumbers have I picked"))
+
+    def test_when_to_plant_is_a_rule_of_thumb(self):
+        self.assertIn("in the fall", quick.answer("when should I plant tulips"))
+        self.assertIn("after the last frost", quick.answer("when should I plant tomatoes"))
+        self.assertIsNone(quick.answer("when should I plant orchids"))
+
+
 if __name__ == "__main__":
     unittest.main()
