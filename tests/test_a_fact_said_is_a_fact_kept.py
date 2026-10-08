@@ -6639,5 +6639,20 @@ class AHoldMadeLongerOrShorter(unittest.TestCase):
         self.assertEqual(long_["minutes"], 90)
 
 
+
+class WhatsLeftOnMyList(unittest.TestCase):
+    """2026-10-08: a task marked done, then "what's left on my list" read
+    the empty shopping list."""
+
+    def test_my_list_is_tasks_unless_shopping_was_the_topic(self):
+        from aletheia import converse
+        done = [{"he_asked": "I picked up the dry cleaning", "she_answered": "Done: pick up dry cleaning."}]
+        shop = [{"he_asked": "add eggs", "she_answered": "Added to the shopping list: eggs."}]
+        with mock.patch.object(converse, "recent", return_value=done):
+            self.assertEqual(voice.interpret("what's left on my list")["command"], {"kind": "tasks"})
+        with mock.patch.object(converse, "recent", return_value=shop):
+            self.assertEqual(voice.interpret("what's left on my list")["command"], {"kind": "shopping_list"})
+
+
 if __name__ == "__main__":
     unittest.main()

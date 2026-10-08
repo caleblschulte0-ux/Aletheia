@@ -3550,6 +3550,11 @@ def _interpret(transcript: str) -> dict:
     named = _named_list_said(low, text)
     if named:
         return named
+    # "I picked up the dry cleaning" ("Done: ..."), then "what's left on my
+    # list" read the empty SHOPPING list (2026-10-08). "My list" with no
+    # kind is the one the last turns were about; tasks unless shopping.
+    if re.fullmatch(r"what'?s? ?(?:is )?(?:left|still|remaining) on (?:my|the) list", low) and not _in_a_shopping_turns():
+        return {"command": {"kind": "tasks"}, "say": None}
     if re.fullmatch(r"(what'?s?( is)? on )?(my |the )?(shopping|grocery) list"
                     r"|how many (things|items) (are )?on (my |the )?(shopping |grocery )?list"
                     r"|what do i need (to buy|from the (shop|store|grocery store))"
