@@ -7583,5 +7583,34 @@ class DinnerTonightAndWhenHeAte(unittest.TestCase):
             self.assertIn("haven't told me", quick.answer("when did I last eat"))
 
 
+class SchoolTestsGradesAndClassDays(unittest.TestCase):
+    """2026-10-08: "I have a test on Friday", "I got an A on my test", "my
+    GPA is 3.5" and "I have class at 9 on Mondays and Wednesdays" all went
+    to the planner, and "do I have class tomorrow" was a FILE search."""
+
+    def test_they_are_kept(self):
+        self.assertEqual(voice._interpret("I have a test on friday")["command"]["kind"], "calendar_hold")
+        for said in ("I got an A on my test", "I scored 92 on the midterm", "I passed my driving test", "my gpa is 3.5",
+                     "my credit score is 720", "I have class at 9 on mondays and wednesdays"):
+            self.assertEqual((voice._interpret(said) or {}).get("command", {}).get("kind"), "note", said)
+
+    def test_getting_on_the_bus_is_not_a_grade(self):
+        self.assertNotEqual((voice._interpret("I got on the bus") or {}).get("command", {}).get("kind"), "note")
+
+    def test_a_day_question_is_not_a_file(self):
+        self.assertNotEqual(((voice._interpret("do I have class tomorrow") or {}).get("command") or {}).get("kind"), "file_find")
+
+    def test_class_days_answer_the_day(self):
+        rows = [{"text": "I have class at 9 on mondays and wednesdays", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertTrue(quick.answer("do I have class on monday").startswith("Yes - "))
+            self.assertTrue(quick.answer("do I have class on friday").startswith("No - "))
+
+    def test_how_he_did(self):
+        rows = [{"text": "I got an A on my test", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how did I do on my test"), "You told me you got an A on your test.")
+
+
 if __name__ == "__main__":
     unittest.main()

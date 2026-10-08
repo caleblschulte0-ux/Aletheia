@@ -5510,6 +5510,12 @@ def _interpret(transcript: str) -> dict:
     # "Find me 30 minutes tomorrow" is time on his calendar, not a file.
     if m and re.match(r"(?:me )?(?:an hour|half an hour|\d{1,3} minutes|\d hours?|some time|a slot|time)\b", m.group(1)):
         m = None
+    # "Do I have class tomorrow" is his week, not a file (2026-10-08: a file
+    # search for "class tomorrow"). A day at the end is never in a file name.
+    if m and re.match(r"(?:do i have|have i got) ", low) and re.search(
+            r" (?:today|tonight|tomorrow|this weekend|next week|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday"
+            r"|friday|saturday|sunday))$", m.group(1)):
+        m = None
     if m and not _not_a_file(m.group(1)):
         return {"command": {"kind": "file_find",
                             "query": _as_he_said(transcript, m.group(1))},
@@ -8294,6 +8300,8 @@ def _interpret(transcript: str) -> dict:
     # same hold with the verb left off; the noun list keeps it a diary entry.
     told = re.fullmatch(r"(?P<lead>(?:add|schedule|put|pencil in|set up|i have|i've got|i got|i have got) )?(?:a |an |my )?"
                         r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
+                        # "I have a test on Friday" (2026-10-08: to the planner).
+                        r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
                         r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
@@ -8582,6 +8590,13 @@ def _interpret(transcript: str) -> dict:
                      r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
     if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # A GRADE OR A SCORE (2026-10-08: "I got an A on my test" went to the
+    # planner). A note; "how did I do on my test" reads it back.
+    if re.fullmatch(r"(?:i |we )?(?:just )?(?:got|scored|made|received)(?: an?)? (?:[a-f][+-]?|\d{1,3}(?:\.\d)?(?:%| percent)?"
+                    r"|\d{1,3} ?(?:/|out of) ?\d{1,3}) on (?:my |the |our |his |her )?[a-z][a-z' ]{1,30}"
+                    r"|(?:i |we )?(?:just )?(?:passed|failed|aced|bombed) (?:my |the |our )[a-z][a-z' ]{0,20}"
+                    r"(?:test|exam|quiz|midterm|final|class|course|interview)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS WORK DAYS (2026-10-08: "I work Monday to Friday" went to the
     # planner). A note; "do I work Saturday" reads it.
     _day = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
@@ -8761,12 +8776,19 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )(?P<thing8>[a-z][a-z ]{1,25}?)"
                          r" (?:on )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|today|tomorrow|(?:this |next )?"
                          r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+         # "I have class at 9 on Mondays and Wednesdays" (2026-10-08: to the
+         # planner): a time, then the plural days, joined.
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to) "
+                         r"(?P<thing10>[a-z][a-z ]{1,20}?) at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))? (?:on |every )?"
+                         r"(?:mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays|weekends|weekdays)"
+                         r"(?:(?:,| and|, and) (?:mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays))*", low)
          # "The kids have soccer at 5 on Saturday": no article, and the time
          # before the day (2026-10-08: to the planner).
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )?(?P<thing9>[a-z][a-z ]{1,20}?)"
                          r" at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))? (?:on |this |next )?(?:" + SPOKEN_DATE + r"|today|tonight|tomorrow"
                          r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low))
-    if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6")) and low.startswith("i have ")
+    if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6") or m.groupdict().get("thing10"))
+              and low.startswith(("i have ", "we have ", "i go to "))
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
@@ -8806,6 +8828,8 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
                      r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
                      r"|anniversary|account number|member(?:ship)? number|policy number"
+                     # "My GPA is 3.5", "my credit score is 720" (2026-10-08: to the planner).
+                     r"|gpa|credit score|sat score|act score|golf handicap|handicap"
                      # "My flight number is UA 452" (2026-10-07: to the
                      # planner) - held to a digit below.
                      r"|(?P<coded>(?:flight|confirmation|booking|reservation|tracking|order|case|ticket|claim|seat|gate"

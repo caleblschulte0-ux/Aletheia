@@ -516,6 +516,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_age", re.compile(
         r"^(?:what(?:'s| is|s)|which is) (?:my |the )?(?P<task_age>oldest|newest|latest|most recent|first|last) "
         r"(?:task|thing on my (?:list|to ?do list)|to ?do)(?: on my list)?\s*\??$")),
+    # "Do I have class tomorrow" after "I have class at 9 on Mondays and
+    # Wednesdays" (2026-10-08: a FILE search). Placed after the readers for
+    # "anything", "plans" and "meetings", which say the whole day.
+    ("do_i_have", re.compile(
+        r"^(?:do|will) (?:i|we) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
+        r"(?P<do_i_have>[a-z][a-z' ]{1,20}? (?:today|tonight|tomorrow|this weekend|(?:on |this |next )?"
+        r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))\s*\??$")),
+    # "How did I do on my test" after "I got an A on my test" (2026-10-08).
+    ("how_did_i_do", re.compile(
+        r"^(?:how did i do|what did i get|what was my (?:grade|score|mark)) on (?:my |the |our )?(?P<how_did_i_do>[a-z][a-z' ]{1,30}?)\s*\??$")),
     # "When did I last eat" after "I ate at 7" (2026-10-08: to a model; an
     # irregular verb the did-last reader cannot make).
     ("last_ate", re.compile(
@@ -2693,7 +2703,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11302,6 +11312,75 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _do_i_have(rest) -> str | None:
+    """Whether a thing of his falls on a day: his calendar first, then the
+    days he told her it happens. None when neither says, so the question
+    goes on as it was."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    said = " ".join(str(rest or "").casefold().split())
+    thing = re.sub(r" (?:today|tonight|tomorrow|this weekend|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday"
+                   r"|friday|saturday|sunday))$", "", said).strip()
+    if thing in ("work", "to work"):
+        day = re.search(r"(today|tonight|tomorrow|this weekend|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday"
+                        r"|friday|saturday|sunday))\s*\??$", said)
+        return _do_i_work(day.group(1)) if day else None
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    asked = re.search(r"(today|tonight|tomorrow|this weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$", said)
+    if not asked:
+        return None
+    a = asked.group(1)
+    if a == "this weekend":
+        targets = [today + dt.timedelta(days=(5 - today.weekday()) % 7 + i) for i in (0, 1)]
+    elif a in ("today", "tonight"):
+        targets = [today]
+    elif a == "tomorrow":
+        targets = [today + dt.timedelta(days=1)]
+    else:
+        targets = [today + dt.timedelta(days=(_DAYS.index(a) - today.weekday()) % 7)]
+    words = [w for w in re.findall(r"[a-z0-9']+", thing.casefold()) if w not in ("my", "the", "a", "an", "our")]
+    if not words:
+        return None
+    for at, title, store in _coming():
+        local = at.astimezone(tz)
+        if store == "calendar" and local.date() in targets and all(re.search(rf"\b{re.escape(w.rstrip('s'))}", title.casefold())
+                                                                   for w in words):
+            return f"Yes - {title.rstrip('.')} {speech.humanize_time(at.isoformat())}."
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        low = note.casefold()
+        if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
+            continue
+        plural = {i for i, d in enumerate(_DAYS) if re.search(rf"\b{d}s\b", low)}
+        if re.search(r"\bweekdays\b", low):
+            plural |= {0, 1, 2, 3, 4}
+        if re.search(r"\bweekends\b", low):
+            plural |= {5, 6}
+        if plural:
+            told = speech.as_she_says_it(note).rstrip(".")
+            yes = any(d.weekday() in plural for d in targets)
+            return f"{'Yes' if yes else 'No'} - you told me {told[:1].lower()}{told[1:]}."
+    return None
+
+
+def _how_did_i_do(rest) -> str | None:
+    """The grade or score he told her for a test, newest first. None when he
+    told her none, so the question goes on."""
+    from aletheia import speech
+    thing = [w for w in re.findall(r"[a-z0-9']+", str(rest or "").casefold()) if w not in ("my", "the", "our")]
+    if not thing:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.search(r"\b(?:got|scored|made|received|passed|failed)\b", low) \
+                and all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in thing):
+            told = speech.as_she_says_it(said).rstrip(".")
+            return f"You told me {told[:1].lower()}{told[1:]}."
+    return None
+
+
 def _last_ate() -> str:
     """When he last told her he ate, from his notes, newest first."""
     from aletheia import speech
@@ -13330,6 +13409,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_called": _who_called,
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),
+           "how_did_i_do": _how_did_i_do,
+           "do_i_have": _do_i_have,
            "task_age": _task_age,
            "who_coming_noted": _who_coming_noted,
            "asked_on": _asked_on,
