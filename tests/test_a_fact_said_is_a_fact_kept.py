@@ -5848,5 +5848,16 @@ class ADateByItsName(unittest.TestCase):
             self.assertIn("Nothing's on your calendar", nxt)
 
 
+class TwoTimesSaidFirst(unittest.TestCase):
+    """2026-10-08: "remind me at 9 tomorrow and at 5 to call the bank" went
+    to the planner. A day said once is both times' day."""
+
+    def test_one_reminder_per_time(self):
+        self.assertEqual(voice.two_asks("remind me at 9 tomorrow and at 5 to call the bank"),
+                         ["remind me at 9 tomorrow to call the bank", "remind me at 5 tomorrow to call the bank"])
+        self.assertEqual(voice.two_asks("remind me at 8 friday and again at noon about the rent"),
+                         ["remind me at 8 friday about the rent", "remind me at noon friday about the rent"])
+
+
 if __name__ == "__main__":
     unittest.main()

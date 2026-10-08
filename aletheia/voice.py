@@ -2389,6 +2389,19 @@ def two_asks(transcript: str) -> list[str] | None:
         if 2 <= len(asks) <= 6 and all(handled(a) for a in asks):
             return asks
 
+    # "Remind me at 9 tomorrow and at 5 to call the bank" (2026-10-08: to
+    # the planner). The times come first; a day said once is both times'.
+    day = r"(?:today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    first = re.fullmatch(rf"remind me at (?P<t1>{clock})(?: (?:on )?(?P<w1>{day}))? and (?:again )?(?:at )?(?P<t2>{clock})"
+                         rf"(?: (?:on )?(?P<w2>{day}))? (?P<to>to|about) (?P<what>.+)", said, re.IGNORECASE)
+    if first and not re.search(r"\bat \d", first.group("what")):
+        w1 = first.group("w1") or first.group("w2") or ""
+        w2 = first.group("w2") or first.group("w1") or ""
+        asks = [" ".join(f"remind me at {t} {w} {first.group('to')} {first.group('what').strip()}".split())
+                for t, w in ((first.group("t1"), w1), (first.group("t2"), w2))]
+        if all(handled(a) for a in asks):
+            return asks
+
     # "Set a timer for pasta for 10 minutes and one for the oven for 20"
     # (2026-10-07: to the planner): "one" is another timer, and a bare 20
     # takes the first timer's unit.
