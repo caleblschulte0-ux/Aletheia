@@ -381,6 +381,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who is Dana" (2026-10-07: to the planner) - her contact card and his
     # notes about them. Neither found is NOT "nobody": it may be someone
     # famous, so it goes on to a model.
+    # "What's the last thing I told you", "did I tell you about my trip"
+    # (2026-10-07: a model and the planner, with the notes right there).
+    ("told_last", re.compile(
+        r"^what(?:'s| is| was) the last thing i (?:told you|said|asked you to remember|had you (?:note|remember))\s*\??$"
+        r"|^(?:did|have) i (?:ever |already )?(?:tell|told) you about (?P<told_about>[a-z][a-z0-9' ]{1,40}?)\s*\??$")),
     # "What does Sam like" (2026-10-07: to a model, after "Sam likes coffee").
     ("their_likes", re.compile(
         r"^what (?:does|do) (?P<tl_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20}) (?P<tl_verb>like|love|hate|enjoy|collect|not like)"
@@ -2372,7 +2377,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11101,6 +11106,32 @@ def _job_since(text: str) -> str | None:
     return None
 
 
+def _told_last(text: str) -> str | None:
+    """His newest note, or the newest one about what he names. None when
+    nothing he named was kept: he may have said it in a conversation a
+    model answered, so this is never "you didn't"."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    about = " ".join(str(_groups("told_last", text).get("told_about") or "").casefold().split())
+    words = [w for w in re.findall(r"[a-z0-9']+", about) if w not in ("my", "the", "a", "an", "our", "your")]
+    # "My trip" is how he refers to "I'm going to Denver next weekend".
+    kin = {"trip": r"\b(?:trip|vacation|holiday|going to|heading to|flying to|driving to|visiting|flight)\b",
+           "vacation": r"\b(?:trip|vacation|holiday)\b", "job": r"\b(?:job|work|boss)\b", "move": r"\bmov(?:e|ing)\b"}
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if not said or (words and not all(re.search(kin.get(w, rf"\b{re.escape(w)}"), said, re.I) for w in words)):
+            continue
+        hers = speech.as_she_says_it(re.sub(r"^(?:Journal|Idea): ", "", said)).rstrip(".")
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            when = speech.humanize_time(at.isoformat())
+        except ValueError:
+            when = ""
+        lead = "Yes - you told me" if words else "You told me"
+        return f"{lead}{' ' + when if when else ''}: {hers}."
+    return None
+
+
 def _their_likes(text: str) -> str | None:
     """"What does Sam like": his notes saying what someone likes or
     doesn't. None when there are none - a model may know them better."""
@@ -11584,6 +11615,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "loan_left": lambda text: _loan_left(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
+           "told_last": lambda text: _told_last(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),
            "shopping_has": lambda rest: _shopping_has(rest),

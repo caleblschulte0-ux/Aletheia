@@ -5730,5 +5730,19 @@ class WhatSomeoneLikes(unittest.TestCase):
         self.assertIn("You should be", out["say"])
 
 
+class TheLastThingHeToldHer(unittest.TestCase):
+    """2026-10-07: "what's the last thing I told you" and "did I tell you
+    about my trip" went to a model and the planner."""
+
+    def test_read_from_his_notes(self):
+        rows = [{"text": "my boss is Karen", "ts": "2026-10-07T12:00:00+00:00"},
+                {"text": "I'm going to Denver next weekend", "ts": "2026-10-07T11:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("your boss is Karen", quick.answer("what's the last thing I told you"))
+            self.assertIn("Denver next weekend", quick.answer("did I tell you about my trip"))
+            # Nothing kept is not "you didn't": he may have said it to a model.
+            self.assertIsNone(quick._told_last("did i tell you about my car"))
+
+
 if __name__ == "__main__":
     unittest.main()
