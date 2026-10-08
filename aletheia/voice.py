@@ -9411,6 +9411,10 @@ def _interpret(transcript: str) -> dict:
     # a day is the meal plan; dinner WITH somebody or AT a place stays a hold.
     dish = re.fullmatch(r"(?P<w>[a-z][a-z ,'&-]{1,40}?) for (?:dinner|supper) (?:on )?(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)?"
                         r"|(?P<d2>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)? is (?P<w2>[a-z][a-z ,'&-]{1,30}?) night", low)
+    # "What's for dinner tonight" put "what's" on the meal plan (2026-10-08).
+    # A question is never an instruction.
+    if dish and re.match(r"(?:what|whats|what's|who|where|how|when|which|anything|something|is|are|do)\b", dish.group("w") or dish.group("w2") or ""):
+        dish = None
     if dish and not re.search(r"\b(?:with|at|reservations?|out|party|meeting|date)\b", dish.group("w") or dish.group("w2") or ""):
         what = dish.group("w") or f"{dish.group('w2')} night"
         return _interpret(f"we are having {what} {dish.group('d') or dish.group('d2')}")
@@ -11402,6 +11406,10 @@ def _interpret(transcript: str) -> dict:
                     r"(?: company| provider| carrier| plan)? is (?:with |through )?[a-z][a-z&.' -]{1,30}", low) \
             and not re.search(r"\b(?:is (?:due|expired|expiring|up|going up|too|so|really|very|cheap|expensive|\d))", low) \
             or re.fullmatch(r"(?:i'?ve|i have|we'?ve|we have) (?:met|paid|hit|spent|used) \$?\d[\d,]*(?: dollars)? (?:of|toward|towards|on) (?:my|our|the) (?:deductible|out of pocket(?: max(?:imum)?)?)(?: so far| this year)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "We ordered Chinese" (2026-10-08: to the planner) is what they ate.
+    from aletheia import quick as _qt
+    if re.fullmatch(rf"(?:i|we) (?:just )?ordered (?:in|out|{_qt._TAKEOUT})(?: for (?:dinner|lunch))?(?: tonight| today| last night)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):

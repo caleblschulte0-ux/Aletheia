@@ -12634,6 +12634,25 @@ class InsuranceAndTheDeductible(unittest.TestCase):
             self.assertIsNone(quick.answer("who is my health insurance with"))
 
 
+class WhatsForDinnerIsAQuestion(unittest.TestCase):
+    """2026-10-08: "what's for dinner tonight" put "What's" on the meal plan,
+    and "we ordered Chinese" went to the planner."""
+
+    def test_a_question_is_never_a_dish(self):
+        for said in ("what's for dinner tonight", "whats for dinner tonight", "what is for dinner tomorrow"):
+            self.assertNotEqual((voice.interpret(said)["command"] or {}).get("kind"), "list_add", said)
+        self.assertEqual(voice.interpret("tacos for dinner on Monday")["command"]["item"], "Monday: tacos")
+
+    def test_takeout_is_what_they_had(self):
+        import datetime as dt
+        from aletheia import localtime
+        self.assertEqual(voice.interpret("we ordered Chinese")["command"]["kind"], "note")
+        evening = (dt.datetime.now(localtime.operator_tz()) - dt.timedelta(days=1)).replace(hour=19).isoformat()
+        rows = [{"text": "we ordered Chinese", "ts": evening}, {"text": "I ordered a new phone", "ts": evening}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what did we have for dinner last night"), "You told me you had Chinese for dinner yesterday.")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

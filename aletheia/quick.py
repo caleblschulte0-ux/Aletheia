@@ -506,7 +506,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|(?<=calories )(?:did i eat|have i eaten|have i had|did i have))"
         r"(?P<counted_when> today| this week| yesterday)?\s*\??$")),
     ("ate", re.compile(
-        r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
+        r"^what did (?:i|we) (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
         r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$"
         # "Did I eat lunch" (2026-10-08: to the planner, with "I ate lunch" kept).
         r"|^(?:did|have) i (?:eat|eaten|had|have) (?P<ate_yes>breakfast|lunch|dinner|supper)(?P<ate_when3> today| yet| yesterday)?\s*\??$")),
@@ -13915,6 +13915,12 @@ def _liked_how(text: str) -> str | None:
     return f"You haven't told me how you like your {thing}. Tell me once and I'll remember it."
 
 
+#: What "we ordered ..." names when it is a meal and not a parcel.
+_TAKEOUT = (r"(?:in |takeout |take out |delivery |some )?(?:chinese|pizza|thai|indian|sushi|mexican|takeout|take out|food|tacos|burgers|wings|pho"
+            r"|ramen|subs|sandwiches|bbq|barbecue|korean|vietnamese|greek|italian|mediterranean|fried chicken|kfc|mcdonald'?s|chipotle|dominos|domino'?s"
+            r"|panda express|wendy'?s|taco bell|chick-fil-a|five guys)(?: food)?")
+
+
 def _ate(text: str) -> str | None:
     """"What did I have for lunch yesterday": his notes saying "I had a
     burrito for lunch" or "I ate a salad", for that day (and that meal, when
@@ -13935,15 +13941,17 @@ def _ate(text: str) -> str | None:
     today = dt.datetime.now(tz).date()
     day = today - dt.timedelta(days=1) if when == "yesterday" else today
     said = re.compile(r"^(?:for (breakfast|lunch|dinner|supper|dessert)(?: today| yesterday| tonight)?,? )?"
-                      r"i (?:just )?(?:had|ate|(?P<made>made|cooked|grabbed|ordered|got)) (.+?)(?: for (breakfast|lunch|dinner|supper|a snack|dessert))?"
+                      r"(?:i|we) (?:just )?(?:had|ate|(?P<made>made|cooked|grabbed|ordered|got)) (.+?)(?: for (breakfast|lunch|dinner|supper|a snack|dessert))?"
                       r"(?: (today|yesterday|this morning|tonight|last night))?\.?$", re.IGNORECASE)
     hits: list[str] = []
     for row in _notes():
         m = said.match(" ".join(str(row.get("text") or "").split()))
         if not m:
             continue
-        # "I made tacos for dinner" is a meal; "I got a haircut" is not
-        if m.group("made") and not m.group(4):
+        # "I made tacos for dinner" is a meal; "I got a haircut" is not.
+        # "We ordered Chinese" is takeout, which is a meal (2026-10-08).
+        takeout = m.group("made") == "ordered" and re.fullmatch(_TAKEOUT, (m.group(3) or "").strip(), re.I)
+        if m.group("made") and not m.group(4) and not takeout:
             continue
         of = {"supper": "dinner", "a snack": "a snack"}.get((m.group(1) or m.group(4) or "").casefold(),
                                                             (m.group(1) or m.group(4) or "").casefold())
@@ -13954,6 +13962,12 @@ def _ate(text: str) -> str | None:
         if not of:
             # "I had pizza last night" is dinner (2026-10-07).
             of = {"last night": "dinner", "tonight": "dinner", "this morning": "breakfast"}.get((m.group(5) or "").casefold(), "")
+        if not of and takeout:
+            try:
+                hour = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).hour
+            except ValueError:
+                hour = 0
+            of = "dinner" if hour >= 16 else "lunch" if 11 <= hour < 16 else ""
         if meal and of != meal:
             continue
         try:
