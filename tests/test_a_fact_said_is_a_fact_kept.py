@@ -3760,7 +3760,9 @@ class PartsOfDaysAndMeetingDetails(unittest.TestCase):
     def test_free_tonight_is_english(self):
         import datetime as dt
         from aletheia import intercom
-        self.assertEqual(intercom._free_sentence([], dt.date.today(), "tonight"), "Nothing free tonight.")
+        from aletheia import localtime
+        # HIS today: the process's date is already tomorrow after 7 pm in Chicago.
+        self.assertEqual(intercom._free_sentence([], localtime.today(), "tonight"), "Nothing free tonight.")
 
 
 class AgesFromAYearAndTheEmailAskedFor(unittest.TestCase):
@@ -6830,6 +6832,33 @@ class AStateHeIsIn(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=rows):
             self.assertEqual(quick.answer("am I on call this weekend"), "You told me: you're on call this weekend.")
             self.assertIsNone(quick.answer("am I on a diet"))
+
+
+
+class HisWorkHoursAndTomorrowMorning(unittest.TestCase):
+    """2026-10-08: "my work hours are 9 to 5" went to the planner, "how long
+    until I get off work" to a model, and "do I have anything tomorrow
+    morning" with the dentist at 9 said "Free this morning 10 am to 12:15"."""
+
+    def test_work_hours_kept_and_read(self):
+        self.assertEqual(voice.interpret("my work hours are 9 to 5")["command"],
+                         {"kind": "note", "text": "my work hours are 9 to 5"})
+        rows = [{"text": "my work hours are 9 to 5", "ts": "2026-10-08T03:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what time do I get off work"), "You told me: your work hours are 9 to 5.")
+            self.assertRegex(quick.answer("how long until I get off work"), r"get off at 5 pm\.$")
+            self.assertRegex(quick.answer("how long until I start work"), r"start at 9 am(?: tomorrow)?\.$")
+
+    def test_a_part_of_a_day_says_what_is_on_it(self):
+        with mock.patch.object(quick, "_agenda_part", return_value="Tomorrow morning: dentist appointment at 9 am."):
+            self.assertEqual(voice.interpret("do I have anything tomorrow morning"),
+                             {"command": None, "say": "Tomorrow morning: dentist appointment at 9 am."})
+
+    def test_free_time_names_his_day(self):
+        from aletheia import intercom, localtime
+        import datetime as _dt
+        tomorrow = localtime.today() + _dt.timedelta(days=1)
+        self.assertEqual(intercom._free_sentence([], tomorrow, "morning"), "Nothing free tomorrow morning.")
 
 
 if __name__ == "__main__":

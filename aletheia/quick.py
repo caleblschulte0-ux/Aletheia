@@ -498,7 +498,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
-        r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$")),
+        r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
+        # "How long until I get off work" (2026-10-08: to a model).
+        r"|^how (?:long|much longer|much time) (?:until|till|before) i (?P<work_hours3>get off|finish|clock out|start|clock in)(?: work)?\s*\??$")),
     ("life_when", re.compile(
         r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
         r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?"
@@ -10674,8 +10676,11 @@ def _pay(question: str) -> str | None:
 
 
 _START_NOTE = re.compile(r"^(?:i (?:start|begin|get to|have to be at|need to be at|clock in at|clock in|go in)(?: work)?(?: at)?"
-                         r"|my (?:shift|work ?day) (?:starts|begins)(?: at)?) (?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
-_END_NOTE = re.compile(r"^(?:i (?:get off|finish|leave|clock out)(?: work)?(?: at)?|my (?:shift|work ?day) (?:ends|finishes)(?: at)?) "
+                         r"|my (?:shift|work ?day) (?:starts|begins)(?: at)?"
+                         # "My work hours are 9 to 5" (2026-10-08: to the planner).
+                         r"|my (?:work |working )?hours are|i work(?: from)?) (?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
+_END_NOTE = re.compile(r"^(?:(?:i (?:get off|finish|leave|clock out)(?: work)?(?: at)?|my (?:shift|work ?day) (?:ends|finishes)(?: at)?) "
+                       r"|(?:my (?:work |working )?hours are|i work(?: from)?) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))? (?:to|till|until|-) )"
                        r"(?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)")
 _COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
 
@@ -10863,13 +10868,44 @@ def _work_hours(text: str) -> str | None:
     """"What time do I start work": his note saying so, in his words."""
     from aletheia import speech
     g = _groups("work_hours", text)
-    which = g.get("work_hours") or g.get("work_hours2") or ""
+    which = g.get("work_hours") or g.get("work_hours2") or g.get("work_hours3") or ""
     note = _END_NOTE if which in ("get off", "finish", "clock out", "end") else _START_NOTE
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        if note.match(said.casefold()):
+        found = note.match(said.casefold())
+        if found and g.get("work_hours3"):
+            return _until_work(found.group("at"), which, said)
+        if found:
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     return None
+
+
+def _until_work(at: str, which: str, said: str) -> str | None:
+    """"How long until I get off work": the gap to the time he told her."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", at.strip())
+    if not m:
+        return None
+    hour, minute = int(m.group(1)) % 12, int(m.group(2) or 0)
+    off = which in ("get off", "finish", "clock out")
+    # A bare hour is the working day: "9 to 5" starts in the morning and
+    # ends in the afternoon.
+    if m.group(3) == "pm" or (not m.group(3) and (off and hour < 12 or not off and hour < 6)):
+        hour += 12 if hour < 12 else 0
+    now = dt.datetime.now(localtime.operator_tz())
+    then = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    clock = then.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    day = ""
+    if then <= now:
+        if off:
+            return f"You're done for the day - you get off at {clock}."
+        then, day = then + dt.timedelta(days=1), " tomorrow"
+    left = int((then - now).total_seconds() // 60)
+    h, mm = divmod(left, 60)
+    gap = speech.count_phrase(mm, "minute") if not h else speech.count_phrase(h, "hour") + (
+        f" and {speech.count_phrase(mm, 'minute')}" if mm else "")
+    return f"{gap[:1].upper() + gap[1:]} - you {'get off' if off else 'start'} at {clock}{day}."
 
 
 def _leave_for_work() -> str | None:

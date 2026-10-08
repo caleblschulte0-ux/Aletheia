@@ -5250,6 +5250,17 @@ def _interpret(transcript: str) -> dict:
                 on = None
             if on and (not on.startswith("Nothing on your calendar") or ", but " in on):
                 return {"command": None, "say": on}
+        # "Do I have anything tomorrow morning" with the dentist at 9 said
+        # "Free this morning 10 am to 12:15 pm" (2026-10-08). The same rule
+        # for a part of a day: what is on it first.
+        if day and part:
+            from aletheia import quick
+            try:
+                on = quick._agenda_part(f"what do i have {said_day}")
+            except Exception:
+                on = None
+            if on and not on.startswith("Nothing on your calendar"):
+                return {"command": None, "say": on}
         if day:
             command = {"kind": "free_time", "day": day}
             if part:
@@ -8820,6 +8831,11 @@ def _interpret(transcript: str) -> dict:
                     "say": "Goodnight. I'll keep going quietly."}
     if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
+    # "My work hours are 9 to 5", "I work 9 to 5" (2026-10-08: to the
+    # planner). Kept in his words; "what time do I get off" reads it.
+    if re.fullmatch(r"(?:my (?:work |working )?hours are|i work(?: from)?) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))? (?:to|till|until|-) "
+                    r"\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: (?:on )?(?:weekdays|monday to friday|monday through friday|every day))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm on a diet", "I'm on call this weekend", "I started keto"
     # (2026-10-08: to a model, which kept nothing). A state he is in is a
     # note in his words; "what did I tell you about my diet" reads it.

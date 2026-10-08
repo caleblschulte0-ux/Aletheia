@@ -2789,7 +2789,10 @@ def _free_sentence(ranges: list, day, part: str) -> str:
         text = moment.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ")
         return text.replace(" AM", " am").replace(" PM", " pm")
 
-    when = speech.humanize_time(f"{day.isoformat()}T12:00:00").split(" at ")[0]
+    # His noon, not the process's: a naive stamp was read against UTC, so
+    # after 7 pm in Chicago tomorrow was "this morning" (2026-10-08).
+    noon = _dt.datetime.combine(day, _dt.time(12, 0), tzinfo=localtime.operator_tz())
+    when = speech.humanize_time(noon.isoformat()).split(" at ")[0]
     if part:
         # "today evening" is not English. Today takes "this"; every other
         # day keeps its name ("tomorrow afternoon", "Friday morning").
