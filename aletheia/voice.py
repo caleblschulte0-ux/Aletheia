@@ -2701,7 +2701,7 @@ def _apostrophes(transcript: str) -> str:
     # "My wife ring size is 6", "my wife favorite flower is tulips"
     # (2026-10-08: to the planner) - the apostrophe and its s both dropped.
     said = re.sub(r"\b((?:my|our) (?:wife|husband|mom|mother|dad|father|son|daughter|sister|brother|girlfriend|boyfriend|partner"
-                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat|boss|manager|coworker|landlord|neighbor|neighbour|doctor|dentist|teacher|friend)) (name|ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
+                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat|boss|manager|coworker|landlord|neighbor|neighbour|doctor|dentist|teacher|friend)) (name|weight|breed|vet|ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
                   r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy)\b", r"\1's \2", said, flags=re.I)
     # "Whats coming up", "whats the most important thing today" (2026-10-08:
     # each to a model) - typed without the apostrophe, they missed every
@@ -4386,7 +4386,10 @@ def _interpret(transcript: str) -> dict:
          # "I used the last of the milk" (2026-10-08: to the planner)
          or re.fullmatch(r"(?:i|we) (?:just )?(?:used|finished|ate|drank|had) (?:up )?the last of (?:the |our |my )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
-         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
+         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         # "The cat food is running low" (2026-10-08: to the planner).
+         or re.fullmatch(r"(?:the |our |my )(?P<item>(?!(?:phone|battery|batteries|gas|tank|tires?|signal|data|storage|money|time|budget|balance"
+                         r"|funds|account|savings|patience|water pressure|oil|car|laptop|tablet)\b)[a-z][a-z '-]{1,30}?) (?:is|are) (?:running low|getting low|almost gone|almost out|running out)", low))
     # "I need to pick up my prescription tomorrow" was put on the shopping
     # list as "my prescription tomorrow" (2026-10-07): a pick-up, or anything
     # with a day or a time in it, is an errand - the task rule below.

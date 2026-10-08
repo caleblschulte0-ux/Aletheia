@@ -12066,5 +12066,20 @@ class BookingTheTrip(unittest.TestCase):
                 self.assertEqual(quick.answer(asked), "You told me: you booked a hotel in Chicago for the 15th.", asked)
 
 
+class ThePetsAgain(unittest.TestCase):
+    def test_how_the_dog_is_doing_is_not_its_name(self):
+        notes = [{"text": "my dog was born in 2019"}, {"text": "my dog is limping"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertNotIn("Limping", quick.answer("how old is my dog") or "")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my boss is Karen"}]):
+            self.assertEqual(quick.answer("who is my boss"), "Your boss is Karen.")
+
+    def test_a_bath_food_running_low_and_the_dogs_weight(self):
+        self.assertEqual(voice.interpret("the cat food is running low")["command"], {"kind": "shopping_add", "item": "cat food"})
+        self.assertNotEqual(voice.interpret("the battery is running low")["command"]["kind"], "shopping_add")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my dog weighs 45 pounds"}]):
+            self.assertEqual(quick.answer("what is my dog weight"), "You told me: your dog weighs 45 pounds.")
+
+
 if __name__ == "__main__":
     unittest.main()
