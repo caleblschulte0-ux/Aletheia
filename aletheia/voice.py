@@ -1331,6 +1331,12 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
         hour, minute = map(int, hhmm.split(":"))
         if _is_bare_hour(time_words) and 1 <= hour <= 7:
             hour += 12
+        # "A party on the 24th at 8" was held at 8 am (2026-10-07): an
+        # evening thing at a bare 8 to 11 is the evening.
+        elif _is_bare_hour(time_words) and 8 <= hour <= 11 and re.search(
+                r"\b(?:party|dinner|supper|drinks|concert|show|movie|movies|game night|date night|date|gig|play|bar"
+                r"|happy hour|club|birthday party|reception|gala|karaoke|poker)\b", str(title).casefold()):
+            hour += 12
         if part in ("evening", "night") and hour < 12:
             hour += 12
     else:

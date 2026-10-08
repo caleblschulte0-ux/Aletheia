@@ -5781,5 +5781,25 @@ class NextThursdayIsAsked(unittest.TestCase):
             self.assertEqual(voice._interpret(said)["command"]["kind"], "shopping_add", said)
 
 
+class APartyAtEightIsTheEvening(unittest.TestCase):
+    """2026-10-07: "I have a party on the 24th at 8" was held at 8 am;
+    "what's on the 24th" and "how many days until the party" went to a
+    model, and a far-off "how long until" said "17 days and 32 minutes"."""
+
+    def test_evening_things_at_a_bare_hour(self):
+        for said in ("I have a party on the 24th at 8", "dinner with Sam friday at 8"):
+            self.assertEqual(dt.datetime.fromisoformat(voice._interpret(said)["command"]["start"]).hour, 20, said)
+        self.assertEqual(dt.datetime.fromisoformat(voice._interpret("I have a meeting friday at 8")["command"]["start"]).hour, 8)
+
+    def test_whats_on_a_date_and_until_a_thing(self):
+        self.assertEqual(quick.match("what's on the 15th")[0], "agenda_on")
+        self.assertIsNone(quick.match("what's the 15th"))
+        from aletheia import localtime
+        at = dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=17, minutes=32)
+        with mock.patch.object(quick, "_coming", return_value=[(at, "party", "calendar")]):
+            said = quick._until_mine("party")
+        self.assertTrue(said.startswith("17 days - "), said)
+
+
 if __name__ == "__main__":
     unittest.main()

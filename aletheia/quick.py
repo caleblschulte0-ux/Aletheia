@@ -1177,7 +1177,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|anything (?:on|happening)|am i (?:free|busy)"
         # "What did I have yesterday" (2026-10-07: to a model).
         r"|what (?:was|did i have) on (?:my |the )?(?:calendar|schedule|agenda)|what did i have(?: on)?|what meetings did i have"
-        r"|did i have anything(?: on)?|was i busy)"
+        r"|did i have anything(?: on)?|was i busy"
+        # "What's on the 15th" (2026-10-07: to a model) - "on" said once.
+        r"|what(?:'s| is|s)?(?= on ))"
         r" (?:on |for )?(?P<agenda_on>yesterday|the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
         r"|september|october|november|december))?|(?:january|february|march|april|may|june|july|august|september|october"
         r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
@@ -3648,7 +3650,10 @@ def _until_mine(words: str) -> str | None:
         days = 5 - now.weekday()
         return "Tomorrow is Saturday." if days == 1 else f"{days} days - it starts Saturday."
     thing = re.sub(r"^(?:my|the) (?:next )?|\s+(?:goes off|go off|is|starts|begins|rings)$", "", said)
-    if not thing or thing == said and not said.startswith(("my ", "the ")):
+    # "How many days until the party": the "the" was taken by the pattern
+    # (2026-10-07: to a model). A bare thing is still looked for; only a
+    # match on her own stores answers.
+    if not thing:
         return None
     timer = re.fullmatch(r"(?:\w+ )?(?:timer|alarm)", thing)
     for at, text, store in _coming():
@@ -3664,7 +3669,14 @@ def _until_mine(words: str) -> str | None:
         minutes = max(0, int(round((at - now).total_seconds() / 60)))
         days, rest = divmod(minutes, 24 * 60)
         hours, mins = divmod(rest, 60)
-        parts = [speech.count_phrase(n, unit) for n, unit in ((days, "day"), (hours, "hour"), (mins, "minute")) if n]
+        # "17 days and 32 minutes" (2026-10-07): the two biggest units that
+        # sit side by side, and a day count past a few days on its own.
+        if days >= 3:
+            parts = [speech.count_phrase(days + (1 if hours >= 12 else 0), "day")]
+        elif days:
+            parts = [speech.count_phrase(days, "day")] + ([speech.count_phrase(hours, "hour")] if hours else [])
+        else:
+            parts = [speech.count_phrase(n, unit) for n, unit in ((hours, "hour"), (mins, "minute")) if n]
         span = " and ".join(parts[:2]) if parts else "less than a minute"
         return f"{span[:1].upper()}{span[1:]} - {speech.humanize_time(at.isoformat())}."
     return None
