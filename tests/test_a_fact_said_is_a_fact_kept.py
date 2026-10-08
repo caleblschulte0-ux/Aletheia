@@ -7787,5 +7787,12 @@ class TheYearHeWasBornJoinsHisBirthday(unittest.TestCase):
 
 
 
+class NextTuesdayIsTheDaysAgenda(unittest.TestCase):
+    def test_next_and_this_read_that_day(self):
+        self.assertEqual(quick._direct("whats on next tuesday"), "what's on tuesday")
+        self.assertEqual(quick._direct("what do i have this friday"), "what's on friday")
+
+
+
 if __name__ == "__main__":
     unittest.main()

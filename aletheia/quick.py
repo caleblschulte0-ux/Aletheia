@@ -2606,6 +2606,13 @@ def _direct(text: str) -> str:
                      r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
+    # "What's on next Tuesday" (2026-10-08: to a model, a turn after "a
+    # dentist appointment next Tuesday" was put on the coming Tuesday): the
+    # same day the hold was put on, asked the way the agenda reads it.
+    m = re.fullmatch(r"(?P<head>what(?:'s| is|s)? on(?: my calendar| my schedule)?(?: for)?|what do i have(?: on)?|what have i got(?: on)?)"
+                     r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
+    if m:
+        return f"what's on {m.group('day')}"
     # "What should I eat" (2026-10-08: "I can't think just now"): the meal
     # it is time for, asked the way the meal-idea reader already answers.
     if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \
