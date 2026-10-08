@@ -2073,6 +2073,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("news_when", re.compile(
         r"^when did (?:i|we) (?P<news_when>get (?:promoted|hired|engaged|married|the job|(?:a |my |the )?(?:raise|promotion|offer|job offer|new job))"
         r"|graduate|quit my job|lose my job|get laid off|buy (?:a|the|our|my) (?:house|home|car)|close on (?:the|our|my) house)\s*\??$")),
+    # "What did I need to call the vet about" (2026-10-08: to a model, one
+    # turn after "I need to call the vet about Max" became a task).
+    ("task_about", re.compile(
+        r"^what (?:did|do) i (?:need|have|want|say i (?:need|had|wanted)) to (?P<task_about>[a-z][a-z' ]{2,50}?) (?:about|for)\s*\??$"
+        r"|^why (?:did|do) i (?:need|have|want) to (?P<task_about2>[a-z][a-z' ]{2,50}?)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2883,7 +2888,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13221,6 +13226,26 @@ def _weight() -> str | None:
     return None
 
 
+def _task_about(what: str) -> str | None:
+    """The open task he means, read back whole. None when no open task
+    starts with what he said: it may be on the calendar or in a note."""
+    from aletheia import tasks
+    words = [w for w in re.findall(r"[a-z0-9']+", what.casefold()) if w not in ("the", "my", "a", "an")]
+    if not words:
+        return None
+    try:
+        rows = [t for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in ("COMPLETED", "DONE", "CANCELLED", "DROPPED", "FAILED_TERMINAL")]
+    except Exception:
+        return None
+    for t in rows:
+        desc = " ".join(str(t.get("description") or "").split()).rstrip(".")
+        have = [w for w in re.findall(r"[a-z0-9']+", desc.casefold()) if w not in ("the", "my", "a", "an")]
+        if have[:len(words)] == words and len(have) > len(words):
+            return f"Your task says: {desc}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14013,6 +14038,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "news_when": _news_when,
+           "task_about": _task_about,
            "born_age": _born_age,
            "his_likes": lambda rest: _his_likes(),
            "sick_since": _sick_since,

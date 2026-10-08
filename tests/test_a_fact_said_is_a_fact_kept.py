@@ -8647,5 +8647,19 @@ class HisBigNewsIsKept(unittest.TestCase):
 
 
 
+class WhatATaskWasAbout(unittest.TestCase):
+    """2026-10-08: "what did I need to call the vet about" went to a model
+    one turn after the task was added."""
+
+    def test_the_open_task_is_read_back(self):
+        from aletheia import quick, tasks
+        rows = [{"description": "call the vet about Max", "status": "PENDING"},
+                {"description": "call the bank about the card", "status": "COMPLETED"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows):
+            self.assertEqual(quick.answer("what did I need to call the vet about"), "Your task says: call the vet about Max.")
+            self.assertIsNone(quick.answer("what did I need to call the bank about"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
