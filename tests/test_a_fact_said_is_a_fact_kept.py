@@ -7103,6 +7103,17 @@ class INeedThings(unittest.TestCase):
         self.assertEqual(quick._direct("how is my weight loss going"), "how am i doing on my weight loss")
 
 
+class PutThemBack(unittest.TestCase):
+    """2026-10-08: "cancel all my reminders", a look at the list, then "put
+    them back" went to the planner."""
+
+    def test_the_cancel_two_turns_back_is_undone(self):
+        from aletheia import converse
+        turns = [{"he_asked": "cancel all my reminders"}, {"he_asked": "what reminders do I have"}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice._interpret("put them back")["command"], {"kind": "reminder_on", "which": "all reminders"})
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

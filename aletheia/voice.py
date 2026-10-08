@@ -3274,12 +3274,28 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "reminder_on", "which": "all " + (m.group("sort") or m.group("sort2"))}, "say": None}
     # "Put that back" after stopping a reminder (2026-10-07: the planner,
     # though every comment beside reminder_off promised one command).
-    m = re.fullmatch(r"(?:actually,? |no,? |wait,? )?(?:put|turn|switch) (?:that|it) back(?: on)?|bring (?:that|it) back"
-                     r"|(?:actually,? )?turn (?:that|it) on again", low)
+    # "Put them back" after "cancel all my reminders" (2026-10-08: the planner).
+    m = re.fullmatch(r"(?:actually,? |no,? |wait,? )?(?:put|turn|switch) (?:that|it|them|those)(?: all)? back(?: on)?"
+                     r"|bring (?:that|it|them|those)(?: all)? back|(?:actually,? )?turn (?:that|it|them|those) on again"
+                     r"|undo that", low)
     if m:
         previous = _previous_ask()
         before = (_interpret(previous).get("command") or {}) if previous else {}
-        if before.get("kind") == "reminder_off":
+        if before.get("kind") != "reminder_off":
+            # "Cancel all my reminders", "what reminders do I have", "put
+            # them back" (2026-10-08): a look at the list sits between.
+            try:
+                from aletheia import converse
+                for turn in reversed(converse.recent(limit=4) or []):
+                    said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", " ".join(str(turn.get("he_asked") or "").split()),
+                                  flags=re.IGNORECASE)
+                    got = (_interpret(said).get("command") or {}) if said and said.casefold() != low else {}
+                    if got.get("kind") == "reminder_off":
+                        before = got
+                        break
+            except Exception:  # noqa: BLE001
+                pass
+        if before.get("kind") == "reminder_off" and not before.get("once"):
             return {"command": {"kind": "reminder_on", "which": before["which"]}, "say": None}
     m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)", low)
     if m:
