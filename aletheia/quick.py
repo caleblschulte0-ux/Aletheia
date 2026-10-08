@@ -458,6 +458,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:did i eat|have i eaten)(?P<ate_when2> today| yesterday)?\s*\??$")),
     # "What have I lent out" (2026-10-08: to a model, with "I lent Mike my
     # drill" kept): every lend not since given back.
+    # "What time do I need to get up tomorrow" (2026-10-08: a memory search
+    # for "get up"): his alarm, and the first thing on his calendar.
+    ("get_up", re.compile(
+        r"^(?:what time|when) (?:do i|should i|will i) (?:need to |have to |got to )?(?:get up|wake up|be up)"
+        r"(?P<get_up> tomorrow| in the morning| today)?\s*\??$")),
     ("lent_out", re.compile(
         r"^(?:what|which things|what stuff) (?:have i|did i|do i have) (?:lend|lent|loan|loaned)(?: out)?(?: to (?:people|anyone|anybody))?\s*\??$"
         r"|^who (?:has|have|borrowed) (?:my|any of my) (?:stuff|things)\s*\??$|^what (?:do i have|have i got) (?:lent|loaned) out\s*\??$")),
@@ -11357,6 +11362,32 @@ def _lent(text: str) -> str | None:
     return f"You haven't told me you lent your {thing} to anybody."
 
 
+def _get_up(rest: str = "") -> str:
+    """His alarm that morning and the first thing on his calendar."""
+    import datetime as dt
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    day = now.date() + dt.timedelta(days=0 if "today" in str(rest or "") else 1)
+    label = "today" if day == now.date() else "tomorrow"
+    start = max(dt.datetime.now(dt.timezone.utc), dt.datetime.combine(day, dt.time(0, 0), tzinfo=tz))
+    rows = [(at.astimezone(tz), text, store) for at, text, store in _coming(start) if at.astimezone(tz).date() == day]
+    clock = lambda at: at.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    alarm = next((at for at, text, store in rows if store == "reminder" and text.strip().casefold() == "wake up"), None)
+    first = next(((at, text) for at, text, store in rows if store == "calendar"), None)
+    said = []
+    if first:
+        said.append(f"Your first thing {label} is {first[1]} at {clock(first[0])}")
+    if alarm:
+        said.append(f"your alarm is set for {clock(alarm)}" if said else f"Your alarm is set for {clock(alarm)} {label}")
+    elif first:
+        said.append("and there's no alarm set")
+    if not said:
+        return f"Nothing on your calendar {label} and no alarm set, so whenever you like."
+    out = said[0] + ("" if len(said) == 1 else (", " if said[1].startswith("your") else " ") + said[1])
+    return out + "."
+
+
 def _lent_out() -> str:
     """Every thing he said he lent and has not said came back."""
     from aletheia import speech
@@ -12805,6 +12836,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "ate": _ate,
            "lent": _lent,
            "lent_out": lambda rest: _lent_out(),
+           "get_up": lambda rest: _get_up(rest),
            "kept": _kept,
            "gift_for": _gift_for,
            "meal_plan": _meal_plan,

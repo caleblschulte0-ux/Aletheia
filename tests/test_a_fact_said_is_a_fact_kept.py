@@ -7216,6 +7216,20 @@ class HowLongUntilBedtime(unittest.TestCase):
             self.assertIn("haven't told me a bedtime", quick.answer("how long until bed"))
 
 
+class WhenHeNeedsToGetUp(unittest.TestCase):
+    def test_his_first_thing_and_his_alarm(self):
+        # 2026-10-08: a memory search for "get up".
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        six = dt.datetime.combine(localtime.today() + dt.timedelta(days=1), dt.time(6, 0), tzinfo=tz)
+        rows = [(six, "gym", "calendar"), (six.replace(hour=5), "wake up", "reminder")]
+        with mock.patch.object(quick, "_coming", return_value=sorted(rows)):
+            said = quick.answer("what time do I need to get up tomorrow")
+        self.assertEqual(said, "Your first thing tomorrow is gym at 6 am, your alarm is set for 5 am.")
+        with mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIn("no alarm set", quick.answer("what time do I need to get up tomorrow"))
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
