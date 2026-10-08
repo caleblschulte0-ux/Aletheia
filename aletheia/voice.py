@@ -4361,7 +4361,9 @@ def _interpret(transcript: str) -> dict:
                              r"|gas|fuel|petrol|diesel"
                              # "I need a filling" (2026-10-08: the shopping list) is the dentist.
                              r"|filling|root canal|crown|tooth pulled|wisdom teeth|teeth whitened|x-?rays?|prescription"
-                             r"|prescription refill|refill|hearing test|allergy test)\b", m.group("item")):
+                             r"|prescription refill|refill|hearing test|allergy test"
+                             # "I need a dog sitter" (2026-10-08: the shopping list) is a person to find.
+                             r"|(?:dog |pet |cat |house |baby ?)?sitter|babysitter|dog walker|nanny|plumber|electrician|handyman)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -5884,6 +5886,21 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i (?:just )?checked (?:a |my |one |two |2 |three |3 )?(?:bags?|suitcases?|luggage)", low) \
             or re.fullmatch(r"(?:my |our |the )?(?:hotel )?(?:check-?out|check-?in|checkout|checkin) (?:time )?is (?:at |by )?(?:\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)(?: tomorrow| today| on [a-z]+)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # AWAY FROM HOME (2026-10-08: "I need someone to watch the dog while I'm
+    # gone", "I need to stop the mail" and "I'm back from vacation" went to
+    # the planner or "I can't think").
+    m = re.fullmatch(r"i (?:need|have|gotta|got to|should)(?: to)?(?: find| get)? (?:someone|somebody|a sitter|a dog sitter|a pet sitter|a house sitter)"
+                     r" (?:to )?(?P<what>watch|feed|walk|look after|take care of|check on) (?P<who>(?:the |my |our )?(?:dog|dogs|cat|cats|pets?|kids|plants|house|fish))"
+                     r"(?: while i(?:'m| am) (?:gone|away|out of town|on vacation|on my trip)| (?:next|this) week(?:end)?)?", low)
+    if m:
+        return _new_task(f"find someone to {m.group('what')} {re.sub(r'^(?:my |our )', 'the ', m.group('who')) if re.match(r'(?:my|our|the) ', m.group('who')) else 'the ' + m.group('who')}")
+    m = re.fullmatch(r"i (?:need|have|gotta|got to|should)(?: to)? (?P<v>stop|hold|pause|put a hold on) (?:the |my )?(?P<what>mail|newspaper|paper|deliveries|delivery|packages)"
+                     r"(?: while i(?:'m| am) (?:gone|away|on vacation)| (?:next|this) week)?", low)
+    if m:
+        return _new_task(f"{'hold' if m.group('v') in ('hold', 'put a hold on') else m.group('v')} the {m.group('what')}")
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are|just got) (?:back|home) from (?:my |our |the )?(?:vacation|trip|holiday|honeymoon|cruise|camping|business trip|work trip|[a-z]+ trip)", low):
+        from aletheia import quick as _qa
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": _qa._arrival()}
     # "My paycheck came in", "I split dinner with Sam" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit|refund|tax refund|bonus|reimbursement|commission)"
                     r" (?:just )?(?:came in|came through|cleared|hit|landed|went through|was deposited|got deposited|posted|arrived|showed up)"
@@ -11170,6 +11187,10 @@ def _interpret(transcript: str) -> dict:
                      r"(?P<what>[a-z][a-z0-9 '&-]{1,40}?)(?: for (?:the |my |our )?(?:trip|vacation|holiday|flight))?", low)
     # "I need to pack lunches tonight" (2026-10-08: on the packing list) is
     # a chore with a day on it, not something for a bag.
+    # "I need to pack for my trip" (2026-10-08) put "for your trip" on the
+    # packing list. Packing is the job; the trip is what it is for.
+    if m and re.match(r"for |up for ", m.group("what")):
+        return _new_task("pack " + _as_he_said(text, m.group("what")))
     if m and m.group("what") not in ("it", "that", "this", "everything", "up", "stuff", "things", "bags", "bag", "suitcase") \
             and not re.search(r"\blunch(?:es)?\b|\bsnacks? for (?:the )?(?:kids|school)\b|\b(?:tonight|tomorrow|today|this (?:morning|evening))$", m.group("what")):
         return {"command": {"kind": "list_add", "list": "packing", "item": _as_he_said(text, m.group("what"))}, "say": None}
@@ -11200,6 +11221,10 @@ def _interpret(transcript: str) -> dict:
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.
     # "...at 45,000 miles" (2026-10-08: to the planner) is kept with it.
+    # "I need a dog sitter" went on the shopping list (2026-10-08).
+    m = re.fullmatch(r"i (?:need|have to find|gotta find|got to find|should find|should get|need to find|need to get) (?:a |an )?(?P<who>(?:dog|pet|cat|house|baby) ?sitter|babysitter|dog walker)(?: for (?:the |this |next )?(?:weekend|week|trip|[a-z]+day(?: night)?))?", low)
+    if m:
+        return _new_task("find a " + m.group("who"))
     m = re.fullmatch(r"i (?:just |finally )?(?:got|had|have had|'ve had|got done) (?P<svc>" + _quick._SERVICES + r")"
                      r"(?: done)?(?: today| yesterday| this morning| last week| earlier)?(?: at \d[\d,]* (?:miles|mi|km))?", low)
     if m:

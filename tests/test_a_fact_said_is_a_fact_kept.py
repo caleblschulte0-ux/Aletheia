@@ -10903,5 +10903,29 @@ class MoveMyReminder(unittest.TestCase):
             self.assertEqual(voice._interpret("move my reminder to 3:30")["say"], "You don't have a reminder coming up to move.")
 
 
+class AwayFromHome(unittest.TestCase):
+    """2026-10-08: "I need to pack for my trip" put "for your trip" on the
+    packing list, "I need a dog sitter" went on the shopping list, and the
+    dog, the mail and coming home went to the planner."""
+
+    def test_the_jobs_before_he_goes_are_tasks(self):
+        for said, task in (("I need to pack for my trip", "pack for my trip"),
+                           ("I need someone to watch the dog while I am gone", "find someone to watch the dog"),
+                           ("I need to stop the mail", "stop the mail"),
+                           ("I need a dog sitter", "find a dog sitter"),
+                           ("I need a babysitter for Saturday night", "find a babysitter")):
+            got = voice._interpret(said)["command"]
+            self.assertEqual((got["kind"], got["description"]), ("task_new", task), said)
+
+    def test_things_still_go_where_they_went(self):
+        self.assertEqual(voice._interpret("I need to pack my charger")["command"]["kind"], "list_add")
+        self.assertEqual(voice._interpret("I need a dog bed")["command"]["kind"], "shopping_add")
+
+    def test_coming_home_is_kept_and_welcomed(self):
+        got = voice._interpret("I am back from vacation")
+        self.assertEqual(got["command"], {"kind": "note", "text": "I am back from vacation"})
+        self.assertTrue(got["say"].startswith("Welcome back"))
+
+
 if __name__ == "__main__":
     unittest.main()
