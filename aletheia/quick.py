@@ -2301,6 +2301,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do|will|is) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
     # "What needs doing around the house" (2026-10-08: to a model).
     ("house_todo", re.compile(r"^what (?:needs|need|has) (?:doing|to be done|fixing|to get done|work)(?: around| at| in)? (?P<house_todo>the house|the yard|home|the garden|the apartment)\s*\??$")),
+    # "What yard work do I need to do" (2026-10-08: to a model).
+    ("yard_todo", re.compile(r"^what (?:yard work|yardwork|garden work|gardening|lawn work|outside work|outdoor work|work in the yard|work in the garden)"
+                             r" (?:do i|do we) (?:need to|have to|still need to|have left to)? ?(?:do|get done)?(?: this weekend| this week| today)?\s*\??$"
+                             r"|^what (?:needs|need) (?:doing|to be done) (?:outside|in the yard|in the garden)\s*\??$")),
+    # "When did I last mow" (2026-10-08: to a model) is the lawn.
+    ("mow_last", re.compile(r"^when did (?:i|we) (?:last )?(?P<mow_last>mow|cut the grass)(?: last)?\s*\??$")),
     # "Where am I", "where am I going" a turn after "I'm at the gym" or
     # "I'm going to the grocery store" (2026-10-08: his home address, and
     # a model).
@@ -6407,10 +6413,13 @@ def _did_last(text: str) -> str | None:
         if done:
             desc = re.sub(r"\bmy\b", "your", str(done[0].get("description") or "").strip().rstrip("."), flags=re.I)
             when = speech.humanize_time(str(done[0].get("updated_at") or "")) if done[0].get("updated_at") else ""
-            return f"Yes - you ticked off {desc}" + (f" {when}." if when else ".")
+            # "When did I last mow" is not a yes-or-no (2026-10-08: "Yes - you
+            # ticked off mow the lawn").
+            asked_when = _tidy(text).startswith(("when", "how long"))
+            return f"{'You' if asked_when else 'Yes - you'} ticked off {desc}" + (f" {when}." if when else ".")
         if any(str(t.get("status") or "").upper() not in _TASK_CLOSED for t in rows):
             desc = re.sub(r"\bmy\b", "your", str(rows[0].get("description") or "").strip().rstrip("."), flags=re.I)
-            return f"Not yet - {desc} is still on your list."
+            return f"{'You have not yet' if _tidy(text).startswith(('when', 'how long')) else 'Not yet'} - {desc} is still on your list."
     # "Say "I saw sam"" (2026-10-08): a person he names keeps a capital.
     shown_thing = _named(thing) if past in _WITH_SOMEBODY and re.fullmatch(r"[a-z]{2,15}", thing) else thing
     say = f"I {past} {shown_thing}"
@@ -15508,6 +15517,21 @@ def _house_todo(where: str) -> str | None:
     return " ".join(said) or None
 
 
+def _yard_todo(_text: str = "") -> str | None:
+    """His open tasks about the yard and the garden."""
+    from aletheia import speech, tasks
+    try:
+        rows = [" ".join(str(t.get("description") or "").split()).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED]
+    except Exception:
+        return None
+    yard = [r for r in rows if re.search(r"\b(?:mow|rake|fertili[sz]e|weed|water the (?:plants|garden|lawn|grass|flowers)|mulch|plant|prune|trim|edge"
+                                         r"|gutters?|fence|lawn|yard|garden|hedges?|leaves|grass|sprinklers?|deck|patio|shed|compost|seeds?)\b", r, re.I)]
+    if not yard:
+        return None
+    return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in yard[:6]])}."
+
+
 def _said_today(rx: str) -> list:
     """(text, local time) of today's notes and spoken turns matching rx,
     newest first - "I'm at the gym" is a turn as often as a note."""
@@ -17143,6 +17167,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "yard_todo": _yard_todo,
+           "mow_last": lambda t: _did_last("when did i last mow the lawn"),
            "make_with": lambda t: (lambda items: (f"How about {_dish_from(items)}? Just an idea." if items and _dish_from(items) else None))(_food_said(t)),
            "ordered_what": _ordered_what,
            "got_here": _got_here,

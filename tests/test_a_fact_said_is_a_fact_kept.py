@@ -10661,5 +10661,24 @@ class WhatIsInTheKitchen(unittest.TestCase):
         self.assertIsNone(quick.answer("what can I make with glue"))
 
 
+class TheYardAndTheGarden(unittest.TestCase):
+    """2026-10-08: "the plants need water", "my basil is dying", "when did I
+    last mow" and "what yard work do I need to do" went to the planner or a
+    model."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("the plants need water")["command"]["description"], "water the plants")
+        self.assertEqual(voice._interpret("my basil is dying")["command"]["kind"], "note")
+
+    def test_read(self):
+        from aletheia import tasks
+        rows = [{"description": "clean the gutters", "status": "PENDING"}, {"description": "call the dentist", "status": "PENDING"},
+                {"description": "mow the lawn", "status": "COMPLETED", "updated_at": "2026-10-08T12:00:00+00:00"}]
+        with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(tasks, "is_his", lambda t: True), \
+                mock.patch.object(quick, "_notes", lambda: []):
+            self.assertEqual(quick.answer("what yard work do I need to do"), "Your list says: clean the gutters.")
+            self.assertTrue(quick.answer("when did I last mow").startswith("You ticked off mow the lawn"))
+
+
 if __name__ == "__main__":
     unittest.main()

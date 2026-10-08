@@ -5735,6 +5735,11 @@ def _interpret(transcript: str) -> dict:
         bye = quick._farewell("leaving work")
         return {"command": {"kind": "note", "text": "finished work"},
                 "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
+    # "My basil is dying" (2026-10-08: to the planner) - kept, the way "how
+    # is my garden" reads it back.
+    if re.fullmatch(r"(?:my|the|our) (?:[a-z]+ )?(?:basil|tomato|tomatoes|plant|plants|garden|flowers|roses|herbs|lawn|grass|tree|trees|hedge|succulent|cactus|orchid|fern|peppers|mint|lettuce)"
+                    r" (?:is|are|looks?|seems?) (?:really |kind of |kinda |a bit )?(?:dying|wilting|drooping|dead|turning (?:yellow|brown)|brown|yellow|sad|thriving|doing (?:great|well|badly))", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I have chicken and rice" (2026-10-08: to the planner): what is in the
     # kitchen, kept so "what should I make for dinner" can build on it. Every
     # item must be a food, so "I have a meeting and a call" is never a pantry.
@@ -7071,7 +7076,10 @@ def _interpret(transcript: str) -> dict:
                  "replaced": "replace", "repairing": "repair", "repaired": "repair", "servicing": "service",
                  "serviced": "service", "emptying": "empty", "emptied": "empty", "trimming": "trim", "trimmed": "trim",
                  "changing": "change", "changed": "change", "descaling": "descale", "defrosting": "defrost",
-                 "weeding": "weed", "vacuuming": "vacuum", "unclogging": "unclog", "sealing": "seal", "staining": "stain"}
+                 "weeding": "weed", "vacuuming": "vacuum", "unclogging": "unclog", "sealing": "seal", "staining": "stain",
+                 # "The plants need water" (2026-10-08: to the planner).
+                 "water": "water", "raking": "rake", "fertilizing": "fertilize", "fertilizer": "fertilize", "a trim": "trim",
+                 "a cut": "mow", "cutting": "mow" if thing in ("lawn", "grass") else "cut"}
         word = re.sub(r"^to be ", "", what)
         if m.group("n"):
             if word in verbs:
