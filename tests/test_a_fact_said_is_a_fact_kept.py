@@ -7533,5 +7533,37 @@ class ChoresUndoAndTheOldestTask(unittest.TestCase):
             self.assertTrue(quick.answer("what's my newest task").startswith("Pay rent"))
 
 
+class TheDoctorsAppointmentMoved(unittest.TestCase):
+    """2026-10-08: "I moved my doctors appointment to the 21st" went to the
+    planner (and "move it to the 21st" was refused as his calendar's), "when
+    is my doctors appointment" answered with the reminder about it, and
+    "call the bank tomorrow morning" kept no deadline."""
+
+    HOLD = {"title": "doctor's appointment", "start": "2026-10-20T10:00:00-05:00", "end": "2026-10-20T11:00:00-05:00"}
+
+    def test_her_hold_moves_to_a_new_day_at_its_own_time(self):
+        with mock.patch.object(voice, "_one_of_her_holds", return_value=(self.HOLD, "")):
+            for said in ("move my doctors appointment to the 21st", "I moved my doctors appointment to the 21st",
+                         "my doctors appointment got moved to the 21st"):
+                cmd = voice.interpret(f"thea {said}")["command"]
+                self.assertEqual(cmd["kind"], "calendar_hold", said)
+                self.assertIn("-10-21T10:00:00", cmd["start"], said)
+                self.assertEqual(cmd["replaces"], self.HOLD["start"])
+
+    def test_the_apostrophe(self):
+        self.assertIn("doctor's appointment", voice._apostrophes("I have a doctors appointment"))
+
+    def test_the_appointment_before_the_reminder_about_it(self):
+        later = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=12)
+        sooner = later - dt.timedelta(days=1)
+        rows = [(sooner, "doctor's appointment Tuesday at 10 am", "reminder"), (later, "doctor's appointment", "calendar")]
+        with mock.patch.object(quick, "_coming", return_value=rows):
+            self.assertTrue(quick._when_mine("my doctor's appointment").startswith("Doctor's appointment is"))
+
+    def test_a_part_of_the_day_keeps_the_deadline(self):
+        self.assertEqual(voice._split_deadline("call the bank tomorrow morning"),
+                         ("call the bank", voice._spoken_day("tomorrow")))
+
+
 if __name__ == "__main__":
     unittest.main()

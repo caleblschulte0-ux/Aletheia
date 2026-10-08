@@ -9713,7 +9713,10 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     words = named or words                    # "my dentist appointment" is the dentist
     if not words:
         return None
-    for at, text, store in _coming():
+    # The appointment before the reminder ABOUT it: "remind me the day
+    # before" made "when is my doctors appointment" answer with the
+    # reminder's day (2026-10-08).
+    for at, text, store in sorted(_coming(), key=lambda row: row[2] != "calendar"):
         low = text.casefold()
         if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             when = speech.humanize_time(at.isoformat())

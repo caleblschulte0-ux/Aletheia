@@ -385,7 +385,10 @@ def _split_deadline(text: str) -> tuple[str, str]:
                          r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?)"
                          # "Renew my license next month" (2026-10-07: "next
                          # month" stayed in the task and nothing was due).
-                         r"|next week|next month|(?:by )?(?:the )?end of (?:the |this )?(?:week|month))$",
+                         r"|next week|next month|(?:by )?(?:the )?end of (?:the |this )?(?:week|month))"
+                         # "Call the bank tomorrow morning" (2026-10-08: the
+                         # morning kept the day out of the deadline).
+                         r"(?: (?:morning|afternoon|evening|night|first thing))?$",
                          text, re.IGNORECASE)
         if bare and re.fullmatch(r"next week|next month|(?:by )?(?:the )?end of (?:the |this )?(?:week|month)",
                                  bare.group(2).lower()):
@@ -2465,6 +2468,10 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
                   str(transcript or ""), flags=re.I)
     said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
+    # "A doctors appointment" (2026-10-08: held and read back that way).
+    said = re.sub(r"\b(doctor|dentist|vet|lawyer|accountant|barber|hairdresser|optometrist|therapist|orthodontist|dermatologist"
+                  r"|chiropractor|pediatrician|surgeon|eye doctor)s (appointment|appt|office|visit|checkup|check-up)\b",
+                  r"\1's \2", said, flags=re.I)
     return re.sub(r"(?<![\w'])(?!(?:My|The|Our|What|When|Where|Who|How|Is|Set|Add|Call|Text|Email)\b)([A-Z][a-z]{1,15}(?<!s)) "
                   r"(number|phone number|cell number|cell|email|email address|birthday|address)\b(?! is (?:a|an|the)\b)",
                   r"\1's \2", said)
@@ -6807,6 +6814,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't change things on your calendar yet - I can only add holds to it, so cancel it there. "
                        "If someone should hear you can't make it, say \"email\" or \"text\" and who, and what to say."}
+    # "I moved my doctors appointment to the 21st", "my meeting got pushed
+    # to 4" (2026-10-08: to the planner). Said as news, it is the same move;
+    # only when the move itself is one she can make.
+    past = re.fullmatch(r"(?:i |they |we |he |she |the [a-z]+ )?(?:moved|rescheduled|pushed|changed|bumped|shifted)"
+                        r" (?P<rest>(?:my |the |our )[a-z][a-z' ]{1,40}? (?:back )?(?:to|till|until) .+)", low) \
+        or re.fullmatch(r"(?P<w>(?:my |the |our )[a-z][a-z' ]{1,40}?) (?:got|was|has been|is|just got) (?:moved|rescheduled"
+                        r"|pushed|changed|bumped|shifted)(?: back)? (?P<t>(?:to|till|until) .+)", low)
+    if past:
+        again = _interpret("move " + (past.group("rest") if past.groupdict().get("rest") else f"{past.group('w')} {past.group('t')}"))
+        if ((again or {}).get("command") or {}).get("kind") in ("calendar_hold", "task_change"):
+            return again
     # "MOVE MY DENTIST APPOINTMENT TO FRIDAY" (2026-10-07: to the planner,
     # which has no door to his calendar's events). Said plainly, unless the
     # words pick out one of his tasks, which can be moved.
@@ -6835,6 +6853,29 @@ def _interpret(transcript: str) -> dict:
             if _is_bare_hour(words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
                 hour += 12
             new = was.replace(hour=hour, minute=minute)
+            return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
+                                "minutes": max(5, int((ends - was).total_seconds() // 60)),
+                                "replaces": hold["start"]}, "say": None}
+        # "Move my doctors appointment to the 21st" (2026-10-08: refused as
+        # his calendar's): her own hold, the new day, its own time unless he
+        # named one, the same length.
+        day_to = re.fullmatch(r"(?:on )?(?P<day>.+?)(?: at (?P<t>.+))?", to.group("when")) if (hold and to) else None
+        day_iso = _spoken_day(day_to.group("day")) if day_to and not _spoken_time(day_to.group("day")) else None
+        if hold and day_iso:
+            import datetime as dt
+            from aletheia import calendar as _cal, localtime
+            tz = localtime.operator_tz()
+            was = _cal.parse_time(hold["start"]).astimezone(tz)
+            ends = _cal.parse_time(hold["end"]).astimezone(tz) if hold.get("end") else was + dt.timedelta(hours=1)
+            hour, minute = was.hour, was.minute
+            if day_to.group("t"):
+                hhmm = _spoken_time(day_to.group("t"))
+                if not hhmm:
+                    return None
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(day_to.group("t")) and 1 <= hour <= 7:
+                    hour += 12
+            new = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
             return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
                                 "minutes": max(5, int((ends - was).total_seconds() // 60)),
                                 "replaces": hold["start"]}, "say": None}
