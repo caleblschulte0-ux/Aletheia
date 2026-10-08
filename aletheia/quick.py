@@ -2503,7 +2503,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("gift_for", re.compile(
         r"^what (?:gift ideas|gifts|presents|present ideas) (?:do i have|have i (?:got|saved|kept)|did i (?:save|have)) for (?P<gift_for>(?:my )?[a-z][a-z' ]{1,25}?)\s*\??$"
         r"|^what(?:'s| is|s) on (?:(?P<gift_for3>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)|my gift (?:list|ideas) for (?P<gift_for4>(?:my )?[a-z][a-z' ]{1,25}?))\s*\??$"
-        r"|^what (?:should|could|can) i (?:get|buy|give) (?P<gift_for2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas|the holidays|our anniversary))?\s*\??$")),
+        r"|^what (?:should|could|can) i (?:get|buy|give) (?P<gift_for2>(?:my )?[a-z][a-z' ]{1,25}?)(?: for (?:(?:her|his|their) )?(?:birthday|christmas|the holidays|our anniversary))?\s*\??$"
+        # "Gift ideas for my dad" (2026-10-08: to the planner).
+        r"|^(?:any )?(?:gift|present) ideas? for (?P<gift_for5>(?:my )?[a-z][a-z' ]{1,25}?)\s*\??$")),
     ("fact_any", re.compile(r"^what(?:'s| is|s| are) (?P<fact_whose>my|our|the) (?!(?:busiest|quietest|least busy|freest) day\b)(?!.* (?:about|for|at|on|with|in|like|from|to)\s*\??$)(?P<fact_any>[a-z][a-z0-9' ]{1,30}?)\s*\??$")),
     # LAST, so every specific door wins: "when does the trash go out",
     # "when is soccer", "when is the babysitter coming" read the note he
@@ -12052,7 +12054,8 @@ def _gift_for(text: str) -> str | None:
     is None; asked for the ideas he SAVED, none is the answer."""
     from aletheia import lists, speech
     g = _groups("gift_for", text)
-    who = " ".join(str(g.get("gift_for") or g.get("gift_for2") or g.get("gift_for3") or g.get("gift_for4") or "").split())
+    who = " ".join(str(g.get("gift_for") or g.get("gift_for2") or g.get("gift_for3") or g.get("gift_for4")
+                       or g.get("gift_for5") or "").split())
     name = re.sub(r"^my ", "", who)
     if not name or name in ("you", "it", "that", "them", "him", "her"):
         return None
@@ -12066,9 +12069,21 @@ def _gift_for(text: str) -> str | None:
         said = [re.sub(rf"\s+for (?:my )?(?:{re.escape(name)}|{re.escape(alias or name)})\b.*$", "", r, flags=re.I) for r in hits]
         shown = speech.as_she_says_it(who) if who.startswith("my ") or who in _relation_words() else _named(who)
         return f"Your gift ideas for {shown}: {speech.and_list(said)}."
+    shown = speech.as_she_says_it(who) if who.startswith("my ") or who in _relation_words() else _named(who)
+    # "What should I get my mom" with "my mom likes gardening" kept
+    # (2026-10-08: "I can't think"): what he told her they like, as an idea.
+    likes = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.match(rf"^(?:my )?(?:{re.escape(name)}|{re.escape(alias or name)}) (?:really )?(?:likes|loves|is into|enjoys"
+                     rf"|is really into|has been wanting|wants|collects) (?P<what>.{{2,80}}?)\.?$", said, re.I)
+        if m and m.group("what").casefold() not in {x.casefold() for x in likes}:
+            likes.append(m.group("what"))
+    if likes:
+        return (f"Nothing saved as a gift idea, but you told me {shown} likes {speech.and_list(likes[:3])} - "
+                "something for that would land. Just an idea.")
     if g.get("gift_for2"):
         return None
-    shown = speech.as_she_says_it(who) if who.startswith("my ") or who in _relation_words() else _named(who)
     return f"You haven't saved any gift ideas for {shown}. Say \"gift idea for {who}\" and what it is."
 
 

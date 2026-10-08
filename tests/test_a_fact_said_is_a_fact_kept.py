@@ -7794,5 +7794,18 @@ class NextTuesdayIsTheDaysAgenda(unittest.TestCase):
 
 
 
+class AGiftIdeaFromWhatTheyLike(unittest.TestCase):
+    def test_what_she_likes_is_the_idea(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my mom likes gardening"}]), \
+                mock.patch("aletheia.lists.items", return_value=[]):
+            said = quick.answer("what should I get my mom for her birthday")
+        self.assertIn("gardening", said)
+
+    def test_nothing_told_is_left_for_a_model(self):
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch("aletheia.lists.items", return_value=[]):
+            self.assertIsNone(quick.answer("what should I get my dad"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
