@@ -8607,5 +8607,15 @@ class ShoppingDaysAndSleeps(unittest.TestCase):
 
 
 
+class WhatTimeThereWhenItsNineHere(unittest.TestCase):
+    """"What time will it be in Tokyo when it's 9am here" went to a model (2026-10-08)."""
+
+    def test_it_is_the_conversion(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("what time will it be in tokyo when it's 9am here"), "convert 9am to tokyo time")
+        self.assertIn("in Tokyo", quick.answer("what time will it be in tokyo when its 9am here"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

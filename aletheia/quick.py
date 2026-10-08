@@ -2702,6 +2702,14 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how many (?:shopping |more |working |school )?(?:days|sleeps) (?:left )?(?:until|till|til|before|to) (?P<what>.{2,40}?)\s*\??", text)
     if m and re.match(r"how many (?:shopping|more|sleeps|days left)", text):
         return f"how many days until {m.group('what')}"
+    # "What time will it be in Tokyo when it's 9am here" (2026-10-08: to a
+    # model) - the conversion, asked the long way round.
+    m = re.fullmatch(r"what time (?:will it be|is it|would it be) (?:in|for) (?P<place>[a-z][a-z .'-]{1,30}?) "
+                     r"(?:when|if) (?:it'?s|it is) (?P<t>\d{1,2}(?::\d\d)? ?(?:am|pm)?)(?: here| (?:my|your) time| for me)?\s*\??", text) \
+        or re.fullmatch(r"(?:if|when) (?:it'?s|it is) (?P<t>\d{1,2}(?::\d\d)? ?(?:am|pm)?)(?: here| (?:my|your) time| for me)?,? "
+                        r"what time (?:is it|will it be|would it be) (?:in|for) (?P<place>[a-z][a-z .'-]{1,30}?)\s*\??", text)
+    if m:
+        return f"convert {m.group('t').replace(' ', '')} to {m.group('place')} time"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
