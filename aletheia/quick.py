@@ -652,7 +652,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|how much (?:do|did) i weigh(?: (?:last week|last month|yesterday|a week ago|a month ago|last time))?"
         r"|what(?:'s| is) my (?:current )?weight"
         # "How far am I from my goal weight" (2026-10-07: to the planner).
-        r"|how (?:far|close) am i (?:from|to) my (?:goal|target) weight|how much (?:more )?(?:weight )?(?:do i (?:have|need) to|to) lose"
+        r"|how (?:far|close) am i (?:from|to) my (?:goal|target) weight|how (?:far|close) am i (?:from|to) (?:my|reaching my) (?P<body_goal>goal|target)|how much (?:more )?(?:weight )?(?:do i (?:have|need) to|to) lose"
         r"|how many (?:more )?pounds (?:to go|(?:do i have|do i need) to lose|until my goal))\s*\??$")),
     ("meds", re.compile(
         r"^what (?:medications?|medicines?|meds|prescriptions?|pills) (?:do i take|am i on|am i taking|do i have)\s*\??$"
@@ -12550,6 +12550,9 @@ def _body(text: str) -> str | None:
                 goal = float(g.group(1)) * (1 / 0.4536 if (g.group(2) or "").startswith("k") else 1)
                 break
         if goal is None:
+            # "How far am I from my goal" may be a savings goal: not ours to deny.
+            if re.search(r"(?:from|to) (?:my|reaching my) (?:goal|target)\s*\??$", asked):
+                return None
             return "You haven't told me a goal weight. Say \"my goal weight is\" and the number."
         if not w:
             return f"Your goal is {goal:.0f} pounds, but you haven't told me what you weigh. Say \"I weigh\" and the number."
@@ -12595,6 +12598,8 @@ def _body(text: str) -> str | None:
     first = speech.humanize_time(w[-1][0]) if w[-1][0] else "the first time"
     # the day is the point; "since 30 September at 9 pm" is a clock nobody weighed at
     first = re.sub(r" at \d{1,2}(?::\d\d)? ?(?:am|pm)$", "", first)
+    # "Down about 2 pounds since today" (2026-10-08): the first weigh-in was earlier today.
+    first = {"today": "earlier today", "tonight": "earlier tonight"}.get(first.casefold(), first)
     if abs(pounds) < 0.5:
         return f"About the same as {first}, from what you've told me."
     return f"{'Down' if pounds > 0 else 'Up'} about {abs(pounds):.0f} pounds since {first}, from what you've told me."

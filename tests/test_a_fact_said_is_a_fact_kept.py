@@ -7807,5 +7807,18 @@ class AGiftIdeaFromWhatTheyLike(unittest.TestCase):
 
 
 
+class HowFarFromMyGoal(unittest.TestCase):
+    def test_a_goal_weight_answers_it(self):
+        notes = [{"text": "my goal weight is 170"}]
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(quick, "_weights", return_value=[("", 183 * 0.4536)]):
+            self.assertIn("13 pounds to go", quick.answer("how far am I from my goal"))
+
+    def test_without_a_goal_weight_it_is_not_denied(self):
+        with mock.patch.object(quick, "_notes", return_value=[]), mock.patch.object(quick, "_weights", return_value=[]):
+            self.assertIsNone(quick.answer("how far am I from my goal"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
