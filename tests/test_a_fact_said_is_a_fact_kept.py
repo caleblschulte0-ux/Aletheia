@@ -8986,5 +8986,20 @@ class ANamedShoppingList(unittest.TestCase):
 
 
 
+class CanIEatIt(unittest.TestCase):
+    """2026-10-08: "can I eat chicken" went to the planner a turn after "I
+    am vegetarian"."""
+
+    def test_settled_by_his_notes_only(self):
+        from aletheia import quick
+        rows = [{"text": "I am vegetarian"}, {"text": "I am allergic to peanuts"}, {"text": "I don't like mushrooms"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("can I eat chicken"), "Not if you're sticking to it - you told me you're vegetarian.")
+            self.assertEqual(quick.answer("can I have peanut butter"), "No - you told me you're allergic to peanuts.")
+            self.assertTrue(quick.answer("can I eat mushrooms").startswith("You can, but"))
+            self.assertIsNone(quick.answer("can I eat pasta"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

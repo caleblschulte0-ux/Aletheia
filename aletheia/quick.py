@@ -2052,7 +2052,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:,? (?:and |to )?(?:get|have|sleep)(?: for)? (?P<bh>\d{1,2}|seven|eight|nine|six) hours?(?: of sleep)?)?\s*\??$")),
     ("dislikes", re.compile(
         r"^what (?:foods?|things?|food) (?:don't|do not|dont) i (?:like|eat)\s*\??$"
-        r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what do i (?:not like|hate|dislike|not eat)\s*\??$"
+        r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what (?:foods? |things? )?do i (?:not like|hate|dislike|not eat)\s*\??$"
         r"|^(?:what are|what's|whats) my (?:food )?dislikes\s*\??$"
         r"|^do i (?:like|eat) (?P<dl_thing>[a-z][a-z ]{1,30}?)\s*\??$")),
     # "When does the plumber come" a turn after noting it (2026-10-07: to
@@ -2109,6 +2109,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # lives in Chicago").
     ("who_lives", re.compile(
         r"^who (?:do i know (?:that |who )?)?(?:lives|live|is living|stays|moved) (?:in|near|to) (?P<who_lives>[a-z][a-z .'-]{1,30}?)\s*\??$")),
+    # "Can I eat chicken" with "I am vegetarian" kept (2026-10-08: to the
+    # planner). Only what his notes settle; anything else is a model's.
+    ("can_eat", re.compile(r"^(?:can|should) i (?:eat|have|drink) (?:a |an |some |the )?(?P<can_eat>[a-z][a-z ]{1,25}?)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2934,7 +2937,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13551,6 +13554,41 @@ def _who_lives(place: str) -> str | None:
     return f"You told me {speech.and_list(found[:4])}."
 
 
+_MEAT = r"chicken|beef|pork|steak|bacon|ham|turkey|lamb|sausage|burgers?|hot ?dogs?|pepperoni|salami|meat|meatballs?|veal|duck|venison|brisket|ribs|wings"
+_FISH = r"fish|salmon|tuna|shrimp|prawns?|crab|lobster|sushi|cod|tilapia|anchov(?:y|ies)|oysters?|clams?|mussels?|scallops?"
+_ANIMAL = r"eggs?|milk|cheese|butter|yogurt|yoghurt|ice cream|cream|honey"
+
+
+def _can_eat(food: str) -> str | None:
+    """Whether his own notes rule a food out: an allergy, his diet, or a
+    dislike. None when nothing he said settles it."""
+    food = " ".join(str(food or "").casefold().split())
+    if not food:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        allergy = re.search(r"\ballergic to (?P<a>[a-z][a-z ,]{1,40})", low)
+        if allergy and any(a.strip() and (a.strip().rstrip("s") in food or food.rstrip("s") in a.strip())
+                           for a in re.split(r",| and | or ", allergy.group("a"))):
+            return f"No - you told me you're allergic to {allergy.group('a').strip().rstrip('.')}."
+        diet = re.search(r"\bi(?:'m| am) (?:a )?(?:strict )?(?P<d>vegetarian|vegan|pescatarian)\b", low)
+        if diet:
+            d = diet.group("d")
+            banned = _MEAT + ("" if d == "pescatarian" else "|" + _FISH) + ("|" + _ANIMAL if d == "vegan" else "")
+            if re.search(rf"\b(?:{banned})\b", food):
+                return f"Not if you're sticking to it - you told me you're {d}."
+        dislike = re.match(r"i (?:don'?t|do not|hate|can'?t stand) (?:like |eat )?(?P<x>[a-z][a-z ]{1,30})", low)
+        if dislike and (dislike.group("x").rstrip("s") in food or food.rstrip("s") in dislike.group("x")):
+            return f"You can, but you told me {_say_mine(said)}."
+    return None
+
+
+def _say_mine(said: str) -> str:
+    from aletheia import speech
+    return speech.as_she_says_it(said).rstrip(".")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14358,6 +14396,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "can_eat": _can_eat,
            "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,
            "born_age": _born_age,
