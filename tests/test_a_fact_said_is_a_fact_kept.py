@@ -11122,5 +11122,27 @@ class AchesAndAppointments(unittest.TestCase):
         self.assertNotEqual(voice._interpret("I take the bus every morning at 8")["command"]["kind"], "note")
 
 
+class PhoneAndInternet(unittest.TestCase):
+    """2026-10-08: "my email is caleb at example dot com", "I need a new
+    phone", "the internet is slow" and "I switched to Verizon" went to the
+    planner, and "what phone do I have" said "you told me" twice."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("my email is caleb at example dot com")["command"]["value"], "caleb@example.com")
+        self.assertEqual(voice._interpret("I need a new phone")["command"], {"kind": "shopping_add", "item": "phone"})
+        self.assertEqual(voice._interpret("I need to phone mom")["command"]["kind"], "task_new")
+        for said in ("the internet is slow", "I switched to Verizon", "I switched my internet to Xfinity"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read(self):
+        notes = [{"text": "I switched to Verizon"}, {"text": "I switched my internet to Xfinity"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("who is my phone carrier"), "You told me: you switched to Verizon.")
+            self.assertEqual(quick.answer("who is my internet provider"), "You told me: you switched your internet to Xfinity.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I got a new phone"}, {"text": "my phone bill is 85 a month"}]):
+            got = quick.answer("what phone do I have")
+            self.assertEqual(got.count("told me"), 1, got)
+
+
 if __name__ == "__main__":
     unittest.main()

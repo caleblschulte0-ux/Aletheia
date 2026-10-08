@@ -2442,6 +2442,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What time will I be home" (2026-10-08: "I can't think"), after "I'll
     # be home late".
     ("home_when", re.compile(r"^(?:what time|when) (?:will|am) i (?:be |getting |going to be |gonna be )?(?:home|back)(?: tonight| today)?\s*\??$")),
+    # "Who is my phone carrier" (2026-10-08: "I can't think"), after "I
+    # switched to Verizon".
+    ("provider", re.compile(r"^(?:who|what) (?:is|'s) (?:my|our) (?P<provider>phone|cell|cell phone|wireless|internet|cable|insurance|electric|power|car insurance|health insurance)"
+                            r" (?:carrier|provider|company|plan)\s*\??$"
+                            r"|^who do (?:i|we) (?:have|use) for (?:my |our )?(?P<provider2>phone|cell|internet|cable|insurance|electric|power)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3372,7 +3377,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -6549,8 +6554,8 @@ def _due_note(words: str) -> str | None:
         return f"You haven't told me when your {thing} {verb} due. Say \"my {thing} {verb} due on the 1st\" and I'll remember."
     # "When is the water bill due" was answered with "you paid the electric
     # bill" (2026-10-08): memory's answer counts only if it names it all.
-    held = _recall(words)
-    if held and all(re.search(rf"\b{re.escape(w)}", held, re.I) for w in asked) and " and you told me" not in held:
+    held = _recall(words, one=True)
+    if held and all(re.search(rf"\b{re.escape(w)}", held, re.I) for w in asked):
         return held
     return None
 
@@ -10371,9 +10376,10 @@ def _fact_any(thing: str, whose: str = "my") -> str | None:
     return None
 
 
-def _recall(words: str) -> str | None:
+def _recall(words: str, *, one: bool = False) -> str | None:
     """What he told her about `words`: his notes and her memory, by the
-    words themselves. Nothing matching is said as nothing - never guessed."""
+    words themselves. Nothing matching is said as nothing - never guessed.
+    `one`: None unless exactly one thing matched."""
     from aletheia import memory, speech
     words, _bar, attr = str(words or "").partition("|")
     # "What's my wife's name" read back "my wife loves tulips" beside "my
@@ -10451,7 +10457,13 @@ def _recall(words: str) -> str | None:
         # "What am I allergic to" read back "nothing about allergic".
         shown = {"allergic": "allergies", "allergic to": "allergies"}.get(str(words).strip(), words)
         return f"I have nothing about {shown} on file - tell me and I'll remember it."
-    said = speech.and_list(found[:4])
+    # "You told me: you got a new phone and you told me: your phone bill is
+    # 85 a month" (2026-10-08) said "you told me" twice in one breath.
+    if one and len(found) > 1:
+        return None
+    told = [f[len("you told me: "):] for f in found[:4] if f.startswith("you told me: ")]
+    parts = (["you told me: " + speech.and_list(told)] if told else []) + [f for f in found[:4] if not f.startswith("you told me: ")]
+    said = parts[0] if len(parts) == 1 else "; ".join(parts)
     return said[:1].upper() + said[1:] + "."
 
 
@@ -16652,6 +16664,34 @@ def _home_when(_rest: str = "") -> str | None:
     return None
 
 
+def _provider(text: str) -> str | None:
+    """Who he has for phone, internet or insurance, from his notes."""
+    from aletheia import speech
+    g = _groups("provider", text)
+    kind = (g.get("provider") or g.get("provider2") or "").strip()
+    if not kind:
+        return None
+    kinds = {"phone": r"phone|cell|wireless|carrier", "cell": r"phone|cell|wireless|carrier", "cell phone": r"phone|cell|wireless|carrier",
+             "wireless": r"phone|cell|wireless|carrier", "internet": r"internet|wifi|isp", "cable": r"cable|tv",
+             "insurance": r"insurance", "car insurance": r"insurance", "health insurance": r"insurance",
+             "electric": r"electric|power", "power": r"electric|power"}[kind]
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = line.casefold()
+        named = re.search(r"\b(?:switched|changed|moved|went)(?: over)? (?:my |our )?(?:(?P<k>[a-z ]+?) )?(?:carrier |provider |plan |company )?to [a-z]", low) \
+            or re.match(rf"(?:my|our) (?:{kinds})[a-z ]{{0,20}}(?:carrier|provider|company) is\b", low) \
+            or re.match(rf"(?:i|we) (?:have|use) [a-z][a-z&' -]{{1,25}} for (?:my |our )?(?:{kinds})\b", low)
+        if not named:
+            continue
+        said_kind = (named.groupdict().get("k") or "").strip() if hasattr(named, "groupdict") else ""
+        if said_kind and not re.search(rf"\b(?:{kinds})", said_kind):
+            continue
+        if not said_kind and not re.search(rf"\b(?:{kinds})", low) and kinds.split("|")[0] not in ("phone",):
+            continue
+        return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17465,6 +17505,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "provider": _provider,
            "home_when": _home_when,
            "pay_now": _pay_now,
            "wears": _wears,

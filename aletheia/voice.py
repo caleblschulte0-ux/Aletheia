@@ -4346,8 +4346,9 @@ def _interpret(transcript: str) -> dict:
             r"this (?:morning|afternoon|evening|week)|next week|at \d|by \d)\b", m.group("item"))):
         m = None
     # "A new phone charger" is a thing, though "phone" can be a verb (2026-10-08)
+    # "I need a new phone" (2026-10-08: to the planner) is a phone.
     if m and not (_TASK_VERB.match(m.group("item")) and not re.match(
-            r"(?:phone|ring|text|paint|file|water|wash|clean|print) (?:charger|case|cable|cord|stand|mount|holder|screen protector"
+            r"(?:phone|ring)$|(?:phone|ring|text|paint|file|water|wash|clean|print) (?:charger|case|cable|cord|stand|mount|holder|screen protector"
             r"|light|book|books|brush|brushes|folder|folders|bottle|bottles|filter|cloth|wipes|supplies|paper|cartridge|ink)s?\b", m.group("item"))) \
             and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
                              r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
@@ -6718,6 +6719,11 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "remember", "domain": "identity", "key": "email",
                             "value": m.group(1).rstrip(".")}, "say": None}
+    # "My email is caleb at example dot com", said out loud (2026-10-08: to the planner).
+    m = re.fullmatch(r"my (?:email|e-mail|email address) is (?P<user>[a-z0-9][a-z0-9._+-]{0,40}) at (?P<host>[a-z0-9-]{1,40}(?: dot [a-z0-9-]{1,20}){1,3})", low)
+    if m:
+        return {"command": {"kind": "remember", "domain": "identity", "key": "email",
+                            "value": m.group("user") + "@" + m.group("host").replace(" dot ", ".")}, "say": None}
     m = re.fullmatch(r"my (?:phone|cell|mobile|cell phone|phone number|cell number|mobile number|number) is "
                      r"(\+?\d[\d ().-]{5,20}\d)", low)
     if m:
@@ -10438,6 +10444,15 @@ def _interpret(transcript: str) -> dict:
         every, at = m.group("every") or m.group("every2"), m.group("at") or m.group("at2")
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"Noted. Want a reminder too? Say \"remind me to take {what} {every} {at}\"."}
+    # "The internet is slow", "I switched to Verizon" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:the |my |our )?(?:internet|wifi|wi-fi|connection|cable|tv|power|electricity|water|heat|ac|a/c|cell service|signal)"
+                    r" (?:is|keeps|has been|was) (?:really |so |super |very )?(?:slow|spotty|out|dropping|cutting out|going out|acting up|flaky|weak|off|back on)"
+                    r"(?: again| today| tonight| all day| this morning)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:switched|changed|moved|went) (?:over )?(?:my |our )?(?:phone |cell |internet |insurance |electric |power |cable )?"
+                    r"(?:carrier |provider |plan |company )?to [a-z][a-z&' -]{1,25}", low) \
+            and not re.search(r"\bto (?:bed|sleep|work|school|the |a |my |decaf|tea)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
