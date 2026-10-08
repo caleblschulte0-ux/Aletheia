@@ -7906,5 +7906,12 @@ class AHeadacheSinceThisMorning(unittest.TestCase):
 
 
 
+class OurAnniversaryNotToldYet(unittest.TestCase):
+    def test_it_says_how_to_tell_her(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("our anniversary is", quick.answer("when is our anniversary"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

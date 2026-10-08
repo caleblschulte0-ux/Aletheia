@@ -12878,6 +12878,12 @@ def _when_note(text: str) -> str | None:
         if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) and re.search(
                 r"\d|\b(?:mon|tues|wednes|thurs|fri|satur|sun|week)days?\b|\b(?:today|tonight|tomorrow|weekends?)\b", low):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    # "When is our anniversary" with nothing told (2026-10-08: "I can't
+    # think") - a date only he knows, so the answer is how to tell her.
+    whose = re.match(r"when (?:is|'s) (?P<whose>my|our) ", _tidy(text))
+    if whose and re.fullmatch(r"(?:wedding )?anniversary", thing):
+        return (f"You haven't told me. Say \"{whose.group('whose')} anniversary is\" and the date, "
+                "and I'll remember it.")
     return None
 
 
