@@ -351,6 +351,10 @@ def _day(stamp: object, zone) -> str:
         return ""
 
 
+#: How many days count as recent for the closures published apart.
+RECENT_DAYS = 3
+
+
 def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS) -> dict:
     """Per-day counts from the records: found, filled, sent, replies,
     interviews, rejections. Pure."""
@@ -392,6 +396,12 @@ def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS
     return {"days": dict(sorted(by_day.items())), "window_days": days, "totals": total,
             "sent_all_time": sum(1 for r in rows if isinstance(r, dict) and r.get("state") in PRESSED),
             "waiting": waiting(rows, now=now, first=first),
+            # THE LAST FEW DAYS APART. A month's closures mix causes already
+            # fixed with ones still happening: live 2026-10-07 "asks nothing
+            # on greenhouse" read 22, and nothing said whether one of them
+            # was this week's.
+            "closed_recently": {"days": RECENT_DAYS, "why": waiting(
+                rows, now=now, first=(now.date() - dt.timedelta(days=RECENT_DAYS - 1)).isoformat())["closed"]},
             "generated_at": stateio.utcnow()}
 
 
