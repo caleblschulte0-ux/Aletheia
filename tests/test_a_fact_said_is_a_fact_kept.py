@@ -10634,5 +10634,15 @@ class WhatHeOrderedAndWhetherItCame(unittest.TestCase):
                 self.assertIsNone(quick.answer(q), q)
 
 
+class OutWithNoNameGiven(unittest.TestCase):
+    """2026-10-08: "my boss is out this week" and "my coworker is out sick
+    today" went to the planner - only a named coworker was kept."""
+
+    def test_kept(self):
+        for said in ("my boss is out this week", "my coworker is out sick today"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual((voice._interpret("my boss is out of his mind")["command"] or {}).get("kind"), "note")
+
+
 if __name__ == "__main__":
     unittest.main()

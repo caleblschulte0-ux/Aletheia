@@ -10836,6 +10836,12 @@ def _interpret(transcript: str) -> dict:
                      r"(?: today)?", low)
     if m and re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text) and m.group("who") not in ("i", "he", "she", "it", "who"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My boss is out this week", "my coworker is out sick today" (2026-10-08:
+    # to the planner) - the role is who.
+    if re.fullmatch(r"my (?:coworker|co-worker|colleague|boss|manager|supervisor|teammate|assistant) (?:is|called in) "
+                    r"(?:out sick|off sick|sick|out|off|on vacation|on leave|out of (?:the )?office|working from home)"
+                    r"(?: today| this week| until [a-z]+| all week| tomorrow)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"my (?:work|personal|school|other|business) (?:email|e-mail|email address|phone|phone number|number|cell) is \S.{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I'm going to Denver next weekend", "I'm visiting my parents next
