@@ -8846,6 +8846,17 @@ def _interpret(transcript: str) -> dict:
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # HIS BIG NEWS (2026-10-08: "I got promoted" got its congratulations and
+    # was gone, so "when did I get promoted" went to a model). Kept in his
+    # journal; the kind word is still quick's.
+    g = _quick._groups("life_news", low)
+    if g.get("win") or g.get("win2") or g.get("setback") or g.get("quit"):
+        try:
+            say = _quick.answer(text)
+        except Exception:  # noqa: BLE001
+            say = None
+        return {"command": {"kind": "note", "text": "Journal: " + re.sub(r"\bi\b", "I", _as_he_said(text, low.rstrip("!")))},
+                "say": say or "Noted. I've put it in your journal."}
     # BEING ILL (2026-10-08): "I have a cold" got "rest up" and was gone, so
     # "how long have I had this cold" had nothing to count from.
     m = re.fullmatch(r"i(?:'ve| have)(?: got| had)? (?:a |an |the )?(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)"
@@ -9232,7 +9243,7 @@ def _interpret(transcript: str) -> dict:
     # every other Friday", "I make 25 an hour" and "I got paid today" all went
     # to the planner). A note in his words, held to a number or a day, so
     # "my pay is terrible" stays how he feels.
-    if (re.fullmatch(r"(?:my |our )?(?:paycheck|pay ?check|pay|salary|income|take[- ]home(?: pay)?|hourly rate|wage|wages)"
+    if (re.fullmatch(r"(?:my |our )?(?:new |current )?(?:paycheck|pay ?check|pay|salary|income|take[- ]home(?: pay)?|hourly rate|wage|wages)"
                      r" (?:is|are) (?:about |around )?\$?\d[\d,.k]*.{0,40}", fact_low)
             or re.fullmatch(r"i (?:make|earn|get paid|bring home|take home|get) (?:about |around )?\$?\d[\d,.k]*(?: dollars| bucks)?"
                             r" (?:an? |per |every |each )(?:hour|week|month|year|two weeks|other week)(?: after tax(?:es)?| before tax(?:es)?)?", fact_low)

@@ -8617,5 +8617,35 @@ class WhatTimeThereWhenItsNineHere(unittest.TestCase):
 
 
 
+class HisBigNewsIsKept(unittest.TestCase):
+    """2026-10-08: "I got promoted" got its congratulations and was gone."""
+
+    def test_news_is_a_journal_note_with_the_kind_word(self):
+        from aletheia import voice
+        got = voice._interpret("i got promoted")
+        self.assertEqual(got["command"], {"kind": "note", "text": "Journal: I got promoted"})
+        self.assertIn("Congratulations", got["say"])
+
+    def test_a_new_salary_is_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my new salary is 90k")["command"]["kind"], "note")
+
+    def test_when_did_i_get_promoted_reads_it(self):
+        from aletheia import quick
+        rows = [{"text": "Journal: I got promoted at Acme", "ts": "2026-10-01T15:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertTrue(quick.answer("when did I get promoted").startswith("You told me you got promoted at Acme"))
+            self.assertIsNone(quick.answer("when did I get a raise"))
+
+    def test_a_new_job_without_a_start_day_says_what_is_missing(self):
+        from aletheia import quick
+        rows = [{"text": "I got a new job at Acme", "ts": "2026-10-01T15:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            said = quick.answer("how long have I worked at Acme")
+        self.assertIn("got a new job at Acme", said)
+        self.assertIn("not the day you started", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

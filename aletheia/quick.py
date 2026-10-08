@@ -2068,6 +2068,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:do i (?:still )?owe|does(?=.*\bowe me\b)) (?P<owe_who>(?!anyone\b|anybody\b)[a-z][a-z ]{0,25}?)(?: still)?(?: owe me)?(?: (?:any )?money| anything)?\s*\??$")),
     # "When did I last change the oil", "did I give the dog his medicine"
     # (2026-10-07: to a model and the planner, a turn after he said so).
+    # "When did I get promoted" (2026-10-08: to a model, one turn after he
+    # said so). Read from the news he told her.
+    ("news_when", re.compile(
+        r"^when did (?:i|we) (?P<news_when>get (?:promoted|hired|engaged|married|the job|(?:a |my |the )?(?:raise|promotion|offer|job offer|new job))"
+        r"|graduate|quit my job|lose my job|get laid off|buy (?:a|the|our|my) (?:house|home|car)|close on (?:the|our|my) house)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2878,7 +2883,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13216,6 +13221,30 @@ def _weight() -> str | None:
     return None
 
 
+_NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
+
+
+def _news_when(what: str) -> str | None:
+    """When he told her his news, from his journal. None when he never
+    said: it may have come up in a conversation a model answered."""
+    from aletheia import speech
+    head, _, rest = what.casefold().strip().partition(" ")
+    past = _NEWS_PAST.get(head)
+    if not past:
+        return None
+    words = [w for w in re.findall(r"[a-z']+", rest) if w not in ("a", "my", "the", "our")]
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").casefold().split())
+        if not re.search(r"\b(?:i|we) (?:just |finally )?" + past + r"\b", low) \
+                or not all(re.search(r"\b" + re.escape(w), low) for w in words):
+            continue
+        said = " ".join(str(row.get("text") or "").split())
+        told = re.sub(r"\bmy\b", "your", re.sub(r"^(?:journal: )?i ", "you ", said, flags=re.I), flags=re.I).rstrip(".!")
+        when = speech.humanize_time(str(row.get("ts") or ""))
+        return f"You told me {told} {when}." if when else f"You told me {told}."
+    return None
+
+
 def _job_since(text: str) -> str | None:
     """How long he has been at his job, from his note saying when he
     started. None when he never said: his profile or mail may know."""
@@ -13274,6 +13303,16 @@ def _job_since(text: str) -> str | None:
         else:
             span = f"about {days // 365} years"
         return f"{span[:1].upper() + span[1:]} - you started {'in' if month_only else 'on'} {on}."
+    # "I got a new job at Acme" (2026-10-08) says when he GOT it, not when he
+    # started: said back as that, with what is missing.
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.search(r"\bi (?:just |finally )?(?:got (?:a |the |my )?(?:new )?job|got hired)\b", said, re.I):
+            from aletheia import speech
+            when = speech.humanize_time(str(row.get("ts") or ""))
+            told = re.sub(r"^(?:journal: )?i ", "you ", said, flags=re.I).rstrip(".!")
+            return (f"You told me {told} {when}, " if when else f"You told me {told}, ") + \
+                "but not the day you started. Tell me and I'll count from it."
     return None
 
 
@@ -13973,6 +14012,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "news_when": _news_when,
            "born_age": _born_age,
            "his_likes": lambda rest: _his_likes(),
            "sick_since": _sick_since,
