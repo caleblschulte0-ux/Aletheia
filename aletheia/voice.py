@@ -9036,6 +9036,22 @@ def _interpret(transcript: str) -> dict:
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # MORE SYMPTOMS (2026-10-08: "I feel dizzy", "my back hurts", "I've been
+    # coughing for 3 days" to the planner). The same journal, so "what
+    # symptoms have I had" and "what should I tell the doctor" can read them.
+    m = re.fullmatch(r"i(?:'m| am| feel|'m feeling| am feeling)(?: really| a bit| kind of| so| very)? (?P<s>dizzy|nauseous|nauseated|lightheaded|light-headed"
+                     r"|feverish|congested|stuffy|achy|queasy|short of breath)(?: (?:today|again|right now|now|this morning|all day))?"
+                     r"|my (?P<part>back|lower back|head|throat|stomach|tummy|knee|knees|neck|shoulder|tooth|ear|ears|foot|feet|leg|arm|chest|wrist"
+                     r"|ankle|hip|eye|eyes|jaw|hand) (?:hurts|is hurting|is sore|aches|is aching|has been hurting|is bothering me)"
+                     r"(?: (?:today|again|since [a-z ]{3,20}|for (?:a few|\d+|two|three|four|five) (?:days|weeks)|all (?:day|week)))?"
+                     r"|i(?:'ve| have) been (?P<v>coughing|sneezing|throwing up|vomiting|wheezing|feeling dizzy|feeling sick|feeling nauseous)"
+                     r"(?: (?:for (?:a few|\d+|two|three|four|five|a couple of) (?:days|hours|weeks)|since [a-z ]{3,20}|all (?:day|night|week)|today|again))?"
+                     r"|i (?:just )?(?:threw up|vomited|fainted|passed out)(?: (?:today|this morning|last night|again))?", low)
+    if m:
+        urgent = (m.group("part") == "chest" or re.search(r"\b(?:fainted|passed out|short of breath)\b", low))
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": ("If it's sudden or severe, call 911 now. I've put it in your journal." if urgent
+                        else "Sorry, that's no fun. I've put it in your journal, so you can tell the doctor how long it's been.")}
     # WHAT HE LIKES (2026-10-08: "I love hiking" to the planner) - kept in
     # his words; "what do I like" reads it with his favorites.
     m = re.fullmatch(r"i (?:really |also |just )?(?:like|love|enjoy|adore|am into|'m into|am a big fan of|'m a big fan of) "

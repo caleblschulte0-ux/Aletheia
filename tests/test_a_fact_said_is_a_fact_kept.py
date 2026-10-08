@@ -9362,5 +9362,25 @@ class DatesAskedOtherWays(unittest.TestCase):
         self.assertEqual(quick.match("what day is christmas on this year")[0], "until_day")
 
 
+class HowHeHasBeenFeeling(unittest.TestCase):
+    """"I feel dizzy", "my back hurts" and "I've been coughing for 3 days"
+    went to the planner, and nothing read them back (2026-10-08)."""
+
+    def test_kept_in_his_journal(self):
+        for said in ("I feel dizzy", "my back hurts", "I have been coughing for 3 days"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": "Journal: " + said})
+        self.assertIn("911", voice._interpret("my chest hurts")["say"])
+
+    def test_read_back(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "Journal: I have been coughing for 3 days", "ts": now}, {"text": "Journal: my back hurts", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertTrue(quick.answer("how long have I been coughing").startswith("About 3 days, from what you told me today"))
+            self.assertTrue(quick.answer("how long has my back hurt").startswith("Since today"))
+            self.assertEqual(quick.answer("what should I tell the doctor"),
+                             "From what you told me lately: your back hurts (today); you have been coughing for 3 days (today).")
+
+
 if __name__ == "__main__":
     unittest.main()

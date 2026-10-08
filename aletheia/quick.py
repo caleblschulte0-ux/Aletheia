@@ -1859,7 +1859,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How long have I had this cold" (2026-10-08: to a model).
     ("sick_since", re.compile(
         r"^how long have i (?:had|been sick with|been dealing with|been fighting) (?:this |my |a |an |the )?"
-        r"(?P<sick_since>headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)(?: for)?\s*\??$")),
+        r"(?P<sick_since>headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)(?: for)?\s*\??$"
+        # "How long have I been coughing", "how long has my back hurt" (2026-10-08)
+        r"|^how long have i been (?:feeling )?(?P<sick_since2>coughing|sneezing|dizzy|nauseous|throwing up|wheezing|congested)(?: for)?\s*\??$"
+        r"|^how long has my (?P<sick_since3>back|lower back|head|throat|stomach|knee|neck|shoulder|tooth|ear|foot|leg|arm|wrist|ankle|hip|jaw)"
+        r" (?:hurt|been hurting|been sore|ached|been aching|been bothering me)(?: for)?\s*\??$")),
+    # "What symptoms have I had this week", "what should I tell the doctor"
+    # (2026-10-08: to a model).
+    ("symptoms", re.compile(
+        r"^what (?:symptoms|health stuff|health problems) (?:have i had|did i have|have i mentioned|have i told you about)(?P<symptoms> this week| lately| recently| today| this month)?\s*\??$"
+        r"|^what should i tell (?:the|my) (?:doctor|dr|doc|nurse|dentist)\s*\??$")),
     # "How old am I if I was born in 1990" (2026-10-08: to a model).
     ("born_age", re.compile(
         r"^how old (?:am i|would i be|is (?:someone|somebody|a person|someone who was|somebody who was))"
@@ -3021,7 +3030,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3041,7 +3050,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -10278,19 +10287,34 @@ def _sick_since(what: str) -> str | None:
     from aletheia import localtime, speech
     what = " ".join(str(what or "").split())
     tz = localtime.operator_tz()
-    first, since = None, ""
+    first, since, told_at = None, "", None
+    # "coughing", "dizzy", "back": the ways he says each (2026-10-08)
+    stem = {"coughing": r"cough(?:ing)?", "sneezing": r"sneez(?:e|ing)", "throwing up": r"throwing up|threw up|vomit",
+            "wheezing": r"wheez", "dizzy": r"dizzy", "nauseous": r"nause", "congested": r"congested|stuffy"}.get(what)
+    if stem is None and what in ("back", "lower back", "head", "throat", "stomach", "knee", "neck", "shoulder", "tooth", "ear",
+                                 "foot", "leg", "arm", "wrist", "ankle", "hip", "jaw"):
+        stem = rf"my {re.escape(what)} (?:hurts|is hurting|is sore|aches|is aching|is killing|has been)"
+    said_it = re.compile(rf"\b(?:{stem})" if stem else rf"\b(?:have|had|got) (?:a |an |the )?{re.escape(what)}\b")
     for row in _notes():                                    # newest first
         said = " ".join(str(row.get("text") or "").split()).casefold()
         if re.search(r"\b(?:feel|feeling) (?:much )?better\b|\bover (?:it|my|the)\b", said):
             break
-        if re.search(rf"\b(?:have|had|got) (?:a |an |the )?{re.escape(what)}\b", said):
+        if said_it.search(said):
             try:
                 first = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
             except ValueError:
                 continue
             m = re.search(r"\bsince ([a-z ]+)$", said)
             since = m.group(1) if m else ""
+            # "for 3 days" said when he told her counts back from then
+            ago = re.search(r"\bfor (\d+|two|three|four|five|a few|a couple of) (days|weeks)\b", said)
+            told_at = first
+            if ago and first is not None:
+                n = {"two": 2, "three": 3, "four": 4, "five": 5, "a few": 3, "a couple of": 2}.get(ago.group(1)) or int(ago.group(1))
+                first -= dt.timedelta(days=n * (7 if ago.group(2) == "weeks" else 1))
     if first is None:
+        if stem:
+            return f"You haven't told me about that. Say it when it starts - \"I've been {what}\" - and I'll keep count."
         return f"You haven't told me you have a {what}. Say \"I have a {what}\" and I'll keep count." \
             if what[0] not in "aeiou" else f"You haven't told me you have an {what}."
     if since:
@@ -10298,6 +10322,8 @@ def _sick_since(what: str) -> str | None:
         return f"Since {since}, you told me."
     days = (dt.datetime.now(tz).date() - first.date()).days
     told = speech.humanize_time(first.isoformat())
+    if told_at != first:
+        return f"About {days} day{'s' if days != 1 else ''}, from what you told me {speech.humanize_time(told_at.isoformat())}."
     return (f"Since {told}, when you first told me." if days < 1
             else f"{days} day{'s' if days != 1 else ''} - you first told me {told}.")
 
@@ -14096,6 +14122,42 @@ def _day_of_year(_text: str = "") -> str:
     return f"Day {n} of {total}."
 
 
+_SYMPTOM = re.compile(r"\b(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough(?:ing)?|dizzy|nause\w*|lightheaded|light-headed"
+                      r"|feverish|congested|stuffy|achy|queasy|short of breath|sneez\w*|threw up|throwing up|vomit\w*|wheez\w*|fainted|passed out"
+                      r"|(?:hurts|is hurting|is sore|aches|is aching|is killing me|been hurting))\b")
+
+
+def _symptoms(text: str) -> str | None:
+    """What he told her about how he has been, in his words, with the day."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    low = _tidy(text)
+    window = re.search(r"\b(this week|today|this month|lately|recently)\b", low)
+    days = {"today": 0, "this week": 7, "this month": 31}.get(window.group(1) if window else "", 14)
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    seen = []
+    for row in reversed(_notes()):
+        said = re.sub(r"^journal: ", "", " ".join(str(row.get("text") or "").split()).rstrip("."), flags=re.I)
+        if not _SYMPTOM.search(said.casefold()):
+            continue
+        try:
+            on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if (today - on).days > days:
+            continue
+        line = speech.as_she_says_it(re.sub(r"^i(?:'ve| have| am|'m)? ", lambda m: {"i ": "you ", "i've ": "you've ", "i have ": "you have ",
+                                                                                     "i am ": "you're ", "i'm ": "you're "}.get(m.group(0).casefold(), m.group(0)), said, flags=re.I))
+        seen.append(f"{line} ({'today' if on == today else on.strftime('%A')})")
+    asked_doctor = "tell" in low
+    if not seen:
+        return ("You haven't told me about anything that's been bothering you lately." if asked_doctor
+                else "Nothing you've told me about.")
+    head = "From what you told me lately: " if asked_doctor else "You told me: "
+    return head + "; ".join(seen[:6]) + "."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14903,6 +14965,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "symptoms": _symptoms,
            "day_of_year": _day_of_year,
            "which_mine": _which_mine,
            "reminder_next": _reminder_next,
