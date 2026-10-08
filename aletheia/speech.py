@@ -806,7 +806,11 @@ def spoken_receipt(kind: str, detail: str, *,
             said = {"home_city": "you live in {}", "zip_code": "your zip code is {}",
                     "postal_code": "your zip code is {}", "operator_name": "I'll call you {}",
                     "full_name": "your name is {}", "timezone": "your time zone is {}",
-                    "birthday": "your birthday is {}"}.get(slot.group(2))
+                    "birthday": "your birthday is {}",
+                    # "Got it - I'll remember your phone" (2026-10-08): the
+                    # number said back is the one he can catch wrong.
+                    "phone": "your phone number is {}", "email": "your email is {}",
+                    "address": "your address is {}"}.get(slot.group(2))
             if value and said and len(value) <= 60:
                 if slot.group(2) == "birthday":
                     # "may 5 1995" as she says a date: "May 5, 1995".

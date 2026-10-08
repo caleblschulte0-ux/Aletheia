@@ -292,7 +292,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
     # "Every hour", "every 30 minutes": within the day, from now.
-    "remind_every":    ({"minutes", "text"}, set()),
+    "remind_every":    ({"minutes", "text"}, {"replaces"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
     # so "remind me every monday to take out the trash" compiled to a
@@ -2007,6 +2007,18 @@ def _one_notice(which: str = ""):
     from aletheia import notifications, speech
     rows = [n for n in notifications.all_notifications(state="UNREAD", limit=50)]
     if not rows:
+        # "Snooze that" a turn after setting one (2026-10-08): nothing has
+        # gone off, so say which is next and how to push it.
+        try:
+            from aletheia import quick
+            nxt = next((r for r in quick._coming() if r[2] == "reminder"), None)
+        except Exception:
+            nxt = None
+        if nxt:
+            # An alarm is a "wake up" reminder underneath; he calls it his alarm.
+            what = "your next alarm" if nxt[1].strip().casefold() == "wake up" else f"your next reminder, {nxt[1].rstrip('.')},"
+            return None, (f"Nothing has gone off yet - {what} is "
+                          f"{speech.humanize_time(nxt[0].isoformat())}. Say \"move it to\" and a time to push it.")
         return None, "Nothing is waiting to be snoozed."
     needle = " ".join(str(which or "").split()).casefold()
     if not needle or needle in ("that", "it", "this", "them"):
@@ -4018,6 +4030,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         minutes = int(cmd["minutes"])
         if not 15 <= minutes <= 720:
             raise act.Refused("I can repeat a reminder every 15 minutes to every 12 hours within the day.")
+        if cmd.get("replaces"):
+            # "Change it to every hour" (2026-10-08): the one he just set,
+            # stopped (kept, so it can be put back) and set again.
+            old, _why = _one_reminder(str(cmd["replaces"]))
+            if old is not None and old.get("kind") == "interval":
+                scheduler.set_enabled(old["id"], False)
         sid = "remind-every-" + _uuid.uuid4().hex[:8]
         anchor = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
