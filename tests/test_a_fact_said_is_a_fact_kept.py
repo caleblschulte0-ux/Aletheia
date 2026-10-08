@@ -12260,5 +12260,17 @@ class HisFriends(unittest.TestCase):
         self.assertEqual(quick.match("what are we doing friday")[0], "agenda")
 
 
+class RacesAndGames(unittest.TestCase):
+    def test_races_and_games_are_kept(self):
+        for said in ("I signed up for a 5k", "the 5k is on november 2", "I played basketball tonight"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+
+    def test_the_race_and_the_bench_max_read_what_he_said(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the 5k is on november 2"}, {"text": "I benched 225"}]):
+            self.assertEqual(quick.answer("when is my 5k"), "You told me the 5k is on November 2.")
+            self.assertEqual(quick.answer("what is my bench max"), "Your best bench is 225.")
+            self.assertIsNone(quick.answer("when is my marathon"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -11164,6 +11164,14 @@ def _interpret(transcript: str) -> dict:
     if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"That's great news - congratulations to {_as_he_said(text, m.group('who')).title() if m.group('who').islower() else _as_he_said(text, m.group('who'))}. I've kept it."}
+    # A race and a game (2026-10-08, each to the planner): "I signed up for
+    # a 5k", "the 5k is on november 2", "I played basketball tonight".
+    _RACE = r"(?:5k|10k|half marathon|marathon|half|race|fun run|color run|turkey trot|triathlon|tough mudder|spartan race|charity walk)"
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:signed up|registered|entered) for (?:a|an|the|my) " + _RACE + r"(?: (?:on|this|next) [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"(?:the|my|our) " + _RACE + r" is (?:on |this |next )?(?:" + SPOKEN_DATE + r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next month|next weekend|this weekend)", low) \
+            or re.fullmatch(r"(?:i|we) (?:just )?(?:played|shot|went) (?:some )?(?:basketball|hoops|soccer|tennis|pickleball|golf|volleyball|softball|baseball|racquetball|squash|frisbee|ultimate|hockey|football|disc golf|bowling|a round of golf|9 holes|18 holes)"
+                            r"(?: with [a-z ]{2,25})?(?: today| tonight| this morning| yesterday| last night)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
