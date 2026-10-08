@@ -14044,10 +14044,18 @@ def _their_fact(text: str) -> str | None:
 def _meds(text: str = "") -> str | None:
     """What he told her he takes: "my prescription is ...", "I take ..."."""
     from aletheia import speech
-    found, seen = [], set()
+    found, seen, stopped = [], set(), set()
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
+        # "I stopped taking lisinopril", newer than the note that started
+        # it, takes it off (2026-10-08).
+        off = re.fullmatch(r"i stopped taking (?:my )?(.+?)\.?", low)
+        if off:
+            stopped.add(off.group(1))
+            continue
+        if any(re.search(rf"\b{re.escape(drug)}\b", low) for drug in stopped):
+            continue
         # "My prescription is ready" is about a pickup, not what he takes
         # (2026-10-07: read back as his medication).
         if re.match(r"(?:my|our) (?:daily )?(?:prescriptions?|medications?|meds) (?:is|are) "

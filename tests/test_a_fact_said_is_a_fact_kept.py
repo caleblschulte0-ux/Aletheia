@@ -10263,5 +10263,26 @@ class NeighborsAndTheHouse(unittest.TestCase):
             self.assertEqual(quick.answer("is the power back"), "Yes - you told me the power came back.")
 
 
+class WhatHeTakes(unittest.TestCase):
+    """A sweep of health sentences (2026-10-08): a new medication and a
+    physical went to the planner, and a medication he stopped stayed on
+    the list."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I started a new medication called lisinopril")["command"],
+                         {"kind": "note", "text": "I started taking lisinopril"})
+        self.assertEqual(voice._interpret("the doctor put me on metformin")["command"]["text"], "I started taking metformin")
+        self.assertEqual(voice._interpret("I'm off lisinopril now")["command"]["text"], "I stopped taking lisinopril")
+        self.assertEqual(voice._interpret("I have a physical on November 3")["command"]["kind"], "calendar_hold")
+        self.assertNotEqual(voice._interpret("I stopped the car")["command"]["kind"], "note")
+
+    def test_a_medication_he_stopped_comes_off(self):
+        rows = [{"text": "I stopped taking lisinopril"}, {"text": "I started taking metformin"},
+                {"text": "I take vitamin D every morning"}, {"text": "I started taking lisinopril"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what medications am I on"),
+                             "You told me: you started taking metformin and you take vitamin D every morning.")
+
+
 if __name__ == "__main__":
     unittest.main()

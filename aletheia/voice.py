@@ -8874,6 +8874,8 @@ def _interpret(transcript: str) -> dict:
                         # "I have a test on Friday" (2026-10-08: to the planner).
                         r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
                         r"|date|class|practice|haircut|checkup|check-up"
+                        # "I have a physical on November 3" (2026-10-08: to the planner).
+                        r"|physical|eye exam|colonoscopy|mammogram|blood work|bloodwork|lab work|ultrasound|mri|x-ray|surgery|procedure|vaccine|cleaning"
                         # "I have a parent teacher conference thursday at 4" (2026-10-08: to the planner).
                         r"|conference|lesson|rehearsal|concert|performance"
                         # "I have a one on one with Linda tomorrow at 10" (2026-10-08: to the planner).
@@ -10370,6 +10372,22 @@ def _interpret(transcript: str) -> dict:
                     r"(?: again)?(?: today| tonight| this morning| last night)?", low) \
             or re.fullmatch(r"(?:my |the |our )(?:[a-z]+(?:'s|s'|s) )?[a-z][a-z]{1,15}(?: [a-z]{2,15})? (?:keeps|won't stop|wont stop|will not stop) (?!it\b)[a-z]{3,15}ing(?: [a-z ]{1,25})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I started a new medication called lisinopril", "I stopped taking
+    # lisinopril", "the doctor took me off lisinopril" (2026-10-08: to the
+    # planner), kept the way "what medications am I on" reads them.
+    m = re.fullmatch(r"i (?:just |recently )?(?:started|began|am starting|'m starting|got put on|was put on|was prescribed|got prescribed) (?:on )?(?:a |an |my )?(?:new )?"
+                     r"(?:medication|medicine|med|prescription|pill|drug|blood pressure (?:med|medication|pill)|antibiotic)s? (?:called |named )?(?P<drug>[a-z][a-z0-9 -]{2,30})", low) \
+        or re.fullmatch(r"(?:the |my )?doctor (?:put me on|started me on|prescribed(?: me)?) (?P<drug>[a-z][a-z0-9 -]{2,30})", low)
+    if m and m.group("drug") not in ("it", "that", "this", "them", "something", "today", "yesterday"):
+        return {"command": {"kind": "note", "text": f"I started taking {_as_he_said(text, re.sub(r' (?:today|yesterday|this week)$', '', m.group('drug')))}"}, "say": None}
+    m = re.fullmatch(r"i (?:just )?(?:stopped|quit|am done|'m done|finished) (?:taking )?(?:my )?(?P<drug>[a-z][a-z0-9 -]{2,30})"
+                     r"|(?:the |my )?doctor (?:took me off|stopped|discontinued) (?:my )?(?P<drug2>[a-z][a-z0-9 -]{2,30})"
+                     r"|i(?:'m| am) (?:off|no longer on|not on) (?P<drug3>[a-z][a-z0-9 -]{2,30}?)(?: now| anymore| any more)?", low)
+    if m:
+        drug = re.sub(r" (?:today|yesterday|now|anymore|any more)$", "", m.group("drug") or m.group("drug2") or m.group("drug3"))
+        if re.search(_quick._DRUGS + r"|\b(?:vitamin|supplement|pill|meds?|medication|antibiotics?|birth control)\b", drug) \
+                or m.group("drug2") or re.search(r"\b(?:taking|doctor)\b", low):
+            return {"command": {"kind": "note", "text": f"I stopped taking {_as_he_said(text, drug)}"}, "say": None}
     # Sports and the scores he keeps: "I have tickets to the Packers game on
     # Sunday", "our seats are section 112 row 8", "I bowled a 180 tonight",
     # "I shot an 89 at golf today", "I caught a 5 pound bass", "I ran a 5k in
