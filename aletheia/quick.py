@@ -2210,6 +2210,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                                r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
                                r"(?: (?:this|next) (?:weekend|week)| tonight| tomorrow)?\s*\??$")),
     ("time_take", re.compile(r"^(?:what time|when) (?:do|should) i (?:take|have) (?P<time_take>(?:my )?[a-z][a-z ]{2,30}?)\s*\??$")),
+    # "Did the school call" after "the school called" (2026-10-08: to a model).
+    ("did_call", re.compile(r"^(?:did|has) (?P<did_call>(?:my |the )[a-z' ]{2,30}?|[a-z]{2,20}) (?:call|called|ring|rang|text|texted|stop by|stopped by|come by|come over)"
+                            r"(?: me)?(?: today| yet| back| this morning)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3090,7 +3093,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13642,7 +13645,11 @@ def _their_fact(text: str) -> str | None:
         for row in _notes():
             said = " ".join(str(row.get("text") or "").split())
             low = said.casefold()
-            if all(re.search(rf"\b{re.escape(w)}", low) for w in words) and re.search(rf"\b{re.escape(key)}", low):
+            # "My son goes to Lincoln Elementary" (2026-10-08) names the
+            # school without the word.
+            if all(re.search(rf"\b{re.escape(w)}", low) for w in words) and (re.search(rf"\b{re.escape(key)}", low) or (
+                    key in ("school", "daycare") and re.search(r"\bgo(?:es)? to\b.*\b(?:elementary|middle|high|academy|prep|preschool"
+                                                               r"|daycare|college|university)\b", low))):
                 return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     return None
 
@@ -14373,6 +14380,16 @@ def _time_take(what: str) -> str | None:
                 and re.search(r"\bat \d|\b(?:morning|night|evening|bedtime|breakfast|lunch|dinner)\b", low):
             return f"You told me: {speech.as_she_says_it(said)}."
     return None
+
+
+def _did_call(who: str) -> str | None:
+    """"Did the school call": yes, from what he said, with the day; and
+    nothing at all when he never said - her not knowing is not a no."""
+    who = " ".join(str(who or "").casefold().split())
+    if who in ("anyone", "anybody", "someone", "somebody", "you", "i", "he", "she", "they", "it"):
+        return None
+    found = _told_when(rf"^{re.escape(who)} (?:just |finally )?(?:called|rang|texted|stopped by|came by|dropped by|came over|phoned)\b")
+    return f"Yes - {found[:1].lower()}{found[1:]}" if found else None
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
@@ -15182,6 +15199,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "did_call": _did_call,
            "fav_place": _fav_place,
            "who_minding": _who_minding,
            "time_take": _time_take,

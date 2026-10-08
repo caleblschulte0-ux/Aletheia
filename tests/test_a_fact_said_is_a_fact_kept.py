@@ -9491,5 +9491,30 @@ class AroundTheHouseholdAgain(unittest.TestCase):
             self.assertIsNone(quick.answer("where should we get pizza"))
 
 
+class TheKidsAndSchool(unittest.TestCase):
+    """A sweep of school-run sentences, most to a model or the planner (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("my son's soccer practice is every tuesday at 5", "the school called", "my kid lost a tooth",
+                     "my son goes to Lincoln Elementary"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("I have a parent teacher conference thursday at 4")["command"]["kind"], "calendar_hold")
+        lunches = voice._interpret("I need to pack lunches tonight")["command"]
+        self.assertEqual((lunches["kind"], lunches["description"]), ("task_new", "pack lunches"))
+        self.assertEqual(voice._interpret("I need to pack my charger")["command"]["list"], "packing")
+        self.assertNotEqual(voice._interpret("the meeting got called off")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "my son's soccer practice is every Tuesday at 5"}, {"text": "my son goes to Lincoln Elementary"},
+                {"text": "the school called"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("when is soccer practice"),
+                             "You told me: your son's soccer practice is every Tuesday at 5.")
+            self.assertEqual(quick.answer("what school does my son go to"),
+                             "You told me: your son goes to Lincoln Elementary.")
+            self.assertEqual(quick.answer("did the school call"), "Yes - you told me: the school called.")
+            self.assertIsNone(quick.answer("did my mom call"))
+
+
 if __name__ == "__main__":
     unittest.main()

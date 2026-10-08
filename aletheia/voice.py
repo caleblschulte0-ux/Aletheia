@@ -1262,7 +1262,9 @@ _TASK_VERB = re.compile(
     # "I need to change the air filter" (2026-10-08: to the planner).
     r"|change (?:the|my) (?:air filters?|furnace filters?|water filters?|filters?|oil|sheets|bed|batteries|battery|light ?bulbs?|bulbs?"
     r"|smoke detector batter(?:y|ies)|tires?|wipers?|litter(?: box)?|cat litter)"
-    r"|sweep|mop|dust|rake|shovel|trim|weed|unclog|descale|defrost|flip (?:the|my) mattress|empty (?:the|my)|unload|load (?:the|my))\b")
+    r"|sweep|mop|dust|rake|shovel|trim|weed|unclog|descale|defrost|flip (?:the|my) mattress|empty (?:the|my)|unload|load (?:the|my)"
+    # "I need to pack lunches tonight" (2026-10-08: the packing list).
+    r"|pack (?:the |school |the kids'? |their |my )?lunch(?:es)?)\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -8770,7 +8772,9 @@ def _interpret(transcript: str) -> dict:
                         r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
                         # "I have a test on Friday" (2026-10-08: to the planner).
                         r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
-                        r"|date|class|practice|haircut|checkup|check-up)(?: with [a-z' ]+?)?)"
+                        r"|date|class|practice|haircut|checkup|check-up"
+                        # "I have a parent teacher conference thursday at 4" (2026-10-08: to the planner).
+                        r"|conference|lesson|rehearsal|concert|performance)(?: with [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
     # ...but "call tomorrow" alone is not a diary entry called Call.
@@ -9274,10 +9278,14 @@ def _interpret(transcript: str) -> dict:
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.
-    m = re.fullmatch(r"(?P<who>my [a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?|[a-z][a-z'-]{1,20}) (?:just |finally )?"
+    m = re.fullmatch(r"(?P<who>my [a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?|[a-z][a-z'-]{1,20}"
+                     # "The school called" (2026-10-08: to the planner).
+                     r"|the (?:school|doctor'?s?(?: office)?|dentist'?s?(?: office)?|bank|pharmacy|vet|landlord|plumber|electrician"
+                     r"|daycare|insurance company|office|hospital|clinic|mechanic|garage|nurse|coach|teacher|principal|recruiter))"
+                     r" (?:just |finally )?"
                      r"(?:called|rang|texted|stopped by|came by|dropped by|came over|phoned)(?: me)?"
                      r"(?: (?:today|earlier|this morning|this afternoon|tonight|just now|back|about [a-z0-9' ]{2,40}))?", low)
-    if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who")).capitalize()
+    if m and (m.group("who").startswith(("my ", "the ")) or re.search(r"\b" + re.escape(m.group("who")).capitalize()
                                                               + r"\b", text)) \
             and m.group("who").split()[-1] not in ("it", "that", "this", "he", "she", "they", "who", "someone", "somebody",
                                                    "anyone", "nobody", "i", "you", "we", "meeting", "game"):
@@ -10091,6 +10099,18 @@ def _interpret(transcript: str) -> dict:
                             r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
                             r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z ]{3,30})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My son's soccer practice is every Tuesday at 5", "my son goes to
+    # Lincoln Elementary", "my kid lost a tooth" (2026-10-08: all to the
+    # planner) are kept for "when is soccer practice" and "what school does
+    # my son go to".
+    kin = r"(?:my|our) (?:son|daughter|kid|kids|boy|girl|oldest|youngest|child|children)(?:'s|s'?)?"
+    if re.fullmatch(kin + r" (?:[a-z]+ ){0,2}(?:practice|lessons?|class|classes|games?|rehearsal|tutoring|club|swim|dance|karate|piano|scouts)"
+                    r" (?:is|are) (?:every|on) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+                    r"(?: and (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?)?(?: (?:at|from) [0-9: apm-]+(?: to [0-9: apm]+)?)?", low) \
+            or re.fullmatch(kin.replace("(?:'s|s'?)?", "") + r" (?:goes|go|go to school|goes to school) (?:to )?[a-z][a-z .'-]{2,40}?"
+                            r"(?: elementary| middle(?: school)?| high(?: school)?| academy| school| prep| preschool| daycare| college| university)", low) \
+            or re.fullmatch(kin.replace("(?:'s|s'?)?", "") + r" (?:just )?lost (?:a|his|her|their|another|a second|another) (?:first )?(?:baby )?tooth(?: today| tonight| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I froze the leftover soup", "I made a double batch of chili"
     # (2026-10-08: to the planner). What is in the freezer is read back.
     if re.fullmatch(r"i (?:just )?froze (?:the |some |my |a |our )?[a-z][a-z' ]{1,40}?(?: today| yesterday| last night| for later)?", low) \
@@ -10209,7 +10229,10 @@ def _interpret(transcript: str) -> dict:
     # packing list "what do I need to pack" already reads.
     m = re.fullmatch(r"(?:i (?:need|have|got|gotta|should|must)(?: to)? |don'?t (?:let me )?forget to |remember to )pack (?:my |the |a |an |some |our )?"
                      r"(?P<what>[a-z][a-z0-9 '&-]{1,40}?)(?: for (?:the |my |our )?(?:trip|vacation|holiday|flight))?", low)
-    if m and m.group("what") not in ("it", "that", "this", "everything", "up", "stuff", "things", "bags", "bag", "suitcase"):
+    # "I need to pack lunches tonight" (2026-10-08: on the packing list) is
+    # a chore with a day on it, not something for a bag.
+    if m and m.group("what") not in ("it", "that", "this", "everything", "up", "stuff", "things", "bags", "bag", "suitcase") \
+            and not re.search(r"\blunch(?:es)?\b|\bsnacks? for (?:the )?(?:kids|school)\b|\b(?:tonight|tomorrow|today|this (?:morning|evening))$", m.group("what")):
         return {"command": {"kind": "list_add", "list": "packing", "item": _as_he_said(text, m.group("what"))}, "say": None}
     # "I benched 185 today" (2026-10-08: to the planner). A lift he logs;
     # "what's my max bench" reads the heaviest.
