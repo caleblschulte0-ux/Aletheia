@@ -3833,6 +3833,18 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
 
+    # "I want to read more books", "I'm trying to drink more water"
+    # (2026-10-08: to the planner). A habit he wants is a goal, kept in the
+    # words "my goal is" so "what are my goals" reads it back.
+    m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need|'m trying|am trying|'m going|am going) to "
+                     r"(?P<g>(?:read|exercise|work out|drink|sleep|eat|walk|run|save|spend|meditate|cook|stretch|study|practice"
+                     r"|go to bed|get up|wake up|go outside|get outside|call my|be|get|stay|spend less time|spend more time)"
+                     r" [a-z0-9 ',-]{0,60}?\b(?:more|less|better|healthier|in shape|fit|earlier|on time|every day|each day"
+                     r"|daily|regularly|every morning|every night|this year|this month)(?: [a-z ]{1,30})?)", low)
+    if m and "?" not in text and not re.search(r"\b(?:you|your|thea)\b", m.group("g")):
+        goal = _as_he_said(text, m.group("g"))
+        return {"command": {"kind": "note", "text": "My goal is to " + goal},
+                "say": f"Good one. I've kept it with your goals: {goal}."}
     # "I want to watch Oppenheimer", "I want to read Dune", "I'm reading
     # Project Hail Mary" (2026-10-08: to the planner, and "I'm reading" to a
     # model). A title goes on his watch or reading list; what he is reading

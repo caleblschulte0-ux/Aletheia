@@ -7697,5 +7697,18 @@ class HisOwnDetailsSaidBack(unittest.TestCase):
                              "Got it - your phone number is 555 123 4567.")
 
 
+class AHabitHeWantsIsAGoal(unittest.TestCase):
+    def test_a_habit_is_kept_as_a_goal(self):
+        got = voice._interpret("I want to read more books")
+        self.assertEqual(got["command"], {"kind": "note", "text": "My goal is to read more books"})
+        self.assertIn("read more books", got["say"])
+
+    def test_a_title_or_a_wish_about_her_is_not_a_goal(self):
+        self.assertEqual(voice._interpret("I want to read Dune")["command"]["kind"], "list_add")
+        got = voice._interpret("I want to spend more time with you")
+        self.assertFalse(got and (got.get("command") or {}).get("kind") == "note")
+
+
+
 if __name__ == "__main__":
     unittest.main()
