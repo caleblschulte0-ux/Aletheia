@@ -9465,5 +9465,31 @@ class FamilyComingAndGoing(unittest.TestCase):
         self.assertNotEqual(voice._interpret("my son needs help")["command"]["kind"], "task_new")
 
 
+class AroundTheHouseholdAgain(unittest.TestCase):
+    """A sweep of household sentences, most to a model or the planner (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("I started taking vitamin D", "my neighbor is watching the dog this weekend"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("the kids are watching tv")["command"]["kind"], "note")
+
+    def test_read(self):
+        import datetime as dt
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=3)
+        rows = [{"text": "my car is due for an oil change at 50000 miles"}, {"text": "I started taking vitamin D"},
+                {"text": "my neighbor is watching the dog this weekend"}, {"text": "my favorite pizza place is Joes"}]
+        with mock.patch.object(quick, "_notes", lambda: rows), \
+                mock.patch.object(quick, "_coming", lambda: [(soon, "take your vitamins", "reminder")]):
+            self.assertIn("50000 miles", quick.answer("when is my next oil change") or "")
+            self.assertIn("vitamin D", quick.answer("what vitamins do I take") or "")
+            self.assertEqual(quick.answer("who is watching the dog"),
+                             "You told me: your neighbor is watching the dog this weekend.")
+            self.assertEqual(quick.answer("where should we get pizza"), "You told me your favorite pizza place is Joes.")
+            self.assertTrue((quick.answer("what time do I take my vitamins") or "").startswith("Your reminder to take your vitamins is next"))
+        with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(quick, "_coming", lambda: []):
+            self.assertIsNone(quick.answer("what time do I take my vitamins"))
+            self.assertIsNone(quick.answer("where should we get pizza"))
+
+
 if __name__ == "__main__":
     unittest.main()

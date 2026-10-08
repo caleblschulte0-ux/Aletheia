@@ -10082,6 +10082,15 @@ def _interpret(transcript: str) -> dict:
                     r"|security deposit|deposit back)(?: (?:back|in the mail|today|yesterday))?(?: (?:today|yesterday|in the mail))?", low) \
             or re.fullmatch(r"i (?:made|earned|got paid) (?:about |around )?\$?[\d,.]+k?(?: dollars)? (?:last year|this year|in (?:19|20)\d\d)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I started taking vitamin D", "my neighbor is watching the dog this
+    # weekend" (2026-10-08: both to the planner) are kept, and read back by
+    # "what vitamins do I take" and "who is watching the dog".
+    if re.fullmatch(r"i (?:just |recently )?started (?:taking|on) (?:a |an |some |my )?[a-z0-9][a-z0-9' ]{1,40}", low) \
+            or re.fullmatch(r"(?!(?:who|what|where|when|why|how|which|is|are|i)\b)(?:my |our |the )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?"
+                            r" (?:is|are|will be) (?:watching|feeding|walking|taking care of|looking after|babysitting|dog-?sitting|house-?sitting)"
+                            r" (?:the|my|our) (?:dogs?|cats?|kids|baby|pets?|house|plants|fish|son|daughter|puppy|kitten)"
+                            r"(?: (?:this|next) (?:weekend|week)| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)| tonight| tomorrow| while [a-z ]{3,30})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I froze the leftover soup", "I made a double batch of chili"
     # (2026-10-08: to the planner). What is in the freezer is read back.
     if re.fullmatch(r"i (?:just )?froze (?:the |some |my |a |our )?[a-z][a-z' ]{1,40}?(?: today| yesterday| last night| for later)?", low) \
