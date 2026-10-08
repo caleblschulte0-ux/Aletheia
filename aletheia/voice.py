@@ -9025,6 +9025,43 @@ def _interpret(transcript: str) -> dict:
                 "say": "I can't set a reminder off by the weather - nothing I run watches it for one. "
                        f"I can remind you in the morning anyway: say \"remind me tomorrow at 7 to {what}\"."}
 
+    # "Change my reminder to 30 minutes", "push the reminder back 10
+    # minutes", "move my reminder to 3:30" (2026-10-08: to the planner, and
+    # the last said "I don't see a reminder for my"). No name is the one
+    # coming up - or the one he just set, when there are several.
+    m = re.fullmatch(r"(?:change|move|switch|reschedule|push|make|set|bump) (?:my |the |that |this )?reminder"
+                     r"(?: (?P<dir>back|later|forward|earlier|up) (?:by )?| (?:to |for |till |until )?(?:in )?)"
+                     r"(?:(?P<n>\d{1,3}|an?|half an|one|two|five|ten|fifteen|twenty|thirty|forty five|forty-five) (?P<u>minutes?|mins?|hours?)(?: from now| later)?"
+                     r"|(?:at )?(?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))(?: instead| please)?", low)
+    if m and not (m.group("dir") and m.group("t")):
+        import datetime as _dtr
+        from aletheia import localtime as _ltr, speech as _spr
+        tz = _ltr.operator_tz()
+        upcoming = [(at.astimezone(tz), words) for at, words in _running_once("")]
+        if not upcoming:
+            return {"command": None, "say": "You don't have a reminder coming up to move."}
+        pick = upcoming if len(upcoming) == 1 else [u for u in upcoming
+                                                    if u[1] == (_recent_ask_of("remind_at", "text") or {}).get("text")]
+        if len(pick) != 1:
+            return {"command": None, "say": "Which one - " + _spr.or_list([w for _, w in upcoming[:4]]) + "?"}
+        was, words = pick[0]
+        if m.group("t"):
+            moved = _reminder_moved_to(words, m.group("t"))
+            if moved:
+                return moved
+        else:
+            n = {"a": 1, "an": 1, "one": 1, "two": 2, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30,
+                 "forty five": 45, "forty-five": 45, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
+            delta = _dtr.timedelta(hours=n) if m.group("u").startswith("hour") else _dtr.timedelta(minutes=n)
+            if m.group("dir") in ("forward", "earlier", "up"):
+                at = was - delta
+            elif m.group("dir"):
+                at = was + delta
+            else:
+                at = _dtr.datetime.now(tz) + delta
+            if at > _dtr.datetime.now(tz):
+                return {"command": {"kind": "remind_at", "at": at.replace(second=0, microsecond=0).isoformat(), "text": words,
+                                    "replaces": words}, "say": None}
     # "CHANGE MY 3PM REMINDER TO 4PM", "move my pill reminder to 9"
     # (2026-10-07: to the planner). The one-off reminder he names - by its
     # time or its words - on the same day, at the new time.

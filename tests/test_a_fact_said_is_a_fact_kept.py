@@ -10884,5 +10884,24 @@ class TheDentist(unittest.TestCase):
         self.assertNotEqual((voice._interpret("my doctor is on vacation")["command"] or {}).get("kind"), "note")
 
 
+class MoveMyReminder(unittest.TestCase):
+    """2026-10-08: "change my reminder to 30 minutes" went to the planner,
+    and "move my reminder to 3:30" said "I don't see a reminder for my"."""
+
+    def test_the_one_coming_up(self):
+        import datetime as _dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        soon = _dt.datetime.now(tz) + _dt.timedelta(minutes=20)
+        with mock.patch.object(voice, "_running_once", lambda marker: [(soon, "check the oven")]):
+            got = voice._interpret("push my reminder back 10 minutes")["command"]
+            self.assertEqual((got["kind"], got["text"]), ("remind_at", "check the oven"))
+            self.assertEqual(_dt.datetime.fromisoformat(got["at"]), (soon + _dt.timedelta(minutes=10)).replace(second=0, microsecond=0))
+            got = voice._interpret("change my reminder to 30 minutes")["command"]
+            self.assertEqual(got["kind"], "remind_at")
+        with mock.patch.object(voice, "_running_once", lambda marker: []):
+            self.assertEqual(voice._interpret("move my reminder to 3:30")["say"], "You don't have a reminder coming up to move.")
+
+
 if __name__ == "__main__":
     unittest.main()
