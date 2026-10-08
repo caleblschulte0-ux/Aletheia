@@ -12395,5 +12395,21 @@ class AVisit(unittest.TestCase):
         self.assertEqual(voice.interpret("we need to get the guest room ready")["command"]["description"], "get the guest room ready")
 
 
+class ThingsLentAndLeft(unittest.TestCase):
+    def test_a_return_with_the_is_kept(self):
+        for said in ("the neighbor returned the ladder", "my neighbor gave back the ladder"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+
+    def test_did_i_get_it_back_and_what_i_left(self):
+        lent = [{"text": "I lent my ladder to the neighbor"}, {"text": "I left my umbrella at work"}]
+        with mock.patch.object(quick, "_notes", lambda: lent):
+            self.assertEqual(quick.answer("did I get my ladder back"),
+                             "Not that you've told me - you told me you lent your ladder to the neighbor.")
+            self.assertEqual(quick.answer("what did I leave at work"), "You told me you left your umbrella at work.")
+            self.assertIsNone(quick.answer("did I get my drill back"))
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the neighbor returned the ladder"}] + lent):
+            self.assertEqual(quick.answer("did I get my ladder back"), "Yes - you told me the neighbor returned the ladder.")
+
+
 if __name__ == "__main__":
     unittest.main()

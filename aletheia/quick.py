@@ -2631,6 +2631,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what|how many) (?:mpg|miles (?:a|per) gallon|gas mileage|mileage) (?:does|do) (?:my|our|the) (?P<car_mpg>car|truck|van|suv|[a-z]{3,12}) get\s*\??$"
         r"|^what(?:'s| is) (?:my|our|the) (?P<car_mpg2>car|truck|van|suv)(?:'s)? (?:mpg|gas mileage)\s*\??$")),
     ("code_at", re.compile(r"^what(?:'s| is|s) (?:the )?(?P<code_kind>gate|door|front door|garage|alarm|lock ?box|building|key ?pad|entry|parking) (?:code|number|combo|combination) (?:at|for) (?:my |the )?(?P<code_at>[a-z][a-z' ]{1,25}?)\s*\??$")),
+    ("left_at", re.compile(r"^what (?:did|have) i (?:leave|left) (?:at|in) (?:the |my )?(?P<left_at>work|office|school|home|gym|car|[a-z]{3,15}'?s(?: house)?)\s*\??$")),
+    ("got_back", re.compile(r"^(?:did|have) i (?:get|gotten|got) (?:my|our|the) (?P<got_back>[a-z][a-z ]{1,20}?) back(?: yet)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3573,7 +3575,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18151,6 +18153,35 @@ def _code_at(text: str) -> str | None:
     return f"You told me {found[0]}." if found else None
 
 
+
+def _left_at(text: str) -> str | None:
+    """"What did I leave at work" (2026-10-08: to a model, with "I left my
+    umbrella at work" kept)."""
+    g = _groups("left_at", text)
+    place = re.escape(str(g.get("left_at") or ""))
+    if not place:
+        return None
+    found = _said_lines(rf"^i (?:left|forgot) (?:my |the |our |a )?[a-z][a-z ]{{1,25}} (?:at|in) (?:the |my )?{place}\b", 4)
+    if not found:
+        return None
+    from aletheia import speech
+    return f"You told me {speech.and_list(found)}."
+
+
+def _got_back(text: str) -> str | None:
+    """"Did I get my ladder back" (2026-10-08: to a model): the return he
+    told her about, or who still has it. None when he never lent it."""
+    g = _groups("got_back", text)
+    thing = re.escape(str(g.get("got_back") or ""))
+    if not thing:
+        return None
+    back = _said_lines(rf"\b(?:gave|brought|returned|handed) (?:back )?(?:my|our|the) {thing}\b(?: back)?|^i got (?:my|our|the) {thing} back", 1)
+    lent = _said_lines(rf"^i (?:lent|loaned) (?:my|our|the) {thing} to |^i (?:lent|loaned) [a-z' ]{{2,30}} (?:my|our|the) {thing}$", 1)
+    if back:
+        return f"Yes - you told me {back[0]}."
+    return f"Not that you've told me - you told me {lent[0]}." if lent else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18966,6 +18997,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "left_at": _left_at,
+           "got_back": _got_back,
            "code_at": _code_at,
            "car_running": _car_running,
            "their_dish": _their_dish,

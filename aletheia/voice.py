@@ -10458,9 +10458,9 @@ def _interpret(transcript: str) -> dict:
     # "MIKE GAVE BACK MY DRILL" / "I GOT MY DRILL BACK" (2026-10-07: to the
     # planner, and "who has my drill" went on naming Mike). The return is a
     # note too; the newest note about the thing is the one `quick._lent` reads.
-    m = (re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:gave|brought|handed) (?:back )?(?:my|our) "
+    m = (re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:gave|brought|handed) (?:back )?(?:my|our|the) "
                       r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: back)?", fact_low)
-         or re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) returned (?:my|our) (?P<thing>[a-z][a-z' ]{1,25})", fact_low)
+         or re.fullmatch(r"(?P<who>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) returned (?:my|our|the) (?P<thing>[a-z][a-z' ]{1,25})", fact_low)
          or re.fullmatch(r"i got (?:my|our) (?P<thing>[a-z][a-z' ]{1,25}?) back(?: from (?P<who>[a-z][a-z' ]{1,25}))?", fact_low))
     if m and (m.group("who") or "mike") .split()[0] not in ("who", "what", "he", "she", "they", "it", "this", "that", "i", "you",
                                                           "where", "why", "when", "how", "nobody", "somebody", "someone") \
