@@ -8006,5 +8006,12 @@ class WhatHePaysIsAFactNotAnOrder(unittest.TestCase):
 
 
 
+class APomodoroAndABreak(unittest.TestCase):
+    def test_the_length_first_is_a_timer(self):
+        self.assertEqual(voice._interpret("start a 25 minute pomodoro")["command"]["text"], "your 25 minute focus timer is up")
+        self.assertEqual(voice._interpret("take a 5 minute break")["command"]["text"], "your 5 minute break timer is up")
+
+
+
 if __name__ == "__main__":
     unittest.main()

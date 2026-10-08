@@ -4216,6 +4216,16 @@ def _interpret(transcript: str) -> dict:
         n = (m.group(1) or m.group(2) or (str(int(m.group(3)) * 60) if m.group(3) else None)
              or ("60" if m.group(4) else None) or ("30" if m.group(5) else None) or "25")
         return _interpret(f"set a timer for focus for {n} minutes")
+    # "Start a 25 minute pomodoro", "take a 5 minute break" (2026-10-08:
+    # both to the planner): the length said first, and a break is a timer.
+    m = re.fullmatch(r"(?:start|begin|do|set|let'?s do|set up) (?:a |an )?(\d{1,3})[ -]?(?:minutes?|mins?) (?:focus|pomodoro|deep work|work)"
+                     r"(?: (?:session|block|timer|sprint))?", low)
+    if m:
+        return _interpret(f"set a timer for focus for {m.group(1)} minutes")
+    m = re.fullmatch(r"(?:(?:i'?m |i am |let'?s |let me )?(?:take|taking|have|having) (?:a |an )(\d{1,3})[ -]?(?:minutes?|mins?) break"
+                     r"|(?:i'?m |i am )?(?:going on |taking )?(?:a )?break for (\d{1,3}) (?:minutes?|mins?))", low)
+    if m:
+        return _interpret(f"set a timer for the break for {m.group(1) or m.group(2)} minutes")
     if re.fullmatch(r"(?:end|stop|cancel|finish|quit|kill) (?:the |my |this )?(?:focus|pomodoro|deep work) "
                     r"(?:session|block|timer|sprint)|i'?m done focusing", low):
         return {"command": {"kind": "reminder_off", "which": "focus timer is up"}, "say": None}
