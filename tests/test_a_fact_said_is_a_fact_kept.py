@@ -10737,5 +10737,23 @@ class ARoughNightAndANap(unittest.TestCase):
             self.assertIsNone(quick.answer("how long did I nap"))
 
 
+class HisPayLanded(unittest.TestCase):
+    """2026-10-08: "my paycheck came in" and "I split dinner with Sam" went
+    to the planner; "did I get paid" to a model."""
+
+    def test_said(self):
+        for said in ("my paycheck came in", "I got paid today", "I split dinner with sam"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my paycheck came in"}]):
+            self.assertEqual(quick.answer("did I get paid"), "Yes - you told me your paycheck came in.")
+            self.assertEqual(quick.answer("has my paycheck cleared"), "Yes - you told me your paycheck came in.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my paycheck came in", "ts": "2026-09-20T15:00:00+00:00"}]):
+            self.assertTrue(quick.answer("did I get paid today").startswith("Not today that you've told me."))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("did I get paid"))
+
+
 if __name__ == "__main__":
     unittest.main()

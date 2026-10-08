@@ -5774,6 +5774,13 @@ def _interpret(transcript: str) -> dict:
         from aletheia import quick
         if quick._food_said(m.group("items")):
             return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My paycheck came in", "I split dinner with Sam" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit|refund|tax refund|bonus|reimbursement|commission)"
+                    r" (?:just )?(?:came in|came through|cleared|hit|landed|went through|was deposited|got deposited|posted|arrived|showed up)"
+                    r"(?: (?:today|this morning|yesterday))?|i (?:just )?got paid(?: today| this morning| yesterday)?"
+                    r"|i (?:split|went halves on|went halfsies on) (?:the |a )?(?:dinner|lunch|breakfast|bill|check|tab|cab|uber|ride|pizza|groceries|rent|hotel|room|tickets?)"
+                    r" with [a-z][a-z' ]{1,25}?(?: today| tonight| last night| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # PACKAGES AND REFUNDS (2026-10-08: "my headphones arrived", "the refund
     # should be in 5 days" and "my amazon order is late" went to the planner).
     if re.fullmatch(r"(?:my|the|our) (?:new )?(?!(?:sister|brother|mom|dad|mother|father|wife|husband|son|daughter|kids?|parents|friend|guests?"

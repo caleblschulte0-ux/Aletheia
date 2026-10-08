@@ -2406,6 +2406,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("make_with", re.compile(r"^what (?:can|could|should) (?:i|we) (?:make|cook|do) with (?P<make_with>[a-z][a-z, ]{2,60}?)(?: for (?:dinner|lunch|tonight))?\s*\??$")),
     # "How long did I nap" (2026-10-08: to a model, after "I napped for an hour").
     ("nap_len", re.compile(r"^how long (?:did|was) (?:i|my) (?:nap|napping|sleep(?:ing)? (?:today|this afternoon))(?: for)?(?: today| this afternoon)?\s*\??$")),
+    # "Did I get paid" (2026-10-08: to a model, after "my paycheck came in").
+    ("got_paid", re.compile(r"^(?:did|have) (?:i|we) (?:get|gotten|got) paid(?P<got_paid> today| yet| this week)?(?: yet)?\s*\??$"
+                            r"|^(?:did|has) (?:my|the) (?:paycheck|pay|direct deposit|deposit) (?:come in|come through|clear|cleared|hit|land|landed|go through|gone through|post|posted)(?: yet)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3347,7 +3350,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15578,6 +15581,31 @@ def _nap_len(_text: str = "") -> str | None:
     return None
 
 
+def _got_paid(window: str = "") -> str | None:
+    """Did his pay land: his newest note saying so. None when he never said
+    - his bank may know, and nothing here guesses."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    window = " ".join(str(window or "").split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit) (?:just )?(?:came|cleared|hit|landed|went|was deposited|got deposited|posted|arrived)"
+                    r"|i (?:just )?got paid\b", said.casefold()):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            if window in ("today", "this week") and row.get("ts"):
+                try:
+                    tz = localtime.operator_tz()
+                    on = dt.datetime.fromisoformat(str(row["ts"]).replace("Z", "+00:00")).astimezone(tz).date()
+                    today = dt.datetime.now(tz).date()
+                    if on < (today if window == "today" else today - dt.timedelta(days=today.weekday())):
+                        return f"Not {window} that you've told me. The last time was {told}."
+                except ValueError:
+                    pass
+            yours = speech.as_she_says_it(said)
+            return f"Yes - you told me {yours[:1].lower() + yours[1:]}" + (f", {told}." if told else ".")
+    return None
+
+
 def _said_today(rx: str) -> list:
     """(text, local time) of today's notes and spoken turns matching rx,
     newest first - "I'm at the gym" is a turn as often as a note."""
@@ -17213,6 +17241,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "got_paid": _got_paid,
            "nap_len": _nap_len,
            "family_news": _family_news,
            "yard_todo": _yard_todo,
