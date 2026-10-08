@@ -7404,6 +7404,19 @@ class WhetherAndWhenHeWorks(unittest.TestCase):
             self.assertEqual(cmd.get("kind"), "note", said)
 
 
+class TheKidsHaveSoccer(unittest.TestCase):
+    """2026-10-08: "the kids have soccer at 5 on saturday" went to the
+    planner, and "what are the kids doing saturday" to a model."""
+
+    def test_it_is_kept(self):
+        cmd = (voice.interpret("thea the kids have soccer at 5 on saturday") or {}).get("command") or {}
+        self.assertEqual(cmd.get("kind"), "note")
+
+    def test_what_they_are_doing_is_the_days_reader(self):
+        self.assertEqual(quick._direct("what are the kids doing saturday"), "what's on saturday")
+        self.assertEqual(quick._direct("what are you doing saturday"), "what are you doing saturday")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

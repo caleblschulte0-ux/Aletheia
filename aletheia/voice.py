@@ -8655,7 +8655,12 @@ def _interpret(transcript: str) -> dict:
                          r"|friday|saturday|sunday))" + _at, low)
          or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )(?P<thing8>[a-z][a-z ]{1,25}?)"
                          r" (?:on )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|today|tomorrow|(?:this |next )?"
-                         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low))
+                         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+         # "The kids have soccer at 5 on Saturday": no article, and the time
+         # before the day (2026-10-08: to the planner).
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )?(?P<thing9>[a-z][a-z ]{1,20}?)"
+                         r" at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))? (?:on |this |next )?(?:" + SPOKEN_DATE + r"|today|tonight|tomorrow"
+                         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low))
     if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6")) and low.startswith("i have ")
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}

@@ -2555,6 +2555,13 @@ def _direct(text: str) -> str:
                 return f"what time is my {m.group('what')} reminder"
         except Exception:
             pass
+    # "What are the kids doing Saturday" (2026-10-08: to a model, with "the
+    # kids have soccer at 5 on Saturday" in his notes): the day's reader
+    # says the calendar and the notes for it.
+    m = re.fullmatch(r"what (?:are|is) (?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) doing"
+                     r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
+    if m and not re.match(r"what (?:are|is|do|does) (?:you|u|i|we|they|it)\b", text):
+        return f"what's on {m.group('day')}"
     # "How often do you remind me to stretch" (2026-10-08: to the planner).
     m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
     if m:
