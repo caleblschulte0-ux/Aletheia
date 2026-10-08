@@ -1058,6 +1058,10 @@ def and_list(items: list[str]) -> str:
     # (2026-10-08): items that carry their own commas are kept apart by more.
     if len(items) > 2 and any("," in i for i in items):
         return "; ".join(items[:-1]) + "; and " + items[-1]
+    # "Go to the bank and call Sarah and pick up dry cleaning" is two things
+    # or three (2026-10-08): an item with its own "and" is kept apart too.
+    if any(" and " in i for i in items):
+        return "; ".join(items[:-1]) + "; and " + items[-1]
     return ", ".join(items[:-1]) + " and " + items[-1]
 
 

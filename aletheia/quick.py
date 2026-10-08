@@ -2671,6 +2671,10 @@ def _direct(text: str) -> str:
                      r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
+    # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
+    m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
+    if m:
+        return f"what do i have to do {m.group('day')}"
     # "What expires soon" (2026-10-08: to a model, with "my license expires
     # on November 5" kept): the dates he told her, the way "what's due next
     # month" already reads them.

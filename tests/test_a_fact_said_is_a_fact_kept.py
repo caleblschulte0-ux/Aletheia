@@ -8511,5 +8511,31 @@ class IMovedMyCar(unittest.TestCase):
 
 
 
+class TheDaySaidFirst(unittest.TestCase):
+    """"Tomorrow I need to go to the bank" and "add call mom to tomorrow"
+    went to the planner; "what's the plan for tomorrow" to a model; and a
+    list of tasks with their own "and" ran together (2026-10-08)."""
+
+    def test_the_day_first_is_the_same_task(self):
+        from aletheia import voice
+        cmd = voice._interpret("tomorrow I need to go to the bank")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "go to the bank"))
+        self.assertTrue(cmd.get("deadline"))
+        cmd = voice._interpret("add call mom to tomorrow")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "call mom"))
+        self.assertTrue(cmd.get("deadline"))
+
+    def test_the_plan_for_tomorrow_is_the_day(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("what's the plan for tomorrow"), "what do i have to do tomorrow")
+
+    def test_an_item_with_its_own_and_is_kept_apart(self):
+        from aletheia import speech
+        self.assertEqual(speech.and_list(["go to the bank and call Sarah", "pick up dry cleaning"]),
+                         "go to the bank and call Sarah; and pick up dry cleaning")
+        self.assertEqual(speech.and_list(["milk", "eggs"]), "milk and eggs")
+
+
+
 if __name__ == "__main__":
     unittest.main()

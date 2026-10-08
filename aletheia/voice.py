@@ -4642,6 +4642,17 @@ def _interpret(transcript: str) -> dict:
     if m:
         return _interpret(f"remind me {m.group('n')} {m.group('unit')} before my {m.group('what')}")
 
+    # THE DAY SAID FIRST (2026-10-08: "tomorrow I need to go to the bank"
+    # and "add call mom to tomorrow" both to the planner). The same sentence
+    # with the day where the rules below look for it.
+    m = re.fullmatch(r"(?P<day>today|tomorrow|tonight|this weekend|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)),? "
+                     r"(?P<rest>(?:i (?:need|have|got) to|i've got to|i gotta|i should|i must|remind me to) .{3,120})", low)
+    if m:
+        return _interpret(f"{m.group('rest')} {re.sub(r'^on ', '', m.group('day'))}")
+    m = re.fullmatch(r"(?:add|put) (?P<what>(?!it\b|that\b|this\b)[a-z].{2,80}?) (?:to|on|for) (?P<day>today|tomorrow|(?:monday|tuesday|wednesday"
+                     r"|thursday|friday|saturday|sunday))(?:'s)?(?: (?:list|to ?do list|tasks|plan))?", low)
+    if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:to|on) (?:my|the) (?:[a-z]+ )?list\b", m.group("what")):
+        return _new_task(_as_he_said(text, f"{m.group('what')} {m.group('day')}"))
     # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
     # Only when what follows starts like a thing to do - "I need to know"
