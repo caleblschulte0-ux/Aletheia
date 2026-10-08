@@ -8077,6 +8077,21 @@ def _interpret(transcript: str) -> dict:
             noted = re.match(r"(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
                              r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
                              _previous_ask().casefold().rstrip(".!"))
+            if not noted:
+                # "Note that the dog needs a bath", "what notes do I have",
+                # "forget that" (2026-10-08: "nothing was waiting") - a
+                # question between does not change which note "that" is.
+                try:
+                    from aletheia import converse
+                    turns = list(reversed(converse.recent(limit=3) or []))
+                except Exception:  # noqa: BLE001
+                    turns = []
+                for turn in turns[1:2] if turns and re.match(
+                        r"(?:what|which|how|when|where|who|do|did|is|are)\b", " ".join(str(turns[0].get("he_asked") or "").split()).casefold()
+                        .removeprefix("thea ")) else []:
+                    noted = re.match(r"(?:thea,? )?(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
+                                     r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
+                                     " ".join(str(turn.get("he_asked") or "").split()).casefold().rstrip(".!"))
             if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and noted:
                 return {"command": {"kind": "forget", "about": noted.group(1)}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."

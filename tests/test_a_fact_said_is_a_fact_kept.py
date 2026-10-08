@@ -8569,5 +8569,19 @@ class CanYouCheckMyCalendarInPlainWords(unittest.TestCase):
 
 
 
+class ForgetThatAfterAQuestion(unittest.TestCase):
+    """"Note that the dog needs a bath", "what notes do I have", "forget
+    that" answered "nothing was waiting" and kept the note (2026-10-08)."""
+
+    def test_that_is_the_note_before_the_question(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "thea note that the dog needs a bath", "she_answered": "Noted."},
+                 {"he_asked": "thea what notes do I have", "she_answered": "1 note: the dog needs a bath."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            out = voice._interpret("forget that")
+        self.assertEqual(out["command"], {"kind": "forget", "about": "the dog needs a bath"})
+
+
+
 if __name__ == "__main__":
     unittest.main()
