@@ -1336,8 +1336,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # HIS DAY, from the calendar mirror she already holds.
     # "How is my week looking", "how does my week look" (2026-10-08: read
     # the fleet's pulse) - his week is his calendar.
-    ("agenda_week", re.compile(r"^(?:how(?:'s| is) my week (?:looking|look)|how does my week look|how(?:'s| is) my week(?: shaping up)?"
-                               r"|what(?:'s| is) my week (?:look(?:ing)? like|like))\s*\??$")),
+    ("agenda_week", re.compile(r"^(?:how(?:'s| is) my week (?:looking|look)|how does my week look|how(?:'s| is) my week(?: shaping up)?)\s*\??$")),
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
         r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
