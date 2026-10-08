@@ -6027,7 +6027,10 @@ def _interpret(transcript: str) -> dict:
                          r"(?: one| task)?", low)
          # "I did 50 pushups" is a count, not a task (2026-10-07: it ticked
          # off a task called "50 pushups"); it is kept as a note further on.
-         or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(.+?)(?: one| task)?", low)
+         # "I did legs today", "I did yoga" (2026-10-08: "that wasn't on your
+         # task list") are workouts, kept further on.
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(?!(?:legs|arms|chest|back|abs|shoulders|upper body|lower body|leg day|arm day|chest day"
+                         r"|yoga|pilates|cardio|a workout|weights|crossfit|hiit|push day|pull day|full body)\b)(.+?)(?: one| task)?", low)
          # "The second one is done" after she read the list (2026-10-07: to
          # the planner). Counting only - "the dishwasher is done" is a machine.
          or re.fullmatch(r"(?:the )?(first|second|third|fourth|fifth|last|top|1st|2nd|3rd|4th|5th) (?:one|task|thing)"
@@ -10856,6 +10859,21 @@ def _interpret(transcript: str) -> dict:
                             r"(?: today| this week| next week| on [a-z]+| at the end of the (?:week|month))?", low) \
             and not re.match(r"(?:i|you|he|she|it|they|we|who|what|everyone|somebody|someone)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THE GYM (2026-10-08: "I did legs today" got "that wasn't on your task
+    # list"; "I'm training for a half marathon", "I'm taking a rest day" and
+    # "I have a session with my trainer Tuesday at 6" went to the planner).
+    if re.fullmatch(r"i (?:just )?did (?:legs|arms|chest|back|abs|shoulders|upper body|lower body|leg day|arm day|chest day|chest and triceps|back and biceps|push|pull|full body"
+                    r"|yoga|pilates|cardio|a workout|weights|crossfit|hiit)(?: day)?(?: (?:for )?\d{1,3} minutes)?(?: today| this morning| tonight| at the gym| after work)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Nice work. I've kept it."}
+    if re.fullmatch(r"(?:i'?m|i am) (?:training for|signed up for|registered for|running) (?:a|an|the|my first) (?:half marathon|marathon|5k|10k|triathlon|race|ultra|tough mudder|spartan race|century ride|half ironman|ironman)(?: in [a-z]+| on [a-z0-9 ]+)?", low) \
+            or re.fullmatch(r"(?:i'?m|i am) taking (?:a|today as a) rest day(?: today)?|today is (?:a|my) rest day", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:a |my )?(?:session|training session|appointment|class) with my (?P<who>trainer|coach|therapist|tutor|physical therapist|pt)(?P<rest> (?:on |this |next )?.{2,25})", low)
+    if m:
+        again = _interpret(f"i have a meeting{m.group('rest')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            again["command"]["title"] = f"session with my {m.group('who')}"
+            return again
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

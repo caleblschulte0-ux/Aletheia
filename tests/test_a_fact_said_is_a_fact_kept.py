@@ -11745,5 +11745,26 @@ class WeeksAndYears(unittest.TestCase):
         self.assertEqual(quick.answer("what year was 10 years ago"), f"{dt.datetime.now(localtime.operator_tz()).year - 10}.")
 
 
+class AtTheGym(unittest.TestCase):
+    """2026-10-08: "I did legs today" got "that wasn't on your task list", and
+    "am I on track with my workouts" said 0 a turn after "how many times did I
+    work out this week" said once - "Once" is not a digit."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I did legs today")["command"], {"kind": "note", "text": "I did legs today"})
+        self.assertEqual(voice._interpret("I did the dishes")["command"]["kind"], "task_done")
+        self.assertEqual(voice._interpret("I am training for a half marathon")["command"]["kind"], "note")
+        held = voice._interpret("I have a session with my trainer Tuesday at 6")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "session with my trainer"))
+
+    def test_the_two_counts_agree(self):
+        import datetime as dt
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I want to work out 4 times a week", "ts": ts}, {"text": "I did legs today", "ts": ts}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertTrue(quick.answer("how many times did I work out this week").startswith("Once"))
+            self.assertTrue(quick.answer("am I on track with my workouts").startswith("1 workout so far"))
+
+
 if __name__ == "__main__":
     unittest.main()

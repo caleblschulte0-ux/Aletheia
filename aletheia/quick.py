@@ -2259,7 +2259,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What workouts did I do this week" after "I ran 3 miles" and "I did
     # yoga" (2026-10-08: to a model).
     ("workouts_did", re.compile(
-        r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
+        r"^(?:what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)|what did i (?:work out|train|do at the gym))"
         r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
     # "How long have we been together" after "we met in 2012" (2026-10-08: to a model).
     ("together", re.compile(r"^how long (?:have|has) (?:we|my (?:wife|husband|partner|girlfriend|boyfriend) and i|i) been (?:together|dating"
@@ -12226,7 +12226,10 @@ def _went_said(asked: str) -> str:
                r"(?! (?:into|out|late|over|errands|across|up|a|an|the|my|our|his|her|some|it|them)\b)"
                r"|went (?:for a |on a )?(?:run|jog|swim|bike ride|ride|hike)|went (?:running|jogging|swimming|cycling|biking|hiking)"
                r"|\bdid (?:\d+ |a |some )?(?:push-?ups|sit-?ups|squats|pull-?ups|crunches|burpees|lunges|planks?|reps|sets|yoga|pilates"
-               r"|cardio|a workout|weights|crossfit|hiit)\b|\b(?:played|had) (?:basketball|soccer|tennis|pickleball|squash|volleyball)\b")
+               r"|cardio|a workout|weights|crossfit|hiit"
+               # "I did legs today" (2026-10-08: "that wasn't on your task list").
+               r"|legs|arms|chest|back|abs|shoulders|upper body|lower body|leg day|arm day|chest day|a leg day)\b"
+               r"|\b(?:played|had) (?:basketball|soccer|tennis|pickleball|squash|volleyball)\b")
     runs = {"run": r"\bran\b|went (?:for a |on a )?run|went running", "running": r"\bran\b|went (?:for a |on a )?run|went running",
             "jog": r"\bjogged\b|went (?:for a )?jog|went jogging", "jogging": r"\bjogged\b|went (?:for a )?jog|went jogging",
             "ran": r"\bran\b|went (?:for a |on a )?run|went running", "jogged": r"\bjogged\b|went (?:for a )?jog|went jogging",
@@ -14297,7 +14300,10 @@ def _habit(text: str) -> str | None:
                 goal = int(m.group(1)) if m.group(1).isdigit() else int(_COUNT_WORDS[m.group(1)])
                 break
         done = _went("how many times did i work out this week") or ""
-        n = int(re.match(r"(\d+)", done).group(1)) if re.match(r"\d+", done) else 0
+        # "Once this week" is one (2026-10-08: "on track" said 0 a turn after
+        # "how many times" said once).
+        m = re.match(r"(\d+)|(once)|(twice)", done, re.I)
+        n = 0 if not m else int(m.group(1)) if m.group(1) else 1 if m.group(2) else 2
         if goal is None:
             return (f"You haven't told me a goal. Say \"I want to work out 4 times a week\" and I'll keep you to it. "
                     f"So far this week: {speech.count_phrase(n, 'workout')}.")
