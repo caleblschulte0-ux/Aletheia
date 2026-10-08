@@ -2691,7 +2691,7 @@ def _apostrophes(transcript: str) -> str:
     # "My wife ring size is 6", "my wife favorite flower is tulips"
     # (2026-10-08: to the planner) - the apostrophe and its s both dropped.
     said = re.sub(r"\b((?:my|our) (?:wife|husband|mom|mother|dad|father|son|daughter|sister|brother|girlfriend|boyfriend|partner"
-                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat)) (ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
+                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat|boss|manager|coworker|landlord|neighbor|neighbour|doctor|dentist|teacher|friend)) (name|ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
                   r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy)\b", r"\1's \2", said, flags=re.I)
     # "Whats coming up", "whats the most important thing today" (2026-10-08:
     # each to a model) - typed without the apostrophe, they missed every
@@ -9314,6 +9314,8 @@ def _interpret(transcript: str) -> dict:
                         r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
                         # "I have a test on Friday" (2026-10-08: to the planner).
                         r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
+                        # "I have a performance review on the 20th" (2026-10-08: to the planner).
+                        r"|performance review|annual review|review meeting|evaluation|training|orientation|webinar|workshop|conference"
                         r"|date|class|practice|haircut|checkup|check-up"
                         # "I have a physical on November 3" (2026-10-08: to the planner).
                         r"|physical|eye exam|colonoscopy|mammogram|blood work|bloodwork|lab work|ultrasound|mri|x-ray|surgery|procedure|vaccine|cleaning"
@@ -10991,6 +10993,15 @@ def _interpret(transcript: str) -> dict:
     if m:
         n = int(m.group("n"))
         return {"command": None, "say": f"Plug it in soon - {n} percent won't last long." if n <= 20 else "That'll hold for a while."}
+    # "My coworker Jake is out sick", "I worked from home today" (2026-10-08:
+    # to the planner). His day at work, kept; "who is out" and "how many days
+    # did I work from home" read them.
+    if re.fullmatch(r"(?:(?:my )?(?:coworker|co-worker|colleague|boss|manager|assistant|teammate) )?(?!(?:i|it|he|she|they|we|power|the|who|what|anyone|anybody|everyone|everybody|somebody|someone|nobody)\b)[a-z]{2,15}"
+                    r" (?:is|was) out (?:sick|today|this week|on vacation|on leave|on pto|on maternity leave|on paternity leave|until [a-z0-9 ]+)"
+                    r"(?: (?:today|this week|again))?", low) \
+            or re.fullmatch(r"i (?:worked|am working|'m working|was working|will work|'ll work) (?:from home|remotely|remote|in the office|from the office)"
+                            r"(?: (?:today|yesterday|this morning|this afternoon|tomorrow))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

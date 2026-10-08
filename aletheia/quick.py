@@ -2539,6 +2539,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who has a snowblower", "whose house am I watching" (2026-10-08: to a
     # model or the planner).
     ("who_owns", re.compile(r"^(?:who (?:has|owns|has got) (?:a|an) (?P<who_owns>[a-z][a-z' -]{2,25}?)|whose (?P<wo_what>house|place|apartment|dog|dogs|cat|cats|kids|pets|plants|baby|mail) am i (?:watching|looking after|checking on|feeding|sitting))\s*\??$")),
+    # "Who is out today", "how many days did I work from home this week"
+    # (2026-10-08: to a model) after he said so.
+    ("who_out", re.compile(r"^who(?:'s| is) (?:out|off|out sick|on vacation)(?: (?:today|this week|at work))?\s*\??$")),
+    ("wfh_days", re.compile(r"^how many (?:days|times) (?:did|have) i (?:work(?:ed)?|been working) (?:from home|remotely|remote|in the office|from the office)"
+                            r"(?: (?P<wfh_w>this week|this month))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2871,7 +2876,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: last)?\s*\??$"
         # "When can I take more Tylenol" (2026-10-07: to a model). When he
         # last took it is hers to say; how long to wait is the label's.
-        r"|^(?:when|how soon) (?:can|should|could) i (?:take|have) (?:more|another(?: dose)?|my next(?: dose)?|some more) (?:of )?(?:my |the )?"
+        r"|^(?:(?:when|how soon) (?:can|should|could) i|(?:can|should|could) i) (?:take|have) (?:more|another(?: dose)?|my next(?: dose)?|some more) (?:of )?(?:my |the )?"
         r"(?P<took3>medicine|meds|medication|pills?|insulin|" + _DRUGS + r")\s*\??$")),
     ("born_in", re.compile(r"^how old (?:is|would be) (?:someone|somebody|a person|anyone) (?:who was )?born in (?P<born>\d{4})\s*\??$")),
     ("days_between", re.compile(
@@ -3475,7 +3480,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17449,6 +17454,63 @@ def _who_owns(text: str) -> str | None:
     return f"You told me: {speech.and_list(found)}." if found else None
 
 
+def _who_out(_rest: str = "") -> str | None:
+    """Who he said is out, in the last week."""
+    from aletheia import speech
+    import datetime as dt
+    found = []
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=7)
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+        except ValueError:
+            at = None
+        if at and at.tzinfo and at < cutoff:
+            continue
+        if re.search(r"\b(?:is|was) out (?:sick|today|this week|on |until )", line, re.I):
+            said = speech.as_she_says_it(line)
+            if said not in found:
+                found.append(said)
+    if not found:
+        return None
+    return "You told me: " + speech.and_list(found[:4]) + "."
+
+
+def _wfh_days(text: str) -> str | None:
+    """Days he said he worked from home, or in the office, this week."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("wfh_days", text)
+    office = bool(re.search(r"\b(?:in|from) the office\b", text, re.I))
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    window = (g.get("wfh_w") or "this week").strip()
+    start = start.replace(day=1) if window == "this month" else start - dt.timedelta(days=now.weekday())
+    days = set()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").casefold().split())
+        if not re.match(r"i (?:worked|am working|'m working|was working) ", said):
+            continue
+        if bool(re.search(r"\b(?:in|from) the office\b", said)) != office:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if said.endswith(" yesterday"):
+            at -= dt.timedelta(days=1)
+        if at >= start:
+            days.add(at.date())
+    if not days:
+        return None
+    where = "in the office" if office else "from home"
+    n = len(days)
+    count = "1 day" if n == 1 else f"{n} days"
+    return f"You worked {where} {count} {window}, by what you told me."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18264,6 +18326,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "who_out": _who_out,
+           "wfh_days": _wfh_days,
            "who_owns": _who_owns,
            "free_part": _free_part,
            "year_ago": _year_ago,

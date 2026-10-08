@@ -11888,6 +11888,10 @@ class BillsAndSubscriptions(unittest.TestCase):
             said = intercom.execute_command({"kind": "subscriptions"}, {"repos": {}})
         self.assertIn("Netflix renews on the 12th", said)
 
+    def test_can_i_take_more_is_asked_like_when(self):
+        self.assertEqual(quick.match("can I take more ibuprofen")[0], "took_today")
+        self.assertIn("won't guess at a dose", quick.answer("can I take more ibuprofen"))
+
     def test_a_weekday_whose_morning_has_gone_is_next_week(self):
         from aletheia import localtime
         now = dt.datetime.now(localtime.operator_tz())
@@ -11897,6 +11901,26 @@ class BillsAndSubscriptions(unittest.TestCase):
         got = voice._interpret(f"remind me to pay my credit card on {day}")["command"]
         self.assertGreater(dt.datetime.fromisoformat(got["at"]), now)
         self.assertEqual((dt.datetime.fromisoformat(got["at"]).date() - now.date()).days, 7)
+
+
+class HisWorkWeek(unittest.TestCase):
+    def test_what_he_says_about_work_is_kept(self):
+        self.assertEqual(voice.interpret("my boss name is Karen")["command"]["text"], "my boss's name is Karen")
+        held = voice.interpret("I have a performance review on the 20th at 2")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "performance review"))
+        for said in ("my coworker Jake is out sick", "I worked from home today"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual((voice.interpret("who is out today") or {}).get("command", {}).get("kind"), "note")
+
+    def test_who_is_out_and_days_from_home_read_his_notes(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "my coworker Jake is out sick", "ts": now}, {"text": "I worked from home today", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertIn("Jake is out sick", quick.answer("who is out today"))
+            self.assertEqual(quick.answer("how many days did I work from home this week"),
+                             "You worked from home 1 day this week, by what you told me.")
+            self.assertIsNone(quick.answer("how many days did I work in the office this week"))
 
 
 if __name__ == "__main__":
