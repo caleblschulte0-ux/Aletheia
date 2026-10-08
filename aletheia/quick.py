@@ -920,7 +920,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:lunch|dinner|breakfast|brunch|coffee|drinks|meeting|call) with [a-z][a-z' ]{1,30}?)"
         r"(?: (?:today|tomorrow))?\s*\??$")),
     ("until", re.compile(
-        r"^how (?:many days|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |(?:soft |hard |medium )?boil\b)"
+        r"^how (?:many days|many hours|many minutes|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |(?:soft |hard |medium )?boil\b)"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
     # "What day is Thanksgiving" is asked for the DATE, so it leads with it.
     ("until_day", re.compile(
@@ -1752,6 +1752,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (`converse.ASKED_SUBJECT`). Offline it was "I can't think just now".
     # "What did I tell you today" listed his ASKS (2026-10-08); what he told
     # her is his notes, and the asks are the fallback when there are none.
+    # "Who called today" after "my mom called" (2026-10-08: both to a model).
+    ("who_called", re.compile(
+        r"^(?:who (?:called|texted|stopped by|came by|dropped by)|did (?:anyone|anybody|someone) (?:call|text|stop by|come by))"
+        r"(?: me)?(?: (?P<who_called>today|yesterday|this morning|earlier|earlier today))?\s*\??$")),
     ("told_on", re.compile(
         r"^what (?:did|have) i (?:tell|told) (?:you|u)"
         r" (?P<told_on>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$")),
@@ -2636,7 +2640,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -4068,6 +4072,17 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
     # "how long until my interview" is the calendar's too (2026-09-24)
     if re.fullmatch(r"(?:my |the )?(?:next )?interview(?: with .+)?", " ".join(str(words or "").casefold().split())):
         return _interview_when()
+    # "How long until my flight" when he told her the day AND the time:
+    # hours, not "Tomorrow" (2026-10-08).
+    if re.match(r"(?:my|our) ", " ".join(str(words or "").casefold().split())):
+        try:
+            from aletheia import voice
+            if voice._event_from_notes(words):
+                timed = _until_mine(words)
+                if timed:
+                    return timed
+        except Exception:
+            pass
     today = dt.datetime.now(localtime.operator_tz()).date()
     nxt = re.fullmatch(r"next (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", " ".join(str(words or "").casefold().split()))
     if nxt:
@@ -4185,7 +4200,24 @@ def _until_mine(words: str) -> str | None:
     if not thing:
         return None
     timer = re.fullmatch(r"(?:\w+ )?(?:timer|alarm)", thing)
-    for at, text, store in _coming():
+    # The thing itself before a reminder that mentions it: "pack - your
+    # flight is tomorrow" at 7 pm is not the flight (2026-10-08). The
+    # calendar first, then a note that gave it a day and a time, then the
+    # reminders.
+    coming = _coming()
+    if not timer:
+        try:
+            from aletheia import voice
+            noted = voice._event_from_notes(thing)
+        except Exception:
+            noted = None
+        if noted:
+            coming = ([row for row in coming if row[2] == "calendar"]
+                      + [(dt.datetime.fromisoformat(noted["start"]), thing, "note")]
+                      + [row for row in coming if row[2] != "calendar"])
+        else:
+            coming = sorted(coming, key=lambda row: row[2] != "calendar")
+    for at, text, store in coming:
         low = text.casefold()
         if timer:
             hit = store == "reminder" and (("timer is up" in low) if "timer" in thing else low == "wake up")
@@ -8695,6 +8727,32 @@ def _told_on(rest) -> str:
     return _asked_on(rest) if said.startswith("No notes") else said
 
 
+_CALLED = r"\b(?:called|rang|texted|messaged|stopped by|came by|dropped by|came over|phoned)\b"
+
+
+def _who_called(rest) -> str:
+    """Who he told her called or came by, from the day's notes."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    words = str(rest or "").casefold()
+    day = dt.datetime.now(tz).date() - dt.timedelta(days=1 if "yesterday" in words else 0)
+    when = "yesterday" if "yesterday" in words else "today"
+    said = []
+    for row in _notes():
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        text = str(row.get("text") or "").strip()
+        if at.date() == day and re.search(_CALLED, text.casefold()):
+            said.append(speech.as_she_says_it(text).rstrip("."))
+    if not said:
+        return (f"Nobody that you told me about {when} - I can't see your phone's calls. "
+                "Say \"Mom called\" and I'll keep it.")
+    return speech.and_list(said[:5]) + "."
+
+
 def _asked_on(rest) -> str:
     """What he asked her on a day, from the journal of his own words."""
     import datetime as dt
@@ -13027,6 +13085,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "draft_to": lambda rest: _draft_to(rest),
            "applied_on": _applied_on,
            "told_on": _told_on,
+           "who_called": _who_called,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
            "who_are_you": lambda rest: _who_are_you(),

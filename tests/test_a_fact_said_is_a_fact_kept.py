@@ -7252,6 +7252,44 @@ class AnIntervalCanBeChanged(unittest.TestCase):
                          "what time is my stretch reminder")
 
 
+class WhoCalledAndHowLongUntilANotedThing(unittest.TestCase):
+    """2026-10-08: "my mom called", "who called today" and "how long until
+    my flight" (a flight he only told her about) all went to a model."""
+
+    def _note(self, text, ago_min=5):
+        ts = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=ago_min)).isoformat()
+        return {"text": text, "ts": ts}
+
+    def test_somebody_calling_is_a_note(self):
+        for said in ("my mom called", "Dana stopped by", "my brother texted me earlier"):
+            cmd = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+            self.assertEqual(cmd.get("kind"), "note", said)
+
+    def test_a_meeting_called_off_is_not_a_caller(self):
+        cmd = (voice.interpret("thea the meeting got called off") or {}).get("command") or {}
+        self.assertNotEqual(cmd.get("kind"), "note")
+
+    def test_who_called_reads_the_days_notes(self):
+        _needs_today_to_hold(self, dt.timedelta(minutes=10))
+        with mock.patch.object(quick, "_notes", return_value=[self._note("Dana stopped by"),
+                                                               self._note("the dentist is at 3")]):
+            said = quick.answer("who called today")
+            self.assertIn("Dana stopped by", said)
+            self.assertNotIn("dentist", said)
+            self.assertIn("Dana", voice._bare_verb("did anyone call"))
+
+    def test_nobody_told_is_said_with_what_she_cannot_see(self):
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("can't see", quick.answer("who called today"))
+
+    def test_a_noted_flight_is_counted_in_hours(self):
+        start = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=5, minutes=2)).isoformat()
+        with mock.patch.object(voice, "_event_from_notes", return_value={"title": "your flight", "start": start}), \
+                mock.patch.object(quick, "_coming", return_value=[]):
+            said = quick.answer("how many hours until my flight")
+        self.assertTrue(said.startswith("5 hours"), said)
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

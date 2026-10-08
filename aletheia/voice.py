@@ -2354,6 +2354,15 @@ def _bare_verb(low: str) -> str | None:
     for pattern, answer in _BARE_VERBS:
         found = re.fullmatch(pattern, said)
         if found:
+            # "Did anyone call" after he told her "my mom called": what he
+            # told her first, then what she can't see (2026-10-08).
+            if "phone's calls" in answer and re.fullmatch(r"(?:did (?:anyone|anybody|someone|somebody) call|who called)(?: me)?", said):
+                from aletheia import quick as _q
+                told = _q._who_called("")
+                if not told.startswith("Nobody"):
+                    # His capitals stay: "Dana stopped by", "your mom called".
+                    lead = told[:1].lower() if told.startswith(("Your ", "The ")) else told[:1]
+                    return f"You told me {lead}{told[1:]}"
             return answer.format(**found.groupdict()) if found.groupdict() else answer
     return None
 
@@ -8462,6 +8471,17 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:i(?:'ve| have)? parked|i'm parked|my car is(?: parked)?|the car is(?: parked)?)"
                      r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
     if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
+    # in his words; "who called today" reads the day's back. Only a person
+    # of his or a name, so "the meeting got called off" is not one.
+    m = re.fullmatch(r"(?P<who>my [a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?|[a-z][a-z'-]{1,20}) (?:just |finally )?"
+                     r"(?:called|rang|texted|stopped by|came by|dropped by|came over|phoned)(?: me)?"
+                     r"(?: (?:today|earlier|this morning|this afternoon|tonight|just now|back|about [a-z0-9' ]{2,40}))?", low)
+    if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who")).capitalize()
+                                                              + r"\b", text)) \
+            and m.group("who").split()[-1] not in ("it", "that", "this", "he", "she", "they", "who", "someone", "somebody",
+                                                   "anyone", "nobody", "i", "you", "we", "meeting", "game"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO SOMEBODY IS TO HIM (2026-10-07): "Dana is my sister" went to the
     # planner; "who is Dana" reads the note back.
