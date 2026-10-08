@@ -17,7 +17,9 @@ permissions:
 jobs:
   windows-full-suite:
     runs-on: windows-latest
-    timeout-minutes: 45
+    # The suite alone ran 40 minutes on 2026-10-08 and the next run was cut
+    # off at 45 near the end. Room to grow, not a loop to hide.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
