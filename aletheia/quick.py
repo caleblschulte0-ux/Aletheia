@@ -2490,7 +2490,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|mowed|vacuumed|replaced|renewed|called|visited|paid|talked to|talked with|spoke to|spoke with|saw|met with|texted"
         r"|caught up with|change|give|feed|walk|water|clean|wash|mow|call|visit|pay|talk to|speak to|see|text) (?P<did_o5>[a-z][a-z' ]{1,40}?)\s*\??$")),
     ("recall_when", re.compile(
-        r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here)\s*\??$")),
+        r"^when (?:does|is|will) (?:the |my )?(?P<recall11>[a-z][a-z '-]{1,30}?) (?:come|coming|arrive|arriving|get here|show up|be here"
+        r"|land|landing|get in|getting in|fly in|flying in)\s*\??$")),
     # "Search my notes for the plumber" (2026-10-07: to the planner).
     ("note_search", re.compile(
         r"^(?:search|look through|check|look in) (?:my |the )?notes (?:for|about) (?P<note_q>.{2,40})$"
@@ -16603,7 +16604,7 @@ def _coming_when(who: str) -> str | None:
     if not who:
         return None
     said_it = re.compile(rf"^(?:the |my |our )?{re.escape(who)}s? (?:is|are|will be|'s|should be) (?:coming|arriving|due|here|coming over|coming by|stopping by)\b"
-                         rf"|^(?:the |my |our )?{re.escape(who)}s? (?:comes|arrives|will come|will arrive|should come)\b", re.I)
+                         rf"|^(?:the |my |our )?{re.escape(who)}s? (?:comes|arrives|will come|will arrive|should come|lands|gets in|flies in|gets here|comes in)\b", re.I)
     for row in _notes():
         text = " ".join(str(row.get("text") or "").split()).rstrip(".")
         if said_it.search(text):

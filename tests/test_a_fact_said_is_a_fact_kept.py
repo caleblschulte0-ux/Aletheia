@@ -11144,5 +11144,23 @@ class PhoneAndInternet(unittest.TestCase):
             self.assertEqual(got.count("told me"), 1, got)
 
 
+class WhenSheLands(unittest.TestCase):
+    """2026-10-08: "my sister lands at 4 on Friday" and "my sister left" went
+    to the planner, and "when does my sister land" got "I can't think"."""
+
+    def test_kept_with_the_day_it_meant(self):
+        got = voice._interpret("my sister lands at 4 on Friday")["command"]
+        self.assertEqual(got["kind"], "note")
+        self.assertRegex(got["text"], r"^my sister lands at 4 on Friday \d{1,2} [A-Z][a-z]+$")
+        self.assertTrue(voice._interpret("Sam arrives tomorrow at 6")["command"]["text"].startswith("Sam arrives at 6 on "))
+        self.assertEqual(voice._interpret("my sister left")["command"], {"kind": "note", "text": "my sister left"})
+        self.assertNotEqual(voice._interpret("it arrives tomorrow")["command"]["kind"], "note")
+
+    def test_read(self):
+        notes = [{"text": "my sister lands at 4 on Friday 9 October"}, {"text": "my sister is coming to visit next weekend"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("when does my sister land"), "You told me: your sister lands at 4 on Friday 9 October.")
+
+
 if __name__ == "__main__":
     unittest.main()

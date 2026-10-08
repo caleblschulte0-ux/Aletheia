@@ -10453,6 +10453,22 @@ def _interpret(transcript: str) -> dict:
                     r"(?:carrier |provider |plan |company )?to [a-z][a-z&' -]{1,25}", low) \
             and not re.search(r"\bto (?:bed|sleep|work|school|the |a |my |decaf|tea)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My sister lands at 4 on Friday", "my sister left" (2026-10-08: to the
+    # planner). Kept with the day it meant, for "when does my sister land".
+    m = re.fullmatch(r"(?P<who>(?:my|our) [a-z]{2,15}(?: in law)?|[a-z]{2,15}) (?P<verb>lands|arrives|gets in|flies in|gets here|comes in)"
+                     r"(?P<at> at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)?(?: (?:on |this )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
+                     r"(?P<at2> at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)?", low)
+    if m and (m.group("at") or m.group("at2") or m.group("day")) and m.group("who") not in ("it", "he", "she", "who", "what", "that", "this", "the", "everyone"):
+        import datetime as _dtl
+        day = ""
+        if m.group("day") and _spoken_day(m.group("day")):
+            on = _dtl.date.fromisoformat(_spoken_day(m.group("day"))[:10])
+            day = f" on {on.strftime('%A')} {on.day} {on.strftime('%B')}"
+        at = (m.group("at") or m.group("at2") or "")
+        return {"command": {"kind": "note", "text": f"{_as_he_said(text, m.group('who'))} {m.group('verb')}{at}{day}"}, "say": None}
+    if re.fullmatch(r"(?:my|our) (?:sister|brother|mom|mother|dad|father|parents|in laws|in-laws|mother in law|father in law|guests?|friends?|cousin|aunt|uncle|grandma|grandpa|grandparents|kids)"
+                    r" (?:left|went home|headed home|flew home|took off)(?: today| this morning| tonight| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
