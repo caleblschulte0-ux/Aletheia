@@ -2731,6 +2731,12 @@ def _direct(text: str) -> str:
                 "renewed": "renew", "walked": "walk", "fed": "feed", "watered": "water", "taken out": "take out",
                 "changed": "change", "washed": "wash", "cleaned": "clean"}[m.group("v")]
         return f"did i {base} {m.group('w')} {m.group('o')}" + (" today" if text.rstrip(" ?").endswith("today") else "")
+    # "How long until I start my new job" (2026-10-08: to a model) is "how
+    # long until my new job starts", which reads his note.
+    m = re.fullmatch(r"how (?P<how>long|many days|many weeks) (?:is it )?(?:until|till|til|before) i start (?:my |the )?(?P<what>new job|job|school|college|classes)\s*\??", text)
+    if m:
+        what = "new job" if m.group("what") in ("new job", "job") else m.group("what")
+        return f"how {m.group('how')} until my {what} starts" if what == "new job" else f"how {m.group('how')} until {what} starts"
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:

@@ -8784,5 +8784,31 @@ class ACalendarAnswerSaysYour(unittest.TestCase):
 
 
 
+class ANewJobAtANamedEmployer(unittest.TestCase):
+    """2026-10-08: "I got the job at Google" got a bare "Noted", "I start on
+    November 2" went to the planner, and "how long until I start my new
+    job" to a model."""
+
+    def test_the_news_gets_its_congratulations(self):
+        from aletheia import voice
+        got = voice._interpret("I got the job at Google")
+        self.assertEqual(got["command"], {"kind": "note", "text": "I got the job at Google"})
+        self.assertIn("Congratulations", got["say"])
+
+    def test_i_start_on_a_date_after_job_news_is_the_job(self):
+        from aletheia import quick, voice
+        rows = [{"text": "I got the job at Google", "ts": "2026-10-08T10:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(voice._interpret("I start on November 2")["command"],
+                             {"kind": "note", "text": "I start my new job on November 2"})
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertNotEqual(voice._interpret("I start on November 2")["command"]["kind"], "note")
+
+    def test_how_long_until_i_start(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("how long until i start my new job"), "how long until my new job starts")
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -8219,7 +8219,15 @@ def _interpret(transcript: str) -> dict:
                     r"(?: today| yesterday| this week| last week| on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
                     r"|i (?:just )?(?:started|start) (?:working )?at [a-z0-9][a-z0-9 .&'-]{1,40}?(?: today| yesterday| this week)?"
                     r"|i (?:just )?got (?:a|the) (?:new )?job at [a-z0-9][a-z0-9 .&'-]{1,40}", low):
-        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        say = None
+        if re.match(r"i (?:just )?got ", low):
+            # news, so it gets its congratulations too (2026-10-08)
+            try:
+                from aletheia import quick as _q
+                say = _q.answer(re.sub(r" at [a-z0-9][a-z0-9 .&'-]{1,40}$", "", low))
+            except Exception:  # noqa: BLE001
+                say = None
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": say}
     if re.fullmatch(r"when did i (?:start|begin) (?:my |the |this )?(?:new )?(?:job|work|position|role)(?: at [a-z0-9 .&'-]{1,40})?", low):
         try:
             from aletheia import quick as _q, speech as _sp
@@ -8855,10 +8863,12 @@ def _interpret(transcript: str) -> dict:
     # HIS BIG NEWS (2026-10-08: "I got promoted" got its congratulations and
     # was gone, so "when did I get promoted" went to a model). Kept in his
     # journal; the kind word is still quick's.
-    g = _quick._groups("life_news", low)
+    # "I got the job at Google" is the same news (2026-10-08: plain "Noted").
+    news = re.sub(r" (?:at|with) [a-z0-9][a-z0-9&.' -]{1,30}$", "", low.rstrip("!"))
+    g = _quick._groups("life_news", news)
     if g.get("win") or g.get("win2") or g.get("setback") or g.get("quit"):
         try:
-            say = _quick.answer(text)
+            say = _quick.answer(news)
         except Exception:  # noqa: BLE001
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + re.sub(r"\bi\b", "I", _as_he_said(text, low.rstrip("!")))},
@@ -9759,6 +9769,17 @@ def _interpret(transcript: str) -> dict:
     _when = (r"(?:on |in |this |next |the )?(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
              r"|week|month|year|weekend|summer|winter|spring|fall|\d{1,2} (?:days|weeks|months)|the \d{1,2}(?:st|nd|rd|th)"
              r"|" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{1,2}(?:st|nd|rd|th)?)?)(?: \d{4})?")
+    # "I got the job at Google", then "I start on November 2" (2026-10-08:
+    # to the planner). Only right after he told her about a new job.
+    m = re.fullmatch(r"i (?:start|begin) (?P<when>" + _when + r")", low)
+    if m:
+        try:
+            recent = [" ".join(str(r.get("text") or "").split()).casefold() for r in _quick._notes()[:3]]
+        except Exception:  # noqa: BLE001
+            recent = []
+        if any(re.search(r"\b(?:got|start|starting|new|accepted|took) (?:a |the |my )?(?:new )?(?:job|offer|position|role)\b|\bgot hired\b", r)
+               for r in recent):
+            return {"command": {"kind": "note", "text": "I start my new job " + _as_he_said(text, m.group("when"))}, "say": None}
     if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:moving|going on (?:vacation|holiday|a trip|our trip|my trip|our honeymoon)"
                     r"|flying to [a-z][a-z ]{1,25}?|driving to [a-z][a-z ]{1,25}?|having surgery"
                     r"|starting (?:my |a )?(?:new job|school|college|classes|work)|retiring|graduating)(?: to [a-z][a-z ]{1,25}?)? " + _when, low) \
