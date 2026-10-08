@@ -40,7 +40,9 @@ class WhatCountsAsSpendingCase(unittest.TestCase):
         for goal in ("order me a pizza", "book me a flight to tokyo",
                      "get me an uber to the airport", "rent a car for the weekend",
                      "top up my metro card", "renew my gym membership",
-                     "book a hotel room in austin"):
+                     "book a hotel room in austin",
+                     # 2026-10-07: offered to text a contact called "An uber".
+                     "call an uber", "call me a cab", "call a taxi to the airport"):
             with self.subTest(goal=goal):
                 self.assertTrue(webtask.would_spend(goal), goal)
 

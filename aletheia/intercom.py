@@ -2963,6 +2963,47 @@ def _projects_answer() -> str:
     return said[0].upper() + said[1:]
 
 
+def _carry_hold_reminders(old: dict, new: dict) -> int:
+    """A reminder she set "the day before" a hold says the hold's time in
+    its words ("dentist appointment Tuesday at 3 pm"). When the hold moves,
+    the reminder moves the same distance and says the new time, or it
+    would fire with the old one (2026-10-08). Returns how many moved."""
+    import datetime as _dt
+    import uuid as _uuid
+    from aletheia import calendar as _calendar, scheduler
+
+    def words(event, start):
+        clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+        return f"{event.get('title')} {start.strftime('%A')} at {clock}"
+    try:
+        tz = localtime.operator_tz()
+        was = _calendar.parse_time(old["start"]).astimezone(tz)
+        now = _calendar.parse_time(new["start"]).astimezone(tz)
+    except (KeyError, TypeError, ValueError):
+        return 0
+    if was == now:
+        return 0
+    said, moved = words(old, was), 0
+    for spec in scheduler.all_schedules():
+        command = spec.get("command") or {}
+        if spec.get("kind") != "once" or not spec.get("enabled") or command.get("text") != said:
+            continue
+        try:
+            at = _dt.datetime.fromisoformat(str(spec.get("at")).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=tz)
+        when = at + (now - was)
+        if when <= _dt.datetime.now(tz) or when >= now:
+            continue
+        scheduler.set_enabled(spec["id"], False)
+        scheduler.create("remind-" + _uuid.uuid4().hex[:8], {**command, "text": words(new, now)},
+                         kind="once", at=when.isoformat())
+        moved += 1
+    return moved
+
+
 def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "") -> str:
     """Run one validated command. Returns a human-readable detail line.
     Raises act.Refused / ValueError / KeyError — the caller records them."""
@@ -3617,9 +3658,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):
             return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
                     "tentative, on your calendar here only.")
+        carried = _carry_hold_reminders(old, held["event"]) if old else 0
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
                 f"{'to ' if old else ''}{when}{until}, "
-                "tentative, on your calendar here only.")
+                "tentative, on your calendar here only."
+                + (" Your reminder moved with it." if carried == 1 else
+                   f" Your {carried} reminders moved with it." if carried else ""))
     if kind == "calendar_propose":
         from aletheia import conversations
         try:
@@ -4122,7 +4166,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 said = None
             if said:
                 return said
-            return f"I don't have anything remembered about {str(about).strip()}."
+            # "about my mom" is "about your mom" in her mouth (2026-10-07).
+            return f"I don't have anything remembered about {re.sub(r'^my ', 'your ', str(about).strip())}."
         return "; ".join(found[:4])
     if kind == "brief":
         from aletheia import brief, journal as _j, pulse as _p
@@ -4200,8 +4245,28 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 raise act.Refused(
                     f"I can only measure to places you've saved, and {named} isn't one. If it's somewhere "
                     f"you go, say \"{named} is at\" and the address, and I'll remember it.") from None
+            # "How far is my mom's house" said "I don't know where my mom's
+            # house is" one breath after "my mom lives at 12 Oak St"
+            # (2026-10-07). Her words say "your", and what he told her is
+            # offered back as the sentence that saves it.
+            spoken = re.sub(r"^my ", "your ", named)
+            whose = re.fullmatch(r"my ([a-z][a-z' ]{1,25}?)'s (?:house|place|home|apartment)", named)
+            if whose:
+                try:
+                    from aletheia import quick as _quick
+                    for row in _quick._notes():
+                        told = re.fullmatch(r"my " + re.escape(whose.group(1)) + r" lives (?:at|on) (.+?)\.?",
+                                            " ".join(str(row.get("text") or "").split()), re.IGNORECASE)
+                        if told:
+                            raise act.Refused(
+                                f"You told me your {whose.group(1)} lives at {told.group(1)}, but it isn't one of your "
+                                f"saved places. Say \"{named} is at {told.group(1)}\" and I'll measure to it.") from None
+                except act.Refused:
+                    raise
+                except Exception:  # noqa: BLE001
+                    pass
             raise act.Refused(
-                f"I don't know where {named} is. Say \"{named} is at\" and the address, "
+                f"I don't know where {spoken} is. Say \"{named} is at\" and the address, "
                 "and I'll remember it.") from None
         except LookupError:
             raise act.Refused(
@@ -4335,8 +4400,16 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 told = _quick._cost_mine("what are my bills")
             except Exception:  # noqa: BLE001
                 told = None
+            # "What bills are due" beside a task "pay the water bill, due
+            # Friday" (2026-10-08): the bill on his list is a bill.
+            bills = [t for t in _open_tasks() if re.search(r"\b(?:bills?|rent|mortgage|invoice|payment)\b",
+                                                         str(t.get("description") or ""), re.IGNORECASE)]
+            listed = ("On your list: " + speech.and_list([_task_words(t) for t in bills[:4]]) + ".") if bills else ""
             if told:
-                return "I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
+                return ("I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
+                        + (" " + listed if listed else ""))
+            if listed:
+                return "I'm not tracking any subscriptions. " + listed
             return "No subscriptions are being tracked."
         monthly = [subscriptions.monthly_equivalent(r) for r in rows]
         total = sum(m for m in monthly if m)
