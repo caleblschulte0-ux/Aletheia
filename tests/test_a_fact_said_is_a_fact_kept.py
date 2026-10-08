@@ -10792,5 +10792,20 @@ class AnEmergencyIsAnsweredFirst(unittest.TestCase):
             self.assertIsNone(voice._emergency(said.lower()), said)
 
 
+class WhenItIsHeavy(unittest.TestCase):
+    """2026-10-08: "I do not want to be here anymore", "I feel hopeless",
+    "nobody cares about me", "I'm having a panic attack" and "I can't stop
+    crying" went to the planner or got "I can't think just now"."""
+
+    def test_crisis(self):
+        for said in ("I do not want to be here anymore", "I wish I was dead", "I can't take it anymore"):
+            self.assertEqual(quick.answer(said), quick.CRISIS, said)
+
+    def test_a_person_and_a_way_to_reach_one(self):
+        for said in ("I feel hopeless", "nobody cares about me", "I cannot stop crying"):
+            self.assertIn("988", quick.answer(said), said)
+        self.assertTrue(quick.answer("I am having a panic attack").startswith("You're safe."))
+
+
 if __name__ == "__main__":
     unittest.main()

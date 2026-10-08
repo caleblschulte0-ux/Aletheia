@@ -180,7 +180,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i|i'm|im|i am) (?:want to|wanna|going to|gonna|am going to|feel like|thinking about|thinking of|"
         r"just want to|really want to) (?:die|dying|kill(?:ing)? myself|end(?:ing)? (?:it all|my life)|hurt(?:ing)? myself|be dead)$"
         r"|^(?:i'm|im|i am|i feel|feeling) (?:suicidal|thinking about suicide)$"
-        r"|^i don'?t want to (?:live|be alive|be here) anymore$")),
+        r"|^i don'?t want to (?:live|be alive|be here) anymore$"
+        # "I do not want to be here anymore" (2026-10-08: to the planner, which
+        # with the models out said "it's on my list").
+        r"|^i (?:do not|don'?t|dont) want to (?:live|be alive|be here|exist|wake up)(?: anymore| any more)?$"
+        r"|^i wish i (?:was|were) dead$|^i wish i (?:wasn'?t|was not|weren'?t|were not) (?:alive|here|born)$"
+        r"|^(?:there(?:'s| is) )?no (?:point|reason) (?:in )?(?:living|to live|to go on|going on)(?: anymore)?$"
+        r"|^(?:everyone|everybody|they) would be better off without me$"
+        r"|^i can'?t (?:go on|take (?:it|this) anymore|keep going)(?: anymore| like this)?$")),
+    # "I feel hopeless", "nobody cares about me", "I'm having a panic attack",
+    # "I can't stop crying" (2026-10-08: to the planner or "I can't think").
+    # A person, and a way to reach one, never a work item.
+    ("distress", re.compile(
+        r"^(?:i'?m|im|i am|i feel|i'?m feeling|i am feeling|feeling) (?:so |really |completely |totally )?(?P<distress>hopeless|worthless|empty|numb|like a failure|like a burden|useless)$"
+        r"|^(?P<distress2>nobody|no one|no-one) (?:cares about|loves|likes|would miss) me$|^(?P<distress3>everyone|everybody) hates me$"
+        r"|^(?:i think )?(?:i'?m|im|i am) having (?:a )?(?P<distress4>panic attack|anxiety attack)$|^i (?:have|got) (?:a )?(?P<distress5>panic attack)$"
+        r"|^i (?:can'?t|cannot) stop (?P<distress6>crying|shaking)$")),
     # "What's my password for Netflix" said "I don't have anything
     # remembered about password for netflix" (2026-10-07), as if one could
     # be. She never keeps a password; said the same way every time.
@@ -3330,7 +3345,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -8697,6 +8712,21 @@ def _about_her(text: str) -> str:
     known = _about_him()
     return ("Yes. " + known) if known and not known.startswith("Nothing") else \
         "I don't know much about you yet - tell me your name and I'll remember it."
+
+
+def _distress(text: str) -> str:
+    g = _groups("distress", text)
+    if g.get("distress4") or g.get("distress5") or g.get("distress6") == "shaking":
+        return ("You're safe. Breathe in slowly for four, hold for four, and out for six - then again. It passes, "
+                "usually within a few minutes. If there's chest pain or you're not sure it's panic, call 911.")
+    if g.get("distress6"):
+        return ("I'm sorry. Let it out. If you'd like a person to talk to, reach a friend - or call or text 988, "
+                "any hour.")
+    if g.get("distress2") or g.get("distress3"):
+        return ("I'm sorry you're feeling that. It's worth reaching out to someone you trust - I can send them a text "
+                "for you. And if it gets heavy, 988 is there by call or text, any hour.")
+    return ("I'm sorry it feels that way. You don't have to carry it alone - talking to someone helps, and if it gets "
+            "dark, call or text 988, any hour.")
 
 
 CRISIS = ("I'm really sorry you're feeling this way, and I'm glad you said it. Please call or text 988 "
@@ -16950,6 +16980,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "days_between": lambda rest: _days_between(rest),
            "time_diff": lambda rest: _time_diff(rest),
            "crisis": lambda rest: CRISIS,
+           "distress": lambda rest: _distress(rest),
            "feeling": lambda rest: _feeling(rest),
            "about_her": lambda rest: _about_her(rest),
            "arith": lambda rest: _arith(rest),
