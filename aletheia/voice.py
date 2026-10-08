@@ -5823,6 +5823,40 @@ def _interpret(transcript: str) -> dict:
         from aletheia import quick
         if quick._food_said(m.group("items")):
             return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THE TRIP ITSELF (2026-10-08: "my flight got delayed 2 hours", "I
+    # landed", "my bag is lost" and "I checked a bag" went to the planner;
+    # "my hotel checkout is at 11" was refused as spending money).
+    m = re.fullmatch(r"(?:my|our|the) flight (?:got|is|was|has been|just got) (?:delayed|pushed back)(?: by)?(?: (?P<n>\d{1,2}|an|one|two|three|half an) (?P<u>hours?|hour|minutes?|mins?))?(?: again)?", low)
+    # ...but a bare "my flight is delayed" is a complaint a model can look
+    # into, as it always was; an amount, or "got", is a fact to keep.
+    if m and not m.group("n") and not re.search(r"\b(?:got|has been)\b", low):
+        m = None
+    if m:
+        from aletheia import quick as _q
+        later = ""
+        n = {"an": 1, "one": 1, "two": 2, "three": 3}.get(m.group("n") or "", m.group("n"))
+        for row in _q._notes()[:20]:
+            t = re.match(r"(?:my|our|the) flight (?:leaves|departs|is) (?:at )?(?P<h>\d{1,2})(?::(?P<mm>\d\d))? ?(?P<ap>am|pm)(?P<rest> today| tonight| tomorrow)?",
+                         str(row.get("text") or "").casefold())
+            if t and n and m.group("n") != "half an":
+                mins = int(t.group("h")) % 12 * 60 + (720 if t.group("ap") == "pm" else 0) + int(t.group("mm") or 0)
+                mins += int(n) * (60 if m.group("u").startswith("hour") else 1)
+                if mins < 24 * 60:
+                    h, mm = divmod(mins, 60)
+                    later = f", so it leaves at {(h % 12) or 12}{f':{mm:02d}' if mm else ''} {'am' if h < 12 else 'pm'}{t.group('rest') or ''}"
+                break
+        return {"command": {"kind": "note", "text": _as_he_said(text, low) + later}, "say": None}
+    if re.fullmatch(r"(?:my|our|the) flight (?:got|was|has been|just got) (?:cancell?ed|canceled)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Sorry - that's a pain. The airline's app is usually the fastest way to rebook."}
+    if re.fullmatch(r"(?:i|we) (?:just )?(?:landed|touched down|arrived)(?: in [a-z][a-z .]{1,25}| safely| safe)?|(?:my|our) flight (?:just )?landed(?: in [a-z][a-z .]{1,25})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Welcome - glad you made it."}
+    if re.fullmatch(r"(?:my|our) (?:bag|bags|luggage|suitcase|checked bag) (?:is|are|got|was|were) (?:lost|missing|delayed|damaged|left behind)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Report it at the airline's baggage desk before you leave the airport - they'll give you a file number. Tell me the number and I'll keep it."}
+    if re.fullmatch(r"i (?:just )?checked (?:a |my |one |two |2 |three |3 )?(?:bags?|suitcases?|luggage)", low) \
+            or re.fullmatch(r"(?:my |our |the )?(?:hotel )?(?:check-?out|check-?in|checkout|checkin) (?:time )?is (?:at |by )?(?:\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)(?: tomorrow| today| on [a-z]+)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My paycheck came in", "I split dinner with Sam" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit|refund|tax refund|bonus|reimbursement|commission)"
                     r" (?:just )?(?:came in|came through|cleared|hit|landed|went through|was deposited|got deposited|posted|arrived|showed up)"
@@ -8617,7 +8651,9 @@ def _interpret(transcript: str) -> dict:
             pass
     # "I'M AT THE GYM" (2026-10-07: to a model). A note, which "when did I
     # last go to the gym" counts as a visit.
-    if re.fullmatch(r"(?:i'?m|i am|just got) (?:at|to) the (?:gym|pool|park|library|office|doctor'?s?|dentist'?s?)(?: now)?", low):
+    if re.fullmatch(r"(?:i'?m|i am|just got) (?:at|to) the (?:gym|pool|park|library|office|doctor'?s?|dentist'?s?"
+                    # "I'm at the airport" (2026-10-08: "I can't think just now").
+                    r"|airport|hotel|mall|store|grocery store|post office|bank|vet|beach|stadium|train station|bus station)(?: now)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I STARTED A NEW JOB TODAY" (2026-10-07: to the planner). A note, so
     # "where do I work" and "when did I start my job" have it.

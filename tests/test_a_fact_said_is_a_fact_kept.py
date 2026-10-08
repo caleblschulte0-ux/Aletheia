@@ -10807,5 +10807,26 @@ class WhenItIsHeavy(unittest.TestCase):
         self.assertTrue(quick.answer("I am having a panic attack").startswith("You're safe."))
 
 
+class TheTripItself(unittest.TestCase):
+    """2026-10-08: "my flight got delayed 2 hours", "I landed", "my bag is
+    lost" went to the planner; "my hotel checkout is at 11" was refused as
+    spending money."""
+
+    def test_said(self):
+        for said in ("my flight got cancelled", "I landed", "I am at the airport", "I checked a bag", "my bag is lost",
+                     "my hotel checkout is at 11"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertIn("baggage desk", voice._interpret("my bag is lost")["say"])
+
+    def test_a_delay_moves_the_time(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my flight leaves at 6am tomorrow"}]):
+            self.assertEqual(voice._interpret("my flight got delayed 2 hours")["command"]["text"],
+                             "my flight got delayed 2 hours, so it leaves at 8 am tomorrow")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my flight got delayed 2 hours, so it leaves at 8 am tomorrow"},
+                                                         {"text": "my flight leaves at 6am tomorrow"}]):
+            self.assertEqual(quick.answer("what time is my flight"),
+                             "You told me: your flight got delayed 2 hours, so it leaves at 8 am tomorrow.")
+
+
 if __name__ == "__main__":
     unittest.main()
