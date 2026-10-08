@@ -7765,5 +7765,13 @@ class AShortFormAsksForTheLongOne(unittest.TestCase):
 
 
 
+class WhatBillsDoIHave(unittest.TestCase):
+    def test_it_lists_the_bills_he_told_her(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my rent is 1200"}]):
+            said = quick.answer("what bills do I have this month")
+        self.assertIn("rent is 1200", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

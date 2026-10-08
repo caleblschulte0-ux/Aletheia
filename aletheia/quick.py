@@ -511,7 +511,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage)(?: (?:a|per|each) month)?\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
-        r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
+        r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$"
+        # "What bills do I have this month" (2026-10-08: "I can't think").
+        r"|^what (?P<cost_bills3>bills|expenses) do (?:i|we) (?:have|pay|owe)(?: (?:this|a|each|per|every) month| monthly)?\s*\??$")),
     # "What's my oldest task" (2026-10-08: searched memory for "oldest task").
     ("task_age", re.compile(
         r"^(?:what(?:'s| is|s)|which is) (?:my |the )?(?P<task_age>oldest|newest|latest|most recent|first|last) "
@@ -11847,7 +11849,7 @@ def _cost_mine(text: str) -> str | None:
     from aletheia import speech
     g = _groups("cost_mine", text)
     rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()]
-    if g.get("cost_bills") or g.get("cost_bills2"):
+    if g.get("cost_bills") or g.get("cost_bills2") or g.get("cost_bills3"):
         bills, seen, total, whole = [], set(), 0.0, True
         for said in rows:
             m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
