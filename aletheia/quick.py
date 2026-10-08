@@ -5823,7 +5823,8 @@ def _agenda(day: str = "today") -> str | None:
     # (2026-10-07). His own word for the day, said this past week.
     told = _plans_told(day)
     if not rows:
-        return f"Nothing on your calendar {when_said}." + (f" But you told me: {told}." if told else "")
+        return f"Nothing on your calendar {when_said}." + (f" But you told me: {told}." if told else "") \
+            + _reminders_between(first, last, now)
     rows.sort(key=lambda r: r[0])
     many_days = first != last
     said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month"
@@ -9427,6 +9428,24 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     return None
 
 
+def _reminders_between(first, last, now) -> str:
+    """" You do have 1 reminder: Friday at 9 am, call grandma." for an empty
+    calendar: "what's coming up this week" said "Nothing on your calendar
+    this week" with two reminders set in it (2026-10-08). Empty when none."""
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    try:
+        rows = [(at.astimezone(tz), text) for at, text, store in _coming()
+                if store == "reminder" and first <= at.astimezone(tz).date() <= last and at.astimezone(tz) >= now]
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    said = [f"{speech.humanize_time(at.isoformat())}, {speech._yours(text.rstrip('.'))}" for at, text in rows[:4]]
+    more = f"; and {len(rows) - 4} more" if len(rows) > 4 else ""
+    return f" You do have {speech.count_phrase(len(rows), 'reminder')}: " + "; ".join(said) + more + "."
+
+
 def _reminders_on(day: str) -> str | None:
     """His reminders and alarms that go off on the day he names."""
     import datetime as dt
@@ -9439,8 +9458,8 @@ def _reminders_on(day: str) -> str | None:
             and at.astimezone(tz).date().isoformat() == iso]
     if not rows:
         return f"No reminders {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}."
-    said = [f"{at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}, {text.rstrip('.')}" for at, text in rows[:6]]
     from aletheia import speech
+    said = [f"{at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}, {speech._yours(text.rstrip('.'))}" for at, text in rows[:6]]
     lead = f"{speech.count_phrase(len(rows), 'reminder')} {day if day in ('today', 'tomorrow') else 'on ' + day.capitalize()}: "
     return lead + "; ".join(said) + (f"; and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
 

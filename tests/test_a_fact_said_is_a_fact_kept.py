@@ -6938,5 +6938,29 @@ class ACalendarReleaseIsOneAct(unittest.TestCase):
         self.assertEqual(len(recollection._once_each(rows)), 1)
 
 
+
+class AnEmptyWeekStillHasHisReminders(unittest.TestCase):
+    """2026-10-08: "what's coming up this week" said "Nothing on your
+    calendar" with a reminder set for Friday; a weekday alarm was confirmed
+    as "I'll remind you: wake up"."""
+
+    def test_the_reminders_in_the_range_are_said(self):
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        soon = now + dt.timedelta(hours=3)
+        with mock.patch.object(quick, "_coming", return_value=[(soon, "call my grandma", "reminder")]):
+            said = quick._reminders_between(now.date(), (now + dt.timedelta(days=1)).date(), now)
+        self.assertIn("You do have 1 reminder", said)
+        self.assertIn("call your grandma", said)
+        with mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertEqual(quick._reminders_between(now.date(), now.date(), now), "")
+
+    def test_a_weekday_alarm_is_an_alarm(self):
+        from aletheia import speech
+        said = speech.spoken_receipt("remind_weekly", "weekly reminder r1 set for weekdays at 07:00 — 'wake up'")
+        self.assertEqual(said, "Alarm set for weekdays at 7 am.")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -698,6 +698,9 @@ def spoken_receipt(kind: str, detail: str, *,
         if when and what:
             days = when.group(1)
             lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
+            if what.group(1).strip().casefold() == "wake up":
+                # "Weekdays at 7 am I'll remind you: wake up" (2026-10-08).
+                return f"Alarm set for {lead} at {clock_words(when.group(2))}."
             return (f"{lead[0].upper()}{lead[1:]} at "
                     f"{clock_words(when.group(2))} I'll remind you: "
                     f"{_yours(what.group(1))}.")
