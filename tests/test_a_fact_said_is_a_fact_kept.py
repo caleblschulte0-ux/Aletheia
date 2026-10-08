@@ -9561,5 +9561,23 @@ class OutAndAbout(unittest.TestCase):
             self.assertIsNone(quick.answer("do I still have the dentist"))
 
 
+class MinutesHeSpent(unittest.TestCase):
+    """"How long did I meditate today" (2026-10-08: to a model)."""
+
+    def test_read(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I meditated for 10 minutes", "ts": now}, {"text": "I meditated for 15 minutes", "ts": now},
+                {"text": "I played guitar for an hour", "ts": now}, {"text": "I played tennis for 30 minutes", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how long did I meditate today"), "25 minutes today, from what you've told me.")
+            self.assertEqual(quick.answer("how long did I play guitar"), "1 hour today, from what you've told me.")
+            self.assertIsNone(quick.answer("how long did I study today"))
+
+    def test_a_dose_said_to_her_is_a_reminder(self):
+        said = voice._interpret("take an advil at 2")["command"]
+        self.assertEqual((said["kind"], said["text"]), ("remind_at", "take an advil"))
+
+
 if __name__ == "__main__":
     unittest.main()

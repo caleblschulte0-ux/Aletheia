@@ -2222,6 +2222,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                               r"|^is (?:the|my) (?P<still_have2>[a-z][a-z' ]{2,30}?) still (?:on|happening)(?: today| tomorrow)?\s*\??$")),
     ("who_pickup", re.compile(r"^who(?:'s| is) (?:picking (?:me|us|the kids|[a-z]+) up|getting (?:me|us|the kids)|driving (?:me|us)|giving (?:me|us) a (?:ride|lift))"
                               r"(?: (?:from|at) [a-z' ]{2,30}?)?(?: today| tonight| tomorrow)?\s*\??$")),
+    # "How long did I meditate today" after "I meditated for 10 minutes"
+    # (2026-10-08: to a model).
+    ("minutes_did", re.compile(r"^how (?:long|many minutes|many hours|much time) (?:did|have) i (?:spent? )?(?P<minutes_did>meditat(?:e|ed|ing)|read(?:ing)?"
+                               r"|stretch(?:ed|ing)?|practi[cs](?:e|ed|ing)|stud(?:y|ied|ying)|walk(?:ed|ing)?|do(?:ne)? yoga|did yoga|exercis(?:e|ed|ing)"
+                               r"|work(?:ed)? out|play(?:ed|ing)? (?:the )?[a-z]+|clean(?:ed|ing)?)(?P<md_when> today| this week| yesterday)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3087,7 +3092,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -14490,6 +14495,46 @@ def _who_pickup(text: str) -> str | None:
     return None
 
 
+def _minutes_did(text: str) -> str | None:
+    """The minutes he said he spent on something, added up over the day
+    or the week. None when he never said - a watch may know."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("minutes_did", text)
+    verb = str(g.get("minutes_did") or "")
+    when = str(g.get("md_when") or " today").strip()
+    stems = {"meditat": "meditated", "read": "read", "stretch": "stretched", "practi": "practi[cs]ed", "stud": "studied",
+             "walk": "walked", "do": "did yoga", "did": "did yoga", "exercis": "exercised", "work": "worked out",
+             "play": "played(?: the)? " + re.escape(verb.split()[-1]), "clean": "cleaned"}
+    past = next((v for k, v in stems.items() if verb.startswith(k)), None)
+    if not past:
+        return None
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    first = {"yesterday": today - dt.timedelta(days=1), "this week": today - dt.timedelta(days=today.weekday())}.get(when, today)
+    last = first if when == "yesterday" else today
+    total = 0
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        m = re.match(rf"i (?:just )?{past}(?: [a-z ]{{1,20}}?)? for (?:about |around )?(\d+(?:\.\d+)?|an?|half an) (minutes?|mins?|hours?|hrs?)\b", said)
+        if not m:
+            continue
+        try:
+            day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if not first <= day <= last:
+            continue
+        n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group(1)) or float(m.group(1))
+        total += n * (60 if m.group(2).startswith(("hour", "hr")) else 1)
+    if not total:
+        return None
+    h, mins = divmod(int(round(total)), 60)
+    span = speech.count_phrase(mins, "minute") if not h else speech.count_phrase(h, "hour") + (
+        f" and {speech.count_phrase(mins, 'minute')}" if mins else "")
+    return f"{span[:1].upper()}{span[1:]} {when}, from what you've told me."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15297,6 +15342,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "minutes_did": _minutes_did,
            "at_hour": _at_hour,
            "still_have": _still_have,
            "who_pickup": _who_pickup,

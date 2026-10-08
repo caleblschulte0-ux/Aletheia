@@ -10128,6 +10128,14 @@ def _interpret(transcript: str) -> dict:
                      r"(?: subscription| membership| account)?(?: today| yesterday)?", low)
     if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Take an advil at 2" (2026-10-08: to the planner) is said to her, so
+    # it is a reminder to him.
+    m = re.fullmatch(r"take (?P<what>(?:an? |my |some |two |2 |one |1 )?(?:advil|tylenol|ibuprofen|aspirin|motrin|aleve|pills?|meds|medicine|medication"
+                     r"|vitamins?|antibiotics?|allergy (?:pill|medicine)|insulin|inhaler))(?P<at> (?:at|in) [0-9a-z: ]{1,15})", low)
+    if m:
+        again = _interpret(f"remind me to take {m.group('what')}{m.group('at')}")
+        if again and (again.get("command") or {}).get("kind") in ("remind_at", "remind_in"):
+            return again
     # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
     # to leave, and "Jake is picking me up from the airport" is kept.
     m = re.fullmatch(r"i (?:need|have|got|gotta|should|must)(?: to)? (?:leave|head out|go|get going) (?:at|by) (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
