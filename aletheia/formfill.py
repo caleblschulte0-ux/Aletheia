@@ -1080,7 +1080,47 @@ def _his_word(stored: dict, field: str) -> str:
     row = stored.get(field)
     if isinstance(row, dict) and row.get("source") == "operator":
         return _norm(row.get("value"))
-    return ""
+    return _norm(_self_id_ruling().get("answers", {}).get(field) or "")
+
+
+def _self_id_ruling() -> dict:
+    """His self-identification ruling (`config/rulings.json`, self-id-answers),
+    or {} - a missing or broken registry answers nothing for him.
+
+    His words, 2026-10-08: "first it should try male white non hispanic not a
+    vetrean but if thats not on otipon or not working then we can decline to
+    say". Six applications were waiting on exactly these questions that day.
+    What he typed at his own keyboard (source "operator") is read first."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("self_id")
+    except Exception:
+        return {}
+    return ruled if ruled and ruled.get("on") else {}
+
+
+#: Which of his ruled answers settles each self-identification category.
+_RULED_FIELDS = {"gender": ("gender",), "race": ("race", "hispanic_latino"),
+                 "hispanic_latino": ("hispanic_latino",), "veteran_status": ("veteran_status",)}
+
+
+def _ruled_decline(category: str, options: list[str]) -> str | None:
+    """The option that declines, when his ruling says to decline wherever his
+    answer is not an option - and only for a category the ruling answers.
+    Disability, orientation and pronouns are never reached from here."""
+    ruled = _self_id_ruling()
+    fields = _RULED_FIELDS.get(category, ())
+    if ruled.get("otherwise") != "decline" or not any(f in ruled.get("answers", {})
+                                                       for f in fields):
+        return None
+    found = _decline_choice(options)
+    if found is not None:
+        return found
+    hits = [c for c in options
+            if _says("decline", _norm(c)) or re.search(
+                r"\b(?:prefer|wish|want|choose)\s+not\s+to\b|\bnot\s+(?:to\s+)?(?:disclose|say)\b"
+                r"|\bdon t wish\b|\bdo not wish\b", _norm(c))]
+    return hits[0] if len(hits) == 1 else None
 
 
 def _hispanic_choice(options: list[str], said: str) -> str | None:
@@ -1128,6 +1168,17 @@ def _decline_choice(options: list[str]) -> str | None:
 
 def declared_choice(label: str, choices: list[str], *, stored: dict | None = None,
                     category: str = "") -> str | None:
+    """The option that says what HE said about himself; failing that, the
+    decline his ruling asks for where his answer is not on offer; or None."""
+    category = category or category_of(label, choices)
+    said = _declared_from_his_words(label, choices, stored=stored, category=category)
+    if said is not None or not category:
+        return said
+    return _ruled_decline(category, [str(c) for c in (choices or []) if str(c).strip()])
+
+
+def _declared_from_his_words(label: str, choices: list[str], *, stored: dict | None = None,
+                             category: str = "") -> str | None:
     """The option that says what HE said about himself, or None.
 
     Only from his own words (source "operator"): never read off a resume or
