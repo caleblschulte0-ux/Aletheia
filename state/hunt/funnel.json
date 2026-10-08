@@ -26,19 +26,23 @@
     "2026-10-08": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 80,
+      "minutes": 98,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 9,
-      "offered": 90,
-      "ready": 8,
-      "runs": 1,
-      "unfit_model": 4,
-      "unfit_sales": 5,
+      "not_realistic": 97,
+      "offered": 180,
+      "ready": 9,
+      "runs": 2,
+      "unfit_clearance": 1,
+      "unfit_license": 1,
+      "unfit_model": 9,
+      "unfit_pay": 38,
+      "unfit_sales": 45,
+      "unfit_years": 3,
       "unjudged": 0,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
-      "weak_shot": 1
+      "weak_shot": 2
     }
   },
   "closed_recently": {
@@ -140,7 +144,7 @@
     },
     "2026-09-22": {
       "filled": 15,
-      "found": 61,
+      "found": 60,
       "interviews": 0,
       "rejections": 0,
       "replies": 4,
@@ -259,16 +263,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 23,
-      "found": 29,
+      "filled": 25,
+      "found": 31,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 7
+      "sent": 9
     }
   },
-  "generated_at": "2026-10-08T14:53:23Z",
-  "sent_all_time": 277,
+  "generated_at": "2026-10-08T15:23:37Z",
+  "sent_all_time": 279,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -343,12 +347,12 @@
     }
   },
   "totals": {
-    "filled": 358,
-    "found": 719,
+    "filled": 360,
+    "found": 720,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 277
+    "sent": 279
   },
   "waiting": {
     "asked_about": {
@@ -387,7 +391,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 77
+      "not_realistic": 76
     },
     "failed": 13,
     "failed_because": {
