@@ -12124,5 +12124,18 @@ class TheirAnniversary(unittest.TestCase):
         self.assertIn("our anniversary is", got["say"])
 
 
+class HisShifts(unittest.TestCase):
+    def test_shifts_are_kept_and_read(self):
+        for said in ("I have to work Saturday", "my shift is 7 to 3 tomorrow"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice.interpret("I am working on the report")["command"]["kind"], "note")
+        notes = [{"text": "my shift is 7 to 3 tomorrow"}, {"text": "I am off Friday"}, {"text": "I have to work Saturday"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("am I working saturday"), "You told me: you have to work Saturday.")
+            self.assertEqual(quick.answer("what days am I off this week"), "You told me: you are off Friday.")
+            self.assertEqual(quick.answer("what is my shift tomorrow"), "You told me: your shift is 7 to 3 tomorrow.")
+            self.assertIsNone(quick.answer("am I working sunday"))
+
+
 if __name__ == "__main__":
     unittest.main()

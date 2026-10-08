@@ -11090,6 +11090,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:it is|it's|its) (?:my|our) (?:wedding )?anniversary (?:next week|next month|this weekend|in \d{1,2} days|soon)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": "Noted. Say \"our anniversary is\" and the date, and I'll remember it every year."}
+    # "I have to work Saturday", "my shift is 7 to 3 tomorrow" (2026-10-08:
+    # to the planner). His shifts, kept.
+    if re.fullmatch(r"(?:i have to|i've got to|i gotta|i need to|i'?m|i am|i will be|i'?ll be) (?:work|working|going in|on shift)(?: (?:a |an )?(?:double|late|early|overnight|night) shift)? (?:today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend)(?: (?:from )?\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low) \
+            or re.fullmatch(r"my (?:shift|hours) (?:is|are) (?:from )?\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend|next weekend))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
