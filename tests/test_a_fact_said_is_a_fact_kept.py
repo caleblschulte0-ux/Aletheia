@@ -7913,5 +7913,14 @@ class OurAnniversaryNotToldYet(unittest.TestCase):
 
 
 
+class ABareMeetingTakesItsArticle(unittest.TestCase):
+    def test_you_have_a_meeting_then(self):
+        from aletheia import calendar as cal, intercom
+        with mock.patch.object(cal, "conflicts", return_value=[{"title": "meeting", "status": "CONFIRMED"}]):
+            said = intercom.free_time_answer({"day": "2026-10-09", "at": "14:00", "tz": "America/Chicago"})
+        self.assertEqual(said, "You have a meeting then (2 pm on Friday).")
+
+
+
 if __name__ == "__main__":
     unittest.main()

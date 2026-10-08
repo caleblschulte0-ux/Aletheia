@@ -2537,6 +2537,10 @@ def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:
     if busy:
         first = busy[0]
         title = str(first.get("title") or "something")
+        # "You have meeting then" (2026-10-08): a bare noun takes its article.
+        if re.fullmatch(r"(?:meeting|call|appointment|interview|lunch meeting|dentist appointment|doctor's appointment"
+                        r"|doctor appointment|haircut|class|practice|game|session|event|hold)", title.casefold()):
+            title = ("an " if title[0].casefold() in "aeiou" else "a ") + title
         return f"You have {title} then ({when})."
     # No "yes" or "no": "am I BUSY at 3" reaches here as the same command
     # as "am I free at 3", and "Yes, you're free" answered it backwards
