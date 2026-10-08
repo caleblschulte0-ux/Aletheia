@@ -242,7 +242,7 @@
       "sent": 35
     }
   },
-  "generated_at": "2026-10-08T02:47:23Z",
+  "generated_at": "2026-10-08T03:18:26Z",
   "sent_all_time": 269,
   "stuck_at": {
     "approval_denied": {
@@ -327,8 +327,6 @@
       "education": 1,
       "on_site": 1,
       "other": 7,
-      "pay": 1,
-      "referral": 1,
       "travel": 1,
       "why_this_job": 1
     },
@@ -358,9 +356,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 78
     },
-    "failed": 9,
+    "failed": 10,
     "failed_because": {
-      "ApplyError": 3,
+      "ApplyError": 4,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -369,7 +367,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 13,
+    "needs_answer": 12,
     "oldest_days": 25,
     "to_send": 0
   },
