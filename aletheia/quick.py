@@ -702,7 +702,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
         r"sister|brother|mom|mother|dad|father|wife|husband|partner|girlfriend|boyfriend|roommate|"
-        r"neighbou?r|best friend|emergency contact|recruiter)\s*\??$")),
+        r"neighbou?r|best friend|emergency contact|recruiter"
+        # "Who is my professor" (2026-10-08: to a model).
+        r"|professor|[a-z]+ professor|advisor|adviser|academic advisor|[a-z]+ teacher|teacher|tutor|counselor|principal)\s*\??$")),
     # "How many opportunities are you working on" came back from her own
     # model as "opportunity tracking is experimental for me right now, not
     # something I run live yet" - while forty of them sat in her store.
@@ -2373,6 +2375,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("who_with", re.compile(r"^(?:who(?:'s| is)|what company is|where(?:'s| is)) (?:my|our) (?P<who_with>(?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account))(?: with| through| at)?\s*\??$")),
     ("car_ready", re.compile(r"^(?:when (?:will|is|does) my (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
     ("cost_of_it", re.compile(r"^how much (?:was|is|did) (?:the|my) (?P<cost_of_it>(?:parking |speeding |traffic )?ticket|fine|repair|tow|deductible|copay|bill from [a-z ]+)(?: cost)?\s*\??$")),
+    ("my_classes", re.compile(r"^what (?:classes|courses) (?:am i|i'm) (?:taking|in|enrolled in)(?: this (?:semester|term|year))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -6432,6 +6435,10 @@ def _task_due(words: str) -> str | None:
     # A day said with no time is kept as the end of that day; "at 11:59 pm"
     # is the store's, not his.
     said = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat()))
+    # "Your paper is due Friday", not "Finish my paper is due Friday" (2026-10-08).
+    thing = re.match(r"(?:finish|turn in|hand in|submit) (?:my|the) (.+)$", what, re.I)
+    if thing:
+        return f"Your {thing.group(1)} is due {said}."
     return f"{what} is due {said}."
 
 
@@ -16123,6 +16130,27 @@ def _cost_of_it(what: str) -> str | None:
     return None
 
 
+def _my_classes(_text: str = "") -> str | None:
+    """The classes his notes name, less the ones he said he dropped."""
+    from aletheia import speech
+    found, dropped = [], set()
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        gone = re.fullmatch(r"i (?:just )?(?:dropped|withdrew from) (?:my |the )?([a-z][a-z ]{1,25}?) (?:class|course)", low)
+        if gone:
+            dropped.add(gone.group(1))
+            continue
+        for m in re.finditer(r"\bmy ([a-z]{3,15}) (?:class|course|lecture)\b|\b(?:taking|enrolled in|signed up for|registered for|added) (?:a |the )?([a-z]{3,15}) (?:class|course)\b", low):
+            name = m.group(1) or m.group(2)
+            if name not in dropped and name not in found and name not in ("next", "first", "last", "online", "new", "morning", "night"):
+                found.append(name)
+    if not found:
+        return None
+    said = [speech.as_she_says_it(n) for n in found[:6]]
+    return f"From what you've told me: {speech.and_list(said)}." + (
+        f" You dropped {speech.and_list(sorted(dropped))}." if dropped else "")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16935,6 +16963,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "my_classes": _my_classes,
            "who_with": _who_with,
            "car_ready": _car_ready,
            "cost_of_it": _cost_of_it,

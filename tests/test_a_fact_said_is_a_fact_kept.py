@@ -10464,5 +10464,29 @@ class TheCarsPaperwork(unittest.TestCase):
             self.assertEqual(quick.answer("when will my car be ready"), "You told me: the body shop said it will take a week.")
 
 
+class SchoolWork(unittest.TestCase):
+    """A sweep of school sentences (2026-10-08): a paper due Friday, his
+    professor, his classroom and a dropped class went to the planner."""
+
+    def test_said(self):
+        paper = voice._interpret("I have a paper due Friday")["command"]
+        self.assertEqual((paper["kind"], paper["description"]), ("task_new", "finish my paper"))
+        self.assertTrue(paper["deadline"])
+        for said in ("my professor is Dr. Smith", "my chemistry class is in room 204", "I dropped my history class"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read(self):
+        rows = [{"text": "I dropped my history class"}, {"text": "my history class is at 9"},
+                {"text": "my chemistry class is in room 204"}, {"text": "my professor is Dr. Smith"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("who is my professor"), "Your professor is Dr. Smith.")
+            self.assertEqual(quick.answer("where is my chemistry class"), "You told me: your chemistry class is in room 204.")
+            self.assertEqual(quick.answer("what classes am I taking"), "From what you've told me: chemistry. You dropped history.")
+        from aletheia import tasks
+        due = [{"id": "finish-my-paper", "description": "finish my paper", "deadline": "2026-10-09", "status": "OPEN"}]
+        with mock.patch.object(tasks, "all_tasks", return_value=due), mock.patch.object(tasks, "is_his", return_value=True):
+            self.assertRegex(quick.answer("when is my paper due"), r"^Your paper is due .+\.$")
+
+
 if __name__ == "__main__":
     unittest.main()

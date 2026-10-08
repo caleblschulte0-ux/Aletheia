@@ -9719,7 +9719,9 @@ def _interpret(transcript: str) -> dict:
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
                      # who someone IS to him, read back by "who's my doctor".
                      r"|(?:doctor|dentist|vet|pediatrician|therapist|lawyer|accountant|landlord|boss|manager|mechanic"
-                     r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny)"
+                     r"|barber|hairdresser|hair stylist|trainer|pharmacist|optometrist|eye doctor|gp|realtor|babysitter|nanny"
+                     # "My professor is Dr. Smith" (2026-10-08: to the planner).
+                     r"|professor|[a-z]+ professor|advisor|adviser|academic advisor|ta|[a-z]+ teacher|teacher|tutor|coach|counselor|principal)"
                      r"|anniversary|account number|member(?:ship)? number|(?:insurance |car insurance |auto insurance |home insurance |health insurance )?policy number"
                      # "My deductible is 500" (2026-10-08: to the planner).
                      r"|deductible|copay|co-pay|premium|insurance premium|out of pocket max(?:imum)?"
@@ -10440,6 +10442,20 @@ def _interpret(transcript: str) -> dict:
         unit = "minutes" if m.group("n") == "half an" or m.group("u").startswith("m") else ("hour" if n == "1" else "hours")
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"Noted. Want me to time it? Say \"set a timer for {n} {unit} for the {m.group('f')}\"."}
+    # "I have a paper due Friday", "my chemistry class is in room 204", "I
+    # dropped my history class" (2026-10-08: all to the planner).
+    m = re.fullmatch(r"i (?:have|'ve got|have got|got) (?:a |an |my |some |the )?(?P<thing>(?:[a-z]+ )?(?:paper|essay|report|project|assignment|homework|lab|lab report|presentation"
+                     r"|problem set|reading|book report|proposal|draft|thesis|article|worksheet|quiz corrections))(?: (?:for|in) [a-z][a-z ]{1,20}?)? due (?P<when>[a-z0-9][a-z0-9 :]{2,25})", low)
+    if m:
+        thing = m.group("thing")
+        mine = "my " + thing
+        done = _interpret(f"i need to finish {mine} by {m.group('when')}")
+        cmd = (done or {}).get("command") or {}
+        if cmd.get("kind") == "task_new" and cmd.get("deadline"):
+            return done
+    if re.fullmatch(r"my (?:[a-z]+ )?(?:class|lecture|lab|seminar|section|exam|final|midterm) is (?:in|at) (?:room |building |hall )?[a-z0-9][a-z0-9 .'-]{1,30}", low) \
+            or re.fullmatch(r"i (?:just )?(?:dropped|added|withdrew from|signed up for|registered for|enrolled in|am taking|'m taking) (?:my |a |the )?[a-z][a-z ]{1,25} (?:class|course|lecture|seminar)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I got a text from Sarah", "Sarah said she is running late", "my boss
     # emailed me about the report", "my new card is coming in 7 to 10 days",
     # "my card was declined", "my credit card limit is 5000" (2026-10-08:
