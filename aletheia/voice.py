@@ -10424,6 +10424,25 @@ def _interpret(transcript: str) -> dict:
         unit = "minutes" if m.group("n") == "half an" or m.group("u").startswith("m") else ("hour" if n == "1" else "hours")
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"Noted. Want me to time it? Say \"set a timer for {n} {unit} for the {m.group('f')}\"."}
+    # "I got a text from Sarah", "Sarah said she is running late", "my boss
+    # emailed me about the report", "my new card is coming in 7 to 10 days",
+    # "my card was declined", "my credit card limit is 5000" (2026-10-08:
+    # all to the planner, and the limit refused at the money door as an
+    # order to spend; a fact about his card is not an order).
+    m = re.fullmatch(r"(?P<who>my [a-z]+(?: in law)?|[a-z][a-z'-]{1,20}) said (?:that )?(?P<x>(?:she|he|they|it|the|we|i)\b.{3,100})", low)
+    if m and m.group("who") not in ("you", "she", "he", "they", "it", "someone", "somebody", "who", "everyone", "nobody", "thea", "i", "we") \
+            and (m.group("who").startswith("my ") or _said_as_a_title(text, m.group("who"))):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"i (?:just )?got (?:a |an )?(?:text|call|message|voicemail|email|letter|card|package|dm|phone call) from (?:my |the )?[a-z][a-z' &.-]{1,30}?(?: today| this morning| earlier)?", low) \
+            or re.fullmatch(r"(?P<w>my [a-z]+(?: in law)?|[a-z][a-z'-]{1,20}) (?:emailed|texted|called|messaged|dm'?d|slacked) me(?: back)?(?: (?:about|regarding|re) [a-z0-9][a-z0-9 ,'-]{1,40})?(?: today| this morning| earlier)?", low) \
+            and not re.match(r"(?:who|someone|somebody|nobody|you|it|they|he|she) ", low) \
+            or re.fullmatch(r"my (?:new |replacement )?(?:credit |debit |bank )?card (?:is coming|will come|should come|comes|arrives|will arrive|should arrive|is arriving|will be here)"
+                            r" in \d+(?: to \d+| or \d+)? (?:business )?days", low) \
+            or re.fullmatch(r"my (?:credit |debit |bank )?card (?:was|got|is|has been) (?:declined|stolen|lost|frozen|locked|cancell?ed|replaced|compromised|hacked|expired|blocked)(?: today| again| yesterday)?", low) \
+            or re.fullmatch(r"i (?:got|received|activated) (?:a |my )?new (?:credit |debit |bank )?card", low) \
+            or re.fullmatch(r"i (?:reported|froze|locked|cancell?ed) my (?:credit |debit |bank )?card(?: (?:lost|stolen|as lost|as stolen))?", low) \
+            or re.fullmatch(r"my (?:credit card |card )?(?:credit )?limit is \$?\d[\d,.]*k?(?: dollars)?|my credit card balance is \$?\d[\d,.]*k?(?: dollars)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The baby is named Lily" a turn after "my sister had her baby", "my
     # dad got out of the hospital" (2026-10-08: both to the planner).
     m = re.fullmatch(r"(?:the |her |his |their )?baby(?:'s name)? is (?:named |called )?(?P<n>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)"

@@ -10409,5 +10409,34 @@ class TheCalendarAskedPolitely(unittest.TestCase):
             self.assertIsNone(quick.answer("what time do I need to leave for my flight"))
 
 
+class MessagesAndHisBankCard(unittest.TestCase):
+    """A sweep of messages and bank cards (2026-10-08). "My credit card
+    limit is 5000" was refused at the money door as an order to spend."""
+
+    def test_said(self):
+        for said in ("I got a text from Sarah", "Sarah said she is running late", "my boss emailed me about the report",
+                     "my new card is coming in 7 to 10 days", "my card was declined", "I got a new debit card",
+                     "I reported my card stolen", "my credit card limit is 5000"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        for said in ("you said it was raining", "someone called me"):
+            self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+
+    def test_the_money_door_is_unchanged(self):
+        from aletheia import webtask
+        self.assertTrue(callable(webtask.would_spend))
+        self.assertEqual(voice._interpret("my credit card limit is 5000")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "Sarah said she is running late"}, {"text": "my credit card limit is 5000"},
+                {"text": "my new card is coming in 7 to 10 days", "ts": "2026-10-08T14:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("is Sarah running late"), "You told me Sarah said she is running late.")
+            self.assertIsNone(quick.answer("is Bob running late"))
+            self.assertEqual(quick.answer("what is my credit limit"), "You told me: your credit card limit is 5000.")
+            self.assertRegex(quick.answer("when is my new card coming"),
+                             r"^You told me .*: your new card is coming in 7 to 10 days - so between October 15 and October 18\.$")
+        self.assertEqual(quick.match("who do I need to reply to")[0], "tasks_verb")
+
+
 if __name__ == "__main__":
     unittest.main()
