@@ -4521,7 +4521,12 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
                      r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"
-                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
+                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary)"
+                     # "Remind me 3 days before my car insurance is due"
+                     # (2026-10-08: read as a calendar event of that name).
+                     r"|(?P<bill>" + _BILL_WORDS + r"))(?P<due> (?:is |are )?due)?", low)
+    if m and m.group("due") and not m.group("bill"):
+        m = None
     if m and (m.group("task") or not re.search(r"\b(?:birthday|bday)$", m.group("what"))):
         import datetime as dt
         from aletheia import localtime, quick as _q
@@ -4547,8 +4552,9 @@ def _interpret(transcript: str) -> dict:
         if not re.match(r"[a-z]+(?:'s|s') ", said) or re.split(r"'s?\b", said)[0] in _q._relation_words():
             said = "your " + said
         said = _as_he_said(text, said) if not said.startswith("your ") else said
-        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days, on {day.strftime('%A')}")
-        text = (f"{_as_he_said(text, m.group('task'))} - {said} is {when}" if m.group("task") else f"{said} is {when}")
+        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {int(days)} days, on {day.strftime('%A')}")
+        is_ = "is due" if m.group("bill") else "is"
+        text = (f"{_as_he_said(text, m.group('task'))} - {said} {is_} {when}" if m.group("task") else f"{said} {is_} {when}")
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
 
     # "REMIND ME THE DAY BEFORE MY DENTIST APPOINTMENT" (2026-10-07: to the

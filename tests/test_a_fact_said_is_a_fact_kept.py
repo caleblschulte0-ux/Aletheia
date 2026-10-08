@@ -6596,5 +6596,31 @@ class ABookHeStartedAndFinished(unittest.TestCase):
         self.assertIn("remind me to pack the day before my flight", [c.args[0] for c in seen.call_args_list])
 
 
+
+class SleepBillsAndTheDayBeforeABill(unittest.TestCase):
+    """2026-10-08: "how did I sleep last night", "what's my average sleep",
+    "is the electric bill paid" and "remind me 3 days before my car
+    insurance is due" all went to a model or the wrong reader."""
+
+    def test_sleep_last_night_and_on_average(self):
+        self.assertEqual(quick.match("how did I sleep last night")[0], "logged")
+        self.assertEqual(quick.match("what's my average sleep")[0], "logged")
+        self.assertIn("I slept 7 hours", quick.answer("how many hours do I usually sleep"))
+
+    def test_is_the_bill_paid_is_did_i_pay_it(self):
+        self.assertEqual(quick.match("is the electric bill paid"), ("did_last", "did i pay the electric bill"))
+        self.assertEqual(quick.match("is rent paid"), ("did_last", "did i pay rent"))
+        self.assertIsNone(quick.match("is it paid"))
+
+    def test_days_before_a_bill_he_said_is_due(self):
+        notes = [{"text": "my car insurance is due on the 15th", "ts": "2026-10-07T22:00:00-05:00"}]
+        from aletheia import localtime
+        with mock.patch.object(quick, "_notes", return_value=notes), \
+                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 7)):
+            said = voice.interpret("remind me 3 days before my car insurance is due")["command"]
+        self.assertEqual(said["at"][:10], "2026-10-12")
+        self.assertEqual(said["text"], "your car insurance is due in 3 days, on Thursday")
+
+
 if __name__ == "__main__":
     unittest.main()

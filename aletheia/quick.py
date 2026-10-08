@@ -930,6 +930,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how (?:much|long|many (?:minutes|hours)|much time) (?:did|have) i (?:been |spent )?(?P<logged_dur>run|ran|running|walk|walked|walking|jog|jogged|jogging|bike|biked|biking|cycle|cycled|cycling|swim|swum|swam|swimming|hike|hiked|hiking|exercise|exercised|exercising|work(?:ed)? out|working out)"
         r"(?: for)?(?P<logged_w4> today| this week)?\s*\??$"
         r"|^how (?:much|long|many hours) did i (?P<logged_sleep>sleep)(?: last night| for)?\s*\??$"
+        # "How did I sleep last night", "what's my average sleep" (2026-10-08:
+        # to a model, a turn after "I slept 7 hours last night").
+        r"|^how (?:did|have) i (?P<logged_sleep6>sleep|slept|been sleeping)(?: last night)?\s*\??$"
+        r"|^(?:what(?:'s| is|s) my average (?:sleep|hours of sleep)|how (?:much|many hours)(?: of sleep)? do i (?:usually |normally )?"
+        r"(?:sleep|get)(?: a night)?(?: on average)?|how much sleep do i (?:usually |normally )?get(?: on average)?)\s*\??$"
         # "How much did I sleep this week" (2026-10-07: to a model).
         r"|^how (?:much|many hours)(?: of sleep)? (?:did i|have i) (?:sleep|slept|get|gotten)(?: sleep)? (?P<logged_sleep3>this week)\s*\??$"
         r"|^how (?:much|many hours of) sleep (?:did i get|have i had|have i gotten) (?P<logged_sleep4>this week)\s*\??$"
@@ -2463,6 +2468,12 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "Is the electric bill paid" (2026-10-08: to the planner, a turn after
+    # "I paid the electric bill") is "did I pay the electric bill".
+    m = re.fullmatch(r"(?:is|has) (?P<what>(?:the |my )?(?:[a-z][a-z ]{0,30}? )?(?:bill|rent|mortgage|payment|insurance|tuition|loan|fee|fees|tax|taxes))"
+                     r" (?:been )?paid(?P<tail> yet| this month)?\s*\??", text)
+    if m:
+        return f"did i pay {m.group('what')}{m.group('tail') or ''}"
     m = re.fullmatch(r"(?:tell me|can (?:you|u) tell me|could (?:you|u) tell me|please tell me|give me) "
                      r"(?P<what>(?:the|my|today's|tomorrow's) .{2,60})", text)
     if m and not re.match(r"(?:the|my) (?:news|headlines|story|joke|truth|answer)\b", m.group("what")):
@@ -2734,6 +2745,18 @@ def _logged(text: str) -> str | None:
             bits.append(f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''}")
         said = " and ".join(bits)
         return f"{said[:1].upper() + said[1:]} {when}."
+    if re.search(r"\b(?:average|usually|normally)\b", text.casefold()) and "sleep" in text.casefold():
+        nights = {}
+        for at, said in rows:
+            m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
+            if m and now - at <= dt.timedelta(days=30) and amount(m.group(1)) and at.date() not in nights:
+                nights[at.date()] = amount(m.group(1)) + (0.5 if m.group(2) else 0)
+        if not nights:
+            return "You haven't told me how you've slept. Say \"I slept 7 hours\" in the morning and I'll keep the average."
+        if len(nights) == 1:
+            return f"You've told me about one night: {_plain(list(nights.values())[0])} hours."
+        return (f"About {_plain(round(sum(nights.values()) / len(nights), 1))} hours a night, "
+                f"over the {len(nights)} nights you've told me about this month.")
     if g.get("logged_sleep3") or g.get("logged_sleep4"):
         monday = start - dt.timedelta(days=now.weekday())
         nights = {}
@@ -2760,7 +2783,7 @@ def _logged(text: str) -> str | None:
                    else "Yes - that's in the seven to nine hours most adults need." if h <= 9
                    else "Plenty - more than the seven to nine most adults need.")
         return f"{heard} {verdict}"
-    if g.get("logged_sleep") or g.get("logged_sleep2"):
+    if g.get("logged_sleep") or g.get("logged_sleep2") or g.get("logged_sleep6"):
         for at, said in rows:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
             if m and amount(m.group(1)):
