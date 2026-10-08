@@ -2818,6 +2818,9 @@ _POLITE_DOING = frozenset({
     "shopping_add", "shopping_off", "shopping_list", "task_new", "task_done", "task_change", "tasks",
     "reminders", "reminder_off", "note", "email_check", "stopwatch", "stopwatch_read", "music",
     "travel_time", "free_time", "notify_snooze", "list_add", "list_read", "list_off", "brief", "contacts",
+    # "Can you move my dentist appointment to Wednesday" was answered "Yes,
+    # but it is experimental" and nothing moved (2026-10-08).
+    "calendar_hold", "hold_release", "calendar_find_free",
 })
 
 
@@ -2931,7 +2934,11 @@ def _a_polite_ask(transcript: str) -> str:
     # "Can you wake me up" was answered about the room microphone (2026-10-07).
     asks_back = cmd.get("kind") is None and re.match(r"(?:remind me|wake me|set (?:a|an|me a) (?:alarm|timer))\b",
                                                      rest, re.IGNORECASE)
-    if cmd.get("kind") not in _POLITE_DOING and not asks_back:
+    # "Can you clear my afternoon": her plain word on what she can and
+    # can't change is the answer to the ask and to the question alike.
+    says_why_not = (cmd.get("kind") is None and (_interpret(rest) or {}).get("say")
+                    and re.match(r"(?:move|push|bump|reschedule|cancel|clear|delete|remove) ", rest, re.IGNORECASE))
+    if cmd.get("kind") not in _POLITE_DOING and not asks_back and not says_why_not:
         return said
     return said[:len(said) - len(bare)] + rest
 

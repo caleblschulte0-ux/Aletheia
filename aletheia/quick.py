@@ -628,7 +628,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is| does)? my (?:schedule|calendar|day) look(?:s)? like (?P<ap_day4>today|tomorrow|monday|tuesday|wednesday"
         r"|thursday|friday|saturday|sunday) (?P<ap_part4>morning|afternoon|evening|night)\s*\??$"
         r"|^what(?:'s| is| does)? my (?P<ap_part5>morning|afternoon|evening) look(?:s)? like(?: (?P<ap_day5>today|tomorrow|monday"
-        r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
+        r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
+        # "Am I busy Friday night", "am I free tonight" (2026-10-08: to the planner).
+        r"|^(?:am i|will i be) (?P<ap_ask>free|busy|available|booked) (?:(?:on )?(?P<ap_day6>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+        r" (?P<ap_part6>morning|afternoon|evening|night)|this (?P<ap_part7>morning|afternoon|evening)|(?P<ap_part8>tonight))\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -2357,6 +2360,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: to a model).
     ("recipe_has", re.compile(r"^what (?:does|do) (?P<recipe_has>(?:the |my |our )?(?:[a-z]+(?:'s|s) )?[a-z][a-z ]{1,25}?)(?: recipe)? (?:use|call for|need|take|have in it)\s*\??$")),
     ("cook_for", re.compile(r"^how long (?:does|do|should|did) (?:the |my )?(?P<cook_for>[a-z][a-z ]{1,20}?) (?:need to |have to )?(?:cook|bake|roast|simmer|rest|boil|marinate|sit|rise|chill|soak|smoke)(?: for)?\s*\??$")),
+    # "What time do I need to leave for my flight" (2026-10-08: to a model).
+    ("leave_flight", re.compile(r"^(?:what time|when) (?:do|should) i (?:need to |have to )?(?:(?:leave|head out) for (?:my|the) flight|(?:leave|head out) for the airport|get to the airport|be at the airport)(?: (?:tomorrow|on [a-z]+))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3278,7 +3283,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -6887,8 +6892,9 @@ def _agenda_part(text: str) -> str | None:
     import datetime as dt
     from aletheia import calendar, localtime, speech
     g = _groups("agenda_part", text)
-    day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or "today"
-    part = g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5") or ""
+    day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or g.get("ap_day6") or "today"
+    part = (g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5")
+            or g.get("ap_part6") or g.get("ap_part7") or g.get("ap_part8") or "")
     lo, hi = _PART_HOURS.get(part, (0, 24))
     try:
         tz = localtime.operator_tz()
@@ -6912,10 +6918,16 @@ def _agenda_part(text: str) -> str | None:
     label = ("tonight" if part in ("tonight", "night") and when == now.date()
              else f"this {part}" if when == now.date()
              else f"tomorrow {part}" if when == now.date() + dt.timedelta(days=1) else f"{when.strftime('%A')} {part}")
+    # "Am I busy Friday night" wants yes or no first, in the direction asked.
+    ask = g.get("ap_ask") or ""
+    free_asked = ask in ("free", "available")
     if not rows:
-        return f"Nothing on your calendar {label}."
+        lead = ("Yes - n" if free_asked else "No - n") if ask else "N"
+        return f"{lead}othing on your calendar {label}."
     rows.sort()
     said = [f"{t} at " + s.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for s, t in rows[:6]]
+    if ask:
+        return f"{'No' if free_asked else 'Yes'} - {label}: {speech.and_list(said)}."
     return f"{label[:1].upper() + label[1:]}: {speech.and_list(said)}."
 
 
@@ -15974,6 +15986,40 @@ def _cook_for(food: str) -> str | None:
     return None
 
 
+def _leave_flight(text: str) -> str | None:
+    """When to set off for a flight he told her about: the usual two hours
+    at the airport ahead of a domestic flight, said as the rule it is."""
+    t = _tidy(text)
+    if "flight" not in t and "airport" not in t:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.search(r"\bflight\b|\bfly(?:ing)?\b", low):
+            continue
+        m = re.search(r"\bat (\d{1,2})(?::(\d\d))? ?([ap])\.?m\.?\b", low) or re.search(r"\bat (\d{1,2})(?::(\d\d))?\b()", low)
+        if not m:
+            continue
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        if m.group(3) == "p" and hour < 12:
+            hour += 12
+        elif m.group(3) == "a" and hour == 12:
+            hour = 0
+        elif not m.group(3) and hour < 7:
+            hour += 12
+        at = hour * 60 + minute - 120
+        if at < 0:
+            at += 24 * 60
+        h, mm = divmod(at, 60)
+        clock = f"{(h % 12) or 12}{':%02d' % mm if mm else ''} {'am' if h < 12 else 'pm'}"
+        day = re.search(r"\b(?:on )?((?:mon|tues|wednes|thurs|fri|satur|sun)day|today|tomorrow|tonight)\b", low)
+        when = f" {day.group(1).capitalize() if day and day.group(1).endswith('day') and day.group(1) not in ('today',) else (day.group(1) if day else '')}".rstrip()
+        flight = re.sub(r"(?i)^i\b", "you", said)
+        return (f"You told me {flight}. For a flight inside the country, aim to be at the airport about two hours ahead - "
+                f"around {clock}{when} - and leave in time to get there by then. For an international flight, make it three hours.")
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16784,6 +16830,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "leave_flight": _leave_flight,
            "still_good": _still_good,
            "recipe_has": _recipe_has,
            "cook_for": _cook_for,

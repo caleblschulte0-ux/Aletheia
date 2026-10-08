@@ -10378,5 +10378,36 @@ class InTheKitchen(unittest.TestCase):
                              "Cooked leftovers are generally good for 3 to 4 days in the fridge. Tell me when they went in and I'll keep track.")
 
 
+class TheCalendarAskedPolitely(unittest.TestCase):
+    """A calendar sweep (2026-10-08): "can you move my dentist appointment
+    to Wednesday" was answered "Yes, but it is experimental" and nothing
+    moved; "am I busy Friday night" went to the planner."""
+
+    def test_a_polite_calendar_ask_is_done(self):
+        hold = {"command": {"kind": "calendar_hold", "title": "dentist appointment", "start": "2026-10-14T10:00:00-05:00",
+                            "minutes": 60, "replaces": "2026-10-13T10:00:00-05:00"}, "say": None}
+        real = voice._interpret
+        with mock.patch.object(voice, "_interpret", lambda t: hold if t == "move my dentist appointment to Wednesday" else real(t)):
+            self.assertEqual(voice._a_polite_ask("can you move my dentist appointment to Wednesday"),
+                             "move my dentist appointment to Wednesday")
+        self.assertEqual(voice._a_polite_ask("can you clear my afternoon"), "clear my afternoon")
+        self.assertEqual(voice._a_polite_ask("can you cancel subscriptions"), "can you cancel subscriptions")
+
+    def test_busy_for_part_of_a_day(self):
+        from aletheia import calendar
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            self.assertEqual(quick.answer("am I free tonight"), "Yes - nothing on your calendar tonight.")
+            self.assertRegex(quick.answer("am I busy Friday night"), r"^No - nothing on your calendar (?:tonight|tomorrow night|Friday night)\.$")
+
+    def test_when_to_leave_for_a_flight(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I have a flight on Friday at 6am"}]):
+            self.assertEqual(quick.answer("what time do I need to leave for my flight"),
+                             "You told me you have a flight on Friday at 6am. For a flight inside the country, aim to be at the airport "
+                             "about two hours ahead - around 4 am Friday - and leave in time to get there by then. "
+                             "For an international flight, make it three hours.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("what time do I need to leave for my flight"))
+
+
 if __name__ == "__main__":
     unittest.main()
