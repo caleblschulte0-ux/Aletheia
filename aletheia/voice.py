@@ -1532,7 +1532,7 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # appointment" (2026-10-07) and read back "Max has a vet appointment
     # is Friday". Somebody else's appointment is theirs: "Max's vet
     # appointment". His own ("I have a dentist appointment") is just it.
-    own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got) (?:a|an|my|our) (.+)"
+    own = re.fullmatch(r"(?:i|we) (?:have|have got|'ve got|got|made|booked|scheduled|set up|'ve booked|have booked|just made|just booked) (?:a|an|my|our) (.+)"
                        r"|(?:i'?m|we'?re|i am|we are) (?:having|hosting|throwing|going to|off to) (?:a|an|my|our|the) (.+)",
                        str(title), flags=re.IGNORECASE)
     # "The dog has a vet appointment" too (2026-10-08): "the dog's vet appointment".
@@ -9525,10 +9525,16 @@ def _interpret(transcript: str) -> dict:
                      r"|feverish|congested|stuffy|achy|queasy|short of breath)(?: (?:today|again|right now|now|this morning|all day))?"
                      r"|my (?P<part>back|lower back|head|throat|stomach|tummy|knee|knees|neck|shoulder|tooth|ear|ears|foot|feet|leg|arm|chest|wrist"
                      r"|ankle|hip|eye|eyes|jaw|hand) (?:hurts|is hurting|is sore|aches|is aching|has been hurting|is bothering me)"
-                     r"(?: (?:today|again|since [a-z ]{3,20}|for (?:a few|\d+|two|three|four|five) (?:days|weeks)|all (?:day|week)))?"
+                     r"(?: (?:today|again|since [a-z ]{3,20}|for (?:a few|\d+|two|three|four|five|a couple(?: of)?) (?:days|weeks)|for (?:a|about a|over a) (?:week|month)|all (?:day|week)))?"
                      r"|i(?:'ve| have) been (?P<v>coughing|sneezing|throwing up|vomiting|wheezing|feeling dizzy|feeling sick|feeling nauseous)"
                      r"(?: (?:for (?:a few|\d+|two|three|four|five|a couple of) (?:days|hours|weeks)|since [a-z ]{3,20}|all (?:day|night|week)|today|again))?"
-                     r"|i (?:just )?(?:threw up|vomited|fainted|passed out)(?: (?:today|this morning|last night|again))?", low)
+                     r"|i (?:just )?(?:threw up|vomited|fainted|passed out)(?: (?:today|this morning|last night|again))?"
+                     # "I pulled a muscle", "I sprained my ankle", "I think I have
+                     # food poisoning" (2026-10-08: to the planner).
+                     r"|i (?:just |think i |might have )?(?:pulled|strained|sprained|twisted|tweaked|hurt|bruised|jammed|stubbed|pinched|threw out)"
+                     r" (?:a|my) (?:muscle|back|lower back|ankle|knee|wrist|shoulder|neck|toe|finger|thumb|hamstring|calf|groin|hip|nerve|elbow|foot)"
+                     r"(?: (?:today|yesterday|at the gym|playing [a-z]+|running|lifting|again))?"
+                     r"|i (?:think i |might )?(?:have|'ve got|got|caught) (?:food poisoning|the flu|covid|strep|a stomach bug|a bug|a cold|pink eye|an ear infection|a sinus infection)", low)
     if m:
         urgent = (m.group("part") == "chest" or re.search(r"\b(?:fainted|passed out|short of breath)\b", low))
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
@@ -10421,6 +10427,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i'?ll|i will|i'?m going to|i'?m gonna) be (?:home|back) (?:late|early|around \d{1,2}(?::\d\d)?(?: ?[ap]m)?|by \d{1,2}(?::\d\d)?(?: ?[ap]m)?|after \d{1,2}(?::\d\d)?(?: ?[ap]m)?)"
                     r"(?: (?:tonight|today|tomorrow))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I take my pill at 8 every morning" (2026-10-08: to the planner). Kept
+    # as he said it, with the sentence that makes it a reminder.
+    m = re.fullmatch(r"i (?:usually |always |normally )?take (?P<what>(?:my |a |an |the )?[a-z][a-z' ]{1,30}?) "
+                     r"(?:(?P<at>at \d{1,2}(?::\d\d)?(?: ?[ap]m)?) (?P<every>every (?:morning|night|evening|day))"
+                     r"|(?P<every2>every (?:morning|night|evening|day)) (?P<at2>at \d{1,2}(?::\d\d)?(?: ?[ap]m)?))", low)
+    if m and re.search(r"\b(?:pills?|medicine|meds|medication|vitamins?|insulin|inhaler|dose|tablets?|capsules?|supplements?)\b|"
+                       + _quick._DRUGS, m.group("what")):
+        what = _as_he_said(text, m.group("what"))
+        every, at = m.group("every") or m.group("every2"), m.group("at") or m.group("at2")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"Noted. Want a reminder too? Say \"remind me to take {what} {every} {at}\"."}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

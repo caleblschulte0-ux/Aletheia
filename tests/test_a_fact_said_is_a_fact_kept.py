@@ -10210,8 +10210,10 @@ class TheScoresHeKeeps(unittest.TestCase):
                      "my fantasy team is in first place", "I joined a softball league", "softball is every Thursday at 6",
                      "my tee time is 8am Saturday", "I walked 2 miles in 40 minutes"):
             self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
-        for said in ("I shot a video today", "I caught a cold", "I have tickets to it"):
+        for said in ("I shot a video today", "I have tickets to it"):
             self.assertNotEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        # A cold is not a catch: it goes in his health journal (2026-10-08).
+        self.assertEqual(voice._interpret("I caught a cold")["command"]["text"], "Journal: I caught a cold")
 
     def test_read(self):
         rows = [{"text": "I bowled a 150"}, {"text": "I bowled a 180 tonight"}, {"text": "I shot an 89 at golf today"},
@@ -11096,6 +11098,28 @@ class AnEveningOut(unittest.TestCase):
 
     def test_nothing_to_do(self):
         self.assertEqual(quick.answer("I have nothing to do"), quick.answer("I am bored"))
+
+
+class AchesAndAppointments(unittest.TestCase):
+    """2026-10-08: "I made a doctor appointment for the 20th at 3" was held
+    as "I made a doctor appointment"; a pulled muscle, a sprain, food
+    poisoning, a back hurting for a week and "I take my pill at 8 every
+    morning" went to the planner."""
+
+    def test_made_an_appointment_is_the_appointment(self):
+        got = voice._interpret("I made a doctor appointment for the 20th at 3")["command"]
+        self.assertEqual((got["kind"], got["title"]), ("calendar_hold", "doctor appointment"))
+
+    def test_injuries_go_in_the_journal(self):
+        for said in ("I pulled a muscle", "I sprained my ankle", "I think I have food poisoning", "my back has been hurting for a week"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": "Journal: " + said}, said)
+
+    def test_a_pill_habit_offers_the_reminder(self):
+        got = voice._interpret("I take my pill at 8 every morning")
+        self.assertEqual(got["command"]["kind"], "note")
+        self.assertIn('"remind me to take my pill every morning at 8"', got["say"])
+        self.assertNotEqual(voice._interpret("I take the bus every morning at 8")["command"]["kind"], "note")
 
 
 if __name__ == "__main__":
