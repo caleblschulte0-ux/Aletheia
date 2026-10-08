@@ -681,6 +681,10 @@ def _a_place_she_knows(said: str) -> str:
 #: file search, and "do I have any reminders" is a store she reads.
 _NOT_A_FILE = frozenset({
     "keys", "phone", "wallet", "car", "glasses", "charger", "money",
+    # "Where is my remote" (2026-10-08: searched his Documents for "remote").
+    "remote", "tv remote", "bag", "purse", "backpack", "shoes", "headphones", "earbuds", "airpods",
+    "passport", "watch", "sunglasses", "jacket", "coat", "umbrella", "ring", "badge", "car keys",
+    "house keys", "spare key", "controller", "hat",
     "email", "emails", "inbox", "mail", "messages", "texts",
     "calendar", "schedule", "appointment", "appointments", "meeting",
     "meetings", "reminder", "reminders", "task", "tasks", "todo", "to do",
@@ -1659,7 +1663,7 @@ def _where_he_put(thing: str) -> str | None:
             # the 15th" answered "where's my car" (2026-10-07), because "is
             # ... on" was anywhere in the note.
             if re.search(rf"\b{re.escape(stem)}", low) and re.search(
-                    rf"\b(?:put|left|keep|hid|placed|parked)\b.*\b{re.escape(stem)}"
+                    rf"\b(?:put|left|keep|hid|placed|parked|moved)\b.*\b{re.escape(stem)}"
                     rf"|\b{re.escape(stem)}\w*(?:'s)? (?:is|are|was|were)(?: (?:still|now|probably))? "
                     r"(?:in|on|at|under|by|behind|next to|inside|near|up|down|out|with)\b"
                     rf"|\b{re.escape(stem)}\w* (?:in|on|at|under|by|behind|next to|inside|near)\b"
@@ -8110,8 +8114,9 @@ def _interpret(transcript: str) -> dict:
     # planner, and "where are my keys" said she had no eyes - with the note
     # that would have answered it never written. A note in his words, read
     # back by the question.
-    m = re.fullmatch(r"(?:i (?:put|left|stuck|keep|hid|placed)|i've (?:put|left)|i have (?:put|left)) (?:my |the |our )"
-                     r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of) .+"
+    # "I moved the keys to the hook" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:i (?:put|left|stuck|keep|hid|placed|moved)|i've (?:put|left|moved)|i have (?:put|left|moved)) (?:my |the |our )"
+                     r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of|to|into|onto) .+"
                      r"|(?:my|the|our) (?P<thing2>[a-z][a-z' ]{1,25}?) (?:are|is) (?:in|on|under|behind|next to|inside|on top of) "
                      r"(?:the|my|our|a) .+", low)
     # An appointment "is on the 15th" is a date, not a shelf (2026-10-07).
@@ -8119,7 +8124,14 @@ def _interpret(transcript: str) -> dict:
                            r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
                            m.group("thing") or m.group("thing2") or ""):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    # "I can not find my phone", "the remote is missing" (2026-10-08: to the
+    # planner) ask the same thing.
+    lost = re.fullmatch(r"i can not find (?:my |the )?(?P<t>[a-z][a-z' ]{1,25}?)|(?:my|the|our) (?P<t2>(?:tv |car |house |spare )?(?:keys?|phone|wallet|glasses|sunglasses|remote|bag|purse|backpack|shoes?|charger|headphones|earbuds|airpods|passport|watch|ring"
+                        r"|jacket|coat|umbrella|laptop|ipad|tablet|badge|license|id|credit card|debit card|card|controller|scissors|tape measure|drill|hat))"
+                        r" (?:is|are) (?:missing|gone|lost|nowhere to be found)", low)
+    if lost:
+        return _interpret(f"where is my {lost.group('t') or lost.group('t2')}")
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| were| was| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?(?: please)?", low)
     if m:
@@ -8133,9 +8145,10 @@ def _interpret(transcript: str) -> dict:
         told = _his_words_about(m.group("thing"))
         if told:
             return {"command": None, "say": told}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| were| was| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
-                     r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
+                     r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch"
+                     r"|jacket|coat|umbrella|sunglasses|airpods|backpack|ring|badge|hat|controller|car keys|house keys|spare key|tv remote)"
                      r"(?: please)?", low)
     if m:
         thing = m.group("thing")
@@ -8146,10 +8159,10 @@ def _interpret(transcript: str) -> dict:
             return {"command": None, "say": quick._parked()}
         return {"command": None,
                 "say": (f"I can't see where your {thing} are - I have no eyes in the room. "
-                        if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                        if thing in ("keys", "glasses", "shoes", "headphones", "earbuds", "sunglasses", "airpods", "car keys", "house keys")
                         else f"I can't see where your {thing} is - I have no eyes in the room. ")
                        + (f"Next time, tell me where you put them - say \"my {thing} are on the counter\" - and I'll remember."
-                          if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                          if thing in ("keys", "glasses", "shoes", "headphones", "earbuds", "sunglasses", "airpods", "car keys", "house keys")
                           else f"Next time, tell me where you put it - say \"my {thing} is on the counter\" - and I'll remember.")}
 
     # "I found my keys" (2026-10-07: to the planner).
@@ -10968,6 +10981,11 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my (?:neighbou?r|friend|coworker|brother|sister|cousin|parents|mom|dad) )?[a-z]{2,15} (?:is|are) (?:out of town|away|on vacation|traveling|travelling)(?: this week| this weekend| next week| until [a-z]+)?", low) \
             and not re.match(r"(?:i|he|she|it|they|we|you|who|what)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My phone is at 10 percent" (2026-10-08: to the planner).
+    m = re.fullmatch(r"my (?P<what>phone|laptop|watch|tablet|ipad|headphones|earbuds|car) (?:is|'s) (?:at|down to|on) (?P<n>\d{1,2})(?: ?%| percent)(?: battery)?", low)
+    if m:
+        n = int(m.group("n"))
+        return {"command": None, "say": f"Plug it in soon - {n} percent won't last long." if n <= 20 else "That'll hold for a while."}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

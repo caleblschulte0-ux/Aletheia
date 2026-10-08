@@ -9923,7 +9923,9 @@ class HisThings(unittest.TestCase):
         ret = voice._interpret("I have 30 days to return the jacket")["command"]
         self.assertEqual(ret["description"], "return the jacket")
         self.assertIn("deadline", ret)
-        self.assertEqual(voice._interpret("where were my headphones")["command"].get("query"), "headphones")
+        # A thing of his, not a file (2026-10-08): "where were" is "where are".
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIn("your headphones", voice._interpret("where were my headphones")["say"])
 
     def test_read(self):
         rows = [{"text": "my phone plan is 45 a month"}, {"text": "my laptop keeps crashing"}, {"text": "my phone screen cracked"},
@@ -11832,6 +11834,24 @@ class TheNeighbors(unittest.TestCase):
             self.assertEqual(quick.answer("who has my ladder"), "You told me: Tom is borrowing your ladder.")
             self.assertIn("Tom has a snowblower", quick.answer("who has a snowblower"))
             self.assertIn("Tom's house", quick.answer("whose house am I watching"))
+
+
+class WhereThingsAre(unittest.TestCase):
+    """2026-10-08: "where is my remote" searched his Documents, "the remote is
+    missing", "I can not find my phone" and "I moved the keys to the hook"
+    went to the planner."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I moved the keys to the hook")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            for said in ("where is my remote", "the remote is missing", "I can not find my phone", "where is my jacket"):
+                r = voice._interpret(said)
+                self.assertIsNone(r["command"], said)
+                self.assertIn("no eyes in the room", r["say"], said)
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I moved the keys to the hook"}]):
+            self.assertEqual(voice._interpret("where are my keys")["say"], "You moved the keys to the hook.")
+        self.assertIn("Plug it in", voice._interpret("my phone is at 10 percent")["say"])
+        self.assertNotEqual((voice._interpret("the milk is gone") or {}).get("command", {}).get("kind"), "file_find")
 
 
 if __name__ == "__main__":
