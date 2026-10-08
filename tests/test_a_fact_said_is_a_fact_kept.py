@@ -13055,5 +13055,12 @@ class BedLastNight(unittest.TestCase):
         self.assertIsNone(quick._bed_night("around the usual time", told))
 
 
+class TheCompanyGuyIsComing(unittest.TestCase):
+    def test_kept_with_the_window_first(self):
+        for said in ("the Comcast guy is coming between 8 and 12 tomorrow", "the plumber is coming between 8 and 12 tomorrow",
+                     "the cable guy is coming tomorrow between 1 and 5"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+
 if __name__ == "__main__":
     unittest.main()

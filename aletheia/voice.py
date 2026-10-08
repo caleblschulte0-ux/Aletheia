@@ -11315,8 +11315,13 @@ def _interpret(transcript: str) -> dict:
     # Around the house (2026-10-08, each to the planner): "the pest control
     # guy is coming friday", "the water heater is 10 years old", "we
     # painted the bedroom blue", "the furnace filter needs changing".
-    if re.fullmatch(r"(?:the|my|our) " + TRADES + r" (?:(?:is|are) (?:coming|coming out|coming by|scheduled|booked)|comes?|arrives?|will (?:come|be here|arrive))(?: (?:on|this|next))? (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|" + SPOKEN_DATE + r")"
-                    r"(?: (?:at|between) \d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:and|to|-) \d{1,2}(?::\d\d)? ?(?:am|pm)?)?)?(?: (?:morning|afternoon))?", low) \
+    # "The Comcast guy is coming between 8 and 12 tomorrow" (2026-10-08: to
+    # the planner): a company's guy, and the window before the day.
+    _window = r"(?: (?:at|between) \d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:and|to|-) \d{1,2}(?::\d\d)? ?(?:am|pm)?)?)"
+    if re.fullmatch(r"(?:the|my|our) (?:" + TRADES + r"|[a-z][a-z&'-]{1,15} (?:guy|guys|tech|technician|repairman|repair guy|installer|person|people))"
+                    r" (?:(?:is|are) (?:coming|coming out|coming by|scheduled|booked)|comes?|arrives?|will (?:come|be here|arrive))" + _window + r"?"
+                    r"(?: (?:on|this|next))? (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|" + SPOKEN_DATE + r")"
+                    + _window + r"?(?: (?:morning|afternoon))?", low) \
             or re.fullmatch(r"(?:the|my|our) (?:water heater|furnace|roof|ac|air conditioner|hvac|fridge|refrigerator|dishwasher|washer|dryer|washing machine|oven|stove|garage door opener|mattress|deck|fence|boiler)"
                             r" (?:is|was) (?:about |around |almost |over )?\d+ (?:years?|months?) old", low) \
             or re.fullmatch(r"(?:i|we) (?:just )?painted (?:the|my|our) (?:[a-z]{3,15}(?: room)?|living room|dining room|guest room) [a-z][a-z ]{2,25}", low) \
