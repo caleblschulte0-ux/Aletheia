@@ -2520,6 +2520,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What am I worried about", "what am I excited about" (2026-10-08: to a
     # model) read his journal.
     ("felt_about", re.compile(r"^what (?:am i|was i|have i been) (?P<felt_about>worried|excited|nervous|stressed|anxious|happy|sad|upset|scared|angry|mad|frustrated)(?: about)?\s*\??$")),
+    # "What are we reading for book club", "what podcast did I listen to",
+    # "what did I watch last night" (2026-10-08: to a model).
+    ("media_said", re.compile(r"^(?:what (?:are we|am i) reading for (?P<ms_club>book club)|what (?:was the |is the )?(?P<ms_pod>podcast) (?:did i (?:listen to|hear)|was i listening to)"
+                              r"|what did i (?P<ms_watch>watch)(?: last night| yesterday| today| this weekend)?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3451,7 +3455,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -14892,10 +14896,17 @@ def _episode_of(show: str = "") -> str | None:
 
 def _episode_on(show: str) -> str | None:
     show = " ".join(str(show or "").split())
+    # "How far am I in my book" (2026-10-08: to a model) is the one he is on.
+    if show.casefold() in ("my book", "the book", "it", "my show", "the show", "this book", "this show"):
+        show = ""
     for row in _notes():
-        m = _EPISODE.match(" ".join(str(row.get("text") or "").split()))
+        said = " ".join(str(row.get("text") or "").split())
+        m = _EPISODE.match(said)
         if m and (not show or m.group("show").casefold() == show.casefold()):
             return f"You told me you're on {m.group('ep').replace(',', '')} of {m.group('show')}."
+        m = re.match(r"^i'?m (?P<ep>halfway|a third of the way|most of the way|almost done|nearly done|near the end) (?:through|into|with) (?P<show>.+?)\.?$", said, re.I)
+        if m and (not show or m.group("show").casefold() == show.casefold()):
+            return f"You told me you're {m.group('ep')} through {m.group('show')}."
     return None
 
 
@@ -17280,6 +17291,24 @@ def _my_day(_rest: str = "") -> str | None:
     return f"From your journal today: {speech.and_list(list(reversed(lines)))}."
 
 
+def _media_said(text: str) -> str | None:
+    """The book for book club, the podcast, what he watched - as he said it."""
+    g = _groups("media_said", text)
+    if g.get("ms_club"):
+        pattern = r"^(?:we'?re|we are|i'?m|i am) reading .{2,60} for book club$|^(?:the |our )?book club (?:book|pick) is "
+    elif g.get("ms_pod"):
+        pattern = r"^i (?:just )?(?:listened to|heard) (?:a |an |the )?(?:great |good |really good |interesting |fascinating )?podcast\b"
+    elif g.get("ms_watch"):
+        pattern = r"^(?:i|we) (?:just )?(?:watched|saw|finished watching) (?!(?:the )?(?:kids|dog|game of|news)\b)"
+    else:
+        return None
+    found = _said_lines(pattern, 1)
+    if not found:
+        return None
+    said = re.sub(r"^we are\b", "you are", found[0], flags=re.I)
+    return f"You told me {said}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18095,6 +18124,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "media_said": _media_said,
            "felt_about": _felt_about,
            "my_day": _my_day,
            "recipe_qty": _recipe_qty,

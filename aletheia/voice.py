@@ -10767,6 +10767,28 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": "I'm sorry. Try one slow breath - in for four, out for six. I've put it in your journal." if calm
                 else "Sorry - go easy on yourself today. I've put it in your journal."}
+    # BOOKS AND SHOWS (2026-10-08: "I'm halfway through it" got "I can't
+    # think", "we are reading Circe for book club" and "I listened to a great
+    # podcast about sleep" went to the planner).
+    m = re.fullmatch(r"(?:i'?m|i am) (?P<ep>halfway|a third of the way|most of the way|almost done|nearly done|near the end) (?:through|into|with) (?P<t>it|the book|my book|this book|the show|this show|[a-z0-9][a-z0-9' :-]{1,40})", low)
+    if m:
+        title = m.group("t")
+        if title in ("it", "the book", "my book", "this book", "the show", "this show"):
+            title = ""
+            for row in _quick._notes()[:20]:
+                said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+                got = re.fullmatch(r"(?i:i'?m|i am|i'?ve been|i have been|i (?:just )?started) (?:reading|watching|listening to) (?P<t>.{2,60})", said) \
+                    or re.fullmatch(r"(?i:i (?:just )?started (?:a new |the )?(?:book|show|series)(?: called)?) (?P<t>.{2,60})", said)
+                if got:
+                    title = got.group("t")
+                    break
+        else:
+            title = _as_he_said(text, title)
+        if title:
+            return {"command": {"kind": "note", "text": f"I'm {m.group('ep')} through {title}"}, "say": None}
+    if re.fullmatch(r"(?:we'?re|we are|i'?m|i am) reading [a-z0-9][a-z0-9' :-]{1,40} for (?:my |our |the )?book club", low) \
+            or re.fullmatch(r"i (?:just )?(?:listened to|heard) (?:a |an |the )?(?:great |good |really good |interesting |fascinating )?podcast (?:about|on|called|with) [a-z0-9][a-z0-9' :-]{1,40}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

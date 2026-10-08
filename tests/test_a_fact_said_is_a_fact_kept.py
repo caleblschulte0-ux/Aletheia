@@ -11623,5 +11623,28 @@ class HisDayInHisJournal(unittest.TestCase):
             self.assertNotIn("journal", (quick.answer("how was my day") or "").casefold())
 
 
+class BooksAndShows(unittest.TestCase):
+    """2026-10-08: "I am halfway through it" got "I can't think", book club
+    and a podcast went to the planner, and "how far am I in my book", "what
+    did I watch last night" to a model."""
+
+    def test_halfway_through_the_book_he_is_reading(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I'm reading Project Hail Mary"}]):
+            self.assertEqual(voice._interpret("I am halfway through it")["command"],
+                             {"kind": "note", "text": "I'm halfway through Project Hail Mary"})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I'm halfway through Project Hail Mary"}]):
+            self.assertEqual(quick.answer("how far am I in my book"), "You told me you're halfway through Project Hail Mary.")
+
+    def test_book_club_podcast_and_last_night(self):
+        for said in ("we are reading Circe for book club", "I listened to a great podcast about sleep"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        notes = [{"text": "we are reading Circe for book club"}, {"text": "I listened to a great podcast about sleep"},
+                 {"text": "I watched Oppenheimer last night"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("what are we reading for book club"), "You told me you are reading Circe for book club.")
+            self.assertIn("podcast about sleep", quick.answer("what podcast did I listen to"))
+            self.assertIn("Oppenheimer", quick.answer("what did I watch last night"))
+
+
 if __name__ == "__main__":
     unittest.main()
