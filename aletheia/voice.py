@@ -8263,10 +8263,20 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what(?:'s| is) (?:this|that|playing|this song|that song|the song)"
                     r"(?: song| called| playing)?(?: right now| now)?"
                     r"|(?:what|which) song is (?:this|that|playing|on)(?: right now| now)?"
-                    r"|who (?:sings|is) this(?: song)?", low):
+                    r"|who (?:sings|is) this(?: song)?"
+                    # "What was that song" (2026-10-08: to a model).
+                    r"|what (?:was|is) (?:that|this|the last) song(?: called)?|what song (?:was|did) (?:that|just play|just played)"
+                    r"|who (?:sang|sings) that(?: song)?", low):
         return {"command": None,
                 "say": "I can't see what's playing - the media keys only play, pause "
                        "and skip. The player's window has the name."}
+    # "Add this song to my favorites", "like this song" (2026-10-08: to the
+    # planner): the same account a particular song needs.
+    if re.fullmatch(r"(?:add|save|put) (?:this|that|the) song (?:to|in|on) (?:my )?(?:favorites|favourites|liked songs|library|playlist|[a-z ]{1,20} playlist)"
+                    r"|(?:like|heart|save|favorite|favourite) (?:this|that|the) song", low):
+        return {"command": None,
+                "say": "I can't save songs yet - the media keys only play, pause and skip. That needs your "
+                       "Spotify account connected, which is a separate thing you'd set up once."}
 
     # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
     # deliberate act and stopping it is instant, the same asymmetry as

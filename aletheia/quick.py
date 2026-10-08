@@ -1744,7 +1744,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s) (?:in )?the news|what(?:'s| is|s) (?:the )?(?:latest )?news(?: today)?|tell me the news"
         r"|(?:read|give|tell) (?:me )?(?:the )?(?:headlines|news)(?: today)?|(?:the |today's )?(?:headlines|news)(?: today)?"
         r"|what(?:'s| is|s) happening in the world(?: today)?|what(?:'s| are) the (?:top )?headlines(?: today)?"
-        r"|any news(?: today)?|anything in the news)$")),
+        r"|any news(?: today)?|anything in the news"
+        # "What is the top story today" (2026-10-08: to a model).
+        r"|what(?:'s| is|s| are) (?:the )?(?:top|big|biggest|main) (?:story|stories|news)(?: today| right now)?)$")),
     ("speaking_pace", re.compile(
         r"^how fast (?:are you|do you) (?:talking|talk|speaking|speak)$|^what speed (?:are you|do you) (?:talking|talk|speaking|speak) at$")),
     ("stopwatch", re.compile(

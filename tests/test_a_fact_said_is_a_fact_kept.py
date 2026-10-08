@@ -11935,5 +11935,15 @@ class ADictatedClockTime(unittest.TestCase):
         self.assertNotIn("2:30", voice.interpret("add 2 30 packs")["command"].get("text", ""))
 
 
+class WhatIsPlaying(unittest.TestCase):
+    def test_what_was_that_song_and_saving_one_are_said_plainly(self):
+        self.assertIn("can't see what's playing", voice.interpret("what was that song")["say"])
+        self.assertIn("Spotify account", voice.interpret("add this song to my favorites")["say"])
+        self.assertIsNone(voice.interpret("add this song to my favorites")["command"])
+
+    def test_the_top_story_is_the_news(self):
+        self.assertEqual(quick.match("what is the top story today")[0], "news")
+
+
 if __name__ == "__main__":
     unittest.main()
