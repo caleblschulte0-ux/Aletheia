@@ -26,24 +26,24 @@
     "2026-10-08": {
       "duplicate": 19,
       "employer_full": 0,
-      "minutes": 318,
+      "minutes": 325,
       "needs_account": 1,
       "needs_answer": 19,
-      "not_realistic": 604,
-      "offered": 803,
+      "not_realistic": 608,
+      "offered": 810,
       "ready": 15,
-      "runs": 24,
+      "runs": 25,
       "unfit_clearance": 2,
       "unfit_language": 12,
       "unfit_license": 34,
-      "unfit_model": 36,
+      "unfit_model": 38,
       "unfit_pay": 120,
-      "unfit_sales": 390,
+      "unfit_sales": 392,
       "unfit_years": 10,
       "unjudged": 47,
-      "unreachable": 12,
+      "unreachable": 15,
       "unreachable_ApplyError": 6,
-      "unreachable_left_till_tomorrow": 6,
+      "unreachable_left_till_tomorrow": 9,
       "weak_shot": 2
     }
   },
@@ -274,7 +274,7 @@
       "sent": 14
     }
   },
-  "generated_at": "2026-10-08T23:15:24Z",
+  "generated_at": "2026-10-08T23:33:12Z",
   "sent_all_time": 284,
   "stuck_at": {
     "approval_denied": {
@@ -341,7 +341,7 @@
         "nothing_to_press_on_content+no_apply/observed": 1,
         "nothing_to_press_on_content/observed": 2,
         "nothing_to_press_on_form/observed": 3,
-        "unclear_button/observed": 4
+        "unclear_button/observed": 3
       },
       "out_of_steps": {
         "nothing_to_press_on_unread/observed": 1
