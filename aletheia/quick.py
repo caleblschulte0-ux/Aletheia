@@ -13303,6 +13303,11 @@ def _week() -> str:
             rows.extend(_on_day(back))
         except Exception:
             continue
+    if ", but you told me" in done:
+        # "I finished the report" is already said in his half; her
+        # "Noted: you finished the report" would say it twice (2026-10-08).
+        rows = [r for r in rows if not str(r.get("what") or "").startswith("Noted: ")]
+        return f"{done} What I did this week: {_listed(rows, 'this week').split(': ', 1)[1]}" if rows else done
     mine = (_listed(rows, "this week").replace("This week: ", "What I did this week: ", 1) if rows
             else "I have nothing in my journal for this week.")
     yours = done if not done.startswith("Nothing ticked") else "You haven't ticked anything off this week."

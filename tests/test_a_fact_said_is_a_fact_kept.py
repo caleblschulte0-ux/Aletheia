@@ -7931,5 +7931,14 @@ class HerDayReadsHisNotesAsHis(unittest.TestCase):
 
 
 
+class TheWeekKeepsWhatHeFinished(unittest.TestCase):
+    def test_a_finished_note_is_not_dropped_for_this_week(self):
+        told = "Nothing ticked off your list this week, but you told me you finished the report."
+        with mock.patch.object(quick, "_tasks_done", return_value=told), \
+                mock.patch.object(quick, "_on_day", return_value=[{"what": "Noted: you finished the report"}]):
+            self.assertEqual(quick._week(), told)
+
+
+
 if __name__ == "__main__":
     unittest.main()
