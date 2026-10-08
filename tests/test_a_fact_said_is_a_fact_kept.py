@@ -9536,5 +9536,30 @@ class SubscriptionsAndSavings(unittest.TestCase):
             self.assertIn("$3,000 to go by June 1", quick.answer("how am I doing on my savings goal"))
 
 
+class OutAndAbout(unittest.TestCase):
+    """A sweep of a day out, most to a model or the planner (2026-10-08)."""
+
+    def test_said(self):
+        leave = voice._interpret("I need to leave at 2:30")["command"]
+        self.assertEqual((leave["kind"], leave["text"]), ("remind_at", "leave"))
+        self.assertEqual(voice._interpret("Jake is picking me up from the airport")["command"],
+                         {"kind": "note", "text": "Jake is picking me up from the airport"})
+
+    def test_read(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        today = dt.datetime.now(tz).date()
+        three = dt.datetime.combine(today + dt.timedelta(days=1), dt.time(15, 0), tz)
+        rows = [{"text": "Jake is picking me up from the airport"}, {"text": "I parked on level 3"}]
+        with mock.patch.object(quick, "_notes", lambda: rows), \
+                mock.patch.object(quick, "_coming", lambda: [(three, "team meeting", "calendar")]):
+            self.assertEqual(quick.answer("who is picking me up"), "You told me: Jake is picking you up from the airport.")
+            self.assertEqual(quick.answer("what level did I park on"), "You parked on level 3.")
+            self.assertTrue(quick.answer("where am I going at 3 tomorrow").startswith("Your team meeting at"))
+            self.assertTrue(quick.answer("do I still have the meeting").startswith("Yes - your team meeting is"))
+            self.assertIsNone(quick.answer("do I still have the dentist"))
+
+
 if __name__ == "__main__":
     unittest.main()

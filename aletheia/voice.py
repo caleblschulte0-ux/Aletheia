@@ -10128,6 +10128,17 @@ def _interpret(transcript: str) -> dict:
                      r"(?: subscription| membership| account)?(?: today| yesterday)?", low)
     if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to leave at 2:30" (2026-10-08: to the planner) is a reminder
+    # to leave, and "Jake is picking me up from the airport" is kept.
+    m = re.fullmatch(r"i (?:need|have|got|gotta|should|must)(?: to)? (?:leave|head out|go|get going) (?:at|by) (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
+                     r"(?P<d> today| tonight| tomorrow)?", low)
+    if m:
+        again = _interpret(f"remind me to leave at {m.group('t')}{m.group('d') or ''}")
+        if again and (again.get("command") or {}).get("kind") == "remind_at":
+            return again
+    if re.fullmatch(r"(?!(?:who|what|is|are)\b)(?:my |our )?[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})? (?:is|are|will be) (?:picking (?:me|us|the kids) up|getting (?:me|us)|driving (?:me|us)|giving (?:me|us) a (?:ride|lift))"
+                    r"(?: (?:from|at) (?:the )?[a-z' ]{2,30}?)?(?: (?:at|around) [0-9: apm]{1,8})?(?: today| tonight| tomorrow)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I froze the leftover soup", "I made a double batch of chili"
     # (2026-10-08: to the planner). What is in the freezer is read back.
     if re.fullmatch(r"i (?:just )?froze (?:the |some |my |a |our )?[a-z][a-z' ]{1,40}?(?: today| yesterday| last night| for later)?", low) \
