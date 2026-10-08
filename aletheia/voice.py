@@ -4446,7 +4446,11 @@ def _interpret(transcript: str) -> dict:
     # too (2026-09-24, offline: to the planner). Morning nine, afternoon two,
     # evening seven, night nine.
     _part = r"(?: (?P<part>morning|afternoon|evening|night))?"
-    m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")" + _part
+    # "Remind me to take my meds at 8 tonight" (2026-10-08) kept "at 8" in
+    # the words and set it an hour on: the time can come before the day.
+    m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?) at (?P<time>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?|noon|midnight),?"
+                      r" (?:on |this )?(?P<day>" + _days + r")" + _part, low)
+         or re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")" + _part
                       + r"(?: at (?P<time>[\w: ]+?))?", low)
          or re.fullmatch(r"remind me (?:on |this )?(?P<day>" + _days + r")" + _part + r"(?: at (?P<time>[\w: ]+?))? "
                          r"(?:to|that) (?P<text>.+)", low)
@@ -4485,7 +4489,9 @@ def _interpret(transcript: str) -> dict:
             hour, minute = 21, 0
         tz = localtime.operator_tz()
         when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
-        if when <= dt.datetime.now(tz) and m.group("day") == "tonight":
+        if when <= dt.datetime.now(tz) and m.group("day") == "tonight" and m.group("time"):
+            when += dt.timedelta(days=1)                # "at 8 tonight" said at midnight: 8 tomorrow night
+        elif when <= dt.datetime.now(tz) and m.group("day") == "tonight":
             # Said at ten at night, "tonight" still means tonight: an hour on.
             when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
         elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):

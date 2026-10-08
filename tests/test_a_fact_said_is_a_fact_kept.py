@@ -6889,5 +6889,15 @@ class TheHourHeSaysTrailing(unittest.TestCase):
         self.assertEqual((at.date(), at.hour), (day, 7))
 
 
+    def test_the_time_before_the_day(self):
+        cmd = voice._interpret("remind me to call mom at 6 on sunday")["command"]
+        self.assertEqual(cmd["text"], "call mom")
+        from aletheia import localtime
+        at = dt.datetime.fromisoformat(cmd["at"]).astimezone(localtime.operator_tz())
+        self.assertEqual((at.strftime("%A"), at.hour), ("Sunday", 18))
+        self.assertEqual(voice._interpret("remind me to meet bob at the cafe tomorrow")["command"]["text"],
+                         "meet bob at the cafe")
+
+
 if __name__ == "__main__":
     unittest.main()
