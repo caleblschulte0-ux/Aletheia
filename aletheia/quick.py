@@ -4717,7 +4717,9 @@ def _weeks_until(words: str) -> str | None:
     import datetime as dt
     from aletheia import localtime
     today = dt.datetime.now(localtime.operator_tz()).date()
-    when = _named_date(words or "", today)
+    # "How many weeks until my sister's birthday" (2026-10-08: to a model,
+    # a turn after "how many days" answered it) is the same date as days.
+    when = _named_date(words or "", today) or _his_date(words or "", today)
     # "How many weeks until my birthday" (2026-10-08: to a model, a turn
     # after "how many days" answered from the birthday on file).
     if when is None and re.fullmatch(r"(?:my|his) (?:birthday|bday)", " ".join(str(words or "").casefold().split())):

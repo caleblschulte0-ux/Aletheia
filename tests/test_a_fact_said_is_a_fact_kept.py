@@ -12969,5 +12969,13 @@ class WhenAKidIsSick(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
 
 
+class WeeksUntilHerBirthday(unittest.TestCase):
+    def test_counted_in_weeks_like_days(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my sister's birthday is November 3"}]):
+            self.assertIn("3 November", quick.answer("how many weeks until my sister's birthday"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("how many weeks until my sister's birthday"))
+
+
 if __name__ == "__main__":
     unittest.main()
