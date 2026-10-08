@@ -2518,6 +2518,14 @@ _A_NOD = re.compile(r"(?:ok|okay|k|cool|nice|great|got it|gotcha|alright|all rig
 _NO_PASSWORDS = ("I don't keep passwords - anything that looks like one is blanked out of "
                  "everything I write down, so I couldn't read it back to you. "
                  "Your password manager is the place for it.")
+_NO_ID_NUMBERS = ("I don't keep Social Security numbers, card numbers, bank account numbers or PINs - "
+                  "written down here, they'd be one leak away from somebody else. Your password manager is the place for them.")
+#: "My social security number is ..." (2026-10-08: sent to the planner, so
+#: the number sat in a queued ask). The numbers that open his money or his
+#: identity are refused at the door, said or noted.
+_ID_NUMBER = re.compile(r"\b(?:social security(?: number)?|ssn|social|(?:credit|debit|bank) card(?: number)?|card number|cvv|cvc|security code"
+                        r"|(?:bank |checking |savings )?account number|routing number|pin(?: number| code)?|tax id|ein|itin)\b"
+                        r"(?: for [a-z ]{2,20})? (?:is|are|=|:) ?[#]?\s*[0-9][0-9 -]{2,}", re.I)
 
 
 def worth_answering(said: str) -> bool:
@@ -3038,6 +3046,8 @@ def _no_password_in_a_note(said: dict) -> dict:
     everything she writes. Said instead of faked, the way "my wifi password
     is" already was."""
     cmd = (said or {}).get("command") or {}
+    if cmd.get("kind") in ("note", "intent") and _ID_NUMBER.search(str(cmd.get("text") or "")):
+        return {"command": None, "say": _NO_ID_NUMBERS}
     from aletheia import sensitivity
     if cmd.get("kind") == "note" and re.search(r"\bpass(?:word|code|phrase)\b.{0,30}\b(?:is|are|=|:)\s*\S",
                                                str(cmd.get("text") or ""), re.IGNORECASE) \
@@ -11202,6 +11212,10 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:gas|diesel|premium|regular) (?:was|is|cost|costs) (?:about |around )?\$?\d(?:\.\d\d?)? ?(?:a|per|/) ?gallon(?: (?:today|at [a-z0-9 ]{2,25}))?", low) \
             or re.fullmatch(r"(?:i|we) paid \$?\d(?:\.\d\d?)? ?(?:a|per) gallon(?: for gas)?(?: today| at [a-z0-9 ]{2,25})?", low) \
             or re.fullmatch(r"(?:my|our|the) (?:car|truck|van|suv|[a-z]{3,12}) (?:gets|averages|does) (?:about |around )?\d{1,3} (?:miles (?:a|per|to the) gallon|mpg|miles to a gallon)(?: on the highway| in town| city| highway)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The gate code at moms is 2580" (2026-10-08: to the planner).
+    if re.fullmatch(r"the (?:gate|door|front door|garage|alarm|lock ?box|building|key ?pad|entry|wifi network|parking) (?:code|number|combo|combination) (?:at|for) (?:my |the )?[a-z][a-z' ]{1,25} is [0-9a-z#* ]{3,14}", low) \
+            and not _ID_NUMBER.search(low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):

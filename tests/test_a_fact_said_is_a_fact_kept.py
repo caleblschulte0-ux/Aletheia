@@ -12346,5 +12346,22 @@ class DeadlinesSaidAloud(unittest.TestCase):
         self.assertEqual(quick.match("what do I need to prepare for thursday"), ("agenda", "thursday"))
 
 
+class NumbersHeSays(unittest.TestCase):
+    def test_numbers_that_open_his_money_or_identity_are_refused_at_the_door(self):
+        for said in ("my social security number is 123 45 6789", "my credit card number is 4111 1111 1111 1111",
+                     "my pin is 1234", "note that my bank account number is 123456789"):
+            got = voice.interpret(said)
+            self.assertIsNone(got["command"], said)
+            self.assertIn("Social Security", got["say"])
+        self.assertEqual(voice.interpret("the garage code is 4512")["command"]["kind"], "note")
+
+    def test_a_code_at_a_place_is_kept_and_read_back(self):
+        said = "the gate code at moms is 2580"
+        self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": said}]):
+            self.assertEqual(quick.answer("what is the gate code at moms"), "You told me the gate code at moms is 2580.")
+            self.assertIsNone(quick.answer("what is the gate code at work"))
+
+
 if __name__ == "__main__":
     unittest.main()
