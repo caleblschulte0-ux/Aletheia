@@ -130,11 +130,33 @@ class StopMeansHisHaltCase(unittest.TestCase):
 
     def test_it_waits_between_turns(self):
         slept = []
+        with mock.patch.object(apply_forever, "once", return_value={"started": False, "paused": "he said stop"}), \
+             mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever.policy, "ensure_not_halted"):
+            apply_forever.forever(turns=3, wait_s=300.0, sleeper=slept.append, pursuer=lambda: [],
+                                  stale=lambda: [])
+        self.assertEqual(slept, [300.0, 300.0], "no sleep after the last turn")
+
+    def test_a_running_batch_is_followed_closely_so_the_next_starts_behind_it(self):
+        """Live 2026-10-07: five batches in eight hours, each about seven
+        minutes, because the loop looked again only every five."""
+        slept, pursued = [], []
         with mock.patch.object(apply_forever.campaign, "running",
                                return_value={"pid": 1}), \
              mock.patch.object(apply_forever.policy, "ensure_not_halted"):
-            apply_forever.forever(turns=3, wait_s=300.0, sleeper=slept.append)
-        self.assertEqual(slept, [300.0, 300.0], "no sleep after the last turn")
+            apply_forever.forever(turns=3, wait_s=300.0, sleeper=slept.append,
+                                  pursuer=lambda: pursued.append(1) or [])
+        self.assertEqual(slept, [apply_forever.BUSY_POLL_S] * 2)
+        self.assertEqual(pursued, [], "a look that finds the batch running does not re-run the pursuit")
+
+    def test_a_batch_just_started_is_looked_at_again_soon(self):
+        slept = []
+        with mock.patch.object(apply_forever, "once", return_value={"started": True}), \
+             mock.patch.object(apply_forever.campaign, "running", return_value=None), \
+             mock.patch.object(apply_forever.policy, "ensure_not_halted"):
+            apply_forever.forever(turns=2, wait_s=300.0, sleeper=slept.append, pursuer=lambda: [],
+                                  stale=lambda: [])
+        self.assertEqual(slept, [apply_forever.BUSY_POLL_S])
 
 
 class WaitingApplicationsAreRefilledCase(unittest.TestCase):
