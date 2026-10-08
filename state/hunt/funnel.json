@@ -34,6 +34,7 @@
       "left_error": 3,
       "left_going_in_circles": 1,
       "left_no_way_forward": 2,
+      "left_out_of_steps": 1,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 15,
       "not_realistic": 3
@@ -122,7 +123,7 @@
     },
     "2026-09-22": {
       "filled": 15,
-      "found": 63,
+      "found": 62,
       "interviews": 0,
       "rejections": 0,
       "replies": 4,
@@ -241,16 +242,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 15,
-      "found": 15,
+      "filled": 23,
+      "found": 24,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 2
+      "sent": 3
     }
   },
-  "generated_at": "2026-10-08T13:21:15Z",
-  "sent_all_time": 272,
+  "generated_at": "2026-10-08T13:52:46Z",
+  "sent_all_time": 273,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -282,7 +283,7 @@
       "unreadable_page/observed": 1
     },
     "out_of_steps": {
-      "nothing_to_press_on_unread/observed": 5
+      "nothing_to_press_on_unread/observed": 6
     },
     "posting_closed": {
       "nothing_to_press_on_content/observed": 6
@@ -314,29 +315,34 @@
         "nothing_to_press_on_form/observed": 3,
         "unclear_button/observed": 2
       },
+      "out_of_steps": {
+        "nothing_to_press_on_unread/observed": 1
+      },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
   "totals": {
-    "filled": 350,
-    "found": 707,
+    "filled": 358,
+    "found": 715,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 272
+    "sent": 273
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
+      "address": 2,
       "demographic_gender": 2,
-      "demographic_race": 3,
+      "demographic_race": 4,
       "demographic_veteran": 1,
       "education": 1,
-      "on_site": 1,
-      "other": 10,
-      "travel": 1
+      "on_site": 2,
+      "other": 13,
+      "pay": 2,
+      "travel": 1,
+      "years_experience": 1
     },
     "closed": {
       "duplicate": 3,
@@ -350,7 +356,7 @@
       "left_error": 12,
       "left_going_in_circles": 14,
       "left_no_way_forward": 71,
-      "left_out_of_steps": 3,
+      "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
@@ -362,7 +368,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 75
+      "not_realistic": 74
     },
     "failed": 13,
     "failed_because": {
@@ -375,7 +381,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 14,
+    "needs_answer": 20,
     "oldest_days": 25,
     "to_send": 0
   },
