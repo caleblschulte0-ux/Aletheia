@@ -8477,6 +8477,12 @@ def _interpret(transcript: str) -> dict:
                      r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
     if m:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HIS WORK DAYS (2026-10-08: "I work Monday to Friday" went to the
+    # planner). A note; "do I work Saturday" reads it.
+    _day = r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+    if re.fullmatch(r"i (?:usually |only |normally )?work (?:on )?(?:weekdays|weekends|" + _day
+                    + r"(?:(?:,? (?:to|through|thru|and|-) |, )" + _day + r")*)(?: (?:and|but) .{1,40})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HOW OLD SOMEBODY OF HIS IS (2026-10-08: "my sister is 28" went to the
     # planner). A note; "how old is my sister" reads it back.
     if re.fullmatch(r"(?:my|our) (?:" + _WHOSE + r"|son|daughter|kids?|grandson|granddaughter|stepson|stepdaughter)"

@@ -512,6 +512,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
+    # "Do I work tomorrow" after "I have the day off tomorrow" (2026-10-08:
+    # to the planner).
+    ("do_i_work", re.compile(
+        r"^(?:do|will) i (?:have to |need to |got to |gotta )?work (?P<do_i_work>today|tomorrow|tonight|this weekend"
+        r"|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
@@ -2661,7 +2666,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11256,8 +11261,82 @@ def _work_hours(text: str) -> str | None:
         if found and g.get("work_hours3"):
             return _until_work(found.group("at"), which, said)
         if found:
-            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+            # "When do I get off work" is a time: "At 5 pm", then his words
+            # (2026-10-08: "you work 9 to 5" left the sum to him).
+            clock = _work_clock(found.group("at"), which in ("get off", "finish", "clock out", "end"))
+            told = f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+            return f"At {clock}. {told}" if clock else told
     return None
+
+
+_DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _do_i_work(rest) -> str | None:
+    """Whether he works on a day, from what he told her: a day off named for
+    it, then the days he said he works. None when he said neither."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    asked = re.sub(r"^(?:on|this|next) ", "", str(rest or "").strip())
+    if asked == "weekend":
+        targets = [today + dt.timedelta(days=(5 - today.weekday()) % 7 + i) for i in (0, 1)]
+    elif asked in ("today", "tonight"):
+        targets = [today]
+    elif asked == "tomorrow":
+        targets = [today + dt.timedelta(days=1)]
+    elif asked in _DAYS:
+        targets = [today + dt.timedelta(days=(_DAYS.index(asked) - today.weekday()) % 7)]
+    else:
+        return None
+    hours = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        try:
+            on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        off = re.search(r"\b(?:day|days|night|weekend) off\b|\b(?:off work|not working|don't work|do not work)\b"
+                        r"|\bi'?m off (?:today|tomorrow|on |this |next |mon|tue|wed|thu|fri|sat|sun)", low)
+        if off:
+            named = {on: "today", on + dt.timedelta(days=1): "tomorrow"}
+            hits = [d for d in targets if (named.get(d) and named[d] in low)
+                    or _DAYS[d.weekday()] in low or ("weekend" in low and d.weekday() >= 5)]
+            if hits:
+                return f"No - you told me {speech.as_she_says_it(said).rstrip('.')[:1].lower()}{speech.as_she_says_it(said).rstrip('.')[1:]}."
+        days = re.search(r"\bi work (?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+                         r" (?:to|through|thru|-) (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low)
+        if days and hours is None:
+            first, last = _DAYS.index(days.group(1)), _DAYS.index(days.group(2))
+            span = {(first + i) % 7 for i in range((last - first) % 7 + 1)}
+            hours = all(d.weekday() in span for d in targets), said
+        elif re.search(r"\bi work (?:on )?weekdays\b", low) and hours is None:
+            hours = all(d.weekday() < 5 for d in targets), said
+    if hours is not None:
+        works, said = hours
+        told = speech.as_she_says_it(said).rstrip(".")
+        return f"{'Yes' if works else 'No'} - you told me {told[:1].lower()}{told[1:]}."
+    # Nothing about days: say what she has, and what would settle it. No
+    # model knows his work days either.
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if _START_NOTE.match(said.casefold()):
+            told = speech.as_she_says_it(said).rstrip(".")
+            return (f"You told me {told[:1].lower()}{told[1:]}, but not which days. "
+                    "Say \"I work Monday to Friday\" and I'll know.")
+    return "You haven't told me which days you work. Say \"I work Monday to Friday\" and I'll know."
+
+
+def _work_clock(at: str, off: bool) -> str | None:
+    """"5" in "I work 9 to 5" as the clock it means: "5 pm"."""
+    m = re.fullmatch(r"(\d{1,2})(?::(\d\d))? ?(am|pm)?", str(at or "").strip())
+    if not m:
+        return None
+    hour, minute = int(m.group(1)) % 12, int(m.group(2) or 0)
+    pm = m.group(3) == "pm" or (not m.group(3) and (off and hour < 12 or not off and hour < 6))
+    return f"{hour or 12}{f':{minute:02d}' if minute else ''} {'pm' if pm else 'am'}"
 
 
 def _until_work(at: str, which: str, said: str) -> str | None:
@@ -13169,6 +13248,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "do_i_work": _do_i_work,
            "who_coming_noted": _who_coming_noted,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),

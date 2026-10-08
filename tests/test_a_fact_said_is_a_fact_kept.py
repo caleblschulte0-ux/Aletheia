@@ -3198,8 +3198,8 @@ class HisWorkDay(unittest.TestCase):
         notes = [{"text": t, "ts": now} for t in ("I start work at 9", "I get off work at 5", "my commute is 30 minutes")]
         with mock.patch.object(quick, "_notes", return_value=notes), \
                 mock.patch.object(voice, "_known_place", return_value=None):
-            self.assertEqual(quick.answer("what time do I start work"), "You told me: you start work at 9.")
-            self.assertEqual(quick.answer("when do I get off work"), "You told me: you get off work at 5.")
+            self.assertEqual(quick.answer("what time do I start work"), "At 9 am. You told me: you start work at 9.")
+            self.assertEqual(quick.answer("when do I get off work"), "At 5 pm. You told me: you get off work at 5.")
             self.assertTrue(voice._interpret("when should I leave for work")["say"].startswith("By 8:30 am - you start at 9"))
         with mock.patch.object(quick, "_notes", return_value=notes[:1]), \
                 mock.patch.object(voice, "_known_place", return_value=None):
@@ -6849,7 +6849,7 @@ class HisWorkHoursAndTomorrowMorning(unittest.TestCase):
                          {"kind": "note", "text": "my work hours are 9 to 5"})
         rows = [{"text": "my work hours are 9 to 5", "ts": "2026-10-08T03:00:00+00:00"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
-            self.assertEqual(quick.answer("what time do I get off work"), "You told me: your work hours are 9 to 5.")
+            self.assertEqual(quick.answer("what time do I get off work"), "At 5 pm. You told me: your work hours are 9 to 5.")
             self.assertRegex(quick.answer("how long until I get off work"), r"get off at 5 pm\.$")
             self.assertRegex(quick.answer("how long until I start work"), r"start at 9 am(?: tomorrow)?\.$")
 
@@ -7371,6 +7371,37 @@ class HowMuchToSaveAndWhenPayday(unittest.TestCase):
         nxt = quick._next_payday("I get paid on fridays")
         self.assertEqual(nxt.weekday(), 4)
         self.assertIsNone(quick._next_payday("I get paid every other friday"))
+
+
+class WhetherAndWhenHeWorks(unittest.TestCase):
+    """2026-10-08: "do I work tomorrow" went to the planner after "I have
+    the day off tomorrow", and "when do I get off work" left the sum to him."""
+
+    def _notes(self, *texts):
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"text": t, "ts": ts} for t in reversed(texts)]
+
+    def test_a_day_off_tomorrow(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I have the day off tomorrow")):
+            self.assertTrue(quick.answer("do I work tomorrow").startswith("No - "))
+
+    def test_the_days_he_works(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I work monday to friday")):
+            self.assertTrue(quick.answer("do I work on wednesday").startswith("Yes - "))
+            self.assertTrue(quick.answer("do I work this weekend").startswith("No - "))
+
+    def test_no_days_said_is_said(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I work 9 to 5")):
+            self.assertIn("not which days", quick.answer("do I work today"))
+
+    def test_off_work_is_a_clock(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("I work 9 to 5")):
+            self.assertTrue(quick.answer("when do I get off work").startswith("At 5 pm."))
+
+    def test_work_days_are_kept(self):
+        for said in ("I work monday to friday", "I work weekends", "I work tuesdays and thursdays"):
+            cmd = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+            self.assertEqual(cmd.get("kind"), "note", said)
 
 
 def _needs_today_to_hold(case, span):
