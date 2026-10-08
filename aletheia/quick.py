@@ -1334,6 +1334,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is|s)? (?:still )?(?:missing|not built|not built yet|unavailable|not working)$"
         r"|^what (?:isn'?t|is not) (?:built|working|set up)(?: yet)?$")),
     # HIS DAY, from the calendar mirror she already holds.
+    # "How is my week looking", "how does my week look" (2026-10-08: read
+    # the fleet's pulse) - his week is his calendar.
+    ("agenda_week", re.compile(r"^(?:how(?:'s| is) my week (?:looking|look)|how does my week look|how(?:'s| is) my week(?: shaping up)?"
+                               r"|what(?:'s| is) my week (?:look(?:ing)? like|like))\s*\??$")),
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
         r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
@@ -2160,7 +2164,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bedtime_calc", re.compile(
         r"^(?:what time|when) should i (?:go to bed|go to sleep|sleep|be in bed) (?:if|so|to)(?: that)? i (?:can )?(?:wake up|get up|have to (?:wake|get) up"
         r"|need to (?:wake|get) up|want to (?:wake|get) up|wake) (?:at )?(?P<bt>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)"
-        r"(?:,? (?:and |to )?(?:get|have|sleep)(?: for)? (?P<bh>\d{1,2}|seven|eight|nine|six) hours?(?: of sleep)?)?\s*\??$")),
+        r"(?:,? (?:and |to )?(?:get|have|sleep)(?: for)? (?P<bh>\d{1,2}|seven|eight|nine|six) hours?(?: of sleep)?)?\s*\??$"
+        # "What time should I go to bed to get 8 hours" (2026-10-08: to a
+        # model), with the alarm she set for him as the wake-up.
+        r"|^(?:what time|when) should i (?:go to bed|go to sleep|be in bed)(?: tonight)?(?: (?:to|if i want to|so i) (?:get|have) (?P<bh2>\d{1,2}|seven|eight|nine|six) hours?(?: of sleep)?)?\s*\??$")),
     ("dislikes", re.compile(
         r"^what (?:foods?|things?|food) (?:don't|do not|dont) i (?:like|eat)\s*\??$"
         r"|^what (?:don't|do not|dont) i (?:like|eat)\s*\??$|^what (?:foods? |things? )?do i (?:not like|hate|dislike|not eat)\s*\??$"
@@ -10714,10 +10721,19 @@ def _bedtime_calc(text: str) -> str | None:
     """When to be asleep for a wake-up time: eight hours unless he names
     another, and a quarter of an hour to fall asleep said beside it."""
     g = _groups("bedtime_calc", text)
+    if g.get("bh2"):
+        g["bh"] = g["bh2"]
     m = re.fullmatch(r"(\d{1,2})(?::(\d\d))?\s*(am|pm)?", str(g.get("bt") or "").strip())
-    if not m:
-        return None
-    hour = int(m.group(1)) % 12 + (12 if m.group(3) == "pm" else 0)
+    alarm = ""
+    if m:
+        hour = int(m.group(1)) % 12 + (12 if m.group(3) == "pm" else 0)
+    else:
+        wake = _next_wake_up()
+        if wake is None:
+            return None
+        m = re.fullmatch(r"(\d{1,2}):(\d\d)", wake.strftime("%H:%M"))
+        hour = int(m.group(1))
+        alarm = f"Your alarm is at {wake.strftime('%I:%M %p').lstrip('0').replace(':00', '').lower()}. "
     hours = {"six": 6, "seven": 7, "eight": 8, "nine": 9}.get(str(g.get("bh") or ""), int(g.get("bh") or 8) if str(g.get("bh") or "8").isdigit() else 8)
     if not 4 <= hours <= 12:
         return None
@@ -10726,8 +10742,23 @@ def _bedtime_calc(text: str) -> str | None:
     def clock(minutes):
         h, mm = divmod(minutes % (24 * 60), 60)
         return f"{h % 12 or 12}{':%02d' % mm if mm else ''} {'am' if h < 12 else 'pm'}"
-    return (f"Asleep by {clock(asleep)} for {hours} hours - so in bed around {clock(asleep - 15)}, "
+    return (f"{alarm}Asleep by {clock(asleep)} for {hours} hours - so in bed around {clock(asleep - 15)}, "
             "since it takes a while to drop off.")
+
+
+def _next_wake_up():
+    """The soonest alarm she set for him in the next day, or None."""
+    import datetime as dt
+    try:
+        from aletheia import localtime, scheduler
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        times = [scheduler.next_occurrence(s, now) for s in scheduler.all_schedules()
+                 if s.get("enabled") and "wake up" in str((s.get("command") or {}).get("text") or "").casefold()]
+    except Exception:
+        return None
+    times = [t.astimezone(tz) for t in times if t and t - now <= dt.timedelta(hours=24)]
+    return min(times) if times else None
 
 
 def _home() -> str | None:
@@ -18375,6 +18406,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "agenda_week": lambda _rest="": _agenda_and_reminders("week"),
            "bake_time": _bake_time,
            "who_out": _who_out,
            "wfh_days": _wfh_days,

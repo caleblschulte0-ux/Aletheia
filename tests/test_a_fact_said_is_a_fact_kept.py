@@ -11968,5 +11968,20 @@ class TheOvenAndTheMealPlan(unittest.TestCase):
         self.assertEqual(quick.match("meal plan for the week")[0], "meal_plan")
 
 
+class HisWeekAndHisBedtime(unittest.TestCase):
+    def test_how_is_my_week_looking_is_his_calendar(self):
+        self.assertEqual(quick.match("how is my week looking")[0], "agenda_week")
+        self.assertEqual(quick.match("how does my week look")[0], "agenda_week")
+
+    def test_bedtime_counts_back_from_the_alarm_she_set(self):
+        wake = dt.datetime(2026, 10, 9, 6, 30)
+        with mock.patch.object(quick, "_next_wake_up", return_value=wake):
+            said = quick.answer("what time should I go to bed to get 8 hours")
+        self.assertTrue(said.startswith("Your alarm is at 6:30 am. Asleep by 10:30 pm"), said)
+        with mock.patch.object(quick, "_next_wake_up", return_value=None):
+            self.assertIsNone(quick.answer("what time should I go to bed"))
+        self.assertIn("Asleep by 11 pm", quick.answer("what time should I go to bed if I want to wake up at 7"))
+
+
 if __name__ == "__main__":
     unittest.main()
