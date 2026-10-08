@@ -18,13 +18,14 @@ GOAL = "request a dental cleaning appointment"
 
 @needs_browser
 class AReplayThatWillNotGoBackStartsOver(LoopCase):
-    def setUp(self):
-        super().setUp()
+    def resume(self, mid):
         # A box that is not there is waited for until the page's timeout; a
-        # loopback page is either there at once or never.
-        patch = mock.patch.object(browse, "DEFAULT_TIMEOUT_MS", 2_000)
-        patch.start()
-        self.addCleanup(patch.stop)
+        # loopback page is either there at once or never. Only the replay
+        # waits for boxes that are gone, so only the replay is shortened: the
+        # first pass at two seconds stopped at "started" on a busy Windows
+        # runner twice on 2026-10-08, before the test's crash ever came.
+        with mock.patch.object(browse, "DEFAULT_TIMEOUT_MS", 5_000):
+            return browser_loop.resume(mid, force=True)
 
     def crashed(self):
         def crash(step, record):
@@ -47,7 +48,7 @@ class AReplayThatWillNotGoBackStartsOver(LoopCase):
 
     def test_it_fills_the_form_again_and_reaches_his_approval(self):
         mid = self.crashed()["id"]
-        record = browser_loop.resume(mid, force=True)
+        record = self.resume(mid)
         self.assertBoundary(record, bm.AWAITING_APPROVAL, "SUBMIT_APPROVAL")
         self.assertTrue(any("starting again" in h["did"] for h in record["history"]))
         self.assertNotIn("/clinic/submit", self.state["posts"], "nothing was sent before his yes")
@@ -55,5 +56,5 @@ class AReplayThatWillNotGoBackStartsOver(LoopCase):
     def test_once_something_was_pressed_to_send_it_still_stops(self):
         record = self.crashed()
         record = bm.checkpoint(record, bm.SUBMIT_CLICKED, url=self.url("/clinic/review"))
-        stopped = browser_loop.resume(record["id"], force=True)
+        stopped = self.resume(record["id"])
         self.assertBoundary(stopped, bm.NEEDS_YOU, "ERROR")

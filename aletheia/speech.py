@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import datetime as dt
 import html
-import re
+from aletheia import rx as re
 
 # state/private ids: mail-a1e1957d0f, intent-0a06bbb663, errand-…, remind-…
 ID_TOKEN = re.compile(

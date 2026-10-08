@@ -29,7 +29,7 @@ everything else. It is a shortcut, not a replacement.
 """
 from __future__ import annotations
 
-import re
+from aletheia import rx as re
 
 MAX_QUESTION = 200
 
@@ -170,7 +170,10 @@ _SERVICES = (r"(?:a |an |my |the )?(?:haircut|hair cut|trim|oil change|flu shot|
              r"|tetanus shot|massage|checkup|check-up|physical|manicure|pedicure|car wash|eye exam|teeth cleaning|dental cleaning"
              r"|tune-?up|inspection|blood test|blood work|mammogram|colonoscopy|tattoo|facial|wax"
              # "I got new tires today" (2026-10-08: to the planner)
-             r"|new tires|new tyres|new brakes|brakes done|tires rotated|tire rotation|alignment|new battery|new wipers)")
+             r"|new tires|new tyres|new brakes|brakes done|tires rotated|tire rotation|alignment|new battery|new wipers"
+             # "I need a filling" went on the SHOPPING list (2026-10-08).
+             r"|filling|root canal|crown|tooth pulled|wisdom teeth (?:out|pulled|removed)|teeth whitened|x-?rays?"
+             r"|new prescription|prescription refill|refill|new glasses|glasses|contacts|new contacts|hearing test|allergy test)")
 
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in
@@ -180,7 +183,22 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i|i'm|im|i am) (?:want to|wanna|going to|gonna|am going to|feel like|thinking about|thinking of|"
         r"just want to|really want to) (?:die|dying|kill(?:ing)? myself|end(?:ing)? (?:it all|my life)|hurt(?:ing)? myself|be dead)$"
         r"|^(?:i'm|im|i am|i feel|feeling) (?:suicidal|thinking about suicide)$"
-        r"|^i don'?t want to (?:live|be alive|be here) anymore$")),
+        r"|^i don'?t want to (?:live|be alive|be here) anymore$"
+        # "I do not want to be here anymore" (2026-10-08: to the planner, which
+        # with the models out said "it's on my list").
+        r"|^i (?:do not|don'?t|dont) want to (?:live|be alive|be here|exist|wake up)(?: anymore| any more)?$"
+        r"|^i wish i (?:was|were) dead$|^i wish i (?:wasn'?t|was not|weren'?t|were not) (?:alive|here|born)$"
+        r"|^(?:there(?:'s| is) )?no (?:point|reason) (?:in )?(?:living|to live|to go on|going on)(?: anymore)?$"
+        r"|^(?:everyone|everybody|they) would be better off without me$"
+        r"|^i can'?t (?:go on|take (?:it|this) anymore|keep going)(?: anymore| like this)?$")),
+    # "I feel hopeless", "nobody cares about me", "I'm having a panic attack",
+    # "I can't stop crying" (2026-10-08: to the planner or "I can't think").
+    # A person, and a way to reach one, never a work item.
+    ("distress", re.compile(
+        r"^(?:i'?m|im|i am|i feel|i'?m feeling|i am feeling|feeling) (?:so |really |completely |totally )?(?P<distress>hopeless|worthless|empty|numb|like a failure|like a burden|useless)$"
+        r"|^(?P<distress2>nobody|no one|no-one) (?:cares about|loves|likes|would miss) me$|^(?P<distress3>everyone|everybody) hates me$"
+        r"|^(?:i think )?(?:i'?m|im|i am) having (?:a )?(?P<distress4>panic attack|anxiety attack)$|^i (?:have|got) (?:a )?(?P<distress5>panic attack)$"
+        r"|^i (?:can'?t|cannot) stop (?P<distress6>crying|shaking)$")),
     # "What's my password for Netflix" said "I don't have anything
     # remembered about password for netflix" (2026-10-07), as if one could
     # be. She never keeps a password; said the same way every time.
@@ -314,6 +332,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # a "how" question about anything else is not one.
         r" (?:the |my |our )?(?!(?:many|much|long|old|far|often|soon|have|has|had|did|do|does|can|could|should|am|was|were|will|would)\b)"
         r"(?P<what>.+?) (?:application|app|job|role|opportunity|position|posting)(?: going| doing| looking)?$")),
+    # "What's happening with my family" (2026-10-08: to a model).
+    ("family_news", re.compile(r"^(?:what(?:'s| is|s) (?:happening|going on|new|the latest) with (?:my|the|our) family|any (?:family|news from (?:my|the) family)"
+                               r"|(?:any|what(?:'s| is)) (?:new )?family news|what(?:'s| is) new in (?:my|the|our) family)\s*\??$")),
     # "What's the latest with DevRev" names the thing without calling it an
     # application; when the words match an opportunity or a record, that is
     # the answer, and when they match nothing the model may still think.
@@ -439,6 +460,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("out_today", re.compile(
         r"^who(?:'s| is| was) (?P<out_today>out sick|off sick|sick|out|off|on vacation|out of (?:the )?office|working from home|wfh|away)"
         r"(?: today| this week)?\s*\??$")),
+    ("sitter", re.compile(r"^who(?:'s| is) (?:babysitting|watching the kids|coming to babysit)(?P<sitter> tonight| today| tomorrow)?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -537,6 +559,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "How much is rent" (2026-10-07: to a model, beside "my rent is 1500").
         r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage|netflix|spotify|hulu|disney plus|hbo max|youtube premium|youtube tv"
         r"|amazon prime|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus)(?: (?:a|per|each) month)?\s*\??$"
+        # "What is my rent going to be" (2026-10-08: to a model, beside "my
+        # landlord is raising the rent to 1800").
+        r"|^(?:what(?:'s| is|s)|how much (?:is|will)) (?:my|our|the) (?P<cost_mine4>rent|mortgage)(?: (?:going to be|gonna be|be|now|going to go up to))?\s*\??$"
+        r"|^(?:is|did) (?:my|our|the) (?P<cost_up>rent|mortgage) (?:going up|go up|increasing|getting raised|being raised)\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$"
@@ -581,6 +607,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
         # "How long until I get off work" (2026-10-08: to a model).
         r"|^how (?:long|much longer|much time) (?:until|till|before) i (?P<work_hours3>get off|finish|clock out|start|clock in)(?: work)?\s*\??$")),
+    ("we_when", re.compile(r"^(?:when (?:do|are|will) we|how (?:many days|long) (?:until|till|before) we) (?P<we_when>close|move|move in|move out|closing|moving|moving in)\b(?: on| into| out of)?(?: the| our)?(?: new)?(?: house| home| apartment| place| condo)?\s*\??$")),
     ("life_when", re.compile(
         r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
         r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?"
@@ -626,7 +653,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what(?:'s| is| does)? my (?:schedule|calendar|day) look(?:s)? like (?P<ap_day4>today|tomorrow|monday|tuesday|wednesday"
         r"|thursday|friday|saturday|sunday) (?P<ap_part4>morning|afternoon|evening|night)\s*\??$"
         r"|^what(?:'s| is| does)? my (?P<ap_part5>morning|afternoon|evening) look(?:s)? like(?: (?P<ap_day5>today|tomorrow|monday"
-        r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
+        r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
+        # "Am I busy Friday night", "am I free tonight" (2026-10-08: to the planner).
+        r"|^(?:am i|will i be) (?P<ap_ask>free|busy|available|booked) (?:(?:on )?(?P<ap_day6>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+        r" (?P<ap_part6>morning|afternoon|evening|night)|this (?P<ap_part7>morning|afternoon|evening)|(?P<ap_part8>tonight))\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -697,7 +727,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is|s)? my (?P<what>landlord|landlady|boss|manager|doctor|dentist|lawyer|accountant|"
         r"realtor|agent|mechanic|plumber|electrician|barber|therapist|trainer|coach|banker|broker|"
         r"sister|brother|mom|mother|dad|father|wife|husband|partner|girlfriend|boyfriend|roommate|"
-        r"neighbou?r|best friend|emergency contact|recruiter)\s*\??$")),
+        r"neighbou?r|best friend|emergency contact|recruiter"
+        # "Who is my professor" (2026-10-08: to a model).
+        r"|professor|[a-z]+ professor|advisor|adviser|academic advisor|[a-z]+ teacher|teacher|tutor|counselor|principal)\s*\??$")),
     # "How many opportunities are you working on" came back from her own
     # model as "opportunity tracking is experimental for me right now, not
     # something I run live yet" - while forty of them sat in her store.
@@ -1373,7 +1405,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|schedule|book|cancel|renew|clean|wash|finish|sign|file|read|write|print|ship|sell|clean up|book|look into|follow up on"
         # "What do I need to reschedule" (2026-10-08: to a model)
         r"|reschedule|confirm|submit|order|replace|update|prepare|plan|organize|research)\s*\??$"
-        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with)\s*\??$"
+        r"|^who do i (?:need|have) to (?P<tv2>call|text|email|pay|write to|follow up with|reply to|respond to|get back to|message)\s*\??$"
         # "What calls do I need to make" (2026-10-07: to a model).
         r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
     ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?the list$")),
@@ -2287,9 +2319,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                                 r" [a-z][a-z ]{1,30}?)(?<! next)(?<! again)\s*\??$")),
     # "How much did the mulch cost" (2026-10-08: to a model, after "the
     # mulch was 40 dollars").
-    ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
+    ("thing_cost", re.compile(r"^how much (?:did|was|were|does|do|will|is) (?:the |my |our )(?P<thing_cost>[a-z][a-z ]{1,25}?) (?:cost|run|come to)?\s*\??$")),
     # "What needs doing around the house" (2026-10-08: to a model).
     ("house_todo", re.compile(r"^what (?:needs|need|has) (?:doing|to be done|fixing|to get done|work)(?: around| at| in)? (?P<house_todo>the house|the yard|home|the garden|the apartment)\s*\??$")),
+    # "What yard work do I need to do" (2026-10-08: to a model).
+    ("yard_todo", re.compile(r"^what (?:yard work|yardwork|garden work|gardening|lawn work|outside work|outdoor work|work in the yard|work in the garden)"
+                             r" (?:do i|do we) (?:need to|have to|still need to|have left to)? ?(?:do|get done)?(?: this weekend| this week| today)?\s*\??$"
+                             r"|^what (?:needs|need) (?:doing|to be done) (?:outside|in the yard|in the garden)\s*\??$")),
+    # "When did I last mow" (2026-10-08: to a model) is the lawn.
+    ("mow_last", re.compile(r"^when did (?:i|we) (?:last )?(?P<mow_last>mow|cut the grass)(?: last)?\s*\??$")),
     # "Where am I", "where am I going" a turn after "I'm at the gym" or
     # "I'm going to the grocery store" (2026-10-08: his home address, and
     # a model).
@@ -2303,6 +2341,92 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # was my last dentist visit" (2026-10-08: to a model).
     ("next_every", re.compile(r"^when(?:'s| is) my next (?P<next_every>[a-z][a-z ]{2,30}?)\s*\??$")),
     ("last_visit", re.compile(r"^when (?:was|did i have) my last (?P<last_visit>[a-z][a-z ]{2,30}?)\s*\??$")),
+    # "How did my daughter do on her test", "what does my daughter want for
+    # her birthday", "who is babysitting tonight" (2026-10-08: to a model).
+    ("kid_did", re.compile(r"^how did (?P<kid_did>my (?:son|daughter|kid|kids|boy|girl)|the kids) do(?: on (?:her|his|their|the|a) (?P<kid_on>[a-z][a-z ]{1,20}?)| in [a-z ]{2,20})?(?: today)?\s*\??$")),
+    ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|dad)|the kids) want for (?:her|his|their) (?:birthday|christmas|hanukkah)\s*\??$"
+                             r"|^what (?:does|do) (?P<kid_wants2>my (?:son|daughter|kid|kids|boy|girl)|the kids) want for (?:christmas|hanukkah)\s*\??$")),
+    # "When do we close on the house", "how many days until we move", "how
+    # much did we offer" (2026-10-08: to a model).
+    ("we_amt", re.compile(r"^how much did (?:we|i) (?P<we_amt>offer|bid|put in|sell (?:it|the house) for|list (?:it|the house) (?:at|for))(?: on (?:the|a) (?:house|condo|place))?\s*\??$")),
+    # "What kind of milk do I buy", "what dog food do we use", "how many
+    # cans of soup do I have", "what did I meal prep" (2026-10-08: to a model).
+    ("we_use", re.compile(r"^what (?:kind of |brand of |type of )?(?P<we_use>[a-z][a-z ]{1,20}?) (?:do|does) (?:i|we) (?:usually |always |normally )?(?:buy|get|use|drink|eat|feed (?:him|her|them|the dog|the cat))\s*\??$")),
+    ("have_left", re.compile(r"^how many (?P<have_left>(?:cans|bags|boxes|bottles|rolls|packs|jars|cartons|pods|tubs) of [a-z][a-z ]{1,20}?|[a-z][a-z ]{1,20}?) (?:do i|do we) have(?: left)?\s*\??$")),
+    ("meal_prep", re.compile(r"^what did i (?P<meal_prep>meal ?prep|prep|batch cook|cook for the week|make for the week)\s*\??$")),
+    # "Whose wedding is it", "did I RSVP", "who am I bringing to the
+    # wedding", "what do I need for the wedding" (2026-10-08: all to a model).
+    ("whose_event", re.compile(r"^whose (?P<whose_event>wedding|party|funeral|shower|baby shower|reunion|graduation|birthday party|recital|bachelor party|bachelorette party|housewarming|reception)"
+                               r" (?:is (?:it|this|that)|am i going to|are we going to|is (?:it|this) again)\s*\??$")),
+    ("did_rsvp", re.compile(r"^(?:did|have) (?:i|we) (?:rsvp|rsvpd|rsvp'd|rsvped|respond(?:ed)?)(?: yet)?(?: (?:to|for) (?:the |my |our )?(?P<did_rsvp>[a-z][a-z' ]{1,30}?))?(?: yet)?\s*\??$"
+                            r"|^what did (?:i|we) rsvp(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,30}?)?\s*\??$")),
+    ("plus_one", re.compile(r"^(?:who (?:am i|are we) (?:bringing|taking)(?: (?:to|as) (?:the |my |our )?[a-z][a-z' -]{1,30}?)?"
+                            r"|who(?: is|'s) my plus(?: |-)?one(?: (?:to|for|at) (?:the |my |our )?[a-z][a-z' ]{1,30}?)?)\s*\??$")),
+    ("for_event", re.compile(r"^what (?:do|else do) (?:i|we) (?:need|have) (?:to (?:do|get|buy|bring) )?(?:for|before) (?:the |my |our )(?P<for_event>"
+                             r"wedding|party|funeral|shower|baby shower|reunion|graduation|birthday party|recital|bachelor party|bachelorette party"
+                             r"|housewarming|reception|trip|move|interview|game|concert|holidays?|thanksgiving|christmas)\s*\??$")),
+    # "What was my best bowling score", "what did I shoot at golf", "what
+    # was the biggest fish I caught", "what is my 5k time", "how is my
+    # fantasy team doing" (2026-10-08: all to a model).
+    ("game_score", re.compile(r"^(?:what(?: was|'s| is|s)? my (?P<gs_q>best|highest|top|lowest|worst|last|latest|most recent|average) (?P<game_score>bowling|golf) score"
+                              r"|what(?: was|'s| is|s)? my (?P<gs_k>bowling|golf) (?:score|(?P<gs_avg>average))|what did i (?P<gs_v>bowl|shoot)(?: at golf| in golf| at bowling)?(?: last time| last)?)\s*\??$")),
+    ("big_fish", re.compile(r"^(?:what(?: was|'s| is|s)? the (?:biggest|largest|heaviest) (?P<big_fish>fish|[a-z]+) (?:i've|i have|i ever|i've ever|i) caught"
+                            r"|what(?: was|'s| is|s)? my (?:biggest|largest|heaviest) (?:fish|catch|[a-z]+))\s*\??$")),
+    ("race_time", re.compile(r"^(?:what(?: was|'s| is|s)? my (?P<rt_q>best |fastest |last |latest |slowest )?(?P<race_time>5k|10k|15k|half marathon|marathon|mile) time"
+                             r"|how fast did i (?:run|do) (?:the |my |a )?(?:5k|10k|15k|half marathon|marathon|mile))\s*\??$")),
+    ("fantasy", re.compile(r"^(?:how(?:'s| is) my fantasy (?:football |baseball |basketball |hockey )?(?:team|league)(?: doing)?|where is my fantasy (?:team|league)(?: in the standings)?"
+                           r"|what place is my fantasy (?:team|league)(?: in)?)\s*\??$")),
+    # "What did I borrow from Bob", "how much do I pay the lawn guy", "when
+    # did the power go out", "is the power back" (2026-10-08: to a model).
+    ("borrowed_from", re.compile(r"^what (?:did|have) (?:i|we) borrow(?:ed)? from (?P<borrowed_from>[a-z][a-z' ]{1,30}?)\s*\??$")),
+    ("paid_who", re.compile(r"^how much (?:do|did|should) (?:i|we) (?:pay|give|tip) (?P<paid_who>(?:the|my|our) [a-z][a-z' ]{1,25}?)(?: each time| every time| per visit| a visit| last time)?\s*\??$")),
+    ("outage", re.compile(r"^(?:when did (?:the |our |my )(?P<outage>power|electricity|internet|wifi|wi-fi|water|hot water|heat|heating|ac|a/c|cable|gas) (?:go out|go down|go off|get cut off|come back(?: on)?|get fixed)"
+                          r"|is (?:the |our |my )(?P<outage2>power|electricity|internet|wifi|wi-fi|water|hot water|heat|heating|ac|a/c|cable|gas) (?:back(?: on| up)?|still out|still down|out|down|working|fixed|on))\s*\??$")),
+    # "Is my dad still in the hospital", "what was the baby named"
+    # (2026-10-08: to the planner and a model).
+    ("in_hospital", re.compile(r"^(?:is|are) (?P<in_hospital>(?:my|our) [a-z]+(?: in law)?) (?:still )?(?:in the hospital|in hospital|out of the hospital|home from the hospital|home yet)\s*\??$")),
+    ("baby_name", re.compile(r"^(?:what (?:was|is|did they name) (?P<baby_name>(?:the|my [a-z]+'s|her|his|their)) baby(?: named| called| name)?|what(?:'s| is) (?:the|my [a-z]+'s) baby'?s name)\s*\??$")),
+    # "What am I saving for", "where do I usually leave my keys" (2026-10-08: to a model).
+    ("saving_for", re.compile(r"^what (?:am i|are we) saving (?:up )?for\s*\??$")),
+    ("usual_spot", re.compile(r"^where do i (?:usually|always|normally) (?:leave|keep|put|hang) my (?P<usual_spot>[a-z][a-z ]{1,25}?)\s*\??$")),
+    # "What does my mom's lasagna use", "how long does the chicken cook"
+    # (2026-10-08: to a model).
+    ("recipe_has", re.compile(r"^what (?:does|do) (?P<recipe_has>(?:the |my |our )?(?:[a-z]+(?:'s|s) )?[a-z][a-z ]{1,25}?)(?: recipe)? (?:use|call for|need|take|have in it)\s*\??$")),
+    ("cook_for", re.compile(r"^how long (?:does|do|should|did) (?:the |my )?(?P<cook_for>[a-z][a-z ]{1,20}?) (?:need to |have to )?(?:cook|bake|roast|simmer|rest|boil|marinate|sit|rise|chill|soak|smoke)(?: for)?\s*\??$")),
+    # "What time do I need to leave for my flight" (2026-10-08: to a model).
+    ("leave_flight", re.compile(r"^(?:what time|when) (?:do|should) i (?:need to |have to )?(?:(?:leave|head out) for (?:my|the) flight|(?:leave|head out) for the airport|get to the airport|be at the airport)(?: (?:tomorrow|on [a-z]+))?\s*\??$")),
+    # "Is Sarah running late" after "Sarah said she is running late"
+    # (2026-10-08: to the planner).
+    ("they_said_are", re.compile(r"^is (?P<they_said_are>my [a-z]+|[a-z][a-z'-]{1,20}) (?:still )?(?:running late|late|coming|on (?:her|his|their) way|sick|okay|ok|home|here yet|coming over)\s*\??$")),
+    # "What is my credit limit" after "my credit card limit is 5000"
+    # (2026-10-08: "I don't have anything remembered about credit limit").
+    ("card_limit", re.compile(r"^what(?:'s| is|s) (?:my|the) (?:credit card |card )?(?:credit )?(?P<card_limit>limit|balance)(?: on my (?:credit )?card)?\s*\??$")),
+    # "Who is my car insurance with", "when will my car be ready",
+    # "how much was the parking ticket" (2026-10-08: to a model).
+    ("who_with", re.compile(r"^(?:who(?:'s| is)|what company is|where(?:'s| is)) (?:my|our) (?P<who_with>(?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account))(?: with| through| at)?\s*\??$")),
+    ("car_ready", re.compile(r"^(?:when (?:will|is|does) my (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
+    ("cost_of_it", re.compile(r"^how much (?:was|is|did) (?:the|my) (?P<cost_of_it>(?:parking |speeding |traffic )?ticket|fine|repair|tow|deductible|copay|bill from [a-z ]+)(?: cost)?\s*\??$")),
+    ("my_classes", re.compile(r"^what (?:classes|courses) (?:am i|i'm) (?:taking|in|enrolled in)(?: this (?:semester|term|year))?\s*\??$")),
+    # "How many miles does my car have" (2026-10-08: to a model, beside "my
+    # car has 45000 miles").
+    ("car_miles", re.compile(r"^(?:how many miles (?:does|is) (?:my|the|our) (?:car|truck|van|suv) (?:have|at|have on it)"
+                             r"|how many miles are (?:on|in) (?:my|the|our) (?:car|truck|van|suv)"
+                             r"|what(?:'s| is|s) (?:my|the|our) (?:car'?s )?(?:mileage|milage|odometer(?: reading)?)"
+                             r"|what(?:'s| is|s) (?:my|the|our) (?:car|truck|van|suv)(?:'s)? (?:mileage|milage|at))\s*\??$")),
+    # "What did I order", "has my package arrived", "when will I get my
+    # refund" (2026-10-08: to a model, beside his own notes saying so).
+    ("ordered_what", re.compile(r"^what (?:did|have) i (?:order|ordered|buy|bought) (?:online|recently|lately|from (?P<ordered_from>[a-z][a-z .']{1,20}))?\s*\??$"
+                                r"|^what (?:did|have) i (?:order|ordered)\s*\??$")),
+    ("got_here", re.compile(r"^(?:has|have|did) (?:my|the|our) (?P<got_here>[a-z][a-z' ]{1,25}?) (?:arrived|arrive|come|came|got here|get here|been delivered|get delivered|shown up|show up)(?: yet)?\s*\??$"
+                           r"|^(?:is|are) (?:my|the|our) (?P<got_here2>[a-z][a-z' ]{1,25}?) (?:here|delivered)(?: yet)?\s*\??$")),
+    ("get_my", re.compile(r"^when (?:will|do|should|am i going to|am i gonna) (?:i )?(?:get|see|receive) (?:my|the|our) (?P<get_my>(?:tax )?(?:refund|check|paycheck|deposit|reimbursement|money back|[a-z]+ refund))\s*\??$")),
+    # "What can I make with chicken and rice" (2026-10-08: to a model).
+    ("make_with", re.compile(r"^what (?:can|could|should) (?:i|we) (?:make|cook|do) with (?P<make_with>[a-z][a-z, ]{2,60}?)(?: for (?:dinner|lunch|tonight))?\s*\??$")),
+    # "How long did I nap" (2026-10-08: to a model, after "I napped for an hour").
+    ("nap_len", re.compile(r"^how long (?:did|was) (?:i|my) (?:nap|napping|sleep(?:ing)? (?:today|this afternoon))(?: for)?(?: today| this afternoon)?\s*\??$")),
+    # "Did I get paid" (2026-10-08: to a model, after "my paycheck came in").
+    ("got_paid", re.compile(r"^(?:did|have) (?:i|we) (?:get|gotten|got) paid(?P<got_paid> today| yet| this week)?(?: yet)?\s*\??$"
+                            r"|^(?:did|has) (?:my|the) (?:paycheck|pay|direct deposit|deposit) (?:come in|come through|clear|cleared|hit|land|landed|go through|gone through|post|posted)(?: yet)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2312,6 +2436,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
     ("freezer", re.compile(r"^what(?:'s| is|s)? (?:in|left in) (?:the |my )?(?:freezer|deep freeze)\s*\??$"
                            r"|^what (?:do i have|have i got|did i put) in (?:the |my )?freezer\s*\??$")),
+    # "When did I meet my wife", "how long have we known each other"
+    # (2026-10-08: "you haven't told me" beside "we met in 2015").
+    ("met_when", re.compile(r"^(?P<met_when>when|how long ago|how long have (?:i|we) known (?:each other|my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?)))"
+                            r"(?: did (?:i|we) (?:first )?meet(?: (?:my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?)|each other))?)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2463,6 +2591,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                            r"|grandma|grandmother|grandpa|grandfather|grandparents|aunt|uncle|cousin|niece|nephew|girlfriend|boyfriend|partner|fiance|fiancee"
                            r"|friend|best friend|neighbor|mother in law|father in law|in laws|dog|cat|puppy|kitten)|the (?:dog|cat|puppy|kids|baby))"
                            r"(?: (?:doing|feeling|holding up|getting on|getting along|feeling today|doing today))?\s*\??$")),
+    # "Are the leftovers still good" (2026-10-08: "no fleet reading yet").
+    ("still_good", re.compile(r"^(?:are|is) (?:the |my |our |these |those |that )?(?P<still_good>leftovers|left overs|leftover [a-z]+|cooked [a-z]+|(?:[a-z]+ )?(?:soup|chili|pasta|rice|pizza|casserole|stew|lasagna)"
+                              # "Is the milk still good" is not the fleet either; a model may help.
+                              r"|milk|eggs|bread|chicken|meat|fish|yogurt|cheese|salad|sushi|ground beef|steak|turkey|ham|cream|half and half)"
+                              r" (?:still )?(?:good|ok|okay|safe|safe to eat|fine)(?: to eat)?\s*\??$")),
     ("status_of", _STATUS),
     # 2026-10-07: powers, roots, a joke and where he parked, each to a model.
     ("power", re.compile(
@@ -2499,7 +2632,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^what(?:'s| is) (?:on )?(?:my|the|our) meal plan(?: for (?P<mp_day>today|tonight|tomorrow|this week|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         r"|^(?:read|show) me (?:my|the|our) meal plan\s*\??$"
         r"|^what (?:am i|are we) (?:having|eating|making|cooking) for (?:dinner|supper|lunch)(?:(?: on)? (?P<mp_day2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?)?\s*\??$"
-        r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$")),
+        r"|^what(?:'s| is) for (?:dinner|supper|lunch) (?:on )?(?P<mp_day3>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: night)?\s*\??$"
+        # "What am I cooking this weekend" (2026-10-08: to a model).
+        r"|^what (?:am i|are we) (?:cooking|making|having)(?: for dinner)? (?:this |on the )?(?P<mp_day4>weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("meal_idea", re.compile(
         r"^what (?:should|can|could|shall) (?:i|we) (?:have|eat|make|cook|get) for (?P<meal>breakfast|lunch|dinner|supper|tea)(?: tonight| today)?$"
         r"|^what(?:'s| is) for (?P<meal2>breakfast|lunch|dinner|supper)(?: tonight| today)?$"
@@ -3008,6 +3143,26 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "What am I out of", "what do we need" (2026-10-08: to a model, a turn
+    # after "I'm out of coffee" put coffee on the list).
+    if re.fullmatch(r"what (?:am i|are we) (?:out of|low on|running low on)|what do we (?:need|still need)(?: from the store| at the store)?"
+                    r"|what (?:do|does) the house need\s*\??", text.rstrip("?").strip()):
+        return "what do i need from the store"
+    # "Who is our realtor" (2026-10-08: to a model, a turn after "the
+    # realtor is Linda") is who his realtor is.
+    m = re.fullmatch(r"who(?:'s| is) our (?P<r>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|babysitter|nanny|tutor|vet|dentist|doctor|pediatrician)\s*\??", text)
+    if m:
+        return f"who is my {m.group('r')}"
+    # "How much does the moving truck cost" (2026-10-08: "nothing between
+    # you and the Moving Truck Cost") is what he said it costs.
+    m = re.fullmatch(r"how much (?:does|do|will) (?P<t>(?:the|our|my) [a-z][a-z ]{1,25}?) cost\s*\??", text)
+    if m:
+        return f"how much did {m.group('t')} cost"
+    # "What time do the kids go to bed" (2026-10-08: nothing found, a turn
+    # after "my kids bedtime is 8").
+    m = re.fullmatch(r"what time (?:do|does) (?:the|my) (?P<k>kids|son|daughter|baby) (?:go to bed|go to sleep|have to be in bed)\s*\??", text)
+    if m:
+        return f"what is my {m.group('k')} bedtime"
     # "What time do the sprinklers go on" (2026-10-08: nothing found, a
     # turn after "the sprinklers are set for 6am").
     m = re.fullmatch(r"(?:what time|when) (?:do|does) (?:the |my )(?P<t>sprinklers?|irrigation|porch lights?|lights|timer|heat|ac) (?:go on|come on|turn on|run|start)\s*\??", text)
@@ -3197,7 +3352,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3217,7 +3372,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -6288,10 +6443,13 @@ def _did_last(text: str) -> str | None:
         if done:
             desc = re.sub(r"\bmy\b", "your", str(done[0].get("description") or "").strip().rstrip("."), flags=re.I)
             when = speech.humanize_time(str(done[0].get("updated_at") or "")) if done[0].get("updated_at") else ""
-            return f"Yes - you ticked off {desc}" + (f" {when}." if when else ".")
+            # "When did I last mow" is not a yes-or-no (2026-10-08: "Yes - you
+            # ticked off mow the lawn").
+            asked_when = _tidy(text).startswith(("when", "how long"))
+            return f"{'You' if asked_when else 'Yes - you'} ticked off {desc}" + (f" {when}." if when else ".")
         if any(str(t.get("status") or "").upper() not in _TASK_CLOSED for t in rows):
             desc = re.sub(r"\bmy\b", "your", str(rows[0].get("description") or "").strip().rstrip("."), flags=re.I)
-            return f"Not yet - {desc} is still on your list."
+            return f"{'You have not yet' if _tidy(text).startswith(('when', 'how long')) else 'Not yet'} - {desc} is still on your list."
     # "Say "I saw sam"" (2026-10-08): a person he names keeps a capital.
     shown_thing = _named(thing) if past in _WITH_SOMEBODY and re.fullmatch(r"[a-z]{2,15}", thing) else thing
     say = f"I {past} {shown_thing}"
@@ -6335,6 +6493,10 @@ def _task_due(words: str) -> str | None:
     # A day said with no time is kept as the end of that day; "at 11:59 pm"
     # is the store's, not his.
     said = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat()))
+    # "Your paper is due Friday", not "Finish my paper is due Friday" (2026-10-08).
+    thing = re.match(r"(?:finish|turn in|hand in|submit) (?:my|the) (.+)$", what, re.I)
+    if thing:
+        return f"Your {thing.group(1)} is due {said}."
     return f"{what} is due {said}."
 
 
@@ -6806,8 +6968,9 @@ def _agenda_part(text: str) -> str | None:
     import datetime as dt
     from aletheia import calendar, localtime, speech
     g = _groups("agenda_part", text)
-    day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or "today"
-    part = g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5") or ""
+    day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or g.get("ap_day6") or "today"
+    part = (g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5")
+            or g.get("ap_part6") or g.get("ap_part7") or g.get("ap_part8") or "")
     lo, hi = _PART_HOURS.get(part, (0, 24))
     try:
         tz = localtime.operator_tz()
@@ -6831,10 +6994,16 @@ def _agenda_part(text: str) -> str | None:
     label = ("tonight" if part in ("tonight", "night") and when == now.date()
              else f"this {part}" if when == now.date()
              else f"tomorrow {part}" if when == now.date() + dt.timedelta(days=1) else f"{when.strftime('%A')} {part}")
+    # "Am I busy Friday night" wants yes or no first, in the direction asked.
+    ask = g.get("ap_ask") or ""
+    free_asked = ask in ("free", "available")
     if not rows:
-        return f"Nothing on your calendar {label}."
+        lead = ("Yes - n" if free_asked else "No - n") if ask else "N"
+        return f"{lead}othing on your calendar {label}."
     rows.sort()
     said = [f"{t} at " + s.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for s, t in rows[:6]]
+    if ask:
+        return f"{'No' if free_asked else 'Yes'} - {label}: {speech.and_list(said)}."
     return f"{label[:1].upper() + label[1:]}: {speech.and_list(said)}."
 
 
@@ -7106,6 +7275,10 @@ def _agenda_and_reminders(day: str) -> str | None:
     except Exception:
         reminders = None
     if not reminders or reminders.startswith("No reminders"):
+        return said
+    if " You do have " in said:
+        # `_agenda` already named them for an empty day (2026-10-08: "what
+        # am I doing Sunday" said the one reminder twice).
         return said
     if said.startswith("Nothing on your calendar"):
         return said.rstrip(".") + ", but " + reminders[0].lower() + reminders[1:]
@@ -7408,6 +7581,40 @@ _MEALS = {
 }
 
 
+#: What he says he has, to a dish a person would suggest - pairs first,
+#: then the one thing the meal is built round. Ideas, said as ideas.
+_DISHES = (
+    (("chicken", "rice"), "chicken fried rice"), (("beef", "rice"), "a beef rice bowl"), (("eggs", "rice"), "egg fried rice"),
+    (("chicken", "pasta"), "chicken pasta"), (("beef", "pasta"), "spaghetti bolognese"), (("ground beef", "pasta"), "spaghetti bolognese"),
+    (("tortillas", "cheese"), "quesadillas"), (("bread", "cheese"), "grilled cheese"), (("eggs", "cheese"), "a cheese omelette"),
+    (("chicken", "tortillas"), "chicken tacos"), (("beef", "tortillas"), "tacos"), (("ground beef", "tortillas"), "tacos"),
+    (("potatoes", "eggs"), "a potato hash with eggs"), (("pasta", "tomatoes"), "pasta with tomato sauce"),
+    (("chicken",), "a chicken stir-fry"), (("ground beef",), "tacos"), (("beef",), "a beef stir-fry"), (("pasta",), "pasta"),
+    (("eggs",), "an omelette"), (("rice",), "fried rice"), (("potatoes",), "baked potatoes"), (("salmon",), "baked salmon"),
+    (("fish",), "fish tacos"), (("shrimp",), "shrimp stir-fry"), (("pork",), "pork chops"), (("tofu",), "a tofu stir-fry"),
+    (("steak",), "steak and a salad"), (("sausage",), "sausage and peppers"), (("beans",), "chili"), (("lentils",), "a lentil soup"),
+)
+_FOOD = (r"chicken|rice|beef|ground beef|pasta|spaghetti|noodles|eggs|cheese|bread|tortillas|potatoes|tomatoes|salmon|fish|shrimp|pork"
+         r"|tofu|steak|sausage|beans|lentils|broccoli|peppers|onions|carrots|spinach|mushrooms|bacon|ham|turkey|leftovers")
+
+
+def _dish_from(items: list) -> str | None:
+    have = {re.sub(r"^(?:some |a |an |the |a bit of |a lot of |leftover )", "", " ".join(str(i).casefold().split())) for i in items}
+    have |= {{"spaghetti": "pasta", "noodles": "pasta", "egg": "eggs", "potato": "potatoes", "tomato": "tomatoes"}.get(h, h) for h in have}
+    for need, dish in _DISHES:
+        if all(n in have for n in need):
+            return dish
+    return None
+
+
+def _food_said(text: str) -> list | None:
+    """The foods in "chicken, rice and broccoli" - None unless every one is
+    a food, so "I have a meeting and a call" is never a pantry."""
+    parts = [p.strip() for p in re.split(r",\s*(?:and\s+)?|\s+and\s+", text.casefold()) if p.strip()]
+    parts = [re.sub(r"^(?:some |a |an |the |a bit of |a lot of |leftover |a dozen |two |three )", "", p) for p in parts]
+    return parts if parts and all(re.fullmatch(rf"(?:{_FOOD})", p) for p in parts) else None
+
+
 def _planned_for(day: str) -> str | None:
     """The meal plan's line for one day ("Monday: chicken"), or None."""
     import datetime as dt
@@ -7419,7 +7626,8 @@ def _planned_for(day: str) -> str | None:
     if day in ("today", "tonight", "tomorrow"):
         when = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=1 if day == "tomorrow" else 0)
         day = when.strftime("%A").lower()
-    hits = [r.split(":", 1)[1].strip() for r in rows if r.casefold().startswith(day + ":")]
+    days = ("weekend:", "saturday:", "sunday:") if day == "weekend" else (day + ":",)
+    hits = [r.split(":", 1)[1].strip() for r in rows if r.casefold().startswith(days)]
     from aletheia import speech
     return speech.and_list(hits) if hits else None
 
@@ -7487,7 +7695,7 @@ def _meal_plan(text: str) -> str | None:
     """His meal plan, or one day of it, from the list he keeps."""
     from aletheia import lists, speech
     g = _groups("meal_plan", text)
-    day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or "").strip()
+    day = (g.get("mp_day") or g.get("mp_day2") or g.get("mp_day3") or g.get("mp_day4") or "").strip()
     # "What am I making for dinner" (2026-10-07: to a model) is tonight's.
     if not day and re.match(r"what (?:am i|are we) ", text.casefold()):
         day = "tonight"
@@ -7500,7 +7708,7 @@ def _meal_plan(text: str) -> str | None:
         return None if day else "You don't have a meal plan yet. Say \"add chicken to my meal plan for Monday\"."
     if day and day != "this week":
         planned = _planned_for(day)
-        said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow"}.get(day, f"on {day.capitalize()}")
+        said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow", "weekend": "this weekend"}.get(day, f"on {day.capitalize()}")
         return f"{planned[:1].upper() + planned[1:]} {said}." if planned else f"Nothing on your meal plan {said}."
     if not rows:
         return "Your meal plan is empty."
@@ -7515,6 +7723,22 @@ def _meal_idea(meal: str) -> str:
         planned = _planned_for("today")
         if planned:
             return f"Your meal plan says {planned}."
+    # "I have chicken and rice" said lately (2026-10-08: "how about pasta? I
+    # don't know what's in the fridge" right after he told her).
+    import datetime as dt
+    for row in _notes()[:5]:
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"i (?:have|'ve got|got|have got) (?P<items>.+?)(?: in the (?:fridge|freezer|pantry|kitchen)| at home| left)?", said.casefold())
+        items = _food_said(m.group("items")) if m else None
+        try:
+            fresh = dt.datetime.now(dt.timezone.utc) - dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")) < dt.timedelta(days=2)
+        except (ValueError, TypeError):
+            fresh = not row.get("ts")
+        if items and fresh and meal != "breakfast":
+            from aletheia import speech
+            dish = _dish_from(items)
+            return (f"You said you have {speech.and_list(items)} - how about {dish}?" if dish
+                    else f"You said you have {speech.and_list(items)} - build it round those.")
     for row in _notes():
         said = str(row.get("text") or "")
         liked = re.search(r"\bmy fav(?:ou?rite)? (?:food|meal|dinner|dish) is (.+?)\.?$", said, re.IGNORECASE)
@@ -8019,10 +8243,14 @@ def _weekday_of(text: str) -> str | None:
         bare = re.sub(r"\s+(?:this|last|next) year$", "", words)
         if re.match(r"(?:my|our|[a-z]+'s) ", bare):
             try:
-                return _until(bare, which_day=True)
+                said = _until(bare, which_day=True)
             except Exception:  # noqa: BLE001
-                return None
-        return None
+                said = None
+            if said:
+                return said
+        # "What day is leg day" after "my leg day is Monday" (2026-10-08: to
+        # a model): the weekday he gave it.
+        return _its_weekday(bare)
     # "What day was July 4 this year" said 2027, and "was" with no year
     # read forward (2026-10-07). The year he names is the year; "was"
     # alone is the last one.
@@ -8491,6 +8719,21 @@ def _about_her(text: str) -> str:
     known = _about_him()
     return ("Yes. " + known) if known and not known.startswith("Nothing") else \
         "I don't know much about you yet - tell me your name and I'll remember it."
+
+
+def _distress(text: str) -> str:
+    g = _groups("distress", text)
+    if g.get("distress4") or g.get("distress5") or g.get("distress6") == "shaking":
+        return ("You're safe. Breathe in slowly for four, hold for four, and out for six - then again. It passes, "
+                "usually within a few minutes. If there's chest pain or you're not sure it's panic, call 911.")
+    if g.get("distress6"):
+        return ("I'm sorry. Let it out. If you'd like a person to talk to, reach a friend - or call or text 988, "
+                "any hour.")
+    if g.get("distress2") or g.get("distress3"):
+        return ("I'm sorry you're feeling that. It's worth reaching out to someone you trust - I can send them a text "
+                "for you. And if it gets heavy, 988 is there by call or text, any hour.")
+    return ("I'm sorry it feels that way. You don't have to carry it alone - talking to someone helps, and if it gets "
+            "dark, call or text 988, any hour.")
 
 
 CRISIS = ("I'm really sorry you're feeling this way, and I'm glad you said it. Please call or text 988 "
@@ -10102,6 +10345,16 @@ def _recall(words: str) -> str | None:
     words themselves. Nothing matching is said as nothing - never guessed."""
     from aletheia import memory, speech
     words, _bar, attr = str(words or "").partition("|")
+    # "What's my wife's name" read back "my wife loves tulips" beside "my
+    # wife is Jessica" (2026-10-08). Her name, when he said it.
+    if attr.strip() == "name" and re.fullmatch(r"[a-z]{2,20}(?: in law)?", words.strip()):
+        rel = re.escape(words.strip())
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            m = re.fullmatch(rf"(?i:(?:my|our) {rel}(?:'s name)? is (?:named |called )?)(?P<n>[A-Z][a-z'-]+(?: [A-Z][a-z'-]+)?)", said) \
+                or re.fullmatch(rf"(?P<n>[A-Z][a-z'-]+(?: [A-Z][a-z'-]+)?) (?i:is my {rel})", said)
+            if m:
+                return f"You told me: {speech.as_she_says_it(said)}."
     being = re.fullmatch(r"being on (.+)", words.strip())
     if being:
         # "Am I on call" is the phrase, not every note with "call" in it.
@@ -10230,13 +10483,37 @@ def _married(text: str) -> str | None:
             told = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said).rstrip("."))
             return f"Your {_ordinal(n)}{on} - you told me {told}."
         years = today.year - int(y.group(1))
-        return (f"About {speech.count_phrase(years, 'year')} - you told me: {speech.as_she_says_it(said).rstrip('.')}."
-                if years else f"Less than a year - you told me: {speech.as_she_says_it(said).rstrip('.')}.")
+        told = re.sub(r"(?i)^we\b", "you", speech.as_she_says_it(said).rstrip("."))
+        return (f"About {speech.count_phrase(years, 'year')} - you told me {told}."
+                if years else f"Less than a year - you told me {told}.")
     if no_year:
         # "Our anniversary is May 5" names the day and not the year
         # (2026-10-07: "how many years have we been married" went to a model).
         return (f"You told me: {speech.as_she_says_it(no_year).rstrip('.')}. But not the year, so I can't say how long. "
                 "Say \"we got married in\" and the year, and I'll know.")
+    return None
+
+
+def _met_when(text: str) -> str | None:
+    """When he and his partner met, from "we met in 2015" - and, asked how
+    long, the years since."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    t = _tidy(text)
+    if t in ("when", "how long ago") or not re.search(r"\bmeet\b|\bknown\b", t):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(r"(?:we|i) (?:first )?met(?: my (?:wife|husband|partner|girlfriend|boyfriend|fiancee?))?\b", said.casefold()):
+            continue
+        told = re.sub(r"(?i)^we\b", "you", re.sub(r"(?i)^i\b", "you", speech.as_she_says_it(said)))
+        told = re.sub(r"(?i)\bmy\b", "your", told)
+        y = re.search(r"\b((?:19|20)\d\d)\b", said)
+        if t.startswith(("how long", "how many")) and y:
+            years = dt.datetime.now(localtime.operator_tz()).year - int(y.group(1))
+            if years > 0:
+                return f"About {speech.count_phrase(years, 'year')} - you told me {told}."
+        return f"You told me {told}."
     return None
 
 
@@ -10935,6 +11212,7 @@ _COMMON_PLACES = frozenset((
 def _place_where(name: str) -> str | None:
     """Where a place he saved is; for a common place he never saved, how to
     tell her. None for anything else, so files and things stay theirs."""
+    from aletheia import speech
     name = " ".join(str(name or "").casefold().split())
     if not name:
         return None
@@ -10952,6 +11230,17 @@ def _place_where(name: str) -> str | None:
     if place and place.get("address"):
         said = places.called(place.get("name") or name)
         return f"{said[:1].upper()}{said[1:]} is at {place['address']}."
+    # "Where is the wedding" after "the wedding is at the Grand Hotel",
+    # "where is the registry" after "the registry is on Amazon" (2026-10-08:
+    # both searched his Documents). His own words about where it is.
+    key = re.sub(r"^(?:the|my|our|their) ", "", name)
+    if key and not re.search(r"\b(?:it|that|this|they|them|file|files|folder|document|pdf)\b", key):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            low = said.casefold()
+            if re.fullmatch(rf"(?:the |my |our |their )?(?:[a-z]+ )?{re.escape(key)} (?:is|are|will be) (?:at|in|on) (?!\d)(?!the (?:morning|afternoon|evening|end)\b).+", low) \
+                    or (key == "registry" and re.fullmatch(r"(?:they are|they're|she is|she's|he is|he's) registered (?:at|on) .+", low)):
+                return f"You told me: {speech.as_she_says_it(said)}."
     home_of = re.fullmatch(r"([a-z]+)'s (house|place|apartment|flat|home)", name)
     if home_of:
         named = f"{home_of.group(1).capitalize()}'s {home_of.group(2)}"
@@ -11838,7 +12127,8 @@ def _went(text: str) -> str | None:
         span = window or "this week"
         if not n:
             return f"None {span} that you've told me."
-        return f"{speech.count_phrase(n, 'time')} {span}, from what you've told me."
+        times = {1: "Once", 2: "Twice"}.get(n) or speech.count_phrase(n, "time")
+        return f"{times} {span}, from what you've told me."
     if g.get("went2"):
         if not hits:
             return f"Not that you've told me{' ' + window if window else ''}."
@@ -11865,7 +12155,7 @@ def _past_go(asked: str) -> str:
     return a
 
 
-_SPENT_NOTE = re.compile(r"^i (?:spent|paid) \$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)? (?:on|for) (?P<on>.+?)"
+_SPENT_NOTE = re.compile(r"^i (?:spent|paid) \$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)? (?P<prep>on|for|at) (?P<on>.+?)"
                          r"(?: (?P<when>today|yesterday|this week|last night))?\.?$")
 
 
@@ -11890,7 +12180,8 @@ def _spent(question: str) -> str | None:
             continue
         if m.group("when") in ("yesterday", "last night"):
             at -= dt.timedelta(days=1)
-        rows.append((at, float(m.group("amt").replace(",", "")), m.group("on").strip()))
+        # "I spent 150 at Costco" (2026-10-08) is said back "at Costco".
+        rows.append((at, float(m.group("amt").replace(",", "")), ("at " if m.group("prep") == "at" else "") + m.group("on").strip()))
     if not rows:
         return None
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -11904,18 +12195,18 @@ def _spent(question: str) -> str | None:
                   "last month": ((midnight.replace(day=1) - dt.timedelta(days=1)).replace(day=1), midnight.replace(day=1)),
                   }.get(window, (midnight - dt.timedelta(days=30), midnight + dt.timedelta(days=1)))
     span = window or "in the last 30 days"
-    on = re.search(r"\bspen[dt] (?:on|for) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
+    on = re.search(r"\bspen[dt] (?P<prep>on|for|at) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
     asked_for = [w.rstrip("s") for w in on.group("on").split() if w not in ("the", "my", "a")] if on else []
     if asked_for == ["food"]:
         # "On food" is lunch and groceries too (2026-10-08: "nothing on food").
         asked_for = list(_FOOD_WORDS)
     hits = [r for r in rows if start <= r[0] < end and (not on or any(w in r[2] for w in asked_for))]
     if not hits:
-        return (f"Nothing on {on.group('on')} {span} that you've told me." if on
+        return (f"Nothing {'at' if on.group('prep') == 'at' else 'on'} {on.group('on')} {span} that you've told me." if on
                 else f"Nothing {span} that you've told me.")
     total = sum(r[1] for r in hits)
     if on:
-        return f"{_money(total)} on {on.group('on')} {span}, from what you've told me."
+        return f"{_money(total)} {'at' if on.group('prep') == 'at' else 'on'} {on.group('on')} {span}, from what you've told me."
     by: dict[str, float] = {}
     for _, amt, what in hits:
         by[what] = by.get(what, 0) + amt
@@ -11926,7 +12217,7 @@ def _spent(question: str) -> str | None:
         top, amt = ranked[0]
         return (f"{top[:1].upper() + top[1:]}: {_money(amt)} of the {_money(total)} you've told me you spent {span}."
                 if len(ranked) > 1 else f"{top[:1].upper() + top[1:]}, {_money(amt)} - the only spending you've told me about {span}.")
-    parts = [f"{_money(v)} on {k}" for k, v in ranked[:4]]
+    parts = [f"{_money(v)} {k if k.startswith('at ') else 'on ' + k}" for k, v in ranked[:4]]
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
@@ -12128,11 +12419,13 @@ _END_NOTE = re.compile(r"^(?:(?:i (?:get off|finish|leave|clock out)(?: work)?(?
 _COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
 
 
-_LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b", "vacation": r"\b(?:vacation|holiday)\b",
+# "The moving truck costs 200" is not when he moves (2026-10-08).
+_MOVE_WORD = r"\b(?:moving|move)\b(?! (?:truck|van|boxes|box|company|companies|supplies|blankets|costs?|quote|estimate)\b)"
+_LIFE_WORDS = {"moving": _MOVE_WORD, "move": _MOVE_WORD, "vacation": r"\b(?:vacation|holiday)\b",
                "holiday": r"\b(?:vacation|holiday)\b", "trip": r"\btrip\b", "new job": r"\bnew job\b", "school": r"\bschool\b",
                "college": r"\bcollege\b", "classes": r"\bclasses\b", "surgery": r"\bsurgery\b", "first day": r"\bfirst day\b",
                "graduation": r"\bgraduat", "graduating": r"\bgraduat", "retiring": r"\bretir", "honeymoon": r"\bhoneymoon\b",
-               "moving day": r"\b(?:moving|move)\b",
+               "moving day": _MOVE_WORD,
                "off": r"\b(?:days? off|time off|pto|off work|i'?m off|i am off|have \w+ off|taking \w+(?: \w+)? off|on vacation|on holiday)\b",
                "working from home": r"\b(?:working from home|wfh)\b", "wfh": r"\b(?:working from home|wfh)\b",
                "out of the office": r"\bout of (?:the )?office\b", "out of office": r"\bout of (?:the )?office\b",
@@ -12169,7 +12462,7 @@ def _on_its_way(thing: str | None) -> str | None:
         if (now - at).days > 30:
             continue
         day = "today" if at.date() == now.date() else f"on {at.strftime('%A')} {at.day} {at.strftime('%B')}"
-        hits.append((day, speech.as_she_says_it(said).rstrip(".")))
+        hits.append((day, speech.as_she_says_it(said).rstrip(".") + _days_from(said, row.get("ts"))))
         if named or len(hits) == 3:
             break
     if not hits:
@@ -12258,6 +12551,7 @@ def _told_when(pattern: str) -> str | None:
             day = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
         except ValueError:
             return f"You told me: {told}."
+        told += _days_from(said, row.get("ts"))
         if day == dt.datetime.now(tz).date():
             return f"You told me today: {told}."
         return f"You told me on {day.strftime('%A')} {day.day} {day.strftime('%B')}: {told}."
@@ -12865,7 +13159,8 @@ def _did_count(text: str) -> str | None:
         n += start <= at < end
     if not n:
         return f"None {window} that you've told me. Say \"I {past} {thing}\" when you do and I'll keep count."
-    return f"{speech.count_phrase(n, 'time')} {window}, from what you've told me."
+    times = {1: "Once", 2: "Twice"}.get(n) or speech.count_phrase(n, "time")
+    return f"{times} {window}, from what you've told me."
 
 
 _SUB_KEYS = (r"netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
@@ -12915,7 +13210,8 @@ def _cost_mine(text: str) -> str | None:
         if (g.get("cost_bills2") or subs) and whole:
             return f"About {_money(round(total))} a month. {listed}"
         return listed
-    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or "").casefold().split())
+    thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or g.get("cost_mine4")
+                         or g.get("cost_up") or "").casefold().split())
     # "How much do I spend on groceries a month" (2026-10-07: to a model,
     # with "I spent 60 on groceries" kept): what he told her he spent.
     if thing and g.get("cost_mine2") and not re.fullmatch(_BILL_KEYS, thing):
@@ -12923,8 +13219,19 @@ def _cost_mine(text: str) -> str | None:
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
+        # "My landlord is raising the rent to 1800", "my rent is going up to
+        # 1800" (2026-10-08): the newest figure, said as the new one.
+        if re.search(rf"\b(?:rais(?:ing|ed|e)|increas(?:ing|ed|e)|bump(?:ing|ed)|putting up|put up) (?:the |my |our )?{re.escape(thing)}"
+                     rf" (?:to|up to) .*\d|\b{re.escape(thing)} (?:is going up|went up|goes up|is going to be|will be|is increasing) (?:to )?.*\d",
+                     said.casefold()):
+            yes = "Yes - you" if g.get("cost_up") else "You"
+            return f"{yes} told me: {speech.as_she_says_it(said).rstrip('.')}."
         if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|was|were|costs?|came to|came out to) .*\d", said.casefold()):
+            if g.get("cost_up"):
+                return None
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    if g.get("cost_up"):
+        return None
     # "How much is my rent" with nothing told (2026-10-07: to a model, which
     # has no way to know). Her memory first; then plainly not told. Only a
     # note naming ALL of it: "the electric bill" read back the water bill
@@ -13389,6 +13696,7 @@ def _tasks_verb(text: str) -> str | None:
                 or (head in ("reschedule", "confirm", "cancel", "renew", "return") and re.search(r"\bto " + re.escape(head) + r"\b", what, re.I)):
             when = tasks.parse_deadline(t.get("deadline"))
             due = re.sub(r" at 11:59 ?pm$", "", speech.humanize_time(when.isoformat())) if when else ""
+            what = re.sub(r"\bmy\b", "your", what)     # "send my grandma a card" is his, said to him
             hits.append(what + (f" by {due}" if due else ""))     # a comma would collide in a list
     if not hits:
         return None
@@ -13871,6 +14179,32 @@ def _when_note(text: str) -> str | None:
     if not words:
         return None
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in words]
+    # "What time does the wedding start" after "I have a wedding on
+    # Saturday" and "the wedding starts at 4" (2026-10-08: read back the
+    # day). A question about the time wants the note with the time.
+    if re.match(r"what time ", _tidy(text)):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            low = said.casefold()
+            if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) \
+                    and re.search(r"\b(?:at|by|from) \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b|\b\d{1,2}(?::\d\d)? ?[ap]\.?m\.?\b|\bnoon\b", low):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    # "When is the wedding" with the day in one note and the time in
+    # another: both, the day first.
+    if re.match(r"when ", _tidy(text)):
+        day = clock = None
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            low = said.casefold()
+            if not all(re.search(rf"\b{re.escape(w)}", low) for w in stems):
+                continue
+            if day is None and re.search(r"\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b|\b(?:today|tonight|tomorrow)\b|\b(?:january|february|march|april"
+                                         r"|may|june|july|august|september|october|november|december) \d", low):
+                day = said
+            elif clock is None and re.fullmatch(r"(?:the |my |our )?[a-z ]+ (?:starts|begins|kicks off|is) at \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?", low):
+                clock = said
+        if day and clock:
+            return f"You told me: {speech.as_she_says_it(day)}, and {speech.as_she_says_it(clock)[:1].lower() + speech.as_she_says_it(clock)[1:]}."
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
@@ -13879,7 +14213,9 @@ def _when_note(text: str) -> str | None:
                 # "I have a work trip to Chicago next week" (2026-10-08)
                 r"|\b(?:next|this) (?:week|month|year|weekend)\b|\b(?:january|february|march|april|may|june|july|august"
                 r"|september|october|november|december)\b", low):
-            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+            # "My new card is coming in 7 to 10 days", asked a week later,
+            # is a date, counted from when he said it (2026-10-08).
+            return f"You told me: {speech.as_she_says_it(said).rstrip('.')}{_days_from(said, row.get('ts'))}."
     # "When is my performance review" after "my review is next month"
     # (2026-10-08: to a model). A qualifier he left off the note is not a
     # different thing.
@@ -13941,10 +14277,18 @@ def _their_fact(text: str) -> str | None:
 def _meds(text: str = "") -> str | None:
     """What he told her he takes: "my prescription is ...", "I take ..."."""
     from aletheia import speech
-    found, seen = [], set()
+    found, seen, stopped = [], set(), set()
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
+        # "I stopped taking lisinopril", newer than the note that started
+        # it, takes it off (2026-10-08).
+        off = re.fullmatch(r"i stopped taking (?:my )?(.+?)\.?", low)
+        if off:
+            stopped.add(off.group(1))
+            continue
+        if any(re.search(rf"\b{re.escape(drug)}\b", low) for drug in stopped):
+            continue
         # "My prescription is ready" is about a pickup, not what he takes
         # (2026-10-07: read back as his medication).
         if re.match(r"(?:my|our) (?:daily )?(?:prescriptions?|medications?|meds) (?:is|are) "
@@ -14044,7 +14388,9 @@ def _plans_for(who: str) -> str | None:
 
 _BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up"
                     r"|making a (?:weird |strange |loud )?noise|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining"
-                    r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging)"
+                    r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging"
+                    # "My computer is running slow", "the internet is down" (2026-10-08).
+                    r"|running slow|so slow|really slow|slow|dying|full|lagging|glitching|not connecting|down|out of (?:ink|toner))"
                     r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working|cracked|shattered|froze)"
                     r"|^(?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25}?) (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)")
 _FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
@@ -15209,6 +15555,28 @@ def _thing_cost(thing: str) -> str | None:
         if re.match(rf"(?:the |my |our )?{re.escape(thing)} (?:was|were|cost|came to|ran me|is|costs) (?:me )?(?:about |around )?\$?\d", low) \
                 or re.match(rf"i (?:paid|spent) \$?\d[\d,.]* (?:dollars |bucks )?(?:on|for) (?:the |my |some )?{re.escape(thing)}\b", low):
             return f"You told me: {speech.as_she_says_it(said)}."
+    # "How much will the repair cost", a turn after "the mechanic said it
+    # will cost 400" (2026-10-08: to a model).
+    if re.fullmatch(r"(?:car )?(?:repair|repairs|fix|work|job|bill)", thing):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.match(r"(?:the |my )?(?:mechanic|shop|garage|dealer|dealership|body shop|repair shop|plumber|electrician|contractor)"
+                        r" (?:said|says|told me|quoted(?: me)?)\b.*\b(?:cost|be|run|charge|come to|quoted)\b.*\d", said.casefold()):
+                return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _car_miles(_text: str = "") -> str | None:
+    """"How many miles does my car have": the newest mileage he told her.
+    None when he never said."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:is at|has|has got|is over|has over) (?:about |around |over |just over )?"
+                         r"(?P<n>\d[\d,]*k?) miles(?: on it)?(?: now)?", said.casefold())
+        if m:
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            return f"Your car is at {m.group('n')} miles" + (f", as of {told}." if told else ".")
     return None
 
 
@@ -15230,6 +15598,85 @@ def _house_todo(where: str) -> str | None:
     if broken.startswith("From what you've told me"):
         said.append(broken)
     return " ".join(said) or None
+
+
+def _yard_todo(_text: str = "") -> str | None:
+    """His open tasks about the yard and the garden."""
+    from aletheia import speech, tasks
+    try:
+        rows = [" ".join(str(t.get("description") or "").split()).rstrip(".") for t in tasks.all_tasks() if tasks.is_his(t)
+                and str(t.get("status") or "").upper() not in _TASK_CLOSED]
+    except Exception:
+        return None
+    yard = [r for r in rows if re.search(r"\b(?:mow|rake|fertili[sz]e|weed|water the (?:plants|garden|lawn|grass|flowers)|mulch|plant|prune|trim|edge"
+                                         r"|gutters?|fence|lawn|yard|garden|hedges?|leaves|grass|sprinklers?|deck|patio|shed|compost|seeds?)\b", r, re.I)]
+    if not yard:
+        return None
+    return f"Your list says: {speech.and_list([speech.as_she_says_it(r) for r in yard[:6]])}."
+
+
+_KIN = (r"mom|mother|dad|father|parents|brother|sister|son|daughter|kids|cousin|aunt|uncle|niece|nephew|grandma|grandpa|grandmother"
+        r"|grandfather|grandparents|wife|husband|sister in law|brother in law|mother in law|father in law|in laws|family")
+
+
+def _family_news(_text: str = "") -> str | None:
+    """The newest few things he told her about his family, this month."""
+    import datetime as dt
+    from aletheia import speech
+    now = dt.datetime.now(dt.timezone.utc)
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(rf"(?:my|our) (?:{_KIN})(?:'s)?\b", said.casefold()):
+            continue
+        try:
+            if now - dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")) > dt.timedelta(days=31):
+                continue
+        except (ValueError, TypeError):
+            pass
+        found.append(speech.as_she_says_it(said))
+        if len(found) == 4:
+            break
+    return f"The latest you told me: {speech.and_list(found)}." if found else None
+
+
+def _nap_len(_text: str = "") -> str | None:
+    """How long his newest nap was, from what he said."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".").casefold()
+        m = re.match(r"i (?:just )?(?:napped|dozed off|took a nap) for (?P<n>.+?)(?: today| this afternoon)?$", said) \
+            or re.match(r"i (?:just )?took a (?P<n2>\d{1,3}[- ](?:minute|min|hour)) nap", said)
+        if m:
+            n = m.group("n") if m.groupdict().get("n") else re.sub(r"[- ]", " ", m.group("n2")) + "s"
+            return f"You told me you napped for {n.replace('mins', 'minutes').replace('min ', 'minute ')}."
+        if re.match(r"i (?:just )?took a (?:short |long |quick |power )?nap\b|i napped\b", said):
+            return "You told me you took a nap, but not for how long."
+    return None
+
+
+def _got_paid(window: str = "") -> str | None:
+    """Did his pay land: his newest note saying so. None when he never said
+    - his bank may know, and nothing here guesses."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    window = " ".join(str(window or "").split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"(?:my|the) (?:paycheck|pay|check|direct deposit|deposit) (?:just )?(?:came|cleared|hit|landed|went|was deposited|got deposited|posted|arrived)"
+                    r"|i (?:just )?got paid\b", said.casefold()):
+            told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+            if window in ("today", "this week") and row.get("ts"):
+                try:
+                    tz = localtime.operator_tz()
+                    on = dt.datetime.fromisoformat(str(row["ts"]).replace("Z", "+00:00")).astimezone(tz).date()
+                    today = dt.datetime.now(tz).date()
+                    if on < (today if window == "today" else today - dt.timedelta(days=today.weekday())):
+                        return f"Not {window} that you've told me. The last time was {told}."
+                except ValueError:
+                    pass
+            yours = speech.as_she_says_it(said)
+            return f"Yes - you told me {yours[:1].lower() + yours[1:]}" + (f", {told}." if told else ".")
+    return None
 
 
 def _said_today(rx: str) -> list:
@@ -15351,6 +15798,707 @@ def _next_every(thing: str) -> str | None:
         if last:
             return f"{told}, and {speech.as_she_says_it(last)[:1].lower() + speech.as_she_says_it(last)[1:]}."
         return f"{told}, but not when the last one was."
+    return None
+
+
+def _kid_did(who: str) -> str | None:
+    """How one of his kids did - "my daughter got an A on her test"."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"{re.escape(who)} (?:got|scored|made|earned)\b", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _kid_wants(who: str) -> str | None:
+    """What somebody of his wants for a birthday or Christmas, from his note."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"{re.escape(who)} (?:wants|would like|is asking for|asked for)\b", said.casefold()):
+            found.append(speech.as_she_says_it(said))
+        if len(found) >= 3:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
+def _sitter(_when: str = "") -> str | None:
+    """Who is babysitting, from his notes."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\b(?:babysitter|sitter|nanny)\b.*\b(?:is coming|comes|will be here|is here)\b|\bis (?:babysitting|watching the kids)\b", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _we_said(said: str) -> str:
+    from aletheia import speech
+    plain = speech.as_she_says_it(said)
+    return re.sub(r"^we\b", "you", plain, flags=re.I)
+
+
+def _we_when(text: str) -> str | None:
+    """When he said they close or move, and how many days off that is."""
+    import datetime as dt
+    from aletheia import localtime
+    low = _tidy(text)
+    g = _groups("we_when", text)
+    verb = re.sub(r"ing$", "", (g.get("we_when") or "").split()[0])
+    verb = {"clos": "close", "mov": "move"}.get(verb, verb)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(rf"(?:we|i) (?:are |'re )?{verb}", said.casefold()):
+            continue
+        told = f"You told me {_we_said(said)}."
+        if not re.match(r"how (?:many days|long)", low):
+            return told
+        m = re.search(rf"\b({'|'.join(_MONTHS)}) (\d{{1,2}})", said.casefold())
+        if not m:
+            return f"{told[:-1]}, but not the day."
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        day = _safe_date(today.year, _MONTHS.index(m.group(1)) + 1, int(m.group(2)))
+        if day and day < today:
+            day = _safe_date(today.year + 1, _MONTHS.index(m.group(1)) + 1, int(m.group(2)))
+        if not day:
+            return told
+        n = (day - today).days
+        return f"{'Today' if n == 0 else 'Tomorrow' if n == 1 else f'{n} days'} - {told[:1].lower() + told[1:]}"
+    return None
+
+
+def _we_amt(what: str) -> str | None:
+    """What he said they offered, bid or sold for."""
+    stem = str(what or "").split()[0]
+    stem = {"put": "put in"}.get(stem, stem)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:we|i) ", low) and re.search(rf"\b{re.escape(stem[:4])}", low) and re.search(r"\d", low):
+            return f"You told me {_we_said(said)}."
+    return None
+
+
+def _we_use(thing: str) -> str | None:
+    """The brand or kind of a thing he said he buys or uses."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("the", "a", "an")]
+    if not words or words[0] in ("it", "that", "this", "you", "i"):
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words) and (
+                re.match(r"i (?:usually|always|normally|only) (?:buy|get|use|drink|eat|order)\b", low)
+                or re.search(r"\b(?:we|i) (?:use|buy|get|feed (?:him|her|them))\b.* (?:is|are) ", low)):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _have_left(thing: str) -> str | None:
+    """How many of a thing he said he has left."""
+    from aletheia import speech
+    words = [w for w in re.findall(r"[a-z]+", str(thing or "").casefold()) if w not in ("of", "the")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:i|we) (?:have|have got|'ve got|only have|still have) (?:\d+|one|two|three|four|five|six|a few|a couple)\b", low) \
+                and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _meal_prep(_what: str = "") -> str | None:
+    """What he said he meal prepped."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"i (?:just )?(?:meal ?prepped|prepped|batch cooked|made) .*\b(?:for the week|this week|for lunches|for the next)", said, re.I) \
+                or re.match(r"i (?:just )?meal ?prepped\b", said, re.I):
+            plain = speech.as_she_says_it(said)
+            return f"You told me {plain[:1].lower() + plain[1:]}."
+    return None
+
+
+def _whose_event(event: str) -> str | None:
+    """Whose wedding (or party) it is, from "it's my cousin's wedding"."""
+    from aletheia import speech
+    event = " ".join(str(event or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(rf"the {re.escape(event)} is (?P<whose>.+?(?:'s|s'))", said, re.I)
+        if m:
+            whose = re.sub(r"(?i)^my\b", "your", re.sub(r"(?i)^our\b", "your", m.group("whose")))
+            return f"It's {speech.as_she_says_it(whose)} {event}."
+    return None
+
+
+def _did_rsvp(what: str = "") -> str | None:
+    """What he said he RSVPd. None when he never said: he may have."""
+    from aletheia import speech
+    what = re.sub(r"^(?:the|my|our) ", "", " ".join(str(what or "").casefold().split()))
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:i|we) (?:rsvpd|rsvp'd|rsvped|rsvp-ed|rsvp ?'d)\b", low) \
+                and (not what or what in low or not re.search(r"\b(?:to|for) ", low)):
+            plain = re.sub(r"(?i)^i rsvp(?:-ed|'d|ed|d| 'd)", "you RSVPd", re.sub(r"(?i)^we rsvp(?:-ed|'d|ed|d| 'd)", "you RSVPd", said))
+            return f"You told me {speech.as_she_says_it(plain)}."
+    return None
+
+
+def _plus_one(_text: str = "") -> str | None:
+    """Who he said his plus one is."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"my plus(?: |-)?one is (?P<who>.+)", said, re.I)
+        if m:
+            return f"You told me {m.group('who')} is your plus one."
+    return None
+
+
+def _for_event(event: str) -> str | None:
+    """His open tasks and shopping list lines that name the occasion."""
+    from aletheia import intercom, speech
+    event = " ".join(str(event or "").casefold().split())
+    stem = event[:-1] if event.endswith("s") and len(event) > 5 else event
+    named = lambda t: re.search(rf"\b{re.escape(stem)}", t, re.I)  # noqa: E731
+    rows = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()
+            if named(str(t.get("description") or ""))]
+    try:
+        buy = [str(w.get("need") or "").strip() for w in intercom._shopping_items() if named(str(w.get("need") or ""))]
+    except Exception:  # noqa: BLE001
+        buy = []
+    said = [re.sub(r"\bmy\b", "your", r) for r in rows[:5]] + [f"buy {b}" for b in buy[:3]]
+    if not said:
+        return None
+    return f"On your list: {speech.and_list(said)}."
+
+
+def _game_score(text: str) -> str | None:
+    """His bowling or golf scores as he told them: the newest, or his best
+    (the highest in bowling, the lowest in golf). None when he never said."""
+    g = _groups("game_score", text)
+    game = g.get("game_score") or g.get("gs_k") or {"bowl": "bowling", "shoot": "golf"}.get(g.get("gs_v") or "", "")
+    if not game:
+        return None
+    from aletheia import speech
+    said_rx = (r"^i (?:bowled|rolled) (?:a |an )?(?P<n>\d{2,3})\b" if game == "bowling"
+               else r"^i shot (?:a |an )?(?P<n>\d{2,3})\b(?!.*\b(?:video|photo|picture|film)\b)")
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(said_rx, said, re.I)
+        if m and (game == "bowling" or 50 <= int(m.group("n")) <= 150):
+            rows.append((int(m.group("n")), said))
+    if not rows:
+        return None
+    q = (g.get("gs_q") or ("average" if g.get("gs_avg") else "")).casefold()
+    if q in ("best", "highest", "top", "lowest", "worst"):
+        # Higher is better in bowling and lower is better in golf.
+        high = q in ("highest",) or (q in ("best", "top") and game == "bowling") or (q == "worst" and game == "golf")
+        n, _said = (max if high else min)(rows)
+        noun = "best" if q == "top" else q
+        unit = "game" if game == "bowling" else "round"
+        return f"Your {noun} {game} score is {n}" + (f", of the {len(rows)} {unit}s you've told me about." if len(rows) > 1 else ", the only one you've told me.")
+    if q == "average":
+        avg = sum(n for n, _ in rows) / len(rows)
+        return f"Your {game} average is {round(avg)}, over the {speech.count_phrase(len(rows), 'game' if game == 'bowling' else 'round')} you've told me about."
+    verb = re.sub(r"^i\b", "you", _no_when(rows[0][1]), flags=re.I)
+    return f"You told me {verb}."
+
+
+_FISH_LB = re.compile(r"^i caught (?:a |an )?(?P<n>\d+(?:\.\d+)?) ?(?:pound|lb)s? (?P<fish>[a-z ]+?)(?: (?:at|on|in) .+| today| tonight| yesterday| last night| this morning| this weekend)?$", re.I)
+
+
+def _big_fish(text: str) -> str | None:
+    """The heaviest fish he said he caught, by the pounds he gave."""
+    from aletheia import speech
+    kind = (_groups("big_fish", text).get("big_fish") or "fish").casefold()
+    if kind in ("catch",):
+        kind = "fish"
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = _FISH_LB.match(said)
+        if m and (kind == "fish" or kind.rstrip("s") in m.group("fish").casefold()):
+            rows.append((float(m.group("n")), said))
+    if not rows:
+        return None
+    _n, said = max(rows)
+    return f"The biggest you've told me about: {speech.as_she_says_it(re.sub(r'(?i)^i caught ', '', _no_when(said)))}."
+
+
+def _no_when(said: str) -> str:
+    """A note read back on another day: its "today" or "tonight" was true
+    the day he said it, not now."""
+    return re.sub(r"(?i) (?:today|tonight|yesterday|last night|this morning|this afternoon|this weekend)$", "", said)
+
+
+def _secs(said: str) -> float | None:
+    m = re.search(r"\bin (\d{1,2}):(\d\d)(?::(\d\d))?\b", said)
+    if m:
+        a, b, c = int(m.group(1)), int(m.group(2)), m.group(3)
+        return a * 3600 + b * 60 + int(c) if c else a * 60 + b
+    m = re.search(r"\bin (\d+(?:\.\d+)?) ?(minutes|mins|min|hours|hrs)\b", said)
+    if m:
+        return float(m.group(1)) * (3600 if m.group(2).startswith("h") else 60)
+    return None
+
+
+def _race_time(text: str) -> str | None:
+    """His time for a race distance as he told it: the newest, or his best."""
+    g = _groups("race_time", text)
+    race = (g.get("race_time") or re.search(r"(5k|10k|15k|half marathon|marathon|mile)\b", _tidy(text)).group(1)).casefold()
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.match(r"i (?:ran|walked|swam|biked|rode|did|finished|completed) (?:a |the |my )?" + re.escape(race) + r"\b", low):
+            continue
+        if race == "marathon" and "half" in low:
+            continue
+        at = _secs(low)
+        if at is not None:
+            rows.append((at, said))
+    if not rows:
+        return None
+    q = (g.get("rt_q") or "").strip()
+    if q in ("best", "fastest") and len(rows) > 1:
+        _t, said = min(rows)
+        return f"Your fastest {race} you've told me: {re.sub(r'(?i)^i ', 'you ', _no_when(said))}."
+    if q == "slowest" and len(rows) > 1:
+        _t, said = max(rows)
+        return f"Your slowest {race} you've told me: {re.sub(r'(?i)^i ', 'you ', _no_when(said))}."
+    return f"You told me {re.sub(r'(?i)^i ', 'you ', _no_when(rows[0][1]))}."
+
+
+def _fantasy(_what: str = "") -> str | None:
+    """What he said about his fantasy team."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(r"my fantasy (?:[a-z]+ )?(?:team|league)\b", said, re.I):
+            yours = re.sub(r"(?i)^my\b", "your", said)
+            return f"You told me {speech.as_she_says_it(yours)}. I can't see the league itself."
+    return None
+
+
+def _borrowed_from(who: str) -> str | None:
+    """What he has borrowed from one person and not given back."""
+    from aletheia import speech
+    who = re.sub(r"^(?:my|our) ", "", " ".join(str(who or "").casefold().split()))
+    if not who or who in ("them", "him", "her", "you", "it"):
+        return None
+    out: dict[str, str] = {}
+    for row in reversed(_notes()):
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        m = re.fullmatch(r"i borrowed (?:a |an |the |some |his |her |their )?(?P<thing>[a-z][a-z' ]{1,30}?) from (?:my |our )?(?P<who>[a-z][a-z' ]{1,30})", low)
+        if m:
+            out[m.group("thing")] = m.group("who")
+            continue
+        back = re.fullmatch(r"i (?:gave|brought|took|returned) (?:back )?(?:the |his |her |their |[a-z]+'s )?(?P<thing>[a-z][a-z' ]{1,30}?)"
+                            r"(?: back)?(?: to [a-z][a-z' ]{1,30})?", low)
+        if back:
+            out.pop(back.group("thing"), None)
+    things = [f"the {thing}" for thing, whom in out.items() if whom == who]
+    if not things:
+        return f"Nothing from {who.title()} that you've told me about."
+    return f"You have {speech.and_list(things)} from {who.title()}, from what you've told me."
+
+
+def _paid_who(who: str) -> str | None:
+    """What he said he paid a person who does a job for him."""
+    from aletheia import speech
+    key = re.sub(r"^(?:the|my|our) ", "", " ".join(str(who or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:i|we) (?:paid|tipped|gave) (?:the |my |our )?{re.escape(key)} \$?\d[\d,.]*(?: dollars| bucks)?(?: [a-z ]{{1,25}})?", said, re.I):
+            return f"You told me {speech.as_she_says_it(_no_when(re.sub(r'(?i)^i ', 'you ', re.sub(r'(?i)^we ', 'you ', said))))}."
+    return None
+
+
+def _outage(text: str) -> str | None:
+    """When he said the power (or the internet) went out, and whether he
+    said it came back. None when he never said either."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("outage", text)
+    what = (g.get("outage") or g.get("outage2") or "").casefold()
+    same = {"electricity": "power", "wi-fi": "wifi", "heating": "heat", "a/c": "ac"}
+    what = same.get(what, what)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        m = re.match(r"(?:the |our |my )(?P<w>[a-z/ -]+?) (?P<how>went out|is out|went down|is down|is off|got cut off|got shut off|was cut off|was shut off"
+                     r"|is back|came back|is working again|is on again|is fixed)", low)
+        if not m or same.get(m.group("w"), m.group("w")) != what:
+            continue
+        back = m.group("how") in ("is back", "came back", "is working again", "is on again", "is fixed")
+        when = ""
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+            when = " " + speech.humanize_time(at.astimezone(localtime.operator_tz()).isoformat())
+        except Exception:  # noqa: BLE001
+            when = ""
+        noun = "the " + what if what not in ("ac",) else "the AC"
+        if re.match(r"is ", _tidy(text)):
+            if back:
+                return f"Yes - you told me {noun} came back{when}."
+            return f"Not that you've told me. You said {noun} went out{when}."
+        if re.search(r"come back|get fixed", _tidy(text)):
+            return f"You told me {noun} came back{when}." if back else f"You haven't told me it came back. You said it went out{when}."
+        if back:
+            continue
+        return f"You told me {noun} went out{when}."
+    return None
+
+
+def _in_hospital(who: str) -> str | None:
+    """Whether he said somebody of his went into the hospital or came out,
+    the newest of the two. None when he said neither."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    key = re.sub(r"^(?:my|our) ", "", who)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.match(rf"(?:my |our ){re.escape(key)}\b", low) or "hospital" not in low:
+            continue
+        mine = speech.as_she_says_it(re.sub(r"(?i)^(?:my|our)\b", "your", said))
+        if re.search(r"\b(?:got out of|came home from|is out of|was discharged|is home from|left|is back home from)\b", low):
+            return f"No - you told me {mine}."
+        return f"As far as you've told me, yes: {mine}."
+    return None
+
+
+def _baby_name(text: str) -> str | None:
+    """The baby's name he told her."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"(?P<whose>the|my [a-z]+(?: in law)?'s) baby is named (?P<name>.+)", said, re.I)
+        if m:
+            whose = re.sub(r"(?i)^my\b", "your", m.group("whose"))
+            return f"{m.group('name')} - you told me {whose} baby is named {m.group('name')}."
+    return None
+
+
+def _saving_for(_what: str = "") -> str | None:
+    """What he said he is saving up for."""
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"(?:i(?:'m| am)|we(?:'re| are)) saving (?:up )?(?:money )?for (?P<what>.+)", said, re.I)
+        if m and m.group("what").casefold() not in [f.casefold() for f in found]:
+            found.append(re.sub(r"(?i)^(?:my|our)\b", "your", m.group("what")))
+    if not found:
+        return None
+    return f"You told me you're saving for {speech.and_list(found[:4])}."
+
+
+def _usual_spot(thing: str) -> str | None:
+    """Where he said he usually leaves a thing."""
+    thing = " ".join(str(thing or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(rf"i (?:usually|always|normally) (?:leave|keep|put|hang) my (?:[a-z]+ ){{0,2}}{re.escape(thing)} (?P<where>(?:on|in|by|at|under|next to|behind) .+)", said, re.I)
+        if m:
+            return f"You told me you usually leave them {m.group('where')}." if thing.endswith("s") else \
+                f"You told me you usually leave it {m.group('where')}."
+    return None
+
+
+def _still_good(food: str) -> str | None:
+    """Whether leftovers he put away are still good: the days since he said
+    he put them in, against the common 3 to 4 days for cooked food."""
+    import datetime as dt
+    from aletheia import localtime
+    food = " ".join(str(food or "").casefold().split())
+    from aletheia import speech
+    rule = "Cooked leftovers are generally good for 3 to 4 days in the fridge"
+    cooked = re.search(r"leftover|left over|cooked|soup|chili|pasta|rice|pizza|casserole|stew|lasagna", food)
+    stem = food.split()[-1].rstrip("s") if food else "leftover"
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.search(rf"\b{re.escape(stem)}", low) or not re.search(r"\b(?:fridge|refrigerator|freezer)\b", low):
+            continue
+        if "freezer" in low or "froze" in low:
+            return "You told me they're in the freezer - frozen, they keep for months, though they're best within 3 or 4."
+        now = dt.datetime.now(localtime.operator_tz())
+        put = None
+        day = re.search(r"\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+        try:
+            told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(now.tzinfo)
+        except ValueError:
+            told = None
+        if day and told:
+            back = (told.weekday() - _WEEKDAYS.index(day.group(1))) % 7
+            put = told.date() - dt.timedelta(days=back)
+        elif told and not re.search(r"\b(?:yesterday|last)\b", low):
+            put = told.date()
+        if put is None:
+            told_words = speech.as_she_says_it(said)
+            return f"{rule}. You told me {told_words[:1].lower() + told_words[1:]}, but I don't know which day."
+        days = (now.date() - put).days
+        ago = "today" if days == 0 else "yesterday" if days == 1 else f"{days} days ago"
+        verdict = ("so they should be fine" if days <= 3 else "so today is about the last day" if days == 4
+                   else "so I'd throw them out")
+        return f"They went in {ago}, {verdict}. {rule}."
+    if not cooked:
+        return None
+    return f"{rule}. Tell me when they went in and I'll keep track."
+
+
+def _recipe_has(what: str) -> str | None:
+    """What he said a recipe uses."""
+    from aletheia import speech
+    what = re.sub(r"^(?:the|my|our) ", "", " ".join(str(what or "").casefold().split()))
+    what = re.sub(r"(?<=[a-z])s (?=[a-z])", "'s ", what, count=1) if not re.search(r"'s ", what) else what
+    words = [w for w in re.findall(r"[a-z]+", what) if w not in ("s", "recipe")]
+    if not words:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if " recipe " in low and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _cook_for(food: str) -> str | None:
+    """How long he said a dish needs."""
+    from aletheia import speech
+    food = " ".join(str(food or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"the {re.escape(food)} (?:needs|has|is supposed) to [a-z]+ .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _leave_flight(text: str) -> str | None:
+    """When to set off for a flight he told her about: the usual two hours
+    at the airport ahead of a domestic flight, said as the rule it is."""
+    t = _tidy(text)
+    if "flight" not in t and "airport" not in t:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.search(r"\bflight\b|\bfly(?:ing)?\b", low):
+            continue
+        m = re.search(r"\bat (\d{1,2})(?::(\d\d))? ?([ap])\.?m\.?\b", low) or re.search(r"\bat (\d{1,2})(?::(\d\d))?\b()", low)
+        if not m:
+            continue
+        hour, minute = int(m.group(1)), int(m.group(2) or 0)
+        if m.group(3) == "p" and hour < 12:
+            hour += 12
+        elif m.group(3) == "a" and hour == 12:
+            hour = 0
+        elif not m.group(3) and hour < 7:
+            hour += 12
+        at = hour * 60 + minute - 120
+        if at < 0:
+            at += 24 * 60
+        h, mm = divmod(at, 60)
+        clock = f"{(h % 12) or 12}{':%02d' % mm if mm else ''} {'am' if h < 12 else 'pm'}"
+        day = re.search(r"\b(?:on )?((?:mon|tues|wednes|thurs|fri|satur|sun)day|today|tomorrow|tonight)\b", low)
+        when = f" {day.group(1).capitalize() if day and day.group(1).endswith('day') and day.group(1) not in ('today',) else (day.group(1) if day else '')}".rstrip()
+        flight = re.sub(r"(?i)^i\b", "you", said)
+        return (f"You told me {flight}. For a flight inside the country, aim to be at the airport about two hours ahead - "
+                f"around {clock}{when} - and leave in time to get there by then. For an international flight, make it three hours.")
+    return None
+
+
+def _they_said_are(text: str) -> str | None:
+    """"Is Sarah running late": what he said Sarah said. None when he
+    never said: her messages may know, and a model can read them."""
+    from aletheia import speech
+    m = re.match(r"is (?P<who>my [a-z]+|[a-z][a-z'-]{1,20}) (?:still )?(?P<what>.+?)\s*\??$", _tidy(text))
+    if not m or m.group("who") in ("it", "that", "this", "there", "he", "she", "they", "the"):
+        return None
+    who, what = m.group("who"), m.group("what").replace(" yet", "")
+    key = what.split()[0] if what.split() else ""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if low.startswith(who + " said ") and re.search(rf"\b{re.escape(key)}", low):
+            yours = re.sub(r"(?i)^my\b", "your", said)
+            return f"You told me {speech.as_she_says_it(yours)}."
+    return None
+
+
+def _card_limit(which: str) -> str | None:
+    """His card's limit or balance, as he told it."""
+    from aletheia import speech
+    which = str(which or "limit").casefold()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"my (?:credit card |card )?(?:credit )?{which} is .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _days_from(said: str, ts) -> str:
+    """" - so around October 15" for a note that says "in 7 days", counted
+    from the day he said it; "" when it says no such thing."""
+    import datetime as dt
+    from aletheia import localtime
+    m = re.search(r"\bin (\d{1,2})(?: (?:to|or) (\d{1,2}))? (business )?days\b", str(said or "").casefold())
+    if not m:
+        return ""
+    try:
+        told = dt.datetime.fromisoformat(str(ts or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz()).date()
+    except ValueError:
+        return ""
+
+    def after(n: int) -> dt.date:
+        day = told
+        if not m.group(3):
+            return told + dt.timedelta(days=n)
+        while n:
+            day += dt.timedelta(days=1)
+            if day.weekday() < 5:
+                n -= 1
+        return day
+    first = after(int(m.group(1)))
+    say = lambda d: f"{d.strftime('%B')} {d.day}"  # noqa: E731
+    if m.group(2):
+        return f" - so between {say(first)} and {say(after(int(m.group(2))))}"
+    return f" - so around {say(first)}"
+
+
+def _who_with(what: str) -> str | None:
+    """Which company his insurance (or bank, or plan) is with."""
+    from aletheia import speech
+    key = " ".join(str(what or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:my|our) {re.escape(key)} (?:is|are) (?:with|through|at) .+", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _car_ready(_text: str = "") -> str | None:
+    """What the shop said about his car, with the day he told her."""
+    return _told_when(r"^the (?:body shop|mechanic|shop|dealer|dealership|garage|repair shop|tire shop) said ")
+
+
+def _cost_of_it(what: str) -> str | None:
+    """What he said a ticket, a fine or a repair cost."""
+    from aletheia import speech
+    key = re.sub(r"^(?:parking|speeding|traffic) ", "", " ".join(str(what or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.search(rf"\b{re.escape(key)}\b", low) and re.search(r"\$?\d[\d,.]*(?: dollars| bucks)?", low) \
+                and re.search(r"\b(?:was|is|cost|costs|came to|were)\b", low):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _my_classes(_text: str = "") -> str | None:
+    """The classes his notes name, less the ones he said he dropped."""
+    from aletheia import speech
+    found, dropped = [], set()
+    for row in _notes():
+        low = " ".join(str(row.get("text") or "").split()).casefold().rstrip(".")
+        gone = re.fullmatch(r"i (?:just )?(?:dropped|withdrew from) (?:my |the )?([a-z][a-z ]{1,25}?) (?:class|course)", low)
+        if gone:
+            dropped.add(gone.group(1))
+            continue
+        for m in re.finditer(r"\bmy ([a-z]{3,15}) (?:class|course|lecture)\b|\b(?:taking|enrolled in|signed up for|registered for|added) (?:a |the )?([a-z]{3,15}) (?:class|course)\b", low):
+            name = m.group(1) or m.group(2)
+            if name not in dropped and name not in found and name not in ("next", "first", "last", "online", "new", "morning", "night"):
+                found.append(name)
+    if not found:
+        return None
+    said = [speech.as_she_says_it(n) for n in found[:6]]
+    return f"From what you've told me: {speech.and_list(said)}." + (
+        f" You dropped {speech.and_list(sorted(dropped))}." if dropped else "")
+
+
+def _its_weekday(thing: str) -> str | None:
+    """The weekday he said a thing falls on ("my leg day is Monday")."""
+    from aletheia import speech
+    key = re.sub(r"^(?:my|our|the) ", "", " ".join(str(thing or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:my |our |the )?{re.escape(key)}(?: day)? (?:is|are|falls on|is on|is every) (?:on )?(?:every )?"
+                        r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?: (?:and|or) [a-z]+day)?(?: .{0,20})?", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _ordered_what(shop: str = "") -> str | None:
+    """What he told her he ordered lately, newest first - from one shop
+    when he named it."""
+    from aletheia import speech
+    shop = " ".join(str(shop or "").casefold().split())
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(r"i (?:just )?(?:ordered|bought|purchased) (?P<what>.+)$", said, re.I)
+        if not m or (shop and not re.search(rf"\b{re.escape(shop)}\b", said.casefold())):
+            continue
+        found.append(m.group("what"))
+        if len(found) == 3:
+            break
+    if not found:
+        return None
+    return f"From what you've told me: {speech.and_list(found)}."
+
+
+def _got_here(thing: str) -> str | None:
+    """Did a thing he was waiting on come: his own note saying so, or what
+    he said about it coming. None when no note names it."""
+    from aletheia import speech
+    thing = re.sub(r"^(?:new|amazon) ", "", " ".join(str(thing or "").casefold().split()))
+    if not thing or thing in ("it", "that", "they", "he", "she", "sister", "brother", "mom", "dad", "wife", "husband"):
+        return None
+    words = [w for w in re.findall(r"[a-z0-9']+", thing) if w not in ("new", "the", "my", "a", "an")]
+    generic = thing in ("package", "parcel", "delivery", "order", "stuff", "packages", "order from amazon")
+    coming = None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not (generic and re.search(r"\b(?:package|parcel|delivery|order|ordered|arrived|delivered)\b", low)
+                or all(re.search(rf"\b{re.escape(w)}s?\b", low) for w in words)):
+            continue
+        told = speech.humanize_time(str(row.get("ts") or "")) if row.get("ts") else ""
+        if re.search(r"\b(?:arrived|came|showed up|got here|was delivered|were delivered|got delivered)\b", low):
+            return f"Yes - you told me {speech.as_she_says_it(said)[:1].lower() + speech.as_she_says_it(said)[1:]}" + \
+                (f", {told}." if told else ".")
+        if coming is None and re.search(r"\b(?:arriving|coming|ordered|bought|due|should|will|late|delayed|shipped|shipping)\b", low):
+            coming = said + _days_from(said, row.get("ts"))
+    if coming:
+        return f"Not that you've told me. The last you said: {speech.as_she_says_it(coming)}."
+    return None
+
+
+def _get_my(thing: str) -> str | None:
+    """"When will I get my refund": what he told her about it."""
+    from aletheia import speech
+    key = re.sub(r"^(?:tax |my )", "", " ".join(str(thing or "").casefold().split()))
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(rf"\b{re.escape(key)}\b", said.casefold()) and \
+                re.search(r"\b(?:in|by|on|within|next|this|should|will|due|days?|weeks?|monday|tuesday|wednesday|thursday|friday)\b", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}{_days_from(said, row.get('ts'))}."
     return None
 
 
@@ -15579,7 +16727,7 @@ def _their_likes(text: str) -> str | None:
     if not who:
         return None
     hate = g.get("tl_verb") in ("hate", "not like")
-    verbs = (r"(?:hates|doesn'?t like|does not like|can'?t stand)" if hate
+    verbs = (r"(?:hates?|doesn'?t like|does not like|don'?t like|do not like|can'?t stand|won'?t eat|refuses? to eat|dislikes?)" if hate
              else r"(?:really |also )?(?:likes|loves|adores|prefers|enjoys|is into|is obsessed with|is a fan of|collects)")
     # "What does my wife like" with "Sarah likes candles" kept, and the
     # other way round (2026-10-08: to a model): the name he gave counts.
@@ -15874,6 +17022,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "days_between": lambda rest: _days_between(rest),
            "time_diff": lambda rest: _time_diff(rest),
            "crisis": lambda rest: CRISIS,
+           "distress": lambda rest: _distress(rest),
            "feeling": lambda rest: _feeling(rest),
            "about_her": lambda rest: _about_her(rest),
            "arith": lambda rest: _arith(rest),
@@ -15991,7 +17140,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_do_i": lambda rest: _when_mine(rest) or _task_due(rest),
            "meds": _meds,
            "work_hours": _work_hours,
-           "cost_mine": _cost_mine,
+           # "How much was the parking ticket" (2026-10-08) is a ticket, a
+           # fine or a repair he gave the figure of, not a bill.
+           "cost_mine": lambda t: _cost_mine(t) or _cost_of_it(_groups("cost_of_it", t).get("cost_of_it") or ""),
            "liked_how": _liked_how,
            "woke": lambda rest: _woke(rest),
            "woke_usual": lambda text: _woke_usual(text),
@@ -16164,6 +17315,51 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "met_when": _met_when,
+           "got_paid": _got_paid,
+           "nap_len": _nap_len,
+           "family_news": _family_news,
+           "yard_todo": _yard_todo,
+           "mow_last": lambda t: _did_last("when did i last mow the lawn"),
+           "make_with": lambda t: (lambda items: (f"How about {_dish_from(items)}? Just an idea." if items and _dish_from(items) else None))(_food_said(t)),
+           "ordered_what": _ordered_what,
+           "got_here": _got_here,
+           "get_my": _get_my,
+           "car_miles": _car_miles,
+           "my_classes": _my_classes,
+           "who_with": _who_with,
+           "car_ready": _car_ready,
+           "cost_of_it": _cost_of_it,
+           "card_limit": _card_limit,
+           # "Is my package here yet" is a delivery, not a person running late.
+           "they_said_are": lambda t: _they_said_are(t) or _got_here((re.match(r"is (?:my|the|our) ([a-z][a-z' ]{1,25}?) here yet", _tidy(t)) or [None, ""])[1]),
+           "leave_flight": _leave_flight,
+           "still_good": _still_good,
+           "recipe_has": _recipe_has,
+           "cook_for": _cook_for,
+           "saving_for": _saving_for,
+           "usual_spot": _usual_spot,
+           "in_hospital": _in_hospital,
+           "baby_name": _baby_name,
+           "borrowed_from": _borrowed_from,
+           "paid_who": _paid_who,
+           "outage": _outage,
+           "game_score": _game_score,
+           "big_fish": _big_fish,
+           "race_time": _race_time,
+           "fantasy": _fantasy,
+           "whose_event": _whose_event,
+           "did_rsvp": _did_rsvp,
+           "plus_one": _plus_one,
+           "for_event": _for_event,
+           "we_use": _we_use,
+           "have_left": _have_left,
+           "meal_prep": _meal_prep,
+           "we_when": _we_when,
+           "we_amt": _we_amt,
+           "kid_did": _kid_did,
+           "kid_wants": _kid_wants,
+           "sitter": _sitter,
            "next_every": _next_every,
            "last_visit": _last_visit,
            "where_now": _where_now,
@@ -16413,7 +17609,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit"})
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
 
 def answer(question: str) -> str | None:
