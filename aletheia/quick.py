@@ -530,7 +530,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: to a model).
     ("left_on", re.compile(
         r"^how (?:many (?P<left_unit>days|weeks|months)|long|much (?:time|longer)) (?:is |do i have )?(?:left on|left before|left until"
-        r"|until the end of|before the end of) (?:my |our )(?P<left_on>[a-z][a-z' ]{1,30}?)\s*\??$")),
+        r"|until the end of|before the end of) (?:my |our )(?!(?:\w+ )?(?:timer|alarm)s?\b)(?P<left_on>[a-z][a-z' ]{1,30}?)\s*\??$")),
     # "How long was I at the gym" after "I'm going to the gym" ... "I'm back"
     # (2026-10-08: to a model). His own words, with their times, say it.
     ("how_long_out", re.compile(
