@@ -7961,5 +7961,22 @@ class AHaircutGotIsDone(unittest.TestCase):
 
 
 
+class AReminderForWhenHeGetsToWork(unittest.TestCase):
+    def test_it_is_kept_in_one_shape_either_way_round(self):
+        for said in ("remind me to email Bob when I get to work", "remind me when I get to work to email Bob"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": "remind me to email Bob when I get to work"}, said)
+            self.assertIn("I'm at work", got["say"])
+
+    def test_at_work_says_what_is_waiting_since_he_last_arrived(self):
+        notes = [{"text": "remind me to email Bob when I get to work"}, {"text": "started work"},
+                 {"text": "remind me to call Sam when I get to work"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            said = voice._interpret("I'm at work")["say"]
+        self.assertIn("email Bob", said)
+        self.assertNotIn("call Sam", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

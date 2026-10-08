@@ -1347,6 +1347,27 @@ def _task_just_closed(asked: str) -> dict | None:
     return made
 
 
+def _work_reminders_said() -> str | None:
+    """What he asked to be told when he got to work, since he last got
+    there; None when nothing, so the plain receipt is said."""
+    try:
+        from aletheia import quick
+        rows = list(reversed(quick._notes()))
+    except Exception:
+        return None
+    out = []
+    for row in rows:
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.fullmatch(r"remind me (to|that) (.+?) when i get to work", said, re.I)
+        if said.casefold() == "started work":
+            out = []
+        elif m:
+            out.append(speech._yours(m.group(2)) if m.group(1).casefold() == "to" else "that " + speech._yours(m.group(2)))
+    if not out:
+        return None
+    return f"Noted. You asked me to remind you when you got to work: {speech.and_list(out)}."
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -5009,6 +5030,16 @@ def _interpret(transcript: str) -> dict:
                  r"|leave(?: work| home| the house| the office)?|out|$)$", low) \
         or re.match(r"remind me (?:to|that) (.+?) when i leave(?: work| home| the house| the office)?$", low) \
         or re.match(r"remind me (?:to|that) (.+?) on (?:my|the) way (?:home|to work|back|out|in|to the [a-z]+)$", low)
+    # "Remind me to email Bob when I get to work" (2026-10-08: "I can't tell
+    # where you are", beside the home one that works): "I'm at work" says it.
+    work = re.fullmatch(r"remind me (to|that) (.+?) when i(?:'m| am| get| arrive)? (?:get |am )?(?:to|at) (?:work|the office)", low) \
+        or re.fullmatch(r"remind me (?:when|once|as soon as) i (?:get|arrive) (?:to|at) (?:work|the office),? (to|that) (.+)", low)
+    if work:
+        how, what = (work.group(1), work.group(2))
+        said = _as_he_said(text, what.strip())
+        return {"command": {"kind": "note", "text": f"remind me {how} {said} when I get to work"},
+                "say": f"I can't see where you are, so tell me \"I'm at work\" when you get there and I'll remind you "
+                       f"{how} {speech._yours(said)}."}
     home = re.fullmatch(r"remind me (to|that) (.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?(?:back )?(?:home|back)", low)
     if home:
         # "Remind me to call mom when I get home" (2026-10-08): she can't
@@ -5305,8 +5336,8 @@ def _interpret(transcript: str) -> dict:
     # "work for the day"). A note at the moment he says it; "how long did I
     # work today" subtracts the two.
     if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:starting work|starting my (?:work ?day|shift)|clocking in|logging on(?: for work)?"
-                    r"|at work(?: now)?|on the clock)(?: now)?|(?:i )?(?:just )?(?:clocked in|started work|got to work)(?: now)?", low):
-        return {"command": {"kind": "note", "text": "started work"}, "say": None}
+                    r"|at work(?: now)?|on the clock)(?: now)?|(?:i )?(?:just )?(?:clocked in|started work|got to work|made it to work)(?: now)?", low):
+        return {"command": {"kind": "note", "text": "started work"}, "say": _work_reminders_said()}
     if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:all )?(?:done|finished|through|off) (?:with |for )?(?:work|the day|my shift|my work ?day)"
                     r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
                     r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
