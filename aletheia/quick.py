@@ -1491,6 +1491,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Give me a summary of my day" (2026-10-07: to the planner).
         r"|^(?:give me |can i get |what(?:'s| is) )?(?:a |the )?(?:summary|rundown|run-down|overview) of (?:my day|today)\s*\??$"
         r"|^(?:summari[sz]e|sum up) my day\s*\??$"
+        # "Tell me about my day" (2026-10-08: to the planner).
+        r"|^tell me (?:something |a bit |a little )?about (?:my day|today)(?: today)?\s*\??$"
         r"|^what(?:'s| is|s)? (?:on )?(?:for |the plan for )?today\s*\??$|^what (?:am i|are we) doing today\s*\??$"
         r"|^what(?:'s| is|s)? (?:my|the) day (?:look like|looking like)(?: today)?\s*\??$"
         # "Anything I should know about today" (2026-10-08: to the planner).

@@ -8703,5 +8703,20 @@ class ATickedTaskAnswersDidI(unittest.TestCase):
 
 
 
+class WhatIsLeftToDoToday(unittest.TestCase):
+    """2026-10-08: "what do I still need to do today" and "tell me about my
+    day" each went to a model."""
+
+    def test_the_tasks_phrasings(self):
+        from aletheia import voice
+        for said in ("what do i still need to do today", "what's left to do", "what else should i do today"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "tasks"}, said)
+
+    def test_tell_me_about_my_day_is_the_day(self):
+        from aletheia import quick
+        self.assertEqual(quick.match("tell me something about my day")[0], "plan_today")
+
+
+
 if __name__ == "__main__":
     unittest.main()

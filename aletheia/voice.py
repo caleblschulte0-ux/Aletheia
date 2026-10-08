@@ -3839,6 +3839,12 @@ def _interpret(transcript: str) -> dict:
     named = _named_list_said(low, text)
     if named:
         return named
+    # "What do I still need to do today", "what's left to do" (2026-10-08:
+    # to a model). His tasks.
+    if re.fullmatch(r"what (?:else |still )?do i (?:still )?(?:need|have|got) to (?:do|get done)(?: still)? (?:today|tonight|this morning|this afternoon)"
+                    r"|what(?:'s| is|s)? (?:left|still left|remaining|left over) (?:for me )?to (?:do|get done)(?: today| tonight)?"
+                    r"|what else (?:do i (?:need|have) to|should i) do(?: today| tonight)?", low):
+        return {"command": {"kind": "tasks"}, "say": None}
     # "I'm at the store", then "what do I need" (2026-10-08: to a model).
     # Bare, it is whichever list the last turns were about.
     if re.fullmatch(r"what (?:else )?do i (?:still )?need(?: to (?:do|get))?", low):
