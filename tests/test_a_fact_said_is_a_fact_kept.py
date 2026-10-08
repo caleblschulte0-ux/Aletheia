@@ -9456,7 +9456,7 @@ class FamilyComingAndGoing(unittest.TestCase):
         with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: tasks_):
             self.assertIn("Saturday", quick.answer("when is my sister visiting") or "")
             self.assertEqual(quick.answer("how long are my parents staying"),
-                             "You told me: your parents are staying with us for a week.")
+                             "You told me: your parents are staying with you for a week.")
             self.assertEqual(quick.answer("what do I need to do before my sister comes"),
                              "On your list: clean the guest room before your sister comes.")
             self.assertEqual(quick.answer("what does my daughter need"), "On your list: get your daughter new shoes.")
@@ -13104,6 +13104,26 @@ class ARundownOfTheDay(unittest.TestCase):
                            ("what's first on my calendar tomorrow", "when's my first meeting tomorrow"),
                            ("what's the last thing on my calendar today", "when's my last meeting today")):
             self.assertEqual(quick.match(said), quick.match(same), said)
+
+
+class FamilyComingToStay(unittest.TestCase):
+    """2026-10-08: "my in-laws are staying with us for a week", "my sister's
+    flight lands at 3" and "I'm picking up my sister from the airport" went
+    to the planner, and "when do my parents get here" to a model."""
+
+    def test_kept(self):
+        for said in ("my in-laws are staying with us for a week", "my sister's flight lands at 3",
+                     "I'm picking up my sister from the airport"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_read_back(self):
+        rows = [{"text": "my in-laws are staying with us for a week"}, {"text": "my parents arrive on Friday"},
+                {"text": "I'm picking up my sister from the airport"}, {"text": "my sister's flight lands at 3"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how long are my in-laws staying"), "You told me: your in-laws are staying with you for a week.")
+            self.assertEqual(quick.answer("when do my parents get here"), "You told me your parents arrive on Friday.")
+            self.assertEqual(quick.answer("who am I picking up"), "You told me you're picking up your sister from the airport.")
+            self.assertEqual(quick.answer("what time does my sister's flight land"), "You told me your sister's flight lands at 3.")
 
 
 if __name__ == "__main__":

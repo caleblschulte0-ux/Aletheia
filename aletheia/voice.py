@@ -11637,6 +11637,14 @@ def _interpret(transcript: str) -> dict:
         lo, hi = round(n * 1.25), round(n * 1.5)
         return {"command": None, "say": f"About {lo} to {hi} pounds for {n} - figure a pound and a quarter to a pound and a half each, "
                                          "and the top of that if you want leftovers."}
+    # VISITORS (2026-10-08, each to the planner): "my in-laws are staying
+    # with us for a week", "my sister's flight lands at 3", "I'm picking up
+    # my sister from the airport". Notes; the visitor readers read them.
+    _fam = r"(?:my|our) (?:in-laws|in laws|parents|mom|dad|mother|father|sister|brother|aunt|uncle|cousins?|grandparents|grandma|grandpa|niece|nephew|friends?|[a-z]+-in-law)"
+    if re.fullmatch(_fam + r" (?:is|are) (?:staying|sleeping over|crashing) (?:with us|with me|at our place|at our house|here)(?: for (?:a|the|one|two|three|\d{1,2}) (?:night|nights|week|weeks|days?|weekend))?(?: (?:starting|from) [a-z0-9 ]{3,20})?", low) \
+            or re.fullmatch(r"(?:my|our) (?:in-laws'?|parents'|[a-z]+'s|[a-z]+-in-law'?s?) (?:flight|plane|train|bus) (?:lands|gets in|arrives|comes in|is landing|is getting in)(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:picking up|getting|grabbing) " + _fam[:-1] + r") (?:from|at) (?:the )?(?:airport|station|train station|bus station)(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
