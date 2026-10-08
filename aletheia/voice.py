@@ -5233,6 +5233,11 @@ def _interpret(transcript: str) -> dict:
             when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
         elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
             when += dt.timedelta(days=1)
+        elif when <= dt.datetime.now(tz) and re.fullmatch(
+                r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", m.group("day") or ""):
+            # "On Thursday", said on a Thursday afternoon, is next Thursday:
+            # 9 this morning is gone (2026-10-08: set for the past).
+            when += dt.timedelta(days=7)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     # TWO UNITS IN ONE BREATH. "Remind me in 2 hours and 30 minutes to

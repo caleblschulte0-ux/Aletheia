@@ -11878,5 +11878,26 @@ class ThePlacesHeUses(unittest.TestCase):
             self.assertNotIn("CVS", quick.answer("which bank do I use") or "")
 
 
+class BillsAndSubscriptions(unittest.TestCase):
+    def test_a_service_he_mentioned_is_a_subscription_he_has(self):
+        from aletheia import intercom, subscriptions
+        with mock.patch.object(subscriptions, "all_subscriptions", return_value=[]), \
+                mock.patch.object(intercom, "_open_tasks", return_value=[]), \
+                mock.patch.object(quick, "_cost_mine", return_value=None), \
+                mock.patch.object(quick, "_notes", lambda: [{"text": "my Netflix renews on the 12th"}]):
+            said = intercom.execute_command({"kind": "subscriptions"}, {"repos": {}})
+        self.assertIn("Netflix renews on the 12th", said)
+
+    def test_a_weekday_whose_morning_has_gone_is_next_week(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        if now.hour < 9:
+            self.skipTest("the default hour is still ahead today")
+        day = now.strftime("%A").lower()
+        got = voice._interpret(f"remind me to pay my credit card on {day}")["command"]
+        self.assertGreater(dt.datetime.fromisoformat(got["at"]), now)
+        self.assertEqual((dt.datetime.fromisoformat(got["at"]).date() - now.date()).days, 7)
+
+
 if __name__ == "__main__":
     unittest.main()

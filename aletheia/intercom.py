@@ -4590,6 +4590,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             bills = [t for t in _open_tasks() if re.search(r"\b(?:bills?|rent|mortgage|invoice|payment)\b",
                                                          str(t.get("description") or ""), re.IGNORECASE)]
             listed = ("On your list: " + speech.and_list([_task_words(t) for t in bills[:4]]) + ".") if bills else ""
+            # "My Netflix renews on the 12th", "I cancelled Hulu" (2026-10-08:
+            # "what subscriptions do I have" said none were tracked beside them).
+            try:
+                from aletheia import quick as _quick
+                services = [line for line in _quick._said_lines(
+                    r"\b(?:netflix|hulu|spotify|disney\+|disney plus|hbo|youtube (?:tv|premium)|amazon prime|prime video"
+                    r"|apple (?:tv|music|one)|paramount\+?|peacock|audible|game pass|playstation plus|icloud)\b", 4)
+                    if line.casefold() not in (told or "").casefold()]
+            except Exception:  # noqa: BLE001
+                services = []
+            if services:
+                said = "You told me: " + speech.and_list(services) + "."
+                listed = said + (" " + listed if listed else "")
             if told:
                 return ("I'm not tracking any subscriptions, but " + told[:1].lower() + told[1:]
                         + (" " + listed if listed else ""))
