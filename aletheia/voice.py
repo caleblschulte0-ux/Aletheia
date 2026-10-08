@@ -4051,6 +4051,21 @@ def _interpret(transcript: str) -> dict:
     # "I want to read more books", "I'm trying to drink more water"
     # (2026-10-08: to the planner). A habit he wants is a goal, kept in the
     # words "my goal is" so "what are my goals" reads it back.
+    # "I practiced Spanish for 20 minutes" (2026-10-08: to the planner) is
+    # kept for "how long did I practice Spanish this week".
+    if re.fullmatch(r"i (?:just )?(?:practi[cs]ed|studied|played|read|stretched|meditated|walked|cleaned|worked on) (?:my |some |the )?[a-z][a-z' ]{1,25}?"
+                    r" for (?:about |around )?(?:\d+(?:\.\d+)?|an?|half an) (?:minutes?|mins?|hours?|hrs?)(?: today| this morning| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I want to run a marathon" (2026-10-08: to the planner) is a goal.
+    m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|hope|plan|'m going|am going|'m trying|am trying) to "
+                     r"(?P<g>(?:run a (?:marathon|half marathon|5k|10k|half)"
+                     r"|quit (?:smoking|vaping|drinking|caffeine|sugar|soda)|stop (?:smoking|vaping|drinking|biting my nails)"
+                     r"|visit (?:japan|italy|europe|paris|london|[a-z]{3,15})|travel (?:more|to [a-z ]{3,20})|write a book|get in shape"
+                     r"|get my (?:degree|license|black belt|certification)|finish my (?:degree|book|thesis))(?: (?:this|next) year| by [a-z0-9 ]{3,20})?)", low)
+    if m and "?" not in text:
+        goal = _as_he_said(text, m.group("g"))
+        return {"command": {"kind": "note", "text": "My goal is to " + goal},
+                "say": f"Good one. I've kept it with your goals: {goal}."}
     m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need|'m trying|am trying|'m going|am going) to "
                      r"(?P<g>(?:read|exercise|work out|drink|sleep|eat|walk|run|save|spend|meditate|cook|stretch|study|practice"
                      r"|go to bed|get up|wake up|go outside|get outside|call my|be|get|stay|spend less time|spend more time)"
@@ -4088,7 +4103,9 @@ def _interpret(transcript: str) -> dict:
             and not re.match(r"(?:it|that|this|them|tv|the news|the game|the kids|the dog|you|my |your |a |an |some|out )", m.group("t")):
         return {"command": {"kind": "note", "text": "I'm watching " + _as_he_said(text, m.group("t"))},
                 "say": "Noted. Ask me \"what am I watching\" and I'll tell you."}
-    m = re.fullmatch(r"(?:i'?m|i am) (?:on|up to|at) (?P<ep>(?:season \d{1,2},? )?episode \d{1,3}|season \d{1,2}) of (?P<t>[a-z0-9].{1,60})", low)
+    # "I'm on page 200 of Dune", "I'm on chapter 3 of Dune" (2026-10-08: to a model).
+    m = re.fullmatch(r"(?:i'?m|i am) (?:on|up to|at) (?P<ep>(?:season \d{1,2},? )?episode \d{1,3}|season \d{1,2}|page \d{1,4}|chapter \d{1,3})"
+                     r" (?:of|in) (?P<t>[a-z0-9].{1,60})", low)
     if m and "?" not in text:
         return {"command": {"kind": "note", "text": f"I'm on {m.group('ep')} of {_as_he_said(text, m.group('t'))}"}, "say": None}
     m = re.fullmatch(r"i (?:rated|gave|would give|'d give) (?P<t>[a-z0-9].{1,50}?) (?:a )?(?P<n>\d{1,2}(?:\.\d)?(?: out of (?:5|10|100)| stars?|/(?:5|10)))", low)

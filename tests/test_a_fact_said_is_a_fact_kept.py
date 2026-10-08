@@ -3493,7 +3493,8 @@ class IdeasGoalsThanksAndAJournal(unittest.TestCase):
             self.assertEqual(quick.answer("what ideas have I had"),
                              "Your ideas, newest first: a podcast about woodworking; a dog treat subscription.")
             self.assertEqual(quick.answer("what do I want to learn"), "You want to learn Spanish.")
-            self.assertEqual(quick.answer("what are my goals"), "Your goals: to run a marathon.")
+            # Wanting to learn something is one of his goals (2026-10-08).
+            self.assertEqual(quick.answer("what are my goals"), "Your goals, newest first: to learn Spanish; to run a marathon.")
             self.assertEqual(quick.answer("what am I grateful for"), "You're grateful for your family.")
             self.assertEqual(quick.answer("what did I write in my journal today"), "Your journal from today: today was a good day.")
             self.assertIn("a long week", quick.answer("read me my journal"))
@@ -9701,6 +9702,28 @@ class TheCarAgain(unittest.TestCase):
             self.assertEqual(quick.answer("what's wrong with my car"), "On your list: get the check engine light looked at.")
         with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(intercom, "_open_tasks", lambda: []):
             self.assertIsNone(quick.answer("what's wrong with my car"))
+
+
+class LearningAndReading(unittest.TestCase):
+    """A sweep of learning sentences (2026-10-08). "I want to learn Spanish"
+    was noted where "what are my goals" never looked."""
+
+    def test_kept(self):
+        self.assertEqual(voice._interpret("I want to run a marathon")["command"], {"kind": "note", "text": "My goal is to run a marathon"})
+        for said in ("I practiced Spanish for 20 minutes", "I'm on page 200 of Dune"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+
+    def test_read_newest_first(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I'm on page 200 of Dune", "ts": now}, {"text": "I'm on page 120 of Dune", "ts": now},
+                {"text": "I want to learn Spanish", "ts": now}, {"text": "I practiced Spanish for 20 minutes", "ts": now},
+                {"text": "I practiced piano for 30 minutes", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how far am I in Dune"), "You told me you're on page 200 of Dune.")
+            self.assertEqual(quick.answer("what am I learning"), "You told me you want to learn Spanish.")
+            self.assertIn("to learn Spanish", quick.answer("what are my goals"))
+            self.assertEqual(quick.answer("how long did I practice spanish this week"), "20 minutes this week, from what you've told me.")
 
 
 if __name__ == "__main__":
