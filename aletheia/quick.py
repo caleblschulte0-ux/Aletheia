@@ -1791,6 +1791,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's my work address", "what's my home address" (2026-10-07: a
     # recall of "work" that found nothing). A saved place, his own address,
     # or else exactly the recall it was before.
+    # "How long until I need to leave": his reminder to leave. Ahead of
+    # task_due, which read it as a task called "leave".
+    ("until_leave", re.compile(
+        r"^(?:how (?:much time|long) (?:do i have |have i got )?(?:until|till|before) i (?:need to|have to|should|gotta|got to) (?:leave|go|head out)"
+        r"|when do i (?:need to|have to|should) (?:leave|head out)(?: today)?)\s*\??$")),
     # "When is my passport task due" (2026-10-07: read as a note about
     # "passport task", and "nothing on file" while the task sat there).
     ("task_due", re.compile(
@@ -1984,6 +1989,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # was the last, what's blocking) and a SUBJECT; the subject picks the
     # store, and the store answers. A subject nothing here knows returns
     # None, which is the planner - never a guess.
+    # "What do I do on Fridays" (2026-10-08: to a model): the reminders
+    # that repeat that day, what is on the coming one, and what he said
+    # happens then. Ahead of status_of, which read "what's happening on
+    # saturdays" as the fleet.
+    ("on_days", re.compile(
+        r"^what(?: do i (?:usually |normally )?(?:do|have(?: going on)?)|(?:'s| is|s) (?:usually |normally )?(?:on|happening))"
+        r" (?:on )?(?P<od>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s\s*\??$")),
     ("status_of", _STATUS),
     # 2026-10-07: powers, roots, a joke and where he parked, each to a model.
     ("power", re.compile(
@@ -2388,7 +2400,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6387,6 +6399,47 @@ def _a_date(words: str, today):
         return _named_date(w, today)
     except Exception:
         return None
+
+
+def _on_days(text: str) -> str | None:
+    """"What do I do on Fridays": the coming Friday's calendar and
+    reminders, and his notes about Fridays."""
+    day = _groups("on_days", text).get("od") or ""
+    if not day:
+        return None
+    said = _agenda_and_reminders(day)
+    told = []
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        if re.search(rf"\b{day}s\b|\bevery {day}\b", note, re.I):
+            told.append(note.rstrip("."))
+    if told:
+        from aletheia import speech
+        extra = "You told me " + speech.and_list([speech.as_she_says_it(t) for t in told[:3]]) + "."
+        return f"{said} {extra}" if said else extra
+    return said
+
+
+def _until_leave() -> str | None:
+    """His next reminder to leave. Without one he hasn't said when, and
+    she says how to tell her."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    now = dt.datetime.now(localtime.operator_tz())
+    try:
+        coming = _coming()
+    except Exception:
+        return None
+    for at, said, store in coming:
+        if store == "reminder" and re.match(r"(?:leave|head out|go)\b", said.casefold()):
+            minutes = int((at - now).total_seconds() // 60)
+            if minutes < 0:
+                continue
+            span = (f"{minutes} minute{'s' if minutes != 1 else ''}" if minutes < 60
+                    else f"{minutes // 60} hour{'s' if minutes // 60 != 1 else ''}"
+                    + (f" and {minutes % 60} minutes" if minutes % 60 else ""))
+            return f"{span} - your reminder to {said.rstrip('.')} is {speech.humanize_time(at.isoformat())}."
+    return "You haven't told me when you need to leave. Say \"remind me to leave at\" and the time, and I'll keep it."
 
 
 def _where_was_i() -> str | None:
@@ -11705,6 +11758,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "loan_left": lambda text: _loan_left(text),
            "date_what": lambda text: _date_what(text),
            "where_was_i": lambda text: _where_was_i(),
+           "on_days": lambda text: _on_days(text),
+           "until_leave": lambda text: _until_leave(),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

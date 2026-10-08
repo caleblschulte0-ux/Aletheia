@@ -5903,5 +5903,26 @@ class AMoveToABareEarlyHourIsTheAfternoon(unittest.TestCase):
             self.assertEqual(dt.datetime.fromisoformat(voice._moved_hold("9")["command"]["start"]).hour, 9)
 
 
+class WhatHappensOnADayAndWhenToLeave(unittest.TestCase):
+    """2026-10-08: "what do I do on Fridays" and "how long until I need to
+    leave" went to a model; "what's happening on saturdays" read the fleet."""
+
+    def test_a_day_of_the_week(self):
+        rows = [{"text": "my son has piano fridays at 4", "ts": "2026-10-08T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), \
+                mock.patch.object(quick, "_agenda_and_reminders", return_value="Nothing on your calendar Friday."):
+            got = quick.answer("what do I do on Fridays")
+        self.assertIn("piano fridays at 4", got)
+        self.assertEqual(quick.match("what's happening on saturdays")[0], "on_days")
+
+    def test_leaving(self):
+        import datetime as dt
+        at = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=35, seconds=20)
+        with mock.patch.object(quick, "_coming", return_value=[(at, "leave", "reminder")]):
+            self.assertTrue(quick.answer("how long until I have to leave").startswith("35 minutes - your reminder to leave"))
+        with mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIn("haven't told me when you need to leave", quick.answer("when do I need to leave"))
+
+
 if __name__ == "__main__":
     unittest.main()
