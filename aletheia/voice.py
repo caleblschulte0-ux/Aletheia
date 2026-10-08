@@ -10394,6 +10394,12 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:totally )?forgot my (?:lunch|wallet|phone|keys|laptop|charger|badge|id|glasses|bag|backpack|umbrella|water bottle|jacket|coat)"
                             r"(?: at (?:home|work|the office|school|the gym))?(?: today)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My wife wears a size 8", "I wear a medium" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|(?:my|our) [a-z]{2,12}|[a-z]{2,12}) (?:wear|wears|take|takes) (?:a |an )?(?:size )?"
+                    r"(?:\d{1,2}(?:\.5)?(?: ?(?:w|wide|narrow|petite|tall))?|\d{2} ?x ?\d{2}|x{0,2}-?small|small|medium|x{0,3}-?large|large|xs|s|m|l|xl|xxl|xxxl|[0-9]{1,2}[a-d]{1,3})"
+                    r"(?: (?:in |for )?(?:shoes?|sneakers|boots|pants|jeans|shirts?|t-?shirts|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?|gloves|socks|shorts|underwear))?", low) \
+            and not re.match(r"(?:who|what|which|it|he|she|they|you)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

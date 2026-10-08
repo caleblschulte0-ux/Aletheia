@@ -11030,5 +11030,19 @@ class AroundTheHouseToday(unittest.TestCase):
         self.assertIsNone(quick.answer("I've been running a bit late"))
 
 
+class WhatSizeTheyWear(unittest.TestCase):
+    """2026-10-08: "my wife wears a size 8" went to the planner and "what
+    size does my wife wear" got "I can't think"."""
+
+    def test_said_and_read(self):
+        for said in ("my wife wears a size 8", "I wear a medium", "my son wears a 10 in shoes"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        notes = [{"text": "my wife wears a size 8"}, {"text": "my shoe size is 10"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("what size does my wife wear"), "You told me: your wife wears a size 8.")
+            self.assertEqual(quick.answer("what size do I wear"), "You told me: your shoe size is 10.")
+            self.assertIsNone(quick.answer("what size does my daughter wear"))
+
+
 if __name__ == "__main__":
     unittest.main()

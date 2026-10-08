@@ -2432,6 +2432,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "I need to get a birthday gift for my mom" went on the shopping list.
     ("gifts_owed", re.compile(r"^(?:what|which) (?:gifts?|presents?) (?:do|did) i (?:need|have|still need|still have|want) to (?:get|buy|pick up|wrap)(?: still)?\s*\??$"
                               r"|^(?:who|whom) do i (?:still )?(?:need|have) to (?:get|buy) (?:a )?(?:gifts?|presents?) for\s*\??$")),
+    # "What size does my wife wear" (2026-10-08: "I can't think"), after
+    # "my wife wears a size 8".
+    ("wears", re.compile(r"^what size (?:(?P<wears_k>[a-z]{3,10}) )?(?:do|does) (?P<wears>i|(?:my|our) [a-z]{2,12}|[a-z]{2,12}) (?:wear|take)(?: in (?P<wears_k2>[a-z -]{3,12}))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3362,7 +3365,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16563,6 +16566,28 @@ def _coming_when(who: str) -> str | None:
     return None
 
 
+def _wears(text: str) -> str | None:
+    """What size he or somebody of his wears, from his notes."""
+    from aletheia import speech
+    g = _groups("wears", text)
+    who = (g.get("wears") or "").strip()
+    kind = (g.get("wears_k") or g.get("wears_k2") or "").strip()
+    if not who:
+        return None
+    kind = "" if kind in ("size",) else kind
+    stem = re.escape(kind.rstrip("s")) if kind else ""
+    me = who == "i"
+    lead = r"i" if me else re.escape(who)
+    owner = r"my" if me else re.escape(who) + r"'s"
+    said_it = re.compile(rf"^(?:{lead} (?:wear|wears|take|takes)\b|{owner} (?:[a-z]+ )?size is\b)", re.I)
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if said_it.search(line) and (not stem or re.search(rf"\b{stem}", line, re.I) or not re.search(
+                r"\b(?:shoes?|sneakers|boots|pants|jeans|shirts?|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?)\b", line, re.I)):
+            return f"You told me: {speech.as_she_says_it(line)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17376,6 +17401,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "wears": _wears,
            "gifts_owed": _gifts_owed,
            "met_when": _met_when,
            "got_paid": _got_paid,
