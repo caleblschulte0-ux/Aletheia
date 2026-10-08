@@ -7290,6 +7290,30 @@ class WhoCalledAndHowLongUntilANotedThing(unittest.TestCase):
         self.assertTrue(said.startswith("5 hours"), said)
 
 
+class AQuestionAboutAVisitIsNotAVisit(unittest.TestCase):
+    """2026-10-08: "who is visiting this weekend" was SAVED as a note, and
+    "my password for netflix is ..." went to the planner."""
+
+    def test_who_is_visiting_is_not_kept(self):
+        for said in ("who is visiting this weekend", "who's coming over", "anyone coming over tonight"):
+            cmd = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+            self.assertNotEqual(cmd.get("kind"), "note", said)
+
+    def test_a_visit_is_still_kept(self):
+        cmd = (voice.interpret("thea my sister is visiting this weekend") or {}).get("command") or {}
+        self.assertEqual(cmd.get("kind"), "note")
+
+    def test_who_is_visiting_reads_the_note(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my sister is visiting this weekend",
+                                                                "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]):
+            self.assertIn("sister", quick.answer("who is visiting this weekend"))
+
+    def test_a_password_for_a_site_is_refused_plainly(self):
+        said = voice.interpret("thea my password for netflix is hunter2") or {}
+        self.assertIsNone(said.get("command"))
+        self.assertIn("don't keep passwords", said.get("say") or "")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

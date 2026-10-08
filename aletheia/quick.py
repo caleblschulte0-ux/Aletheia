@@ -1752,6 +1752,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (`converse.ASKED_SUBJECT`). Offline it was "I can't think just now".
     # "What did I tell you today" listed his ASKS (2026-10-08); what he told
     # her is his notes, and the asks are the fallback when there are none.
+    # "Who is visiting this weekend" after "my sister is visiting this
+    # weekend" (2026-10-08: the question was SAVED as a note).
+    ("who_coming_noted", re.compile(
+        r"^who(?:'s| is| are) (?P<who_coming_noted>visiting|coming over|coming to visit|coming to stay|coming|staying with us|in town|flying in)"
+        r"(?: (?:this weekend|next weekend|this week|next week|tomorrow|tonight|today|on [a-z]+|for [a-z' ]+))?\s*\??$")),
     # "Who called today" after "my mom called" (2026-10-08: both to a model).
     ("who_called", re.compile(
         r"^(?:who (?:called|texted|stopped by|came by|dropped by)|did (?:anyone|anybody|someone) (?:call|text|stop by|come by))"
@@ -2640,7 +2645,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -8753,6 +8758,21 @@ def _who_called(rest) -> str:
     return speech.and_list(said[:5]) + "."
 
 
+def _who_coming_noted(rest) -> str:
+    """Who he told her is visiting, from his notes, newest first."""
+    from aletheia import speech
+    said = []
+    for row in reversed(_notes()):
+        text = str(row.get("text") or "").strip()
+        if re.search(r"\b(?:is|are) (?:visiting|coming|staying with us|in town|flying in)\b", text.casefold()) \
+                and not re.match(r"(?:who|what)\b", text.casefold()):
+            said.append(speech.as_she_says_it(text).rstrip("."))
+    if not said:
+        return "You haven't told me about anyone visiting. Say \"my sister is visiting this weekend\" and I'll keep it."
+    return "You told me " + speech.and_list([s[:1].lower() + s[1:] if s.startswith(("Your ", "The ")) else s
+                                             for s in said[:3]]) + "."
+
+
 def _asked_on(rest) -> str:
     """What he asked her on a day, from the journal of his own words."""
     import datetime as dt
@@ -13086,6 +13106,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "who_coming_noted": _who_coming_noted,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),
            "who_are_you": lambda rest: _who_are_you(),

@@ -2449,7 +2449,8 @@ _AN_ASK_OF_HERS = re.compile(
 #: "I'm hosting game night" - something on with other people, said with a
 #: when (2026-10-07: every one to the planner). Kept as a note in his words.
 _SOCIAL_PLAN = (r"(?:(?:my|our) (?:[a-z]+(?:-in-law)?s?|in-laws|parents|folks|family|kids|friends?(?: [a-z]+)?)|[a-z]+ and [a-z]+"
-                r"|(?!(?:it|that|this|rain|snow|a storm|the storm|storm|weather|winter|summer|spring|fall|the package|package|my package"
+                r"|(?!(?:who|what|which|anyone|anybody|someone|somebody|nobody|everyone|everybody"
+                r"|it|that|this|rain|snow|a storm|the storm|storm|weather|winter|summer|spring|fall|the package|package|my package"
                 r"|the delivery|delivery|the bill|the rent|rent|the bus|the train)\b)[a-z]+)"
                 r" (?:is|are) (?:visiting|coming (?:over|to visit|to stay|to town|in|for a visit)|coming|staying with us|in town|flying in)"
                 r"|(?:i|we) (?:have|'ve got|have got|got) (?:a |an |the |my |our )?(?:wedding|party|birthday party|baby shower|bridal shower"
@@ -8465,6 +8466,10 @@ def _interpret(transcript: str) -> dict:
                     r"|gate code|door code|access code) is [a-z0-9#*][a-z0-9#* -]{0,24}", low) \
             and re.search(r"\d", low) and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My password for netflix is hunter2" (2026-10-08: to the planner, the
+    # one shape of it the fact rule did not know). She does not keep them.
+    if re.fullmatch(r"(?:my |the |our )?(?:[a-z]+ )?pass(?:word|code|phrase) (?:for|to|on|at) (?:my |the )?[a-z0-9 .'-]{2,30}? (?:is|=) \S.*", low):
+        return {"command": None, "say": _NO_PASSWORDS}
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.
