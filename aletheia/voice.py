@@ -10351,7 +10351,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i(?: weigh| weighed| am|'m) \d{2,3}(?:\.\d)?(?: ?(?:pounds|lbs?|kg|kilos|kilograms))?"
                     # "I weighed 185 last week" (2026-10-08: to the planner)
                     r"(?: (?:today|now|this morning|yesterday|last week|last month|a week ago|a month ago|(?:two|three|2|3) weeks ago))?", low) and (low.startswith("i weigh") or re.search(r"pounds|lbs?|kg|kilo", low)) \
-            or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for) [a-z][a-z' ]{1,40}"
+            or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for|at) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # HIS BODY, SAID (2026-10-07: "I'm 6 feet tall", "I want to lose 10

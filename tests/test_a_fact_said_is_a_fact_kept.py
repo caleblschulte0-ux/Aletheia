@@ -10843,5 +10843,20 @@ class HisWifeByName(unittest.TestCase):
             self.assertTrue(quick.answer("how long have we been married").endswith("you told me you got married in June 2018."))
 
 
+class SpentAtAPlace(unittest.TestCase):
+    """2026-10-08: "I spent 150 at costco" went to the planner - only "on"
+    was kept."""
+
+    def test_kept_and_added_up(self):
+        import datetime as _dt
+        self.assertEqual(voice._interpret("I spent 150 at costco")["command"]["kind"], "note")
+        ts = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I spent 150 at costco", "ts": ts}, {"text": "I spent 40 on gas", "ts": ts}]):
+            self.assertEqual(voice._interpret("how much did I spend at costco")["say"],
+                             "$150 at costco in the last 30 days, from what you've told me.")
+            self.assertEqual(voice._interpret("how much have I spent this week")["say"],
+                             "$190 this week, from what you've told me: $150 at costco and $40 on gas.")
+
+
 if __name__ == "__main__":
     unittest.main()

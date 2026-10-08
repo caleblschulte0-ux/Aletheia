@@ -12152,7 +12152,7 @@ def _past_go(asked: str) -> str:
     return a
 
 
-_SPENT_NOTE = re.compile(r"^i (?:spent|paid) \$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)? (?:on|for) (?P<on>.+?)"
+_SPENT_NOTE = re.compile(r"^i (?:spent|paid) \$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)? (?P<prep>on|for|at) (?P<on>.+?)"
                          r"(?: (?P<when>today|yesterday|this week|last night))?\.?$")
 
 
@@ -12177,7 +12177,8 @@ def _spent(question: str) -> str | None:
             continue
         if m.group("when") in ("yesterday", "last night"):
             at -= dt.timedelta(days=1)
-        rows.append((at, float(m.group("amt").replace(",", "")), m.group("on").strip()))
+        # "I spent 150 at Costco" (2026-10-08) is said back "at Costco".
+        rows.append((at, float(m.group("amt").replace(",", "")), ("at " if m.group("prep") == "at" else "") + m.group("on").strip()))
     if not rows:
         return None
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -12191,18 +12192,18 @@ def _spent(question: str) -> str | None:
                   "last month": ((midnight.replace(day=1) - dt.timedelta(days=1)).replace(day=1), midnight.replace(day=1)),
                   }.get(window, (midnight - dt.timedelta(days=30), midnight + dt.timedelta(days=1)))
     span = window or "in the last 30 days"
-    on = re.search(r"\bspen[dt] (?:on|for) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
+    on = re.search(r"\bspen[dt] (?P<prep>on|for|at) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
     asked_for = [w.rstrip("s") for w in on.group("on").split() if w not in ("the", "my", "a")] if on else []
     if asked_for == ["food"]:
         # "On food" is lunch and groceries too (2026-10-08: "nothing on food").
         asked_for = list(_FOOD_WORDS)
     hits = [r for r in rows if start <= r[0] < end and (not on or any(w in r[2] for w in asked_for))]
     if not hits:
-        return (f"Nothing on {on.group('on')} {span} that you've told me." if on
+        return (f"Nothing {'at' if on.group('prep') == 'at' else 'on'} {on.group('on')} {span} that you've told me." if on
                 else f"Nothing {span} that you've told me.")
     total = sum(r[1] for r in hits)
     if on:
-        return f"{_money(total)} on {on.group('on')} {span}, from what you've told me."
+        return f"{_money(total)} {'at' if on.group('prep') == 'at' else 'on'} {on.group('on')} {span}, from what you've told me."
     by: dict[str, float] = {}
     for _, amt, what in hits:
         by[what] = by.get(what, 0) + amt
@@ -12213,7 +12214,7 @@ def _spent(question: str) -> str | None:
         top, amt = ranked[0]
         return (f"{top[:1].upper() + top[1:]}: {_money(amt)} of the {_money(total)} you've told me you spent {span}."
                 if len(ranked) > 1 else f"{top[:1].upper() + top[1:]}, {_money(amt)} - the only spending you've told me about {span}.")
-    parts = [f"{_money(v)} on {k}" for k, v in ranked[:4]]
+    parts = [f"{_money(v)} {k if k.startswith('at ') else 'on ' + k}" for k, v in ranked[:4]]
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
