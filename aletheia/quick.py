@@ -2415,7 +2415,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Who is my car insurance with", "when will my car be ready",
     # "how much was the parking ticket" (2026-10-08: to a model).
     ("who_with", re.compile(r"^(?:who(?:'s| is)|what company is|where(?:'s| is)) (?:my|our) (?P<who_with>(?:[a-z]+ )?(?:insurance|bank|phone plan|cell plan|phone service|internet|mortgage|car loan|loan|401k|retirement account|ira|pension|checking account|savings account))(?: with| through| at)?\s*\??$")),
-    ("car_ready", re.compile(r"^(?:when (?:will|is|does) my (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
+    ("car_ready", re.compile(r"^(?:when (?:will|is|does) (?:my|the) (?:car|truck|van|suv) (?:be )?(?:ready|done|fixed|finished)|how long will (?:the )?(?:body shop|shop|mechanic|repair) take|what did the (?:body shop|mechanic|shop|dealer|garage) say)\s*\??$")),
     ("cost_of_it", re.compile(r"^how much (?:was|is|did) (?:the|my) (?P<cost_of_it>(?:parking |speeding |traffic )?ticket|fine|repair|tow|deductible|copay|bill from [a-z ]+)(?: cost)?\s*\??$")),
     ("my_classes", re.compile(r"^what (?:classes|courses) (?:am i|i'm) (?:taking|in|enrolled in)(?: this (?:semester|term|year))?\s*\??$")),
     # "How many miles does my car have" (2026-10-08: to a model, beside "my

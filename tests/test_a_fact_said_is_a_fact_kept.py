@@ -11378,5 +11378,23 @@ class ThePets(unittest.TestCase):
             self.assertIn("Max", quick.answer("what is the puppy's name"))
 
 
+class TheCarWasDone(unittest.TestCase):
+    """2026-10-08: "I got my oil changed today at 45000 miles" went to the
+    planner and "get my oil changed" stayed on his list; "when will the car
+    be ready" went to a model."""
+
+    def test_ticks_off_or_keeps(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_one_task", lambda which: ({"id": "t1"}, "")):
+            self.assertEqual(voice._interpret("I got my oil changed today at 45000 miles")["command"],
+                             {"kind": "task_done", "which": "oil changed"})
+        with mock.patch.object(intercom, "_one_task", lambda which: (None, "Nothing open")):
+            self.assertEqual(voice._interpret("I got my oil changed today at 45000 miles")["command"]["kind"], "note")
+
+    def test_ready(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the mechanic said it will be ready Thursday"}]):
+            self.assertIn("Thursday", quick.answer("when will the car be ready"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -9787,6 +9787,21 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:heart|leg|arm|back|bone|nose|wrist|ankle|finger|toe|record|promise|news|ice|build|ci|pipeline|repo|tests?"
                               r"|day|week|traffic|internet|wifi|line|service|business|game|battery|plant|plants|fish|dog|cat)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got my oil changed today at 45000 miles" (2026-10-08: to the
+    # planner). Ticks off "get my oil changed" when that is on his list -
+    # the task keeps his sentence, miles and all - and is kept otherwise.
+    m = re.fullmatch(r"i (?:just )?(?:got|had) (?:the|my|our) (?P<thing>[a-z][a-z' ]{1,25}?) (?P<done>changed|replaced|checked|balanced|topped off|done"
+                     r"|washed|detailed|serviced|inspected|cleaned|tuned up|rotated|aligned|fixed|repaired)"
+                     r"(?: today| yesterday| this morning)?(?: at [0-9,]{3,9}(?:k)? miles)?(?: today| yesterday| this morning)?", low)
+    if m:
+        try:
+            from aletheia import intercom as _icm
+            found, _why = _icm._one_task(f"{m.group('thing')} {m.group('done')}")
+        except Exception:
+            found = None
+        if found is not None:
+            return {"command": {"kind": "task_done", "which": f"{m.group('thing')} {m.group('done')}"}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The claim was approved", "I'm waiting on a refund from Amazon", "the
     # furnace was serviced today" (2026-10-08: all to the planner or a model).
     if re.fullmatch(r"(?:the|my|our) (?:insurance )?(?:claim|refund|application|loan|permit|request|appeal|return|reimbursement|rebate|visa|passport)"
