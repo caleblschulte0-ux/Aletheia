@@ -8583,5 +8583,19 @@ class ForgetThatAfterAQuestion(unittest.TestCase):
 
 
 
+class WhatDoILike(unittest.TestCase):
+    """"I love hiking" went to the planner and "what do I like" to a model
+    (2026-10-08)."""
+
+    def test_his_likes_are_kept_and_read_back(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("I love hiking")["command"], {"kind": "note", "text": "I love hiking"})
+        self.assertNotEqual((voice._interpret("I like that")["command"] or {}).get("kind"), "note")
+        rows = [{"text": "my favorite color is blue"}, {"text": "I love hiking"}, {"text": "Sam likes coffee"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what do I like"), "You told me: your favorite color is blue; you love hiking.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

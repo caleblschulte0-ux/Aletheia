@@ -8857,6 +8857,12 @@ def _interpret(transcript: str) -> dict:
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # WHAT HE LIKES (2026-10-08: "I love hiking" to the planner) - kept in
+    # his words; "what do I like" reads it with his favorites.
+    m = re.fullmatch(r"i (?:really |also |just )?(?:like|love|enjoy|adore|am into|'m into|am a big fan of|'m a big fan of) "
+                     r"(?P<what>(?!(?:you|u|it|that|this|them|him|her|the way|how|what|when|your|it's|thea|these|those|my)\b)[a-z0-9].{1,50})", low)
+    if m and "?" not in text:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHAT SOMEONE LIKES (2026-10-07: "Sam likes coffee", "my mom loves
     # tulips" went to the planner). A note in his words, read back by "what
     # does Sam like" - and by "what did I tell you about Sam".

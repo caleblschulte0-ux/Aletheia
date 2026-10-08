@@ -1821,6 +1821,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| are) (?P<who_coming_noted>visiting|coming over|coming to visit|coming to stay|coming|staying with us|in town|flying in)"
         r"(?: (?:this weekend|next weekend|this week|next week|tomorrow|tonight|today|on [a-z]+|for [a-z' ]+))?\s*\??$")),
     # "Who called today" after "my mom called" (2026-10-08: both to a model).
+    # "What do I like" (2026-10-08: to a model, with "my favorite color is
+    # blue" kept): his favorites and what he said he loves.
+    ("his_likes", re.compile(
+        r"^what (?:do i|things do i|stuff do i) (?:like|love|enjoy)(?: doing)?\s*\??$"
+        r"|^what are (?:my|some of my) (?:favou?rites?|favou?rite things|likes)\s*\??$")),
     # "What's my max bench" after "I benched 185" (2026-10-08: to a model).
     ("lift_max", re.compile(
         r"^what(?:'s| is| was) my (?:max|best|heaviest|top|pr|personal best|personal record|one rep max|1 rep max)"
@@ -9943,6 +9948,22 @@ def _contacts_count() -> str | None:
             + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
 
+def _his_likes() -> str:
+    """His favorites and the things he said he likes, newest first."""
+    from aletheia import speech
+    rows = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(r"(?:my )?(?:favou?rite|fav) [a-z ]{2,25}? (?:is|are) .{1,40}|i (?:really )?(?:like|love|enjoy|am into|'m into) "
+                        r"(?!you\b|it\b|that\b|this\b|to\b).{2,50}", said, re.I):
+            out = speech.as_she_says_it(said)
+            if out.casefold() not in {r.casefold() for r in rows}:
+                rows.append(out)
+    if not rows:
+        return "You haven't told me what you like yet. Say \"my favorite food is tacos\" or \"I love hiking\" and I'll remember."
+    return "You told me: " + "; ".join(rows[:5]) + (f"; and {len(rows) - 5} more" if len(rows) > 5 else "") + "."
+
+
 def _lift_max(lift: str) -> str | None:
     """His heaviest logged lift of one kind, from "I benched 185"."""
     from aletheia import speech
@@ -13940,6 +13961,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "born_age": _born_age,
+           "his_likes": lambda rest: _his_likes(),
            "sick_since": _sick_since,
            "lift_max": _lift_max,
            "when_have": _when_have,
