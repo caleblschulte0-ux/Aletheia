@@ -113,9 +113,19 @@ class WhereTheyWait(unittest.TestCase):
         self.assertNotIn("acme", json.dumps(held).casefold())
 
     def test_a_word_inside_another_word_does_not_mislabel_a_question(self):
-        self.assertEqual(hunt_funnel._question_topic("What is your ethnicity?"), "demographic")
+        self.assertEqual(hunt_funnel._question_topic("What is your ethnicity?"), "demographic_race")
         self.assertEqual(hunt_funnel._question_topic("Preferred first name"), "other")
         self.assertEqual(hunt_funnel._question_topic("Were you referred by an employee?"), "referral")
+
+    def test_each_self_identification_question_is_named(self):
+        for label, topic in (("Gender", "demographic_gender"),
+                             ("Do you identify as transgender?", "demographic_gender"),
+                             ("Are you Hispanic or Latino?", "demographic_race"),
+                             ("Veteran status", "demographic_veteran"),
+                             ("Disability status", "demographic_disability"),
+                             ("What is your sexual orientation?", "demographic_orientation"),
+                             ("Pronouns", "demographic_pronouns")):
+            self.assertEqual(hunt_funnel._question_topic(label), topic, label)
 
     def test_the_browser_librarys_bare_error_is_named_by_its_network_code(self):
         rows = [row("FAILED", failure="Error: page.goto: net::ERR_NAME_NOT_RESOLVED at https://acme.example/jobs"),
