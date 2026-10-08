@@ -120,6 +120,11 @@ def resolve(query: str, contacts: list[dict] | None = None) -> dict:
         if q in {_norm(x) for x in candidates}:
             exact[contact["id"]] = contact
     if not exact:
+        # "Text my sister" with her saved as "Sister" said there was no
+        # number for her, one breath after it was saved (2026-10-07).
+        bare = re.sub(r"^(?:my|our|the) ", "", str(query or "").strip(), flags=re.IGNORECASE)
+        if bare and bare != str(query or "").strip():
+            return resolve(bare, contacts)
         raise KeyError(f"no contact matches {query!r}")
     if len(exact) != 1:
         names = ", ".join(sorted(c["display_name"] for c in exact.values()))

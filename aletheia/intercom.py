@@ -242,7 +242,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "thread_followup": ({"thread"}, set()),
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
-    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces", "was_title"}),
     "hold_release":  ({"title", "start"}, set()),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
@@ -754,7 +754,8 @@ KIND_NOTES: dict[str, str] = {
         'Pencil something into HIS calendar as tentative, in her own calendar model (nothing is sent, '
         'nothing goes onto a live calendar): "hold Friday at 10 for the tour". start is ISO-8601 in his '
         'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
-        'his own hold with the same title that this one moves ("make it 8"). It refuses when it '
+        'his own hold with the same title that this one moves ("make it 8"); was_title is that hold\'s old '
+        'title when this renames it ("rename my Thursday meeting to standup"). It refuses when it '
         'clashes and says with what.'),
     "place_add": (
         'Remember where one of his places is: "my work address is 5 Market St", "the gym is at 20 Oak '
@@ -2212,7 +2213,10 @@ def _undo_his_last_ask() -> str | None:
             continue                        # his previous undo; look one further back
         # A QUESTION in between changes nothing: "put lunch on Friday",
         # "who is it with", "cancel it" means the lunch (2026-10-07).
-        if voice._only_asked(said, command):
+        # A note is journaled at the read-only tier, so it read as a question
+        # here and "remember my locker is 42", "undo that" found nothing to
+        # undo (2026-10-07). A kind this can reverse was never only asked.
+        if kind not in UNDOES_HIS_ASK and voice._only_asked(said, command):
             continue
         # "Remove everything from the list", then "undo that" (2026-10-07:
         # "nothing to undo"). Taking things off is undone by putting back
@@ -2223,6 +2227,13 @@ def _undo_his_last_ask() -> str | None:
         # removal while milk is on the list, and now it isn't.
         if re.match(r"Took (?:it|\S+ things?) off (?:your|the) shopping list:", str(turn.get("she_answered") or "")):
             return _put_back_on_the_list(str(turn.get("she_answered") or ""))
+        if kind not in UNDOES_HIS_ASK and str(turn.get("she_answered") or "").strip() == "Noted.":
+            # "No, it's 24" was a note only in the light of the turn before
+            # it, and reads as nothing on its own now. "Noted." is said for
+            # a note and nothing else: the newest one is what it kept.
+            newest = next(iter(_quick_notes()), None)
+            if newest:
+                kind, command = "note", {"kind": "note", "text": newest.get("text")}
         if kind not in UNDOES_HIS_ASK:
             return None
         if kind == "shopping_add" and "already on" in str(turn.get("she_answered") or "") \
@@ -2328,8 +2339,25 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         workspace.remove(path, why="undone: you took it back")
         return f"Undone: removed {path}; a copy is kept if you want it back."
     if kind == "note":
-        return "A note I can't take back in one word yet - say 'forget' and what it was about, and I'll drop it."
+        # The journal is append-only; a note is taken back with the same
+        # tombstone "forget" writes, which every reader honours.
+        text = " ".join(str(command.get("text") or "").split())
+        newest = next((" ".join(str(r.get("text") or "").split()) for r in _quick_notes()
+                       if " ".join(str(r.get("text") or "").split()).casefold() == text.casefold()), "")
+        if not newest:
+            return "That note is already gone."
+        from aletheia import journal
+        journal.append("note", FORGOTTEN_SUBJECT, newest[:300], actor="operator")
+        return f"Undone: I've forgotten {speech.as_she_says_it(newest).rstrip('.')}."
     return "Nothing to undo."
+
+
+def _quick_notes() -> list:
+    try:
+        from aletheia import quick
+        return quick._notes()
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def free_time_answer(cmd: dict) -> str:
@@ -2376,6 +2404,27 @@ def free_time_answer(cmd: dict) -> str:
                 step = step.replace(second=0, microsecond=0) + _dt.timedelta(minutes=(15 - step.minute % 15) % 15)
                 a = step.isoformat()
             kept.append((a, b))
+        # "Am I busy today" at 5 pm with nothing on the calendar said
+        # "Nothing free today" (2026-10-07): the working hours were over,
+        # not filled. Then the rest of the evening is the answer.
+        if ranges and not kept and not part:
+            later = []
+            for event in cal.all_events():
+                if str(event.get("status") or "").upper() == "CANCELLED":
+                    continue
+                try:
+                    start = cal.parse_time(event["start"])
+                except (KeyError, TypeError, ValueError):
+                    continue
+                local = start.astimezone(localtime.operator_tz())
+                if start > now and local.date() == day:
+                    later.append((local, str(event.get("title") or "something")))
+            if not later:
+                return ("Your working hours are over and nothing else is on your calendar today - you're free."
+                        + _nothing_on_it_at_all(cal, day))
+            first = min(later)
+            clock = first[0].strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+            return f"Your working hours are over. Still to come today: {first[1]} at {clock}."
         ranges = kept
     except (TypeError, ValueError):
         pass
@@ -3540,7 +3589,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if cmd.get("replaces"):
             try:
                 from aletheia import calendar as _calendar
-                old_id = calendar_reasoning.hold_id(cmd["title"], str(cmd["replaces"]), cmd.get("thread") or "")
+                old_id = calendar_reasoning.hold_id(cmd.get("was_title") or cmd["title"], str(cmd["replaces"]),
+                                                    cmd.get("thread") or "")
                 old = _calendar.load(old_id)
                 if old and old.get("status") != "CANCELLED":
                     calendar_reasoning.release_hold(old_id, why="moved: he gave it a new time")
@@ -3552,7 +3602,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                                        location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
         if not held.get("event"):
             if old:
-                calendar_reasoning.hold(cmd["title"], str(old["start"]), str(old["end"]),
+                calendar_reasoning.hold(cmd.get("was_title") or cmd["title"], str(old["start"]), str(old["end"]),
                                         location=old.get("location") or None, thread_id=cmd.get("thread") or "")
             raise act.Refused(f"I didn't pencil that in: {held.get('why')}")
         # "Block off 2 to 4" was confirmed as "at 2 pm" alone (2026-10-07):
@@ -3564,6 +3614,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         when = calendar_reasoning.human(held['event']['start'])
         if until and " at " in when:
             when = when.replace(" at ", " from ", 1)
+        if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):
+            return (f"Renamed {cmd['was_title']} to {held['event']['title']}, {when}{until}, "
+                    "tentative, on your calendar here only.")
         return (f"{'Moved' if old else 'Pencilled in'} {held['event']['title']} "
                 f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only.")
@@ -4310,6 +4363,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             said = (f"You haven't got any accounts recorded, so I have no "
                     f"{about} to report. There's no bank connected - "
                     f"I can only hold what you or I record.")
+            if about == "balance":
+                # "My checking account has 2400" is a note (2026-10-07), and
+                # this said nothing was recorded one breath later.
+                try:
+                    from aletheia import quick as _quick
+                    said = _quick.balances_told() or said
+                except Exception:  # noqa: BLE001
+                    pass
         else:
             said = (f"Assets {worth['assets']:,.2f}, liabilities "
                     f"{worth['liabilities']:,.2f}, net {worth['net']:,.2f} "
