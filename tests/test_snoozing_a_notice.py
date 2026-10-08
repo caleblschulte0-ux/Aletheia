@@ -95,7 +95,10 @@ class ItReallyComesBack(unittest.TestCase):
         self.assertIn(" or ", str(caught.exception))
 
     def test_nothing_waiting_is_refused_in_words(self):
-        with mock.patch.object(notifications, "all_notifications", return_value=[]):
+        from aletheia import quick
+        # No reminder pending either: with one, the refusal names it instead.
+        with mock.patch.object(notifications, "all_notifications", return_value=[]), \
+                mock.patch.object(quick, "_coming", return_value=[]):
             with self.assertRaises(act.Refused) as caught:
                 intercom.execute_command({"kind": "notify_snooze", "minutes": 60}, {})
         self.assertIn("Nothing is waiting", str(caught.exception))
