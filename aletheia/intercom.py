@@ -1476,7 +1476,9 @@ def _alarm_words(spec: dict, *, alone: bool = True) -> str:
     words = _reminder_words(spec)
     if str((spec.get("command") or {}).get("text") or "").strip().casefold() == "wake up":
         words = re.sub(r"^wake up\s*([—-])\s*", "" if alone else r"alarm \1 ", words, flags=re.IGNORECASE)
-    return words
+    # "1 reminder: take my vitamins" is his phrase in her mouth (2026-10-08).
+    from aletheia import speech
+    return speech._yours(words)
 
 
 def _until_next_reminder(sort: str = "reminder") -> str:

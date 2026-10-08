@@ -6494,7 +6494,7 @@ class RepeatingAndMonthEndReminders(unittest.TestCase):
         with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
                 mock.patch.object(intercom, "_soonest_first", side_effect=lambda r: r), \
                 mock.patch.object(intercom, "_reminder_words", side_effect=lambda r, **k: r["command"]["text"]):
-            self.assertEqual(intercom._reminders_answer("recurring"), "1 reminder: take my vitamins.")
+            self.assertEqual(intercom._reminders_answer("recurring"), "1 reminder: take your vitamins.")
         with mock.patch.object(intercom, "_reminder_schedules", return_value=rows[:1]):
             self.assertEqual(intercom._reminders_answer("recurring"), "You have no repeating reminders set.")
 
