@@ -30,8 +30,15 @@ class AReplayThatWillNotGoBackStartsOver(LoopCase):
         def crash(step, record):
             if step == 4:
                 raise RuntimeError("the process died")
-        with self.assertRaises(RuntimeError):
-            browser_loop.pursue(GOAL, self.url("/clinic"), inputs=CLINIC_INPUTS, on_step=crash)
+        try:
+            ended = browser_loop.pursue(GOAL, self.url("/clinic"), inputs=CLINIC_INPUTS, on_step=crash)
+        except RuntimeError:
+            pass
+        else:
+            # Failed once on a Windows runner, 2026-10-08, with nothing to say
+            # where the mission stopped instead. Say it.
+            self.fail(f"the mission ended before the crash: {ended.get('state')} "
+                      f"{(ended.get('boundary') or {}).get('kind')} {ended.get('history', [])[-3:]}")
         record = bm.load(bm.mission_id(GOAL, self.url("/clinic")))
         self.assertTrue(record["route"])
         # The site redrew its form: nothing the route names is there any more.

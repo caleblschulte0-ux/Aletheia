@@ -51,6 +51,24 @@
         }
       ],
       "means": "Discovery may change who she applies to: openings from her own crawl of employers' sites join the queue, and the queue is tried in value order (pay against his floor and the place, geography, the employer, recency, ease) instead of the order a board returned it. Off only if he turns it off at his keyboard (python -m aletheia.job_discovery --choose off)."
+    },
+    {
+      "id": "bdr-sdr-welcome",
+      "switch": "bdr_sdr",
+      "on": true,
+      "since": "2026-10-07",
+      "quotes": [
+        {
+          "on": "2026-09-13",
+          "said": "definitely don't wanna do sales... no cold calling"
+        },
+        {
+          "on": "2026-10-07T22:39:02Z",
+          "asked": "Should she apply to BDR/SDR roles? Both of those interviews are sales roles.",
+          "said": "Yes to both"
+        }
+      ],
+      "means": "Business and sales development representative roles (BDR, SDR, business development associate) are applied to, outbound prospecting and quota included, even though he otherwise leaves out sales, cold calling and quotas. Every other sales job (account executive, closer, inside sales) is still left out."
     }
   ]
 }

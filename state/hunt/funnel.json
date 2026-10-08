@@ -1,26 +1,43 @@
 {
   "batches": {
     "2026-10-07": {
-      "duplicate": 107,
+      "duplicate": 163,
       "employer_full": 0,
-      "minutes": 37,
+      "minutes": 224,
       "needs_account": 0,
-      "needs_answer": 7,
-      "not_realistic": 267,
-      "offered": 450,
-      "ready": 14,
-      "runs": 5,
+      "needs_answer": 12,
+      "not_realistic": 319,
+      "offered": 720,
+      "ready": 33,
+      "runs": 8,
       "unfit_clearance": 2,
-      "unfit_language": 3,
-      "unfit_license": 2,
-      "unfit_model": 17,
-      "unfit_sales": 190,
-      "unfit_years": 10,
+      "unfit_hands_on": 1,
+      "unfit_language": 5,
+      "unfit_license": 3,
+      "unfit_model": 25,
+      "unfit_sales": 229,
+      "unfit_years": 11,
       "unjudged": 33,
       "unreachable": 22,
       "unreachable_ApplyError": 4,
       "unreachable_no_form": 1,
-      "weak_shot": 0
+      "weak_shot": 5
+    }
+  },
+  "closed_recently": {
+    "days": 3,
+    "why": {
+      "gone_on_ashbyhq": 9,
+      "gone_on_greenhouse": 5,
+      "gone_on_lever": 1,
+      "left_captcha": 3,
+      "left_error": 5,
+      "left_going_in_circles": 2,
+      "left_no_way_forward": 7,
+      "left_sign_in": 1,
+      "not_a_form_asks_nothing_on_bamboohr": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 15,
+      "not_realistic": 3
     }
   },
   "days": {
@@ -33,7 +50,7 @@
       "sent": 24
     },
     "2026-09-13": {
-      "filled": 48,
+      "filled": 47,
       "found": 69,
       "interviews": 0,
       "rejections": 0,
@@ -41,7 +58,7 @@
       "sent": 43
     },
     "2026-09-14": {
-      "filled": 33,
+      "filled": 30,
       "found": 40,
       "interviews": 0,
       "rejections": 0,
@@ -57,7 +74,7 @@
       "sent": 1
     },
     "2026-09-16": {
-      "filled": 15,
+      "filled": 9,
       "found": 15,
       "interviews": 0,
       "rejections": 0,
@@ -65,7 +82,7 @@
       "sent": 8
     },
     "2026-09-17": {
-      "filled": 19,
+      "filled": 12,
       "found": 22,
       "interviews": 0,
       "rejections": 0,
@@ -73,7 +90,7 @@
       "sent": 10
     },
     "2026-09-18": {
-      "filled": 19,
+      "filled": 5,
       "found": 25,
       "interviews": 0,
       "rejections": 0,
@@ -81,7 +98,7 @@
       "sent": 3
     },
     "2026-09-19": {
-      "filled": 14,
+      "filled": 10,
       "found": 33,
       "interviews": 0,
       "rejections": 0,
@@ -89,7 +106,7 @@
       "sent": 5
     },
     "2026-09-20": {
-      "filled": 9,
+      "filled": 5,
       "found": 11,
       "interviews": 0,
       "rejections": 0,
@@ -97,7 +114,7 @@
       "sent": 0
     },
     "2026-09-21": {
-      "filled": 19,
+      "filled": 9,
       "found": 26,
       "interviews": 0,
       "rejections": 0,
@@ -105,7 +122,7 @@
       "sent": 0
     },
     "2026-09-22": {
-      "filled": 17,
+      "filled": 15,
       "found": 64,
       "interviews": 0,
       "rejections": 0,
@@ -217,16 +234,16 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 41,
-      "found": 63,
+      "filled": 61,
+      "found": 86,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
-      "sent": 26
+      "sent": 35
     }
   },
-  "generated_at": "2026-10-07T22:47:26Z",
-  "sent_all_time": 260,
+  "generated_at": "2026-10-08T03:18:26Z",
+  "sent_all_time": 269,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -270,25 +287,56 @@
       "nothing_to_press_on_account_login/observed": 4
     }
   },
+  "stuck_recently": {
+    "days": 3,
+    "where": {
+      "captcha": {
+        "nothing_to_press_on_captcha/filled": 3
+      },
+      "error": {
+        "nothing_to_press_on_unread/filled": 1,
+        "nothing_to_press_on_unread/observed": 4,
+        "nothing_to_press_on_unread/submit_clicked": 1
+      },
+      "going_in_circles": {
+        "nothing_to_press_on_form/filled": 1,
+        "nothing_to_press_on_form/review_reached": 1
+      },
+      "no_way_forward": {
+        "nothing_to_press_on_content/observed": 5,
+        "nothing_to_press_on_form/observed": 3,
+        "unclear_button/observed": 2
+      },
+      "sign_in": {
+        "nothing_to_press_on_account_login/observed": 1
+      }
+    }
+  },
   "totals": {
-    "filled": 371,
-    "found": 677,
+    "filled": 340,
+    "found": 700,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
-    "sent": 260
+    "sent": 269
   },
   "waiting": {
     "asked_about": {
+      "address": 1,
       "demographic": 5,
       "education": 1,
       "on_site": 1,
       "other": 7,
-      "travel": 1
+      "travel": 1,
+      "why_this_job": 1
     },
     "closed": {
       "duplicate": 3,
-      "gone": 37,
+      "gone_on_ashbyhq": 20,
+      "gone_on_employer_site": 1,
+      "gone_on_greenhouse": 11,
+      "gone_on_lever": 2,
+      "gone_on_smartrecruiters": 3,
       "left_approval_denied": 16,
       "left_captcha": 13,
       "left_error": 12,
@@ -298,28 +346,29 @@
       "left_posting_closed": 6,
       "left_questions": 1,
       "left_sign_in": 4,
+      "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
-      "not_a_form_asks_nothing_on_employer_site": 7,
-      "not_a_form_asks_nothing_on_greenhouse": 1,
-      "not_a_form_asks_nothing_on_lever": 1,
-      "not_a_form_asks_nothing_on_smartrecruiters": 26,
-      "not_a_form_signup_list_on_employer_site": 8,
-      "not_realistic": 75
+      "not_a_form_asks_nothing_on_employer_site": 20,
+      "not_a_form_asks_nothing_on_greenhouse": 22,
+      "not_a_form_asks_nothing_on_lever": 2,
+      "not_a_form_asks_nothing_on_myworkdayjobs": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 33,
+      "not_a_form_signup_list_on_employer_site": 9,
+      "not_realistic": 78
     },
-    "failed": 59,
+    "failed": 10,
     "failed_because": {
-      "ApplyError": 2,
+      "ApplyError": 4,
       "TargetClosedError": 3,
       "browser_spending": 2,
-      "other": 51,
       "submit_would_not_click": 1
     },
     "his_ok": {
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 11,
-    "oldest_days": 24,
+    "needs_answer": 12,
+    "oldest_days": 25,
     "to_send": 0
   },
   "window_days": 30

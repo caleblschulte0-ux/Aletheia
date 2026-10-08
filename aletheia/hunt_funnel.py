@@ -79,6 +79,11 @@ def _closed_bucket(record: dict) -> str:
     if kind in CLOSED_KINDS:
         if kind == "not-a-form":
             return f"not_a_form_{_why_not_a_form(why)}_on_{_system_of(record.get('url'))}"
+        if kind == "gone":
+            # A posting a board still LISTS and whose form is gone is a stale
+            # listing on that system, not a job that closed in the ordinary
+            # way: live 2026-10-08 "gone" was 15 of three days' closures.
+            return f"gone_on_{_system_of(record.get('url'))}"
         return CLOSED_KINDS[kind]
     if named:
         return named
@@ -351,6 +356,10 @@ def _day(stamp: object, zone) -> str:
         return ""
 
 
+#: How many days count as recent for the closures published apart.
+RECENT_DAYS = 3
+
+
 def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS) -> dict:
     """Per-day counts from the records: found, filled, sent, replies,
     interviews, rejections. Pure."""
@@ -392,6 +401,12 @@ def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS
     return {"days": dict(sorted(by_day.items())), "window_days": days, "totals": total,
             "sent_all_time": sum(1 for r in rows if isinstance(r, dict) and r.get("state") in PRESSED),
             "waiting": waiting(rows, now=now, first=first),
+            # THE LAST FEW DAYS APART. A month's closures mix causes already
+            # fixed with ones still happening: live 2026-10-07 "asks nothing
+            # on greenhouse" read 22, and nothing said whether one of them
+            # was this week's.
+            "closed_recently": {"days": RECENT_DAYS, "why": waiting(
+                rows, now=now, first=(now.date() - dt.timedelta(days=RECENT_DAYS - 1)).isoformat())["closed"]},
             "generated_at": stateio.utcnow()}
 
 
@@ -469,7 +484,11 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     rows = apply_run.all_runs()
     fresh = counts(rows, now=now)
     fresh["batches"] = batches(_tallies(), now=now)
-    fresh["stuck_at"] = stuck_at(_left_missions(), now=now)
+    left = _left_missions()
+    fresh["stuck_at"] = stuck_at(left, now=now)
+    # The month mixes stops already fixed with ones still happening.
+    fresh["stuck_recently"] = {"days": RECENT_DAYS,
+                               "where": stuck_at(left, now=now, days=RECENT_DAYS)}
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))

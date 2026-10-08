@@ -361,6 +361,33 @@ def employer_full(company: str, *, now: dt.datetime | None = None) -> str:
             "chance without more")
 
 
+def full_employers(*, now: dt.datetime | None = None, days: int = EMPLOYER_WINDOW_DAYS) -> set[str]:
+    """Every employer `employer_full` would refuse now, read in one pass so a
+    search can leave them out before its window is cut."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    since = (now - dt.timedelta(days=days)).isoformat()
+    seen: dict[str, set[str]] = {}
+    for url, entry in already_sent().items():
+        who = _employer(entry.get("company", ""))
+        if who and str(entry.get("at") or "") >= since:
+            seen.setdefault(who, set()).add(str(url))
+    for record in all_runs():
+        if record.get("state") in (CLOSED, "FAILED"):
+            continue
+        who = _employer(record.get("company", ""))
+        when = str(record.get("submitted_at") or record.get("staged_at") or "")
+        if who and when >= since:
+            seen.setdefault(who, set()).add(str(record.get("url") or record.get("id") or ""))
+    return {who for who, urls in seen.items() if len(urls) >= EMPLOYER_LIMIT}
+
+
+def sent_role_keys() -> set[str]:
+    """The role of every application that ever went, from the ledger that
+    never forgets - the same reading `was_applied_to_role` makes one at a time."""
+    return {_role_key(e.get("company", ""), e.get("job_title", "")) for e in already_sent().values()
+            if str(e.get("company") or "").strip() and str(e.get("job_title") or "").strip()}
+
+
 def remember_sent(record: dict) -> None:
     """Write the url down the moment it really goes, and never forget it."""
     url = str(record.get("url") or "").strip()
@@ -543,6 +570,39 @@ def _not_a_form(run_id: str, url: str, failure: str, *, resume: str, kept_job: d
               "staged_at": stateio.utcnow(), **kept_job}
     _write_record(run_id, record)
     return record
+
+
+#: The sentences `stage` wrote on a page that was never a form, back when
+#: it recorded them FAILED (until 2026-09-22). Matched on its own fixed words.
+_OLD_NOT_A_FORM = ("talent-network / job-alert signup",
+                   "nothing on this page asks for his name, email or phone",
+                   "there is no application form on this page")
+
+
+def settle_old_not_a_form() -> int:
+    """FAILED records that were never applications, closed the way `stage`
+    closes them now. Until 2026-09-22 a job-alert list or a page asking
+    nothing was recorded FAILED, and FAILED is not settled: discovery kept
+    offering those pages back, and live 2026-10-07 51 of 59 "failures" in
+    the funnel read "other" - a failure count that is mostly pages that were
+    never forms says nothing about what would not send. Never a record that
+    was pressed. Returns how many were closed."""
+    closed = 0
+    for record in all_runs("FAILED"):
+        why = str(record.get("failure") or "")
+        if record.get("pressed_at") or not any(words in why for words in _OLD_NOT_A_FORM):
+            continue
+        record.update({"state": CLOSED, "closed_because": why, "closed_kind": NOT_A_FORM,
+                       "closed_by": ACTOR, "settled_from": "FAILED",
+                       "closed_at": str(record.get("staged_at") or "") or stateio.utcnow()})
+        _write_record(record["id"], record)
+        closed += 1
+    if closed:
+        journal.append("action", "apply",
+                       f"closed {speech.count_phrase(closed, 'old application record')} that were never forms - "
+                       "a job-alert list or a page asking nothing - as not-a-form rather "
+                       "than failed", actor=ACTOR)
+    return closed
 
 
 def close(run_id: str, why: str, *, via: str = "aletheia") -> dict:
@@ -2107,8 +2167,14 @@ def _emailed_code(employer: str | list = "", reader=None, since: float = 0.0) ->
             time.sleep(CODE_WAIT_S)
         return ""
     for _ in range(CODE_WAIT_TRIES):
+        # By DATE once the click is known, read or unread: a code he opened
+        # on his phone first is still this page's code, and the unread flag
+        # is how the inbox poll missed his mail until 2026-10-02.
         try:
-            unread = mail.SmtpImapTransport().fetch_unread(30)
+            transport = mail.SmtpImapTransport()
+            fetch_since = getattr(transport, "fetch_since", None)
+            unread = (fetch_since(since - 5.0, 30) if since and fetch_since
+                      else transport.fetch_unread(30))
         except Exception:
             unread = []
         mine = [m for m in unread

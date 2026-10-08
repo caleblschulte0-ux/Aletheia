@@ -1,0 +1,75 @@
+"""BDR and SDR roles are applied to, by his ruling of 2026-10-07.
+
+He said "definitely don't wanna do sales... no cold calling" on 2026-09-13,
+and both interviews the hunt then won were development-rep roles. Asked
+whether she should apply to BDR/SDR roles, he said "Yes to both".
+"""
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from aletheia import campaign, job_fit, profile, rulings
+
+HIS = {"work_not_wanted": "sales, cold calling, quota", "work_wanted": "partnerships"}
+COLD = "You will make 60 calls a day doing outbound prospecting and exceed a monthly quota."
+
+
+class WithHisRuling(unittest.TestCase):
+    def setUp(self):
+        p = mock.patch.object(rulings, "DEFAULT_PATH", rulings.REPO_RULINGS)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_the_ruling_is_in_the_registry_with_his_words(self):
+        ruling = rulings.for_switch("bdr_sdr")
+        self.assertTrue(ruling and ruling["on"])
+        self.assertIn("Yes to both", rulings.quote(ruling))
+
+    def test_development_reps_pass_even_with_cold_calls_and_a_quota(self):
+        for title in ("Business Development Representative", "SDR, Mid-Market",
+                      "Sales Development Representative", "BDR - AI Labs",
+                      "Business Development Associate"):
+            self.assertEqual(job_fit.unwanted_reason(title, COLD, HIS), "", title)
+
+    def test_every_other_sales_job_is_still_left_out(self):
+        for title in ("Account Executive", "Inside Sales Representative", "Sales Manager"):
+            self.assertTrue(job_fit.unwanted_reason(title, "", HIS), title)
+        self.assertTrue(job_fit.unwanted_reason("Customer Success Manager", COLD, HIS))
+
+    def test_the_model_reading_a_posting_hears_the_carve_out(self):
+        wanted, unwanted = job_fit.preferences(HIS)
+        self.assertIn("BDR", wanted)
+        self.assertIn("partnerships", wanted)
+        self.assertTrue(unwanted.startswith("sales, cold calling, quota"))
+        self.assertIn("except", unwanted)
+
+    def test_the_carve_out_never_switches_a_rule_on_he_never_said(self):
+        quiet = {"work_not_wanted": "management", "work_wanted": ""}
+        self.assertEqual(job_fit.unwanted_reason("Account Executive", "", quiet), "")
+        self.assertEqual(job_fit.hands_on_reason("Warehouse Associate", quiet), "")
+
+    def test_jobs_closed_as_sales_before_his_yes_are_judged_afresh(self):
+        with mock.patch.object(profile, "load", return_value={
+                "work_not_wanted": {"value": "sales", "at": "2026-09-13T12:00:00Z"}}):
+            self.assertEqual(job_fit.preferences_changed_at(), "2026-10-07T22:39:02Z")
+
+    def test_the_search_looks_for_them(self):
+        with mock.patch.object(profile, "roles_added", return_value=[]):
+            roles = campaign._with_his_roles(["Partnerships Associate"], HIS)
+        self.assertIn("Business Development Representative", roles)
+        self.assertIn("Sales Development Representative", roles)
+
+
+class WithoutARuling(unittest.TestCase):
+    def test_no_ruling_file_leaves_his_sales_rule_whole(self):
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(rulings, "DEFAULT_PATH", Path(tmp) / "none.json"):
+            self.assertTrue(job_fit.unwanted_reason("Business Development Representative", "", HIS))
+            self.assertEqual(job_fit.preferences(HIS), ("partnerships", "sales, cold calling, quota"))
+            with mock.patch.object(profile, "roles_added", return_value=[]):
+                self.assertEqual(campaign._with_his_roles(["X"], HIS), ["X"])
+
+
+if __name__ == "__main__":
+    unittest.main()

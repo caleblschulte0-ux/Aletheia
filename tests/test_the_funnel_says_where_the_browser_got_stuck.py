@@ -86,3 +86,25 @@ class WhereTheBrowserGotStuck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheLastFewDaysOfStopsAreToldApart(unittest.TestCase):
+    def test_publish_carries_the_recent_stops_beside_the_months(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from aletheia import apply_run
+        missions = [left("NO_WAY_FORWARD", "CONTENT", reached=["observed"], days_ago=1),
+                    left("NO_WAY_FORWARD", "CONTENT", reached=["observed"], days_ago=20)]
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(hunt_funnel, "_left_missions", return_value=missions), \
+                mock.patch.object(hunt_funnel, "_tallies", return_value=[]), \
+                mock.patch.object(apply_run, "all_runs", return_value=[]), \
+                mock.patch.dict(hunt_funnel._LAST, {"at": -1e12}):
+            target = Path(tmp) / "funnel.json"
+            hunt_funnel.publish(now=NOW, path=target)
+            out = json.loads(target.read_text(encoding="utf-8"))
+        self.assertEqual(out["stuck_at"]["no_way_forward"], {"nothing_to_press_on_content/observed": 2})
+        self.assertEqual(out["stuck_recently"], {
+            "days": hunt_funnel.RECENT_DAYS,
+            "where": {"no_way_forward": {"nothing_to_press_on_content/observed": 1}}})

@@ -1073,8 +1073,15 @@ def leave_walls() -> int:
     """Walls the general browser cannot pass are left, and their records
     closed, on every beat (2026-09-23: 72 "waiting for you" cards)."""
     from aletheia import apply_run, browser_mission
+    if not _SETTLED_OLD["done"]:
+        # Once per process: records written before 2026-09-22 never change.
+        _SETTLED_OLD["done"] = True
+        apply_run.settle_old_not_a_form()
     left = browser_mission.leave_walls()
     return apply_run.close_left_missions(left) if left else 0
+
+
+_SETTLED_OLD = {"done": False}
 
 
 def send_approved_applications() -> list[dict]:

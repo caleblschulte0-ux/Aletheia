@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-10-07T13:33:01Z",
-  "fleet_revision": 5,
+  "generated_at": "2026-10-07T23:09:15Z",
+  "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
   "repos": {
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "00a01f612606",
-          "date": "2026-10-07T13:28:14Z",
+          "sha": "b99929b20e8c",
+          "date": "2026-10-07T23:05:49Z",
+          "message": "Merge pull request #305 from caleblschulte0-ux/claude/sweep-forty-eight"
+        },
+        {
+          "sha": "7a8dd16e32d5",
+          "date": "2026-10-07T22:48:31Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "ca138209646b",
-          "date": "2026-10-07T12:27:54Z",
+          "sha": "14d9832a3e3a",
+          "date": "2026-10-07T22:46:09Z",
+          "message": "Merge pull request #306 from caleblschulte0-ux/claude/bamboohr-apply-button"
+        },
+        {
+          "sha": "32745f6b7c56",
+          "date": "2026-10-07T22:40:36Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "41745bc8c747",
-          "date": "2026-10-07T12:26:13Z",
-          "message": "Merge pull request #268 from caleblschulte0-ux/claude/board-text"
-        },
-        {
-          "sha": "5e4e6f29c199",
-          "date": "2026-10-07T12:25:19Z",
-          "message": "Merge pull request #260 from caleblschulte0-ux/claude/posting-dates"
-        },
-        {
-          "sha": "cdfc314d4a30",
-          "date": "2026-10-07T12:25:16Z",
-          "message": "Merge pull request #258 from caleblschulte0-ux/claude/one-company-few-roles"
+          "sha": "c1615aeae6af",
+          "date": "2026-10-07T22:29:04Z",
+          "message": "An answer she already holds gets the same patience as a quick one"
         }
       ],
       "commit": {
-        "sha": "00a01f612606",
-        "date": "2026-10-07T13:28:14Z",
-        "message": "core: state checkpoint"
+        "sha": "b99929b20e8c",
+        "date": "2026-10-07T23:05:49Z",
+        "message": "Merge pull request #305 from caleblschulte0-ux/claude/sweep-forty-eight"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-07T13:32:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37629362705"
+          "updated_at": "2026-10-07T23:09:12Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37700578407"
         },
         "ci.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-07T13:30:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37629089480"
+          "updated_at": "2026-10-07T23:05:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37700255895"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 31591
+          "bytes": 31553
         }
       },
       "health": "unknown"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "fec0a4a0fc71",
-          "date": "2026-10-07T13:31:46Z",
-          "message": "watchdog: chatgpt task verdicts 20261007 [skip ci]"
+          "sha": "f1b9639805e6",
+          "date": "2026-10-07T22:47:42Z",
+          "message": "claim: mailbox verdicts 2026-10-07T22:47Z [skip ci]"
         },
         {
-          "sha": "83d2fa0993a4",
-          "date": "2026-10-07T13:31:17Z",
-          "message": "credentials: heartbeat [skip ci]"
+          "sha": "332766bfa032",
+          "date": "2026-10-07T22:40:26Z",
+          "message": "story forge: new real-data stories [skip ci]"
         },
         {
-          "sha": "a05a4eaf2b3a",
-          "date": "2026-10-07T13:22:26Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "8073db1fe119",
+          "date": "2026-10-07T22:10:48Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "002899548d03",
-          "date": "2026-10-07T13:22:17Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "657def1b4cb2",
+          "date": "2026-10-07T21:09:04Z",
+          "message": "Third stories: a narrator line per beat, not one per story (#542)"
         },
         {
-          "sha": "3472fea6b7db",
-          "date": "2026-10-07T13:19:20Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+          "sha": "141ece70009e",
+          "date": "2026-10-07T21:00:27Z",
+          "message": "New look: the pile is the second bar, and a failed redraw gets one more go (#541)"
         }
       ],
       "commit": {
-        "sha": "fec0a4a0fc71",
-        "date": "2026-10-07T13:31:46Z",
-        "message": "watchdog: chatgpt task verdicts 20261007 [skip ci]"
+        "sha": "f1b9639805e6",
+        "date": "2026-10-07T22:47:42Z",
+        "message": "claim: mailbox verdicts 2026-10-07T22:47Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 305
+          "value": 306
         },
         {
           "label": "third posted",
-          "value": 858
+          "value": 860
         },
         {
           "label": "curiosity posted",
@@ -130,32 +130,32 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-07T12:31:59Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37621593459"
+          "updated_at": "2026-10-07T21:10:22Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37687342731"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-07T11:47:17Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616361392"
+          "updated_at": "2026-10-07T20:02:22Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37678979890"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-07T12:15:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616819486"
+          "updated_at": "2026-10-07T22:40:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37693683936"
         },
         "third.yml": {
           "status": "completed",
-          "conclusion": "skipped",
-          "updated_at": "2026-10-07T11:47:38Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616497138"
+          "conclusion": "success",
+          "updated_at": "2026-10-07T18:39:23Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37661557775"
         },
         "explainer.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-07T12:48:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37616080459"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-07T22:10:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37692979744"
         },
         "retro.yml": {
           "status": "completed",
@@ -177,11 +177,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 134613
+          "bytes": 136493
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 478534
+          "bytes": 479652
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,7 +189,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 3358636
+          "bytes": 3442872
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -204,6 +204,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "e57af4247b70",
+          "date": "2026-10-07T19:20:17Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
         {
           "sha": "4ee081590ed7",
           "date": "2026-10-06T23:01:38Z",
@@ -223,16 +228,11 @@
           "sha": "25a43ed1bb6c",
           "date": "2026-10-04T16:07:23Z",
           "message": "backtest: weekly refresh [skip ci]"
-        },
-        {
-          "sha": "07809564b1b4",
-          "date": "2026-10-03T01:01:07Z",
-          "message": "analyst: weekly review [skip ci]"
         }
       ],
       "commit": {
-        "sha": "4ee081590ed7",
-        "date": "2026-10-06T23:01:38Z",
+        "sha": "e57af4247b70",
+        "date": "2026-10-07T19:20:17Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -260,15 +260,15 @@
       "state_files": {
         "signals/holdings.json": {
           "exists": true,
-          "bytes": 2117
+          "bytes": 2124
         },
         "signals/sim_account.json": {
           "exists": true,
-          "bytes": 3822
+          "bytes": 3869
         },
         "signals/performance.json": {
           "exists": true,
-          "bytes": 2240
+          "bytes": 2286
         },
         "reports/track_record.md": {
           "exists": true,
@@ -362,7 +362,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 13,
+        "days_quiet": 14,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -438,249 +438,25 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-07T13:28:14Z",
+        "last_progress_at": "2026-10-07T23:05:49Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
           {
-            "number": 276,
-            "title": "The job-hunt report says why applications were dropped",
-            "head": "claude/closed-reasons",
+            "number": 308,
+            "title": "BDR and SDR roles are applied to, by his yes",
+            "head": "claude/bdr-sdr-welcome",
             "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/276",
-            "created_at": "2026-10-07T13:30:50Z"
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/308",
+            "created_at": "2026-10-07T22:47:32Z"
           },
           {
-            "number": 275,
-            "title": "Land sweeps 1 to 38 on live: alarms by time, \"which one?\", texts read back, and everything stacked before",
-            "head": "claude/sweep-thirtyeight",
+            "number": 307,
+            "title": "Old pages that were never forms stop counting as failures",
+            "head": "claude/old-failures-were-never-forms",
             "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/275",
-            "created_at": "2026-10-07T12:24:46Z"
-          },
-          {
-            "number": 254,
-            "title": "Land every open sweep in one merge (#222 to #253)",
-            "head": "claude/integration-all",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/254",
-            "created_at": "2026-10-07T04:55:05Z"
-          },
-          {
-            "number": 253,
-            "title": "Corrections keep the afternoon, and she can say what's blocked, queued and next",
-            "head": "claude/sweep-twentyone",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/253",
-            "created_at": "2026-10-07T04:31:31Z"
-          },
-          {
-            "number": 252,
-            "title": "What's using his memory, is the internet up, what he got done, and his top task",
-            "head": "claude/sweep-twenty",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/252",
-            "created_at": "2026-10-07T04:14:23Z"
-          },
-          {
-            "number": 251,
-            "title": "Sums and calendar arithmetic with no model; a moment isn't filed for later",
-            "head": "claude/sweep-nineteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/251",
-            "created_at": "2026-10-07T04:06:44Z"
-          },
-          {
-            "number": 249,
-            "title": "\"Am I busy at 3\", \"what's on friday\", \"delete that note\" and the inbox counted",
-            "head": "claude/sweep-eighteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/249",
-            "created_at": "2026-10-07T03:57:13Z"
-          },
-          {
-            "number": 248,
-            "title": "A bare verb asks for its content; wind, humidity, battery; \"cancel lunch\" is not a subscription",
-            "head": "claude/sweep-seventeen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/248",
-            "created_at": "2026-10-07T03:57:10Z"
-          },
-          {
-            "number": 247,
-            "title": "His own named lists: packing, movies, gifts",
-            "head": "claude/named-lists",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/247",
-            "created_at": "2026-10-07T03:49:03Z"
-          },
-          {
-            "number": 246,
-            "title": "Weeks until, tips, his birthday, currency, repeating alarms and the off switch",
-            "head": "claude/sweep-sixteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/246",
-            "created_at": "2026-10-07T03:49:01Z"
-          },
-          {
-            "number": 245,
-            "title": "His day asked the ways people ask, holds, his zip and his name",
-            "head": "claude/sweep-fifteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/245",
-            "created_at": "2026-10-07T03:39:58Z"
-          },
-          {
-            "number": 244,
-            "title": "Move, rename and drop a task by voice",
-            "head": "claude/sweep-fourteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/244",
-            "created_at": "2026-10-07T03:32:20Z"
-          },
-          {
-            "number": 241,
-            "title": "Monthly, every-other-day and every-hour reminders",
-            "head": "claude/monthly-reminders",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/241",
-            "created_at": "2026-10-07T02:59:51Z"
-          },
-          {
-            "number": 243,
-            "title": "Weekend weather, the umbrella, timers, chance, spelling, cups and spoons, what is due, and contacts by voice",
-            "head": "claude/sweep-thirteen",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/243",
-            "created_at": "2026-10-07T03:14:08Z"
-          },
-          {
-            "number": 235,
-            "title": "Farewells, his address and email, moving holidays, and a quiet nod",
-            "head": "claude/sweep-seven",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/235",
-            "created_at": "2026-10-07T02:08:19Z"
-          },
-          {
-            "number": 240,
-            "title": "Texts to \"mom\", needs on the list, weather sideways, and the time he said",
-            "head": "claude/sweep-twelve",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/240",
-            "created_at": "2026-10-07T02:59:19Z"
-          },
-          {
-            "number": 239,
-            "title": "A crisis gets the lifeline, a feeling gets a line; tasks with a day; sums in words; YouTube search",
-            "head": "claude/sweep-eleven",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/239",
-            "created_at": "2026-10-07T02:41:21Z"
-          },
-          {
-            "number": 238,
-            "title": "Sun, moon and sums without a model; \"am I free Friday at 10\"; reminders tonight, in 3 days, before my meeting; \"turn off",
-            "head": "claude/sweep-ten",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/238",
-            "created_at": "2026-10-07T02:35:37Z"
-          },
-          {
-            "number": 237,
-            "title": "A fact he says is kept and read back; help, stop the timer, the date tomorrow",
-            "head": "claude/sweep-nine",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/237",
-            "created_at": "2026-10-07T02:25:28Z"
-          },
-          {
-            "number": 236,
-            "title": "Reminders on any day, \"cancel my 3pm\" cancels no subscription, and six questions without a model",
-            "head": "claude/reminders-on-any-day",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/236",
-            "created_at": "2026-10-07T02:13:50Z"
-          },
-          {
-            "number": 234,
-            "title": "Thea answers the Shorts mailboxes in the morning",
-            "head": "claude/shorts-mailbox-worker",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/234",
-            "created_at": "2026-10-07T02:06:18Z"
-          },
-          {
-            "number": 232,
-            "title": "\"Repeat that\" works, \"note:\" isn't refused as spending, and a bare \"add a task\" asks what",
-            "head": "claude/sweep-six",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/232",
-            "created_at": "2026-10-07T01:53:59Z"
-          },
-          {
-            "number": 231,
-            "title": "\"Every Tuesday night\" is weekly, not once; due/overdue tasks, birthday, tip",
-            "head": "claude/sweep-five",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/231",
-            "created_at": "2026-10-07T01:48:15Z"
-          },
-          {
-            "number": 230,
-            "title": "Calendar holds in any word order, web search, timer wording and \"how's my day\"",
-            "head": "claude/calendar-and-search-by-voice",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/230",
-            "created_at": "2026-10-07T01:42:45Z"
-          },
-          {
-            "number": 229,
-            "title": "\"Mom's number is \u2026\", \"cancel my alarm\", kitchen measures and volume work with no model",
-            "head": "claude/sweep-three",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/229",
-            "created_at": "2026-10-07T01:36:36Z"
-          },
-          {
-            "number": 228,
-            "title": "Shopping lists, timers, to-do list, \"forget that\" and small asks work with no model",
-            "head": "claude/shopping-list-by-voice",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/228",
-            "created_at": "2026-10-07T01:31:51Z"
-          },
-          {
-            "number": 226,
-            "title": "Telling her your name, or your landlord's, is enough",
-            "head": "claude/telling-her-is-enough",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/226",
-            "created_at": "2026-10-07T01:21:58Z"
-          },
-          {
-            "number": 225,
-            "title": "The capability registry says its dashes right",
-            "head": "claude/registry-says-its-dashes-right",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/225",
-            "created_at": "2026-10-07T00:26:31Z"
-          },
-          {
-            "number": 224,
-            "title": "\"Actually cancel that\" and \"cancel that reminder\" take back what he just did",
-            "head": "claude/cancel-that-means-the-thing-just-done",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/224",
-            "created_at": "2026-10-07T00:26:26Z"
-          },
-          {
-            "number": 223,
-            "title": "\"Tomorrow\" is his tomorrow, not the server's",
-            "head": "claude/his-tomorrow-not-the-servers",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/223",
-            "created_at": "2026-10-07T00:26:18Z"
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/307",
+            "created_at": "2026-10-07T22:35:09Z"
           }
         ]
       },

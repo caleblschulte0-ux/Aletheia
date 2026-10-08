@@ -47,6 +47,12 @@ ACTOR = "aletheia-apply-forever"
 #: How long to wait before looking for work again. Long enough that a quiet
 #: day costs nothing, short enough that a finished campaign is noticed.
 IDLE_WAIT_S = 300.0
+#: How soon to look again while a batch is running or has just started. A
+#: batch takes about seven minutes in its own process; looking again only
+#: after IDLE_WAIT_S left the next one waiting up to five minutes behind it,
+#: and live 2026-10-07 five batches ran in the eight hours since the funnel
+#: began counting them.
+BUSY_POLL_S = 30.0
 #: How many to ask for each time. Small batches on purpose: a campaign that
 #: dies at job forty loses forty; one that dies at job eight loses eight.
 BATCH = 8
@@ -281,8 +287,9 @@ def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S
             raise
         except Exception:
             pass  # a stat that failed is not a reason to stop hunting
+        out: dict = {}
         try:
-            once(batch=batch, resume=resume, starter=starter, refiller=refiller)
+            out = once(batch=batch, resume=resume, starter=starter, refiller=refiller) or {}
         except policy.Halted:
             journal.append("decision", "apply:forever",
                            "he halted her, so the job hunt stopped", actor=ACTOR)
@@ -293,10 +300,15 @@ def forever(*, batch: int = BATCH, resume: str = "", wait_s: float = IDLE_WAIT_S
             journal.append("alert", "apply:forever",
                            f"a batch could not start: {type(exc).__name__}: {exc}"[:200],
                            actor=ACTOR)
-        pursue_once(pursuer=pursuer)
+        busy = bool(out.get("started") or out.get("already"))
+        if not out.get("already"):
+            # Once per batch, not once per look: a look that only finds the
+            # batch still running has nothing new for the pursuit.
+            pursue_once(pursuer=pursuer)
         done += 1
         if turns is None or done < turns:
-            sleep(wait_s)
+            # WORK IN HAND IS FOLLOWED CLOSELY; a quiet loop waits long.
+            sleep(min(wait_s, BUSY_POLL_S) if busy else wait_s)
     return 0
 
 

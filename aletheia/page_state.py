@@ -222,9 +222,30 @@ _CHARGE = re.compile(r"\b(?:order total|total due|amount due|grand total|total p
                      r"total)\b[^\n]{0,40}?[$€£]\s?\d|[$€£]\s?\d[\d,.]*\s*(?:due|total)\b", re.I)
 
 
+#: What a job posting says about PAY, which reads like a charge to `_CHARGE`:
+#: "Total compensation: $80,000", "total target cash $120k OTE". Live
+#: 2026-10-07 the spending guard stopped filled applications at Submit on
+#: posting text like this; an application form never charges him.
+_PAY_WORDS = re.compile(
+    r"\b(?:compensation|salary|salaries|wages?|ote|on[- ]target|target (?:cash|earnings)|"
+    r"base (?:pay|salary)|pay (?:range|band|transparency)|total rewards|commission|equity)\b", re.I)
+#: Words that are only ever a purchase, never a posting: these keep a total a
+#: charge whatever pay words surround it.
+_CHECKOUT_WORDS = re.compile(
+    r"\b(?:order (?:total|summary|now)|your order|checkout|check out|cart|basket|subscription|"
+    r"subscribe|per month|/\s?mo(?:nth)?|monthly|billed|renews?|payment method|card number|"
+    r"place order|pay now|sales tax|shipping|delivery fee)\b", re.I)
+
+
 def shows_a_charge(text: str) -> bool:
-    """Does the page show a total it is about to charge?"""
-    return bool(_CHARGE.search(str(text or "")[:6000]))
+    """Does the page show a total it is about to charge? A total that sits
+    among words about the job's pay is the posting describing what it pays."""
+    text = str(text or "")[:6000]
+    for found in _CHARGE.finditer(text):
+        around = text[max(0, found.start() - 80): found.end() + 80]
+        if not _PAY_WORDS.search(around) or _CHECKOUT_WORDS.search(around):
+            return True
+    return False
 
 
 def control_kind(label: str, *, role: str = "button", on_form: bool = False,

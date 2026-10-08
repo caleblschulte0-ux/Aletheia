@@ -164,7 +164,7 @@ _HANDS_ON_TITLE = re.compile(
 
 def hands_on_reason(title: str, known: dict | None = None) -> str:
     """Why a title is shift work he never asked for, or ""."""
-    wanted, _unwanted = preferences(known)
+    wanted, _unwanted = _his_preferences(known)
     hit = _HANDS_ON_TITLE.search(str(title or ""))
     if not wanted.strip() or not hit:
         return ""
@@ -207,6 +207,12 @@ def preferences_changed_at() -> str:
     held = profile.load()
     stamps = [str(held[f].get("at") or "") for f in ("work_wanted", "work_not_wanted")
               if isinstance(held.get(f), dict)]
+    if development_reps_welcome():
+        # His yes to BDR/SDR changed what work he wants: the development-rep
+        # jobs closed as "sales" before it are judged afresh.
+        from aletheia import rulings
+        ruled = rulings.for_switch("bdr_sdr") or {}
+        stamps += [str(q.get("on") or "") for q in ruled.get("quotes") or []]
     return max(stamps) if stamps else ""
 
 
@@ -254,17 +260,54 @@ UNWANTED_KINDS = (
 )
 
 
-def preferences(known: dict | None = None) -> tuple[str, str]:
-    """(the work he wants, the work he will not do), in his words."""
+#: Development-rep titles: the first rung of a sales team, prospecting for
+#: the closers. His ruling 2026-10-07 (`config/rulings.json`, bdr-sdr-welcome)
+#: lets these through his "no sales, no cold calling, no quotas".
+_DEVELOPMENT_REP = re.compile(
+    r"\b(?:sdr|bdr|(?:business|sales) development (?:rep(?:resentative)?|associate)s?)\b", re.I)
+#: What his yes adds to the search, in the words postings use.
+DEVELOPMENT_REP_ROLES = ("Business Development Representative", "Sales Development Representative")
+_DEVELOPMENT_REP_WANTED = ("business development and sales development representative roles "
+                           "(BDR, SDR), prospecting and quota included")
+_DEVELOPMENT_REP_EXCEPT = ("except business and sales development representative roles (BDR, SDR), "
+                           "which he said yes to on 2026-10-07")
+
+
+def development_reps_welcome() -> bool:
+    """His ruling that BDR and SDR roles are wanted. No ruling file: no."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("bdr_sdr")
+    except Exception:
+        return False
+    return bool(ruled and ruled.get("on"))
+
+
+def _his_preferences(known: dict | None) -> tuple[str, str]:
     if known is None:
         from aletheia import profile
         known = profile.known()
     return (str(known.get("work_wanted") or ""), str(known.get("work_not_wanted") or ""))
 
 
+def preferences(known: dict | None = None) -> tuple[str, str]:
+    """(the work he wants, the work he will not do), in his words - and,
+    under his BDR/SDR ruling, that carve-out said to whoever reads them."""
+    wanted, unwanted = _his_preferences(known)
+    if development_reps_welcome():
+        wanted = "; ".join(w for w in (wanted, _DEVELOPMENT_REP_WANTED) if w)
+        if unwanted:
+            unwanted = f"{unwanted} ({_DEVELOPMENT_REP_EXCEPT})"
+    return wanted, unwanted
+
+
 def unwanted_reason(title: str, text: str = "", known: dict | None = None) -> str:
     """The kind of work he said he will not do, if this job is it."""
-    _wanted, unwanted = preferences(known)
+    if _DEVELOPMENT_REP.search(str(title or "")) and development_reps_welcome():
+        return ""
+    # His own words only: the carve-out sentence names "sales" and must not
+    # switch the sales rule on for a man who never said it.
+    _wanted, unwanted = _his_preferences(known)
     said = unwanted.casefold()
     for word, shows, why in UNWANTED_KINDS:
         if word in said and shows(str(title or ""), str(text or "")):
