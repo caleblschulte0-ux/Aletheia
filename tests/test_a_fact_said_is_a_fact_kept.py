@@ -5940,7 +5940,7 @@ class WhatHappensOnADayAndWhenToLeave(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=rows), \
                 mock.patch.object(quick, "_agenda_and_reminders", return_value="Nothing on your calendar Friday."):
             got = quick.answer("what do I do on Fridays")
-        self.assertIn("piano fridays at 4", got)
+        self.assertIn("piano Fridays at 4", got)
         self.assertEqual(quick.match("what's happening on saturdays")[0], "on_days")
 
     def test_leaving(self):
@@ -9923,7 +9923,9 @@ class HisThings(unittest.TestCase):
         ret = voice._interpret("I have 30 days to return the jacket")["command"]
         self.assertEqual(ret["description"], "return the jacket")
         self.assertIn("deadline", ret)
-        self.assertEqual(voice._interpret("where were my headphones")["command"].get("query"), "headphones")
+        # A thing of his, not a file (2026-10-08): "where were" is "where are".
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIn("your headphones", voice._interpret("where were my headphones")["say"])
 
     def test_read(self):
         rows = [{"text": "my phone plan is 45 a month"}, {"text": "my laptop keeps crashing"}, {"text": "my phone screen cracked"},
@@ -11743,6 +11745,358 @@ class WeeksAndYears(unittest.TestCase):
         import datetime as dt
         from aletheia import localtime
         self.assertEqual(quick.answer("what year was 10 years ago"), f"{dt.datetime.now(localtime.operator_tz()).year - 10}.")
+
+
+class AtTheGym(unittest.TestCase):
+    """2026-10-08: "I did legs today" got "that wasn't on your task list", and
+    "am I on track with my workouts" said 0 a turn after "how many times did I
+    work out this week" said once - "Once" is not a digit."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I did legs today")["command"], {"kind": "note", "text": "I did legs today"})
+        self.assertEqual(voice._interpret("I did the dishes")["command"]["kind"], "task_done")
+        self.assertEqual(voice._interpret("I am training for a half marathon")["command"]["kind"], "note")
+        held = voice._interpret("I have a session with my trainer Tuesday at 6")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "session with my trainer"))
+
+    def test_the_two_counts_agree(self):
+        import datetime as dt
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "I want to work out 4 times a week", "ts": ts}, {"text": "I did legs today", "ts": ts}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertTrue(quick.answer("how many times did I work out this week").startswith("Once"))
+            self.assertTrue(quick.answer("am I on track with my workouts").startswith("1 workout so far"))
+
+
+class TheCalendarAgain(unittest.TestCase):
+    """2026-10-08: "put a hold on Thursday at 4 for a call with the bank" and
+    "I have a conference all day Wednesday" went to the planner, "when is my
+    next free afternoon" to a model, and "clear my calendar Friday" said she
+    could not cancel anything though her own holds are hers to take off."""
+
+    def test_holds(self):
+        held = voice._interpret("put a hold on Thursday at 4 for a call with the bank")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "call with the bank"))
+        day = voice._interpret("I have a conference all day Wednesday")["command"]
+        self.assertEqual((day["title"], day["minutes"]), ("conference", 480))
+        self.assertIn("T09:00:00", day["start"])
+
+    def test_next_free_afternoon(self):
+        import datetime as dt
+        from aletheia import calendar as cal, localtime
+        tz = localtime.operator_tz()
+        tomorrow = (dt.datetime.now(tz) + dt.timedelta(days=1)).replace(hour=14, minute=0, second=0, microsecond=0)
+        with mock.patch.object(cal, "all_events", lambda: [{"title": "x", "start": tomorrow.isoformat(),
+                                                             "end": (tomorrow + dt.timedelta(hours=1)).isoformat()}]):
+            said = quick.answer("when is my next free afternoon")
+        after = (tomorrow + dt.timedelta(days=1)).date()
+        self.assertEqual(said, f"{after:%A} afternoon, {after.day} {after:%B} - nothing on your calendar then.")
+
+    def test_clearing_a_day_names_her_holds(self):
+        import datetime as dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        when = (dt.datetime.now(tz) + dt.timedelta(days=2)).replace(hour=12, minute=0, second=0, microsecond=0)
+        rows = [(when, {"title": "lunch with Sam"})]
+        with mock.patch.object(voice, "_her_holds_on", lambda day: rows):
+            said = voice._interpret(f"clear my calendar {when:%A}".lower())["say"]
+        self.assertIn("lunch with Sam at 12 pm", said)
+
+
+class TheShoppingListAgain(unittest.TestCase):
+    """2026-10-08: "add chips to the list for Saturday" and "read me my list"
+    went to the planner."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("add chips to the list for Saturday")["command"],
+                         {"kind": "shopping_add", "item": "chips for Saturday"})
+        self.assertEqual(quick.match("read me my list")[0], "the_list")
+
+
+class TheNeighbors(unittest.TestCase):
+    """2026-10-08: "my neighbor is having a party Saturday" was held at 9 am
+    on HIS calendar, "I am watching Tom house this week" was kept as a show,
+    "Tom gave it back" and "the HOA fee is 200 a quarter" went to the
+    planner, and "who has my ladder" missed "Tom is borrowing my ladder"."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("my neighbor is having a party saturday")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("I am watching Tom's house this week")["command"]["text"], "I'm watching Tom's house this week")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Tom is borrowing my ladder"}]):
+            self.assertEqual(voice._interpret("Tom gave it back")["command"]["text"], "Tom gave my ladder back")
+        for said in ("the HOA fee is 200 a quarter", "my neighbor Tom has a snowblower", "Tom is out of town this week"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("our HOA meeting is Tuesday at 7")["command"]["title"], "HOA meeting")
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Tom is borrowing my ladder"}, {"text": "my neighbor Tom has a snowblower"},
+                                                          {"text": "I'm watching Tom's house this week"}]):
+            self.assertEqual(quick.answer("who has my ladder"), "You told me: Tom is borrowing your ladder.")
+            self.assertIn("Tom has a snowblower", quick.answer("who has a snowblower"))
+            self.assertIn("Tom's house", quick.answer("whose house am I watching"))
+
+
+class WhereThingsAre(unittest.TestCase):
+    """2026-10-08: "where is my remote" searched his Documents, "the remote is
+    missing", "I can not find my phone" and "I moved the keys to the hook"
+    went to the planner."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I moved the keys to the hook")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            for said in ("where is my remote", "the remote is missing", "I can not find my phone", "where is my jacket"):
+                r = voice._interpret(said)
+                self.assertIsNone(r["command"], said)
+                self.assertIn("no eyes in the room", r["say"], said)
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I moved the keys to the hook"}]):
+            self.assertEqual(voice._interpret("where are my keys")["say"], "You moved the keys to the hook.")
+        self.assertIn("Plug it in", voice._interpret("my phone is at 10 percent")["say"])
+        self.assertNotEqual((voice._interpret("the milk is gone") or {}).get("command", {}).get("kind"), "file_find")
+
+
+class TheWeatherAskedSideways(unittest.TestCase):
+    def test_the_forecast_answers_a_storm_a_run_and_the_lawn(self):
+        for said, day in (("is there a storm coming", ""), ("is it a good day for a run", ""),
+                          ("should I water the lawn", ""), ("should I water the lawn tomorrow", "tomorrow"),
+                          ("is tomorrow a good day for a hike", "tomorrow")):
+            with mock.patch.object(quick, "_weather", return_value="Sunny, 70.") as w:
+                self.assertEqual(quick.answer(said), "Sunny, 70.", said)
+            w.assert_called_once_with(day)
+
+
+class ThePlacesHeUses(unittest.TestCase):
+    NOTES = [{"text": "my pharmacy is the CVS on Oak Street"}, {"text": "my dentist is Dr Lee"}]
+
+    def test_which_one_he_uses_reads_what_he_said(self):
+        with mock.patch.object(quick, "_notes", lambda: self.NOTES):
+            self.assertIn("CVS on Oak Street", quick.answer("which pharmacy do I use"))
+            self.assertIn("CVS on Oak Street", quick.answer("where is my pharmacy"))
+            self.assertIn("Dr Lee", quick.answer("which dentist do I go to"))
+
+    def test_a_place_he_never_named_is_not_guessed(self):
+        with mock.patch.object(quick, "_notes", lambda: self.NOTES):
+            self.assertNotIn("CVS", quick.answer("which bank do I use") or "")
+
+
+class BillsAndSubscriptions(unittest.TestCase):
+    def test_a_service_he_mentioned_is_a_subscription_he_has(self):
+        from aletheia import intercom, subscriptions
+        with mock.patch.object(subscriptions, "all_subscriptions", return_value=[]), \
+                mock.patch.object(intercom, "_open_tasks", return_value=[]), \
+                mock.patch.object(quick, "_cost_mine", return_value=None), \
+                mock.patch.object(quick, "_notes", lambda: [{"text": "my Netflix renews on the 12th"}]):
+            said = intercom.execute_command({"kind": "subscriptions"}, {"repos": {}})
+        self.assertIn("Netflix renews on the 12th", said)
+
+    def test_can_i_take_more_is_asked_like_when(self):
+        self.assertEqual(quick.match("can I take more ibuprofen")[0], "took_today")
+        self.assertIn("won't guess at a dose", quick.answer("can I take more ibuprofen"))
+
+    def test_a_weekday_whose_morning_has_gone_is_next_week(self):
+        from aletheia import localtime
+        now = dt.datetime.now(localtime.operator_tz())
+        if now.hour < 9:
+            self.skipTest("the default hour is still ahead today")
+        day = now.strftime("%A").lower()
+        got = voice._interpret(f"remind me to pay my credit card on {day}")["command"]
+        self.assertGreater(dt.datetime.fromisoformat(got["at"]), now)
+        self.assertEqual((dt.datetime.fromisoformat(got["at"]).date() - now.date()).days, 7)
+
+
+class HisWorkWeek(unittest.TestCase):
+    def test_what_he_says_about_work_is_kept(self):
+        self.assertEqual(voice.interpret("my boss name is Karen")["command"]["text"], "my boss's name is Karen")
+        held = voice.interpret("I have a performance review on the 20th at 2")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "performance review"))
+        for said in ("my coworker Jake is out sick", "I worked from home today"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual((voice.interpret("who is out today") or {}).get("command", {}).get("kind"), "note")
+
+    def test_who_is_out_and_days_from_home_read_his_notes(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "my coworker Jake is out sick", "ts": now}, {"text": "I worked from home today", "ts": now}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertIn("Jake is out sick", quick.answer("who is out today"))
+            self.assertEqual(quick.answer("how many days did I work from home this week"),
+                             "You worked from home 1 day this week, by what you told me.")
+            self.assertIsNone(quick.answer("how many days did I work in the office this week"))
+
+
+class ADictatedClockTime(unittest.TestCase):
+    def test_six_thirty_without_its_colon_is_still_six_thirty(self):
+        for said in ("set an alarm for 6 30 tomorrow", "wake me up at 6 30"):
+            got = voice.interpret(said)["command"]
+            self.assertEqual((got["kind"], got["at"][11:16]), ("remind_at", "06:30"), said)
+        self.assertEqual(voice.interpret("I have a meeting at 2 15 tomorrow")["command"]["start"][11:16], "14:15")
+
+    def test_a_count_is_not_a_clock(self):
+        self.assertNotIn("1:30", voice.interpret("set a timer for 1 30 minutes")["command"].get("text", ""))
+        self.assertNotIn("2:30", voice.interpret("add 2 30 packs")["command"].get("text", ""))
+
+
+class WhatIsPlaying(unittest.TestCase):
+    def test_what_was_that_song_and_saving_one_are_said_plainly(self):
+        self.assertIn("can't see what's playing", voice.interpret("what was that song")["say"])
+        self.assertIn("Spotify account", voice.interpret("add this song to my favorites")["say"])
+        self.assertIsNone(voice.interpret("add this song to my favorites")["command"])
+
+    def test_the_top_story_is_the_news(self):
+        self.assertEqual(quick.match("what is the top story today")[0], "news")
+
+
+class ABirthdayTypedLowercase(unittest.TestCase):
+    def test_when_is_sam_birthday_is_sams(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "Sam's birthday is June 3"}]):
+            self.assertIn("Sam's birthday is", quick.answer("when is sam birthday"))
+            self.assertNotIn("Sam", quick.answer("when is my birthday") or "")
+
+
+class TheOvenAndTheMealPlan(unittest.TestCase):
+    def test_how_long_in_the_oven_comes_with_the_temperature_that_says_done(self):
+        said = quick.answer("how long to bake chicken breast at 400")
+        self.assertIn("20 to 25 minutes", said)
+        self.assertIn("165 degrees inside", said)
+        self.assertIn("a little longer", quick.answer("how long should I bake salmon at 375"))
+        self.assertIsNone(quick.answer("how long to bake cookies"))
+
+    def test_a_dish_on_a_day_is_the_meal_plan(self):
+        self.assertEqual(voice.interpret("tacos for dinner on monday")["command"],
+                         {"kind": "list_add", "list": "meal plan", "item": "Monday: tacos"})
+        self.assertEqual(voice.interpret("tuesday is taco night")["command"]["item"], "Tuesday: taco night")
+        self.assertEqual(voice.interpret("dinner with Sam on friday")["command"]["kind"], "calendar_hold")
+        self.assertEqual(quick.match("meal plan for the week")[0], "meal_plan")
+
+
+class HisWeekAndHisBedtime(unittest.TestCase):
+    def test_how_is_my_week_looking_is_his_calendar(self):
+        self.assertEqual(quick.match("how is my week looking")[0], "agenda_week")
+        self.assertEqual(quick.match("how does my week look")[0], "agenda_week")
+
+    def test_bedtime_counts_back_from_the_alarm_she_set(self):
+        wake = dt.datetime(2026, 10, 9, 6, 30)
+        with mock.patch.object(quick, "_next_wake_up", return_value=wake):
+            said = quick.answer("what time should I go to bed to get 8 hours")
+        self.assertTrue(said.startswith("Your alarm is at 6:30 am. Asleep by 10:30 pm"), said)
+        with mock.patch.object(quick, "_next_wake_up", return_value=None):
+            self.assertIsNone(quick.answer("what time should I go to bed"))
+        self.assertIn("Asleep by 11 pm", quick.answer("what time should I go to bed if I want to wake up at 7"))
+
+
+class WhenTheTechActsUp(unittest.TestCase):
+    def test_resetting_the_router_is_the_power_cycle(self):
+        self.assertIn("wait 30 seconds", quick.answer("how do I reset my router"))
+        self.assertIn("wait 30 seconds", quick.answer("my internet is down, what do I do"))
+
+
+class TroubleWithTheCar(unittest.TestCase):
+    def test_a_ticket_with_its_amount_and_a_tow_are_kept(self):
+        for said in ("I got a parking ticket for 40", "my car got towed"):
+            got = voice.interpret(said)
+            self.assertEqual(got["command"], {"kind": "note", "text": said})
+        self.assertIn("non-emergency", voice.interpret("my car got towed")["say"])
+
+    def test_how_much_the_ticket_was(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I got a parking ticket for 40"}]):
+            self.assertEqual(quick.answer("how much was my parking ticket"), "You told me: you got a parking ticket for 40.")
+
+
+class TheKidsWeek(unittest.TestCase):
+    def test_a_game_and_a_conference_told_either_way_are_holds(self):
+        got = voice.interpret("my son has a soccer game saturday at 10")["command"]
+        self.assertEqual((got["kind"], got["title"], got["start"][11:16]), ("calendar_hold", "son's soccer game", "10:00"))
+        got = voice.interpret("parent teacher conference is on the 22nd at 4")["command"]
+        self.assertEqual((got["kind"], got["title"], got["start"][8:16]), ("calendar_hold", "parent teacher conference", "22T16:00"))
+
+    def test_who_is_picking_up_the_kids_is_a_question(self):
+        self.assertNotEqual((voice.interpret("who is picking up the kids") or {}).get("command", {}).get("kind"), "note")
+        self.assertEqual(voice.interpret("my wife is picking up the kids today")["command"]["kind"], "note")
+
+    def test_a_weekly_activity_is_in_their_week(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my daughter has dance on tuesdays"}]), \
+                mock.patch.object(quick, "_upcoming_events", return_value=[]):
+            self.assertEqual(quick.answer("what does my daughter have this week"),
+                             "You told me: your daughter has dance on Tuesdays.")
+            self.assertIsNone(quick.answer("what does my son have this week"))
+
+
+class MoneyBothWays(unittest.TestCase):
+    def test_who_owes_me_says_what_he_said_even_when_the_balance_is_his(self):
+        notes = [{"text": "Sam owes me 15"}, {"text": "I owe Sam 20 dollars"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("who owes me money"),
+                             "Sam owes you $15, but you owe Sam $20 - so on balance you owe Sam $5.")
+
+
+class PlanningAParty(unittest.TestCase):
+    def test_what_he_says_about_the_party_is_kept(self):
+        for said in ("I am planning a party for my wife", "I invited Sam, Mike and Jess", "the theme is 80s"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said}, said)
+        held = voice.interpret("the party is on the 24th at 7")["command"]
+        self.assertEqual((held["kind"], held["start"][8:16]), ("calendar_hold", "24T19:00"))
+        self.assertEqual(voice.interpret("I put the keys on the counter")["command"]["kind"], "note")
+
+    def test_who_he_invited(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I invited Sam, Mike and Jess"}]):
+            self.assertEqual(quick.answer("who did I invite"), "You told me: you invited Sam, Mike and Jess.")
+            self.assertTrue(quick.answer("did I invite Jess").startswith("Yes"))
+            self.assertTrue(quick.answer("did I invite Tom").startswith("Not that you told me"))
+
+
+class KeepingFit(unittest.TestCase):
+    def test_sore_a_cheat_day_and_calories(self):
+        self.assertIn("easy stretch", quick.answer("I am sore"))
+        self.assertEqual(voice.interpret("I had a cheat day")["command"], {"kind": "note", "text": "I had a cheat day"})
+        self.assertEqual(quick.answer("how many calories in a banana"), "About 105 calories in a medium banana.")
+        self.assertIsNone(quick.answer("how many calories in a big mac"))
+        self.assertEqual(quick.match("how many calories did I eat today")[0], "counted")
+
+
+class BookingTheTrip(unittest.TestCase):
+    def test_paperwork_is_an_errand_not_shopping(self):
+        self.assertEqual(voice.interpret("I need to get a passport")["command"]["description"], "get a passport")
+        self.assertEqual(voice.interpret("I need to renew my passport")["command"]["description"], "renew my passport")
+        self.assertEqual(voice.interpret("I need to buy milk")["command"]["kind"], "shopping_add")
+
+    def test_the_hotel_he_booked_is_kept_and_read(self):
+        said = "I booked a hotel in Chicago for the 15th"
+        self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", lambda: [{"text": said}]):
+            for asked in ("what hotel am I staying at", "where am I staying", "when is my hotel"):
+                self.assertEqual(quick.answer(asked), "You told me: you booked a hotel in Chicago for the 15th.", asked)
+
+
+class ThePetsAgain(unittest.TestCase):
+    def test_how_the_dog_is_doing_is_not_its_name(self):
+        notes = [{"text": "my dog was born in 2019"}, {"text": "my dog is limping"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertNotIn("Limping", quick.answer("how old is my dog") or "")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my boss is Karen"}]):
+            self.assertEqual(quick.answer("who is my boss"), "Your boss is Karen.")
+
+    def test_a_bath_food_running_low_and_the_dogs_weight(self):
+        self.assertEqual(voice.interpret("the cat food is running low")["command"], {"kind": "shopping_add", "item": "cat food"})
+        self.assertNotEqual(voice.interpret("the battery is running low")["command"]["kind"], "shopping_add")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my dog weighs 45 pounds"}]):
+            self.assertEqual(quick.answer("what is my dog weight"), "You told me: your dog weighs 45 pounds.")
+
+
+class RemindersThatWentOff(unittest.TestCase):
+    def test_what_she_reminded_him_of_today(self):
+        from aletheia import notifications
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"title": "Reminder", "body": "call mom", "created_at": now}]
+        with mock.patch.object(notifications, "all_notifications", lambda **k: rows):
+            self.assertTrue(quick.answer("what did you remind me about today").startswith("1 reminder today: call mom at "))
+            self.assertTrue(quick.answer("I missed a reminder").startswith("1 reminder you haven't seen: call mom"))
+        with mock.patch.object(notifications, "all_notifications", lambda **k: []):
+            self.assertEqual(quick.answer("what did you remind me about today"), "Nothing yet today - no reminder has gone off.")
+
+
+class HowHeGotThere(unittest.TestCase):
+    def test_the_bus_he_took_is_kept(self):
+        for said in ("I took the bus today", "I took an Uber to the airport"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
 
 
 if __name__ == "__main__":

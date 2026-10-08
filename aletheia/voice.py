@@ -681,6 +681,10 @@ def _a_place_she_knows(said: str) -> str:
 #: file search, and "do I have any reminders" is a store she reads.
 _NOT_A_FILE = frozenset({
     "keys", "phone", "wallet", "car", "glasses", "charger", "money",
+    # "Where is my remote" (2026-10-08: searched his Documents for "remote").
+    "remote", "tv remote", "bag", "purse", "backpack", "shoes", "headphones", "earbuds", "airpods",
+    "passport", "watch", "sunglasses", "jacket", "coat", "umbrella", "ring", "badge", "car keys",
+    "house keys", "spare key", "controller", "hat",
     "email", "emails", "inbox", "mail", "messages", "texts",
     "calendar", "schedule", "appointment", "appointments", "meeting",
     "meetings", "reminder", "reminders", "task", "tasks", "todo", "to do",
@@ -1659,7 +1663,7 @@ def _where_he_put(thing: str) -> str | None:
             # the 15th" answered "where's my car" (2026-10-07), because "is
             # ... on" was anywhere in the note.
             if re.search(rf"\b{re.escape(stem)}", low) and re.search(
-                    rf"\b(?:put|left|keep|hid|placed|parked)\b.*\b{re.escape(stem)}"
+                    rf"\b(?:put|left|keep|hid|placed|parked|moved)\b.*\b{re.escape(stem)}"
                     rf"|\b{re.escape(stem)}\w*(?:'s)? (?:is|are|was|were)(?: (?:still|now|probably))? "
                     r"(?:in|on|at|under|by|behind|next to|inside|near|up|down|out|with)\b"
                     rf"|\b{re.escape(stem)}\w* (?:in|on|at|under|by|behind|next to|inside|near)\b"
@@ -2084,6 +2088,30 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
         pass
     return {"command": {"kind": "remind_at", "at": at, "text": previous["text"],
                         "replaces": previous["text"]}, "say": None}
+
+
+def _her_holds_on(day_word: str) -> list:
+    """Her own tentative holds on the weekday or day he named, soonest first:
+    (local start, event). Empty when there are none or the store won't read."""
+    import datetime as dt
+    try:
+        from aletheia import calendar, localtime
+        tz = localtime.operator_tz()
+        iso = _spoken_day(day_word)
+        if not iso:
+            return []
+        day = dt.date.fromisoformat(iso[:10])
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = []
+        for event in calendar.all_events():
+            if event.get("status") != "TENTATIVE" or not str(event.get("source") or "").startswith("hold:"):
+                continue
+            start = calendar.parse_time(event["start"])
+            if start > now and start.astimezone(tz).date() == day:
+                rows.append((start.astimezone(tz), event))
+        return sorted(rows, key=lambda r: r[0])
+    except Exception:
+        return []
 
 
 def _one_of_her_holds(words: str):
@@ -2656,6 +2684,16 @@ def _apostrophes(transcript: str) -> str:
     said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
                   str(transcript or ""), flags=re.I)
     said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
+    # "When is sam birthday" (2026-10-08: to a model) - typed lowercase, so
+    # the capitalised-name rule below never saw it.
+    said = re.sub(r"\b(when is|when's|whens|what day is|how many days until|how long until) "
+                  r"(?!(?:my|your|his|her|their|our|the|a|an|it|this|that)\b)([a-z]{2,15}) (birthday|bday)\b",
+                  r"\1 \2's \3", said, flags=re.I)
+    # "Set an alarm for 6 30 tomorrow", "remind me at 3 30" (2026-10-08: to
+    # the planner): a dictated clock time loses its colon.
+    said = re.sub(r"\b(at|for|by|until|till|around|from|to) (1[0-2]|0?[1-9]) ([0-5]\d)\b(?! ?(?:minutes?|mins?|hours?|hrs?|seconds?|secs?|days?|weeks?"
+                  r"|months?|years?|percent|dollars?|bucks|pounds?|lbs?|miles?|people|times|of|[a-z]+s\b))",
+                  r"\1 \2:\3", said, flags=re.I)
     # "A doctors appointment" (2026-10-08: held and read back that way).
     said = re.sub(r"\b(doctor|dentist|vet|lawyer|accountant|barber|hairdresser|optometrist|therapist|orthodontist|dermatologist"
                   r"|chiropractor|pediatrician|surgeon|eye doctor)s (appointment|appt|office|visit|checkup|check-up)\b",
@@ -2663,7 +2701,7 @@ def _apostrophes(transcript: str) -> str:
     # "My wife ring size is 6", "my wife favorite flower is tulips"
     # (2026-10-08: to the planner) - the apostrophe and its s both dropped.
     said = re.sub(r"\b((?:my|our) (?:wife|husband|mom|mother|dad|father|son|daughter|sister|brother|girlfriend|boyfriend|partner"
-                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat)) (ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
+                  r"|grandma|grandpa|fiance|fiancee|baby|dog|cat|boss|manager|coworker|landlord|neighbor|neighbour|doctor|dentist|teacher|friend)) (name|weight|breed|vet|ring size|shoe size|dress size|shirt size|pants size|favorite|favourite"
                   r"|birthday|phone number|email|car|middle name|maiden name|allergies|allergy)\b", r"\1's \2", said, flags=re.I)
     # "Whats coming up", "whats the most important thing today" (2026-10-08:
     # each to a model) - typed without the apostrophe, they missed every
@@ -4217,7 +4255,8 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i (?:just )?(?:started|began|am starting|'m starting) (?:watching |(?:a |the )?(?:new )?(?:show|series|tv show) (?:called |named )?)"
                      r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"(?:i'?m|i am) (?:currently |now |still )?watching (?P<t>[a-z0-9].{1,60})", low)
     if m and "?" not in text and _said_as_a_title(text, m.group("t")) \
-            and not re.match(r"(?:it|that|this|them|tv|the news|the game|the kids|the dog|you|my |your |a |an |some|out )", m.group("t")):
+            and not re.match(r"(?:it|that|this|them|tv|the news|the game|the kids|the dog|you|my |your |a |an |some|out )", m.group("t")) \
+            and not re.match(r"[a-z]{2,15}(?:'s|s)? (?:house|place|apartment|dog|dogs|cat|cats|kids|pets|plants|baby)\b", m.group("t")):
         return {"command": {"kind": "note", "text": "I'm watching " + _as_he_said(text, m.group("t"))},
                 "say": "Noted. Ask me \"what am I watching\" and I'll tell you."}
     # "I'm on page 200 of Dune", "I'm on chapter 3 of Dune" (2026-10-08: to a model).
@@ -4347,7 +4386,10 @@ def _interpret(transcript: str) -> dict:
          # "I used the last of the milk" (2026-10-08: to the planner)
          or re.fullmatch(r"(?:i|we) (?:just )?(?:used|finished|ate|drank|had) (?:up )?the last of (?:the |our |my )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
-         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
+         or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         # "The cat food is running low" (2026-10-08: to the planner).
+         or re.fullmatch(r"(?:the |our |my )(?P<item>(?!(?:phone|battery|batteries|gas|tank|tires?|signal|data|storage|money|time|budget|balance"
+                         r"|funds|account|savings|patience|water pressure|oil|car|laptop|tablet)\b)[a-z][a-z '-]{1,30}?) (?:is|are) (?:running low|getting low|almost gone|almost out|running out)", low))
     # "I need to pick up my prescription tomorrow" was put on the shopping
     # list as "my prescription tomorrow" (2026-10-07): a pick-up, or anything
     # with a day or a time in it, is an errand - the task rule below.
@@ -4389,7 +4431,10 @@ def _interpret(transcript: str) -> dict:
                              r"|prescription refill|refill|hearing test|allergy test"
                              # "I need a dog sitter" (2026-10-08: the shopping list) is a person to find.
                              r"|(?:dog |pet |cat |house |baby ?)?sitter|babysitter|dog walker|nanny|plumber|electrician|handyman"
-                             r"|bloodwork|labs?|lab work)\b", m.group("item")) \
+                             r"|bloodwork|labs?|lab work"
+                             # "I need to get a passport" (2026-10-08: the shopping list) is paperwork.
+                             r"|passport|visa|driver'?s license|license|licence|real id|id card|permit|birth certificate"
+                             r"|social security card|marriage license|title|registration|insurance card)\b", m.group("item")) \
             and not re.search(r"\b(?:done|cleaned|fixed|repaired|checked|changed|replaced|serviced|inspected|washed|installed"
                               # "I need to get the gutters cleaned" (2026-10-08: the
                               # shopping list, as "the gutters cleaned") is a job.
@@ -5204,6 +5249,11 @@ def _interpret(transcript: str) -> dict:
             when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
         elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
             when += dt.timedelta(days=1)
+        elif when <= dt.datetime.now(tz) and re.fullmatch(
+                r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", m.group("day") or ""):
+            # "On Thursday", said on a Thursday afternoon, is next Thursday:
+            # 9 this morning is gone (2026-10-08: set for the past).
+            when += dt.timedelta(days=7)
         return {"command": {"kind": "remind_at", "at": when.isoformat(),
                             "text": _as_he_said(text, m.group("text").strip())}, "say": None}
     # TWO UNITS IN ONE BREATH. "Remind me in 2 hours and 30 minutes to
@@ -6027,7 +6077,10 @@ def _interpret(transcript: str) -> dict:
                          r"(?: one| task)?", low)
          # "I did 50 pushups" is a count, not a task (2026-10-07: it ticked
          # off a task called "50 pushups"); it is kept as a note further on.
-         or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(.+?)(?: one| task)?", low)
+         # "I did legs today", "I did yoga" (2026-10-08: "that wasn't on your
+         # task list") are workouts, kept further on.
+         or re.fullmatch(r"i (?:did|have done) (?:the )?(?!\d)(?!(?:legs|arms|chest|back|abs|shoulders|upper body|lower body|leg day|arm day|chest day"
+                         r"|yoga|pilates|cardio|a workout|weights|crossfit|hiit|push day|pull day|full body)\b)(.+?)(?: one| task)?", low)
          # "The second one is done" after she read the list (2026-10-07: to
          # the planner). Counting only - "the dishwasher is done" is a machine.
          or re.fullmatch(r"(?:the )?(first|second|third|fourth|fifth|last|top|1st|2nd|3rd|4th|5th) (?:one|task|thing)"
@@ -7542,6 +7595,17 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+        # "Clear my calendar Friday" (2026-10-08: "I can't cancel things",
+        # though the holds she pencilled in are hers to take off). Name them,
+        # one by one - emptying a day is not one word.
+        day_word = re.search(r"\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$", low)
+        held = _her_holds_on(day_word.group(1)) if day_word else []
+        if held:
+            from aletheia import speech as _sp_clear
+            names = [f"{e.get('title') or 'a hold'} at {t.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}" for t, e in held]
+            return {"command": None,
+                    "say": f"On {day_word.group(1).capitalize()} I pencilled in {_sp_clear.and_list(names)}. Say \"cancel\" and which, and I'll take it off. "
+                           "Anything else that day is on your own calendar, so clear it there."}
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
@@ -8071,16 +8135,27 @@ def _interpret(transcript: str) -> dict:
     # planner, and "where are my keys" said she had no eyes - with the note
     # that would have answered it never written. A note in his words, read
     # back by the question.
-    m = re.fullmatch(r"(?:i (?:put|left|stuck|keep|hid|placed)|i've (?:put|left)|i have (?:put|left)) (?:my |the |our )"
-                     r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of) .+"
+    # "I moved the keys to the hook" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:i (?:put|left|stuck|keep|hid|placed|moved)|i've (?:put|left|moved)|i have (?:put|left|moved)) (?:my |the |our )"
+                     r"(?P<thing>[a-z][a-z' ]{1,25}?) (?:in|on|at|under|by|behind|next to|inside|near|in the|on top of|to|into|onto) .+"
                      r"|(?:my|the|our) (?P<thing2>[a-z][a-z' ]{1,25}?) (?:are|is) (?:in|on|under|behind|next to|inside|on top of) "
                      r"(?:the|my|our|a) .+", low)
     # An appointment "is on the 15th" is a date, not a shelf (2026-10-07).
     if m and not re.search(r"\b(?:car|calendar|list|schedule|computer|pc|account|name|password|birthday"
-                           r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam)\b",
-                           m.group("thing") or m.group("thing2") or ""):
+                           r"|appointment|appt|meeting|interview|call|lunch|dinner|class|flight|haircut|checkup|exam"
+                           # "The party is on the 24th at 7" (2026-10-08: kept as where he put it).
+                           r"|party|wedding|shower|game|concert|recital|practice|conference|review|test|recital|reunion|trip|vacation)\b",
+                           m.group("thing") or m.group("thing2") or "") \
+            and not re.search(r"\b(?:on|in) the \d{1,2}(?:st|nd|rd|th)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    # "I can not find my phone", "the remote is missing" (2026-10-08: to the
+    # planner) ask the same thing.
+    lost = re.fullmatch(r"i can not find (?:my |the )?(?P<t>[a-z][a-z' ]{1,25}?)|(?:my|the|our) (?P<t2>(?:tv |car |house |spare )?(?:keys?|phone|wallet|glasses|sunglasses|remote|bag|purse|backpack|shoes?|charger|headphones|earbuds|airpods|passport|watch|ring"
+                        r"|jacket|coat|umbrella|laptop|ipad|tablet|badge|license|id|credit card|debit card|card|controller|scissors|tape measure|drill|hat))"
+                        r" (?:is|are) (?:missing|gone|lost|nowhere to be found)", low)
+    if lost:
+        return _interpret(f"where is my {lost.group('t') or lost.group('t2')}")
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| were| was| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
                      r"(?P<thing>[a-z][a-z' ]{1,25}?)(?: (?:today|tonight|tomorrow|this weekend|this week|right now|now))?(?: please)?", low)
     if m:
@@ -8094,9 +8169,10 @@ def _interpret(transcript: str) -> dict:
         told = _his_words_about(m.group("thing"))
         if told:
             return {"command": None, "say": told}
-    m = re.fullmatch(r"(?:find|where(?:'s| are| is| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
+    m = re.fullmatch(r"(?:find|where(?:'s| are| is| were| was| did i (?:last )?(?:put|leave|have|see|use|set))|locate|look for|i lost|i(?:'ve| have) lost|i can'?t find|i cannot find"
                      r"|have you seen|i misplaced) (?:my |the )?"
-                     r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch)"
+                     r"(?P<thing>keys|phone|wallet|glasses|remote|car|bag|purse|shoes|charger|headphones|earbuds|passport|watch"
+                     r"|jacket|coat|umbrella|sunglasses|airpods|backpack|ring|badge|hat|controller|car keys|house keys|spare key|tv remote)"
                      r"(?: please)?", low)
     if m:
         thing = m.group("thing")
@@ -8107,10 +8183,10 @@ def _interpret(transcript: str) -> dict:
             return {"command": None, "say": quick._parked()}
         return {"command": None,
                 "say": (f"I can't see where your {thing} are - I have no eyes in the room. "
-                        if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                        if thing in ("keys", "glasses", "shoes", "headphones", "earbuds", "sunglasses", "airpods", "car keys", "house keys")
                         else f"I can't see where your {thing} is - I have no eyes in the room. ")
                        + (f"Next time, tell me where you put them - say \"my {thing} are on the counter\" - and I'll remember."
-                          if thing in ("keys", "glasses", "shoes", "headphones", "earbuds")
+                          if thing in ("keys", "glasses", "shoes", "headphones", "earbuds", "sunglasses", "airpods", "car keys", "house keys")
                           else f"Next time, tell me where you put it - say \"my {thing} is on the counter\" - and I'll remember.")}
 
     # "I found my keys" (2026-10-07: to the planner).
@@ -8201,10 +8277,20 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what(?:'s| is) (?:this|that|playing|this song|that song|the song)"
                     r"(?: song| called| playing)?(?: right now| now)?"
                     r"|(?:what|which) song is (?:this|that|playing|on)(?: right now| now)?"
-                    r"|who (?:sings|is) this(?: song)?", low):
+                    r"|who (?:sings|is) this(?: song)?"
+                    # "What was that song" (2026-10-08: to a model).
+                    r"|what (?:was|is) (?:that|this|the last) song(?: called)?|what song (?:was|did) (?:that|just play|just played)"
+                    r"|who (?:sang|sings) that(?: song)?", low):
         return {"command": None,
                 "say": "I can't see what's playing - the media keys only play, pause "
                        "and skip. The player's window has the name."}
+    # "Add this song to my favorites", "like this song" (2026-10-08: to the
+    # planner): the same account a particular song needs.
+    if re.fullmatch(r"(?:add|save|put) (?:this|that|the) song (?:to|in|on) (?:my )?(?:favorites|favourites|liked songs|library|playlist|[a-z ]{1,20} playlist)"
+                    r"|(?:like|heart|save|favorite|favourite) (?:this|that|the) song", low):
+        return {"command": None,
+                "say": "I can't save songs yet - the media keys only play, pause and skip. That needs your "
+                       "Spotify account connected, which is a separate thing you'd set up once."}
 
     # HIS CHATGPT SUBSCRIPTION AS A SECOND WORKER. Granting it is a
     # deliberate act and stopping it is instant, the same asymmetry as
@@ -9226,6 +9312,26 @@ def _interpret(transcript: str) -> dict:
     _cal_days = (r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:the )?day after tomorrow|tomorrow|today|tonight"
                  r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
                  r" \d{1,2}(?:st|nd|rd|th)?)")
+    # "Parent teacher conference is on the 22nd at 4" (2026-10-08: kept as a
+    # note) is a hold told the other way round.
+    told_as = re.fullmatch(r"(?:the |my |our )?(?P<t>[a-z' ]{0,30}?(?:appointment|meeting|interview|conference|recital|practice"
+                           r"|party|performance review|review|presentation|exam|test|lesson|rehearsal|concert|checkup|physical|haircut))"
+                           r" is (?:on )?(?P<rest>(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|the \d{1,2}(?:st|nd|rd|th)"
+                           r"|(?:january|february|march|april|may|june|july|august|september|october|november|december) \d{1,2}(?:st|nd|rd|th)?)"
+                           r" at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)", low)
+    if told_as and not re.match(r"(?:what|when|where|who|which|how)\b", low):
+        again = _interpret(f"i have a {told_as.group('t')} {told_as.group('rest')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            again["command"]["title"] = _as_he_said(text, again["command"]["title"])
+            return again
+    # "Tacos for dinner on Monday" was a 6:30 hold called "tacos for dinner",
+    # and "Tuesday is taco night" went to the planner (2026-10-08). A dish on
+    # a day is the meal plan; dinner WITH somebody or AT a place stays a hold.
+    dish = re.fullmatch(r"(?P<w>[a-z][a-z ,'&-]{1,40}?) for (?:dinner|supper) (?:on )?(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)?"
+                        r"|(?P<d2>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|tonight)(?: night)? is (?P<w2>[a-z][a-z ,'&-]{1,30}?) night", low)
+    if dish and not re.search(r"\b(?:with|at|reservations?|out|party|meeting|date)\b", dish.group("w") or dish.group("w2") or ""):
+        what = dish.group("w") or f"{dish.group('w2')} night"
+        return _interpret(f"we are having {what} {dish.group('d') or dish.group('d2')}")
     held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"
                       r"(?: at (?P<time>[\w: ]+?))?", low),
@@ -9257,15 +9363,25 @@ def _interpret(transcript: str) -> dict:
                         r"(?P<title>[a-z' ]*?(?:appointment|meeting|lunch|dinner|breakfast|call|interview|party"
                         # "I have a test on Friday" (2026-10-08: to the planner).
                         r"|test|exam|quiz|midterm|final|presentation|recital|tournament"
+                        # "I have a performance review on the 20th" (2026-10-08: to the planner).
+                        r"|performance review|annual review|review meeting|evaluation|training|orientation|webinar|workshop|conference"
                         r"|date|class|practice|haircut|checkup|check-up"
                         # "I have a physical on November 3" (2026-10-08: to the planner).
                         r"|physical|eye exam|colonoscopy|mammogram|blood work|bloodwork|lab work|ultrasound|mri|x-ray|surgery|procedure|vaccine|cleaning"
                         # "I have a parent teacher conference thursday at 4" (2026-10-08: to the planner).
                         r"|conference|lesson|rehearsal|concert|performance"
+                        # "My son has a soccer game Saturday at 10" (2026-10-08: to the planner).
+                        r"|game|match|meet|tryouts?|scrimmage|swim meet|track meet"
                         # "I have a one on one with Linda tomorrow at 10" (2026-10-08: to the planner).
                         r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up)(?: (?:with|at) [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
+    # ...and "I have tickets to the Packers game on Sunday" is not his game
+    # to hold at nine: a game is a hold only with the time it starts.
+    # "The game is tomorrow at 7" is one he watches (kept as a note).
+    if told and re.search(r"\b(?:game|match|meet|scrimmage)$", told.group("title").strip()) and (
+            not told.group("time") or re.fullmatch(r"(?:the |a )?(?:game|match|meet|scrimmage)", told.group("title").strip())):
+        told = None
     # ...but "call tomorrow" alone is not a diary entry called Call.
     if told and not told.group("lead") and " " not in told.group("title").strip() \
             and not (told.group("time") or told.group("part")):
@@ -9408,6 +9524,8 @@ def _interpret(transcript: str) -> dict:
                 what += " appointment"
             again = _interpret(f"i have a {what} {mine.group('when')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                # "Our HOA meeting" (2026-10-08: held as "hoa meeting").
+                again["command"]["title"] = _as_he_said(text, again["command"]["title"])
                 return again
     # "Book 30 minutes with Sam at 4", "schedule a call with Dana tomorrow
     # at 10" (2026-10-08: offered as a WEB task, and to the planner). A hold
@@ -9441,6 +9559,11 @@ def _interpret(transcript: str) -> dict:
         if kids:
             whose = {"the kids": "the kids'", "my kids": "the kids'", "kids": "the kids'"}.get(kids.group("who"), re.sub(r"^my ", "", kids.group("who")) + "'s")
             title = f"{whose} {kids.group('what')}"
+        # "My neighbor is having a party Saturday" (2026-10-08: held at 9 am
+        # on HIS calendar as "neighbor is having a party") is their party.
+        if re.match(r"(?:(?:my|our|the) )?(?!(?:i|we)\b)[a-z]{2,15}s?(?: next door)? (?:is|are) having (?:a |an |their |her |his )?(?:party|barbecue|bbq|cookout|garage sale|yard sale"
+                    r"|baby|birthday party|housewarming|get together|get-together|bonfire)\b", title):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
         held = _calendar_hold(text, title, m.group("day") or "", m.group("part"), m.group("time"))
         if held:
             return held
@@ -9881,8 +10004,15 @@ def _interpret(transcript: str) -> dict:
     # "I got a speeding ticket" (2026-10-08: to the planner). Kept, so
     # "when did I get the ticket" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|received) (?:a |another )?(?:speeding|parking|traffic|red light) (?:ticket|fine|citation)"
+                    # "I got a parking ticket for 40" (2026-10-08: to the planner).
+                    r"(?: (?:for|of) \$?\d{1,4}(?:\.\d\d)?(?: dollars| bucks)?)?"
                     r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|i (?:just )?got pulled over(?: today| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Ugh, sorry. I've noted it."}
+    # "My car got towed" (2026-10-08: to the planner). Kept, with where to start.
+    if re.fullmatch(r"(?:my|our) (?:car|truck|van) (?:got|was|has been|just got) towed(?: today| last night| this morning| from [a-z ]{2,30})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Ugh, sorry - I've noted it. The local police non-emergency line can tell you which lot has it, "
+                       "and bring your license and registration to get it back."}
     # "I got in a fender bender" (2026-10-08: to the planner).
     if re.fullmatch(r"i (?:just )?(?:got in|got into|was in|had|have been in) (?:a |an )?(?:little |small |minor |bad |car )?(?:fender bender|accident|wreck|crash|car crash|collision)"
                     r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|(?:someone|somebody|a car|a truck) (?:hit|rear[- ]ended|backed into|sideswiped) (?:me|my car|my truck)(?: today| yesterday)?", low):
@@ -10595,7 +10725,7 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(rf"(?:{_kd}) (?:needs?|has to bring|must bring) (?:\$?\d[\d.]* (?:dollars|bucks)|\$\d[\d.]*|(?:to bring|to wear) [a-z0-9][a-z0-9' ]{{0,30}}?) for (?:the |his |her |their |a )?[a-z][a-z ]{{1,25}}", low) \
             or re.fullmatch(rf"(?:{_kd}) (?:has|have) no school (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|next week|this friday|this monday)", low) \
             or re.fullmatch(rf"(?:{_kd}) scored (?:\d{{1,3}}|a|an|one|two|three|four|five|six) (?:goals?|points?|baskets?|touchdowns?|runs?|home runs?)(?: today| tonight| this weekend| in (?:the|her|his|their) game)?", low) \
-            or re.fullmatch(r"(?:my (?:wife|husband|mom|dad|partner|sister|brother)|grandma|grandpa|i|[a-z]{2,15}) (?:is|am|will be) (?:picking up the kids|picking the kids up|getting the kids|dropping off the kids|dropping the kids off)(?: today| tomorrow| tonight| this week)?", low) \
+            or re.fullmatch(r"(?:my (?:wife|husband|mom|dad|partner|sister|brother)|grandma|grandpa|i|(?!(?:who|what|anyone|anybody|someone|somebody|nobody|everyone)\b)[a-z]{2,15}) (?:is|am|will be) (?:picking up the kids|picking the kids up|getting the kids|dropping off the kids|dropping the kids off)(?: today| tomorrow| tonight| this week)?", low) \
             or re.fullmatch(rf"(?:bedtime|lights out) for (?:{_kd}|the baby) is (?:at )?\d{{1,2}}(?::\d\d)?(?: ?[ap]m)?|(?:the kids'?|my (?:son|daughter)'s) bedtime is (?:at )?\d{{1,2}}(?::\d\d)?(?: ?[ap]m)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(rf"(?:{_kd}) (?:is|are) (?:home )?sick(?: today| again)?|(?:{_kd}) (?:stayed|is staying|are staying) home(?: from school)?(?: sick)?(?: today)?|(?:{_kd}) missed school(?: today)?", low):
@@ -10855,6 +10985,104 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my (?:coworker|co-worker|colleague|teammate|boss|manager|supervisor|assistant) )?[a-z]{2,15}(?: from [a-z ]{2,15})? (?:is leaving|is quitting|quit|got fired|got let go|is retiring|retired|got promoted|is moving teams|is going on leave|put in (?:her|his|their) notice)"
                             r"(?: today| this week| next week| on [a-z]+| at the end of the (?:week|month))?", low) \
             and not re.match(r"(?:i|you|he|she|it|they|we|who|what|everyone|somebody|someone)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # THE GYM (2026-10-08: "I did legs today" got "that wasn't on your task
+    # list"; "I'm training for a half marathon", "I'm taking a rest day" and
+    # "I have a session with my trainer Tuesday at 6" went to the planner).
+    if re.fullmatch(r"i (?:just )?did (?:legs|arms|chest|back|abs|shoulders|upper body|lower body|leg day|arm day|chest day|chest and triceps|back and biceps|push|pull|full body"
+                    r"|yoga|pilates|cardio|a workout|weights|crossfit|hiit)(?: day)?(?: (?:for )?\d{1,3} minutes)?(?: today| this morning| tonight| at the gym| after work)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Nice work. I've kept it."}
+    if re.fullmatch(r"(?:i'?m|i am) (?:training for|signed up for|registered for|running) (?:a|an|the|my first) (?:half marathon|marathon|5k|10k|triathlon|race|ultra|tough mudder|spartan race|century ride|half ironman|ironman)(?: in [a-z]+| on [a-z0-9 ]+)?", low) \
+            or re.fullmatch(r"(?:i'?m|i am) taking (?:a|today as a) rest day(?: today)?|today is (?:a|my) rest day", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:a |my )?(?:session|training session|appointment|class) with my (?P<who>trainer|coach|therapist|tutor|physical therapist|pt)(?P<rest> (?:on |this |next )?.{2,25})", low)
+    if m:
+        again = _interpret(f"i have a meeting{m.group('rest')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            again["command"]["title"] = f"session with my {m.group('who')}"
+            return again
+    # "Put a hold on Thursday at 4 for a call with the bank", "I have a
+    # conference all day Wednesday" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:put|place|make) (?:a )?hold (?:on|for) (?P<when>.{3,30}?) for (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,40})", low) \
+        or re.fullmatch(r"(?:put|place|make) (?:a )?hold for (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,40}?) (?:on |at )(?P<when>.{3,30})", low)
+    if m:
+        again = _interpret(f"i have a meeting {m.group('when')}")
+        if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+            again["command"]["title"] = _as_he_said(text, m.group("what"))
+            return again
+    m = re.fullmatch(r"(?:i (?:have|'ve got|got)|there(?:'s| is)) (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,30}?) all day (?:on |this |next )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow)", low) \
+        or re.fullmatch(r"(?:i (?:have|'ve got|got)|there(?:'s| is)) (?:a |an |the )?(?P<what>[a-z][a-z' ]{2,30}?) (?:on |this |next )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow) all day", low)
+    if m:
+        held = _calendar_hold(text, _as_he_said(text, m.group("what")), m.group("day"), None, "9am")
+        if held:
+            held["command"]["minutes"] = 8 * 60
+            return held
+    # "Add chips to the list for Saturday" (2026-10-08: to the planner): the
+    # thing goes on the list, and the day stays with it.
+    m = re.fullmatch(r"(?:add|put) (?P<item>[a-z][a-z' -]{1,30}?) (?:to|on) (?:the|my) (?:shopping |grocery )?list (?P<for>for (?:saturday|sunday|monday|tuesday|wednesday|thursday|friday|the party|the weekend|tomorrow|tonight|the trip|thanksgiving|christmas))", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item")) + " " + _as_he_said(text, m.group("for"))}, "say": None}
+    # NEIGHBORS (2026-10-08: "my neighbor Tom has a snowblower", "Tom gave it
+    # back", "the HOA fee is 200 a quarter", "Tom is out of town this week",
+    # "I'm watching Tom house this week" - to the planner, or kept as a show).
+    m = re.fullmatch(r"(?:i'?m|i am) (?:watching|looking after|house ?sitting|pet ?sitting|checking on|feeding) (?P<who>[a-z]{2,15}?)(?:'s|s)? (?P<what>house|place|apartment|dog|dogs|cat|cats|kids|pets|plants|baby|mail)"
+                     r"(?P<when> (?:this|next) (?:week|weekend)| today| tonight| tomorrow| until [a-z]+| while (?:they'?re|he'?s|she'?s) (?:away|gone|out of town))?", low)
+    if m and m.group("who") not in ("the", "my", "our", "a", "your"):
+        who = _as_he_said(text, m.group("who"))
+        return {"command": {"kind": "note", "text": f"I'm watching {who}'s {m.group('what')}{m.group('when') or ''}"}, "say": None}
+    m = re.fullmatch(r"(?P<who>[a-z]{2,15}|my [a-z]{2,15}) (?:gave|brought|handed) (?:it|that|them|my [a-z ]{2,20}) back|(?P<who2>[a-z]{2,15}|my [a-z]{2,15}) returned (?:it|that|them|my [a-z ]{2,20})", low)
+    if m:
+        who = m.group("who") or m.group("who2")
+        thing = re.search(r"\bmy ([a-z ]{2,20}?)(?: back)?$", low)
+        thing = thing.group(1) if thing else ""
+        if not thing:
+            for row in _quick._notes()[:30]:
+                said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+                got = re.search(rf"\b{re.escape(who)} (?:is borrowing|borrowed|has|took) (?:my|our|the) (?P<t>[a-z][a-z ]{{1,20}})$", said, re.I) \
+                    or re.search(rf"\bi (?:lent|loaned|gave) (?:my|our|the) (?P<t>[a-z][a-z ]{{1,20}}) to {re.escape(who)}$", said, re.I)
+                if got:
+                    thing = got.group("t")
+                    break
+        if thing:
+            return {"command": {"kind": "note", "text": f"{_as_he_said(text, who)} gave my {thing} back"}, "say": None}
+    if re.fullmatch(r"(?:the|our|my) (?:hoa|condo|association|club|membership|parking|daycare|tuition|insurance|internet|cable|phone|gym|storage unit) (?:fee|fees|dues|premium|bill|rate|payment) (?:is|are) \$?\d[\d,]*(?:\.\d\d)?(?: dollars)? (?:a|per|every|each) (?:month|quarter|year|week)", low) \
+            or re.fullmatch(r"(?:my (?:neighbou?r|friend|coworker|brother|sister|cousin|uncle|aunt) )?[a-z]{2,15} (?:has|owns|has got) (?:a|an) [a-z][a-z' -]{2,25}", low) \
+            and not re.match(r"(?:i|he|she|it|they|we|you|who|what|everyone|everybody|someone|somebody|nobody|my (?:wife|husband|son|daughter|kid|baby|dog|cat))\b", low) \
+            and not re.search(r"\b(?:appointment|meeting|game|practice|class|party|birthday|cold|fever|flu|cough|headache|question|point|problem|test|exam)\b", low) \
+            or re.fullmatch(r"(?:my (?:neighbou?r|friend|coworker|brother|sister|cousin|parents|mom|dad) )?[a-z]{2,15} (?:is|are) (?:out of town|away|on vacation|traveling|travelling)(?: this week| this weekend| next week| until [a-z]+)?", low) \
+            and not re.match(r"(?:i|he|she|it|they|we|you|who|what)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My phone is at 10 percent" (2026-10-08: to the planner).
+    m = re.fullmatch(r"my (?P<what>phone|laptop|watch|tablet|ipad|headphones|earbuds|car) (?:is|'s) (?:at|down to|on) (?P<n>\d{1,2})(?: ?%| percent)(?: battery)?", low)
+    if m:
+        n = int(m.group("n"))
+        return {"command": None, "say": f"Plug it in soon - {n} percent won't last long." if n <= 20 else "That'll hold for a while."}
+    # "My coworker Jake is out sick", "I worked from home today" (2026-10-08:
+    # to the planner). His day at work, kept; "who is out" and "how many days
+    # did I work from home" read them.
+    if re.fullmatch(r"(?:(?:my )?(?:coworker|co-worker|colleague|boss|manager|assistant|teammate) )?(?!(?:i|it|he|she|they|we|power|the|who|what|anyone|anybody|everyone|everybody|somebody|someone|nobody)\b)[a-z]{2,15}"
+                    r" (?:is|was) out (?:sick|today|this week|on vacation|on leave|on pto|on maternity leave|on paternity leave|until [a-z0-9 ]+)"
+                    r"(?: (?:today|this week|again))?", low) \
+            or re.fullmatch(r"i (?:worked|am working|'m working|was working|will work|'ll work) (?:from home|remotely|remote|in the office|from the office)"
+                            r"(?: (?:today|yesterday|this morning|this afternoon|tomorrow))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I booked a hotel in Chicago for the 15th" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:booked|reserved|got) (?:a |an |the |our |my )?(?:hotel|room|hotel room|airbnb|air bnb|motel|cabin|rental|condo|campsite)"
+                    r"(?: (?:in|at|near) [a-z0-9][a-z0-9 '&-]{1,40}?)?(?: (?:for|on|from) [a-z0-9][a-z0-9 ,'-]{1,40})?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I took the bus today" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:took|rode|caught|got) (?:the |a |an )?(?:bus|train|subway|metro|tram|ferry|uber|lyft|taxi|cab|bike|scooter)"
+                    r"(?: (?:to|from) (?:work|school|the office|home|the airport|the city|downtown))?(?: (?:today|this morning|tonight|yesterday))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
+    # Planning a party (2026-10-08, each to the planner): "I'm planning a
+    # party for my wife", "I invited Sam, Mike and Jess", "the theme is 80s".
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:planning|throwing|hosting|having|putting together|organi[sz]ing) (?:a |an )?(?:surprise |birthday |retirement |going away |going-away |graduation |dinner |holiday |christmas |halloween |housewarming |baby shower |bridal shower )?"
+                    r"(?:party|shower|get together|get-together|barbecue|bbq|cookout|celebration)(?: for [a-z' ]{2,30})?(?: (?:on|this|next) [a-z0-9 ]{2,20})?", low) \
+            or re.fullmatch(r"(?:i|we) (?:invited|have invited|'ve invited|asked) (?!(?:you|her|him|them|it)\b)[a-z][a-z ,'&]{1,80}?(?: (?:to|over for) (?:the |my |our )?[a-z ]{2,30})?", low) \
+            or re.fullmatch(r"the (?:party |wedding |shower )?(?:theme|dress code|color scheme|colou?rs) (?:is|are|will be) [a-z0-9][a-z0-9 '&-]{1,30}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
@@ -11750,6 +11978,14 @@ def _interpret(transcript: str) -> dict:
     # planner). A service he had is a note "when did I last get a haircut"
     # reads; one he needs is a task to get it.
     # "...at 45,000 miles" (2026-10-08: to the planner) is kept with it.
+    # "I need to get a passport" went on the shopping list (2026-10-08).
+    # Paperwork is an errand.
+    m = re.fullmatch(r"i (?:need|have to get|gotta get|got to get|should get|need to get|need to renew|have to renew|need to apply for|have to apply for) "
+                     r"(?P<what>(?:a |an |my )?(?:new )?(?:passport|visa|driver'?s license|license|licence|real id|id card|permit|birth certificate"
+                     r"|social security card|marriage license|insurance card)(?: renewed| replaced)?)", low)
+    if m:
+        verb = re.search(r"\b(renew|apply for)\b", low)
+        return _new_task(f"{verb.group(1) if verb else 'get'} {_as_he_said(text, m.group('what'))}")
     # "I need a dog sitter" went on the shopping list (2026-10-08).
     m = re.fullmatch(r"i (?:need|have to find|gotta find|got to find|should find|should get|need to find|need to get) (?:a |an )?(?P<who>(?:dog|pet|cat|house|baby) ?sitter|babysitter|dog walker)(?: for (?:the |this |next )?(?:weekend|week|trip|[a-z]+day(?: night)?))?", low)
     if m:
