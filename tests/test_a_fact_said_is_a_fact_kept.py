@@ -10097,5 +10097,33 @@ class TheKidsAgain(unittest.TestCase):
             self.assertIsNone(quick.answer("how did my son do"))
 
 
+class BuyingAHouseAndMoving(unittest.TestCase):
+    """A sweep of a house purchase and a move (2026-10-08). "What is my new
+    address" looked for a contact called "new", and "when do we move" read
+    back what the moving truck costs."""
+
+    def test_said(self):
+        for said in ("our mortgage rate is 6.5 percent", "we close on the house November 15", "we offered 350000",
+                     "we move on December 1", "the moving truck costs 200"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("the realtor is Linda")["command"], {"kind": "note", "text": "my realtor is Linda"})
+        self.assertNotEqual(voice._interpret("the realtor is nice")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("I need to change my address with the bank")["command"]["description"],
+                         "change my address with the bank")
+
+    def test_read(self):
+        rows = [{"text": "we close on the house November 15"}, {"text": "my realtor is Linda"}, {"text": "we offered 350000"},
+                {"text": "the moving truck costs 200"}, {"text": "my new address is 42 Oak Street"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("when do we close on the house"), "You told me you close on the house November 15.")
+            self.assertEqual(quick.answer("who is our realtor"), "Your realtor is Linda.")
+            self.assertEqual(quick.answer("how much did we offer"), "You told me you offered 350000.")
+            self.assertEqual(quick.answer("how much does the moving truck cost"), "You told me: the moving truck costs 200.")
+            self.assertEqual(quick.answer("what is my new address"), "You told me: your new address is 42 Oak Street.")
+            self.assertIsNone(quick.answer("when do we move"))
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "we move on December 1"}] + rows):
+            self.assertRegex(quick.answer("how many days until we move"), r"^(?:\d+ days|Today|Tomorrow) - you told me you move on December 1\.$")
+
+
 if __name__ == "__main__":
     unittest.main()

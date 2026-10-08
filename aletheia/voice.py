@@ -9664,6 +9664,8 @@ def _interpret(transcript: str) -> dict:
                      r"|anniversary|account number|member(?:ship)? number|policy number"
                      # "My GPA is 3.5", "my credit score is 720" (2026-10-08: to the planner).
                      r"|gpa|credit score|sat score|act score|golf handicap|handicap"
+                     # "Our mortgage rate is 6.5 percent" (2026-10-08: to the planner).
+                     r"|(?:mortgage|interest|loan|car loan|savings|cd) rate|apr|closing date|move(?:-in| in)? date|moving date|contractor|movers?"
                      # "My flight number is UA 452" (2026-10-07: to the
                      # planner) - held to a digit below.
                      r"|(?P<coded>(?:flight|confirmation|booking|reservation|tracking|order|case|ticket|claim|seat|gate"
@@ -10318,6 +10320,24 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "The realtor is Linda" (2026-10-08: to the planner) is who his
+    # realtor is, kept the way "who is our realtor" reads it.
+    m = re.fullmatch(r"the (?P<role>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|mover|babysitter|nanny|tutor|vet|dentist|doctor)"
+                     r"(?:'s name)? is (?:named |called )?(?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m and _said_as_a_title(text, m.group("name")):
+        return {"command": {"kind": "note", "text": f"my {m.group('role')} is {_as_he_said(text, m.group('name'))}"}, "say": None}
+    # "We close on the house November 15", "we move on December 1", "we
+    # offered 350000", "the moving truck costs 200" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:we|i) (?:close|move|move in|move out|closed|moved|are closing|are moving|'re closing|'re moving) (?:on |into |out of )?(?:the |our |my |a )?(?:new )?(?:house|home|apartment|place|condo)?"
+                    r" ?(?:on )?(?:" + _MONTH + r") \d{1,2}(?:st|nd|rd|th)?", low) \
+            or re.fullmatch(r"(?:we|i) (?:offered|put in an offer of|made an offer of|bid|paid|sold (?:it|the house|our house) for|listed (?:it|the house) (?:at|for)) \$?\d[\d,.]*k?(?: dollars)?(?: on (?:the|a) (?:house|condo|place))?", low) \
+            or re.fullmatch(r"(?:the |our |my )(?!(?:bill|rent|electric|water|gas|phone|internet|cable)\b)[a-z][a-z ]{1,20}? (?:costs|is) \$?\d[\d,.]*(?: dollars| bucks)(?: a day| a month)?"
+                            r"|(?:the |our |my )(?:moving truck|movers|storage unit|uhaul|u-haul|inspection|appraisal|down payment|closing costs) (?:costs|is|was|were) \$?\d[\d,.]*(?: dollars| bucks)?(?: a day| a month)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I need to change my address with the bank" (2026-10-08: to the planner).
+    m = re.fullmatch(r"i (?:need|have) to (?P<what>(?:change|update) my address (?:with|at|for) (?:the |my )?[a-z][a-z' ]{1,25})", low)
+    if m:
+        return _new_task(m.group("what"))
     # "My son has a fever", "my daughter got an A on her test", "my daughter
     # wants a bike for her birthday", "I paid the babysitter 60" (2026-10-08:
     # all to the planner).

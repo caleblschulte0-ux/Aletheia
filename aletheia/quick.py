@@ -582,6 +582,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
         # "How long until I get off work" (2026-10-08: to a model).
         r"|^how (?:long|much longer|much time) (?:until|till|before) i (?P<work_hours3>get off|finish|clock out|start|clock in)(?: work)?\s*\??$")),
+    ("we_when", re.compile(r"^(?:when (?:do|are|will) we|how (?:many days|long) (?:until|till|before) we) (?P<we_when>close|move|move in|move out|closing|moving|moving in)\b(?: on| into| out of)?(?: the| our)?(?: new)?(?: house| home| apartment| place| condo)?\s*\??$")),
     ("life_when", re.compile(
         r"^when (?:am i|are we) (?P<lw>moving|going on (?:vacation|holiday|my trip|our trip|a trip|our honeymoon)|retiring|graduating"
         r"|starting (?:my |the )?(?:new job|school|college|classes)|having (?:my )?surgery|flying to [a-z][a-z ]{1,25}?"
@@ -2309,6 +2310,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("kid_did", re.compile(r"^how did (?P<kid_did>my (?:son|daughter|kid|kids|boy|girl)|the kids) do(?: on (?:her|his|their|the|a) (?P<kid_on>[a-z][a-z ]{1,20}?)| in [a-z ]{2,20})?(?: today)?\s*\??$")),
     ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|dad)|the kids) want for (?:her|his|their) (?:birthday|christmas|hanukkah)\s*\??$"
                              r"|^what (?:does|do) (?P<kid_wants2>my (?:son|daughter|kid|kids|boy|girl)|the kids) want for (?:christmas|hanukkah)\s*\??$")),
+    # "When do we close on the house", "how many days until we move", "how
+    # much did we offer" (2026-10-08: to a model).
+    ("we_amt", re.compile(r"^how much did (?:we|i) (?P<we_amt>offer|bid|put in|sell (?:it|the house) for|list (?:it|the house) (?:at|for))(?: on (?:the|a) (?:house|condo|place))?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3014,6 +3018,16 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "Who is our realtor" (2026-10-08: to a model, a turn after "the
+    # realtor is Linda") is who his realtor is.
+    m = re.fullmatch(r"who(?:'s| is) our (?P<r>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|babysitter|nanny|tutor|vet|dentist|doctor|pediatrician)\s*\??", text)
+    if m:
+        return f"who is my {m.group('r')}"
+    # "How much does the moving truck cost" (2026-10-08: "nothing between
+    # you and the Moving Truck Cost") is what he said it costs.
+    m = re.fullmatch(r"how much (?:does|do|will) (?P<t>(?:the|our|my) [a-z][a-z ]{1,25}?) cost\s*\??", text)
+    if m:
+        return f"how much did {m.group('t')} cost"
     # "What time do the kids go to bed" (2026-10-08: nothing found, a turn
     # after "my kids bedtime is 8").
     m = re.fullmatch(r"what time (?:do|does) (?:the|my) (?P<k>kids|son|daughter|baby) (?:go to bed|go to sleep|have to be in bed)\s*\??", text)
@@ -3208,7 +3222,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "niece", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3228,7 +3242,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -12139,11 +12153,13 @@ _END_NOTE = re.compile(r"^(?:(?:i (?:get off|finish|leave|clock out)(?: work)?(?
 _COMMUTE_NOTE = re.compile(r"^(?:my commute is|it takes me|my drive to work is) (?:about |around )?(?P<n>\d{1,3}) (?P<u>minutes|mins|min|hours?)")
 
 
-_LIFE_WORDS = {"moving": r"\b(?:moving|move)\b", "move": r"\b(?:moving|move)\b", "vacation": r"\b(?:vacation|holiday)\b",
+# "The moving truck costs 200" is not when he moves (2026-10-08).
+_MOVE_WORD = r"\b(?:moving|move)\b(?! (?:truck|van|boxes|box|company|companies|supplies|blankets|costs?|quote|estimate)\b)"
+_LIFE_WORDS = {"moving": _MOVE_WORD, "move": _MOVE_WORD, "vacation": r"\b(?:vacation|holiday)\b",
                "holiday": r"\b(?:vacation|holiday)\b", "trip": r"\btrip\b", "new job": r"\bnew job\b", "school": r"\bschool\b",
                "college": r"\bcollege\b", "classes": r"\bclasses\b", "surgery": r"\bsurgery\b", "first day": r"\bfirst day\b",
                "graduation": r"\bgraduat", "graduating": r"\bgraduat", "retiring": r"\bretir", "honeymoon": r"\bhoneymoon\b",
-               "moving day": r"\b(?:moving|move)\b",
+               "moving day": _MOVE_WORD,
                "off": r"\b(?:days? off|time off|pto|off work|i'?m off|i am off|have \w+ off|taking \w+(?: \w+)? off|on vacation|on holiday)\b",
                "working from home": r"\b(?:working from home|wfh)\b", "wfh": r"\b(?:working from home|wfh)\b",
                "out of the office": r"\bout of (?:the )?office\b", "out of office": r"\bout of (?:the )?office\b",
@@ -15400,6 +15416,53 @@ def _sitter(_when: str = "") -> str | None:
     return None
 
 
+def _we_said(said: str) -> str:
+    from aletheia import speech
+    plain = speech.as_she_says_it(said)
+    return re.sub(r"^we\b", "you", plain, flags=re.I)
+
+
+def _we_when(text: str) -> str | None:
+    """When he said they close or move, and how many days off that is."""
+    import datetime as dt
+    from aletheia import localtime
+    low = _tidy(text)
+    g = _groups("we_when", text)
+    verb = re.sub(r"ing$", "", (g.get("we_when") or "").split()[0])
+    verb = {"clos": "close", "mov": "move"}.get(verb, verb)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.match(rf"(?:we|i) (?:are |'re )?{verb}", said.casefold()):
+            continue
+        told = f"You told me {_we_said(said)}."
+        if not re.match(r"how (?:many days|long)", low):
+            return told
+        m = re.search(rf"\b({'|'.join(_MONTHS)}) (\d{{1,2}})", said.casefold())
+        if not m:
+            return f"{told[:-1]}, but not the day."
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        day = _safe_date(today.year, _MONTHS.index(m.group(1)) + 1, int(m.group(2)))
+        if day and day < today:
+            day = _safe_date(today.year + 1, _MONTHS.index(m.group(1)) + 1, int(m.group(2)))
+        if not day:
+            return told
+        n = (day - today).days
+        return f"{'Today' if n == 0 else 'Tomorrow' if n == 1 else f'{n} days'} - {told[:1].lower() + told[1:]}"
+    return None
+
+
+def _we_amt(what: str) -> str | None:
+    """What he said they offered, bid or sold for."""
+    stem = str(what or "").split()[0]
+    stem = {"put": "put in"}.get(stem, stem)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:we|i) ", low) and re.search(rf"\b{re.escape(stem[:4])}", low) and re.search(r"\d", low):
+            return f"You told me {_we_said(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16210,6 +16273,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "we_when": _we_when,
+           "we_amt": _we_amt,
            "kid_did": _kid_did,
            "kid_wants": _kid_wants,
            "sitter": _sitter,
@@ -16462,7 +16527,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter"})
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "we_when", "we_amt"})
 
 
 def answer(question: str) -> str | None:
