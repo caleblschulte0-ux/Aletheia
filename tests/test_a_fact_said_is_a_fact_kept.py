@@ -9138,6 +9138,11 @@ class BookingTimeWithSomebodyIsAHold(unittest.TestCase):
         self.assertEqual(quick.match("do I have any free time thursday")[0], "free_at")
         self.assertEqual(quick.match("do I have free time tomorrow")[0], "free_at")
 
+    def test_a_member_id_or_card_number_is_kept(self):
+        for said in ("my insurance member id is ABC123", "my library card number is 12345"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said})
+        self.assertNotEqual(voice._interpret("my library card is lost")["command"]["kind"], "note")
+
 
 if __name__ == "__main__":
     unittest.main()

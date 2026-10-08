@@ -9363,7 +9363,11 @@ def _interpret(transcript: str) -> dict:
                      # "My flight number is UA 452" (2026-10-07: to the
                      # planner) - held to a digit below.
                      r"|(?P<coded>(?:flight|confirmation|booking|reservation|tracking|order|case|ticket|claim|seat|gate"
-                     r"|frequent flyer|rewards|loyalty|room|parking spot|spot) (?:number|code|#))"
+                     r"|frequent flyer|rewards|loyalty|room|parking spot|spot) (?:number|code|#)"
+                     # "My insurance member id is ABC123", "my library card
+                     # number is 12345" (2026-10-08: to the planner).
+                     r"|(?:insurance |health insurance |dental |vision |gym |library |costco )?(?:member(?:ship)?|library card"
+                     r"|card|passport|driver'?s license|license|licence|vin|patient|group) (?:id|number|#))"
                      # "My budget is 2000 a month", "my goal is to run a marathon"
                      # (2026-10-07: to the planner). Held to a number or an aim
                      # below, so "my budget is tight" stays how he feels.
