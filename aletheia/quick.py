@@ -535,7 +535,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # Wednesdays" (2026-10-08: a FILE search). Placed after the readers for
     # "anything", "plans" and "meetings", which say the whole day.
     ("do_i_have", re.compile(
-        r"^(?:do|will) (?:i|we) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
+        r"^(?:do|will) (?:i|we|the kids|my kids|the children) have (?!(?:any|anything|something|plans|a meeting|meetings|events|stuff|time|to)\b)"
         r"(?P<do_i_have>[a-z][a-z' ]{1,20}? (?:today|tonight|tomorrow|this weekend|(?:on |this |next )?"
         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)))\s*\??$")),
     # "How did I do on my test" after "I got an A on my test" (2026-10-08).
@@ -11655,6 +11655,16 @@ def _do_i_have(rest) -> str | None:
         low = note.casefold()
         if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
             continue
+        # "The kids have no school on Monday" (2026-10-08), said this week,
+        # answers "do the kids have school Monday".
+        if a in _DAYS and re.search(rf"\bno {re.escape(words[0])}", low) and re.search(rf"\b{a}\b", low):
+            try:
+                noted = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                noted = None
+            if noted and 0 <= (targets[0] - noted).days < 7:
+                told = speech.as_she_says_it(note).rstrip(".")
+                return f"No - you told me {told[:1].lower()}{told[1:]}."
         plural = {i for i, d in enumerate(_DAYS) if re.search(rf"\b{d}s\b", low)}
         # "every Monday and Wednesday" (2026-10-08) is the same as "on Mondays and Wednesdays".
         every = re.search(r"\bevery ((?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"

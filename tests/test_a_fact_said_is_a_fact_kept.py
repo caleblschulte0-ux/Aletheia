@@ -8268,5 +8268,25 @@ class EmmasTeacherIsEmmas(unittest.TestCase):
 
 
 
+class NoSchoolOnMonday(unittest.TestCase):
+    """"The kids have no school on Monday" was kept and "do the kids have
+    school Monday" went to the planner (2026-10-08)."""
+
+    def test_it_answers_no(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "the kids have no school on monday", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            said = quick.answer("do the kids have school monday")
+        self.assertTrue(said.startswith("No - you told me the kids have no school"), said)
+
+    def test_an_old_note_does_not_answer(self):
+        from aletheia import quick
+        rows = [{"text": "the kids have no school on monday", "ts": "2025-01-01T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick._do_i_have("school monday"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
