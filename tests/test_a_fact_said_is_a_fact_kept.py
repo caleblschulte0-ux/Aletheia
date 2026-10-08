@@ -12419,5 +12419,22 @@ class WhatWaitsOnHim(unittest.TestCase):
         self.assertNotEqual(voice.interpret("do I have any approvals")["command"]["kind"], "file_find")
 
 
+class ANewJob(unittest.TestCase):
+    def test_where_he_works_and_his_pto(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I used 3 days of pto"}, {"text": "I get 15 days of pto"},
+                                                        {"text": "I work at Acme"}]):
+            self.assertEqual(quick.answer("where do I work"), "You told me you work at Acme.")
+            self.assertEqual(quick.answer("how many pto days do I have left"),
+                             "12 vacation days left - you had 15 and you've taken 3 since.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I started a new job today"}]):
+            self.assertIn("but not where", quick.answer("where do I work"))
+
+    def test_pto_and_orientation_are_kept(self):
+        for said in ("I get 15 days of pto", "I used 3 days of pto"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        held = voice.interpret("I have orientation at 9")["command"]
+        self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "orientation"))
+
+
 if __name__ == "__main__":
     unittest.main()

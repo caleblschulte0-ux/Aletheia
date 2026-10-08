@@ -3732,8 +3732,10 @@ def _days_off(text: str) -> str | None:
     num = r"(\d{1,3}(?:\.5)?|a|an|one|two|three|four|five|six|seven|eight|nine|ten|half a)"
     names = {"vacation": r"(?:vacation|pto|holiday|leave)", "sick": r"sick", "personal": r"personal"}[kind] \
         if kind in ("vacation", "sick", "personal") else re.escape(kind)
-    have = re.compile(rf"i (?:have|'ve got|have got|got|still have) {num} (?:more )?{names} days?(?: left| remaining)?", re.I)
-    took = re.compile(rf"i (?:took|used|am taking|'m taking|take) {num} {names} days?"
+    have = re.compile(rf"i (?:have|'ve got|have got|got|still have) {num} (?:more )?{names} days?(?: left| remaining)?"
+                      # "I get 15 days of PTO" (2026-10-08: to the planner).
+                      rf"|i (?:get|have|got) {num} (?:days? of {names}|{names} days?)(?: a year| per year| each year| every year)?", re.I)
+    took = re.compile(rf"i (?:took|used|am taking|'m taking|take) {num} (?:{names} days?|days? of {names})"
                       + (r"|i took (?:today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|the day) off" if kind == "vacation" else ""),
                       re.I)
     amount = lambda w: _COUNT_WORDS.get(w.casefold()) if not w[0].isdigit() else float(w)
@@ -3743,7 +3745,7 @@ def _days_off(text: str) -> str | None:
         said = re.sub(r" (?:today|yesterday|this week|last week|this year|on [a-z]+day)$", "", said, flags=re.I)
         m = have.fullmatch(said) if not used_q else None
         if m:
-            balance, when = amount(m.group(1)), str(row.get("ts") or "")
+            balance, when = amount(m.group(1) or m.group(2)), str(row.get("ts") or "")
             break
         m = took.fullmatch(said)
         if m:
@@ -3761,7 +3763,7 @@ def _days_off(text: str) -> str | None:
     since = ("on " + since) if since[:1].isdigit() else since
     if not taken:
         return f"{plain(left)} {kind} day{'s' if left != 1 else ''} left, you told me {since}.".replace(" ,", ",")
-    return (f"{plain(left)} {kind} day{'s' if left != 1 else ''} left - you had {plain(balance)} {since} "
+    return (f"{plain(left)} {kind} day{'s' if left != 1 else ''} left - you had {plain(balance)}{' ' + since if since else ''} "
             f"and you've taken {plain(taken)} since.")
 
 
@@ -18190,6 +18192,7 @@ def _got_back(text: str) -> str | None:
     return f"Not that you've told me - you told me {lent[0]}." if lent else None
 
 
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18453,7 +18456,10 @@ def _work_at() -> str | None:
             school = m.group(1).casefold() in ("go to school", "study")
             verb = f"{m.group(1).casefold()} {m.group(2).casefold()}" if school else f"work {m.group(2).casefold()}"
             return f"You told me you {verb} {m.group(3).strip().rstrip('.')}."
-    return None
+    # "I started a new job today" names no company (2026-10-08: "where do I
+    # work" went to a model, which could not know either).
+    new = _said_lines(r"^i (?:just )?(?:started|got|accepted) (?:a |my )?new job\b", 1)
+    return f"You told me {new[0]}, but not where. Say \"I work at\" and the company, and I'll remember it." if new else None
 
 
 def _person(rest: str) -> str:

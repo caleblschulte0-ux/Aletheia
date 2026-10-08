@@ -11250,6 +11250,19 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:she|he|they|my [a-z]{2,15}|[a-z]{2,15}) (?:is|are|'s|'re|will be) (?:staying|here|in town|visiting) (?:until|till|through|for) [a-z0-9][a-z0-9 ]{1,20}", low) \
             and not re.match(r"(?:who|what|how|when|where|it|that|this)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I have orientation at 9" (2026-10-08: to the planner) - a hold with
+    # no day, the way "I have a meeting at 3" already is.
+    m = re.fullmatch(r"i (?:have|'ve got|got) (?:an? )?(?P<what>orientation|training|onboarding|new hire orientation|a class|class|practice|rehearsal|therapy|physical therapy|pt|counseling)"
+                     r" at (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)", low)
+    if m:
+        again = _interpret(f"i have a meeting at {m.group('t')}")
+        cmd = (again or {}).get("command") or {}
+        if cmd.get("kind") == "calendar_hold":
+            cmd["title"] = re.sub(r"^an? ", "", m.group("what"))
+            return again
+    # "I get 15 days of PTO", "I used 3 days of PTO" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:get|have|got|used|took) (?:\d{1,3}(?:\.5)?|a|one|two|three|four|five|six|seven|eight|nine|ten|half a) (?:days? of (?:pto|vacation|leave|sick time|sick leave)|(?:pto|vacation|sick|personal) days?)(?: a year| per year| each year| every year| this year| so far)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
