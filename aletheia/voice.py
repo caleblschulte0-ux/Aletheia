@@ -3942,7 +3942,7 @@ def _interpret(transcript: str) -> dict:
     # "I started a new book called Dune", "I just started reading Dune"
     # (2026-10-08: to the planner) - the same note as "I'm reading Dune".
     m = re.fullmatch(r"i (?:just )?(?:started|began|picked up|am starting|'m starting) (?:reading |(?:a |the )?(?:new )?book (?:called |named )?)"
-                     r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
+                     r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"(?:i'?m|i am) (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
     if m and not re.match(r"(?:it|that|this|them|a |an |some|the news|my |your |about |up on |through |over )", m.group("t")) \
             and "?" not in text:
         return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
@@ -9718,6 +9718,16 @@ def _interpret(transcript: str) -> dict:
     # have I watched" reads it back with his watch list.
     if re.fullmatch(r"i (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"
                     r"[a-z0-9][a-z0-9 ,:'&-]{1,60}?(?: (?:last night|tonight|today|yesterday|again))?", low):
+        # On his watch list, it comes off it (2026-10-08: "what should I
+        # watch tonight" offered Dune a turn after "I watched Dune").
+        title = re.sub(r"^i (?:just )?(?:watched|finished watching|binged) | (?:last night|tonight|today|yesterday|again)$", "", low).strip()
+        try:
+            from aletheia import lists
+            listed = {str(t).casefold() for t in (lists.items("watch") or [])}
+        except Exception:  # noqa: BLE001
+            listed = set()
+        if title.casefold() in listed:
+            return {"command": {"kind": "list_off", "list": "watch", "item": _as_he_said(text, title)}, "say": None}
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I START WORK AT 9", "my commute is 30 minutes" (2026-10-07: to the
     # planner). Notes in his words; "what time do I start work" reads the

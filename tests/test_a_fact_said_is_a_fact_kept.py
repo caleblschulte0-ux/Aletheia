@@ -8288,5 +8288,27 @@ class NoSchoolOnMonday(unittest.TestCase):
 
 
 
+class WatchedComesOffTheWatchList(unittest.TestCase):
+    """"What should I watch tonight" offered Dune a turn after "I watched
+    Dune"; "I am reading Atomic Habits" went to the planner (2026-10-08)."""
+
+    def test_a_listed_title_comes_off(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "items", return_value=["Dune", "Oppenheimer"]):
+            cmd = voice._interpret("I watched Dune last night")["command"]
+        self.assertEqual(cmd, {"kind": "list_off", "list": "watch", "item": "Dune"})
+
+    def test_an_unlisted_title_is_still_noted(self):
+        from aletheia import lists, voice
+        with mock.patch.object(lists, "items", return_value=[]):
+            self.assertEqual(voice._interpret("I watched Barbie")["command"]["kind"], "note")
+
+    def test_i_am_reading_is_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I am reading Atomic Habits")["command"],
+                         {"kind": "note", "text": "I'm reading Atomic Habits"})
+
+
+
 if __name__ == "__main__":
     unittest.main()
