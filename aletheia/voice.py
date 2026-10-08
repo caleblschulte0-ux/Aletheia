@@ -10081,6 +10081,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:rate|i(?:'d)? (?:rate|give)|i rated|i gave) (?P<what>[a-z0-9][a-z0-9' :-]{1,40}?) (?P<n>[0-5](?:\.5)?|one|two|three|four|five)"
                      r" (?:stars?|out of (?:5|five|10|ten))", low)
+    if m and m.group("what") in ("it", "that", "this", "this one", "that one"):
+        # "I gave it 4 stars" a turn after "I watched Oppenheimer last
+        # night" (2026-10-08: kept as "I rated it 4 stars", which no
+        # question about Oppenheimer could find) is the thing he just named.
+        said_before, _ = _previous_turn()
+        named = re.fullmatch(r"i (?:just )?(?:watched|finished(?: watching| reading)?|read|saw|played|beat|listened to)"
+                             r" (?P<t>[a-z0-9].{1,50}?)(?: (?:last night|today|yesterday|this morning|again))?\.?", said_before.casefold())
+        if named and named.group("t") not in ("it", "that", "this", "tv", "the news", "a movie", "a show"):
+            title = _as_he_said(said_before, named.group("t"))
+            stars = "stars" if "star" in low else low.split(m.group("n") + " ", 1)[1]
+            return {"command": {"kind": "note", "text": f"I rated {title} {m.group('n')} {stars}"}, "say": None}
     if m:
         return {"command": {"kind": "note", "text": f"I rated {_as_he_said(text, m.group('what'))} {m.group('n')} "
                                                     f"{'stars' if 'star' in low else low.split(m.group('n') + ' ', 1)[1]}"},
@@ -10295,6 +10306,20 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "I have concert tickets for Saturday", "my book club meets on the
+    # first Tuesday", "I started learning guitar", "I beat Zelda last
+    # night" (2026-10-08: all to the planner).
+    if re.fullmatch(r"i (?:have|got|bought) (?:two |2 |a pair of )?(?:concert|game|show|movie|theater|theatre|play|festival|comedy show|hockey|baseball|football|basketball)"
+                    r" tickets? (?:for|on) (?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|tomorrow|the [0-9]{1,2}(?:st|nd|rd|th)?)", low) \
+            or re.fullmatch(r"(?:my |our |the )?(?:book club|bowling league|poker night|game night|trivia night|bible study|small group|knitting group|running club|chess club)"
+                            r" (?:meets|is) (?:on )?(?:every |the )?(?:first |second |third |fourth |last |other )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+                            r"(?: of (?:the|every|each) month)?(?: (?:at|around) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?", low) \
+            or re.fullmatch(r"i (?:just )?started (?:learning|taking|playing|practicing) (?:the )?(?:guitar|piano|drums|violin|ukulele|bass|saxophone|spanish|french|german"
+                            r"|italian|japanese|chinese|korean|sign language|to code|coding|chess|golf|tennis|pickleball|yoga|pilates|karate|boxing|jiu jitsu|swimming"
+                            r"|dance|dancing|singing|painting|drawing|photography|knitting|cooking)(?: lessons| classes)?(?: today| this week| last week)?", low) \
+            or re.fullmatch(r"i (?:just )?(?:beat|finished|completed) (?!the game\b|it\b|that\b)[a-z0-9][a-z0-9' :-]{1,30}(?: last night| today| yesterday)", low) \
+            and _said_as_a_title(text, re.sub(r"^i (?:just )?(?:beat|finished|completed) | (?:last night|today|yesterday)$", "", low)):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I started a new workout program today", "I skipped the gym today"
     # (2026-10-08: to the planner) - read back by "when did I start my
     # workout program".

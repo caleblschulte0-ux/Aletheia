@@ -9961,5 +9961,28 @@ class AtWorkThirdTime(unittest.TestCase):
             self.assertIsNone(quick.answer("who is my interview with"))
 
 
+class WhatHeDoesForFun(unittest.TestCase):
+    """A sweep of leisure sentences (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("I have concert tickets for Saturday", "my book club meets on the first Tuesday",
+                     "I started learning guitar", "I beat Zelda last night"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("I beat the game last night")["command"]["kind"], "note")
+
+    def test_a_rating_of_it_is_the_thing_he_just_named(self):
+        with mock.patch.object(voice, "_previous_turn", lambda: ("I watched Oppenheimer last night", "Took it off your watch list.")):
+            self.assertEqual(voice._interpret("I gave it 4 stars")["command"], {"kind": "note", "text": "I rated Oppenheimer 4 stars"})
+
+    def test_read(self):
+        from aletheia import localtime
+        ago = (dt.datetime.now(localtime.operator_tz()) - dt.timedelta(days=10)).isoformat()
+        rows = [{"text": "my favorite band is Radiohead"}, {"text": "I started learning guitar", "ts": ago}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("who is my favorite band"), "You told me: your favorite band is Radiohead.")
+            self.assertTrue(quick.answer("how long have I been learning guitar").startswith("10 days - you told me you started learning guitar"))
+            self.assertIsNone(quick.answer("how long have I been learning piano"))
+
+
 if __name__ == "__main__":
     unittest.main()

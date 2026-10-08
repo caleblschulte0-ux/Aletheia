@@ -2278,6 +2278,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                              r"|who(?:'s| is) leaving (?:the company|the team|work))\s*\??$")),
     ("wfh", re.compile(r"^(?:do|am) i (?:work(?:ing)? from home|wfh|work(?:ing)? remotely|go(?:ing)? (?:in|into the office|to the office))"
                        r" (?P<wfh>today|tomorrow|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|monday|tuesday|wednesday|thursday|friday)\s*\??$")),
+    # "How long have I been learning guitar" (2026-10-08: to a model).
+    ("been_doing", re.compile(r"^how long have i been (?P<been_doing>(?:learning|taking|playing|practicing|doing|going to|on) [a-z][a-z ]{1,25}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -2982,6 +2984,10 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "Who is my favorite band" (2026-10-08: to a model) is the favorite he told her.
+    m = re.fullmatch(r"who(?:'s| is| are) my (?P<f>fav(?:orite|ourite)? [a-z][a-z ]{1,20}?)\s*\??", text)
+    if m:
+        return f"what is my {m.group('f')}"
     # "Who is my new boss" (2026-10-08: to a model) is who his boss is.
     if re.fullmatch(r"who(?:'s| is) my new (boss|manager|supervisor|coworker|doctor|dentist|landlord|neighbor)\s*\??", text):
         return re.sub(r" new ", " ", text).rstrip("?").strip()
@@ -3177,7 +3183,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15081,6 +15087,33 @@ def _wfh(day: str) -> str | None:
     return None
 
 
+def _been_doing(what: str) -> str | None:
+    """How long he has been at something, from "I started learning
+    guitar". None when he never said he started."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    words = [w for w in re.findall(r"[a-z0-9]+", str(what or "").casefold()) if w not in ("the", "a", "an", "my")]
+    if len(words) < 2:
+        return None
+    tz = localtime.operator_tz()
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.match(r"i (?:just |finally |recently )?started\b", low) or not all(re.search(rf"\b{re.escape(w[:5])}", low) for w in words[1:]):
+            continue
+        plain = re.sub(r" (?:today|this week|last week)$", "", speech.as_she_says_it(said))
+        plain = plain[:1].lower() + plain[1:]
+        try:
+            when = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            return f"You told me {plain}, but not when."
+        days = (dt.datetime.now(tz).date() - when.date()).days
+        span = ("since today" if days == 0 else "a day" if days == 1 else f"{days} days" if days < 60
+                else f"about {round(days / 30)} months" if days < 730 else f"about {round(days / 365)} years")
+        return f"{span[:1].upper() + span[1:]} - you told me {plain} {speech.humanize_time(when.isoformat())}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15891,6 +15924,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "been_doing": _been_doing,
            "work_note": _work_note,
            "wfh": _wfh,
            "got_when": _got_when,
