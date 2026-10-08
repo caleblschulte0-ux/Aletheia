@@ -9327,7 +9327,8 @@ def _interpret(transcript: str) -> dict:
                     r"|paid|paid out|received|through|back|in|sent|closed|on hold|pending|under review)(?: today| yesterday)?", low) \
             or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:still )?waiting (?:on|for) (?:a |an |the |my |our )?[a-z][a-z0-9' ]{2,40}", low) \
             and not re.search(r"\b(?:you|it|this|that|them|him|her)$", low) \
-            or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:was|got|has been) (?:serviced|inspected|cleaned|tuned up|flushed|replaced|installed"
+            or re.fullmatch(r"i (?:just )?(?:got|had) (?:the|my|our) [a-z][a-z' ]{1,25}? (?:washed|detailed|serviced|inspected|cleaned|tuned up|rotated|aligned|fixed|repaired)(?: today| yesterday)?", low) \
+            or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:was|were|got|has been|have been) (?:serviced|inspected|cleaned|tuned up|flushed|replaced|installed"
                             r"|painted|pumped|sealed|treated|rotated)(?: today| yesterday| this morning| last week)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHAT HE THOUGHT OF SOMETHING (2026-10-08: "Dune was amazing" to the

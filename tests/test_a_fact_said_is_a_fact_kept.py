@@ -9685,5 +9685,23 @@ class HisMood(unittest.TestCase):
             self.assertEqual(quick.match(said), quick.match("how have I been feeling lately"), said)
 
 
+class TheCarAgain(unittest.TestCase):
+    """A sweep of car sentences (2026-10-08). "What's wrong with my car"
+    answered about the fleet's pulse."""
+
+    def test_kept_and_read(self):
+        from aletheia import intercom
+        for said in ("my tires were rotated today", "I got my car washed"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        rows = [{"text": "my tires were rotated today"}, {"text": "I got my car washed"}]
+        tasks_ = [{"description": "get the check engine light looked at", "status": "OPEN", "id": "t1"}]
+        with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: tasks_):
+            self.assertEqual(quick.answer("when were my tires last rotated"), "You told me: your tires were rotated today.")
+            self.assertEqual(quick.answer("when did I last wash my car"), "You told me you got your car washed.")
+            self.assertEqual(quick.answer("what's wrong with my car"), "On your list: get the check engine light looked at.")
+        with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(intercom, "_open_tasks", lambda: []):
+            self.assertIsNone(quick.answer("what's wrong with my car"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2238,7 +2238,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                               r"(?:insurance )?(?P<claim_news>claim|refund|application|loan|permit|request|appeal|return|reimbursement|rebate|visa|passport)"
                               r"(?: (?:get |been |come )?(?:approved|denied|processed|through|back|in|paid|accepted))?(?: yet)?\s*\??$")),
     ("waiting_on", re.compile(r"^what (?:am i|are we) (?:still )?waiting (?:on|for)\s*\??$|^what(?:'s| is) (?:still )?(?:pending|outstanding)\s*\??$")),
-    ("last_done_to", re.compile(r"^when (?:was|did) (?:the|my|our) (?P<last_done_to>[a-z][a-z' ]{1,25}?) (?:last |get |last get )?"
+    ("last_done_to", re.compile(r"^when (?:was|were|did) (?:the|my|our) (?P<last_done_to>[a-z][a-z' ]{1,25}?) (?:last |get |last get )?"
                                 r"(?P<ldt_verb>serviced|inspected|cleaned|tuned up|flushed|replaced|installed|painted|pumped|sealed|treated|rotated)(?: last)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
@@ -6100,7 +6100,10 @@ def _did_last(text: str) -> str | None:
         if " " in past and not service and past not in _WITH_SOMEBODY:
             head, _, particle = past.partition(" ")
             said_as = rf"(?:{re.escape(past)}|{re.escape(head)}\b.{{1,40}}?\b{re.escape(particle)})"
-        if not re.search(r"\bi (?:just )?" + said_as + r"\b", low) or not all(
+        # "I got my car washed" (2026-10-08) is "I washed my car".
+        if not service and words and re.search(rf"\bi (?:just )?(?:got|had) (?:the |my |our )?{re.escape(' '.join(words))} {re.escape(past)}\b", low):
+            pass
+        elif not re.search(r"\bi (?:just )?" + said_as + r"\b", low) or not all(
                 re.search(r"\b" + re.escape(w), low) for w in words):
             continue
         try:
@@ -8593,11 +8596,35 @@ def _no_pulse() -> bool:
 def _repo_wrong(name: str) -> str | None:
     """"What's wrong with the trader": that repo's row of the pulse, in words;
     no pulse is said as no pulse; a name the pulse does not know is a model's."""
-    from aletheia import current_state
-    said = current_state.repo_words(" ".join(str(name or "").split()))
-    if said is None and _no_pulse():
+    from aletheia import current_state, speech
+    name = " ".join(str(name or "").split())
+    said = current_state.repo_words(name)
+    if said is not None:
+        return said
+    # "What's wrong with my car" answered about the fleet's pulse
+    # (2026-10-08). A thing of his is what he said about it: a note that it
+    # broke, or a task to get it looked at.
+    mine = _broken(name)
+    if mine and not mine.startswith("Nothing"):
+        return mine.replace("Not that you've told me. The last I heard, ", "You told me ")
+    try:
+        from aletheia import intercom
+        listed = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()]
+    except Exception:  # noqa: BLE001
+        listed = []
+    key = (r"car|engine|tires?|brakes?|oil|battery|transmission|check engine" if name.casefold() in ("car", "truck", "van", "suv")
+           else re.escape(name))
+    about = [t for t in listed if re.search(rf"\b(?:{key})\b", t, re.I)]
+    if about:
+        yours = [re.sub(r"(?i)\bmy\b", "your", t) for t in about[:3]]
+        return f"On your list: {speech.and_list(yours)}."
+    if re.fullmatch(r"(?:car|truck|van|suv|bike|motorcycle|house|home|apartment|dishwasher|washer|washing machine|dryer|fridge|freezer"
+                    r"|oven|stove|microwave|furnace|heater|ac|a/c|air conditioner|sink|toilet|shower|tv|phone|laptop|computer|wifi|internet"
+                    r"|printer|router|garage door|dog|cat|back|knee|shoulder|neck|stomach)", name.casefold()):
+        return None
+    if _no_pulse():
         return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
-    return said
+    return None
 
 
 def _fleet_read_at() -> str:
@@ -10017,7 +10044,8 @@ def _recall(words: str) -> str | None:
         # oil change" (2026-10-08: "nothing about next oil change on file").
         try:
             from aletheia import intercom
-            named = [w for w in stems if w not in ("next", "due", "last", "date", "day", "time")]
+            named = [w for w in stems if w not in ("next", "due", "last", "date", "day", "time", "expire", "expir", "expires", "renew",
+                                                   "end", "ends", "run", "out")]
             listed = [str(t.get("description") or "") for t in intercom._open_tasks()
                       if named and all(re.search(r"\b" + re.escape(w), str(t.get("description") or "").casefold()) for w in named)]
         except Exception:  # noqa: BLE001
@@ -14610,7 +14638,7 @@ def _last_done_to(text: str) -> str | None:
     thing, verb = str(g.get("last_done_to") or "").strip(), str(g.get("ldt_verb") or "")
     if not thing or not verb:
         return None
-    return _told_when(rf"^(?:the|my|our) {re.escape(thing)} (?:was|got|has been) {re.escape(verb)}\b"
+    return _told_when(rf"^(?:the|my|our) {re.escape(thing)} (?:was|were|got|has been|have been) {re.escape(verb)}\b"
                       rf"|\bi (?:had|got) (?:the|my|our) {re.escape(thing)} {re.escape(verb)}\b")
 
 
