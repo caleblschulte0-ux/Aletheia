@@ -12764,6 +12764,20 @@ class RefundsAndReturns(unittest.TestCase):
             self.assertIn("None that I know of", quick.answer("what refunds am I waiting on"))
 
 
+class AChildsSchoolDay(unittest.TestCase):
+    """2026-10-08: "my son has a test on Friday" was a 9 am hold on his
+    calendar, and "my son got in trouble at school" and "the kids' spring
+    break is March 10th to 14th" went to the planner."""
+
+    def test_kept_not_held(self):
+        for said in ("my son has a test on Friday", "my son got in trouble at school", "the kids' spring break is March 10th to 14th"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+        self.assertEqual(voice.interpret("my son has a test on Friday at 2")["command"]["kind"], "calendar_hold")
+        self.assertEqual(voice.interpret("my son has a dentist appointment on Friday")["command"]["kind"], "calendar_hold")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my son has a test on Friday"}]):
+            self.assertEqual(quick.answer("when is my son's test"), "You told me: your son has a test on Friday.")
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

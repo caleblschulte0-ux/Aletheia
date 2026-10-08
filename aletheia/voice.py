@@ -9684,6 +9684,13 @@ def _interpret(transcript: str) -> dict:
         # a hold called "the kids have a dentist appointment".
         kids = re.match(r"(?P<who>the kids|(?:my )?(?:son|daughter|kids|wife|husband|mom|dad)) (?:has|have|has got|have got|is having|are having|is getting) (?:a |an |their |his |her )?(?P<what>.+)$", title)
         if kids:
+            # "My son has a test on Friday" (2026-10-08) was held at 9 am on
+            # HIS calendar. A child's school day with no time is theirs.
+            if not m.group("time") and not m.group("part") and re.fullmatch(
+                    r"(?:big |math |spelling |science |history |english |final |reading )?(?:test|quiz|exam|project due|book report"
+                    r"|presentation|field trip|spelling test|science fair|book fair|picture day|show and tell|half day|early release)", kids.group("what")) \
+                    and kids.group("who") not in ("wife", "husband", "mom", "dad", "my wife", "my husband", "my mom", "my dad"):
+                return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
             whose = {"the kids": "the kids'", "my kids": "the kids'", "kids": "the kids'"}.get(kids.group("who"), re.sub(r"^my ", "", kids.group("who")) + "'s")
             title = f"{whose} {kids.group('what')}"
         # "My neighbor is having a party Saturday" (2026-10-08: held at 9 am
@@ -11467,6 +11474,12 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The return window is 30 days" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |their |its )?return (?:window|policy|period|deadline)(?: (?:at|for) [a-z][a-z' ]{1,20})? is (?:\d{1,3}|thirty|sixty|ninety|fourteen|seven) days", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My son got in trouble at school", "the kids' spring break is March
+    # 10th to 14th" (2026-10-08: to the planner).
+    if re.fullmatch(r"(?:my (?:son|daughter|kid|kids|boy|girl)|the kids|(?!(?:i|we|who|what|it)\b)[a-z]{2,15}) (?:got|is|was|has been) (?:in trouble|sent to the principal'?s? office|suspended|detention|a detention|sent home)(?: (?:at|from) school)?(?: today| again| yesterday)?", low) \
+            or re.fullmatch(r"(?:the kids'?|my (?:son|daughter)'?s?|their|the|our) (?:spring|winter|fall|christmas|thanksgiving|summer|mid-?winter) (?:break|vacation|holidays?)"
+                            r" (?:is|starts|begins|runs)(?: from)? .{3,40}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
