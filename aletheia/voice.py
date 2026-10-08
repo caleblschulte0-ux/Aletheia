@@ -10758,6 +10758,15 @@ def _interpret(transcript: str) -> dict:
                             r" (?:will be|should be|is going to be|'ll be|is) (?:here|arriving|coming|delivered) (?:at|by|around|in) [0-9a-z: ]{1,15}", low) \
             or re.fullmatch(r"i (?:just )?(?:burned|burnt|overcooked|undercooked|dropped|spilled) (?:the|my|our) [a-z][a-z' ]{1,20}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My anxiety is bad today" (2026-10-08: to the planner) goes in his
+    # journal, with a kind word.
+    m = re.fullmatch(r"my (?P<what>anxiety|depression|stress|back|back pain|knee|migraine|migraines|allergies|asthma|arthritis|pain|neck|shoulder|stomach|sciatica|ibs)"
+                     r" (?:is|are|has been|have been) (?:really |so |pretty )?(?:bad|worse|terrible|awful|acting up|flaring up|killing me|through the roof|rough)(?: today| again| this week| lately)?", low)
+    if m:
+        calm = m.group("what") in ("anxiety", "stress", "depression")
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": "I'm sorry. Try one slow breath - in for four, out for six. I've put it in your journal." if calm
+                else "Sorry - go easy on yourself today. I've put it in your journal."}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

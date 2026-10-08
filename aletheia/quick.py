@@ -267,6 +267,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # minutes or planned "Plan your day" as a step (2026-09-23). Both are
     # her records, read together: how she is, what needs him, his day, the
     # hunt, his next task.
+    # "How was my day" (2026-10-08: her own status, "nothing of mine is
+    # running") is his day, from his journal; with nothing in it today, her
+    # status as before.
+    ("my_day", re.compile(r"^how (?:was|has been|is|did) my day(?: been| go)?(?: today)?\s*\??$")),
     ("status", re.compile(
         r"^(?:give me |i want |i need )?(?:a |the |an )?(?:status|status update|status report|update|sitrep|rundown|"
         r"situation report)(?: please)?$"
@@ -2513,6 +2517,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How many eggs does the recipe need" (2026-10-08: to a model), a turn
     # after "the recipe calls for 3 eggs" - doubled if he doubled it.
     ("recipe_qty", re.compile(r"^how (?:many|much) (?P<recipe_qty>[a-z][a-z ]{1,20}?) (?:does|do) (?:the|this|my) recipe (?:need|call for|take|use)\s*\??$")),
+    # "What am I worried about", "what am I excited about" (2026-10-08: to a
+    # model) read his journal.
+    ("felt_about", re.compile(r"^what (?:am i|was i|have i been) (?P<felt_about>worried|excited|nervous|stressed|anxious|happy|sad|upset|scared|angry|mad|frustrated)(?: about)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3444,7 +3451,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17224,6 +17231,55 @@ def _recipe_qty(text: str) -> str | None:
     return f"{shown} {unit} - the recipe calls for {base}, and you {how} it."
 
 
+def _felt_about(text: str) -> str | None:
+    """What he told her he feels that way about, from his journal."""
+    from aletheia import speech
+    g = _groups("felt_about", text)
+    feel = str(g.get("felt_about") or "")
+    if not feel:
+        return None
+    found = []
+    for row in _notes():
+        line = re.sub(r"^journal: ", "", " ".join(str(row.get("text") or "").split()).rstrip("."), flags=re.I)
+        m = re.match(rf"(?:i'?m|i am|i'?ve been|i have been|i feel|i'?m feeling|i am feeling) (?:really |so |a (?:little|bit) |kind of |pretty )?{re.escape(feel)} (?:about|for|over) (.{{2,60}})", line, re.I)
+        if m:
+            what = re.sub(r"(?i)\bmy\b", "your", m.group(1))
+            if what not in found:
+                found.append(what)
+        if len(found) >= 3:
+            break
+    if not found:
+        return None
+    return f"You told me you're {feel} about {speech.and_list(found)}."
+
+
+def _my_day(_rest: str = "") -> str | None:
+    """How he said his day went, from today's journal lines."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    lines = []
+    for row in _notes():
+        text = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not text.lower().startswith("journal:"):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            continue
+        if at != today:
+            continue
+        said = speech.as_she_says_it(re.sub(r"^journal: ", "", text, flags=re.I))
+        if said not in lines:
+            lines.append(said)
+        if len(lines) >= 3:
+            break
+    if not lines:
+        return None
+    return f"From your journal today: {speech.and_list(list(reversed(lines)))}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18039,6 +18095,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "felt_about": _felt_about,
+           "my_day": _my_day,
            "recipe_qty": _recipe_qty,
            "save_goal": _save_goal,
            "need_signed": _need_signed,
@@ -18357,7 +18415,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"my_day", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 

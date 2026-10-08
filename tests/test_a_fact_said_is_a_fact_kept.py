@@ -11599,5 +11599,29 @@ class InTheKitchenAgain(unittest.TestCase):
             self.assertEqual(quick.answer("how many eggs does the recipe need"), "3 eggs, from what you told me.")
 
 
+class HisDayInHisJournal(unittest.TestCase):
+    """2026-10-08: "how was my day" answered with her own status ("nothing of
+    mine is running"), "what am I worried about" went to a model a turn after
+    "I am worried about my mom", and "my anxiety is bad today" to the
+    planner."""
+
+    def test_said(self):
+        r = voice._interpret("my anxiety is bad today")
+        self.assertEqual(r["command"], {"kind": "note", "text": "Journal: my anxiety is bad today"})
+        self.assertIn("breath", r["say"])
+
+    def test_read(self):
+        import datetime as dt
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        notes = [{"text": "Journal: I am worried about my mom", "ts": ts}, {"text": "Journal: I had a great day", "ts": ts}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("how was my day"),
+                             "From your journal today: you had a great day and you are worried about your mom.")
+            self.assertEqual(quick.answer("what am I worried about"), "You told me you're worried about your mom.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("what am I worried about"))
+            self.assertNotIn("journal", (quick.answer("how was my day") or "").casefold())
+
+
 if __name__ == "__main__":
     unittest.main()
