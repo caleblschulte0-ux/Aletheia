@@ -2541,7 +2541,9 @@ def _named_list(kind: str, cmd: dict) -> str:
             (f" and {len(taken) - 6} more." if len(taken) > 6 else ".")
     rows = lists.items(name)
     if rows is None:
-        return f"You don't have a {name} list. Say \"make a list called {name}\" to start one."
+        # "add ... to my packing list" starts one by itself (2026-10-08: the
+        # sentence offered was a step he does not need).
+        return f"Nothing's on a {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
     if not rows:
         return f"Your {name} list is empty."
     shown = rows[:10] + ([f"{len(rows) - 10} more"] if len(rows) > 10 else [])

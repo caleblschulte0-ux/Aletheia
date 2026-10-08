@@ -406,6 +406,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:how many (?:pills|tablets|capsules|doses) (?:do i have|have i got|are) left"
         r"|when (?:will|do|am) i (?:going to )?run(?:ning)? out(?: of (?:my )?(?:pills|tablets|capsules|meds|medicine|medication))?"
         r"|how long (?:will|do) my (?:pills|tablets|meds|medicine) last)\s*\??$")),
+    # "How long is my vacation" (2026-10-08: to a model): the days between
+    # the two dates his note gives it.
+    ("trip_length", re.compile(
+        r"^how (?:long|many days|many nights) (?:is|will be|are) (?:my |our |the )(?P<tl_what>vacation|holiday|trip|cruise|honeymoon)"
+        r"(?: (?:going to be|for))?\s*\??$")),
     ("their_fact", re.compile(
         r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
         r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
@@ -2433,7 +2438,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3063,6 +3068,32 @@ _ZONES = {
     "east coast": "America/New_York", "central time": "America/Chicago", "mountain time": "America/Denver",
     "pacific time": "America/Los_Angeles", "the west coast": "America/Los_Angeles", "west coast": "America/Los_Angeles",
 }
+
+
+def _trip_length(text: str) -> str | None:
+    """"My vacation is December 10 to 17": seven nights, from his note.
+    None without a note giving both ends."""
+    import datetime as dt
+    from aletheia import localtime
+    what = (_groups("trip_length", text).get("tl_what") or "").casefold()
+    months = "|".join(_MONTHS)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).casefold()
+        if not re.search(rf"\b{what}\b", said):
+            continue
+        m = re.search(rf"(?P<m1>{months})\.? (?P<d1>\d{{1,2}})(?:st|nd|rd|th)? (?:to|through|thru|until|till|-) "
+                      rf"(?:(?P<m2>{months})\.? )?(?P<d2>\d{{1,2}})", said)
+        if not m:
+            continue
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        start = _named_date(f"{m.group('m1')} {m.group('d1')}", today)
+        end = _named_date(f"{m.group('m2') or m.group('m1')} {m.group('d2')}", start or today)
+        if not start or not end or end < start:
+            return None
+        nights = (end - start).days
+        return (f"{nights} night{'s' if nights != 1 else ''} - {start.strftime('%B')} {start.day} to "
+                f"{end.strftime('%B')} {end.day}, from what you told me.")
+    return None
 
 
 def _time_where(text: str) -> str | None:
@@ -8922,7 +8953,10 @@ def _when_mine(what: str, until: bool = False) -> str | None:
         if re.search(r"\b(?:lives?|living|address|located|moved) (?:is )?(?:at|on|to)\b|\b(?:st|street|ave|avenue|rd|road|dr|drive|ln|lane|blvd)\b",
                      said.casefold()):
             continue
-        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", said.casefold()) for w in words) \
+        # "What time is my flight" after "I'm flying out at 7am" (2026-10-08).
+        kin = {"flight": r"\bfl(?:y|ying|ight|ights)\b|\bflying\b", "trip": r"\b(?:trip|vacation|holiday|going to|visiting)\b",
+               "vacation": r"\b(?:vacation|holiday|trip)\b"}
+        if all(re.search(kin.get(w.rstrip("s"), rf"\b{re.escape(w.rstrip('s'))}"), said.casefold()) for w in words) \
                 and re.search(r"\b\d{1,2}(?:st|nd|rd|th|:\d\d| ?[ap]\.?m\b)|\b(?:at|on|the|by) \d{1,2}\b|\b\d{1,2}/\d{1,2}\b"
                               r"|day\b|tomorrow|tonight|noon|\bweekend\b|\b(?:next|this) (?:week|month|year)\b", said.casefold()):
             # A when, not just a number: "my rent is 1500" answered "when
@@ -11957,6 +11991,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "miles_until": lambda text: _miles_until(text),
            "pills_left": lambda text: _pills_left(text),
            "time_where": lambda text: _time_where(text),
+           "trip_length": lambda text: _trip_length(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

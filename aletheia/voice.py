@@ -3616,6 +3616,22 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what books? (?:do|did) i (?:want|say i wanted) to read\s*\??", low):
         return {"command": {"kind": "list_read", "list": "reading"}, "say": None}
 
+    # "I'm going on vacation to Hawaii December 10 to 17", "my vacation is
+    # December 10 to 17", "I'm flying out at 7am on December 10" (2026-10-08:
+    # to the planner). Kept in his words; "when is my vacation", "how long
+    # is my vacation" and "what time is my flight" read them.
+    _range_day = r"(?:" + _MONTH + r"\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)?(?: of " + _MONTH + r")?)"
+    if re.fullmatch(r"(?:(?:i'?m|i am|we'?re|we are) (?:going|heading|off) on (?:a |our |my )?(?:vacation|holiday|trip|cruise|honeymoon)"
+                    r"|(?:my|our) (?:vacation|holiday|trip|cruise|honeymoon) is)"
+                    r"(?: (?:to|in) [a-z][a-z .'-]{1,30}?)? (?:from )?" + _range_day
+                    + r"(?:,? \d{4})?(?: (?:to|through|thru|until|till|-) " + _range_day + r")?", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:flying|leaving|heading) (?:out|off|home|back)(?: to [a-z][a-z .'-]{1,30}?)?"
+                            r" (?:at \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?" + _range_day
+                            + r"(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
+
     # "I'm out of my medicine" (2026-10-08: to the planner; "my" kept it off
     # the shopping list). A prescription is refilled, not bought off a list.
     m = re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)|im) (?:all |almost |nearly |running )?(?:out of|low on) (?:my |the )?"
@@ -4454,8 +4470,9 @@ def _interpret(transcript: str) -> dict:
     # Mom's birthday" (2026-10-08: to the planner). The date is in his note.
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
-                     r"(?P<what>(?:wedding )?anniversary|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
-    if m and (m.group("task") or "anniversary" in m.group("what")):
+                     r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"
+                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
+    if m and (m.group("task") or not re.search(r"\b(?:birthday|bday)$", m.group("what"))):
         import datetime as dt
         from aletheia import localtime, quick as _q
         tz = localtime.operator_tz()

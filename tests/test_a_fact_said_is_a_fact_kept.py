@@ -6092,5 +6092,27 @@ class WatchAndReadingLists(unittest.TestCase):
         self.assertEqual(quick.match("what did I watch recently")[0], "off_lists")
 
 
+class AVacationByItsDates(unittest.TestCase):
+    """2026-10-08: "I'm going on vacation to Hawaii December 10 to 17", "how
+    long is my vacation", "remind me to pack the day before my vacation",
+    "I'm flying out at 7am on December 10" and "what time is my flight"
+    went to the planner or a model."""
+
+    def test_writers(self):
+        for said in ("I'm going on vacation to Hawaii December 10 to 17", "my vacation is December 10 to 17",
+                     "I'm flying out at 7am on December 10"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertEqual(voice._interpret("what do I need to pack")["command"], {"kind": "list_read", "list": "packing"})
+
+    def test_readers(self):
+        rows = [{"text": "I'm flying out at 7am on December 10", "ts": "2026-10-08T01:00:00+00:00"},
+                {"text": "my vacation is December 10 to 17", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertTrue(quick.answer("how long is my vacation").startswith("7 nights - December 10 to December 17"))
+            self.assertIn("flying out at 7am", quick.answer("what time is my flight"))
+            got = voice._interpret("remind me to pack the day before my vacation")["command"]
+            self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%m-%d"), "12-09")
+
+
 if __name__ == "__main__":
     unittest.main()
