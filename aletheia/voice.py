@@ -8820,6 +8820,15 @@ def _interpret(transcript: str) -> dict:
                     "say": "Goodnight. I'll keep going quietly."}
     if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
+    # "I'm on a diet", "I'm on call this weekend", "I started keto"
+    # (2026-10-08: to a model, which kept nothing). A state he is in is a
+    # note in his words; "what did I tell you about my diet" reads it.
+    if re.fullmatch(r"(?:i'?m|i am) (?:on|starting|going on|doing) (?:a |an |the )?(?:new )?(?:diet|keto(?: diet)?|cut|bulk|cleanse|fast"
+                    r"|juice cleanse|low[- ]carb(?: diet)?|vegan diet|vegetarian diet|call|antibiotics|medication|meds|a break"
+                    r"|break|vacation|leave|parental leave|maternity leave|paternity leave|sick leave|holiday)"
+                    r"(?: (?:this|next) (?:week|weekend|month)| until [a-z0-9 ]{2,20}| now| again| today| tonight)?"
+                    r"|i (?:started|began) (?:a |an |the )?(?:new )?(?:diet|keto|cleanse|fast|antibiotics|medication)(?: today| this week)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I have 3 vacation days left", "I took a sick day today", "I took
     # Friday off" (2026-10-08: to the planner). Kept in his words; "how
     # many vacation days do I have left" counts them down.

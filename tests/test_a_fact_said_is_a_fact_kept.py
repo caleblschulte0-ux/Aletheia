@@ -6817,5 +6817,20 @@ class WhatToDoFirst(unittest.TestCase):
         self.assertIn("Email my boss is due then too.", said)
 
 
+
+class AStateHeIsIn(unittest.TestCase):
+    """2026-10-08: "I'm on a diet" and "I'm on call this weekend" went to a
+    model and were not kept, so "am I on call this weekend" had nothing."""
+
+    def test_kept_and_asked_by_the_phrase(self):
+        self.assertEqual(voice.interpret("I'm on call this weekend")["command"],
+                         {"kind": "note", "text": "I'm on call this weekend"})
+        rows = [{"text": "I called mom", "ts": "2026-10-08T04:00:00+00:00"},
+                {"text": "I'm on call this weekend", "ts": "2026-10-08T03:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("am I on call this weekend"), "You told me: you're on call this weekend.")
+            self.assertIsNone(quick.answer("am I on a diet"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2485,6 +2485,12 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
+    # model, after he said so) is what he told her about it.
+    m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"
+                     r"|vacation|leave|parental leave|break)(?: (?:this|next) (?:week|weekend|month)| right now| now| still| today)?\s*\??", text)
+    if m:
+        return f"what did i tell you about being on {m.group('state')}"
     # "What size shoes does Emma wear" (2026-10-08: to a model, a turn
     # after "Emma's shoe size is 2") is her shoe size.
     m = re.fullmatch(r"what size (?P<what>shoe|shirt|pants|dress|ring|jacket|coat|diaper|clothes)s? (?:does|do) (?P<who>(?!i\b|you\b|we\b)[a-z]{2,15}|my [a-z]{2,15})"
@@ -8872,6 +8878,15 @@ def _recall(words: str) -> str | None:
     words themselves. Nothing matching is said as nothing - never guessed."""
     from aletheia import memory, speech
     words, _bar, attr = str(words or "").partition("|")
+    being = re.fullmatch(r"being on (.+)", words.strip())
+    if being:
+        # "Am I on call" is the phrase, not every note with "call" in it.
+        state = re.escape(being.group(1))
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            if re.search(rf"\b(?:on|doing|started|starting|began) (?:a |an |the )?(?:new )?{state}\b", said, re.I):
+                return f"You told me: {speech.as_she_says_it(said)}."
+        return None
     wanted = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold()) if w not in _STOP_WORDS]
     if not wanted:
         return None
