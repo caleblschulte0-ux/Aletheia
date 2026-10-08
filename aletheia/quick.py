@@ -390,6 +390,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("their_likes", re.compile(
         r"^what (?:does|do) (?P<tl_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20}) (?P<tl_verb>like|love|hate|enjoy|collect|not like)"
         r"(?: (?:to (?:eat|drink|do))| best| most)?\s*\??$")),
+    # "What flowers does Anna like" (2026-10-08: to a model): her favorite
+    # flower, or what he said she likes, when he told her.
+    ("their_kind", re.compile(
+        r"^what (?:kind of |kinds of |type of |sort of )?(?P<tk_what>[a-z]{3,20}?)(?:e?s)? (?:does|do) (?P<tk_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20})"
+        r" (?:like|love|prefer|enjoy)(?: best| most)?\s*\??$")),
     ("their_fact", re.compile(
         r"^(?:who|what)(?:'s| is|s) (?P<tf_who>(?:my )?[a-z][a-z']{1,20})(?:'s|s') (?P<tf_key>teacher|school|coach|pediatrician|doctor|dentist"
         r"|class|grade|team|best friend|nickname|shoe size|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet"
@@ -2404,7 +2409,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -11307,6 +11312,30 @@ def _told_last(text: str) -> str | None:
     return None
 
 
+def _their_kind(text: str) -> str | None:
+    """"What flowers does Anna like": "Anna's favorite flower is tulips",
+    or a note saying she likes something of that kind. None without one."""
+    from aletheia import speech
+    g = _groups("their_kind", text)
+    what = (g.get("tk_what") or "").casefold()
+    who = re.sub(r"^(?:my|our) ", "", " ".join(str(g.get("tk_who") or "").casefold().split()))
+    if not what or not who:
+        return None
+    stem = re.escape(what[:max(3, len(what) - 1)])
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.fullmatch(r"(?:my |our )?" + re.escape(who) + r"(?:'s|s') (?:favou?rite|fave) " + stem + r"[a-z]* (?:is|are) .+", said, re.I) \
+                or re.fullmatch(r"(?:my |our )?" + re.escape(who) + r" (?:really |also )?(?:likes|loves|prefers|enjoys|adores) .*\b"
+                                + stem + r"[a-z]*\b.*", said, re.I):
+            hers = speech.as_she_says_it(said).rstrip(".")
+            if hers.casefold() not in (f.casefold() for f in found):
+                found.append(hers)
+    if not found:
+        return None
+    return "You told me " + speech.and_list(found[:3]) + "."
+
+
 def _their_likes(text: str) -> str | None:
     """"What does Sam like": his notes saying what someone likes or
     doesn't. None when there are none - a model may know them better."""
@@ -11793,6 +11822,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "on_days": lambda text: _on_days(text),
            "until_leave": lambda text: _until_leave(),
            "just_added": lambda text: _just_added(),
+           "their_kind": lambda text: _their_kind(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),

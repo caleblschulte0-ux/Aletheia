@@ -4411,6 +4411,41 @@ def _interpret(transcript: str) -> dict:
                                 "text": f"{event.get('title') or 'your next event'} in {said}{plural}"},
                     "say": None}
 
+    # "Remind me to buy flowers two days before our anniversary", "remind me
+    # a week before my anniversary", "remind me to get a card the day before
+    # Mom's birthday" (2026-10-08: to the planner). The date is in his note.
+    m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
+                     r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
+                     r"(?P<what>(?:wedding )?anniversary|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
+    if m and (m.group("task") or "anniversary" in m.group("what")):
+        import datetime as dt
+        from aletheia import localtime, quick as _q
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        what = m.group("what")
+        day = _q._date_in_notes(what, now.date())
+        if day is None:
+            whose = "your " + what if not re.match(r"[a-z]+(?:'s|s') ", what) or what.split("'")[0] in _q._relation_words() else what
+            return {"command": None, "say": f"I don't know when {_as_he_said(text, whose)} is. Tell me the date once and I'll remember it."}
+        lead = m.group("lead")
+        days = (14 if lead == "two weeks" else 7 if "week" in lead else 0 if lead == "the morning"
+                else (_spoken_amount(m.group("n")) if m.group("n") else 1) or 1)
+        hour = {"the night": 19, "the morning": 8}.get(lead, 9)
+        at = dt.datetime.combine(day - dt.timedelta(days=int(days)), dt.time(hour, 0), tzinfo=tz)
+        if at <= now:
+            try:
+                day = day.replace(year=day.year + 1)
+            except ValueError:            # February 29
+                day = day.replace(year=day.year + 1, day=28)
+            at = dt.datetime.combine(day - dt.timedelta(days=int(days)), dt.time(hour, 0), tzinfo=tz)
+        said = what.replace("my ", "your ", 1) if what.startswith("my ") else what
+        if not re.match(r"[a-z]+(?:'s|s') ", said) or re.split(r"'s?\b", said)[0] in _q._relation_words():
+            said = "your " + said
+        said = _as_he_said(text, said) if not said.startswith("your ") else said
+        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days, on {day.strftime('%A')}")
+        text = (f"{_as_he_said(text, m.group('task'))} - {said} is {when}" if m.group("task") else f"{said} is {when}")
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
+
     # "REMIND ME THE DAY BEFORE MY DENTIST APPOINTMENT" (2026-10-07: to the
     # planner). The same lookup, a day-sized lead: the day before at nine,
     # the night before at seven, the morning of at eight. A birthday or an
@@ -8207,7 +8242,9 @@ def _interpret(transcript: str) -> dict:
                      # "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln
                      # Elementary" (2026-10-07: to the planner).
                      r"|teacher|school|coach|pediatrician|doctor|dentist|class|grade|team|best friend|nickname|shoe size"
-                     r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name)"
+                     r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name"
+                     # "Anna's favorite flower is tulips" (2026-10-08: to the planner).
+                     r"|(?:favou?rite|fave) [a-z]{2,20}(?: [a-z]{2,20})?)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name| network(?: name| password)?)?|wi-fi(?: password| network)?"
                      r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -

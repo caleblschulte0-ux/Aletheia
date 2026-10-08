@@ -5972,5 +5972,29 @@ class ATaskMovesToNextWeekAndABillIsABill(unittest.TestCase):
         self.assertIn("pay the water bill", said)
 
 
+class BeforeADayHeToldHer(unittest.TestCase):
+    """2026-10-08: "Anna's favorite flower is tulips", "what flowers does
+    Anna like" and "remind me to buy flowers two days before our
+    anniversary" each went to the planner or a model."""
+
+    def test_a_favorite_of_theirs(self):
+        self.assertEqual(voice._interpret("Anna's favorite flower is tulips")["command"]["kind"], "note")
+        rows = [{"text": "Anna's favorite flower is tulips", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what flowers does Anna like"), "You told me Anna's favorite flower is tulips.")
+            self.assertIsNone(quick.answer("what food does Anna like"))
+
+    def test_days_before_the_anniversary(self):
+        rows = [{"text": "my anniversary is June 20", "ts": "2026-10-08T00:00:00+00:00"},
+                {"text": "my mom's birthday is March 3", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            got = voice._interpret("remind me to buy flowers two days before our anniversary")["command"]
+            self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%m-%d %H"), "06-18 09")
+            self.assertTrue(got["text"].startswith("buy flowers - your anniversary is in 2 days"))
+            card = voice._interpret("remind me to get a card the day before my mom's birthday")["command"]
+            self.assertEqual(card["text"], "get a card - your mom's birthday is tomorrow")
+            self.assertIn("don't know when Sam's birthday", voice._interpret("remind me to call Sam the day before Sam's birthday")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()
