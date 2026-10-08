@@ -9382,5 +9382,17 @@ class HowHeHasBeenFeeling(unittest.TestCase):
                              "From what you told me lately: your back hurts (today); you have been coughing for 3 days (today).")
 
 
+class HerBirthdayAndHowLongTogether(unittest.TestCase):
+    """"What day is my wife's birthday this year" and "how long have we been
+    together" after "we met in 2012" went to a model (2026-10-08)."""
+
+    def test_read(self):
+        self.assertEqual(voice._interpret("we met in 2012")["command"], {"kind": "note", "text": "we met in 2012"})
+        rows = [{"text": "my wife's birthday is april 3"}, {"text": "we met in 2012"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertRegex(quick.answer("what day is my wifes birthday this year"), r"^[A-Z][a-z]+day 3 April, \d+ days? from now\.$")
+            self.assertRegex(quick.answer("how long have we been together"), r"^About \d+ years - you told me we met in 2012\.$")
+
+
 if __name__ == "__main__":
     unittest.main()

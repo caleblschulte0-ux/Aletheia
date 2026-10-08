@@ -2184,6 +2184,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("workouts_did", re.compile(
         r"^what (?:workouts?|exercises?|exercise|training|sports?) (?:did|have) i (?:do|done|did|play|played)"
         r"(?P<workouts_did> today| yesterday| this week| last week| this month)?\s*\??$")),
+    # "How long have we been together" after "we met in 2012" (2026-10-08: to a model).
+    ("together", re.compile(r"^how long (?:have|has) (?:we|my (?:wife|husband|partner|girlfriend|boyfriend) and i|i) been (?:together|dating"
+                            r"|with (?:my )?(?:wife|husband|partner|girlfriend|boyfriend|her|him))\s*\??$"
+                            r"|^how long ago did (?:we|i) (?:meet|first meet|start dating|get together)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -7797,6 +7801,14 @@ def _weekday_of(text: str) -> str | None:
     which_year = re.search(r"\s+(this|last|next) year$", words)
     day = _a_date(re.sub(r"\s+(?:this|last|next) year$", "", words), today)
     if day is None:
+        # "What day is my wife's birthday this year" (2026-10-08: to a model)
+        # - a day he told her, read the way "how long until" reads it.
+        bare = re.sub(r"\s+(?:this|last|next) year$", "", words)
+        if re.match(r"(?:my|our|[a-z]+'s) ", bare):
+            try:
+                return _until(bare, which_day=True)
+            except Exception:  # noqa: BLE001
+                return None
         return None
     # "What day was July 4 this year" said 2027, and "was" with no year
     # read forward (2026-10-07). The year he names is the year; "was"
@@ -14158,6 +14170,19 @@ def _symptoms(text: str) -> str | None:
     return head + "; ".join(seen[:6]) + "."
 
 
+def _together(_text: str = "") -> str | None:
+    import datetime as dt
+    from aletheia import localtime, speech
+    year = dt.datetime.now(localtime.operator_tz()).year
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.search(r"\b(?:met|started dating|got together|started going out|moved in together)\b.*\b((?:19|20)\d\d)$", said, re.I)
+        if m and re.match(r"(?:we|my|our|i)\b", said, re.I):
+            n = year - int(m.group(1))
+            return f"About {n} year{'s' if n != 1 else ''} - you told me {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14965,6 +14990,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "together": _together,
            "symptoms": _symptoms,
            "day_of_year": _day_of_year,
            "which_mine": _which_mine,
