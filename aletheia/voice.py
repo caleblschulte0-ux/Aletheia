@@ -9239,11 +9239,24 @@ def _interpret(transcript: str) -> dict:
     # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
     # "the landlord fixed the sink" both to the planner). Notes; "what's
     # broken" and "is the sink fixed" read them.
-    if (re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up|making a (?:weird |strange |loud )?noise)(?: again)?", low)
+    if (re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up|making a (?:weird |strange |loud )?noise"
+                     # "The smoke detector is beeping" (2026-10-08: to the planner).
+                     r"|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining|not turning on|not starting|tripping)(?: again)?", low)
+            or re.fullmatch(r"i (?:just )?replaced the batter(?:y|ies) in (?:the|my|our) [a-z][a-z' ]{1,25}", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:broke|stopped working|died|quit working)(?: today| again| yesterday)?", low)
             or re.fullmatch(r"(?:i|we|the [a-z]{3,15}|my [a-z]{3,15}|[a-z]{3,15}) (?:finally |just )?(?:fixed|repaired|unclogged) (?:the|my|our) [a-z][a-z' ]{1,25}", low)
             or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:is|got|was) (?:fixed|repaired|working again)(?: now| today)?", low)) \
             and not re.search(r"\b(?:heart|leg|arm|back|bone|nose|wrist|ankle|finger|toe|record|promise|news|ice|build|ci|pipeline|repo|tests?)\b", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The claim was approved", "I'm waiting on a refund from Amazon", "the
+    # furnace was serviced today" (2026-10-08: all to the planner or a model).
+    if re.fullmatch(r"(?:the|my|our) (?:insurance )?(?:claim|refund|application|loan|permit|request|appeal|return|reimbursement|rebate|visa|passport)"
+                    r"(?: [a-z]{2,15})? (?:was|got|has been|is|came) (?:finally )?(?:approved|denied|rejected|processed|accepted|declined|issued|cancell?ed"
+                    r"|paid|paid out|received|through|back|in|sent|closed|on hold|pending|under review)(?: today| yesterday)?", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:still )?waiting (?:on|for) (?:a |an |the |my |our )?[a-z][a-z0-9' ]{2,40}", low) \
+            and not re.search(r"\b(?:you|it|this|that|them|him|her)$", low) \
+            or re.fullmatch(r"(?:the|my|our) [a-z][a-z' ]{1,25}? (?:was|got|has been) (?:serviced|inspected|cleaned|tuned up|flushed|replaced|installed"
+                            r"|painted|pumped|sealed|treated|rotated)(?: today| yesterday| this morning| last week)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHAT HE THOUGHT OF SOMETHING (2026-10-08: "Dune was amazing" to the
     # planner). Kept; "what did I think of Dune" reads it.

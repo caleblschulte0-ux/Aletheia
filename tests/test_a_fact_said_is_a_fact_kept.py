@@ -9579,5 +9579,31 @@ class MinutesHeSpent(unittest.TestCase):
         self.assertEqual((said["kind"], said["text"]), ("remind_at", "take an advil"))
 
 
+class ClaimsRefundsAndRepairs(unittest.TestCase):
+    """A sweep of household admin, most to a model or the planner (2026-10-08)."""
+
+    def test_kept(self):
+        for said in ("the claim was approved", "I am waiting on a refund from amazon", "the furnace was serviced today",
+                     "the smoke detector is beeping", "I replaced the batteries in the smoke detector"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("I'm waiting for you")["command"]["kind"], "note")
+
+    def test_read(self):
+        from aletheia import intercom
+        rows = [{"text": "I replaced the batteries in the smoke detector"}, {"text": "the claim was approved"},
+                {"text": "I am waiting on a refund from Amazon"}, {"text": "the furnace was serviced today"},
+                {"text": "the faucet is dripping"}, {"text": "the smoke detector is beeping"}]
+        tasks_ = [{"description": "call the insurance company about the claim", "status": "OPEN", "id": "t1"}]
+        from aletheia import tasks
+        with mock.patch.object(quick, "_notes", lambda: rows), mock.patch.object(intercom, "_open_tasks", lambda: tasks_), \
+                mock.patch.object(tasks, "all_tasks", lambda: tasks_), mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertEqual(quick.answer("what was I going to call the insurance company about"),
+                             "Your task says: call the insurance company about the claim.")
+            self.assertEqual(quick.answer("what happened with my claim"), "You told me: the claim was approved.")
+            self.assertEqual(quick.answer("what am I waiting on"), "You told me you're waiting on a refund from Amazon.")
+            self.assertEqual(quick.answer("when was the furnace last serviced"), "You told me: the furnace was serviced today.")
+            self.assertEqual(quick.answer("what needs fixing"), "From what you've told me: the faucet is dripping.")
+
+
 if __name__ == "__main__":
     unittest.main()

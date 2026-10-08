@@ -2116,6 +2116,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # turn after "I need to call the vet about Max" became a task).
     ("task_about", re.compile(
         r"^what (?:did|do) i (?:need|have|want|say i (?:need|had|wanted)) to (?P<task_about>[a-z][a-z' ]{2,50}?) (?:about|for)\s*\??$"
+        # "What was I going to call the insurance company about" (2026-10-08: to a model).
+        r"|^what (?:was|am) i (?:going|supposed|meant|gonna) to (?P<task_about3>[a-z][a-z' ]{2,50}?) (?:about|for)\s*\??$"
         r"|^why (?:did|do) i (?:need|have|want) to (?P<task_about2>[a-z][a-z' ]{2,50}?)\s*\??$")),
     # "What am I doing for Sarah" (2026-10-08: to a model, a turn after
     # "remind me to buy flowers for Sarah on Friday").
@@ -2126,7 +2128,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's broken in the house", "is the sink fixed" (2026-10-08: both to
     # a model, with "the dishwasher is broken" kept).
     ("broken", re.compile(
-        r"^what(?:'s| is|s)? (?:still )?(?:broken|not working|needs fixing|needs to be fixed|needs repair)"
+        r"^(?:what(?:'s| is|s)? (?:still )?(?:broken|not working|needs fixing|needs to be fixed|needs repair)|what do i (?:still )?(?:need|have) to (?:fix|repair))"
         r"(?: in the house| at home| around the house| at the house)?(?P<broken>)\s*\??$"
         r"|^(?:is|are|did) (?:the|my|our) (?P<broken2>[a-z][a-z' ]{1,25}?) (?:fixed|repaired|still broken|get fixed)(?: yet| now)?\s*\??$")),
     # "What do I need to bring", "who is having the party", "where am I
@@ -2227,6 +2229,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("minutes_did", re.compile(r"^how (?:long|many minutes|many hours|much time) (?:did|have) i (?:spent? )?(?P<minutes_did>meditat(?:e|ed|ing)|read(?:ing)?"
                                r"|stretch(?:ed|ing)?|practi[cs](?:e|ed|ing)|stud(?:y|ied|ying)|walk(?:ed|ing)?|do(?:ne)? yoga|did yoga|exercis(?:e|ed|ing)"
                                r"|work(?:ed)? out|play(?:ed|ing)? (?:the )?[a-z]+|clean(?:ed|ing)?)(?P<md_when> today| this week| yesterday)?\s*\??$")),
+    # "What happened with my claim", "what am I waiting on", "when was the
+    # furnace last serviced" (2026-10-08: all to a model).
+    ("claim_news", re.compile(r"^(?:what(?:'s| is| happened)? (?:with|to|the status of|on) (?:my|the|our) |(?:did|has|was|is) (?:my|the|our) |any news on (?:my|the) )"
+                              r"(?:insurance )?(?P<claim_news>claim|refund|application|loan|permit|request|appeal|return|reimbursement|rebate|visa|passport)"
+                              r"(?: (?:get |been |come )?(?:approved|denied|processed|through|back|in|paid|accepted))?(?: yet)?\s*\??$")),
+    ("waiting_on", re.compile(r"^what (?:am i|are we) (?:still )?waiting (?:on|for)\s*\??$|^what(?:'s| is) (?:still )?(?:pending|outstanding)\s*\??$")),
+    ("last_done_to", re.compile(r"^when (?:was|did) (?:the|my|our) (?P<last_done_to>[a-z][a-z' ]{1,25}?) (?:last |get |last get )?"
+                                r"(?P<ldt_verb>serviced|inspected|cleaned|tuned up|flushed|replaced|installed|painted|pumped|sealed|treated|rotated)(?: last)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3092,7 +3102,7 @@ def match(question: str) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "who_minding", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -3112,7 +3122,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13802,8 +13812,10 @@ def _plans_for(who: str) -> str | None:
 
 
 _BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up"
-                    r"|making a (?:weird |strange |loud )?noise)|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working)")
+                    r"|making a (?:weird |strange |loud )?noise|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining"
+                    r"|not turning on|not starting|tripping)|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working)")
 _FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
+                    r"|\breplaced the batter(?:y|ies) in (?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25})"
                     r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:is|got|was) (?:fixed|repaired|working again)")
 
 
@@ -13819,7 +13831,7 @@ def _broken(thing: str = "") -> str | None:
         for rx, how in ((_FIXED, "fixed"), (_BROKE, "broken")):
             m = rx.search(low)
             if m:
-                what = re.sub(r" (?:today|again|yesterday|now)$", "", (m.group("t") or m.group("t2")).strip())
+                what = re.sub(r" (?:today|again|yesterday|now)$", "", (m.group("t") or m.group("t2") or m.groupdict().get("t3") or "").strip())
                 state[what] = (how, said)
                 break
     if thing:
@@ -14535,6 +14547,33 @@ def _minutes_did(text: str) -> str | None:
     return f"{span[:1].upper()}{span[1:]} {when}, from what you've told me."
 
 
+def _claim_news(thing: str) -> str | None:
+    thing = str(thing or "").strip()
+    return _told_when(rf"^(?:the|my|our) (?:insurance )?{re.escape(thing)}\b.* (?:was|got|has been|is|came) ") if thing else None
+
+
+def _waiting_on() -> str | None:
+    from aletheia import speech
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(r"(?:i'?m|i am|we'?re|we are) (?:still )?waiting (?:on|for) (.+)$", said, re.I)
+        if m and m.group(1).casefold() not in [f.casefold() for f in found]:
+            found.append(re.sub(r"(?i)^my\b", "your", m.group(1)))
+    if not found:
+        return None
+    return f"You told me you're waiting on {speech.and_list(found[:5])}."
+
+
+def _last_done_to(text: str) -> str | None:
+    g = _groups("last_done_to", text)
+    thing, verb = str(g.get("last_done_to") or "").strip(), str(g.get("ldt_verb") or "")
+    if not thing or not verb:
+        return None
+    return _told_when(rf"^(?:the|my|our) {re.escape(thing)} (?:was|got|has been) {re.escape(verb)}\b"
+                      rf"|\bi (?:had|got) (?:the|my|our) {re.escape(thing)} {re.escape(verb)}\b")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15248,7 +15287,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repos": lambda rest: _repos(),
            "shopping": lambda rest: _shopping(),
            "the_list": lambda text: _the_list(),
-           "tasks_verb": lambda text: _tasks_verb(text),
+           # "What do I need to fix" with nothing on his list to fix is what
+           # he said broke (2026-10-08).
+           "tasks_verb": lambda text: _tasks_verb(text) or (
+               _broken("") if re.search(r"\b(?:fix|repair)\s*\??$", str(text)) else None),
            "role_said": lambda text: _role_said(text),
            "loan_left": lambda text: _loan_left(text),
            "date_what": lambda text: _date_what(text),
@@ -15342,6 +15384,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "claim_news": _claim_news,
+           "waiting_on": lambda rest: _waiting_on(),
+           "last_done_to": _last_done_to,
            "minutes_did": _minutes_did,
            "at_hour": _at_hour,
            "still_have": _still_have,
