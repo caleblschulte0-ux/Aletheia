@@ -24,6 +24,20 @@
       "weak_shot": 1
     }
   },
+  "closed_recently": {
+    "days": 3,
+    "why": {
+      "gone": 15,
+      "left_captcha": 3,
+      "left_error": 5,
+      "left_going_in_circles": 2,
+      "left_no_way_forward": 7,
+      "left_sign_in": 1,
+      "not_a_form_asks_nothing_on_bamboohr": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 15,
+      "not_realistic": 3
+    }
+  },
   "days": {
     "2026-09-12": {
       "filled": 26,
@@ -218,15 +232,15 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 50,
-      "found": 75,
+      "filled": 51,
+      "found": 76,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 33
     }
   },
-  "generated_at": "2026-10-08T01:19:00Z",
+  "generated_at": "2026-10-08T01:27:26Z",
   "sent_all_time": 267,
   "stuck_at": {
     "approval_denied": {
@@ -271,9 +285,37 @@
       "nothing_to_press_on_account_login/observed": 4
     }
   },
+  "stuck_recently": {
+    "days": 3,
+    "where": {
+      "captcha": {
+        "nothing_to_press_on_captcha/filled": 3
+      },
+      "error": {
+        "nothing_to_press_on_unread/filled": 1,
+        "nothing_to_press_on_unread/observed": 4,
+        "nothing_to_press_on_unread/submit_clicked": 1
+      },
+      "going_in_circles": {
+        "nothing_to_press_on_form/filled": 1,
+        "nothing_to_press_on_form/review_reached": 1
+      },
+      "no_way_forward": {
+        "nothing_to_press_on_content/observed": 5,
+        "nothing_to_press_on_form/observed": 3,
+        "unclear_button/observed": 2
+      },
+      "out_of_steps": {
+        "nothing_to_press_on_unread/observed": 1
+      },
+      "sign_in": {
+        "nothing_to_press_on_account_login/observed": 1
+      }
+    }
+  },
   "totals": {
-    "filled": 329,
-    "found": 689,
+    "filled": 330,
+    "found": 690,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
@@ -282,12 +324,13 @@
   "waiting": {
     "asked_about": {
       "address": 1,
-      "demographic": 3,
+      "demographic": 4,
       "education": 1,
       "on_site": 1,
       "other": 6,
       "referral": 1,
-      "travel": 1
+      "travel": 1,
+      "why_this_job": 1
     },
     "closed": {
       "duplicate": 3,
@@ -322,7 +365,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 10,
+    "needs_answer": 11,
     "oldest_days": 25,
     "to_send": 0
   },
