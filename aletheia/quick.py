@@ -2510,6 +2510,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # to a model).
     ("need_signed", re.compile(r"^what (?:do(?:es)?) (?P<need_signed>my [a-z]{2,15}|the kids|[a-z]{2,15}) need (?:me to )?(?:sign(?:ed)?)\s*\??$")),
     ("ungrounded", re.compile(r"^(?:when is (?P<ungrounded>my [a-z]{2,15}|[a-z]{2,15}) (?:ungrounded|off grounding|done being grounded)|how long is (?P<ungrounded2>my [a-z]{2,15}|[a-z]{2,15}) grounded(?: for)?)\s*\??$")),
+    # "How many eggs does the recipe need" (2026-10-08: to a model), a turn
+    # after "the recipe calls for 3 eggs" - doubled if he doubled it.
+    ("recipe_qty", re.compile(r"^how (?:many|much) (?P<recipe_qty>[a-z][a-z ]{1,20}?) (?:does|do) (?:the|this|my) recipe (?:need|call for|take|use)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3441,7 +3444,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17188,6 +17191,39 @@ def _save_goal(text: str) -> str | None:
     return f"You told me {told(have_line)}." if have_line else None
 
 
+def _recipe_qty(text: str) -> str | None:
+    """How much the recipe he told her calls for, scaled if he said he
+    doubled, tripled or halved it since."""
+    g = _groups("recipe_qty", text)
+    what = str(g.get("recipe_qty") or "").strip()
+    if not what:
+        return None
+    stem = re.escape(re.sub(r"(?:es|s)$", "", what))
+    scale, said = 1.0, None
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".").casefold()
+        if said is None and scale == 1.0:
+            m = re.match(r"i (doubled|tripled|halved|cut) (?:the|this|my) recipe", line)
+            if m:
+                scale = {"doubled": 2.0, "tripled": 3.0}.get(m.group(1), 0.5)
+                continue
+        m = re.search(rf"\brecipe (?:calls for|needs|takes|uses) (\d+(?:\.\d+)?|a|an|one|two|three|four|five|six) ((?:[a-z]+ (?:of )?)?{stem}[a-z]*)", line)
+        if m:
+            n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6}.get(m.group(1)) or float(m.group(1))
+            said = (n, m.group(2))
+            break
+    if said is None:
+        return None
+    n, unit = said
+    total = n * scale
+    shown = int(total) if total == int(total) else round(total, 2)
+    base = int(n) if n == int(n) else n
+    if scale == 1.0:
+        return f"{shown} {unit}, from what you told me."
+    how = {2.0: "doubled", 3.0: "tripled", 0.5: "halved"}[scale]
+    return f"{shown} {unit} - the recipe calls for {base}, and you {how} it."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18003,6 +18039,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "recipe_qty": _recipe_qty,
            "save_goal": _save_goal,
            "need_signed": _need_signed,
            "ungrounded": _ungrounded,

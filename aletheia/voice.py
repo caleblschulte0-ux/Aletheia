@@ -10746,6 +10746,18 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"my (?:student loan|car loan|mortgage|credit card|loan|personal loan|heloc)s? (?:balance )?(?:is|are) (?:at |down to |now )?\$?\d[\d,]*(?:k| thousand)?(?: dollars)?", low) \
             or re.fullmatch(r"(?:my|our) (?:car loan|student loans?|mortgage|credit card|loan|personal loan|truck|car|house) (?:is|are) (?:finally |all )?paid off", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # IN THE KITCHEN (2026-10-08: "I need 2 pounds of ground beef", "I doubled
+    # the recipe", "the pizza will be here at 7", "I burned the toast" - to
+    # the planner).
+    m = re.fullmatch(r"(?:we|i) need (?P<item>(?:\d{1,3}(?:\.\d)?|a|an|one|two|three|four|five|six|a couple|half a) (?:pounds?|lbs?|cups?|dozen|gallons?|bags?|cans?|boxes|box|bottles?|loaves|loaf"
+                     r"|packs?|packages?|pints?|quarts?|ounces?|oz|sticks?|heads?|bunch(?:es)?|jars?|cartons?|rolls?|bars?) (?:of )?[a-z][a-z '-]{1,30})", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item"))}, "say": None}
+    if re.fullmatch(r"i (?:doubled|tripled|halved|cut) (?:the|this|my) recipe(?: in half)?", low) \
+            or re.fullmatch(r"(?:the |our )?(?:pizza|food|takeout|delivery|order|chinese|thai|groceries|grocery order|instacart|doordash|uber eats)"
+                            r" (?:will be|should be|is going to be|'ll be|is) (?:here|arriving|coming|delivered) (?:at|by|around|in) [0-9a-z: ]{1,15}", low) \
+            or re.fullmatch(r"i (?:just )?(?:burned|burnt|overcooked|undercooked|dropped|spilled) (?:the|my|our) [a-z][a-z' ]{1,20}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):
@@ -11455,7 +11467,9 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
     # "I made tacos tonight" (2026-10-08: to the planner) is dinner, kept
     # the way "I had tacos for dinner" is.
-    m = re.fullmatch(r"i (?:just )?(?:made|cooked) (?P<what>(?:a |an |some |homemade )?[a-z][a-z' ]{2,30}?) (?:for dinner |for lunch )?(?:tonight|today|for dinner|for lunch|last night)", low)
+    m = re.fullmatch(r"i (?:just )?(?:made|cooked) (?P<what>(?:a |an |some |homemade )?[a-z][a-z' ]{2,30}?) (?:for dinner |for lunch )?(?:tonight|today|for dinner|for lunch|last night"
+                     # "I made cookies for the bake sale" (2026-10-08: to the planner).
+                     r"|for (?:the |a |my |our )?(?:bake sale|party|potluck|kids|family|neighbors?|office|team|church|school|picnic|game|class))", low)
     if m and not re.search(r"\b(?:mistake|reservation|appointment|call|decision|plan|it|that|money|progress|time|friends?)\b", m.group("what")):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "Sam and I are going fishing Saturday" (2026-10-08: to the planner) is

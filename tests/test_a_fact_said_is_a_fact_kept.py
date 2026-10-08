@@ -11579,5 +11579,25 @@ class SavingUp(unittest.TestCase):
             self.assertIsNone(quick.answer("how much more do we need"))
 
 
+class InTheKitchenAgain(unittest.TestCase):
+    """2026-10-08: "I need 2 pounds of ground beef", "I doubled the recipe",
+    "the pizza will be here at 7" and "I made cookies for the bake sale" went
+    to the planner; "how many eggs does the recipe need" to a model."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I need 2 pounds of ground beef")["command"],
+                         {"kind": "shopping_add", "item": "2 pounds of ground beef"})
+        for said in ("I doubled the recipe", "the pizza will be here at 7", "I burned the toast", "I made cookies for the bake sale"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual((voice._interpret("I need 20 dollars") or {}).get("command", {}).get("kind"), "shopping_add")
+
+    def test_the_recipe_scaled(self):
+        # newest first
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I doubled the recipe"}, {"text": "the recipe calls for 3 eggs"}]):
+            self.assertEqual(quick.answer("how many eggs does the recipe need"), "6 eggs - the recipe calls for 3, and you doubled it.")
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the recipe calls for 3 eggs"}, {"text": "I doubled the recipe"}]):
+            self.assertEqual(quick.answer("how many eggs does the recipe need"), "3 eggs, from what you told me.")
+
+
 if __name__ == "__main__":
     unittest.main()
