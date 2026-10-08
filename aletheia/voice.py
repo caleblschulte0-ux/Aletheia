@@ -1313,7 +1313,9 @@ _TASK_VERB = re.compile(
     r"|smoke detector batter(?:y|ies)|tires?|wipers?|litter(?: box)?|cat litter)"
     r"|sweep|mop|dust|rake|shovel|trim|weed|unclog|descale|defrost|flip (?:the|my) mattress|empty (?:the|my)|unload|load (?:the|my)"
     # "I need to pack lunches tonight" (2026-10-08: the packing list).
-    r"|pack (?:the |school |the kids'? |their |my )?lunch(?:es)?)\b")
+    r"|pack (?:the |school |the kids'? |their |my )?lunch(?:es)?"
+    # "I need to move the car by 8 for street cleaning" (2026-10-08: to the planner).
+    r"|move (?:the|my) (?:car|truck|van|suv|bins?|trash cans?))\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -1574,6 +1576,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
                                 tzinfo=localtime.operator_tz())
     if unsaid and start < dt.datetime.now(localtime.operator_tz()):
         start += dt.timedelta(days=1)
+    # "A plumber appointment Thursday at 9", said on a Thursday afternoon,
+    # was held for that morning, already gone (2026-10-08). A bare weekday
+    # whose hour has passed today is the next one.
+    elif str(day).strip().casefold() in WEEKDAYS and start < dt.datetime.now(localtime.operator_tz()):
+        start += dt.timedelta(days=7)
     return {"command": {"kind": "calendar_hold", "title": _as_he_said(transcript, title.strip()),
                         "start": start.isoformat(), "minutes": 60}, "say": None}
 
@@ -4914,6 +4921,24 @@ def _interpret(transcript: str) -> dict:
         return {"command": None, "say": "Safe trip home." if m.group("what").startswith("go home")
                 else "Goodnight. I'll keep going quietly."}
     if m and (_TASK_VERB.match(m.group("what")) or low.startswith(("don't let me", "dont let me", "do not let me"))):
+        # "I need to call mom by 5" was a task due on November 5th
+        # (2026-10-08). A bare hour after "by" is a clock, and a deadline
+        # on a clock is a reminder a little before it.
+        bym = re.fullmatch(r"(?P<thing>.+?) by (?P<clock>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?|noon)"
+                           r"(?P<tail> (?:for|because|so|before) [a-z].{1,40}| today| tonight| this (?:morning|afternoon|evening))?", m.group("what"))
+        if bym:
+            day = " tonight" if (bym.group("tail") or "").strip() == "tonight" else ""
+            timed = _interpret(f"remind me to {bym.group('thing')} at {bym.group('clock')}{day}")
+            got = (timed or {}).get("command") or {}
+            if got.get("kind") == "remind_at" and got.get("at"):
+                import datetime as _dtby
+                at = _dtby.datetime.fromisoformat(got["at"])
+                early = at - _dtby.timedelta(minutes=15)
+                if early > _dtby.datetime.now(at.tzinfo):
+                    at = early
+                return {"command": {**got, "at": at.isoformat(),
+                                    "text": _as_he_said(text, f"{bym.group('thing')} by {bym.group('clock')}"
+                                                        + (bym.group("tail") if re.match(r" (?:for|before) ", bym.group("tail") or "") else ""))}, "say": None}
         if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b", m.group("what")):
             # A clock time makes it a reminder: "pick up the kids at 3".
             timed = _interpret(f"remind me to {m.group('what')}")
@@ -7510,7 +7535,10 @@ def _interpret(transcript: str) -> dict:
                     r"|didn'?t enjoy|did not enjoy) (?!it\b|that\b$|this\b$|them\b|you\b|him\b|her\b)(?:the |that |this |our |my )?"
                     r"[a-z0-9][a-z0-9' -]{1,40}", low) \
             or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:thinking|thinkin) (?:about|of) (?:getting|buying|doing|trying|starting|taking"
-                            r"|learning|moving|going|adopting|selling|switching|joining|quitting|making) [a-z0-9][a-z0-9' -]{1,50}", low) \
+                            r"|learning|moving|going|adopting|selling|switching|joining|quitting|making"
+                            # "I'm thinking about changing jobs" (2026-10-08: "I can't think").
+                            r"|changing|leaving|retiring|proposing|having|asking for|applying|renting|remodeling|renovating|redoing|painting"
+                            r"|upgrading|downsizing|refinancing|planting|building|opening|hiring|cutting|dropping|cancelling|canceling) [a-z0-9][a-z0-9' -]{1,50}", low) \
             or re.fullmatch(r"(?:i|we) (?:want|wanna|would like|'d like|need) to (?:try|check out|go to|visit) (?:the |that |this |a |an )?"
                             r"(?!it\b|again\b|that\b$|harder\b|bed\b|sleep\b|home\b|work\b|school\b|the bathroom\b|the toilet\b)"
                             r"[a-z0-9][a-z0-9' -]{2,50}", low):

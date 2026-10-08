@@ -10957,5 +10957,51 @@ class ErrandsAndGifts(unittest.TestCase):
             self.assertIsNone(quick.answer("what gifts do I need to get"))
 
 
+class ByAClockAndOnAPassedDay(unittest.TestCase):
+    """2026-10-08: "I need to call mom by 5" was a task due November 5th, and
+    "a plumber appointment Thursday at 9" said on a Thursday afternoon was
+    held for that morning."""
+
+    def test_by_a_bare_hour_is_a_reminder_before_it(self):
+        import datetime as _dt
+        got = voice._interpret("I need to call mom by 5")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "call mom by 5"))
+        at = _dt.datetime.fromisoformat(got["at"])
+        self.assertIn((at.hour, at.minute), ((16, 45), (17, 0)))
+        got = voice._interpret("I need to move the car by 8 for street cleaning")["command"]
+        self.assertEqual((got["kind"], got["text"]), ("remind_at", "move the car by 8 for street cleaning"))
+        got = voice._interpret("I need to pay rent by the 5th")["command"]
+        self.assertEqual(got["kind"], "task_new")
+
+    def test_a_weekday_whose_hour_has_gone_is_next_week(self):
+        import datetime as _dt
+        from aletheia import localtime
+        tz = localtime.operator_tz()
+        now = _dt.datetime.now(tz)
+        day = voice.WEEKDAYS[now.weekday()]
+        start = _dt.datetime.fromisoformat(voice._calendar_hold(f"I have a meeting {day} at 12:01 am", "meeting", day, None, "12:01 am")["command"]["start"])
+        self.assertGreater(start, now)
+        self.assertEqual(start.date(), now.date() + _dt.timedelta(days=7))
+
+
+class WhoIsComingAndWhatHeIsThinking(unittest.TestCase):
+    """2026-10-08: "when is the plumber coming" also read back "you called
+    the plumber"; "I am thinking about changing jobs" got "I can't think";
+    "we are thinking..." was read back as "we"."""
+
+    def test_the_note_that_says_when(self):
+        notes = [{"text": "the plumber is coming Thursday at 9"}, {"text": "I called the plumber"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("when is the plumber coming"), "You told me: the plumber is coming Thursday at 9.")
+
+    def test_what_he_is_thinking_about(self):
+        self.assertEqual(voice._interpret("I am thinking about changing jobs")["command"]["kind"], "note")
+        notes = [{"text": "I am thinking about changing jobs"}, {"text": "we are thinking about getting a dog"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            got = quick.answer("what have I been thinking about")
+            self.assertIn("changing jobs", got)
+            self.assertIn("you're thinking about getting a dog", got)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -535,7 +535,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what did i think (?:of|about)|how did i like|did i like|did i enjoy) (?:the |that |this |my |our )?(?P<opinion>[a-z0-9][a-z0-9' -]{1,40}?)\s*\??$"
         r"|^what (?P<want_try>restaurants?|places?|foods?|things?|movies?|shows?|books?|bars?|cafes?|coffee shops?|games?)? ?(?:do|did) i (?:want|wanna|say i wanted) to"
         r" (?:try|check out|go to|visit)\s*\??$"
-        r"|^what (?:was|am|were) i thinking (?:about|of)(?: (?:getting|buying|doing|trying|starting|learning|taking up|getting into))?\s*\??$"
+        r"|^what (?:was|am|were|have) i (?:been )?thinking (?:about|of)(?: (?:getting|buying|doing|trying|starting|learning|taking up|getting into))?\s*\??$"
         # "Where do I want to travel", "what movies did I like", "what did I
         # rate Inception" (2026-10-08: to a model, with his notes on file).
         r"|^(?P<want_go>where) (?:do|did) i (?:want|wanna|say i wanted) to (?:travel|go|visit)(?: someday| one day)?\s*\??$"
@@ -9139,7 +9139,8 @@ def _opinion(text: str) -> str | None:
                 rows.append("your bucket list has " + speech.and_list(bucket[:4]))
     if not rows:
         return None
-    said = [speech.as_she_says_it(r).rstrip(".") for r in rows[:4]]
+    # "We are thinking about getting a dog" read back as "we" (2026-10-08).
+    said = [re.sub(r"^we(?: are|'re)\b", "you're", speech.as_she_says_it(r).rstrip("."), flags=re.I) for r in rows[:4]]
     return f"You told me: {speech.and_list(said)}."
 
 
@@ -16535,6 +16536,22 @@ def _gifts_owed(_rest: str = "") -> str | None:
     return said
 
 
+def _coming_when(who: str) -> str | None:
+    """When somebody is coming, from the newest note that says so. "When is
+    the plumber coming" also read back "you called the plumber" (2026-10-08)."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    if not who:
+        return None
+    said_it = re.compile(rf"^(?:the |my |our )?{re.escape(who)}s? (?:is|are|will be|'s|should be) (?:coming|arriving|due|here|coming over|coming by|stopping by)\b"
+                         rf"|^(?:the |my |our )?{re.escape(who)}s? (?:comes|arrives|will come|will arrive|should come)\b", re.I)
+    for row in _notes():
+        text = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if said_it.search(text):
+            return f"You told me: {speech.as_she_says_it(text)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17236,7 +17253,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "agenda": lambda rest: _agenda_and_reminders(rest or "today"),
            "agenda_more": lambda rest: _agenda(rest or "today"),
            "first_meeting": lambda rest: _first_meeting(rest or "today"),
-           "recall_when": lambda rest: (lambda said: None if not said or said.startswith("I have nothing") else said)(_recall(rest)),
+           "recall_when": lambda rest: _coming_when(rest) or (lambda said: None if not said or said.startswith("I have nothing") else said)(_recall(rest)),
            "last_meeting": lambda rest: _last_meeting(rest or "today"),
            "agenda_on": lambda rest: _agenda_on(rest),
            "days_since": lambda rest: _days_since(rest),
