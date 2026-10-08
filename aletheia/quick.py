@@ -2085,7 +2085,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("fact_q", re.compile(
         r"^what(?:'s| is|s|are)? my (?P<fact>(?:favou?rite|fave) [a-z][a-z ]{1,25}?)s?\s*\??$"
         r"|^what size (?P<fact6>shoe|shirt|ring|pants|dress)s? do i (?:wear|take|have)\s*\??$"
-        r"|^what(?:'s| is|s)? (?:my|the|our) (?P<fact2>blood type|shoe size|shirt size|ring size|pants size|dress size"
+        r"|^what(?:'s| is|s)? (?:my|the|our) (?P<fact2>blood type|shoe size|shirt size|ring size|pants? size|jeans? size|waist size|dress size|jacket size|coat size"
         r"|wifi(?: password| name)?|wi-fi(?: password)?|gate code|door code|garage code|locker (?:number|combination)"
         r"|license plate|plate number|account number|member(?:ship)? number|policy number|anniversary)\s*\??$"
         r"|^when(?:'s| is|s) my (?P<fact5>anniversary|wedding anniversary)\s*\??$"
@@ -10680,6 +10680,12 @@ def _fact_q(text: str) -> str | None:
     key = " ".join(x for x in (g.get("fact") or g.get("fact2") or g.get("fact5") or g.get("fact3"), g.get("factk")) if x)
     if g.get("fact6"):
         key = f"{g['fact6']} size"
+    # "I wear a 34 waist" answers "what's my pant size" (2026-10-08: nothing remembered).
+    worn = re.fullmatch(r"(shoe|shirt|pants?|jeans?|waist|dress|ring|jacket|coat|clothes?) size", key.strip())
+    if worn and not g.get("fact3"):
+        said = _wears(f"what size {worn.group(1)} do i wear")
+        if said:
+            return said
     if "password" in key:
         from aletheia import voice
         return voice._NO_PASSWORDS
@@ -14784,6 +14790,13 @@ def _their_fact(text: str) -> str | None:
     key = (g.get("tf_key") or g.get("tf_key2") or ("allergic" if g.get("tf_allergy") else "")).casefold()
     if not who or not key or who in ("my", "your", "his", "her", "their", "the", "it", "this", "that"):
         return None
+    # "My son wears a size 8 shoe" answers "what size shoe does my son
+    # wear", which arrives here as his shoe size (2026-10-08: to a model).
+    size = re.fullmatch(r"(shoe|shirt|pants|dress|ring|jacket|coat|diaper|clothes) size", key)
+    if size:
+        worn = _wears(f"what size {size.group(1)} does {who} wear")
+        if worn:
+            return worn
     names = [re.sub(r"^my ", "", who)]
     named = _name_for_relation(who) if who.startswith("my ") or who in _relation_words() else None
     if named:
@@ -17123,6 +17136,8 @@ def _wears(text: str) -> str | None:
     if not who:
         return None
     kind = "" if kind in ("size",) else kind
+    # "34 waist" and "32 inseam" are pants said by the measure.
+    kind = "waist" if kind.rstrip("s") in ("pant", "jean", "waist") else kind
     stem = re.escape(kind.rstrip("s")) if kind else ""
     me = who == "i"
     lead = r"i" if me else re.escape(who)
@@ -17131,7 +17146,7 @@ def _wears(text: str) -> str | None:
     for row in _notes():
         line = " ".join(str(row.get("text") or "").split()).rstrip(".")
         if said_it.search(line) and (not stem or re.search(rf"\b{stem}", line, re.I) or not re.search(
-                r"\b(?:shoes?|sneakers|boots|pants|jeans|shirts?|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?)\b", line, re.I)):
+                r"\b(?:shoes?|sneakers|boots|pants|jeans|shirts?|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?|waist|inseam)\b", line, re.I)):
             return f"You told me: {speech.as_she_says_it(line)}."
     return None
 

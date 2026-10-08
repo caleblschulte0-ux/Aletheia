@@ -12897,5 +12897,22 @@ class HowLongSinceADateHeNamed(unittest.TestCase):
             self.assertEqual(quick.answer("how old is my car"), f"About 11 years old - you told me your car is a {year} Honda Civic.")
 
 
+class SizesSaidByTheMeasure(unittest.TestCase):
+    """2026-10-08: "what size shoe does my son wear" missed "my son wears a
+    size 8 shoe", and "I wear a 34 waist" went to the planner."""
+
+    def test_his_sons_shoe(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my son wears a size 8 shoe"}]):
+            self.assertEqual(quick.answer("what size shoe does my son wear"), "You told me: your son wears a size 8 shoe.")
+
+    def test_a_waist_is_his_pants(self):
+        self.assertEqual(voice.interpret("I wear a 34 waist")["command"]["kind"], "note")
+        rows = [{"text": "I wear a 34 waist"}, {"text": "I wear a size 11 shoe"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            for asked in ("what's my pant size", "what size pants do I wear", "what is my waist size"):
+                self.assertEqual(quick.answer(asked), "You told me: you wear a 34 waist.", asked)
+            self.assertEqual(quick.answer("what's my shoe size"), "You told me: you wear a size 11 shoe.")
+
+
 if __name__ == "__main__":
     unittest.main()

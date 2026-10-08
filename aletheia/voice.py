@@ -10790,7 +10790,8 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My wife wears a size 8", "I wear a medium" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|(?:my|our) [a-z]{2,12}|[a-z]{2,12}) (?:wear|wears|take|takes) (?:a |an )?(?:size )?"
-                    r"(?:\d{1,2}(?:\.5)?(?: ?(?:w|wide|narrow|petite|tall))?|\d{2} ?x ?\d{2}|x{0,2}-?small|small|medium|x{0,3}-?large|large|xs|s|m|l|xl|xxl|xxxl|[0-9]{1,2}[a-d]{1,3})"
+                    r"(?:\d{1,2}(?:\.5)?(?: ?(?:w|wide|narrow|petite|tall))?|\d{2} ?x ?\d{2}|x{0,2}-?small|small|medium|x{0,3}-?large|large|xs|s|m|l|xl|xxl|xxxl|[0-9]{1,2}[a-d]{1,3}"
+                    r"|\d{2}(?: inch)? (?:waist|inseam)(?: (?:and|with) (?:a )?\d{2}(?: inch)? (?:waist|inseam))?)"
                     r"(?: (?:in |for )?(?:shoes?|sneakers|boots|pants|jeans|shirts?|t-?shirts|tops?|dress(?:es)?|jackets?|coats?|bras?|rings?|hats?|gloves|socks|shorts|underwear))?", low) \
             and not re.match(r"(?:who|what|which|it|he|she|they|you)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
