@@ -3897,6 +3897,16 @@ def _age_of(who: str) -> str | None:
         year = dt.datetime.now(localtime.operator_tz()).year
         return (f"{shown} is {year - born_in - 1} or {year - born_in}, depending on whether the birthday has come yet "
                 f"this year. Tell me the birthday and I'll know.")
+    # "My sister is 28" said plainly (2026-10-08: to the planner, and "how
+    # old is my sister" asked for her birthday after).
+    said_age = re.compile(rf"\b(?:{re.escape(label)}|{re.escape(name or label)})(?: is| just turned| turned| will be)"
+                          r" (\d{1,3})(?: years old| yrs old)?\.?$")
+    for row in reversed(_notes()):
+        m = said_age.search(" ".join(str(row.get("text") or "").split()).casefold())
+        if m and 0 < int(m.group(1)) < 120:
+            told = (name[:1].upper() + name[1:] if name
+                    else f"your {label}" if who.startswith("my ") or label in _relation_words() else label.title())
+            return f"You told me {told} is {int(m.group(1))}."
     # "How old is Emma" with notes about Emma and none about her birthday
     # (2026-10-08: to a model). Somebody of his he never dated is his to
     # say; a name she has never heard of may be anybody's, so a model may.

@@ -7329,6 +7329,21 @@ class TrashDayIsTheTrashReminder(unittest.TestCase):
             self.assertEqual(quick._direct("when is trash day"), "when is trash day")
 
 
+class HowOldHeSaidTheyAre(unittest.TestCase):
+    """2026-10-08: "my sister is 28" went to the planner, and "how old is
+    my sister" asked for a birthday."""
+
+    def test_an_age_is_a_note(self):
+        for said in ("my sister is 28", "my dog is 4 years old"):
+            cmd = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+            self.assertEqual(cmd.get("kind"), "note", said)
+
+    def test_the_age_is_read_back(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my sister is 28",
+                                                                "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]):
+            self.assertEqual(quick.answer("how old is my sister"), "You told me your sister is 28.")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
