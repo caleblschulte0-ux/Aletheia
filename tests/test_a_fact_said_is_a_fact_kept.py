@@ -12778,6 +12778,29 @@ class AChildsSchoolDay(unittest.TestCase):
             self.assertEqual(quick.answer("when is my son's test"), "You told me: your son has a test on Friday.")
 
 
+class SellingAndClearingOut(unittest.TestCase):
+    """2026-10-08: "I sold my bike for 200", "I donated the old couch" and
+    "the guy is coming at 5 to pick up the tv" went to the planner, and
+    "someone wants to buy the tv" was refused as spending money."""
+
+    def test_kept(self):
+        for said in ("I'm cleaning out the garage this weekend", "I donated the old couch", "I sold my bike for 200",
+                     "I'm selling my old tv", "I listed the tv on marketplace", "someone wants to buy the tv",
+                     "the guy is coming at 5 to pick up the tv", "I threw out the old mattress"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_buying_is_still_not_a_note(self):
+        for said in ("buy me a tv", "I want to buy a tv", "can you sell my tv"):
+            self.assertNotEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+    def test_read(self):
+        rows = [{"text": "I sold my bike for 200"}, {"text": "I donated the old couch"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how much did I sell my bike for"), "You told me you sold your bike for 200.")
+            self.assertEqual(quick.answer("what did I donate"), "You told me you donated the old couch.")
+            self.assertIsNone(quick.answer("how much did I sell my car for"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

@@ -11481,6 +11481,23 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:the kids'?|my (?:son|daughter)'?s?|their|the|our) (?:spring|winter|fall|christmas|thanksgiving|summer|mid-?winter) (?:break|vacation|holidays?)"
                             r" (?:is|starts|begins|runs)(?: from)? .{3,40}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # Selling and clearing out (2026-10-08, each to the planner or "I can't
+    # think"; "someone wants to buy the tv" was refused as spending money):
+    # "I donated the old couch", "I sold my bike for 200", "the guy is
+    # coming at 5 to pick up the tv". All his own news, kept before the
+    # money door is reached - none of it spends anything.
+    _thing = r"(?:my |the |our |an? |some )?(?:old )?[a-z][a-z' ]{1,30}?"
+    if re.fullmatch(rf"(?:i|we) (?:just )?(?:donated|gave away|threw out|threw away|tossed|got rid of|recycled|dropped off|listed|posted|put up) {_thing}"
+                    r"(?: (?:to|at) (?:goodwill|the salvation army|salvation army|habitat|the thrift store|a thrift store|the dump|the curb|[a-z]{3,15})"
+                    r"| on (?:facebook )?(?:marketplace|ebay|craigslist|offerup|poshmark|mercari|nextdoor))?(?: (?:for|at) \$?\d[\d,]*(?: dollars| bucks)?)?(?: today| yesterday| this morning)?", low) \
+            or re.fullmatch(rf"(?:i|we) (?:just )?sold {_thing}(?: (?:on|to) [a-z][a-z' ]{{1,25}}?)?(?: for \$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?)?(?: today| yesterday)?", low) \
+            or re.fullmatch(rf"(?:i'?m|i am|we'?re|we are) (?:selling|trying to sell|getting rid of|giving away|donating) {_thing}(?: (?:for|on) [a-z0-9$ ]{{2,25}})?", low) \
+            or re.fullmatch(rf"(?:i'?m|i am|we'?re|we are) (?:cleaning out|clearing out|organizing|organising|decluttering|cleaning) (?:the |my |our )?(?:garage|basement|attic|closet|closets|shed|storage unit|spare room|kitchen|pantry)"
+                            r"(?: this weekend| today| tomorrow| on (?:saturday|sunday))?", low) \
+            or re.fullmatch(rf"(?!(?:i|we|you|thea|who|what)\b)(?:someone|somebody|a guy|a lady|a buyer|the buyer|a neighbor|[a-z]{{2,15}}) (?:wants to buy|is buying|is interested in|offered (?:me )?\$?\d[\d,]* (?:for|on)) {_thing}", low) \
+            or re.fullmatch(r"(?:the |a )?(?:guy|lady|buyer|person|woman|man|[a-z]{2,15}) (?:is coming|will come|is stopping by|is swinging by) (?:at \d{1,2}(?::\d\d)?(?: ?[ap]m)?|tomorrow|today|tonight)"
+                            r"(?: (?:at \d{1,2}(?::\d\d)?(?: ?[ap]m)?|today|tomorrow))? to (?:pick up|get|look at|see|grab|buy) (?:the |my |our )?[a-z][a-z' ]{1,25}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
