@@ -1286,6 +1286,12 @@ def _a_plain_list(text: str) -> bool:
     return all(p and p not in ("some", "also", "too", "more") for p in parts)
 
 
+
+#: Occasions he goes to. "The wedding is at the Grand Hotel" is a fact about
+#: one of these, not a place he saved or a file.
+_EVENT_WORDS = (r"wedding|wedding reception|reception|rehearsal dinner|funeral|memorial|wake|baby shower|bridal shower|shower"
+                r"|reunion|graduation|bachelor party|bachelorette party|birthday party|party|recital|ceremony|gala|fundraiser"
+                r"|housewarming|open house|christening|baptism|bar mitzvah|bat mitzvah|quinceanera|engagement party")
 #: An item on "my list" that starts like this is a thing to DO, not to buy.
 _TASK_VERB = re.compile(
     r"^(?:call|phone|ring|email|text|message|write to|pay|book|fix|send|check|finish|schedule|cancel|renew|"
@@ -1298,6 +1304,8 @@ _TASK_VERB = re.compile(
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
     r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
     r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical)"
+    # "I need to iron my suit" (2026-10-08: to the planner).
+    r"|iron (?:my|the|a)|steam (?:my|the|a)|press (?:my|the) (?:suit|shirt|dress|pants|slacks)|hem (?:my|the)|polish (?:my|the)|shine (?:my|the)"
     # "I need to get gas" (2026-10-08: the shopping list).
     r"|get (?:gas|fuel|petrol|diesel)|fill up(?: the (?:car|tank|truck))?|fill (?:the )?(?:car|tank|truck) up"
     # "I need to change the air filter" (2026-10-08: to the planner).
@@ -10333,6 +10341,30 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:groceries|gas|everything|food|eggs|rent|prices) (?:are|is) (?:so |really |crazy |too )?(?:expensive|pricey|high)(?: now| these days| lately| right now)?", low):
         return {"command": None, "say": "I know - it adds up. If you tell me what you spend, I'll keep the running total."}
+    # A wedding, a party, a funeral: "it is my cousin's wedding", "the
+    # wedding starts at 4", "the wedding is at the Grand Hotel", "the dress
+    # code is cocktail", "I RSVPd yes", "I am bringing Sarah as my plus
+    # one", "the registry is on Amazon" (2026-10-08: all to the planner).
+    m = re.fullmatch(r"(?:it is|it's|its|this is|that is|that's) (?P<whose>(?:my |our )?[a-z]+?)(?P<pos>'s|s'|s)? (?P<ev>" + _EVENT_WORDS + r")", low)
+    if m and (m.group("pos") or m.group("whose").startswith(("my ", "our "))):
+        whose = m.group("whose")
+        if m.group("pos") == "s" and whose.split()[-1] in ("parent", "grandparent", "friend", "cousin", "neighbor", "kid"):
+            plural = whose.split()[-1] in ("parent", "grandparent")
+            whose += "s'" if plural else "'s"
+        else:
+            whose += "'s"
+        return {"command": {"kind": "note", "text": f"the {m.group('ev')} is {_as_he_said(text, whose)}"}, "say": None}
+    if re.fullmatch(r"(?:the|my|our) (?:" + _EVENT_WORDS + r") (?:starts|begins|is|kicks off|ends|finishes|is over) (?:at|by) \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?(?: on [a-z]+)?", low) \
+            or re.fullmatch(r"the (?:" + _EVENT_WORDS + r") is (?:at|in) (?!\d)(?!(?:the morning|the afternoon|the evening|noon)\b)[a-z][a-z0-9 .'&-]{1,40}", low) \
+            or re.fullmatch(r"the dress code(?: for the (?:" + _EVENT_WORDS + r"))? is [a-z][a-z -]{1,30}", low) \
+            or re.fullmatch(r"i (?:rsvpd|rsvp'd|rsvped|rsvp-ed|rsvp ?'d)(?: (?:yes|no))?(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,30}?)?(?: (?:yes|no))?", low) \
+            or re.fullmatch(r"(?:the|their|her|his|our) (?:wedding |baby |bridal )?registry is (?:on|at) [a-z][a-z0-9 .'&-]{1,25}"
+                            r"|(?:they are|they're|she is|she's|he is|he's) registered (?:at|on) [a-z][a-z0-9 .'&-]{1,25}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:i am|i'm|im) (?:bringing|taking) (?P<who>[a-z][a-z'-]{1,20}) as my plus(?: |-)?one"
+                     r"|my plus(?: |-)?one (?:is|will be) (?P<who2>[a-z][a-z'-]{1,20})", low)
+    if m and _said_as_a_title(text, m.group("who") or m.group("who2")):
+        return {"command": {"kind": "note", "text": f"my plus one is {_as_he_said(text, m.group('who') or m.group('who2'))}"}, "say": None}
     # "The realtor is Linda" (2026-10-08: to the planner) is who his
     # realtor is, kept the way "who is our realtor" reads it.
     m = re.fullmatch(r"the (?P<role>realtor|contractor|plumber|electrician|lawyer|attorney|accountant|mechanic|landlord|property manager|mover|babysitter|nanny|tutor|vet|dentist|doctor)"
@@ -10665,12 +10697,13 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "task_done", "which": "get " + svc}, "say": None}
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"i(?: really)?(?: need| should get| have to get| need to get| gotta get| am due for|'m due for) (?P<svc>" + _quick._SERVICES + r")"
-                     r"(?: soon| this week| sometime)?", low)
+                     # "I need a haircut before the wedding" (2026-10-08: to the planner).
+                     r"(?: soon| this week| sometime)?(?P<before> before (?:the|my|our) [a-z][a-z' ]{1,30})?", low)
     if m:
         svc = _as_he_said(text, m.group("svc"))
         if not re.match(r"(?:a|an|my|the) ", svc, re.I):
             svc = ("an " if svc[:1].lower() in "aeiou" else "a ") + svc
-        return _new_task(f"get {svc}")
+        return _new_task(f"get {svc}" + (m.group("before") or ""))
     # "I watched Oppenheimer" (2026-10-07: to the planner) - "what movies
     # have I watched" reads it back with his watch list.
     if re.fullmatch(r"i (?:just )?(?:watched|finished watching|binged) (?!(?:it|that|this|them|him|her|you|the kids|my)\b)"

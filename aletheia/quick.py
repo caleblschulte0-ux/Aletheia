@@ -2318,6 +2318,17 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("we_use", re.compile(r"^what (?:kind of |brand of |type of )?(?P<we_use>[a-z][a-z ]{1,20}?) (?:do|does) (?:i|we) (?:usually |always |normally )?(?:buy|get|use|drink|eat|feed (?:him|her|them|the dog|the cat))\s*\??$")),
     ("have_left", re.compile(r"^how many (?P<have_left>(?:cans|bags|boxes|bottles|rolls|packs|jars|cartons|pods|tubs) of [a-z][a-z ]{1,20}?|[a-z][a-z ]{1,20}?) (?:do i|do we) have(?: left)?\s*\??$")),
     ("meal_prep", re.compile(r"^what did i (?P<meal_prep>meal ?prep|prep|batch cook|cook for the week|make for the week)\s*\??$")),
+    # "Whose wedding is it", "did I RSVP", "who am I bringing to the
+    # wedding", "what do I need for the wedding" (2026-10-08: all to a model).
+    ("whose_event", re.compile(r"^whose (?P<whose_event>wedding|party|funeral|shower|baby shower|reunion|graduation|birthday party|recital|bachelor party|bachelorette party|housewarming|reception)"
+                               r" (?:is (?:it|this|that)|am i going to|are we going to|is (?:it|this) again)\s*\??$")),
+    ("did_rsvp", re.compile(r"^(?:did|have) (?:i|we) (?:rsvp|rsvpd|rsvp'd|rsvped|respond(?:ed)?)(?: yet)?(?: (?:to|for) (?:the |my |our )?(?P<did_rsvp>[a-z][a-z' ]{1,30}?))?(?: yet)?\s*\??$"
+                            r"|^what did (?:i|we) rsvp(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,30}?)?\s*\??$")),
+    ("plus_one", re.compile(r"^(?:who (?:am i|are we) (?:bringing|taking)(?: (?:to|as) (?:the |my |our )?[a-z][a-z' -]{1,30}?)?"
+                            r"|who(?: is|'s) my plus(?: |-)?one(?: (?:to|for|at) (?:the |my |our )?[a-z][a-z' ]{1,30}?)?)\s*\??$")),
+    ("for_event", re.compile(r"^what (?:do|else do) (?:i|we) (?:need|have) (?:to (?:do|get|buy|bring) )?(?:for|before) (?:the |my |our )(?P<for_event>"
+                             r"wedding|party|funeral|shower|baby shower|reunion|graduation|birthday party|recital|bachelor party|bachelorette party"
+                             r"|housewarming|reception|trip|move|interview|game|concert|holidays?|thanksgiving|christmas)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3252,7 +3263,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "whose_event", "did_rsvp", "for_event", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -10970,6 +10981,7 @@ _COMMON_PLACES = frozenset((
 def _place_where(name: str) -> str | None:
     """Where a place he saved is; for a common place he never saved, how to
     tell her. None for anything else, so files and things stay theirs."""
+    from aletheia import speech
     name = " ".join(str(name or "").casefold().split())
     if not name:
         return None
@@ -10987,6 +10999,17 @@ def _place_where(name: str) -> str | None:
     if place and place.get("address"):
         said = places.called(place.get("name") or name)
         return f"{said[:1].upper()}{said[1:]} is at {place['address']}."
+    # "Where is the wedding" after "the wedding is at the Grand Hotel",
+    # "where is the registry" after "the registry is on Amazon" (2026-10-08:
+    # both searched his Documents). His own words about where it is.
+    key = re.sub(r"^(?:the|my|our|their) ", "", name)
+    if key and not re.search(r"\b(?:it|that|this|they|them|file|files|folder|document|pdf)\b", key):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            low = said.casefold()
+            if re.fullmatch(rf"(?:the |my |our |their )?(?:[a-z]+ )?{re.escape(key)} (?:is|are|will be) (?:at|in|on) (?!\d)(?!the (?:morning|afternoon|evening|end)\b).+", low) \
+                    or (key == "registry" and re.fullmatch(r"(?:they are|they're|she is|she's|he is|he's) registered (?:at|on) .+", low)):
+                return f"You told me: {speech.as_she_says_it(said)}."
     home_of = re.fullmatch(r"([a-z]+)'s (house|place|apartment|flat|home)", name)
     if home_of:
         named = f"{home_of.group(1).capitalize()}'s {home_of.group(2)}"
@@ -13908,6 +13931,32 @@ def _when_note(text: str) -> str | None:
     if not words:
         return None
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in words]
+    # "What time does the wedding start" after "I have a wedding on
+    # Saturday" and "the wedding starts at 4" (2026-10-08: read back the
+    # day). A question about the time wants the note with the time.
+    if re.match(r"what time ", _tidy(text)):
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split())
+            low = said.casefold()
+            if all(re.search(rf"\b{re.escape(w)}", low) for w in stems) \
+                    and re.search(r"\b(?:at|by|from) \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b|\b\d{1,2}(?::\d\d)? ?[ap]\.?m\.?\b|\bnoon\b", low):
+                return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
+    # "When is the wedding" with the day in one note and the time in
+    # another: both, the day first.
+    if re.match(r"when ", _tidy(text)):
+        day = clock = None
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            low = said.casefold()
+            if not all(re.search(rf"\b{re.escape(w)}", low) for w in stems):
+                continue
+            if day is None and re.search(r"\b(?:mon|tues|wednes|thurs|fri|satur|sun)day\b|\b(?:today|tonight|tomorrow)\b|\b(?:january|february|march|april"
+                                         r"|may|june|july|august|september|october|november|december) \d", low):
+                day = said
+            elif clock is None and re.fullmatch(r"(?:the |my |our )?[a-z ]+ (?:starts|begins|kicks off|is) at \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?", low):
+                clock = said
+        if day and clock:
+            return f"You told me: {speech.as_she_says_it(day)}, and {speech.as_she_says_it(clock)[:1].lower() + speech.as_she_says_it(clock)[1:]}."
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
@@ -15516,6 +15565,61 @@ def _meal_prep(_what: str = "") -> str | None:
     return None
 
 
+def _whose_event(event: str) -> str | None:
+    """Whose wedding (or party) it is, from "it's my cousin's wedding"."""
+    from aletheia import speech
+    event = " ".join(str(event or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(rf"the {re.escape(event)} is (?P<whose>.+?(?:'s|s'))", said, re.I)
+        if m:
+            whose = re.sub(r"(?i)^my\b", "your", re.sub(r"(?i)^our\b", "your", m.group("whose")))
+            return f"It's {speech.as_she_says_it(whose)} {event}."
+    return None
+
+
+def _did_rsvp(what: str = "") -> str | None:
+    """What he said he RSVPd. None when he never said: he may have."""
+    from aletheia import speech
+    what = re.sub(r"^(?:the|my|our) ", "", " ".join(str(what or "").casefold().split()))
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if re.match(r"(?:i|we) (?:rsvpd|rsvp'd|rsvped|rsvp-ed|rsvp ?'d)\b", low) \
+                and (not what or what in low or not re.search(r"\b(?:to|for) ", low)):
+            plain = re.sub(r"(?i)^i rsvp(?:-ed|'d|ed|d| 'd)", "you RSVPd", re.sub(r"(?i)^we rsvp(?:-ed|'d|ed|d| 'd)", "you RSVPd", said))
+            return f"You told me {speech.as_she_says_it(plain)}."
+    return None
+
+
+def _plus_one(_text: str = "") -> str | None:
+    """Who he said his plus one is."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"my plus(?: |-)?one is (?P<who>.+)", said, re.I)
+        if m:
+            return f"You told me {m.group('who')} is your plus one."
+    return None
+
+
+def _for_event(event: str) -> str | None:
+    """His open tasks and shopping list lines that name the occasion."""
+    from aletheia import intercom, speech
+    event = " ".join(str(event or "").casefold().split())
+    stem = event[:-1] if event.endswith("s") and len(event) > 5 else event
+    named = lambda t: re.search(rf"\b{re.escape(stem)}", t, re.I)  # noqa: E731
+    rows = [str(t.get("description") or "").strip().rstrip(".") for t in intercom._open_tasks()
+            if named(str(t.get("description") or ""))]
+    try:
+        buy = [str(w.get("need") or "").strip() for w in intercom._shopping_items() if named(str(w.get("need") or ""))]
+    except Exception:  # noqa: BLE001
+        buy = []
+    said = [re.sub(r"\bmy\b", "your", r) for r in rows[:5]] + [f"buy {b}" for b in buy[:3]]
+    if not said:
+        return None
+    return f"On your list: {speech.and_list(said)}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16326,6 +16430,10 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "whose_event": _whose_event,
+           "did_rsvp": _did_rsvp,
+           "plus_one": _plus_one,
+           "for_event": _for_event,
            "we_use": _we_use,
            "have_left": _have_left,
            "meal_prep": _meal_prep,

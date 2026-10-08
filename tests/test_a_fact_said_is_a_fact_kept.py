@@ -10154,5 +10154,51 @@ class GroceriesAndThePantry(unittest.TestCase):
         self.assertEqual(quick.match("what do we need")[0], "shopping")
 
 
+class AWeddingToGoTo(unittest.TestCase):
+    """A sweep of sentences about a wedding (2026-10-08): every fact about
+    it went to the planner, and "what time does the wedding start" read
+    back the day."""
+
+    def test_said(self):
+        for said in ("the wedding starts at 4", "the wedding is at the Grand Hotel", "the dress code is cocktail",
+                     "I RSVPd yes", "the registry is on Amazon", "they're registered at Target"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("it is my cousins wedding")["command"]["text"], "the wedding is my cousin's")
+        self.assertEqual(voice._interpret("it's Jake's wedding")["command"]["text"], "the wedding is Jake's")
+        self.assertEqual(voice._interpret("I am bringing Sarah as my plus one")["command"]["text"], "my plus one is Sarah")
+        self.assertEqual(voice._interpret("I need a haircut before the wedding")["command"]["description"],
+                         "get a haircut before the wedding")
+        self.assertEqual(voice._interpret("I need to iron my suit")["command"]["description"], "iron my suit")
+        self.assertNotEqual(voice._interpret("it is my turn")["command"]["kind"], "note")
+
+    def test_read(self):
+        rows = [{"text": "my plus one is Sarah"}, {"text": "I RSVPd yes"}, {"text": "the wedding is my cousin's"},
+                {"text": "the registry is on Amazon"}, {"text": "the wedding is at the Grand Hotel"},
+                {"text": "the wedding starts at 4"}, {"text": "I have a wedding to go to on Saturday"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what time does the wedding start"), "You told me: the wedding starts at 4.")
+            self.assertEqual(quick.answer("when is the wedding"),
+                             "You told me: you have a wedding to go to on Saturday, and the wedding starts at 4.")
+            self.assertEqual(quick.answer("where is the wedding"), "You told me: the wedding is at the Grand Hotel.")
+            self.assertEqual(quick.answer("where is the registry"), "You told me: the registry is on Amazon.")
+            self.assertEqual(quick.answer("whose wedding is it"), "It's your cousin's wedding.")
+            self.assertEqual(quick.answer("did I RSVP"), "You told me you RSVPd yes.")
+            self.assertEqual(quick.answer("who am I bringing to the wedding"), "You told me Sarah is your plus one.")
+            self.assertIsNone(quick.answer("where is the party"))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("did I RSVP"))
+            self.assertIsNone(quick.answer("whose wedding is it"))
+
+    def test_what_it_needs(self):
+        from aletheia import intercom
+        tasks = [{"description": "get a haircut before the wedding"}, {"description": "call the dentist"}]
+        with mock.patch.object(intercom, "_open_tasks", lambda: tasks), \
+                mock.patch.object(intercom, "_shopping_items", lambda: [{"need": "gift for the wedding"}, {"need": "milk"}]):
+            self.assertEqual(quick.answer("what do I need for the wedding"),
+                             "On your list: get a haircut before the wedding and buy gift for the wedding.")
+            self.assertEqual(quick.answer("what do I need to do before the wedding"),
+                             "On your list: get a haircut before the wedding and buy gift for the wedding.")
+
+
 if __name__ == "__main__":
     unittest.main()
