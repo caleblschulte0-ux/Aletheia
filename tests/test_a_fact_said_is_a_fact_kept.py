@@ -5793,7 +5793,8 @@ class APartyAtEightIsTheEvening(unittest.TestCase):
 
     def test_whats_on_a_date_and_until_a_thing(self):
         self.assertEqual(quick.match("what's on the 15th")[0], "agenda_on")
-        self.assertIsNone(quick.match("what's the 15th"))
+        # Without "on" it is the date question, which names the day first.
+        self.assertEqual(quick.match("what's the 15th")[0], "date_what")
         from aletheia import localtime
         at = dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=17, minutes=32)
         with mock.patch.object(quick, "_coming", return_value=[(at, "party", "calendar")]):
@@ -5815,6 +5816,36 @@ class ActivitiesOnAPluralDay(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(calendar, "all_events", return_value=[]):
             self.assertIn("soccer practice", quick.answer("what does my son have on tuesday"))
             self.assertIsNone(quick._event_detail("what does my son have on friday"))
+
+
+class WhatHeWasWorkingOn(unittest.TestCase):
+    """2026-10-08: "I'm working on the budget" and "what was I working on"
+    went to a model. "I'm working on it" is a reply, not news."""
+
+    def test_kept_and_read_back(self):
+        self.assertEqual(voice._interpret("I'm working on the quarterly budget")["command"]["kind"], "note")
+        for reply in ("I'm working on it", "im working on that"):
+            got = voice._interpret(reply)
+            self.assertFalse(got and (got.get("command") or {}).get("kind") == "note", reply)
+        rows = [{"text": "I'm working on the quarterly budget", "ts": "2026-10-08T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("working on the quarterly budget", quick.answer("what was I working on"))
+            self.assertIn("quarterly budget", quick.answer("remind me what I was doing"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("what was I working on"))
+
+
+class ADateByItsName(unittest.TestCase):
+    """2026-10-08: "what's next friday" and "what's the 15th" went to a model."""
+
+    def test_the_date_and_the_calendar(self):
+        from aletheia import calendar
+        with mock.patch.object(calendar, "all_events", return_value=[]):
+            got = quick.answer("what's the 15th")
+            self.assertRegex(got, r"^The 15th is a \w+day, \w+ 15\. Nothing's on your calendar")
+            nxt = quick.answer("what's next friday")
+            self.assertRegex(nxt, r"Friday is \w+ \d{1,2}")
+            self.assertIn("Nothing's on your calendar", nxt)
 
 
 if __name__ == "__main__":

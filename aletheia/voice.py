@@ -4826,6 +4826,14 @@ def _interpret(transcript: str) -> dict:
         if which in ("it", "that", "them") and only:
             return {"command": {"kind": "task_done", "which": only}, "say": None}
 
+    # "I'm working on the budget" (2026-10-08: to a model). Kept, so "what was
+    # I working on" has an answer after an interruption. "I'm working on it" is a
+    # reply to her, not news.
+    if re.fullmatch(r"i'?m (?:still |just )?(?:working on|in the middle of|halfway through) (?!it\b|that\b|this\b|something\b|stuff\b|things\b)"
+                    r"(?:the |my |a |an |our |some )?[a-z][a-z0-9&.' -]{1,60}", low) and "?" not in text:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Noted. Ask me \"what was I working on\" and I'll tell you."}
+
     # "I started my new job on September 1", "I started working at Acme in
     # March" (2026-10-07: the planner, and a task tick). The day his job
     # began is a note in his words; "how long have I been at my job" reads it.

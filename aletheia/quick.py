@@ -2085,6 +2085,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^how many square feet is (?:a )?(?P<w2>[\d.]+) by (?P<l2>[\d.]+)(?: room)?$")),
     ("year_left", re.compile(
         r"^how many (?P<unit>days|weeks|months) (?:are )?(?:left|remaining) (?:in|of|until the end of) (?:the|this) year$")),
+    # "What's next Friday", "what's the 15th" (2026-10-08: each to a model).
+    # The date, and what is on it.
+    # "What was I working on" (2026-10-08: to the planner and a model). The
+    # last "I'm working on X" he told her; "where was I" is the thread's.
+    ("where_was_i", re.compile(
+        r"^(?:what was i (?:working on|in the middle of)(?: before)?"
+        r"|remind me what i was (?:working on|doing|in the middle of))\s*\??$")),
+    ("date_what", re.compile(
+        r"^what(?:'s| is|s) (?:(?:this|next) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|the \d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
     ("weekday_of", re.compile(
         r"^what day (?:of the week )?(?:was|is|will be|falls on|did) (?!it\b|today\b|tomorrow\b)(?P<wd>.+?)(?: (?:fall on|on|be))?$")),
     # 2026-10-07, each to the planner: "how many days since January 1", "is
@@ -2379,7 +2388,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -6378,6 +6387,62 @@ def _a_date(words: str, today):
         return _named_date(w, today)
     except Exception:
         return None
+
+
+def _where_was_i() -> str | None:
+    """The newest "I'm working on X" he told her. None without one: he may
+    have said it to a model."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        m = re.fullmatch(r"i'?m (?:still |just )?(working on|in the middle of|halfway through) (.+?)\.?", said, re.I)
+        if not m:
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            when = " " + speech.humanize_time(at.isoformat())
+        except ValueError:
+            when = ""
+        return f"You told me{when} you were {m.group(1).casefold()} {m.group(2)}."
+    return None
+
+
+def _date_what(text: str) -> str | None:
+    """"What's next Friday": the date, then the calendar on it. "Next" a day
+    or two away names both, because people mean either."""
+    import datetime as dt
+    from aletheia import localtime
+    low = " ".join(str(text).casefold().split()).strip(" ?.")
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    m = re.search(r"(this|next) (\w+day)$", low)
+    try:
+        if m:
+            ahead = (days.index(m.group(2)) - today.weekday()) % 7 or 7
+            when = today + dt.timedelta(days=ahead)
+            name = m.group(2).capitalize()
+            if m.group(1) == "next" and ahead <= 2:
+                later = when + dt.timedelta(days=7)
+                lead = (f"This {name} is {when.strftime('%B')} {when.day}, and the one after is "
+                        f"{later.strftime('%B')} {later.day}. ")
+                when = later
+            else:
+                lead = f"{m.group(1).capitalize()} {name} is {when.strftime('%B')} {when.day}. "
+        else:
+            day = int(re.search(r"\d{1,2}", low).group(0))
+            when = dt.date(today.year, today.month, day)
+            if when < today:
+                when = dt.date(today.year + (today.month == 12), today.month % 12 + 1, day)
+            lead = f"The {low.rsplit(' ', 1)[-1]} is a {when.strftime('%A')}, {when.strftime('%B')} {when.day}. "
+    except (ValueError, AttributeError):
+        return None
+    agenda = _agenda_on(f"{when.strftime('%B').casefold()} {when.day}")
+    if agenda is None:
+        return None
+    if agenda.startswith("Nothing"):
+        return lead + f"Nothing's on your calendar on {when.strftime('%B')} {when.day}."
+    return lead + "On it: " + agenda.split(": ", 1)[1]
 
 
 def _weekday_of(text: str) -> str | None:
@@ -11638,6 +11703,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "tasks_verb": lambda text: _tasks_verb(text),
            "role_said": lambda text: _role_said(text),
            "loan_left": lambda text: _loan_left(text),
+           "date_what": lambda text: _date_what(text),
+           "where_was_i": lambda text: _where_was_i(),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
            "told_last": lambda text: _told_last(text),
