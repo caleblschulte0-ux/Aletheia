@@ -2105,6 +2105,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("still_valid", re.compile(
         r"^(?:is|are) (?:my|our) (?P<still_valid>[a-z][a-z' ]{1,25}?) (?:still )?(?:valid|expired|current|up to date|out of date)(?: yet)?\s*\??$"
         r"|^(?:has|have) (?:my|our) (?P<still_valid2>[a-z][a-z' ]{1,25}?) expired(?: yet)?\s*\??$")),
+    # "Who lives in Chicago" (2026-10-08: to a model, after "my brother
+    # lives in Chicago").
+    ("who_lives", re.compile(
+        r"^who (?:do i know (?:that |who )?)?(?:lives|live|is living|stays|moved) (?:in|near|to) (?P<who_lives>[a-z][a-z .'-]{1,30}?)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2930,7 +2934,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13521,6 +13525,24 @@ def _still_valid(thing: str) -> str | None:
     return None
 
 
+def _who_lives(place: str) -> str | None:
+    """Everybody he told her lives in a place, in his words. None when
+    nobody: a model may know of somebody from his mail."""
+    from aletheia import speech
+    place = " ".join(str(place or "").casefold().split())
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.search(r"\b(?:lives?|living|moved|stays?|is) (?:in|to|near) " + re.escape(place) + r"\b", said.casefold()) \
+                and not re.match(r"i\b", said.casefold()):
+            hers = speech.as_she_says_it(said).rstrip(".")
+            if hers.casefold() not in (f.casefold() for f in found):
+                found.append(hers)
+    if not found:
+        return None
+    return f"You told me {speech.and_list(found[:4])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14327,6 +14349,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "broken": _broken,
            "to_bring": _to_bring,
            "still_valid": _still_valid,
+           "who_lives": _who_lives,
            "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,
            "born_age": _born_age,

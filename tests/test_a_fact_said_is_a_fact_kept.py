@@ -8915,5 +8915,16 @@ class WhenAmIWakingUp(unittest.TestCase):
 
 
 
+class WhoLivesThere(unittest.TestCase):
+    def test_read_from_his_notes(self):
+        from aletheia import quick
+        rows = [{"text": "my brother lives in Chicago"}, {"text": "Dana moved to Chicago"}, {"text": "I live in Denver"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("who lives in Chicago"),
+                             "You told me your brother lives in Chicago and Dana moved to Chicago.")
+            self.assertIsNone(quick.answer("who lives in Denver"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
