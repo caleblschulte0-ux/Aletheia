@@ -10072,5 +10072,30 @@ class CheckupsAndDoses(unittest.TestCase):
             self.assertEqual(quick.answer("what is my savings goal"), "You told me: your savings goal is 5000.")
 
 
+class TheKidsAgain(unittest.TestCase):
+    """A sweep of sentences about his kids (2026-10-08)."""
+
+    def test_said(self):
+        for said in ("my son has a fever", "my daughter got an A on her test",
+                     "my daughter wants a bike for her birthday", "I paid the babysitter 60"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertEqual(voice._interpret("my son needs a permission slip signed")["command"]["description"],
+                         "sign my son's permission slip")
+        self.assertEqual(voice._interpret("the kids have a dentist appointment Friday at 3")["command"]["title"],
+                         "the kids' dentist appointment")
+
+    def test_read(self):
+        rows = [{"text": "my kids bedtime is 8"}, {"text": "my son has a fever"}, {"text": "my daughter got an A on her test"},
+                {"text": "the babysitter is coming at 6"}, {"text": "my daughter wants a bike for her birthday"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("what time do the kids go to bed"), "You told me: your kids bedtime is 8.")
+            self.assertEqual(quick.answer("how is my son feeling"), "The latest you told me: your son has a fever.")
+            self.assertEqual(quick.answer("how did my daughter do on her test"), "You told me: your daughter got an A on her test.")
+            self.assertEqual(quick.answer("who is babysitting tonight"), "You told me: the babysitter is coming at 6.")
+            self.assertEqual(quick.answer("what does my daughter want for her birthday"),
+                             "You told me: your daughter wants a bike for her birthday.")
+            self.assertIsNone(quick.answer("how did my son do"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -439,6 +439,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("out_today", re.compile(
         r"^who(?:'s| is| was) (?P<out_today>out sick|off sick|sick|out|off|on vacation|out of (?:the )?office|working from home|wfh|away)"
         r"(?: today| this week)?\s*\??$")),
+    ("sitter", re.compile(r"^who(?:'s| is) (?:babysitting|watching the kids|coming to babysit)(?P<sitter> tonight| today| tomorrow)?\s*\??$")),
     ("who_named", re.compile(
         r"^who(?:'s| is) (?!(?:my|the|your|you|u|that|this|it|he|she|they|i|we|on|in|at|calling|there|here|next|"
         r"waiting|running|online)\b)(?P<who_named>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)\s*\??$"
@@ -2303,6 +2304,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # was my last dentist visit" (2026-10-08: to a model).
     ("next_every", re.compile(r"^when(?:'s| is) my next (?P<next_every>[a-z][a-z ]{2,30}?)\s*\??$")),
     ("last_visit", re.compile(r"^when (?:was|did i have) my last (?P<last_visit>[a-z][a-z ]{2,30}?)\s*\??$")),
+    # "How did my daughter do on her test", "what does my daughter want for
+    # her birthday", "who is babysitting tonight" (2026-10-08: to a model).
+    ("kid_did", re.compile(r"^how did (?P<kid_did>my (?:son|daughter|kid|kids|boy|girl)|the kids) do(?: on (?:her|his|their|the|a) (?P<kid_on>[a-z][a-z ]{1,20}?)| in [a-z ]{2,20})?(?: today)?\s*\??$")),
+    ("kid_wants", re.compile(r"^what (?:does|do) (?P<kid_wants>my (?:son|daughter|kid|kids|boy|girl|wife|husband|mom|dad)|the kids) want for (?:her|his|their) (?:birthday|christmas|hanukkah)\s*\??$"
+                             r"|^what (?:does|do) (?P<kid_wants2>my (?:son|daughter|kid|kids|boy|girl)|the kids) want for (?:christmas|hanukkah)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3008,6 +3014,11 @@ def _direct(text: str) -> str:
     if re.fullmatch(r"(?:what(?:'s| has| have)|how(?:'s| has| have)) (?:my mood|my moods|i been feeling|my mental health)(?: been)?(?: like)?"
                     r"(?: this week| lately| recently| these days| this month)?\s*\??", text):
         return "how have i been feeling lately"
+    # "What time do the kids go to bed" (2026-10-08: nothing found, a turn
+    # after "my kids bedtime is 8").
+    m = re.fullmatch(r"what time (?:do|does) (?:the|my) (?P<k>kids|son|daughter|baby) (?:go to bed|go to sleep|have to be in bed)\s*\??", text)
+    if m:
+        return f"what is my {m.group('k')} bedtime"
     # "What time do the sprinklers go on" (2026-10-08: nothing found, a
     # turn after "the sprinklers are set for 6am").
     m = re.fullmatch(r"(?:what time|when) (?:do|does) (?:the |my )(?P<t>sprinklers?|irrigation|porch lights?|lights|timer|heat|ac) (?:go on|come on|turn on|run|start)\s*\??", text)
@@ -3217,7 +3228,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "call_back", "sent_kin", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "sick_since2", "sick_since3", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -15354,6 +15365,41 @@ def _next_every(thing: str) -> str | None:
     return None
 
 
+def _kid_did(who: str) -> str | None:
+    """How one of his kids did - "my daughter got an A on her test"."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"{re.escape(who)} (?:got|scored|made|earned)\b", said.casefold()):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
+def _kid_wants(who: str) -> str | None:
+    """What somebody of his wants for a birthday or Christmas, from his note."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    found = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.match(rf"{re.escape(who)} (?:wants|would like|is asking for|asked for)\b", said.casefold()):
+            found.append(speech.as_she_says_it(said))
+        if len(found) >= 3:
+            break
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
+def _sitter(_when: str = "") -> str | None:
+    """Who is babysitting, from his notes."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(r"\b(?:babysitter|sitter|nanny)\b.*\b(?:is coming|comes|will be here|is here)\b|\bis (?:babysitting|watching the kids)\b", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -16164,6 +16210,9 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "kid_did": _kid_did,
+           "kid_wants": _kid_wants,
+           "sitter": _sitter,
            "next_every": _next_every,
            "last_visit": _last_visit,
            "where_now": _where_now,
@@ -16413,7 +16462,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit"})
+                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter"})
 
 
 def answer(question: str) -> str | None:

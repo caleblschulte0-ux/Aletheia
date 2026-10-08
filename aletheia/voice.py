@@ -9025,6 +9025,12 @@ def _interpret(transcript: str) -> dict:
         # the Smiths". The plan is the dinner.
         title = re.sub(r"^(?:(?:my|our) )?[a-z]{2,15} and i (?:are|'re|will be) (?:having|going to|going for|getting|grabbing|doing) (?:a |an |the )?",
                        "", m.group("title"))
+        # "The kids have a dentist appointment Friday at 3" (2026-10-08) was
+        # a hold called "the kids have a dentist appointment".
+        kids = re.match(r"(?P<who>the kids|my (?:son|daughter|kids|wife|husband|mom|dad)) (?:has|have|has got|have got) (?:a |an |their |his |her )?(?P<what>.+)$", title)
+        if kids:
+            whose = {"the kids": "the kids'", "my kids": "the kids'"}.get(kids.group("who"), re.sub(r"^my ", "", kids.group("who")) + "'s")
+            title = f"{whose} {kids.group('what')}"
         held = _calendar_hold(text, title, m.group("day") or "", m.group("part"), m.group("time"))
         if held:
             return held
@@ -10238,6 +10244,12 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My daughter needs new shoes" (2026-10-08: to the planner) is
     # something to get for her, on his list.
+    # "My son needs a permission slip signed" (2026-10-08: "get my son a
+    # permission slip signed") is his to sign.
+    m = re.fullmatch(r"(?P<who>my (?:son|daughter|kid|kids)|the kids) (?:needs|need|has|have) (?:a |an |his |her |their )?(?P<what>[a-z][a-z' ]{1,25}?) (?:signed|to be signed|that needs signing)", low)
+    if m:
+        whose = {"my son": "my son's", "my daughter": "my daughter's", "my kid": "my kid's"}.get(m.group("who"), "the kids'")
+        return _new_task(f"sign {whose} {m.group('what')}")
     m = re.fullmatch(r"(?P<who>my (?:son|daughter|kid|kids|wife|husband|mom|dad|baby|dog|cat|boy|girl)|the (?:kids|baby|dog|cat))"
                      r" (?:needs|need|could use) (?P<what>(?:a |an |some |new |more )+[a-z][a-z' ]{1,30}?)(?: for [a-z ]{2,20})?", low)
     if m and not re.search(r"\b(?:help|to|attention|sleep|rest|a nap|a bath|a walk|me|you|him|her|them|space|time)\b", m.group("what")):
@@ -10306,6 +10318,22 @@ def _interpret(transcript: str) -> dict:
         task = _new_task(f"{m.group('what')} {_as_he_said(text, m.group('thing'))}")
         task["command"]["deadline"] = last.isoformat()
         return task
+    # "My son has a fever", "my daughter got an A on her test", "my daughter
+    # wants a bike for her birthday", "I paid the babysitter 60" (2026-10-08:
+    # all to the planner).
+    _kid = r"(?:my|our) (?:son|daughter|kid|kids|baby|boy|girl|wife|husband|mom|dad)|the (?:kids|baby)"
+    m = re.fullmatch(rf"(?P<who>{_kid}) (?:has|have|has got|is running|woke up with|came home with) (?:a |an )?(?:bad |high |low |slight )?"
+                     r"(?P<what>fever|cold|cough|flu|the flu|stomach bug|ear infection|sore throat|rash|headache|stomach ache|tummy ache|strep|covid|pink eye|lice|runny nose)"
+                     r"(?: today| again| this morning)?", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": "Oh no - I hope they feel better soon."}
+    _kid = r"(?:my|our) (?:son|daughter|kid|kids|boy|girl)|the kids"
+    if re.fullmatch(rf"(?:{_kid}) (?:got|scored|made|earned) (?:an? |a perfect |a |)(?:[a-f][+-]?|\d{{1,3}}(?:%| percent)?|perfect score|honor roll|first place|second place|third place)"
+                    r"(?: on (?:her|his|their|the|a) [a-z][a-z ]{1,25}| in [a-z][a-z ]{1,20})?", low) \
+            or re.fullmatch(rf"(?:{_kid}) (?:wants|would like|is asking for|asked for) (?:a |an |some |the )?[a-z][a-z' ]{{1,30}}? for (?:her|his|their|christmas|hanukkah)(?: birthday)?", low) \
+            or re.fullmatch(r"i paid (?:the )?(?:babysitter|sitter|nanny|dog walker|cleaner|cleaning lady|lawn guy|gardener|plumber|electrician|tutor|handyman|mechanic) \$?\d[\d,.]*(?: dollars| bucks)?(?: today| tonight)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My glasses prescription is minus 2", "I have a dentist cleaning every
     # 6 months", "my last dentist visit was in April" (2026-10-08: all to
     # the planner).
