@@ -7612,5 +7612,37 @@ class SchoolTestsGradesAndClassDays(unittest.TestCase):
             self.assertEqual(quick.answer("how did I do on my test"), "You told me you got an A on your test.")
 
 
+class DatesHeGaveThingsOfHis(unittest.TestCase):
+    """2026-10-08: "what's due next month" skipped "my car registration is
+    due November 30", "remind me two weeks before my registration is due"
+    went to the planner, and "how many months left on my lease" to a model."""
+
+    def _notes(self, *texts):
+        ts = dt.datetime.now(dt.timezone.utc).isoformat()
+        return [{"text": t, "ts": ts} for t in texts]
+
+    def test_a_noted_date_is_due_in_its_window(self):
+        today = dt.date.today()
+        soon = today + dt.timedelta(days=3)
+        note = f"my car registration is due {quick._MONTHS[soon.month - 1]} {soon.day}"
+        with mock.patch.object(quick, "_notes", return_value=self._notes(note)), \
+                mock.patch("aletheia.intercom._open_tasks", return_value=[]):
+            self.assertIn("registration", quick.answer("what's due next week") or quick._tasks_due("due next week"))
+
+    def test_months_left_on_a_lease(self):
+        with mock.patch.object(quick, "_notes", return_value=self._notes("my lease ends in june")):
+            said = quick.answer("how many months left on my lease")
+        self.assertIn("month", said)
+        self.assertIn("lease ends in June", said)
+
+    def test_a_reminder_before_a_document(self):
+        with mock.patch.object(quick, "_date_in_notes", return_value=dt.date.today() + dt.timedelta(days=40)):
+            cmd = voice.interpret("thea remind me two weeks before my registration is due")["command"]
+            self.assertEqual(cmd["kind"], "remind_at")
+            self.assertIn("registration is due", cmd["text"])
+            cmd = voice.interpret("thea remind me a week before my passport expires")["command"]
+            self.assertIn("passport expires", cmd["text"])
+
+
 if __name__ == "__main__":
     unittest.main()

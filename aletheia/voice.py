@@ -4771,8 +4771,13 @@ def _interpret(transcript: str) -> dict:
                      r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary)"
                      # "Remind me 3 days before my car insurance is due"
                      # (2026-10-08: read as a calendar event of that name).
-                     r"|(?P<bill>" + _BILL_WORDS + r"))(?P<due> (?:is |are )?due)?", low)
-    if m and m.group("due") and not m.group("bill"):
+                     r"|(?P<bill>" + _BILL_WORDS + r")"
+                     # "Two weeks before my registration is due", "a week before
+                     # my license expires" (2026-10-08: to the planner).
+                     r"|(?P<doc>(?:car |vehicle )?registration|(?:driver'?s )?licen[sc]e|passport|lease|warranty"
+                     r"|membership|inspection|(?:car )?tags|visa|permit))"
+                     r"(?P<due> (?:is |are )?(?:due|up)| expires| ends| runs out)?", low)
+    if m and m.group("due") and not (m.group("bill") or m.group("doc")):
         m = None
     if m and (m.group("task") or not re.search(r"\b(?:birthday|bday)$", m.group("what"))):
         import datetime as dt
@@ -4800,7 +4805,11 @@ def _interpret(transcript: str) -> dict:
             said = "your " + said
         said = _as_he_said(text, said) if not said.startswith("your ") else said
         when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {int(days)} days, on {day.strftime('%A')}")
-        is_ = "is due" if m.group("bill") else "is"
+        # A bill "is due"; a document says what he said of it: "expires",
+        # "ends", "is up" - and "is due" when he said nothing.
+        verb = re.sub(r"^(?:is|are) ", "", (m.group("due") or "").strip())
+        is_ = ("is due" if m.group("bill") or (m.group("doc") and not verb)
+               else (verb if verb in ("expires", "ends", "runs out") else f"is {verb}") if m.group("doc") else "is")
         text = (f"{_as_he_said(text, m.group('task'))} - {said} {is_} {when}" if m.group("task") else f"{said} {is_} {when}")
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
 

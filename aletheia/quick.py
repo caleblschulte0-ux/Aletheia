@@ -526,6 +526,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How did I do on my test" after "I got an A on my test" (2026-10-08).
     ("how_did_i_do", re.compile(
         r"^(?:how did i do|what did i get|what was my (?:grade|score|mark)) on (?:my |the |our )?(?P<how_did_i_do>[a-z][a-z' ]{1,30}?)\s*\??$")),
+    # "How many months left on my lease" after "my lease ends in June"
+    # (2026-10-08: to a model).
+    ("left_on", re.compile(
+        r"^how (?:many (?P<left_unit>days|weeks|months)|long|much (?:time|longer)) (?:is |do i have )?(?:left on|left before|left until"
+        r"|until the end of|before the end of) (?:my |our )(?P<left_on>[a-z][a-z' ]{1,30}?)\s*\??$")),
     # "When did I last eat" after "I ate at 7" (2026-10-08: to a model; an
     # irregular verb the did-last reader cannot make).
     ("last_ate", re.compile(
@@ -2703,7 +2708,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -3616,6 +3621,35 @@ def _date_of(words: str) -> str | None:
     return said + "."
 
 
+def _noted_dates() -> list:
+    """(date, his words) for every note that puts a date on something of his:
+    "my registration is due November 30", "my license expires March 3",
+    "the lease ends June 1". Only a month with its day; a bare month is not a
+    date. Past dates roll to next year."""
+    import datetime as dt
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    month_re = "|".join(_MONTHS)
+    out = []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if not re.search(r"\b(?:is|are) due\b|\bexpires?\b|\bends?\b|\brenews?\b|\bis up\b|\bruns out\b", low):
+            continue
+        m = (re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?(?:,? (?P<year>20\d\d))?\b", low)
+             or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? of (?P<mon>{month_re})(?:,? (?P<year>20\d\d))?\b", low))
+        if not m:
+            continue
+        try:
+            when = dt.date(int(m.group("year") or today.year), _MONTHS.index(m.group("mon")) + 1, int(m.group("day")))
+        except ValueError:
+            continue
+        if not m.group("year") and when < today:
+            when = when.replace(year=today.year + 1)
+        out.append((when, said))
+    return sorted(out)
+
+
 def _tasks_due(which: str = "") -> str | None:
     """His open tasks with a deadline inside the window he named."""
     import datetime as dt
@@ -3670,6 +3704,14 @@ def _tasks_due(which: str = "") -> str | None:
         rem = _reminders_on(which[4:]) or ""
         if rem and not rem.startswith("No reminders"):
             also = " " + rem
+    # "My car registration is due November 30", then "what's due next month"
+    # (2026-10-08): nothing on the list, and the date he told her unsaid.
+    told = ([speech.as_she_says_it(text).rstrip(".") for day, text in _noted_dates()
+             if now.date() <= day <= limit.date()] if not overdue_only and which.startswith("due ") else [])
+    if told and not dated:
+        return (f"Nothing on your list is {which}, but you told me: " + "; ".join(told[:3]) + "." + also)
+    if told:
+        also = f"{also} You also told me: " + "; ".join(told[:3]) + "."
     if not dated:
         undated = len(rows) - sum(1 for t in rows if tasks_mod.parse_deadline(t.get("deadline")))
         if also:
@@ -4266,6 +4308,12 @@ def _until_mine(words: str) -> str | None:
             return "It's the weekend now."
         days = 5 - now.weekday()
         return "Tomorrow is Saturday." if days == 1 else f"{days} days - it starts Saturday."
+    # "How long until my lease ends" (2026-10-08): the note that dates it.
+    ending = re.fullmatch(r"(?:my|the|our) (?P<x>[a-z][a-z' ]{1,30}?) (?:ends|expires|is up|runs out)", said)
+    if ending:
+        left = _left_on(ending.group("x"))
+        if left:
+            return left
     thing = re.sub(r"^(?:my|the) (?:next )?|\s+(?:goes off|go off|is|starts|begins|rings)$", "", said)
     # "How many days until the party": the "the" was taken by the pattern
     # (2026-10-07: to a model). A bare thing is still looked for; only a
@@ -11364,6 +11412,41 @@ def _do_i_have(rest) -> str | None:
     return None
 
 
+def _left_on(thing: str, unit: str = "") -> str | None:
+    """How long until something of his ends, from the note that said when:
+    "my lease ends in June", "my license expires March 3". A bare month is
+    counted in months and says so. None when no note dates it."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    words = [w for w in re.findall(r"[a-z0-9']+", str(thing or "").casefold()) if w not in ("my", "the", "our")]
+    if not words:
+        return None
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    def names(text):
+        return all(re.search(rf"\b{re.escape(w.rstrip('s'))}", text.casefold()) for w in words)
+    for day, said in _noted_dates():
+        if names(said) and day >= today:
+            left = (day - today).days
+            span = (speech.count_phrase(left, "day") if left < 21 else speech.count_phrase(round(left / 7), "week")
+                    if left < 63 else f"about {speech.count_phrase(round(left / 30.44), 'month')}")
+            told = speech.as_she_says_it(said).rstrip(".")
+            return f"{span[:1].upper()}{span[1:]} - you told me {told[:1].lower()}{told[1:]}."
+    month_re = "|".join(_MONTHS)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        m = re.search(rf"\b(?:ends?|expires?|is up|runs out|is due|renews?) (?:in |at the end of )?(?P<mon>{month_re})(?: (?P<year>20\d\d))?\b", low)
+        if m and names(said):
+            number = _MONTHS.index(m.group("mon")) + 1
+            year = int(m.group("year")) if m.group("year") else today.year + (number < today.month)
+            months = (year - today.year) * 12 + number - today.month
+            told = speech.as_she_says_it(said).rstrip(".")
+            if months <= 0:
+                return f"It's this month - you told me {told[:1].lower()}{told[1:]}."
+            return f"About {speech.count_phrase(months, 'month')} - you told me {told[:1].lower()}{told[1:]}."
+    return None
+
+
 def _how_did_i_do(rest) -> str | None:
     """The grade or score he told her for a test, newest first. None when he
     told her none, so the question goes on."""
@@ -13410,6 +13493,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),
            "how_did_i_do": _how_did_i_do,
+           "left_on": lambda rest: _left_on(rest),
            "do_i_have": _do_i_have,
            "task_age": _task_age,
            "who_coming_noted": _who_coming_noted,
