@@ -8347,5 +8347,18 @@ class RemindMeWhenILeaveWork(unittest.TestCase):
 
 
 
+class HowOldIfBornIn(unittest.TestCase):
+    """"How old am I if I was born in 1990" went to a model (2026-10-08)."""
+
+    def test_both_ages_are_said(self):
+        import datetime as dt
+        from aletheia import quick
+        age = dt.date.today().year - 1990
+        self.assertEqual(quick.answer("how old am I if I was born in 1990"),
+                         f"{age} if the birthday has already come this year, {age - 1} if not.")
+        self.assertIsNotNone(quick.answer("how old is someone born in 2001"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

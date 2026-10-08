@@ -1818,6 +1818,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^who(?:'s| is| are) (?P<who_coming_noted>visiting|coming over|coming to visit|coming to stay|coming|staying with us|in town|flying in)"
         r"(?: (?:this weekend|next weekend|this week|next week|tomorrow|tonight|today|on [a-z]+|for [a-z' ]+))?\s*\??$")),
     # "Who called today" after "my mom called" (2026-10-08: both to a model).
+    # "How old am I if I was born in 1990" (2026-10-08: to a model).
+    ("born_age", re.compile(
+        r"^how old (?:am i|would i be|is (?:someone|somebody|a person|someone who was|somebody who was))"
+        r"(?: if i was| if i were| if i'?m| who was)? born in (?P<born_age>(?:19|20)\d\d)\s*\??$"
+        r"|^how old (?:is|would be) (?:someone|somebody|a person) born in (?P<born_age2>(?:19|20)\d\d)\s*\??$")),
     ("who_called", re.compile(
         r"^(?:who (?:called|texted|stopped by|came by|dropped by)|did (?:anyone|anybody|someone) (?:call|text|stop by|come by))"
         r"(?: me)?(?: (?P<who_called>today|yesterday|this morning|earlier|earlier today))?\s*\??$")),
@@ -2812,7 +2817,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -9891,6 +9896,21 @@ def _contacts_count() -> str | None:
             + (f", and {len(rows) - 8} more" if len(rows) > 8 else "") + ".")
 
 
+def _born_age(said: str) -> str | None:
+    """Age from a birth year alone: two answers, because the year does not
+    say whether the birthday has come round yet."""
+    import datetime as dt
+    from aletheia import localtime
+    year = int(said) if str(said or "").isdigit() else 0
+    now = dt.datetime.now(localtime.operator_tz()).year
+    if not year or year > now:
+        return None
+    age = now - year
+    if age == 0:
+        return "Under a year old."
+    return f"{age} if the birthday has already come this year, {age - 1} if not."
+
+
 def _who_named(name: str) -> str | None:
     """A person he knows, by name: the contact card and his notes about them."""
     from aletheia import speech
@@ -13815,6 +13835,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applied_on": _applied_on,
            "told_on": _told_on,
            "who_called": _who_called,
+           "born_age": _born_age,
            "when_have": _when_have,
            "pet_due": _pet_due,
            "deliveries": lambda rest: _deliveries(),
