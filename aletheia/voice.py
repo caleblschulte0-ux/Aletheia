@@ -8755,7 +8755,16 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i'?m|i am|just got) (?:at|to) the (?:gym|pool|park|library|office|doctor'?s?|dentist'?s?"
                     # "I'm at the airport" (2026-10-08: "I can't think just now").
                     r"|airport|hotel|mall|store|grocery store|post office|bank|vet|beach|stadium|train station|bus station)(?: now)?", low):
-        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        # "I'm at the store" is the moment the list is for (2026-10-08: it
+        # said "Noted." with things on his shopping list).
+        say = None
+        if re.search(r"\b(?:store|grocery store)\b", low):
+            try:
+                from aletheia import quick as _qs
+                say = _qs.answer(text)
+            except Exception:  # noqa: BLE001
+                say = None
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": say}
     # "I STARTED A NEW JOB TODAY" (2026-10-07: to the planner). A note, so
     # "where do I work" and "when did I start my job" have it.
     if re.fullmatch(r"i (?:just )?(?:started|start|began) (?:a |my )?(?:new )?(?:job|work|position|role)(?: at [a-z0-9][a-z0-9 .&'-]{1,40})?"
@@ -10535,6 +10544,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(rf"(?:{_kd}) (?:made|got (?:into|on)) (?:the |a )?(?:team|varsity|jv|play|musical|band|choir|honor roll|dean's list|travel team|all-stars|all stars)", low):
         obj = {"he": "him", "she": "her"}.get(pron, "them")
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": f"That's great - congratulations to {obj}!"}
+    # "I got milk and eggs" with neither on his list (2026-10-08: to the
+    # planner). Groceries he bought are kept, for "do I have milk".
+    m = re.fullmatch(r"i (?:just )?(?:got|bought|picked up|grabbed) (?P<items>[a-z][a-z ,]{1,60}?)(?: (?:today|at the store|from the store))?", low)
+    if m:
+        from aletheia import quick as _qg
+        parts = [re.sub(r"^(?:some |a |an |the |more )", "", p.strip()) for p in re.split(r",\s*(?:and\s+)?|\s+and\s+", m.group("items")) if p.strip()]
+        grocery = (_qg._FOOD + r"|milk|butter|yogurt|cream|juice|coffee|tea|cereal|oatmeal|flour|sugar|oil|apples?|bananas?|oranges?|grapes"
+                   r"|berries|strawberries|lettuce|avocados?|lemons?|limes?|garlic|celery|cucumbers?|corn|peas|soup|chips|crackers|snacks"
+                   r"|water|soda|beer|wine|groceries|paper towels|toilet paper|dish soap|detergent|dog food|cat food|diapers|wipes")
+        if parts and all(re.fullmatch(rf"(?:{grocery})", p) for p in parts):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

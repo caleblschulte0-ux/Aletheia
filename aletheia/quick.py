@@ -1420,8 +1420,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do (?:i|we) need to (?:get|pick up|grab) (?:from|at) the (?:store|shop|grocery store|supermarket)\s*\??$"
         r"|^what(?:'s| is|s)? on (?:my|the) grocery list\s*\??$|^(?:my |the )?grocery list$"
         # "I'm at the store" (2026-10-07: to a model) is the moment the list is for.
-        r"|^(?:i'?m|i am|we'?re|we are) (?:at|in) (?:the )?(?:grocery store|store|supermarket|shops?|market|costco|target"
-        r"|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|grocer'?s)(?: now)?\s*$")),
+        r"|^(?:i'?m|i am|we'?re|we are) (?:at|in) (?:the )?(?P<shop_at>grocery store|store|supermarket|shops?|market|costco|target"
+        r"|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|grocer'?s|home depot|lowe'?s|cvs|walgreens)(?: now)?\s*$"
+        # "Do we need anything" (2026-10-08: "I can't think").
+        r"|^do (?:i|we) need anything\s*\??$")),
     # "What is running" was wired into `voice` and NOT here, so SAYING it
     # was instant and TYPING it paid a full planner round trip for the
     # same answer out of the same store. Every door should give the same
@@ -3394,7 +3396,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "turkey_time", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16872,6 +16874,27 @@ def _kid_scored(text: str) -> str | None:
     return f"{total} {noun}, from the {games} time{'s' if games != 1 else ''} you told me {shown} scored."
 
 
+def _shopping_here(text: str = "") -> str | None:
+    """The shopping list, and - at a shop he keeps a list for - that list
+    too. "I'm at Costco" read only the shopping list with toilet paper on
+    his Costco list (2026-10-08)."""
+    said = _shopping()
+    shop = str(_groups("shopping", text).get("shop_at") or "").strip() if text else ""
+    if not shop or shop in ("grocery store", "store", "supermarket", "shop", "shops", "market", "grocer's", "grocers"):
+        return said
+    try:
+        from aletheia import lists, speech
+        held = next((l["name"] for l in lists.all_lists() if " ".join(str(l.get("name") or "").casefold().split()) in
+                     (shop, shop.replace("'", ""), shop + " list")), None)
+        rows = (lists.items(held) or []) if held else []
+    except Exception:
+        return said
+    if not rows:
+        return said
+    there = f"On your {held} list: {speech.and_list([str(r) for r in rows[:8]])}."
+    return there if str(said or "").startswith("Nothing") else f"{there} {said}"
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17586,7 +17609,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "repo_wrong": _repo_wrong,
            "fleet_read_at": lambda rest: _fleet_read_at(),
            "repos": lambda rest: _repos(),
-           "shopping": lambda rest: _shopping(),
+           "shopping": _shopping_here,
            "the_list": lambda text: _the_list(),
            # "What do I need to fix" with nothing on his list to fix is what
            # he said broke (2026-10-08).

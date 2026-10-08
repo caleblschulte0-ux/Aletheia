@@ -11288,5 +11288,34 @@ class TheKidsThisWeek(unittest.TestCase):
             self.assertEqual(quick.answer("who is picking up the kids"), "You told me: your wife is picking up the kids today.")
 
 
+class AtTheShop(unittest.TestCase):
+    """2026-10-08: "I'm at Costco" read only the shopping list with toilet
+    paper on his Costco list; "I'm at the store" said "Noted."; "do we need
+    anything" got "I can't think"; "I got milk and eggs" with neither on
+    the list went to the planner."""
+
+    def test_the_shops_own_list(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import intercom, lists
+        with tempfile.TemporaryDirectory() as tmp, \
+                mock.patch.object(lists, "private_dir", side_effect=lambda name: Path(tmp) / name), \
+                mock.patch.object(intercom, "shopping_answer", lambda: "2 things on your shopping list: apples and bananas."):
+            (Path(tmp) / "lists").mkdir()
+            lists.create("costco")
+            lists.add("costco", ["toilet paper"])
+            self.assertEqual(quick.answer("I am at costco"),
+                             "On your costco list: toilet paper. 2 things on your shopping list: apples and bananas.")
+            self.assertEqual(quick.answer("do we need anything"), "2 things on your shopping list: apples and bananas.")
+            self.assertEqual(voice._interpret("I am at the store")["say"], "2 things on your shopping list: apples and bananas.")
+
+    def test_groceries_bought_are_kept(self):
+        from aletheia import intercom
+        with mock.patch.object(intercom, "_shopping_items", lambda: []):
+            self.assertEqual(voice._interpret("I got milk and eggs")["command"], {"kind": "note", "text": "I got milk and eggs"})
+        with mock.patch.object(intercom, "_shopping_items", lambda: [{"need": "milk"}]):
+            self.assertEqual(voice._interpret("I got milk")["command"]["kind"], "shopping_off")
+
+
 if __name__ == "__main__":
     unittest.main()
