@@ -12957,5 +12957,17 @@ class WhatTheyWatched(unittest.TestCase):
             self.assertIsNone(quick.answer("what does my wife want to watch"))
 
 
+class WhenAKidIsSick(unittest.TestCase):
+    def test_kept_with_who_it_is(self):
+        said = voice.interpret("my daughter threw up")
+        self.assertEqual(said["command"]["kind"], "note")
+        self.assertEqual(said["say"], "Oh no - I hope your daughter feels better soon.")
+        self.assertEqual(voice.interpret("the kids have a cold")["say"], "Oh no - I hope they feel better soon.")
+
+    def test_the_school_called(self):
+        for said in ("my daughter's teacher emailed me", "the school called"):
+            self.assertEqual(voice.interpret(said)["command"]["kind"], "note", said)
+
+
 if __name__ == "__main__":
     unittest.main()

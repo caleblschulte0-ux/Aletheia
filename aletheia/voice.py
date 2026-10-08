@@ -11566,6 +11566,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|our|the) (?:wife|husband|partner|girlfriend|boyfriend|fiancee?|son|daughter|kids?|mom|dad) wants? to (?:watch|see|read) "
                     r"(?!(?:it|that|this|something|anything|a movie|tv)$)[a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My daughter's teacher emailed me", "the school called" (2026-10-08:
+    # to the planner). Who reached him is a note; reading it is his mail.
+    if re.fullmatch(r"(?:my (?:son|daughter|kid)'s (?:teacher|coach|principal|school|daycare|doctor|pediatrician)|the (?:school|daycare|principal|coach|nurse|school nurse))"
+                    r" (?:emailed|called|texted|messaged|sent a note to|sent home a note for) (?:me|us)(?: today| this morning| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
@@ -12156,10 +12161,15 @@ def _interpret(transcript: str) -> dict:
     _kid = r"(?:my|our) (?:son|daughter|kid|kids|baby|boy|girl|wife|husband|mom|dad)|the (?:kids|baby)"
     m = re.fullmatch(rf"(?P<who>{_kid}) (?:has|have|has got|is running|woke up with|came home with) (?:a |an )?(?:bad |high |low |slight )?"
                      r"(?P<what>fever|cold|cough|flu|the flu|stomach bug|ear infection|sore throat|rash|headache|stomach ache|tummy ache|strep|covid|pink eye|lice|runny nose)"
-                     r"(?: today| again| this morning)?", low)
+                     r"(?: today| again| this morning)?", low) \
+        or re.fullmatch(rf"(?P<who>{_kid}) (?:threw up|has been throwing up|is throwing up|is sick|got sick|stayed home sick|is home sick|has been sick)"
+                        r"(?: today| again| this morning| last night| at school| from school| all night)?", low)
     if m:
+        # "I hope your daughter feels better" names who (2026-10-08: "they").
+        one = re.fullmatch(r"(?:my|our) (son|boy|husband|dad|daughter|girl|wife|mom|baby)", m.group("who"))
+        them = f"your {one.group(1)} feels" if one else "they feel"
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
-                "say": "Oh no - I hope they feel better soon."}
+                "say": f"Oh no - I hope {them} better soon."}
     _kid = r"(?:my|our) (?:son|daughter|kid|kids|boy|girl)|the kids"
     if re.fullmatch(rf"(?:{_kid}) (?:got|scored|made|earned) (?:an? |a perfect |a |)(?:[a-f][+-]?|\d{{1,3}}(?:%| percent)?|perfect score|honor roll|first place|second place|third place)"
                     r"(?: on (?:her|his|their|the|a) [a-z][a-z ]{1,25}| in [a-z][a-z ]{1,20})?", low) \
