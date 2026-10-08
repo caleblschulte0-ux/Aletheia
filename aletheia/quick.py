@@ -162,7 +162,9 @@ _DRUGS = (r"ibuprofen|advil|motrin|tylenol|acetaminophen|paracetamol|aspirin|ale
 # Things done TO him, which he says he got or had: "I got a haircut".
 _SERVICES = (r"(?:a |an |my |the )?(?:haircut|hair cut|trim|oil change|flu shot|flu jab|covid (?:shot|booster|vaccine)|booster"
              r"|tetanus shot|massage|checkup|check-up|physical|manicure|pedicure|car wash|eye exam|teeth cleaning|dental cleaning"
-             r"|tune-?up|inspection|blood test|blood work|mammogram|colonoscopy|tattoo|facial|wax)")
+             r"|tune-?up|inspection|blood test|blood work|mammogram|colonoscopy|tattoo|facial|wax"
+             # "I got new tires today" (2026-10-08: to the planner)
+             r"|new tires|new tyres|new brakes|brakes done|tires rotated|tire rotation|alignment|new battery|new wipers)")
 
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in

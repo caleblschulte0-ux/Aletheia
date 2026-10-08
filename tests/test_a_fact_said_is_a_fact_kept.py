@@ -6269,5 +6269,28 @@ class GiftIdeasForSomebody(unittest.TestCase):
             self.assertEqual(voice._interpret(said)["command"], {"kind": "list_add", "list": "gift", "item": item})
 
 
+
+class TheCarSaidOutLoud(unittest.TestCase):
+    """2026-10-08: "I'm at 45200 miles", "I got new tires today" and "the
+    car is making a weird noise" went to the planner or a model."""
+
+    def test_mileage_said_bare_is_the_cars(self):
+        self.assertEqual(voice._interpret("I'm at 45200 miles")["command"], {"kind": "note", "text": "my car is at 45200 miles"})
+        self.assertNotEqual(voice._interpret("I'm at 3 miles")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my car is at 45200 miles"}]):
+            self.assertEqual(voice._interpret("how many miles do I have on my car")["say"], "You told me: your car is at 45200 miles.")
+
+    def test_new_tires_are_a_service(self):
+        self.assertEqual(voice._interpret("I got new tires today")["command"]["kind"], "note")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I got new tires today", "ts": "2026-10-08T01:00:00+00:00"}]):
+            self.assertIn("you got new tires", quick.answer("when did I get new tires"))
+
+    def test_a_noise_is_a_task_to_get_it_looked_at(self):
+        self.assertEqual(voice._interpret("the car is making a weird noise")["command"]["description"],
+                         "get the car looked at - it's making a weird noise")
+        self.assertEqual(voice._interpret("the dryer is making an odd noise")["command"]["description"],
+                         "get the dryer looked at - it's making an odd noise")
+
+
 if __name__ == "__main__":
     unittest.main()

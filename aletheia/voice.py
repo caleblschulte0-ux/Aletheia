@@ -6075,7 +6075,9 @@ def _interpret(transcript: str) -> dict:
                     # reads, and asking for it went to the planner.
                     r"(?:what(?:'s| is|s)? )?(?:my |the )?car'?s? "
                     r"(?:mileage|milage)|"
-                    r"how many miles (?:are )?on (?:my|the) car|"
+                    r"how many miles (?:are |are there |do i have |have i got )?on (?:my|the) car|"
+                    # "What's my mileage" (2026-10-08: to a model)
+                    r"what(?:'s| is|s)? my (?:mileage|milage)|"
                     r"what(?:'s| is|s)? the mileage(?: on (?:my|the) car)?)", low):
         # "My car's mileage is 45000" is a note (2026-10-07); with no
         # vehicle on record, what he told her is the answer.
@@ -6083,7 +6085,7 @@ def _interpret(transcript: str) -> dict:
         for row in quick._notes():
             said = " ".join(str(row.get("text") or "").split())
             if re.match(r"(?:my|the|our) (?:car|truck|van|suv)(?:'s|s)? (?:mileage|milage|odometer|miles?) (?:is|are|reads?|says?) .*\d"
-                        r"|(?:my|the|our) (?:car|truck|van|suv) has \d[\d,]* miles", said.casefold()):
+                        r"|(?:my|the|our) (?:car|truck|van|suv) (?:has|is at|is on|just hit|hit) (?:about |around |over )?\d[\d,]*", said.casefold()):
                 return {"command": None, "say": f"You told me: {speech.as_she_says_it(said).rstrip('.')}."}
         return {"command": {"kind": "car"}, "say": None}
     # "MY CAR NEEDS AN OIL CHANGE" (2026-10-07: to the planner) - a thing to
@@ -6390,6 +6392,17 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|the|our) (?:car|truck|van|suv) (?:has|is at|is on|just hit|hit) (?:about |around |over )?"
                     r"\d[\d,]*k?(?: thousand)? miles(?: on it)?(?: now)?", low):
         return {"command": {"kind": "note", "text": low}, "say": None}
+    # "I'm at 45200 miles", "I have 45,000 miles on my car" (2026-10-08: to a
+    # model). A number that size is the car's, kept as the car's.
+    m = re.fullmatch(r"i(?:'m| am) (?:at|on) (?:about |around |over )?(?P<n>\d{1,3},?\d{3}|\d{2,3}k)(?: miles)?(?: on (?:my|the) car)?(?: now)?"
+                     r"|i (?:have|'ve got|got) (?:about |around |over )?(?P<n2>\d[\d,]*k?) miles on (?:my|the) (?:car|truck|van|suv)(?: now)?", low)
+    if m and ("miles" in low or "car" in low):
+        return {"command": {"kind": "note", "text": f"my car is at {m.group('n') or m.group('n2')} miles"}, "say": None}
+    # "The car is making a weird noise" (2026-10-08: to the planner).
+    m = re.fullmatch(r"(?:my|the|our) (?P<v>car|truck|van|suv|bike|motorcycle|washer|dryer|fridge|furnace|dishwasher|ac|a/c|heater)"
+                     r" (?:is making|makes|has been making|keeps making) (?:an? |this |some )?(?P<how>[a-z]+ )?(?:noise|sound)s?(?: again| lately)?", low)
+    if m:
+        return _new_task(f"get the {m.group('v')} looked at - it's making {'an' if (m.group('how') or 's')[0] in 'aeiou' else 'a'} {(m.group('how') or 'strange ')}noise")
     # "Put gym on my calendar every Monday at 6" (2026-10-07: to the
     # planner). Her holds are one at a time; a weekly reminder is what she
     # can do every week, offered in words he can say back.
