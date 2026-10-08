@@ -1294,6 +1294,45 @@ def _would_spend(said: str) -> bool:
         return True
 
 
+#: Chores he names as a noun: on a list with a day, they are tasks.
+_CHORES = (r"(?:the |my )?(?:laundry|dishes|vacuuming|ironing|mowing|yard ?work|homework|taxes|meal prep|groceries"
+           r"|grocery shopping|cleaning|chores|trash|recycling|bills|oil change|car wash|errands|packing)")
+
+
+def _task_just_closed(asked: str) -> dict | None:
+    """The task his last ask dropped or ticked off, as a task_new that puts
+    it back, or None. Only one closed in the last ten minutes whose words
+    are in that ask, so "undo that" never resurrects something older."""
+    import datetime as dt
+    try:
+        from aletheia import tasks
+        rows = tasks.all_tasks()
+    except Exception:
+        return None
+    said = " ".join(str(asked or "").casefold().split())
+    if not said:
+        return None
+    now = dt.datetime.now(dt.timezone.utc)
+    best = None
+    for task in rows:
+        if task.get("status") not in ("CANCELLED", "COMPLETED"):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(task.get("updated_at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        what = " ".join(str(task.get("description") or "").casefold().split())
+        if what and what in said and now - at < dt.timedelta(minutes=10) and (best is None or at > best[0]):
+            best = (at, task)
+    if best is None:
+        return None
+    task = best[1]
+    made = _new_task(str(task["description"]))
+    if task.get("deadline"):
+        made["command"]["deadline"] = task["deadline"]
+    return made
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -3353,6 +3392,11 @@ def _interpret(transcript: str) -> dict:
                 pass
         if before.get("kind") == "reminder_off" and not before.get("once"):
             return {"command": {"kind": "reminder_on", "which": before["which"]}, "say": None}
+        # "Delete laundry", "undo that" (2026-10-08: "nothing to undo"). A
+        # closed task never reopens, so the same task is added again.
+        back = _task_just_closed(previous)
+        if back is not None:
+            return back
     m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)", low)
     if m:
         return {"command": {"kind": "reminder_on", "which": m.group("w")}, "say": None}
@@ -6238,16 +6282,23 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:add|put|stick) (?P<what>.+?) (?:on|to) (?:the |my )?(?P<todo>(?:to ?do|to-do|task) )?list"
                      r" (?P<day>(?:for |by |on |due )?(?:today|tonight|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday"
                      r"|thursday|friday|saturday|sunday)))", low)
-    if m and (m.group("todo") or _TASK_VERB.match(m.group("what"))):
-        day = re.sub(r"^(?:for|due) ", "", m.group("day"))
-        return _new_task(_as_he_said(transcript, m.group("what")).strip() + " " + day)
+    # A chore said as a noun ("add laundry to my list for tomorrow",
+    # 2026-10-08: to the planner) is as much a task as a verb is; nothing
+    # bought has a day.
+    if m and (m.group("todo") or _TASK_VERB.match(m.group("what")) or re.fullmatch(_CHORES, m.group("what"))):
+        day = m.group("day")
+        # "Laundry tomorrow" lost its day (one word before it); "laundry by
+        # tomorrow" keeps it as the deadline.
+        day = day if re.match(r"(?:for|by|on|due) ", day) else f"by {day}"
+        return _new_task(_as_he_said(transcript, m.group("what")).strip() + " " + re.sub(r"^on ", "by ", day))
     m = re.match(r"(?:add|put|get|stick|throw) (.+?) (?:on|to) (?:the |my )?"
                  r"(?:shopping |grocery )?list$", low)
     if m and re.match(r"buy (?:some |more )?\S", m.group(1)):
         # "Add buy milk to my list" put "buy milk" on the shopping list.
         m = re.match(r"(?:add|put|get|stick|throw) buy (?:some |more )?(.+?) (?:on|to) (?:the |my )?"
                      r"(?:shopping |grocery )?list$", low)
-    if m and not re.search(r"(?:shopping|grocery) list$", low) and _TASK_VERB.match(m.group(1)):
+    if m and not re.search(r"(?:shopping|grocery) list$", low) and (_TASK_VERB.match(m.group(1))
+                                                                   or re.fullmatch(_CHORES, m.group(1))):
         # "Add call the dentist to my list" went on the SHOPPING list
         # (2026-09-24). A thing to do is a task; a thing to buy is a purchase.
         return _new_task(_as_he_said(text, m.group(1).strip()))

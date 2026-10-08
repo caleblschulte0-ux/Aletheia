@@ -512,6 +512,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$")),
+    # "What's my oldest task" (2026-10-08: searched memory for "oldest task").
+    ("task_age", re.compile(
+        r"^(?:what(?:'s| is|s)|which is) (?:my |the )?(?P<task_age>oldest|newest|latest|most recent|first|last) "
+        r"(?:task|thing on my (?:list|to ?do list)|to ?do)(?: on my list)?\s*\??$")),
     # "Do I work tomorrow" after "I have the day off tomorrow" (2026-10-08:
     # to the planner).
     ("do_i_work", re.compile(
@@ -2675,7 +2679,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "who_coming_noted", "do_i_work", "task_age", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -11281,6 +11285,21 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _task_age(rest) -> str:
+    """His oldest or newest open task, with when he added it."""
+    from aletheia import speech, tasks
+    live = sorted((t for t in tasks.all_tasks()
+                   if str(t.get("status") or "").upper() not in _TASK_CLOSED and tasks.is_his(t)),
+                  key=lambda t: str(t.get("created_at") or ""))
+    if not live:
+        return "Nothing open on your task list."
+    oldest = str(rest or "").strip() in ("oldest", "first")
+    task = live[0] if oldest else live[-1]
+    what = str(task.get("description") or task["id"]).strip().rstrip(".")
+    return (f"{what[:1].upper()}{what[1:]} - you added it {speech.humanize_time(str(task.get('created_at') or ''))}."
+            + ("" if len(live) > 1 else " It's the only one open."))
+
+
 def _do_i_work(rest) -> str | None:
     """Whether he works on a day, from what he told her: a day off named for
     it, then the days he said he works. None when he said neither."""
@@ -13280,6 +13299,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "told_on": _told_on,
            "who_called": _who_called,
            "do_i_work": _do_i_work,
+           "task_age": _task_age,
            "who_coming_noted": _who_coming_noted,
            "asked_on": _asked_on,
            "hunt_why": lambda rest: _hunt_why(),

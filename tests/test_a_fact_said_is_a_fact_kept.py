@@ -7493,5 +7493,45 @@ class HalfTheCommute(unittest.TestCase):
             self.assertIn("how long the trip is", voice.interpret("thea when should I leave for work")["say"])
 
 
+class ChoresUndoAndTheOldestTask(unittest.TestCase):
+    """2026-10-08: "add laundry to my list for tomorrow" went to the planner
+    (and "laundry" alone onto the SHOPPING list), "undo that" after dropping
+    it said there was nothing to undo, and "what's my oldest task" searched
+    memory."""
+
+    def test_a_chore_with_a_day_is_a_task_due_then(self):
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]):
+            cmd = voice.interpret("thea add laundry to my list for tomorrow")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "laundry"))
+        self.assertEqual(cmd["deadline"], voice._spoken_day("tomorrow"))
+
+    def test_a_chore_alone_is_not_shopping(self):
+        with mock.patch("aletheia.tasks.all_tasks", return_value=[]):
+            cmd = voice.interpret("thea add laundry to my list")["command"]
+        self.assertEqual(cmd["kind"], "task_new")
+
+    def test_undo_puts_back_the_task_just_dropped(self):
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"id": "laundry", "description": "laundry", "status": "CANCELLED", "updated_at": now,
+                 "deadline": "2026-10-10"}]
+        with mock.patch("aletheia.tasks.all_tasks", return_value=rows):
+            back = voice._task_just_closed("delete laundry")
+        self.assertEqual((back["command"]["kind"], back["command"]["description"], back["command"]["deadline"]),
+                         ("task_new", "laundry", "2026-10-10"))
+
+    def test_undo_never_reaches_an_old_one(self):
+        old = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=2)).isoformat()
+        rows = [{"id": "laundry", "description": "laundry", "status": "CANCELLED", "updated_at": old}]
+        with mock.patch("aletheia.tasks.all_tasks", return_value=rows):
+            self.assertIsNone(voice._task_just_closed("delete laundry"))
+
+    def test_the_oldest_task(self):
+        rows = [{"id": "b", "description": "pay rent", "status": "QUEUED", "created_at": "2026-10-08T07:00:00+00:00"},
+                {"id": "a", "description": "call mom", "status": "QUEUED", "created_at": "2026-10-01T07:00:00+00:00"}]
+        with mock.patch("aletheia.tasks.all_tasks", return_value=rows), mock.patch("aletheia.tasks.is_his", return_value=True):
+            self.assertTrue(quick.answer("what's my oldest task").startswith("Call mom"))
+            self.assertTrue(quick.answer("what's my newest task").startswith("Pay rent"))
+
+
 if __name__ == "__main__":
     unittest.main()
