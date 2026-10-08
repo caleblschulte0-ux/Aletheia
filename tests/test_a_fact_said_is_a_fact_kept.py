@@ -12155,5 +12155,12 @@ class ChoresAndTurns(unittest.TestCase):
             self.assertIsNone(quick.answer("when did I last mop"))
 
 
+class AFriendsBaby(unittest.TestCase):
+    def test_a_friend_by_name_had_a_baby(self):
+        got = voice.interpret("Mike just had a baby boy")
+        self.assertEqual(got["command"], {"kind": "note", "text": "Mike just had a baby boy"})
+        self.assertIn("congratulations to Mike", got["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

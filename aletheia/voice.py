@@ -11101,6 +11101,13 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my (?:wife|husband|son|daughter|partner)|(?!(?:who|what|nobody|everyone|anyone)\b)[a-z]{2,15}) (?:is|will be) (?:doing|cooking|making) (?:the dishes|dishes|dinner|the laundry|laundry)(?: tonight| today| this week)?", low) \
             or re.fullmatch(r"the (?:trash|garbage|recycling|bins?) (?:goes|go|go out|goes out|is picked up|gets picked up) (?:out )?(?:tonight|tomorrow|today|on [a-z]+days?|every [a-z]+day)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Mike just had a baby boy" (2026-10-08: to the planner) - a friend's
+    # news, by name. The capital is what makes it a name.
+    m = re.fullmatch(r"(?P<who>[A-Z][a-z]{1,15}(?: and [A-Z][a-z]{1,15})?) (?:just )?(?:had|welcomed) (?:a|their|her|his) (?:new )?baby(?: boy| girl)?(?: today| yesterday| last night| this week)?[.!]*",
+                     " ".join(text.split()).strip())
+    if m and m.group("who").split()[0] not in ("My", "The", "We", "I", "She", "He", "They", "Our"):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"That's wonderful - congratulations to {m.group('who')}. I've kept it."}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
