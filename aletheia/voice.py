@@ -8909,7 +8909,7 @@ def _interpret(transcript: str) -> dict:
                         # "I have a parent teacher conference thursday at 4" (2026-10-08: to the planner).
                         r"|conference|lesson|rehearsal|concert|performance"
                         # "I have a one on one with Linda tomorrow at 10" (2026-10-08: to the planner).
-                        r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up)(?: with [a-z' ]+?)?)"
+                        r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up)(?: (?:with|at) [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
     # ...but "call tomorrow" alone is not a diary entry called Call.
@@ -8940,6 +8940,11 @@ def _interpret(transcript: str) -> dict:
     # "I'm meeting Jake for lunch on Friday" is lunch with Jake, not a hold
     # called "I'm meeting Jake for lunch" (2026-10-08): the meeting rule below.
     if told and re.match(r"(?:i'?m|i am|we'?re|we are) (?:meeting|seeing) ", told.group("title")):
+        told = None
+    # "My mom had surgery today" became a 9 am hold called "mom had surgery"
+    # (2026-10-08). What already happened is news, not a diary entry.
+    if told and not told.group("lead") and re.search(r"\b(?:had|went|was|were|did|got|finished|missed|skipped|cancell?ed)\b",
+                                                     told.group("title")):
         told = None
     m = m or told
     # "I HAVE A MEETING WITH DANA AT 2" names no day (2026-10-07: to the
@@ -9073,9 +9078,9 @@ def _interpret(transcript: str) -> dict:
                        "", m.group("title"))
         # "The kids have a dentist appointment Friday at 3" (2026-10-08) was
         # a hold called "the kids have a dentist appointment".
-        kids = re.match(r"(?P<who>the kids|my (?:son|daughter|kids|wife|husband|mom|dad)) (?:has|have|has got|have got) (?:a |an |their |his |her )?(?P<what>.+)$", title)
+        kids = re.match(r"(?P<who>the kids|(?:my )?(?:son|daughter|kids|wife|husband|mom|dad)) (?:has|have|has got|have got|is having|are having|is getting) (?:a |an |their |his |her )?(?P<what>.+)$", title)
         if kids:
-            whose = {"the kids": "the kids'", "my kids": "the kids'"}.get(kids.group("who"), re.sub(r"^my ", "", kids.group("who")) + "'s")
+            whose = {"the kids": "the kids'", "my kids": "the kids'", "kids": "the kids'"}.get(kids.group("who"), re.sub(r"^my ", "", kids.group("who")) + "'s")
             title = f"{whose} {kids.group('what')}"
         held = _calendar_hold(text, title, m.group("day") or "", m.group("part"), m.group("time"))
         if held:
@@ -9592,6 +9597,19 @@ def _interpret(transcript: str) -> dict:
         feels = "feel" if who == "they" else "feels"
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"I'm sorry. I hope {who} {feels} better soon - I've noted it."}
+    # "My sister just had surgery" (2026-10-08: to the planner, and "my mom
+    # had surgery today" was a 9 am hold). Kept, with one kind line.
+    m = re.fullmatch(r"(?:my|our) (?P<rel>son|daughter|wife|husband|partner|kid|mom|mum|dad|mother|father|brother|sister|baby|grandma|grandpa"
+                     r"|grandmother|grandfather|aunt|uncle|cousin|friend|girlfriend|boyfriend|mother in law|father in law|dog|cat)"
+                     r" (?:just )?(?:had|came out of|got out of|is out of|is recovering from) (?:her |his |their |an? )?"
+                     r"(?:surgery|operation|procedure|knee surgery|back surgery|hip surgery|heart surgery|shoulder surgery)"
+                     r"(?: today| yesterday| this morning| last night)?", low)
+    if m:
+        rel = m.group("rel")
+        who = ("she" if rel in ("daughter", "wife", "mom", "mum", "mother", "sister", "grandma", "grandmother", "aunt", "girlfriend", "mother in law")
+               else "they" if rel in ("partner", "baby", "kid", "cousin", "friend", "dog", "cat") else "he")
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)},
+                "say": f"I'm sorry. I hope {who} {'recover' if who == 'they' else 'recovers'} quickly - I've noted it."}
     # WHEN SOMEBODY'S DAY STARTS, AND WHERE THEY ARE (2026-10-07: "Emma's
     # school starts at 8" and "the kids are at grandma's this weekend" went
     # to the planner; "where are the kids" then searched his files).

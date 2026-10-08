@@ -10540,5 +10540,29 @@ class TheRentGoingUp(unittest.TestCase):
             self.assertEqual(quick.answer("what is my rent"), "You told me: your rent is 1500.")
 
 
+class NewsAboutSomebodyIsNotADiaryEntry(unittest.TestCase):
+    """2026-10-08: "my mom had surgery today" became a 9 am hold called "mom
+    had surgery"; "my sister just had surgery" and "I have a job interview
+    at google on monday at 2" went to the planner."""
+
+    def test_surgery_is_news(self):
+        for said in ("my mom had surgery today", "my sister just had surgery"):
+            got = voice._interpret(said)
+            self.assertEqual(got["command"]["kind"], "note", said)
+            self.assertIn("I'm sorry", got["say"])
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my sister just had surgery"}]):
+            self.assertEqual(quick.answer("how is my sister"), "The latest you told me: your sister just had surgery.")
+
+    def test_what_already_happened_is_not_a_hold(self):
+        self.assertNotEqual(voice._interpret("my son had a test friday")["command"]["kind"], "calendar_hold")
+
+    def test_an_interview_at_a_place(self):
+        cmd = voice._interpret("I have a job interview at google on monday at 2")["command"]
+        self.assertEqual((cmd["kind"], cmd["title"]), ("calendar_hold", "job interview at google"))
+
+    def test_his_family_on_his_calendar(self):
+        self.assertEqual(voice._interpret("my dad is having surgery tomorrow")["command"]["title"], "dad's surgery")
+
+
 if __name__ == "__main__":
     unittest.main()
