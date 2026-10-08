@@ -90,6 +90,31 @@ class NothingIsDefinedTwiceCase(unittest.TestCase):
             + offenders))
 
 
+class NoTestIsDefinedTwiceCase(unittest.TestCase):
+    """The same defect in the suite is worse, because it is silent twice:
+    a test class written twice under one name never runs its first copy,
+    and nothing goes red. Found 2026-10-08 - nine classes in
+    test_a_fact_said_is_a_fact_kept.py had been shadowed, and three of the
+    twenty-one tests behind them were already failing."""
+
+    def test_no_test_class_or_method_is_written_twice(self):
+        offenders = []
+        for path in sorted(pathlib.Path(__file__).resolve().parent.glob("test_*.py")):
+            with io.open(path, encoding="utf-8") as handle:
+                tree = ast.parse(handle.read())
+            defined, _ = _module_level(tree)
+            for name, count in collections.Counter(defined).items():
+                if count > 1:
+                    offenders.append(f"{path.name}: {name} x{count}")
+            for cls in (n for n in tree.body if isinstance(n, ast.ClassDef)):
+                methods = [m.name for m in cls.body if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef))]
+                for name, count in collections.Counter(methods).items():
+                    if count > 1:
+                        offenders.append(f"{path.name}: {cls.name}.{name} x{count}")
+        self.assertEqual(offenders, [], "\n".join(
+            ["the first copy never runs:"] + offenders))
+
+
 class WhatEachDuplicateCostCase(unittest.TestCase):
     """One assertion per fault, so a revert says which one came back."""
 

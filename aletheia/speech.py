@@ -662,6 +662,10 @@ def spoken_receipt(kind: str, detail: str, *,
                 return (f"Done - your timer{' for the ' + named.group(2) if named else ''} now goes off "
                         f"{humanize_time(when.group(0), now)}.")
             return f"Timer set for {span} - it goes off {humanize_time(when.group(0), now)}."
+        if when and what and text.rstrip().endswith("(already set)"):
+            if what.group(1).strip() == "wake up":
+                return f"You already have an alarm for {humanize_time(when.group(0), now)}."
+            return f"You already have that reminder {humanize_time(when.group(0), now)}: {_yours(what.group(1))}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:
@@ -773,6 +777,9 @@ def spoken_receipt(kind: str, detail: str, *,
         several = re.match(r"(\d+) tasks queued\s*[—-]\s*(.+)", text)
         if several:
             return f"Added {several.group(1)} tasks: {several.group(2).strip()}."
+        already = re.search(r"task [a-z0-9-]+ already open\s*[—-]\s*(.+)", text)
+        if already:
+            return f"That's already on your list: {already.group(1).strip()}."
         # "task renew-my-passport queued — renew my passport due Friday"
         named = re.search(r"task [a-z0-9-]+ queued\s*[—-]\s*(.+)", text)
         if named:

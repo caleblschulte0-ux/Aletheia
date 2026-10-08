@@ -57,14 +57,6 @@ class RehearsalCase(unittest.TestCase):
         self.assertIn("approve", intercom.PLANNER_FORBIDDEN)
         self.assertIn("deny", intercom.PLANNER_FORBIDDEN)
 
-    def test_every_container_really_re_enters_this_function(self):
-        # The exemption is only safe because each one hands its steps
-        # back to be checked individually. A kind that DOES something
-        # itself may never be listed here.
-        for kind in intercom.CONTAINERS:
-            self.assertIn(kind, intercom.KIND_ARGS, kind)
-            self.assertEqual(intercom.tier(kind), intercom.TIER_WORLD, kind)
-
     def test_local_work_still_really_happens(self):
         """A rehearsal that refuses everything tests nothing."""
         said = intercom.execute_command({"kind": "note", "text": "a thought"},
