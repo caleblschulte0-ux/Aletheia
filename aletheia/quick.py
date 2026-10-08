@@ -1897,7 +1897,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("days_off", re.compile(
         r"^how many (?P<off_kind>vacation|pto|sick|personal|holiday|leave) days? (?:do i have|have i got|are left|have i (?:got )?left"
         r"|do i have left|have i used|have i taken|did i take|do i get)(?: left)?(?: this year)?\s*\??$"
-        r"|^how much (?P<off_kind2>pto|vacation|leave|time off) (?:do i have|have i got)(?: left)?\s*\??$")),
+        r"|^how much (?P<off_kind2>pto|vacation|leave|time off) (?:do i have|have i got)(?: left)?\s*\??$"
+        # "How many days off do I have" (2026-10-08: to a model) is vacation.
+        r"|^how many (?:days off|vacation days|days of vacation|days of pto) (?:do i have|have i got|are left|do i have left)(?: left)?(?: this year)?\s*\??$")),
     ("habit", re.compile(
         r"^how many days in a row (?:have|did) i (?P<hb_streak>[a-z]+(?: [a-z]+)?)\s*\??$"
         r"|^(?:what(?:'s| is) my|how long is my) (?P<hb_streak2>[a-z]+) streak\s*\??$"

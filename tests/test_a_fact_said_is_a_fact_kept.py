@@ -7153,6 +7153,12 @@ class TheOtherHalfOfRemindMeTomorrow(unittest.TestCase):
         self.assertNotEqual(((got or {}).get("command") or {}).get("kind"), "remind_at")
 
 
+class DaysOffSaidPlainly(unittest.TestCase):
+    def test_days_off_is_vacation(self):
+        # 2026-10-08: "how many days off do I have" went to a model.
+        self.assertEqual(quick.match("how many days off do I have")[0], "days_off")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found
