@@ -2098,7 +2098,12 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
     through the existing webtask path. Returns the stopped record."""
     kinds = controls(obs)
     target = final_control(obs, goal)
-    if target is None and kinds.get(ps.SPEND):
+    if target is None and kinds.get(ps.SPEND) and getattr(skill, "name", "") != "job_application":
+        # An application never charges him, so on a job a money-worded
+        # control is not the way on: it is the posting's "Pay Transparency
+        # Policy" link or a "Billing Specialist" title, and refusing the
+        # whole mission over it closed applications as if they spent money.
+        # It is still never pressed (`choose` and the tool path refuse it).
         label = kinds[ps.SPEND][0]["label"]
         return _stop(record, bm.REFUSED, "SPENDING", obs,
                      say=f"The way on is a button that says {label[:60]!r}, which spends money. "
