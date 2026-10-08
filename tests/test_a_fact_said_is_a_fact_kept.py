@@ -12473,5 +12473,16 @@ class ABabyOnTheWay(unittest.TestCase):
             self.assertEqual(quick.answer("how far along is my wife"), "You told me your wife is 20 weeks pregnant.")
 
 
+class Moving(unittest.TestCase):
+    def test_the_move_is_kept_and_its_questions_read_it(self):
+        self.assertEqual(voice.interpret("the movers come on the 15th")["command"], {"kind": "note", "text": "the movers come on the 15th"})
+        self.assertEqual(voice.interpret("I need to forward my mail")["command"]["description"], "forward my mail")
+        for asked in ("what is our new address", "when is the closing"):
+            self.assertEqual(voice.interpret(asked)["command"]["kind"], "intent", asked)
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "our new address is 42 oak street"}, {"text": "the closing is on november 3"}]):
+            self.assertEqual(quick.answer("what is our new address"), "You told me: our new address is 42 oak street.")
+            self.assertEqual(quick.answer("when is the closing"), "You told me: the closing is on November 3.")
+
+
 if __name__ == "__main__":
     unittest.main()

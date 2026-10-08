@@ -1308,7 +1308,8 @@ _TASK_VERB = re.compile(
     # "Add write the report to my list" went on the SHOPPING list (2026-10-07).
     r"write|draft|plan|go to|practi[cs]e|prep|start|learn|figure out|find|reply to|respond to|answer|confirm|"
     # "I need to catch up with Mike" (2026-10-08: to the planner).
-    r"catch up with|reach out to|check in (?:on|with)|get together with|hang out with|grab (?:lunch|coffee|dinner|drinks|a drink|a beer) with|"
+    r"catch up with|reach out to|check in (?:on|with)|forward|transfer|"
+    r"get together with|hang out with|grab (?:lunch|coffee|dinner|drinks|a drink|a beer) with|"
     r"register|sign up|fill out|complete|repair|refill|re-fill|paint (?:the|my|a)|wrap (?:the|my|a|presents|gifts)|charge (?:the|my)|edit|proofread|reschedule|get back to|"
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
@@ -3887,7 +3888,10 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:locker|account|member(?:ship)?|policy|license|licence|plate|wifi|wi-fi|gate|door"
                               r"|garage|room|seat|flight|confirmation|order|tracking|case|ticket|insurance|social security"
                               r"|passport|employee|student|customer|reference|serial|model|pin|bank|routing|card|apartment"
-                              r"|unit|house|street|home|work|office|zip|postal|post)$", m.group(1)):
+                              r"|unit|house|street|home|work|office|zip|postal|post"
+                              # "What is our new address" looked up a contact called
+                              # "our new" (2026-10-08).
+                              r"|new|old|current|previous|first|last|other)$", m.group(1)):
         asked = "email" if low.endswith("email") else "number" if low.endswith("number") else ""
         return {"command": {"kind": "contacts", "which": m.group(1).strip(), **({"asked": asked} if asked else {})},
                 "say": None}
@@ -7160,8 +7164,10 @@ def _interpret(transcript: str) -> dict:
             if not re.search(rf"\b{asked[:4]}", told.casefold()):
                 told = told.rstrip(".") + f", but not when it {asked}s."
             return {"command": None, "say": told}
+    # "When is the closing" searched the web for "the hours" (2026-10-08): an
+    # article alone is no place.
     if m and not re.search(r"\b(?:it|that|this|my|your|door|window|app|file|tab|browser|calendar|spotify|chrome"
-                           r"|garage|fridge|microphone|mic|ticket|application|position|job|pr|pull request)\b",
+                           r"|garage|fridge|microphone|mic|ticket|application|position|job|pr|pull request)\b|^\s*(?:the|a|an|our)?\s*$",
                            m.group("p") or m.group("p2") or m.group("p3") or ""):
         place = (m.group("p") or m.group("p2") or m.group("p3")).strip()
         when = (m.group("when") or m.group("when2") or "").strip()
@@ -11182,7 +11188,7 @@ def _interpret(transcript: str) -> dict:
     # Around the house (2026-10-08, each to the planner): "the pest control
     # guy is coming friday", "the water heater is 10 years old", "we
     # painted the bedroom blue", "the furnace filter needs changing".
-    if re.fullmatch(r"(?:the|my|our) " + TRADES + r" (?:is|are) (?:coming|coming out|coming by|scheduled|booked)(?: (?:on|this|next))? (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+    if re.fullmatch(r"(?:the|my|our) " + TRADES + r" (?:(?:is|are) (?:coming|coming out|coming by|scheduled|booked)|comes?|arrives?|will (?:come|be here|arrive))(?: (?:on|this|next))? (?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|" + SPOKEN_DATE + r")"
                     r"(?: (?:at|between) \d{1,2}(?::\d\d)? ?(?:am|pm)?(?: (?:and|to|-) \d{1,2}(?::\d\d)? ?(?:am|pm)?)?)?(?: (?:morning|afternoon))?", low) \
             or re.fullmatch(r"(?:the|my|our) (?:water heater|furnace|roof|ac|air conditioner|hvac|fridge|refrigerator|dishwasher|washer|dryer|washing machine|oven|stove|garage door opener|mattress|deck|fence|boiler)"
                             r" (?:is|was) (?:about |around |almost |over )?\d+ (?:years?|months?) old", low) \
