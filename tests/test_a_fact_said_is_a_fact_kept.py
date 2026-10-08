@@ -9516,5 +9516,25 @@ class TheKidsAndSchool(unittest.TestCase):
             self.assertIsNone(quick.answer("did my mom call"))
 
 
+class SubscriptionsAndSavings(unittest.TestCase):
+    """A sweep of money sentences (2026-10-08): a cancelled service, a new
+    one at a price, and how a savings goal is going."""
+
+    def test_kept(self):
+        self.assertEqual(voice._interpret("I signed up for spotify at 11 a month")["command"],
+                         {"kind": "note", "text": "my Spotify is 11 a month"})
+        self.assertEqual(voice._interpret("I cancelled netflix")["command"], {"kind": "note", "text": "I cancelled netflix"})
+
+    def test_read(self):
+        rows = [{"text": "I cancelled netflix"}, {"text": "my Spotify is 11 a month"}, {"text": "my rent is 1500"},
+                {"text": "my netflix is 15 a month"}, {"text": "I have 2000 in savings"}, {"text": "I want to save 5000 by june"}]
+        with mock.patch.object(quick, "_notes", lambda: rows):
+            self.assertEqual(quick.answer("how much is spotify"), "You told me: your Spotify is 11 a month.")
+            self.assertEqual(quick.answer("how much do I spend on subscriptions"),
+                             "About $11 a month. From what you've told me: your Spotify is 11 a month.")
+            self.assertNotIn("netflix", quick.answer("how much are my bills a month").casefold())
+            self.assertIn("$3,000 to go by June 1", quick.answer("how am I doing on my savings goal"))
+
+
 if __name__ == "__main__":
     unittest.main()

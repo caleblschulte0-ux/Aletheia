@@ -10111,6 +10111,23 @@ def _interpret(transcript: str) -> dict:
                             r"(?: elementary| middle(?: school)?| high(?: school)?| academy| school| prep| preschool| daycare| college| university)", low) \
             or re.fullmatch(kin.replace("(?:'s|s'?)?", "") + r" (?:just )?lost (?:a|his|her|their|another|a second|another) (?:first )?(?:baby )?tooth(?: today| tonight| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I signed up for Spotify at 11 a month", "I cancelled Netflix"
+    # (2026-10-08: both to the planner). Kept the way "what are my bills"
+    # reads them: "my Spotify is 11 a month".
+    svc = (r"netflix|spotify|hulu|disney plus|hbo max|youtube premium|youtube tv|amazon prime|apple music|apple tv|icloud|peacock"
+           r"|paramount plus|audible|game pass|xbox game pass|playstation plus|chatgpt|the gym|a gym|planet fitness")
+    m = re.fullmatch(rf"i (?:just )?(?:signed up for|subscribed to|started paying for|joined) (?P<svc>{svc})"
+                     r"(?: (?:at|for) \$?(?P<n>\d[\d,.]*)(?: dollars| bucks)? (?:a|per|each) (?P<per>month|year|week))?", low)
+    if m:
+        name = _as_he_said(text, m.group("svc")).removeprefix("the ").removeprefix("a ")
+        name = name[:1].upper() + name[1:]
+        if m.group("n"):
+            return {"command": {"kind": "note", "text": f"my {name} is {m.group('n')} a {m.group('per')}"}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(rf"i (?:just |finally )?(?:cancell?ed|unsubscribed from|stopped paying for|got rid of) (?:my |our )?(?P<svc>{svc}|gym membership)"
+                     r"(?: subscription| membership| account)?(?: today| yesterday)?", low)
+    if m:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I froze the leftover soup", "I made a double batch of chili"
     # (2026-10-08: to the planner). What is in the freezer is read back.
     if re.fullmatch(r"i (?:just )?froze (?:the |some |my |a |our )?[a-z][a-z' ]{1,40}?(?: today| yesterday| last night| for later)?", low) \

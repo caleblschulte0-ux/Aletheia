@@ -529,7 +529,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?: (?:in total|altogether|total))?(?: (?:a|each|per|every) month| monthly)?\s*\??$"
         r"|^how much (?:is|are|was) (?:my|our|the) (?P<cost_mine>[a-z][a-z' ]{1,30}?)(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         # "How much is rent" (2026-10-07: to a model, beside "my rent is 1500").
-        r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage)(?: (?:a|per|each) month)?\s*\??$"
+        r"|^how much (?:is|was) (?P<cost_mine3>rent|mortgage|netflix|spotify|hulu|disney plus|hbo max|youtube premium|youtube tv"
+        r"|amazon prime|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus)(?: (?:a|per|each) month)?\s*\??$"
         r"|^(?:how much|what) do (?:i|we) (?:pay|spend) (?:for|on|in) (?:my |our |the )?(?P<cost_mine2>[a-z][a-z' ]{1,30}?)"
         r"(?: (?:a|per|each) (?:month|week|year))?\s*\??$"
         r"|^what (?:are|r) my (?:monthly )?(?P<cost_bills>bills|expenses|monthly bills)(?: (?:this|a|each|per) month| monthly)?\s*\??$"
@@ -2716,6 +2717,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^how much (?:money )?(?:have i|did i) (?:saved?|put away|set aside)(?P<saved_w> so far| this week| this month| in total| total)?\s*\??$"
         r"|^how much (?P<saved_more>more )?(?:do i|will i) (?:still )?(?:need|have) to save\s*\??$"
         r"|^how (?P<saved_close>close|far) am i (?:from|to) (?:my |the )?(?:savings )?goal\s*\??$"
+        # "How am I doing on my savings goal" (2026-10-08: to a model).
+        r"|^how (?:am i|are we) (?P<saved_doing>doing|getting on|coming along|tracking) (?:on|with) (?:my |our |the )?(?:savings?(?: goal)?|saving)\s*\??$"
         r"|^how much is left to save\s*\??$"
         # "How much do I need to save each week" (2026-10-08: to a model,
         # with the goal and its date in his notes).
@@ -6842,9 +6845,15 @@ def _saved(text: str) -> str | None:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     start = {"this week": now - dt.timedelta(days=now.weekday()), "this month": now.replace(day=1)}.get(window)
-    total, goal, goal_by = 0.0, None, ""
+    total, goal, goal_by, balance = 0.0, None, "", None
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).casefold()
+        # "I have 2000 in savings" (2026-10-08) is where he stands; what he
+        # said he saved after it adds to it.
+        bal = re.match(r"i (?:have|'ve got|have got|got) (?:about |around )?\$?(\d[\d,]*(?:\.\d\d)?)(?: dollars| bucks)? (?:in|saved in) (?:my )?savings", said)
+        if bal and balance is None and not window:
+            balance = float(bal.group(1).replace(",", "")) + total
+            continue
         m = _SAVED_NOTE.match(said)
         if m and (said.startswith("i saved") or re.search(r"savings|fund|\bfor\b", said)):
             try:
@@ -6860,11 +6869,13 @@ def _saved(text: str) -> str | None:
             goal = (amount, re.sub(r"^my ", "your ", (m.group("for") or "").strip()))
             by = re.search(r" by (.+)$", said)
             goal_by = by.group(1).strip() if by else ""
+    if balance is not None:
+        total = balance
     if not total and not goal:
         return None
     span = f" {window}" if window and window not in ("so far", "in total", "total") else ""
     if not goal:
-        if g.get("saved_more") or g.get("saved_close") or "left" in text:
+        if g.get("saved_more") or g.get("saved_close") or g.get("saved_doing") or "left" in text:
             return f"You've told me you saved {_money(total)}, but not what you're saving towards."
         return f"{_money(total)}{span}, from what you've told me."
     amount, for_ = goal
@@ -6885,6 +6896,12 @@ def _saved(text: str) -> str | None:
         each = left / max(count, 1)
         return (f"About {_money(round(each, 2))} a {per} - {_money(left)} to go toward {aim} "
                 f"by {due.strftime('%B')} {due.day}.")
+    if g.get("saved_doing") and goal_by:
+        due = _save_by(goal_by, now.date())
+        if due is not None and (due - now.date()).days > 0:
+            months = max((due - now.date()).days / 30.44, 1)
+            return (f"You've saved {_money(total)} toward {aim}, so {_money(left)} to go by {due.strftime('%B')} {due.day} - "
+                    f"about {_money(round(left / months))} a month, from what you've told me.")
     return f"You've saved {_money(total)}{span} toward {aim}, so {_money(left)} to go, from what you've told me."
 
 
@@ -12625,11 +12642,12 @@ def _did_count(text: str) -> str | None:
     return f"{speech.count_phrase(n, 'time')} {window}, from what you've told me."
 
 
+_SUB_KEYS = (r"netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
 _BILL_KEYS = (r"rent|mortgage|car payment|(?:car |auto |health |home |renters? |life |pet )?insurance(?: payment| bill)?"
               r"|phone bill|cell(?: phone)? bill|electric(?:ity)? bill|internet bill|wifi bill|water bill|gas bill|cable bill"
               r"|utilities|utility bill|student loans?(?: payment)?|loan payment|daycare|tuition|gym membership|hoa(?: fees?)?"
               r"|childcare|car loan|trash bill|sewer bill"
-              r"|netflix|spotify|hulu|disney plus|disney\+|hbo max|hbo|youtube premium|youtube tv|amazon prime|prime membership|apple music|apple tv|icloud|peacock|paramount plus|audible|game pass|xbox game pass|playstation plus|ps plus|chatgpt|chat gpt|claude subscription|(?:[a-z]+ )?subscription")
+              r"|" + _SUB_KEYS)
 
 
 def _cost_mine(text: str) -> str | None:
@@ -12639,10 +12657,21 @@ def _cost_mine(text: str) -> str | None:
     from aletheia import speech
     g = _groups("cost_mine", text)
     rows = [" ".join(str(r.get("text") or "").split()) for r in _notes()]
-    if g.get("cost_bills") or g.get("cost_bills2") or g.get("cost_bills3"):
+    thing0 = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or "").casefold().split())
+    # "How much do I spend on subscriptions" (2026-10-08: to a model) is the
+    # bills total with only the subscriptions in it.
+    subs = thing0 in ("subscriptions", "streaming", "streaming services", "my subscriptions")
+    if g.get("cost_bills") or g.get("cost_bills2") or g.get("cost_bills3") or subs:
         bills, seen, total, whole = [], set(), 0.0, True
         for said in rows:
+            # "I cancelled Netflix" (2026-10-08) takes it out of the sum.
+            gone = re.match(rf"i (?:cancell?ed|unsubscribed from|stopped paying for|got rid of) (?:my |our )?(?P<k>{_BILL_KEYS})\b", said.casefold())
+            if gone:
+                seen.add(gone.group("k"))
+                continue
             m = re.match(rf"(?:my|our) (?P<k>{_BILL_KEYS}) (?:is|are) (?P<v>.*\d.*)$", said.casefold())
+            if m and subs and not re.fullmatch(_SUB_KEYS, m.group("k")):
+                continue
             if m and m.group("k") not in seen:
                 seen.add(m.group("k"))
                 bills.append(speech.as_she_says_it(said).rstrip(".").removeprefix("your ").removeprefix("Your "))
@@ -12657,7 +12686,7 @@ def _cost_mine(text: str) -> str | None:
         if not bills:
             return None
         listed = f"From what you've told me: your {speech.and_list(bills)}."
-        if g.get("cost_bills2") and whole:
+        if (g.get("cost_bills2") or subs) and whole:
             return f"About {_money(round(total))} a month. {listed}"
         return listed
     thing = " ".join(str(g.get("cost_mine") or g.get("cost_mine2") or g.get("cost_mine3") or "").casefold().split())
