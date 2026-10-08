@@ -2412,7 +2412,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|(?:give me|i need) a pep talk|pep talk|i need (?:some )?motivation|say something nice|cheer me up|make me smile"
         r"|give me a compliment|compliment me|say something nice about me"
         # "I have a headache" (2026-10-07: to a model) is "I'm sick".
-        r"|i(?:'ve| have)(?: got)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
+        r"|i(?:'ve| have)(?: got| had)? (?:a |an )?(?:headache|migraine|cold|fever|flu|the flu|sore throat|stomach ?ache|cough)"
+        # "I have a headache since this morning" (2026-10-08: to the planner).
+        r"(?: (?:since (?:this morning|last night|yesterday|lunch|[a-z]+day)|all (?:day|morning|week)|again|today|right now|now))?"
         r"|i (?:don'?t|do not) feel (?:so |very )?(?:good|well|great)"
         # "I think I'm getting a cold" (2026-10-07: to the planner).
         r"|i (?:think i'?m|might be|may be|feel like i'?m) (?:getting|coming down with|catching) (?:a |an |the )?(?:cold|flu|fever|something|sick|bug))$")),

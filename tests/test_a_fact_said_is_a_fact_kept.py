@@ -7899,5 +7899,12 @@ class ThePetsVetAndShots(unittest.TestCase):
 
 
 
+class AHeadacheSinceThisMorning(unittest.TestCase):
+    def test_how_long_it_has_lasted_still_gets_the_answer(self):
+        self.assertIn("Rest up", quick.answer("I have a headache since this morning"))
+        self.assertIn("Rest up", quick.answer("I have had a headache all day"))
+
+
+
 if __name__ == "__main__":
     unittest.main()
