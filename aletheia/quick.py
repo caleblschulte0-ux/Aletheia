@@ -2597,6 +2597,12 @@ def _direct(text: str) -> str:
                      r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m and not re.match(r"what (?:are|is|do|does) (?:you|u|i|we|they|it)\b", text):
         return f"what's on {m.group('day')}"
+    # "Who am I having lunch with on Friday" (2026-10-08: to a model, with
+    # "lunch with Mike" on Friday's calendar): the day's reader names them.
+    m = re.fullmatch(r"who (?:am i|are we) (?:having (?:lunch|dinner|breakfast|coffee|drinks) with|meeting(?: with)?|seeing|seeing for (?:lunch|dinner))"
+                     r" (?:on |this |next )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
+    if m:
+        return f"what's on {m.group('day')}"
     # "What should I eat" (2026-10-08: "I can't think just now"): the meal
     # it is time for, asked the way the meal-idea reader already answers.
     if re.fullmatch(r"what (?:should|can|could|shall) (?:i|we) (?:eat|have to eat|make to eat)(?: (?:now|today|right now))?\s*\??", text) \

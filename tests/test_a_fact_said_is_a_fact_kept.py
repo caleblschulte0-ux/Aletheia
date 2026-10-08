@@ -7731,5 +7731,11 @@ class CarWorkIsAJobNotShopping(unittest.TestCase):
 
 
 
+class WhoAmISeeingOnADay(unittest.TestCase):
+    def test_it_reads_that_day(self):
+        self.assertEqual(quick._direct("who am i having lunch with on friday"), "what's on friday")
+
+
+
 if __name__ == "__main__":
     unittest.main()
