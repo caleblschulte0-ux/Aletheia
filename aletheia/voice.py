@@ -239,6 +239,10 @@ def _spoken_day(text: str) -> str | None:
     if t in WEEKDAYS:
         ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
         return (today + dt.timedelta(days=ahead)).isoformat()
+    # "Next Wednesday" said ON a Wednesday has one meaning: a week today
+    # (2026-10-08: held for today). Only other weekdays are ambiguous.
+    if t.startswith("next ") and t[5:] in WEEKDAYS and WEEKDAYS.index(t[5:]) == today.weekday():
+        return (today + dt.timedelta(days=7)).isoformat()
     # "In three days", "in 2 weeks", "the end of the month" have one
     # meaning each (2026-10-07: "renew my passport in 2 weeks" kept no day).
     n = re.fullmatch(r"in (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (day|days|week|weeks)", t)
@@ -364,13 +368,18 @@ def _split_deadline(text: str) -> tuple[str, str]:
     when the words after "by" are not a day — "sort the photos by date"
     must not acquire one.
     """
-    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
+    # "Call mom for next Wednesday" (2026-10-08) held "call mom for next"
+    # due today. "For" a day is as much a deadline as "by" one.
+    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?|for)\s+(.+)$", text)
+    if m and not _spoken_day(m.group(2).strip().split(" at ")[0]):
+        m = None if re.search(r"[,\s]for\s", text) and not re.search(r"[,\s](?:by|before|due)\s", text) else m
     if not m:
         # "Call the plumber tomorrow", "pay the gas bill on friday": a day
         # said last is as much a deadline as "by friday" (2026-10-07).
         # "Call mom this weekend", "pay rent on the 1st" (2026-10-07: the
         # day stayed in the description and no deadline was kept).
-        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|today|tonight|tomorrow|monday|tuesday|wednesday"
+        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|next (?:monday|tuesday|wednesday"
+                         r"|thursday|friday|saturday|sunday)|today|tonight|tomorrow|monday|tuesday|wednesday"
                          r"|thursday|friday|saturday|sunday|(?:over )?(?:this |the )?weekend"
                          r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?"
                          r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?)"
@@ -412,6 +421,11 @@ def _split_deadline(text: str) -> tuple[str, str]:
     if at:
         hhmm = _spoken_time(at.group(2))
         if hhmm:
+            # "Call mom by Friday at 3" was due at three in the MORNING
+            # (2026-10-08). Nobody means a bare 1 to 7 before dawn.
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(at.group(2)) and 1 <= hour <= 7:
+                hhmm = f"{hour + 12:02d}:{minute:02d}"
             return rest, f"{day}T{hhmm}:00"
     return rest, day
 
@@ -437,7 +451,9 @@ def _ambiguous_next_weekday(text: str) -> str | None:
         return None
     from aletheia import localtime
     today = localtime.today()
-    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7 or 7
+    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7
+    if not ahead:
+        return None                 # the same weekday: a week today, nothing to ask
     soon = today + dt.timedelta(days=ahead)
     later = soon + dt.timedelta(days=7)
     name = words[1].capitalize()
@@ -1308,6 +1324,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
             again = re.sub(r"\bnext " + said_next.group(1) + r"\b", f"on the {soon}", str(transcript).strip().rstrip(".?!"),
                            count=1, flags=re.IGNORECASE)
             return {"command": None, "say": f"{asked} Say '{again}' and it's held."}
+    # "Next Wednesday", said on a Wednesday, was held for TODAY at 2
+    # (2026-10-08). The same weekday "next" is a week out, never today.
+    if said_next and said_next.group(1) == str(day).strip().casefold() \
+            and dt.date.fromisoformat(day_iso) == localtime.today():
+        day_iso = (localtime.today() + dt.timedelta(days=7)).isoformat()
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title

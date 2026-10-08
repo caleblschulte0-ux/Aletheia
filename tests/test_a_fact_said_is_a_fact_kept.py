@@ -6545,5 +6545,32 @@ class HisWordsSaidBackAndHisFriday(unittest.TestCase):
         self.assertEqual(quick.match("what's on friday")[0], "agenda")
 
 
+
+class NextWednesdayOnAWednesday(unittest.TestCase):
+    """2026-10-08: "a doctor's appointment next Wednesday at 2", said on a
+    Wednesday, was held for that afternoon."""
+
+    def setUp(self):
+        from aletheia import localtime
+        wed = dt.date(2026, 10, 7)
+        self.patch = mock.patch.object(localtime, "today", return_value=wed)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+
+    def test_the_same_weekday_next_is_a_week_today(self):
+        self.assertEqual(voice._spoken_day("next wednesday"), "2026-10-14")
+        self.assertIsNone(voice._ambiguous_next_weekday("next wednesday"))
+        self.assertIsNotNone(voice._ambiguous_next_weekday("next friday"))
+        said = voice.interpret("remind me next wednesday at 3 to call mom")["command"]
+        self.assertEqual(said["at"][:16], "2026-10-14T15:00")
+
+    def test_a_task_for_a_day_has_that_deadline(self):
+        self.assertEqual(voice._split_deadline("call mom for next wednesday"), ("call mom", "2026-10-14"))
+        self.assertEqual(voice._split_deadline("set the table for dinner"), ("set the table for dinner", ""))
+        self.assertEqual(voice._split_deadline("call mom by friday at 3"), ("call mom", "2026-10-09T15:00:00"))
+
+
 if __name__ == "__main__":
     unittest.main()
