@@ -5735,6 +5735,32 @@ def _interpret(transcript: str) -> dict:
         bye = quick._farewell("leaving work")
         return {"command": {"kind": "note", "text": "finished work"},
                 "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
+    # THE DEVICES (2026-10-08: "my phone storage is full" and "my laptop
+    # battery is dying" went to the planner).
+    # Kept, so "what needs fixing" reads them; a printer out of ink is also
+    # the thing to buy.
+    m = re.fullmatch(r"(?:my|the|our) (?P<dev>laptop|computer|pc|desktop|mac|macbook|phone|iphone|tablet|ipad|printer|tv|router|modem|wifi|wi-fi|internet|watch|kindle|xbox|playstation)"
+                     r"(?P<part> battery| storage| screen| keyboard| charger| connection| hard drive| memory)? (?:is|keeps|has been) (?:really |so |super |kind of |kinda )?"
+                     # Not "slow" or "freezing": a complaint about how it runs is a
+                     # question for a model that can help ("my computer is slow").
+                     r"(?P<how>dying|full|out of (?:ink|toner|paper|storage|space)|almost full)"
+                     r"(?: again| lately| today)?", low)
+    if m:
+        # "My phone is dying" is a low battery, not a broken phone.
+        if m.group("how") == "dying" and not m.group("part") and m.group("dev") in ("phone", "iphone", "laptop", "tablet", "ipad", "watch", "kindle", "macbook"):
+            return {"command": None, "say": "Better find a charger."}
+        out = re.fullmatch(r"out of (ink|toner|paper)", m.group("how"))
+        if out and m.group("dev") == "printer":
+            got = _interpret(f"add printer {out.group(1)} to my shopping list")
+            if ((got or {}).get("command") or {}).get("kind"):
+                return got
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I forgot my password" (2026-10-08: to the planner). She keeps none, so
+    # the honest answer is where it is.
+    if re.fullmatch(r"(?:ugh,? )?i (?:forgot|can'?t remember|cannot remember|lost) my (?:[a-z]+ )?password(?: (?:for|to) [a-z][a-z .]{1,20})?(?: again)?", low):
+        return {"command": None,
+                "say": "I don't keep passwords, so I can't look it up. The \"forgot password\" link on the sign-in page will reset it, "
+                       "or your password manager has it."}
     # "My basil is dying" (2026-10-08: to the planner) - kept, the way "how
     # is my garden" reads it back.
     if re.fullmatch(r"(?:my|the|our) (?:[a-z]+ )?(?:basil|tomato|tomatoes|plant|plants|garden|flowers|roses|herbs|lawn|grass|tree|trees|hedge|succulent|cactus|orchid|fern|peppers|mint|lettuce)"

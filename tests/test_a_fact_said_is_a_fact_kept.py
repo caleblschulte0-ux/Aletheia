@@ -10680,5 +10680,25 @@ class TheYardAndTheGarden(unittest.TestCase):
             self.assertTrue(quick.answer("when did I last mow").startswith("You ticked off mow the lawn"))
 
 
+class HisDevices(unittest.TestCase):
+    """2026-10-08: "my phone storage is full", "my printer is out of ink"
+    and "I forgot my password" went to the planner. "My computer is slow"
+    still goes to a model, which can help with it."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("my phone storage is full")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("my laptop battery is dying")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("my printer is out of ink")["command"], {"kind": "shopping_add", "item": "printer ink"})
+        self.assertIsNone(voice._interpret("my phone is dying")["command"])
+        got = voice._interpret("I forgot my password")
+        self.assertIsNone(got["command"])
+        self.assertIn("don't keep passwords", got["say"])
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the internet is down"}, {"text": "my computer is running slow"}]):
+            self.assertEqual(quick.answer("what needs fixing"),
+                             "From what you've told me: your computer is running slow and the internet is down.")
+
+
 if __name__ == "__main__":
     unittest.main()

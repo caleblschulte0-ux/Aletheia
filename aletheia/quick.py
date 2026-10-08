@@ -14307,7 +14307,9 @@ def _plans_for(who: str) -> str | None:
 
 _BROKE = re.compile(r"^(?:the|my|our) (?P<t>[a-z][a-z' ]{1,25}?) (?:is|are|was|keeps) (?:broken|leaking|not working|busted|clogged|acting up"
                     r"|making a (?:weird |strange |loud )?noise|beeping|chirping|dripping|flickering|squeaking|squealing|rattling|not draining"
-                    r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging)"
+                    r"|not turning on|not starting|tripping|frozen|cracked|crashing|freezing|overheating|not charging"
+                    # "My computer is running slow", "the internet is down" (2026-10-08).
+                    r"|running slow|so slow|really slow|slow|dying|full|lagging|glitching|not connecting|down|out of (?:ink|toner))"
                     r"|^(?:the|my|our) (?P<t2>[a-z][a-z' ]{1,25}?) (?:broke|stopped working|died|quit working|cracked|shattered|froze)"
                     r"|^(?:the|my|our) (?P<t3>[a-z][a-z' ]{1,25}?) (?:won't|will not|doesn't|does not) (?:charge|turn on|start|connect|work|load|boot|drain|flush)")
 _FIXED = re.compile(r"\b(?:fixed|repaired|unclogged) (?:the|my|our) (?P<t>[a-z][a-z' ]{1,25})"
