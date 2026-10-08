@@ -895,14 +895,33 @@ def pursue(goal: str, start_url: str, *, inputs: dict | None = None, mode: str =
     from aletheia import power
     with power.keep_awake(f"browser goal {record['id']}"), opener() as ctx:
         page = ctx.new_page()
+        drive = dict(decide=decide, budget=budget, code_source=code_source, on_step=on_step,
+                     hold_s=max(0.0, min(float(hold_s or 0), MAX_HOLD_S)))
         try:
             try:
-                return _drive(ctx, page, record, goal, skill, site, decide=decide, budget=budget,
-                              code_source=code_source, on_step=on_step,
-                              hold_s=max(0.0, min(float(hold_s or 0), MAX_HOLD_S)))
+                return _drive(ctx, page, record, goal, skill, site, **drive)
             except Exception as exc:                          # noqa: BLE001
                 if not type(exc).__module__.startswith("playwright"):
                     raise
+                # ONE MORE LOOK WHILE NOTHING OF HIS IS ON THE PAGE. Live
+                # 2026-10-08, four of three days' closures were a posting that
+                # did not respond on its first load and were closed for good.
+                # Before anything is filled a fresh page costs nothing; after,
+                # the stop below stands (never a second press).
+                again = bm.load(record["id"])
+                if not any(bm.reached(again, name) for name in (bm.FILLED, bm.SUBMIT_CLICKED)):
+                    _note(again, "the page did not respond; looking once more from the start")
+                    try:
+                        page.close()
+                    except Exception:                             # noqa: BLE001
+                        pass
+                    page = ctx.new_page()
+                    try:
+                        return _drive(ctx, page, again, goal, skill, site, **drive)
+                    except Exception as second:                   # noqa: BLE001
+                        if not type(second).__module__.startswith("playwright"):
+                            raise
+                        exc = second
                 # THE PAGE DID NOT RESPOND to an action (a control that never
                 # became clickable, a page that went away). A named stop with
                 # everything so far saved, never a traceback read out loud.
@@ -2098,7 +2117,12 @@ def _gate(ctx, page, obs: dict, record: dict, goal: str, route: list[dict],
     through the existing webtask path. Returns the stopped record."""
     kinds = controls(obs)
     target = final_control(obs, goal)
-    if target is None and kinds.get(ps.SPEND):
+    if target is None and kinds.get(ps.SPEND) and getattr(skill, "name", "") != "job_application":
+        # An application never charges him, so on a job a money-worded
+        # control is not the way on: it is the posting's "Pay Transparency
+        # Policy" link or a "Billing Specialist" title, and refusing the
+        # whole mission over it closed applications as if they spent money.
+        # It is still never pressed (`choose` and the tool path refuse it).
         label = kinds[ps.SPEND][0]["label"]
         return _stop(record, bm.REFUSED, "SPENDING", obs,
                      say=f"The way on is a button that says {label[:60]!r}, which spends money. "
