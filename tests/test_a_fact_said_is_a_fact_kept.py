@@ -9306,5 +9306,24 @@ class TheKitchen(unittest.TestCase):
         self.assertEqual(quick.match("what am I trying to do")[0], "kept")
 
 
+class RemindMeBeforeADay(unittest.TestCase):
+    """"Remind me to buy flowers before Valentine's Day" was set for the day
+    itself, reading "buy flowers before" (2026-10-08)."""
+
+    def test_the_day_before_and_named(self):
+        import datetime as dt
+        if (dt.date.today().month, dt.date.today().day) in ((12, 24), (12, 25)):
+            self.skipTest("the day before Christmas is today or past")
+        cmd = voice.interpret("remind me to buy a gift before christmas")["command"]
+        self.assertEqual(cmd["kind"], "remind_at")
+        self.assertTrue(cmd["at"].endswith("T09:00:00" + cmd["at"][19:]))
+        self.assertEqual(cmd["at"][5:10], "12-24")
+        self.assertEqual(cmd["text"], "buy a gift - Christmas is tomorrow")
+
+    def test_where_first_then_what(self):
+        self.assertEqual(voice.interpret("remind me when I get home to start laundry")["command"],
+                         {"kind": "note", "text": "remind me to start laundry when I get home"})
+
+
 if __name__ == "__main__":
     unittest.main()

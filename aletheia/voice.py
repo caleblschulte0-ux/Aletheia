@@ -2591,7 +2591,35 @@ def interpret(transcript: str) -> dict:
     """
     transcript = _a_follow_on(_a_polite_ask(_with_the_person_named(_a_clock_said(_apostrophes(transcript)))))
     return _his_capitals(strip_wake_word(transcript),
-                         _no_password_in_a_note(_no_reminder_about_a_pronoun(_interpret(transcript))))
+                         _no_password_in_a_note(_no_reminder_about_a_pronoun(
+                             _the_day_before(transcript, _interpret(transcript)))))
+
+
+def _the_day_before(transcript: str, said: dict) -> dict:
+    """"Remind me to buy flowers before Valentine's Day" was set FOR
+    Valentine's Day, reading "buy flowers before" (2026-10-08). Before a day
+    is the day before it, and the reminder names the day."""
+    import datetime as dt
+    cmd = (said or {}).get("command") or {}
+    if cmd.get("kind") != "remind_at" or not re.search(r" (?:before|by)$", str(cmd.get("text") or "")):
+        return said
+    m = re.search(r"\b(?P<word>before|by) (?P<day>.+?)[.!?]?$", str(transcript or ""), re.I)
+    if not m:
+        return said
+    try:
+        at = dt.datetime.fromisoformat(str(cmd["at"]))
+    except (KeyError, ValueError):
+        return said
+    base = re.sub(r" (?:before|by)$", "", str(cmd["text"]))
+    day = re.sub(r"^(?:the )?", "", m.group("day")).strip()
+    day = re.sub(r"\bvalentines\b", "Valentine's", day, flags=re.I)
+    if re.fullmatch(_HOLIDAYS, day.casefold()):
+        day = " ".join(w[:1].upper() + w[1:] for w in day.split())
+    day = day[:1].upper() + day[1:] if not re.match(r"\d", day) else "the " + day
+    earlier = at - dt.timedelta(days=1)
+    if earlier <= dt.datetime.now(at.tzinfo):
+        return {**said, "command": {**cmd, "text": f"{base} {m.group('word').casefold()} {day}"}}
+    return {**said, "command": {**cmd, "at": earlier.isoformat(), "text": f"{base} - {day} is tomorrow"}}
 
 
 #: A second half that is plainly its own ask of hers.
@@ -5188,6 +5216,15 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": f"remind me {leave.group(1)} {said} when I leave work"},
                 "say": f"I can't see where you are, so tell me \"I'm leaving work\" when you go and I'll remind you "
                        f"{leave.group(1)} {speech._yours(said)}."}
+    # "Remind me when I get home to start laundry" (2026-10-08: "I can't
+    # tell where you are") is "remind me to start laundry when I get home".
+    turned = re.fullmatch(r"remind me (?:when|once|as soon as) i(?:'m| am)? (?:get |come |am )?(?:back )?(?P<where>home|leave work|leave the office),? "
+                          r"(?P<how>to|that) (?P<what>.+)", text.strip().rstrip(".!"), re.I)
+    if turned:
+        where = "get home" if turned.group("where").casefold() == "home" else "leave work"
+        again = _interpret(f"remind me {turned.group('how')} {turned.group('what')} when I {where}")
+        if again and (again.get("command") or {}).get("kind") == "note":
+            return again
     home = re.fullmatch(r"remind me (to|that) (.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?(?:back )?(?:home|back)", low)
     if home:
         # "Remind me to call mom when I get home" (2026-10-08): she can't
