@@ -6114,5 +6114,18 @@ class AVacationByItsDates(unittest.TestCase):
             self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%m-%d"), "12-09")
 
 
+class WhatHeSpentTheMostOn(unittest.TestCase):
+    """2026-10-08: "what did I spend the most on this month" answered with
+    the total."""
+
+    def test_the_biggest_leads(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I spent 60 on groceries", "ts": now}, {"text": "I spent 120 on dinner", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick._spent("what did i spend the most on this month")
+        self.assertTrue(said.startswith("Dinner: $120 of the $180"), said)
+
+
 if __name__ == "__main__":
     unittest.main()

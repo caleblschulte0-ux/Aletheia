@@ -10076,7 +10076,14 @@ def _spent(question: str) -> str | None:
     by: dict[str, float] = {}
     for _, amt, what in hits:
         by[what] = by.get(what, 0) + amt
-    parts = [f"{_money(v)} on {k}" for k, v in sorted(by.items(), key=lambda kv: -kv[1])[:4]]
+    ranked = sorted(by.items(), key=lambda kv: -kv[1])
+    # "What did I spend the most on" (2026-10-08) answered with the total:
+    # the biggest leads when that is what he asked.
+    if re.search(r"\b(?:the )?most\b|\bbiggest\b|\blargest\b", low) and ranked:
+        top, amt = ranked[0]
+        return (f"{top[:1].upper() + top[1:]}: {_money(amt)} of the {_money(total)} you've told me you spent {span}."
+                if len(ranked) > 1 else f"{top[:1].upper() + top[1:]}, {_money(amt)} - the only spending you've told me about {span}.")
+    parts = [f"{_money(v)} on {k}" for k, v in ranked[:4]]
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
 
 
