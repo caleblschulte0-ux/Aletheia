@@ -11217,9 +11217,12 @@ class WhatHeIsInTheMiddleOf(unittest.TestCase):
                 mock.patch.object(lists, "private_dir", side_effect=lambda name: Path(tmp) / name), \
                 mock.patch.object(intercom, "_one_task", return_value=(None, "Nothing open matching that.")), \
                 mock.patch.object(intercom, "_one_shopping_item", return_value=(None, "")), \
-                mock.patch.object(quick, "_notes", lambda: [{"text": "I am reading Atomic Habits"}]):
+                mock.patch.object(quick, "_notes", lambda: [{"text": "I am reading Atomic Habits"}]), \
+                mock.patch.object(intercom.journal, "append") as wrote:
             (Path(tmp) / "lists").mkdir()
             said = intercom.execute_command({"kind": "task_done", "which": "atomic habits"}, None, quote="I finished Atomic Habits")
+            # The note is written (and nothing of the test's is left behind in the journal).
+            self.assertIn(("note", "operator", "I finished Atomic Habits"), [c.args[:3] for c in wrote.call_args_list])
             self.assertEqual(said, "Nice - that's Atomic Habits finished. I've noted it.")
 
 
