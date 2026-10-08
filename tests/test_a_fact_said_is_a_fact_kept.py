@@ -6175,5 +6175,30 @@ class ChoresAroundTheHouse(unittest.TestCase):
             self.assertIn('"I gave Max his flea medicine"', quick.answer("when did Max get his flea medicine"))
 
 
+
+class TonightsDinnerAndAVisitAhead(unittest.TestCase):
+    """2026-10-08: "I'm making lasagna for dinner" went to a model, and
+    "how many days until my parents visit" did too a turn after "my
+    parents are coming to visit next weekend"."""
+
+    def test_dinner_with_no_day_is_tonight(self):
+        said = voice._interpret("I'm making lasagna for dinner")
+        self.assertEqual(said["command"]["list"], "meal plan")
+        self.assertTrue(said["command"]["item"].endswith(": lasagna"))
+        self.assertEqual(said["say"], "Lasagna tonight - it's on your meal plan.")
+        self.assertNotEqual(voice._interpret("we're having people over for dinner")["command"]["kind"], "list_add")
+
+    def test_a_relative_day_counts_from_when_he_said_it(self):
+        base = dt.date(2026, 10, 7)  # a Wednesday
+        said_at = "2026-10-07T12:00:00-05:00"
+        self.assertEqual(quick._relative_in_note("my parents are coming to visit next weekend", said_at, base), dt.date(2026, 10, 17))
+        self.assertEqual(quick._relative_in_note("we're going camping this weekend", said_at, base), dt.date(2026, 10, 10))
+        self.assertEqual(quick._relative_in_note("the plumber comes tomorrow", said_at, base), dt.date(2026, 10, 8))
+        self.assertEqual(quick._relative_in_note("the party is on the 3rd", said_at, base), dt.date(2026, 11, 3))
+        # passed is not ahead
+        self.assertIsNone(quick._relative_in_note("the plumber comes tomorrow", said_at, dt.date(2026, 10, 12)))
+        self.assertIsNone(quick._relative_in_note("my parents are nice", said_at, base))
+
+
 if __name__ == "__main__":
     unittest.main()

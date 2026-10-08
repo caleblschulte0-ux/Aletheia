@@ -8721,17 +8721,22 @@ def _interpret(transcript: str) -> dict:
                      # a dish (2026-10-07: it went on the meal plan).
                      r"|people\b|friends\b|guests\b|company\b|family\b|folks\b|the kids\b|a party\b|a baby\b|surgery\b"
                      r"|a meeting\b|a wedding\b|a test\b|an? [a-z]+ party\b|[a-z' ]+ over\b)[a-z][a-z0-9 ,'&-]{1,40}?)"
-                     r"(?: for dinner)? (?P<day3>" + _wd + r")(?: night)?", low)
+                     # "I'm making lasagna for dinner" is tonight (2026-10-08: to a model).
+                     r"(?:(?: for dinner)? (?P<day3>" + _wd + r")(?: night)?| for (?P<meal3>dinner|supper))", low)
     if m:
         import datetime as _dt
         from aletheia import localtime
-        said = m.group("day") or m.group("day2") or m.group("day3") or ""
+        said = m.group("day") or m.group("day2") or m.group("day3") or ("today" if m.group("meal3") else "")
         if said in ("today", "tonight", "tomorrow"):
             day = _dt.datetime.now(localtime.operator_tz()).date() + _dt.timedelta(days=1 if said == "tomorrow" else 0)
             said = day.strftime("%A").lower()
         what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
+        # "Added to your meal plan list: Wednesday: lasagna" (2026-10-08).
+        tonight = (m.group("day") or m.group("day2") or m.group("day3") or ("today" if m.group("meal3") else "")) in ("today", "tonight")
+        when = "tonight" if tonight else f"on {said.capitalize()}" if said else ""
         return {"command": {"kind": "list_add", "list": "meal plan",
-                            "item": f"{said.capitalize()}: {what}" if said else what}, "say": None}
+                            "item": f"{said.capitalize()}: {what}" if said else what},
+                "say": f"{what[:1].upper() + what[1:]} {when} - it's on your meal plan." if when else None}
     # HIS PLANS WITH A WHEN (2026-10-07: "I'm moving next month", "I start
     # my new job on Monday", "my vacation is next week" each went to the
     # planner). A note in his words; `quick._life_when` reads it back with

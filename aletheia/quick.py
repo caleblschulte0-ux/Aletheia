@@ -2937,7 +2937,8 @@ def _date_in_notes(words: str, today):
     month_re = "|".join(_MONTHS)
     date_re = (rf"(?P<d>(?:{month_re})\.? \d{{1,2}}(?:st|nd|rd|th)?|\d{{1,2}}(?:st|nd|rd|th)? (?:of )?(?:{month_re}))")
     for ask in asks:
-        words_ = [x for x in re.findall(r"[a-z0-9]+", ask) if x not in ("s", "is", "the", "a")]
+        words_ = [x[:-1] if len(x) > 3 and x.endswith("e") else x
+                  for x in re.findall(r"[a-z0-9]+", ask) if x not in ("s", "is", "the", "a")]
         for row in _notes():
             said = " ".join(str(row.get("text") or "").casefold().split())
             if not all(re.search(rf"\b{re.escape(x)}", said) for x in words_):
@@ -2947,7 +2948,53 @@ def _date_in_notes(words: str, today):
                 found = _named_date(re.sub(r"(?<=\d)(?:st|nd|rd|th)", "", m.group("d")).replace(" of ", " "), today)
                 if found:
                     return found
+            found = _relative_in_note(said, row.get("ts"), today)
+            if found:
+                return found
     return None
+
+
+def _relative_in_note(said: str, ts, today):
+    """"My parents are coming to visit next weekend": the day that names,
+    counted from when he SAID it, and only while it is still ahead
+    (2026-10-08: "how many days until my parents visit" went to a model)."""
+    import datetime as dt
+    from aletheia import localtime
+    try:
+        base = dt.datetime.fromisoformat(str(ts or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz()).date()
+    except ValueError:
+        return None
+    days = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    m = re.search(r"\b(?:(?P<which>this|next) )?(?P<day>weekend|week|" + "|".join(days) + r")\b|\btomorrow\b|\bon the (?P<nth>\d{1,2})(?:st|nd|rd|th)\b"
+                  r"|\bin (?P<n>\d{1,2}|a|two|three|four) (?P<unit>days?|weeks?)\b", said)
+    if not m:
+        return None
+    if m.group(0) == "tomorrow":
+        when = base + dt.timedelta(days=1)
+    elif m.group("nth"):
+        n = int(m.group("nth"))
+        try:
+            when = base.replace(day=n)
+        except ValueError:
+            return None
+        if when < base:
+            when = (when.replace(day=1) + dt.timedelta(days=32)).replace(day=n)
+    elif m.group("n"):
+        n = {"a": 1, "two": 2, "three": 3, "four": 4}.get(m.group("n")) or int(m.group("n"))
+        when = base + dt.timedelta(days=n * (7 if m.group("unit").startswith("week") else 1))
+    else:
+        day, which = m.group("day"), m.group("which")
+        monday_next = base + dt.timedelta(days=7 - base.weekday())
+        if day == "week":
+            if which != "next":
+                return None
+            when = monday_next
+        elif day == "weekend":
+            when = monday_next + dt.timedelta(days=5) if which == "next" else base + dt.timedelta(days=(5 - base.weekday()) % 7)
+        else:
+            ahead = (days.index(day) - base.weekday()) % 7 or 7
+            when = base + dt.timedelta(days=ahead + (7 if which == "next" and ahead < 7 - base.weekday() else 0))
+    return when if when >= today else None
 
 
 def _named_date(words: str, today):
