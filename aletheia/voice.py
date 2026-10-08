@@ -796,9 +796,11 @@ _SHOPPING_ADD = re.compile(
 # of subject and back to the groceries behind it. The live run happened
 # to survive that because an unrelated turn sat in between; the unit test
 # did not, which is the whole argument for having both.
-_ALSO = re.compile(r"(?:and |also )add (.+)"
+# "And milk too" put "milk too" on the list (2026-10-08): the marker is
+# dropped wherever it ends the item, not only after a bare "add".
+_ALSO = re.compile(r"(?:and |also )add (.+?)(?: too| as well| also)?"
                    r"|add (.+?)(?: too| as well| also)"
-                   r"|(?:and|also) (.+)")
+                   r"|(?:and|also) (.+?)(?: too| as well| also)?")
 
 
 def _in_a_shopping_turns(turns: int = 3) -> bool:

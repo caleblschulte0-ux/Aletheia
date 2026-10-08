@@ -8082,5 +8082,16 @@ class HowFarIsItToAPlaceIsFromHome(unittest.TestCase):
 
 
 
+class AndMilkTooIsMilk(unittest.TestCase):
+    """"And milk too" in a shopping run put "milk too" on the list."""
+
+    def test_the_marker_is_not_part_of_the_item(self):
+        from aletheia import voice
+        self.assertEqual(voice._also_item("and milk too"), "milk")
+        self.assertEqual(voice._also_item("and add milk as well"), "milk")
+        self.assertEqual(voice._also_item("and bread"), "bread")
+
+
+
 if __name__ == "__main__":
     unittest.main()
