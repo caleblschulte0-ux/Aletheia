@@ -262,13 +262,18 @@ UNWANTED_KINDS = (
 
 #: Development-rep titles: the first rung of a sales team, prospecting for
 #: the closers. His ruling 2026-10-07 (`config/rulings.json`, bdr-sdr-welcome)
-#: lets these through his "no sales, no cold calling, no quotas".
+#: lets these through his "no sales, no cold calling, no quotas". The same
+#: rung goes by other names - an account, market or lead development rep
+#: does an SDR's work under the employer's own word for it - and a
+#: development rep by any of those names is the job he said yes to.
 _DEVELOPMENT_REP = re.compile(
-    r"\b(?:sdr|bdr|(?:business|sales) development (?:rep(?:resentative)?|associate)s?)\b", re.I)
+    r"\b(?:sdr|bdr|(?:business|sales|account|market|lead) development "
+    r"(?:rep(?:resentative)?|associate)s?)\b", re.I)
 #: What his yes adds to the search, in the words postings use.
 DEVELOPMENT_REP_ROLES = ("Business Development Representative", "Sales Development Representative")
 _DEVELOPMENT_REP_WANTED = ("business development and sales development representative roles "
-                           "(BDR, SDR), prospecting and quota included")
+                           "(BDR, SDR, and the same role called account, market or lead "
+                           "development representative), prospecting and quota included")
 _DEVELOPMENT_REP_EXCEPT = ("except business and sales development representative roles (BDR, SDR), "
                            "which he said yes to on 2026-10-07")
 
