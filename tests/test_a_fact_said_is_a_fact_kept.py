@@ -8464,5 +8464,15 @@ class WhatDoINeedToDoIsTasks(unittest.TestCase):
 
 
 
+class WhichOfThoseIsMostUrgent(unittest.TestCase):
+    """"Which of those is most urgent" after his list went to a model (2026-10-08)."""
+
+    def test_it_is_the_focus_question(self):
+        from aletheia import quick
+        for said in ("which of those is most urgent", "which one should I do first"):
+            self.assertEqual((quick.match(said) or ("",))[0], "focus", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

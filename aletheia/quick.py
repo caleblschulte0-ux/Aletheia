@@ -267,6 +267,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do i need to (?:do|get done)(?: today)?$"
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
+        # "Which of those is most urgent" after his list (2026-10-08: to a model).
+        r"|^(?:which|what) (?:of (?:those|them|these)|one|task)(?: of (?:those|them))? (?:is|should i do|do i do) (?:the )?"
+        r"(?:most (?:urgent|important|pressing)|first|top priority|priority)$"
         r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$"
         # "Prioritize my tasks", "I have 30 minutes free what should I do"
         # (2026-10-07: to the planner).
