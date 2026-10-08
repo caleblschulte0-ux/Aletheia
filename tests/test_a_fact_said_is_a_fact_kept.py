@@ -5744,5 +5744,13 @@ class TheLastThingHeToldHer(unittest.TestCase):
             self.assertIsNone(quick._told_last("did i tell you about my car"))
 
 
+class CallAnUberIsARide(unittest.TestCase):
+    """2026-10-07: "call an uber" offered to text a contact called "An uber"."""
+
+    def test_a_ride_is_not_a_person_to_ring(self):
+        self.assertEqual(voice._interpret("call an uber")["command"]["kind"], "intent")   # to the money door
+        self.assertIn("can't place phone calls", voice._interpret("call mom")["say"])
+
+
 if __name__ == "__main__":
     unittest.main()

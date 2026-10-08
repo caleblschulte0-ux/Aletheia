@@ -143,6 +143,9 @@ SPENDS_BY_VERB = re.compile(
     r"(?:flight|hotel|room|car|ticket|seat|ride|cab|taxi|train|airbnb)\b"
     r"|\b(?:rent|hire|lease)\s+(?:me\s+)?(?:a|an|the)\b"
     r"|\bget\s+me\s+(?:an?\s+)?(?:uber|lyft|taxi|cab|ride)\b"
+    # "Call an uber", "call me a cab" (2026-10-07: offered to text a
+    # contact called "An uber"). A ride is a charge however it is asked for.
+    r"|\b(?:call|grab|hail|send\s+for|summon)\s+(?:me\s+|us\s+)?(?:an?\s+)?(?:uber|lyft|taxi|cab)\b"
     r"|\btop\s*[- ]?up\b"
     r"|\brenew\s+(?:my\s+)?(?:\w+\s+)?(?:subscription|membership|plan|policy)\b",
     re.I)

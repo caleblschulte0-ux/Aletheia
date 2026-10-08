@@ -1242,6 +1242,16 @@ _DONE_VERBS = ("changed|gave|paid|fed|walked|watered|cleaned|washed|mowed|vacuum
                "|locked|closed|shut|unplugged|turned off")
 
 
+def _would_spend(said: str) -> bool:
+    """`webtask.would_spend`, the one money predicate; True when it cannot
+    be asked, so a sentence that might spend is never answered here."""
+    try:
+        from aletheia import webtask
+        return webtask.would_spend(said)
+    except Exception:  # noqa: BLE001 - fail closed
+        return True
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -6657,7 +6667,7 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:call|phone|ring|ring up|dial|give (?:a )?call to|facetime|video call|video chat with) "
                      r"(?:my |the )?(?P<who>[a-z][a-z .'-]{1,40}?)"
                      r"(?: for me| now| please| back)?", low)
-    if m and _is_a_person_to_ring(m.group("who")):
+    if m and _is_a_person_to_ring(m.group("who")) and not _would_spend(low):
         who = _as_he_said(transcript, m.group("who"))
         # "Call my dentist" offered to "text or email dentist".
         if re.match(r"(?:call|phone|ring|dial|give|facetime|video) .*\bmy " + re.escape(m.group("who")), low):
