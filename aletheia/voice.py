@@ -9524,6 +9524,8 @@ def _interpret(transcript: str) -> dict:
     # my new job on Monday", "my vacation is next week" each went to the
     # planner). A note in his words; `quick._life_when` reads it back with
     # the day he said it, because "next month" moves with the calendar.
+    # "The electrician is coming tomorrow between 8 and 12" and "my Amazon
+    # order is arriving tomorrow" (2026-10-08: both to the planner) too.
     _when = (r"(?:on |in |this |next |the )?(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
              r"|week|month|year|weekend|summer|winter|spring|fall|\d{1,2} (?:days|weeks|months)|the \d{1,2}(?:st|nd|rd|th)"
              r"|" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{1,2}(?:st|nd|rd|th)?)?)(?: \d{4})?")
@@ -9540,7 +9542,13 @@ def _interpret(transcript: str) -> dict:
                             r"|next week|the day|the week) off", low) \
             or re.fullmatch(r"(?:my|our) (?:vacation|holiday|trip|move|moving day|surgery|first day|graduation|honeymoon|flight to [a-z ]{2,20}?)"
                             r" (?:is|starts|begins) " + _when, low) \
-            or re.fullmatch(r"(?:" + _SOCIAL_PLAN + r")(?: (?:for|on|over) (?:" + _HOLIDAYS + r"))?(?: " + _when + r")?(?: night| morning| afternoon| evening)?", low) \
+            or re.fullmatch(r"(?:" + _SOCIAL_PLAN + r")(?: (?:for|on|over) (?:" + _HOLIDAYS + r"))?(?: " + _when + r")?(?: night| morning| afternoon| evening)?"
+                            r"(?: between \d{1,2}(?::\d\d)?(?: ?[ap]m)? and \d{1,2}(?::\d\d)?(?: ?[ap]m)?)?", low) \
+            or re.fullmatch(r"(?:the|my|our) [a-z]+(?: [a-z]+)? (?:is|are) (?:coming|coming over|coming by|stopping by|showing up) "
+                            + _when + r" (?:between \d{1,2}(?::\d\d)?(?: ?[ap]m)? and \d{1,2}(?::\d\d)?(?: ?[ap]m)?"
+                            r"|in the (?:morning|afternoon|evening)|sometime (?:in the )?(?:morning|afternoon))", low) \
+            or re.fullmatch(r"(?:my|our|the) (?:[a-z]+ )?(?:order|package|delivery|parcel|shipment|box)s? (?:is|are|should be|will be)"
+                            r" (?:arriving|coming|delivered|here|getting here|showing up|out for delivery)(?: " + _when + r")?", low) \
             and re.search(r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|week|weekend|month"
                           r"|\d{1,2}(?:st|nd|rd|th)|" + _HOLIDAYS + r"|" + _MONTH + r")\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}

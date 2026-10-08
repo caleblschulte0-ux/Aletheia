@@ -8026,5 +8026,18 @@ class DoYouRememberAndForgetThat(unittest.TestCase):
 
 
 
+class VisitsAndDeliveries(unittest.TestCase):
+    def test_a_visit_window_and_an_order_are_kept(self):
+        self.assertEqual(voice._interpret("the electrician is coming tomorrow between 8 and 12")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("my amazon order is arriving tomorrow")["command"]["kind"], "note")
+
+    def test_what_deliveries_reads_them(self):
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my Amazon order is arriving tomorrow"}]):
+            self.assertIn("Amazon order", quick.answer("what deliveries am I expecting"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("my package is arriving", quick.answer("what deliveries am I expecting"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2564,6 +2564,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # after "...every Tuesday and Thursday at 5" (2026-10-08: to a model).
     # "When are the dog's shots due" (2026-10-08: "nothing on file", with
     # "my dog is due for shots in November" kept): the note, said back.
+    # "What deliveries am I expecting" a turn after "my Amazon order is
+    # arriving tomorrow" (2026-10-08: "I can't think").
+    ("deliveries", re.compile(
+        r"^(?:what (?P<deliveries>deliveries|packages|orders|parcels|shipments) (?:am i|are we) (?:expecting|waiting (?:on|for))"
+        r"|(?:am i|are we) expecting (?:any )?(?P<deliveries2>deliveries|packages|orders|parcels|a package|a delivery)"
+        r"|(?:any|are there any) (?P<deliveries3>deliveries|packages|parcels) (?:coming|arriving|due)(?: today| tomorrow| this week)?)\s*\??$")),
     ("pet_due", re.compile(
         r"^when (?:is|are|does|do) (?:the|my|our) (?P<pet_due>(?:dog|cat|puppy|kitten|pet)(?:'?s)? [a-z ]{3,25}?)"
         r" (?:due|need(?: to be done)?)\s*\??$")),
@@ -11532,6 +11538,24 @@ def _work_hours(text: str) -> str | None:
 _DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
 
+def _deliveries() -> str:
+    """What he told her is on its way, newest first, in his words."""
+    from aletheia import speech
+    said, seen = [], set()
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        low = note.casefold()
+        if re.search(r"\b(?:order|package|delivery|parcel|shipment|box)e?s?\b", low) \
+                and re.search(r"\b(?:arriv\w*|coming|deliver\w*|here|showing up|out for delivery|should come)\b", low) \
+                and low not in seen:
+            seen.add(low)
+            said.append(speech.as_she_says_it(note).rstrip("."))
+    if not said:
+        return ("You haven't told me about anything on its way. Say \"my package is arriving Thursday\" "
+                "and I'll keep it.")
+    return "You told me: " + speech.and_list(said[:4]) + "."
+
+
 def _pet_due(rest) -> str | None:
     """What he told her his pet is due for, and when. None otherwise."""
     from aletheia import speech
@@ -13735,6 +13759,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_called": _who_called,
            "when_have": _when_have,
            "pet_due": _pet_due,
+           "deliveries": lambda rest: _deliveries(),
            "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
            "last_ate": lambda rest: _last_ate(),
