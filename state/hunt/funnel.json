@@ -43,7 +43,7 @@
   "days": {
     "2026-09-12": {
       "filled": 26,
-      "found": 40,
+      "found": 39,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
@@ -123,7 +123,7 @@
     },
     "2026-09-22": {
       "filled": 15,
-      "found": 64,
+      "found": 63,
       "interviews": 0,
       "rejections": 0,
       "replies": 4,
@@ -234,15 +234,15 @@
       "sent": 5
     },
     "2026-10-07": {
-      "filled": 64,
-      "found": 89,
+      "filled": 67,
+      "found": 92,
       "interviews": 0,
       "rejections": 1,
       "replies": 2,
       "sent": 36
     }
   },
-  "generated_at": "2026-10-08T04:10:53Z",
+  "generated_at": "2026-10-08T04:34:46Z",
   "sent_all_time": 270,
   "stuck_at": {
     "approval_denied": {
@@ -313,8 +313,8 @@
     }
   },
   "totals": {
-    "filled": 343,
-    "found": 702,
+    "filled": 346,
+    "found": 703,
     "interviews": 2,
     "rejections": 4,
     "replies": 33,
@@ -326,9 +326,10 @@
       "demographic": 5,
       "education": 1,
       "on_site": 1,
-      "other": 8,
+      "other": 10,
       "travel": 1,
-      "why_this_job": 1
+      "why_this_job": 1,
+      "work_authorization": 1
     },
     "closed": {
       "duplicate": 3,
@@ -354,11 +355,11 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 77
+      "not_realistic": 75
     },
-    "failed": 10,
+    "failed": 11,
     "failed_because": {
-      "ApplyError": 4,
+      "ApplyError": 5,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -367,7 +368,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 13,
+    "needs_answer": 15,
     "oldest_days": 25,
     "to_send": 0
   },
