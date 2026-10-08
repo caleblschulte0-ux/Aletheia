@@ -13028,5 +13028,20 @@ class TheTimeBeforeTomorrow(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"], voice.interpret(other)["command"], said)
 
 
+class WishesAndIdeas(unittest.TestCase):
+    def test_someday_is_the_bucket_list(self):
+        self.assertEqual(voice.interpret("someday I want to go to Japan")["command"],
+                         {"kind": "list_add", "list": "bucket", "item": "go to Japan"})
+        self.assertEqual(voice.interpret("I want to see the northern lights before I die")["command"]["item"], "see the northern lights")
+
+    def test_an_idea_is_read_back_by_its_kind(self):
+        rows = [{"text": voice.interpret(said)["command"]["text"]}
+                for said in ("I have an idea for a business selling candles", "I have an idea for an app that tracks plants")]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what was my app idea"), "Your app idea: an app that tracks plants.")
+            self.assertEqual(quick.answer("what was my idea"), "Your latest idea: a business selling candles.")
+            self.assertIsNone(quick.answer("what was my recipe idea"))
+
+
 if __name__ == "__main__":
     unittest.main()

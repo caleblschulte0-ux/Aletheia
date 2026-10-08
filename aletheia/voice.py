@@ -4333,7 +4333,7 @@ def _interpret(transcript: str) -> dict:
                      r"(?: (?:sometime|someday|soon|at some point|one day|eventually|next|after this(?: one)?|after that))?", low)
     if m and not re.match(r"(?:a|an|some|something|anything|more|less|it|that|this|them|tv|television|the news|the game"
                           r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)\b", m.group("t")) \
-            and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
+            and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me)|before i die|in my lifetime)$", m.group("t")):
         listed = "reading" if m.group("v") == "read" else "watch"
         return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}
     # "I started a new book called Dune", "I just started reading Dune"
@@ -11603,6 +11603,14 @@ def _interpret(transcript: str) -> dict:
         again = _interpret(f"{_as_he_said(text, m.group('head'))} {m.group('day')}{' ' + m.group('part') if m.group('part') else ''} at {m.group('t')}")
         if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
             return again
+    # "Someday I want to go to Japan", "before I die I want to see the
+    # northern lights" (2026-10-08: to the planner). A bucket list wish.
+    m = re.fullmatch(r"(?:someday|some day|one day|before i die|in my lifetime|eventually)(?:,)? i (?:want|wanna|would like|'d like|hope|really want) to "
+                     r"(?P<what>(?:go|travel|visit|see|learn|try|run|climb|swim|ride|drive|write|start|build|own|meet|fly|jump|hike|do) [a-z0-9][a-z0-9 ,'&-]{1,50})"
+                     r"|i (?:want|wanna|would like|'d like) to (?P<what2>(?:go|travel|visit|see|learn|try|run|climb|do) [a-z0-9][a-z0-9 ,'&-]{1,50}?) (?:someday|some day|one day|before i die|eventually)", low)
+    if m:
+        what = _as_he_said(text, (m.group("what") or m.group("what2")).strip(" ,"))
+        return {"command": {"kind": "list_add", "list": "bucket", "item": what}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
