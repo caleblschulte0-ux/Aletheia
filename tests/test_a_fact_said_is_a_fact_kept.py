@@ -8067,5 +8067,20 @@ class WhatHeBorrowed(unittest.TestCase):
 
 
 
+class HowFarIsItToAPlaceIsFromHome(unittest.TestCase):
+    """"How far is it to Chicago" measured from a place called "it"."""
+
+    def test_it_means_from_here(self):
+        from aletheia import voice
+        out = voice._interpret("how far is it to chicago")
+        self.assertEqual(out["command"], {"kind": "travel_time", "place": "chicago"})
+
+    def test_two_other_places_still_say_she_cannot(self):
+        from aletheia import voice
+        out = voice._interpret("how far is chicago from new york")
+        self.assertIsNone(out["command"])
+
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -6348,7 +6348,7 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:what(?:'s| is|s) )?the distance (?:between|from) (?P<a>[a-z][a-z .'-]{1,40}?) (?:and|to) (?P<b>[a-z][a-z .'-]{1,40}?)", low))
     if m:
         a, b = m.group("a").strip(), m.group("b").strip()
-        here = ("here", "home", "my house", "me", "my place", "where i am")
+        here = ("here", "home", "my house", "me", "my place", "where i am", "it")
         if a in here or b in here:
             return {"command": {"kind": "travel_time", "place": b if a in here else a}, "say": None}
         return {"command": None,
