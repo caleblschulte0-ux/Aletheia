@@ -12,6 +12,27 @@ from unittest import mock
 from aletheia import quick, voice
 
 
+def _her_clock_at_noon():
+    """`quick` reading the clock at noon today, his time.
+
+    A fixture built from "now minus three and a half hours" crosses
+    midnight for the first hours of every day, and then "today" no longer
+    holds it: these tests failed every night from 00:00 to 03:35 Central
+    for no reason but the clock. Both sides move together now.
+    """
+    from aletheia import localtime
+    noon = dt.datetime.now(localtime.operator_tz()).replace(hour=12, minute=0, second=0, microsecond=0)
+
+    class Noon(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return noon.astimezone(tz) if tz else noon.replace(tzinfo=None)
+
+    # `quick` imports datetime inside each function, so the clock is the
+    # module's own: patched for the length of one `with` and no longer.
+    return noon, mock.patch.object(dt, "datetime", Noon)
+
+
 class SaidAsAFact(unittest.TestCase):
     def test_a_fact_becomes_a_note_in_his_words(self):
         for said in ("my favorite color is blue", "Jess's birthday is March 3",
@@ -3089,12 +3110,11 @@ class TheGymAndARun(unittest.TestCase):
         with mock.patch.object(voice, "_names_one_open_task", return_value=False):
             for said in ("I went for a run", "I went to the gym", "I worked out", "I meditated"):
                 self.assertEqual((voice._interpret(said) or {}).get("command"), {"kind": "note", "text": said}, said)
-        now = dt.datetime.now(dt.timezone.utc)
-        _needs_today_to_hold(self, dt.timedelta(hours=1))
+        now, clock = _her_clock_at_noon()
         notes = [{"text": "I went to the gym", "ts": now.isoformat()},
                  {"text": "I went for a run", "ts": (now - dt.timedelta(hours=1)).isoformat()},
                  {"text": "I went to the gym", "ts": (now - dt.timedelta(days=40)).isoformat()}]
-        with mock.patch.object(quick, "_notes", return_value=notes):
+        with clock, mock.patch.object(quick, "_notes", return_value=notes):
             self.assertTrue(quick.answer("when did I last go to the gym").startswith("The last time you told me was"))
             self.assertEqual(quick.answer("how many times did I go to the gym this month"), "1 time this month, from what you've told me.")
             self.assertTrue(quick.answer("did I work out today").startswith("Yes"))
@@ -3588,13 +3608,12 @@ class HisWorkDayAndTalkingToHer(unittest.TestCase):
         self.assertEqual(voice._interpret("I'm starting work")["command"], {"kind": "note", "text": "started work"})
         self.assertEqual(voice._interpret("I'm done with work for the day")["command"], {"kind": "note", "text": "finished work"})
         self.assertEqual(voice._interpret("clocking out")["command"], {"kind": "note", "text": "finished work"})
-        now = dt.datetime.now(dt.timezone.utc)
-        _needs_today_to_hold(self, dt.timedelta(hours=3, minutes=35))
+        now, clock = _her_clock_at_noon()
         notes = [{"text": "finished work", "ts": (now - dt.timedelta(minutes=5)).isoformat()},
                  {"text": "started work", "ts": (now - dt.timedelta(hours=3, minutes=35)).isoformat()}]
-        with mock.patch.object(quick, "_notes", return_value=notes):
+        with clock, mock.patch.object(quick, "_notes", return_value=notes):
             self.assertEqual(quick.answer("how long did I work today"), "3 hours and 30 minutes today.")
-        with mock.patch.object(quick, "_notes", return_value=notes[1:]):
+        with clock, mock.patch.object(quick, "_notes", return_value=notes[1:]):
             self.assertIn("still at it", quick.answer("how many hours have I worked today"))
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIsNone(quick.answer("how long did I work today"))
@@ -5580,11 +5599,9 @@ class WhenHeLeftWork(unittest.TestCase):
         return mock.patch.object(quick, "_notes", return_value=[{"text": t, "ts": ts} for t, ts in rows])
 
     def test_the_times_he_said(self):
-        from aletheia import localtime
-        now = dt.datetime.now(localtime.operator_tz()).replace(second=0, microsecond=0)
-        _needs_today_to_hold(self, dt.timedelta(minutes=50))
+        now, clock = _her_clock_at_noon()
         start, end = now - dt.timedelta(minutes=50), now - dt.timedelta(minutes=5)
-        with self._rows(("finished work", end.isoformat()), ("started work", start.isoformat())):
+        with clock, self._rows(("finished work", end.isoformat()), ("started work", start.isoformat())):
             self.assertIn("done with work", quick.answer("what time did I leave work"))
             self.assertIn("at work", quick.answer("when did I get to work"))
             self.assertEqual(quick.answer("how long did I work today"), "45 minutes today.")
