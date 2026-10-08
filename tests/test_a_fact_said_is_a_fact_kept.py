@@ -12436,5 +12436,25 @@ class ANewJob(unittest.TestCase):
         self.assertEqual((held["kind"], held["title"]), ("calendar_hold", "orientation"))
 
 
+class HabitsHeBroke(unittest.TestCase):
+    def _notes(self):
+        import datetime as dt
+        from aletheia import localtime
+        ago = lambda d: (dt.datetime.now(localtime.operator_tz()) - dt.timedelta(days=d)).isoformat()
+        return [{"text": "I walked 12000 steps today", "ts": ago(0)}, {"text": "my goal is 10000 steps a day", "ts": ago(1)},
+                {"text": "I quit smoking today", "ts": ago(5)}]
+
+    def test_quitting_is_kept_and_counted(self):
+        for said in ("I quit smoking today", "I have not had a drink in 30 days"):
+            self.assertEqual(voice.interpret(said)["command"], {"kind": "note", "text": said})
+        with mock.patch.object(quick, "_notes", self._notes):
+            self.assertTrue(quick.answer("how long since I quit smoking").startswith("5 days"))
+            self.assertIsNone(quick.answer("how many days sober am I"))
+
+    def test_the_step_goal_reads_his_steps_and_goal(self):
+        with mock.patch.object(quick, "_notes", self._notes):
+            self.assertEqual(voice.interpret("did I hit my step goal today")["say"], "Yes - 12,000 steps today, past your goal of 10,000.")
+
+
 if __name__ == "__main__":
     unittest.main()

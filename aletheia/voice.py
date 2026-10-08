@@ -5090,7 +5090,9 @@ def _interpret(transcript: str) -> dict:
             found = quick.match(said)
             kept = (quick._counted(said) if found and found[0] == "counted"
                     # A heart rate he told her (2026-10-07) is read back too.
-                    else quick._reading(said) if found and found[0] == "reading" else None)
+                    else quick._reading(said) if found and found[0] == "reading"
+                    # "Did I hit my step goal today" (2026-10-08).
+                    else quick._step_goal(said) if found and found[0] == "step_goal" else None)
         except Exception:  # noqa: BLE001
             kept = None
         if kept and not kept.startswith("You haven't"):
@@ -11263,6 +11265,12 @@ def _interpret(transcript: str) -> dict:
     # "I get 15 days of PTO", "I used 3 days of PTO" (2026-10-08: to the planner).
     if re.fullmatch(r"i (?:get|have|got|used|took) (?:\d{1,3}(?:\.5)?|a|one|two|three|four|five|six|seven|eight|nine|ten|half a) (?:days? of (?:pto|vacation|leave|sick time|sick leave)|(?:pto|vacation|sick|personal) days?)(?: a year| per year| each year| every year| this year| so far)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I quit smoking today", "I haven't had a drink in 30 days" (2026-10-08:
+    # to the planner). Kept, with a word for it.
+    if re.fullmatch(r"i (?:just |finally |officially )?(?:quit|stopped|gave up) (?:smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)(?: today| yesterday| this week| for good)?", low) \
+            or re.fullmatch(r"i (?:have not|haven't) (?:had a drink|had a cigarette|smoked|vaped|had alcohol) (?:in|for) \d{1,4} days", low) \
+            or re.fullmatch(r"i(?:'m| am) (?:\d{1,4} days|one week|two weeks|a month|\d{1,2} months) (?:sober|clean|smoke free|smoke-free)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "That's a big one - good for you. I'll keep count."}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

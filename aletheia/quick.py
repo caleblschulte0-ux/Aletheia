@@ -2641,6 +2641,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("code_at", re.compile(r"^what(?:'s| is|s) (?:the )?(?P<code_kind>gate|door|front door|garage|alarm|lock ?box|building|key ?pad|entry|parking) (?:code|number|combo|combination) (?:at|for) (?:my |the )?(?P<code_at>[a-z][a-z' ]{1,25}?)\s*\??$")),
     ("left_at", re.compile(r"^what (?:did|have) i (?:leave|left) (?:at|in) (?:the |my )?(?P<left_at>work|office|school|home|gym|car|[a-z]{3,15}'?s(?: house)?)\s*\??$")),
     ("got_back", re.compile(r"^(?:did|have) i (?:get|gotten|got) (?:my|our|the) (?P<got_back>[a-z][a-z ]{1,20}?) back(?: yet)?\s*\??$")),
+    ("step_goal", re.compile(r"^(?:did|have) i (?:hit|reach|reached|make|made|meet|met|get|got|beat|beaten) my (?:daily )?(?:step|steps|walking) goal(?P<step_goal> today| yesterday| yet)?\s*\??$")),
+    ("quit_since", re.compile(
+        r"^how long (?:since|has it been since|ago did) i (?:quit|stopped|gave up) (?P<quit_since>smoking|vaping|drinking|caffeine|coffee|soda|sugar|nicotine|dip|chewing tobacco|gambling)\s*\??$"
+        r"|^how (?:many days|long) (?:sober|clean|smoke free|smoke-free|nicotine free|alcohol free) (?:am i|have i been)\s*\??$"
+        r"|^how (?:many days|long) have i been (?P<quit_state>sober|clean|smoke free|smoke-free|nicotine free|alcohol free)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3583,7 +3588,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18193,6 +18198,64 @@ def _got_back(text: str) -> str | None:
 
 
 
+
+def _step_goal(text: str) -> str | None:
+    """"Did I hit my step goal today" (2026-10-08: "I can't see your health
+    data", with "my goal is 10000 steps a day" and today's steps kept)."""
+    goal = None
+    for row in _notes():
+        m = re.search(r"\b(?:my )?(?:daily )?(?:step )?goal is (?:to (?:walk|hit|get) )?(\d[\d,]{2,6}) steps", str(row.get("text") or ""), re.I)
+        if m:
+            goal = int(m.group(1).replace(",", ""))
+            break
+    if goal is None:
+        return None
+    got = _counted("how many steps did i take " + ("yesterday" if "yesterday" in _tidy(text) else "today")) or ""
+    n = re.match(r"([\d,]+) steps", got)
+    day = "yesterday" if "yesterday" in _tidy(text) else "today"
+    if not n:
+        return f"You haven't told me your steps {day} - your goal is {goal:,}."
+    steps = int(n.group(1).replace(",", ""))
+    if steps >= goal:
+        return f"Yes - {steps:,} steps {day}, past your goal of {goal:,}."
+    return f"Not yet - {steps:,} steps {day}, {goal - steps:,} short of your goal of {goal:,}."
+
+
+def _quit_since(text: str) -> str | None:
+    """"How long since I quit smoking", "how many days sober am I"
+    (2026-10-08: to a model, with "I quit smoking today" kept). Counted from
+    when he told her, plus any days he said he already had."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("quit_since", text)
+    what = g.get("quit_since")
+    tz = localtime.operator_tz()
+    low = _tidy(text)
+    if what:
+        pat = rf"^i (?:just )?(?:quit|stopped|gave up) {re.escape(what)}\b"
+    elif re.search(r"\b(?:smoke.free|nicotine free)\b", low):
+        pat = r"^i (?:just )?(?:quit|stopped|gave up) (?:smoking|vaping|nicotine)\b|^i (?:have not|haven't) (?:smoked|vaped|had a cigarette)\b|^i(?:'m| am) .* smoke.free\b"
+    elif re.search(r"\bclean\b", low):
+        pat = r"^i (?:just )?(?:quit|stopped|gave up) |^i (?:have not|haven't) |^i(?:'m| am) .* (?:clean|sober|smoke.free)\b"
+    else:
+        # Sober is drinking - never days since he quit smoking.
+        pat = r"^i (?:just )?(?:quit|stopped|gave up) (?:drinking|alcohol)\b|^i(?:'m| am) .*\bsober\b|^i (?:have not|haven't) had (?:a drink|alcohol)\b"
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if not re.search(pat, said, re.I):
+            continue
+        try:
+            told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+        except ValueError:
+            return None
+        already = re.search(r"\b(?:in|for) (\d{1,4}) days\b|\b(\d{1,4}) days (?:sober|clean)\b", said, re.I)
+        days = (dt.datetime.now(tz).date() - told).days + (int(already.group(1) or already.group(2)) if already else 0)
+        if days <= 0:
+            return "Since today, from what you told me. Day one - good for you."
+        return f"{days} day{'s' if days != 1 else ''}, from what you've told me. Keep going."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19011,6 +19074,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "step_goal": _step_goal,
+           "quit_since": _quit_since,
            "left_at": _left_at,
            "got_back": _got_back,
            "code_at": _code_at,
