@@ -13,6 +13,7 @@ from aletheia import campaign, job_fit, profile, rulings
 
 HIS = {"work_not_wanted": "sales, cold calling, quota", "work_wanted": "partnerships"}
 COLD = "You will make 60 calls a day doing outbound prospecting and exceed a monthly quota."
+EMAIL = "You will prospect through email sequences and LinkedIn and exceed a monthly quota."
 
 
 def _facts_a_form_is_answered_from():
@@ -43,12 +44,20 @@ class WithHisRuling(unittest.TestCase):
         self.assertTrue(ruling and ruling["on"])
         self.assertIn("Yes to both", rulings.quote(ruling))
 
-    def test_development_reps_pass_even_with_cold_calls_and_a_quota(self):
+    def test_development_reps_pass_with_a_quota_and_no_cold_calls(self):
         for title in ("Business Development Representative", "SDR, Mid-Market",
                       "Sales Development Representative", "BDR - AI Labs",
                       "Business Development Associate", "Account Development Representative",
                       "Market Development Rep", "Lead Development Representative (Inbound)"):
-            self.assertEqual(job_fit.unwanted_reason(title, COLD, HIS), "", title)
+            self.assertEqual(job_fit.unwanted_reason(title, EMAIL, HIS), "", title)
+
+    def test_a_development_rep_who_cold_calls_is_left_out(self):
+        # His words, 2026-10-08: "I am not comfortable with cold calls ...
+        # I'm not a cold caller."
+        for text in (COLD, "Prospect by cold-calling small businesses.", "Make 80+ dials per day."):
+            self.assertIn("cold calling",
+                          job_fit.unwanted_reason("Sales Development Representative", text, HIS), text)
+        self.assertIn("not a cold caller", rulings.quote(rulings.for_switch("bdr_sdr")))
 
     def test_every_other_sales_job_is_still_left_out(self):
         for title in ("Account Executive", "Inside Sales Representative", "Sales Manager",
@@ -59,6 +68,7 @@ class WithHisRuling(unittest.TestCase):
     def test_the_model_reading_a_posting_hears_the_carve_out(self):
         wanted, unwanted = job_fit.preferences(HIS)
         self.assertIn("BDR", wanted)
+        self.assertIn("never cold calling", wanted)
         self.assertIn("partnerships", wanted)
         self.assertTrue(unwanted.startswith("sales, cold calling, quota"))
         self.assertIn("except", unwanted)
@@ -71,7 +81,7 @@ class WithHisRuling(unittest.TestCase):
     def test_jobs_closed_as_sales_before_his_yes_are_judged_afresh(self):
         with mock.patch.object(profile, "load", return_value={
                 "work_not_wanted": {"value": "sales", "at": "2026-09-13T12:00:00Z"}}):
-            self.assertEqual(job_fit.preferences_changed_at(), "2026-10-07T22:39:02Z")
+            self.assertEqual(job_fit.preferences_changed_at(), "2026-10-08T12:15:11Z")
 
     def test_a_form_question_about_cold_calls_hears_his_yes(self):
         facts = _facts_a_form_is_answered_from()

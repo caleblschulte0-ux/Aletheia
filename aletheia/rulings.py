@@ -33,7 +33,7 @@ from aletheia.fleet import REPO_ROOT
 DEFAULT_PATH = Path(os.environ.get("ALETHEIA_RULINGS") or (REPO_ROOT / "config" / "rulings.json"))
 REPO_RULINGS = REPO_ROOT / "config" / "rulings.json"
 #: The switches a ruling may set. Add one only with his words in the file.
-SWITCHES = ("interviews", "discovery", "bdr_sdr")
+SWITCHES = ("interviews", "discovery", "bdr_sdr", "pay_floor")
 
 
 def load(path: Path | None = None) -> list[dict]:
@@ -53,6 +53,7 @@ def load(path: Path | None = None) -> list[dict]:
         out.append({"id": str(row["id"]), "switch": str(row["switch"]), "on": bool(row.get("on")),
                     "window": row.get("window") if isinstance(row.get("window"), dict) else None,
                     "since": str(row.get("since") or ""), "quotes": quotes,
+                    "floor": row.get("floor") if isinstance(row.get("floor"), dict) else None,
                     "means": str(row.get("means") or "")})
     return out
 

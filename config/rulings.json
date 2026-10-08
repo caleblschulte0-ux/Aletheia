@@ -56,7 +56,7 @@
       "id": "bdr-sdr-welcome",
       "switch": "bdr_sdr",
       "on": true,
-      "since": "2026-10-07",
+      "since": "2026-10-08",
       "quotes": [
         {
           "on": "2026-09-13",
@@ -66,9 +66,30 @@
           "on": "2026-10-07T22:39:02Z",
           "asked": "Should she apply to BDR/SDR roles? Both of those interviews are sales roles.",
           "said": "Yes to both"
+        },
+        {
+          "on": "2026-10-08T12:15:11Z",
+          "said": "for the record, I am not comfortable with cold calls. So she should be putting no. I'm not a cold caller. I didn't go to fucking college and have a 100K paying a year job to cold call people."
         }
       ],
-      "means": "Business and sales development representative roles (BDR, SDR, business development associate) are applied to, outbound prospecting and quota included, even though he otherwise leaves out sales, cold calling and quotas. Every other sales job (account executive, closer, inside sales) is still left out."
+      "means": "Business and sales development representative roles (BDR, SDR, business development associate) are applied to, quota included, but only when the posting does not involve cold calling: he is not a cold caller, and a form asking whether he is comfortable with cold calls is answered No. Every other sales job (account executive, closer, inside sales) is still left out."
+    },
+    {
+      "id": "pay-floor-95k",
+      "switch": "pay_floor",
+      "on": true,
+      "since": "2026-10-08",
+      "floor": {
+        "amount": 95000,
+        "home": "SD"
+      },
+      "quotes": [
+        {
+          "on": "2026-10-08T12:15:11Z",
+          "said": "Don't apply to any job whose salary is below 95K or, you know, 95K comparative to, to making that in South Dakota. So, you know, 95K in California ain't quite the same."
+        }
+      ],
+      "means": "A posting that lists its pay is passed over when the top of its range is under $95,000 in South Dakota money: $95,000 scaled by the cost of living where the job is, against South Dakota's. A posting that lists no pay, or a place the index does not know, is judged at $95,000 itself."
     }
   ]
 }
