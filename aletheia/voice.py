@@ -9064,6 +9064,24 @@ def _interpret(transcript: str) -> dict:
                     r"(?:(?:place|restaurant|spot|cafe|bar|bakery|diner)(?: called| named)? )?[a-z0-9][a-z0-9 '&.-]{1,30}?"
                     r" (?:and|but) (?:i |we )?(?:really |absolutely |kind of |kinda )?(?:loved|liked|hated|enjoyed|didn'?t like|did not like|wasn'?t a fan of) it", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I called the insurance company", then "they said the claim was
+    # approved" (2026-10-08: to the planner). Kept under who he called, so
+    # "what did the insurance company say" reads it.
+    m = re.fullmatch(r"(?:they|he|she) (?:said|told me|say|says) (?:that )?(?P<x>[a-z0-9].{2,120})", low)
+    if m:
+        try:
+            from aletheia import converse
+            turns = list(reversed(converse.recent(limit=3) or []))
+        except Exception:  # noqa: BLE001
+            turns = []
+        for turn in turns[:2]:
+            said = re.sub(r"^(?:hey |ok |okay )?thea,? ", "", " ".join(str(turn.get("he_asked") or "").split()), flags=re.I)
+            who = re.fullmatch(r"i (?:just |finally )?(?:called|talked to|spoke (?:to|with)|met with|heard (?:back )?from|got a call from"
+                               r"|emailed|texted|got off the phone with) (?P<who>(?:the |my )?[a-z][a-z' &.-]{1,40}?)(?: today| back| earlier| this morning)?\.?",
+                               said, re.I)
+            if who:
+                name = who.group("who")
+                return {"command": {"kind": "note", "text": f"{name} said {_as_he_said(text, m.group('x'))}"}, "say": None}
     # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
     # "the landlord fixed the sink" both to the planner). Notes; "what's
     # broken" and "is the sink fixed" read them.

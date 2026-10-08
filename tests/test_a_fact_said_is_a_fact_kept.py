@@ -9101,5 +9101,26 @@ class PlacesAndOrders(unittest.TestCase):
 
 
 
+class WhatTheySaid(unittest.TestCase):
+    """2026-10-08: "I called the insurance company", then "they said the
+    claim was approved" went to the planner."""
+
+    def test_kept_under_who_he_called(self):
+        from aletheia import converse, voice
+        with mock.patch.object(converse, "recent", lambda limit=3: [{"he_asked": "I called the insurance company", "she_answered": "Done."}]):
+            self.assertEqual(voice._interpret("they said the claim was approved")["command"],
+                             {"kind": "note", "text": "the insurance company said the claim was approved"})
+        with mock.patch.object(converse, "recent", lambda limit=3: [{"he_asked": "what time is it", "she_answered": "3 pm"}]):
+            self.assertNotEqual(voice._interpret("they said the claim was approved")["command"]["kind"], "note")
+
+    def test_read_back(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "the insurance company said the claim was approved"}]):
+            self.assertEqual(quick.answer("what did the insurance company say"),
+                             "You told me the insurance company said the claim was approved.")
+            self.assertIsNone(quick.match("what did my mom say"))
+
+
+
 if __name__ == "__main__":
     unittest.main()

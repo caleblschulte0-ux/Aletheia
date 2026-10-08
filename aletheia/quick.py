@@ -2130,6 +2130,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("places_liked", re.compile(
         r"^(?:what|which) (?:restaurants|places(?: to eat)?|spots) do (?:i|we) (?:like|love|enjoy)\s*\??$"
         r"|^what are (?:my|our) favou?rite (?:restaurants|places to eat|places)\s*\??$")),
+    # "What did the insurance company say" (2026-10-08: to a model, a turn
+    # after "they said the claim was approved" was kept under their name).
+    ("who_said", re.compile(
+        # Only "the ..." - a person by name may be in his mail ("what did
+        # Dana say" is a model's).
+        r"^what did (?P<who_said>the [a-z][a-z' &.-]{1,40}?) (?:say|tell me|tell you)\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -2955,7 +2961,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
-                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "who_called", "news_when", "task_about", "task_about2", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "can_eat", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "sick_since", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13728,6 +13734,19 @@ def _places_liked() -> str | None:
     return f"From what you've told me: {speech.and_list(found[:5])}."
 
 
+def _who_said(who: str) -> str | None:
+    """What he told her somebody said, newest first. None when he never
+    did: it may be in his mail, which a model can read."""
+    from aletheia import speech
+    who = " ".join(str(who or "").casefold().split())
+    base = re.sub(r"^(?:the|my) ", "", who)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        if re.match(rf"(?:the |my )?{re.escape(base)} (?:said|told me|says)\b", said, re.I):
+            return f"You told me {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14535,6 +14554,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "who_said": _who_said,
            "places_liked": lambda rest: _places_liked(),
            "repeating": _repeating,
            "bills_due": lambda rest: _bills_due(),
