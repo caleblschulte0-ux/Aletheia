@@ -846,8 +846,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
         r"(?: today)?(?P<due4>)\s*\??$"
         # "What's on my list for Friday" (2026-10-08: to a model).
-        r"|^(?:what(?:'s| is|s) (?:on my (?:list|task list|to ?do list)(?: due)?|due) (?:for|on) "
-        r"|what do i have (?:to do|due|on my list) (?:on )?|what(?:'s| is|s) due (?:on )?)"
+        # ("What's due Friday" is `due`'s, which was there first.)
+        r"|^(?:what(?:'s| is|s) on my (?:list|task list|to ?do list)(?: due)? (?:for|on) "
+        r"|what do i have (?:to do|due|on my list) (?:on )?)"
         r"(?P<due6>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
