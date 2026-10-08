@@ -12106,5 +12106,16 @@ class SeeingTheDoctor(unittest.TestCase):
                          {"kind": "contact_add", "name": "Dr Patel", "phone": "555 222 3333"})
 
 
+class PlacesToEat(unittest.TestCase):
+    def test_a_list_named_without_the_word_list(self):
+        self.assertEqual(voice.interpret("add Olive Garden to places to try")["command"],
+                         {"kind": "list_add", "list": "places to try", "item": "Olive Garden"})
+
+    def test_when_we_last_went(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "we went to Olive Garden"}]):
+            self.assertIn("Olive Garden", quick.answer("when did we last go to olive garden"))
+            self.assertIsNone(quick.answer("when did I last eat at Chilis"))
+
+
 if __name__ == "__main__":
     unittest.main()

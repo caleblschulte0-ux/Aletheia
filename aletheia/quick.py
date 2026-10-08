@@ -2575,6 +2575,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                             r"|^(?:what|which) hotel did (?:i|we) book\s*\??$")),
     # "What is my dog's weight" beside "my dog weighs 45 pounds" (2026-10-08).
     ("weight_of", re.compile(r"^what(?:'s| is) (?:my|our|the) (?P<weight_of>[a-z][a-z ]{1,20}?)'s weight\s*\??$")),
+    # "When did we last go to Olive Garden" (2026-10-08: to a model), after
+    # "we went to Olive Garden".
+    ("went_place", re.compile(r"^when (?:did|was the last time) (?:i|we) (?:last )?(?:go to|went to|eat at|ate at|visit|visited|have dinner at|had dinner at) "
+                              r"(?P<went_place>[a-z][a-z' &-]{1,30}?)(?: last)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3517,7 +3521,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -17733,6 +17737,14 @@ def _weight_of(text: str) -> str | None:
     return f"You told me: {said[0]}." if said else None
 
 
+def _went_place(text: str) -> str | None:
+    place = " ".join(str(_groups("went_place", text).get("went_place") or "").casefold().split())
+    place = re.sub(r"^(?:the|a|an) ", "", place)
+    if not place or place in ("it", "there", "that", "this"):
+        return None
+    return _told_when(rf"^(?:i|we|my [a-z]+ and i) (?:just )?(?:went to|ate at|visited|had (?:dinner|lunch|breakfast|brunch) at|tried) (?:the )?{re.escape(place)}\b")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -18548,6 +18560,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "went_place": _went_place,
            "reminded_today": lambda _rest="": _reminded_today(),
            "weight_of": _weight_of,
            "my_hotel": lambda _rest="": _my_hotel(),

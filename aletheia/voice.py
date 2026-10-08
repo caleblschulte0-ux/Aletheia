@@ -11077,6 +11077,15 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i|we) (?:took|rode|caught|got) (?:the |a |an )?(?:bus|train|subway|metro|tram|ferry|uber|lyft|taxi|cab|bike|scooter)"
                     r"(?: (?:to|from) (?:work|school|the office|home|the airport|the city|downtown))?(?: (?:today|this morning|tonight|yesterday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Add Olive Garden to places to try" (2026-10-08: to the planner) - a
+    # list named without the word list.
+    m = re.fullmatch(r"(?:add|put) (?P<x>[a-z0-9][a-z0-9 '&-]{1,40}?) (?:to|on) (?:my |the |our )?"
+                     r"(?P<name>(?:places|restaurants|things|movies|shows|books|bars|spots|recipes) to (?:try|see|watch|read|visit|go|make|cook))", low)
+    if m:
+        again = _interpret(f"add {m.group('x')} to my {m.group('name')} list")
+        if ((again or {}).get("command") or {}).get("kind") == "list_add":
+            again["command"]["item"] = _as_he_said(text, m.group("x"))
+            return again
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
