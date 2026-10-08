@@ -2919,6 +2919,10 @@ def _interpret(transcript: str) -> dict:
     # planner) is "I need to bring snacks Saturday": remembering is her job.
     low = re.sub(r"^(i (?:need|have|got|gotta|must|should)(?: to)? |i've got to )(?:remember to |not forget to )", r"\1", low)
     low = re.sub(r"^(?:don't let me forget|i can't forget) to ", "i need to ", low)
+    # "My budget for food is 400 a month" (2026-10-08: to the planner) is
+    # his food budget, said the way the budget readers already read it.
+    low = re.sub(r"^(my|our) (?:monthly )?budget for (groceries|grocery|food|gas|fun|shopping|eating out) is ",
+                 lambda b: f"{b.group(1)} {'grocery' if b.group(2).startswith('grocer') else b.group(2)} budget is ", low)
     # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
     # planner). The same rule: his whole list is not one sentence's to undo.
     # FIRST, before any rule that finds one task by its words: with two

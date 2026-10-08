@@ -7120,6 +7120,20 @@ class WhatsLeftForSaturday(unittest.TestCase):
         self.assertEqual(quick.match("what is left for saturday"), ("due", "saturday"))
 
 
+class FoodIsLunchToo(unittest.TestCase):
+    """2026-10-08: "how much did I spend on food" said nothing beside $12 on
+    lunch and $60 on groceries; "my budget for food is 400" went to the planner."""
+
+    def test_food_and_its_budget(self):
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I spent 12 dollars on lunch", "ts": now}, {"text": "I spent 60 on groceries", "ts": now},
+                {"text": "I spent 40 on gas", "ts": now}, {"text": "my food budget is 400 a month", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick._spent("how much did I spend on food this week").startswith("$72 on food"))
+            self.assertTrue(quick._budget("how much of my food budget is left").startswith("$328 left"))
+        self.assertEqual(voice._interpret("my budget for food is 400 a month")["command"]["kind"], "note")
+
+
 def _needs_today_to_hold(case, span):
     """A fixture that puts `span` of his day behind now cannot exist in the
     first minutes after his midnight: "today" is shorter than that. Found

@@ -10653,8 +10653,11 @@ def _spent(question: str) -> str | None:
                   }.get(window, (midnight - dt.timedelta(days=30), midnight + dt.timedelta(days=1)))
     span = window or "in the last 30 days"
     on = re.search(r"\bspen[dt] (?:on|for) (?P<on>[a-z][a-z' ]{1,30}?)(?: (?:today|yesterday|this week|last week|this month|last month))?$", low)
-    hits = [r for r in rows if start <= r[0] < end
-            and (not on or any(w.rstrip("s") in r[2] for w in on.group("on").split() if w not in ("the", "my", "a")))]
+    asked_for = [w.rstrip("s") for w in on.group("on").split() if w not in ("the", "my", "a")] if on else []
+    if asked_for == ["food"]:
+        # "On food" is lunch and groceries too (2026-10-08: "nothing on food").
+        asked_for = list(_FOOD_WORDS)
+    hits = [r for r in rows if start <= r[0] < end and (not on or any(w in r[2] for w in asked_for))]
     if not hits:
         return (f"Nothing on {on.group('on')} {span} that you've told me." if on
                 else f"Nothing {span} that you've told me.")
@@ -10673,6 +10676,11 @@ def _spent(question: str) -> str | None:
                 if len(ranked) > 1 else f"{top[:1].upper() + top[1:]}, {_money(amt)} - the only spending you've told me about {span}.")
     parts = [f"{_money(v)} on {k}" for k, v in ranked[:4]]
     return f"{_money(total)} {span}, from what you've told me: {speech.and_list(parts)}."
+
+
+#: What "food" is when he says what he spent it on.
+_FOOD_WORDS = ("food", "grocer", "eating out", "takeout", "take out", "restaurant", "lunch", "dinner", "breakfast",
+               "brunch", "coffee", "pizza", "snack", "doordash", "uber eats", "fast food", "burger", "tacos", "sushi")
 
 
 _BUDGET_NOTE = re.compile(r"^(?:my |our )?(?P<kind>monthly |weekly |grocery |food |eating out |gas |fun |shopping )?budget is "
@@ -10707,8 +10715,7 @@ def _budget(question: str) -> str | None:
     now = dt.datetime.now(tz)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start = midnight - dt.timedelta(days=now.weekday()) if per == "week" else midnight.replace(day=1)
-    words = {"grocery": ("grocer", "food"), "food": ("food", "grocer", "eating out", "takeout", "restaurant")}.get(
-        category, (category,) if category else ())
+    words = {"grocery": ("grocer", "food"), "food": _FOOD_WORDS}.get(category, (category,) if category else ())
     spent = 0.0
     for row in _notes():
         m = _SPENT_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
