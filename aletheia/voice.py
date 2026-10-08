@@ -1376,6 +1376,22 @@ def _work_reminders_said(when: str = "get to work", since: str = "started work",
     return f"{lead} You asked me to remind you when you {done}: {speech.and_list(out)}."
 
 
+def _hours_he_told(place: str) -> str | None:
+    """His own note of a place's hours - "my gym opens at 5am" - newest
+    first, said back as his; None when he never told her."""
+    try:
+        from aletheia import quick
+        rows = quick._notes()
+    except Exception:  # noqa: BLE001
+        return None
+    place = re.sub(r"^(?:my|the|our) ", "", " ".join(str(place or "").casefold().split()))
+    for row in rows:
+        said = " ".join(str(row.get("text") or "").split())
+        if re.fullmatch(rf"(?:my|the|our) (?:local )?{re.escape(place)} (?:opens|closes|is open|is closed)\b.*", said, re.I):
+            return f"You told me {speech.as_she_says_it(said).rstrip('.')}."
+    return None
+
+
 def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
@@ -6466,11 +6482,25 @@ def _interpret(transcript: str) -> dict:
                      r"|is (?:the )?(?P<p2>[a-z0-9][a-z0-9 .'&-]{1,40}?) (?:open|closed|still open)"
                      r"(?P<when2> today| tonight| right now| now| tomorrow|(?: on)? [a-z]+days?| on the weekend|(?: this)? weekend| late)?"
                      r"|what are (?:the )?(?P<p3>[a-z0-9][a-z0-9 .'&-]{1,40}?)(?:'s|s')? (?:hours|opening hours)(?: today)?", low)
+    if m and (m.group("p") or m.group("p2") or "").startswith("my "):
+        # "What time does my gym close" with only "my gym opens at 5am"
+        # kept (2026-10-08: to a model): what he told her, and what he didn't.
+        told = _hours_he_told(m.group("p") or m.group("p2"))
+        if told:
+            asked = "close" if re.search(r"\bclos", low) else "open"
+            if not re.search(rf"\b{asked[:4]}", told.casefold()):
+                told = told.rstrip(".") + f", but not when it {asked}s."
+            return {"command": None, "say": told}
     if m and not re.search(r"\b(?:it|that|this|my|your|door|window|app|file|tab|browser|calendar|spotify|chrome"
                            r"|garage|fridge|microphone|mic|ticket|application|position|job|pr|pull request)\b",
                            m.group("p") or m.group("p2") or m.group("p3") or ""):
         place = (m.group("p") or m.group("p2") or m.group("p3")).strip()
         when = (m.group("when") or m.group("when2") or "").strip()
+        # "The pharmacy closes at 9 on weekdays" he told her answers it
+        # before a search does (2026-10-08: searched with the note kept).
+        told = _hours_he_told(place)
+        if told:
+            return {"command": None, "say": told}
         return {"command": {"kind": "research", "question": f"{place} hours {when}".strip()}, "say": None}
     # DIRECTIONS, TRAFFIC AND THE COMMUTE (2026-10-07: all to the planner).
     # "How do I get to work", "directions to the airport", "take me home"
@@ -9743,6 +9773,12 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i (?:just )?(?:benched|bench pressed|squatted|deadlifted|overhead pressed|military pressed|curled|leg pressed|"
                     r"did (?:a )?(?:bench|squat|deadlift)(?: of)?) \d{2,4}(?: ?(?:pounds|lbs?|kilos|kgs?))?"
                     r"(?: (?:for|x|times) \d{1,2}(?: reps?)?)?(?: (?:today|this morning|tonight|yesterday|at the gym))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My gym opens at 5am" (2026-10-08: to the planner) - kept in his
+    # words, read back by "what time does my gym open".
+    if re.fullmatch(r"(?:my|the|our) (?:local )?[a-z][a-z' ]{1,25}? (?:opens|closes|is open|is closed)(?: (?:at|until|till|from))? "
+                    r"\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?(?:(?: to| until| till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?)?"
+                    r"(?: (?:on )?(?:weekdays|weekends|every day|daily|on sundays|on saturdays|on sunday|on saturday))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.

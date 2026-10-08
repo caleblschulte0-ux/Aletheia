@@ -8474,5 +8474,30 @@ class WhichOfThoseIsMostUrgent(unittest.TestCase):
 
 
 
+class APlacesHoursHeToldHer(unittest.TestCase):
+    """"My gym opens at 5am" went to the planner, and "when does the pharmacy
+    close" searched the web with his own note kept (2026-10-08)."""
+
+    def test_the_hours_are_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my gym opens at 5am")["command"], {"kind": "note", "text": "my gym opens at 5am"})
+
+    def test_his_note_answers_before_a_search(self):
+        from aletheia import quick, voice
+        rows = [{"text": "the pharmacy closes at 9 on weekdays"}, {"text": "my gym opens at 5am"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(voice._interpret("when does the pharmacy close")["say"],
+                             "You told me the pharmacy closes at 9 on weekdays.")
+            self.assertIn("but not when it closes", voice._interpret("what time does my gym close")["say"])
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(voice._interpret("when does target close")["command"]["kind"], "research")
+
+    def test_no_program_name_is_said(self):
+        import inspect
+        from aletheia import research
+        self.assertNotIn("Playwright, isn't", inspect.getsource(research))
+
+
+
 if __name__ == "__main__":
     unittest.main()
