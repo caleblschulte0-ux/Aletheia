@@ -471,6 +471,10 @@ def as_she_says_it(phrase: str) -> str:
     # both lose a day's capital. Days, and the months that are never also
     # an ordinary word ("may" and "march" are), get theirs back.
     said = _NAMED_DAYS.sub(lambda m: m.group(0).capitalize(), said)
+    # "Your cars mileage is 45000" (2026-10-08): typed without the
+    # apostrophe, and only before what a car has.
+    said = re.sub(r"\b(car|truck|van|bike|boat)s (?=(?:mileage|milage|odometer|registration|insurance|oil|tires|battery|vin|plate)\b)",
+                  r"\1's ", said, flags=re.I)
     # "You want to learn spanish" (2026-10-08): a language is a name.
     return _LANGUAGES.sub(lambda m: m.group(0).capitalize(), said)
 

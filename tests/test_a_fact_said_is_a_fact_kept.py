@@ -9240,5 +9240,25 @@ class TheWeeksWorkouts(unittest.TestCase):
             self.assertEqual(quick.answer("what workouts did I do this week"), "This week you ran 3 miles and did yoga.")
 
 
+class TheCar(unittest.TestCase):
+    """A sweep of car sentences (2026-10-08)."""
+
+    def test_next_oil_change_reads_the_task(self):
+        from aletheia import tasks
+        with mock.patch.object(quick, "_notes", lambda: []), \
+                mock.patch.object(tasks, "all_tasks", lambda: [{"description": "get the car an oil change", "status": "OPEN", "id": "t1"}]), \
+                mock.patch.object(tasks, "is_his", lambda t: True):
+            self.assertIn("Get the car an oil change has no due date", quick.answer("when is my next oil change due"))
+
+    def test_a_ticket_is_kept(self):
+        self.assertEqual(voice._interpret("I got a speeding ticket")["command"],
+                         {"kind": "note", "text": "I got a speeding ticket"})
+
+    def test_cars_mileage_gets_its_apostrophe(self):
+        from aletheia import speech
+        self.assertEqual(speech.as_she_says_it("my cars mileage is 45000"), "your car's mileage is 45000")
+        self.assertEqual(speech.as_she_says_it("my cars are old"), "your cars are old")
+
+
 if __name__ == "__main__":
     unittest.main()

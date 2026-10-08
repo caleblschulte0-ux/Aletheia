@@ -6050,7 +6050,7 @@ def _task_due(words: str) -> str | None:
     no task is named, the way the question used to be answered."""
     from aletheia import speech, tasks
     asked = [w for w in re.findall(r"[a-z0-9']+", str(words or "").casefold())
-             if w not in ("my", "the", "a", "an", "task", "to", "do")]
+             if w not in ("my", "the", "a", "an", "task", "to", "do", "next", "upcoming")]
     if not asked:
         return None
     live = [t for t in tasks.all_tasks()
@@ -9820,6 +9820,18 @@ def _recall(words: str) -> str | None:
         asked = [f for f in found if attr in f.casefold() or (attr == "name" and re.search(r"\bnamed|\bcalled\b", f.casefold()))]
         found = asked or found
     if not found:
+        # "When is my next oil change due" beside the task "get the car an
+        # oil change" (2026-10-08: "nothing about next oil change on file").
+        try:
+            from aletheia import intercom
+            named = [w for w in stems if w not in ("next", "due", "last", "date", "day", "time")]
+            listed = [str(t.get("description") or "") for t in intercom._open_tasks()
+                      if named and all(re.search(r"\b" + re.escape(w), str(t.get("description") or "").casefold()) for w in named)]
+        except Exception:  # noqa: BLE001
+            listed = []
+        if listed:
+            mine = re.sub(r"\bmy\b", "your", listed[0])
+            return f"It's on your list - {mine} - but you haven't told me when. Tell me the date and I'll keep it."
         # "What am I allergic to" read back "nothing about allergic".
         shown = {"allergic": "allergies", "allergic to": "allergies"}.get(str(words).strip(), words)
         return f"I have nothing about {shown} on file - tell me and I'll remember it."

@@ -9184,6 +9184,11 @@ def _interpret(transcript: str) -> dict:
     if m and (m.group("who").startswith("my ") or re.search(r"\b" + re.escape(m.group("who").capitalize()) + r"\b", text)) \
             and m.group("who") not in ("i", "he", "she", "they", "we", "you", "it", "who"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I got a speeding ticket" (2026-10-08: to the planner). Kept, so
+    # "when did I get the ticket" has an answer.
+    if re.fullmatch(r"i (?:just )?(?:got|received) (?:a |another )?(?:speeding|parking|traffic|red light) (?:ticket|fine|citation)"
+                    r"(?: (?:today|yesterday|this morning|last night|on the way [a-z ]{2,20}))?|i (?:just )?got pulled over(?: today| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Ugh, sorry. I've noted it."}
     # WHO CALLED (2026-10-08: "my mom called" went to the planner). A note
     # in his words; "who called today" reads the day's back. Only a person
     # of his or a name, so "the meeting got called off" is not one.
