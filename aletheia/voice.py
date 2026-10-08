@@ -5424,7 +5424,7 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "task_change", "which": task,
                                 "description": _as_he_said(text, m.group("new"))}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
-    m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail
+    m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift|postpone|delay|defer|put off|push back) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
                        # "Move renew my license to next week", "to November
                        # 15" (2026-10-08: to the planner).
@@ -5468,6 +5468,16 @@ def _interpret(transcript: str) -> dict:
     if m and _names_one_open_task(m.group("w")):
         return {"command": {"kind": "task_change", "which": m.group("w"),
                             "description": _as_he_said(text, m.group("new").strip())}, "say": None}
+    if m and re.search(r"\btask\b", low):
+        # "Rename the insurance task to call Geico" with no such open task
+        # (2026-10-08: to the planner) - the list says why.
+        try:
+            from aletheia import intercom
+            _found, why = intercom._one_task(m.group("w"))
+        except Exception:  # noqa: BLE001
+            why = ""
+        if why:
+            return {"command": None, "say": why}
     m = re.fullmatch(r"(?:delete|remove|drop|cancel|scrap|forget about|get rid of|take) (?:the )?(?:task )?(?P<w>.+?)"
                      + _task_tail + r"(?: off(?: my (?:list|tasks|task list|to-?do list))?)?", low)
     # Not "cancel the first one": counting is about whatever she just read

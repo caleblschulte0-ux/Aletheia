@@ -9406,5 +9406,22 @@ class WhoDoesWhatForHim(unittest.TestCase):
             self.assertEqual(quick.answer("what do I need to reschedule"), "Call the dentist to reschedule.")
 
 
+class MoreAboutHisTasks(unittest.TestCase):
+    """A sweep of task sentences (2026-10-08)."""
+
+    def test_postpone_undated_and_added_today(self):
+        import datetime as dt
+        from aletheia import intercom, tasks
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"description": "cancel my gym membership", "status": "OPEN", "id": "t2", "created_at": now},
+                {"description": "call the bank", "status": "OPEN", "deadline": "2099-10-20", "id": "t3", "created_at": now}]
+        with mock.patch.object(intercom, "_open_tasks", lambda: rows), mock.patch.object(tasks, "all_tasks", lambda: rows), \
+                mock.patch.object(tasks, "is_his", lambda t: True), mock.patch.object(intercom, "_shopping_items", lambda: []):
+            self.assertEqual(quick.answer("what tasks have no due date"), "1 task with no date: cancel my gym membership.")
+            self.assertEqual(voice._interpret("postpone the gym one to next week")["command"]["kind"], "task_change")
+            self.assertEqual(quick.answer("what did I add to my list today"),
+                             "Added to your tasks today: cancel my gym membership and call the bank.")
+
+
 if __name__ == "__main__":
     unittest.main()

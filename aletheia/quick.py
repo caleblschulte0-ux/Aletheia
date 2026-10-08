@@ -2190,6 +2190,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("together", re.compile(r"^how long (?:have|has) (?:we|my (?:wife|husband|partner|girlfriend|boyfriend) and i|i) been (?:together|dating"
                             r"|with (?:my )?(?:wife|husband|partner|girlfriend|boyfriend|her|him))\s*\??$"
                             r"|^how long ago did (?:we|i) (?:meet|first meet|start dating|get together)\s*\??$")),
+    # "What tasks have no due date" (2026-10-08: to a model).
+    ("undated_tasks", re.compile(r"^(?:what|which) (?:tasks|things on my list|of my tasks) (?:have no|don'?t have a|have no set|are without a) (?:due )?(?:date|deadline)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -8686,9 +8688,24 @@ def _shop_added(text: str) -> str | None:
             continue
         if at >= start and (end is None or at < end):
             added.append(str(w.get("need") or w["id"])[:60])
+    # "What did I add to my list today" after two tasks and no shopping
+    # (2026-10-08: "nothing still on your shopping list"). "My list" with no
+    # shop in it is his tasks as much as his shopping.
+    tasked = []
+    if not re.search(r"\b(?:shopping|grocery|groceries)\b", _tidy(text)):
+        for t in intercom._open_tasks():
+            try:
+                at = dt.datetime.fromisoformat(str(t.get("created_at") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            if at >= start and (end is None or at < end):
+                tasked.append(str(t.get("description") or "").strip().rstrip("."))
+    if tasked and not added:
+        return f"Added to your tasks {when}: {speech.and_list(tasked[:6])}."
     if not added:
         return f"Nothing still on your shopping list was added {when}."
-    return f"Added {when} and still on the list: {speech.and_list(added)}."
+    return (f"Added {when} and still on the list: {speech.and_list(added)}."
+            + (f" And to your tasks: {speech.and_list(tasked[:6])}." if tasked else ""))
 
 
 def _shopping() -> str | None:
@@ -14194,6 +14211,16 @@ def _together(_text: str = "") -> str | None:
     return None
 
 
+def _undated_tasks(_text: str = "") -> str:
+    from aletheia import intercom, speech, tasks
+    rows = [t for t in intercom._open_tasks() if not tasks.parse_deadline(t.get("deadline"))]
+    if not rows:
+        return "Every task on your list has a date." if intercom._open_tasks() else "Your task list is empty."
+    said = [str(t.get("description") or "").strip().rstrip(".") for t in rows[:6]]
+    more = f", and {len(rows) - 6} more" if len(rows) > 6 else ""
+    return f"{speech.count_phrase(len(rows), 'task')} with no date: {speech.and_list(said)}{more}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -15001,6 +15028,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "undated_tasks": _undated_tasks,
            "together": _together,
            "symptoms": _symptoms,
            "day_of_year": _day_of_year,
