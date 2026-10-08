@@ -11980,7 +11980,8 @@ def _went(text: str) -> str | None:
         span = window or "this week"
         if not n:
             return f"None {span} that you've told me."
-        return f"{speech.count_phrase(n, 'time')} {span}, from what you've told me."
+        times = {1: "Once", 2: "Twice"}.get(n) or speech.count_phrase(n, "time")
+        return f"{times} {span}, from what you've told me."
     if g.get("went2"):
         if not hits:
             return f"Not that you've told me{' ' + window if window else ''}."

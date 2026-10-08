@@ -3116,7 +3116,7 @@ class TheGymAndARun(unittest.TestCase):
                  {"text": "I went to the gym", "ts": (now - dt.timedelta(days=40)).isoformat()}]
         with clock, mock.patch.object(quick, "_notes", return_value=notes):
             self.assertTrue(quick.answer("when did I last go to the gym").startswith("The last time you told me was"))
-            self.assertEqual(quick.answer("how many times did I go to the gym this month"), "1 time this month, from what you've told me.")
+            self.assertEqual(quick.answer("how many times did I go to the gym this month"), "Once this month, from what you've told me.")
             self.assertTrue(quick.answer("did I work out today").startswith("Yes"))
             self.assertTrue(quick.answer("have I been for a run today").startswith("Yes"))
             self.assertEqual(quick.answer("did I meditate today"), "Not that you've told me today.")
@@ -10585,6 +10585,25 @@ class WhatTheCarNeeds(unittest.TestCase):
     def test_the_quote(self):
         with mock.patch.object(quick, "_notes", lambda: [{"text": "the mechanic said it will cost 400"}]):
             self.assertEqual(quick.answer("how much will the repair cost"), "You told me: the mechanic said it will cost 400.")
+
+
+class AVisitToTheGymIsKept(unittest.TestCase):
+    """2026-10-08: "I'm going to the gym" and "I just got back from the gym"
+    were answered and forgotten, so "how many times did I go to the gym
+    this week" said none right after both."""
+
+    def test_kept_once(self):
+        with mock.patch.object(quick, "_notes", lambda: []):
+            got = voice._interpret("I am going to the gym")
+        self.assertEqual(got["command"], {"kind": "note", "text": "I went to the gym"})
+        self.assertIn("Have a good one", got["say"])
+        import datetime as _dt
+        just = _dt.datetime.now(_dt.timezone.utc).isoformat()
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "I went to the gym", "ts": just}]):
+            got = voice._interpret("I just got back from the gym")
+            self.assertIsNone(got["command"])
+            self.assertIn("Welcome back", got["say"])
+            self.assertEqual(quick.answer("how many times did I go to the gym this week"), "Once this week, from what you've told me.")
 
 
 if __name__ == "__main__":

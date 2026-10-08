@@ -5735,6 +5735,25 @@ def _interpret(transcript: str) -> dict:
         bye = quick._farewell("leaving work")
         return {"command": {"kind": "note", "text": "finished work"},
                 "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
+    # "I'm going to the gym", "I just got back from the gym" (2026-10-08):
+    # answered and forgotten, so "how many times did I go to the gym this
+    # week" said none right after both. One visit, kept once.
+    gym = re.fullmatch(r"(?:ok(?:ay)?,? )?(?:(?:i'?m|i am|im) )?(?:just )?(?P<out>going|heading|off|headed|leaving for) to the gym(?: now)?"
+                       r"|(?:ok(?:ay)?,? )?i (?:just )?(?:got back|came back|got home|came home) from the gym"
+                       r"|(?:ok(?:ay)?,? )?(?:i'?m |i am |im |just )?(?:back|home) from the gym", low)
+    if gym:
+        import datetime as _dt
+        from aletheia import quick
+        said = quick._farewell(text) if gym.group("out") else quick._arrival()
+        now = _dt.datetime.now(_dt.timezone.utc)
+        for row in quick._notes():
+            try:
+                at = _dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if at.tzinfo and now - at < _dt.timedelta(hours=6) and re.search(r"\bgym\b", str(row.get("text") or "").casefold()):
+                return {"command": None, "say": said}
+        return {"command": {"kind": "note", "text": "I went to the gym"}, "say": said}
     # "Mark everything on my to do list done" is the whole list - refused
     # further on, never a task called "everything on my to do list".
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(?!everything\b|all\b|every task\b)(.+?)"
