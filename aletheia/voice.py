@@ -1353,9 +1353,10 @@ def _task_just_closed(asked: str) -> dict | None:
     return made
 
 
-def _work_reminders_said() -> str | None:
-    """What he asked to be told when he got to work, since he last got
-    there; None when nothing, so the plain receipt is said."""
+def _work_reminders_said(when: str = "get to work", since: str = "started work", lead: str = "Noted.") -> str | None:
+    """What he asked to be told when he got to work - or, with `when`
+    "leave work", when he left - since he last did; None when nothing, so
+    the plain receipt is said."""
     try:
         from aletheia import quick
         rows = list(reversed(quick._notes()))
@@ -1364,14 +1365,15 @@ def _work_reminders_said() -> str | None:
     out = []
     for row in rows:
         said = " ".join(str(row.get("text") or "").split())
-        m = re.fullmatch(r"remind me (to|that) (.+?) when i get to work", said, re.I)
-        if said.casefold() == "started work":
+        m = re.fullmatch(rf"remind me (to|that) (.+?) when i {re.escape(when)}", said, re.I)
+        if said.casefold() == since:
             out = []
         elif m:
             out.append(speech._yours(m.group(2)) if m.group(1).casefold() == "to" else "that " + speech._yours(m.group(2)))
     if not out:
         return None
-    return f"Noted. You asked me to remind you when you got to work: {speech.and_list(out)}."
+    done = {"get to work": "got to work", "leave work": "left work"}.get(when, when)
+    return f"{lead} You asked me to remind you when you {done}: {speech.and_list(out)}."
 
 
 def _new_task(raw: str) -> dict:
@@ -5114,6 +5116,14 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": f"remind me {how} {said} when I get to work"},
                 "say": f"I can't see where you are, so tell me \"I'm at work\" when you get there and I'll remind you "
                        f"{how} {speech._yours(said)}."}
+    # "Remind me to buy milk when I leave work" (2026-10-08: "I can't tell
+    # where you are"): "I'm leaving work" says it, the way arriving does.
+    leave = re.fullmatch(r"remind me (to|that) (.+?) (?:when|before|as soon as) i (?:leave|get off|finish|head out of) (?:work|the office)", low)
+    if leave:
+        said = _as_he_said(text, leave.group(2).strip())
+        return {"command": {"kind": "note", "text": f"remind me {leave.group(1)} {said} when I leave work"},
+                "say": f"I can't see where you are, so tell me \"I'm leaving work\" when you go and I'll remind you "
+                       f"{leave.group(1)} {speech._yours(said)}."}
     home = re.fullmatch(r"remind me (to|that) (.+?) when i(?:'m| am| get| arrive| come)? (?:get |am |come )?(?:back )?(?:home|back)", low)
     if home:
         # "Remind me to call mom when I get home" (2026-10-08): she can't
@@ -5415,7 +5425,8 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:all )?(?:done|finished|through|off) (?:with |for )?(?:work|the day|my shift|my work ?day)"
                     r"(?: for (?:the day|today|now|tonight))?|(?:i'?m |i am )?(?:clocking out|logging off|off work)(?: for (?:the day|today))?"
                     r"|(?:i )?(?:just )?(?:clocked out|finished work|got off work)(?: for (?:the day|today))?", low):
-        return {"command": {"kind": "note", "text": "finished work"}, "say": None}
+        return {"command": {"kind": "note", "text": "finished work"},
+                "say": _work_reminders_said("leave work", "finished work")}
     # "I usually go to bed at 11", "I go to bed at 11 usually" (2026-10-07:
     # to the planner). His habit, in his words; "what time do I usually go
     # to bed" reads it until there are nights enough to work it out.
@@ -5430,7 +5441,9 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:ok(?:ay)?,? )?(?:i'?m |i am )?(?:just )?(?:leaving|left|heading out of|out of) (?:work|the office)(?: now| for the day| for today)?"
                     r"|(?:i'?m |i am )?(?:off work|done for the day)(?: now)?", low):
         from aletheia import quick
-        return {"command": {"kind": "note", "text": "finished work"}, "say": quick._farewell("leaving work")}
+        bye = quick._farewell("leaving work")
+        return {"command": {"kind": "note", "text": "finished work"},
+                "say": _work_reminders_said("leave work", "finished work", lead=(bye or "Safe trip home.").split(".")[0] + ".") or bye}
     # "Mark everything on my to do list done" is the whole list - refused
     # further on, never a task called "everything on my to do list".
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(?!everything\b|all\b|every task\b)(.+?)"

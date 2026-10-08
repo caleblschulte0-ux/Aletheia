@@ -8328,5 +8328,24 @@ class AFlightAndAHotelSaidAsPlans(unittest.TestCase):
 
 
 
+class RemindMeWhenILeaveWork(unittest.TestCase):
+    """"Remind me to buy milk when I leave work" was refused for want of a
+    place, beside "when I get to work" which worked (2026-10-08)."""
+
+    def test_it_is_kept_and_said_when_he_leaves(self):
+        from aletheia import quick, voice
+        cmd = voice._interpret("remind me to buy milk when I leave work")["command"]
+        self.assertEqual(cmd, {"kind": "note", "text": "remind me to buy milk when I leave work"})
+        rows = [{"text": "remind me to buy milk when I leave work"}, {"text": "finished work"}]   # newest first
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = voice._interpret("I'm leaving work")["say"]
+        self.assertIn("buy milk", said)
+        rows = [{"text": "finished work"}, {"text": "remind me to buy milk when I leave work"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = voice._interpret("I'm leaving work")["say"]
+        self.assertNotIn("buy milk", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()
