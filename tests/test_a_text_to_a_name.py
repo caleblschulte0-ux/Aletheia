@@ -438,7 +438,8 @@ class OtherWaysToAskTheSameThing(unittest.TestCase):
     def test_updates_urgent_summary_and_recurring(self):
         self.assertEqual(voice._interpret("any updates")["command"], {"kind": "notify_check"})
         self.assertEqual(voice._interpret("give me a summary")["command"], {"kind": "brief"})
-        self.assertEqual(voice._interpret("what are my recurring reminders")["command"], {"kind": "reminders"})
+        # the reminders reader, asked for the repeating ones only (2026-10-08)
+        self.assertEqual(voice._interpret("what are my recurring reminders")["command"], {"kind": "reminders", "which": "recurring"})
         self.assertIsNone(voice._interpret("what's urgent")["command"])
 
     def test_net_worth_and_bank_balance_read_the_money_store(self):

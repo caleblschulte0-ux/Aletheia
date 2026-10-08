@@ -1446,6 +1446,12 @@ def _reminders_answer(which: str = "") -> str:
     from aletheia import speech
     rows = _reminder_schedules()
     noun = "reminder"
+    if which.casefold() == "recurring":
+        # "What are my recurring reminders" listed tonight's one-off too (2026-10-08)
+        rows = [r for r in rows if r.get("kind") != "once"]
+        if not rows:
+            return "You have no repeating reminders set."
+        which = ""
     if which:
         needle = which.casefold()
         noun = {"wake up": "alarm", "timer is up": "timer"}.get(needle, "reminder")
@@ -1470,7 +1476,9 @@ def _alarm_words(spec: dict, *, alone: bool = True) -> str:
     words = _reminder_words(spec)
     if str((spec.get("command") or {}).get("text") or "").strip().casefold() == "wake up":
         words = re.sub(r"^wake up\s*([—-])\s*", "" if alone else r"alarm \1 ", words, flags=re.IGNORECASE)
-    return words
+    # "1 reminder: take my vitamins" is his phrase in her mouth (2026-10-08).
+    from aletheia import speech
+    return speech._yours(words)
 
 
 def _until_next_reminder(sort: str = "reminder") -> str:
@@ -2114,6 +2122,13 @@ def shopping_items_of(said: str) -> list[str]:
         run = parts[0].split()
         if len(run) >= 2 and all(w.casefold() in GROCERY_WORDS for w in run):
             return run + [parts[1]]
+    # "Paper towels and dish soap", "paper towels and milk" (2026-10-08: to
+    # the planner as one thing): a name runs on AFTER its "and" ("salt and
+    # vinegar chips"), so a side that is already two words before it ends.
+    # Only a two-word side: "peanut butter eggs and bread" is not sure enough.
+    if len(parts) >= 2 and len(re.sub(r"^(?:a|an|some|the|my) ", "", parts[0], flags=re.IGNORECASE).split()) == 2 \
+            and all(len(p.split()) <= 3 for p in parts):
+        return parts
     return [text]
 
 
@@ -2211,6 +2226,20 @@ def _undo_his_last_ask() -> str | None:
         kind = str(command.get("kind") or "")
         if kind == "undo":
             continue                        # his previous undo; look one further back
+        # "Mark it done", then "undo that" (2026-10-08: "Nothing to undo").
+        # A finished task never changes again, so it goes back on as itself.
+        done = re.match(r"Done: (.+?)\.$", str(turn.get("she_answered") or "").strip())
+        if done:
+            what = done.group(1).strip()
+            try:
+                import time as _time
+                slug = re.sub(r"[^a-z0-9]+", "-", what.casefold()).strip("-")[:32] or "task"
+                execute_command({"kind": "task_new", "id": f"{slug}-{int(_time.time()) % 100000}",
+                                 "description": what}, {}, quote="undo that")
+            except act.Refused as exc:
+                from aletheia import speech
+                return f"I couldn't put {what} back on your list: {speech.plainly(str(exc))}"
+            return f"Undone: {what} is back on your list."
         # A QUESTION in between changes nothing: "put lunch on Friday",
         # "who is it with", "cancel it" means the lunch (2026-10-07).
         # A note is journaled at the read-only tier, so it read as a question

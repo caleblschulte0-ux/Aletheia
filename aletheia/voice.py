@@ -239,6 +239,10 @@ def _spoken_day(text: str) -> str | None:
     if t in WEEKDAYS:
         ahead = (WEEKDAYS.index(t) - today.weekday()) % 7
         return (today + dt.timedelta(days=ahead)).isoformat()
+    # "Next Wednesday" said ON a Wednesday has one meaning: a week today
+    # (2026-10-08: held for today). Only other weekdays are ambiguous.
+    if t.startswith("next ") and t[5:] in WEEKDAYS and WEEKDAYS.index(t[5:]) == today.weekday():
+        return (today + dt.timedelta(days=7)).isoformat()
     # "In three days", "in 2 weeks", "the end of the month" have one
     # meaning each (2026-10-07: "renew my passport in 2 weeks" kept no day).
     n = re.fullmatch(r"in (a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (day|days|week|weeks)", t)
@@ -364,13 +368,18 @@ def _split_deadline(text: str) -> tuple[str, str]:
     when the words after "by" are not a day — "sort the photos by date"
     must not acquire one.
     """
-    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?)\s+(.+)$", text)
+    # "Call mom for next Wednesday" (2026-10-08) held "call mom for next"
+    # due today. "For" a day is as much a deadline as "by" one.
+    m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?|for)\s+(.+)$", text)
+    if m and not _spoken_day(m.group(2).strip().split(" at ")[0]):
+        m = None if re.search(r"[,\s]for\s", text) and not re.search(r"[,\s](?:by|before|due)\s", text) else m
     if not m:
         # "Call the plumber tomorrow", "pay the gas bill on friday": a day
         # said last is as much a deadline as "by friday" (2026-10-07).
         # "Call mom this weekend", "pay rent on the 1st" (2026-10-07: the
         # day stayed in the description and no deadline was kept).
-        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|today|tonight|tomorrow|monday|tuesday|wednesday"
+        bare = re.search(r"^(\S+\s.*?)\s+(?:on |this )?((?:the )?day after tomorrow|next (?:monday|tuesday|wednesday"
+                         r"|thursday|friday|saturday|sunday)|today|tonight|tomorrow|monday|tuesday|wednesday"
                          r"|thursday|friday|saturday|sunday|(?:over )?(?:this |the )?weekend"
                          r"|the \d{1,2}(?:st|nd|rd|th)|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2}(?:st|nd|rd|th)?"
                          r"|in (?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d{1,3}) (?:days?|weeks?)"
@@ -412,6 +421,11 @@ def _split_deadline(text: str) -> tuple[str, str]:
     if at:
         hhmm = _spoken_time(at.group(2))
         if hhmm:
+            # "Call mom by Friday at 3" was due at three in the MORNING
+            # (2026-10-08). Nobody means a bare 1 to 7 before dawn.
+            hour, minute = map(int, hhmm.split(":"))
+            if _is_bare_hour(at.group(2)) and 1 <= hour <= 7:
+                hhmm = f"{hour + 12:02d}:{minute:02d}"
             return rest, f"{day}T{hhmm}:00"
     return rest, day
 
@@ -437,7 +451,9 @@ def _ambiguous_next_weekday(text: str) -> str | None:
         return None
     from aletheia import localtime
     today = localtime.today()
-    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7 or 7
+    ahead = (WEEKDAYS.index(words[1]) - today.weekday()) % 7
+    if not ahead:
+        return None                 # the same weekday: a week today, nothing to ask
     soon = today + dt.timedelta(days=ahead)
     later = soon + dt.timedelta(days=7)
     name = words[1].capitalize()
@@ -1308,6 +1324,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
             again = re.sub(r"\bnext " + said_next.group(1) + r"\b", f"on the {soon}", str(transcript).strip().rstrip(".?!"),
                            count=1, flags=re.IGNORECASE)
             return {"command": None, "say": f"{asked} Say '{again}' and it's held."}
+    # "Next Wednesday", said on a Wednesday, was held for TODAY at 2
+    # (2026-10-08). The same weekday "next" is a week out, never today.
+    if said_next and said_next.group(1) == str(day).strip().casefold() \
+            and dt.date.fromisoformat(day_iso) == localtime.today():
+        day_iso = (localtime.today() + dt.timedelta(days=7)).isoformat()
     # "Schedule lunch with Sam next Tuesday" held "lunch with sam next"
     # (2026-10-07): the word before the day belongs to the day.
     title = re.sub(r"\s+(?:next|this|on|for|coming)$", "", str(title or "").strip(), flags=re.IGNORECASE) or title
@@ -3617,7 +3638,10 @@ def _interpret(transcript: str) -> dict:
             and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
         listed = "reading" if m.group("v") == "read" else "watch"
         return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}
-    m = re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
+    # "I started a new book called Dune", "I just started reading Dune"
+    # (2026-10-08: to the planner) - the same note as "I'm reading Dune".
+    m = re.fullmatch(r"i (?:just )?(?:started|began|picked up|am starting|'m starting) (?:reading |(?:a |the )?(?:new )?book (?:called |named )?)"
+                     r"(?P<t>[a-z0-9].{1,60})", low) or re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
     if m and not re.match(r"(?:it|that|this|them|a |an |some|the news|my |your |about |up on |through |over )", m.group("t")) \
             and "?" not in text:
         return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
@@ -3661,6 +3685,8 @@ def _interpret(transcript: str) -> dict:
     # and the last one refused as SPENDING). It goes on the list; buying
     # it stays his. Anything that starts with a verb is not a thing.
     m = (re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?:the |some )?(?P<item>[a-z][a-z '-]{1,40})", low)
+         # "I used the last of the milk" (2026-10-08: to the planner)
+         or re.fullmatch(r"(?:i|we) (?:just )?(?:used|finished|ate|drank|had) (?:up )?the last of (?:the |our |my )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we|i) need (?:to (?:buy|get|pick up) )?(?:more |some |a new |new |a |an )?(?P<item>[a-z][a-z '-]{1,40})", low)
          or re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)) (?:running )?(?:low on|almost out of) (?:the )?(?P<item>[a-z][a-z '-]{1,40})", low))
     # "I need to pick up my prescription tomorrow" was put on the shopping
@@ -3677,7 +3703,10 @@ def _interpret(transcript: str) -> dict:
             r"\b(?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
             r"this (?:morning|afternoon|evening|week)|next week|at \d|by \d)\b", m.group("item"))):
         m = None
-    if m and not _TASK_VERB.match(m.group("item")) \
+    # "A new phone charger" is a thing, though "phone" can be a verb (2026-10-08)
+    if m and not (_TASK_VERB.match(m.group("item")) and not re.match(
+            r"(?:phone|ring|text|paint|file|water|wash|clean|print) (?:charger|case|cable|cord|stand|mount|holder|screen protector"
+            r"|light|book|books|brush|brushes|folder|folders|bottle|bottles|filter|cloth|wipes|supplies|paper|cartridge|ink)s?\b", m.group("item"))) \
             and not re.match(r"(?:to|break|help|you|time|rest|sleep|nap|money|cash|job|minute|second|hand|hug|"
                              r"vacation|holiday|day off|shower|ride|lift|doctor|dentist|lawyer|therapist|advice|"
                              r"idea|ideas|plan|answer|answers|space|quiet|coffee break|drink|win|friend|friends|"
@@ -3817,6 +3846,8 @@ def _interpret(transcript: str) -> dict:
         # says alarms.
         if re.search(r"\balarms?\b", low) and not re.search(r"\b(?:reminders?|timers?)\b", low):
             return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
+        if re.search(r"\b(?:recurring|repeating|regular)\b", low):
+            return {"command": {"kind": "reminders", "which": "recurring"}, "say": None}
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.
@@ -4479,10 +4510,23 @@ def _interpret(transcript: str) -> dict:
     # "Remind me to buy flowers two days before our anniversary", "remind me
     # a week before my anniversary", "remind me to get a card the day before
     # Mom's birthday" (2026-10-08: to the planner). The date is in his note.
+    # "Remind me the day before my flight to pack" (2026-10-08: read as a
+    # calendar event called "flight to pack") is the same sentence with the
+    # errand said last.
+    late = re.fullmatch(r"remind me (?P<when>(?:the day|the night|the morning|a day|one day|(?:\d|two|three|four|five|six|seven|ten) days"
+                        r"|a week|one week|two weeks) before (?:my |our |the )?(?:(?:wedding )?anniversary|vacation|trip|holiday|cruise"
+                        r"|honeymoon|flight|[a-z]+(?:'s|s') (?:birthday|bday|anniversary))) to (?P<task>.+)", low)
+    if late:
+        return _interpret(f"remind me to {_as_he_said(text, late.group('task'))} {late.group('when')}")
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
                      r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"
-                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
+                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary)"
+                     # "Remind me 3 days before my car insurance is due"
+                     # (2026-10-08: read as a calendar event of that name).
+                     r"|(?P<bill>" + _BILL_WORDS + r"))(?P<due> (?:is |are )?due)?", low)
+    if m and m.group("due") and not m.group("bill"):
+        m = None
     if m and (m.group("task") or not re.search(r"\b(?:birthday|bday)$", m.group("what"))):
         import datetime as dt
         from aletheia import localtime, quick as _q
@@ -4508,8 +4552,9 @@ def _interpret(transcript: str) -> dict:
         if not re.match(r"[a-z]+(?:'s|s') ", said) or re.split(r"'s?\b", said)[0] in _q._relation_words():
             said = "your " + said
         said = _as_he_said(text, said) if not said.startswith("your ") else said
-        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days, on {day.strftime('%A')}")
-        text = (f"{_as_he_said(text, m.group('task'))} - {said} is {when}" if m.group("task") else f"{said} is {when}")
+        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {int(days)} days, on {day.strftime('%A')}")
+        is_ = "is due" if m.group("bill") else "is"
+        text = (f"{_as_he_said(text, m.group('task'))} - {said} {is_} {when}" if m.group("task") else f"{said} {is_} {when}")
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
 
     # "REMIND ME THE DAY BEFORE MY DENTIST APPOINTMENT" (2026-10-07: to the
@@ -8694,6 +8739,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"i (?:just )?(?:took|had) a (?:quick |short |long |little |power )?nap(?: (?:for|of) (?:\d{1,3}|an?|one|two) (?:minutes?|mins?|hours?))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'm going to bed" with no time (2026-10-08: "what time did I go to
+    # bed" a turn later said "You haven't told me"). Saying it IS the time,
+    # in the evening or the small hours; at noon it is a nap, not a night.
+    if re.fullmatch(r"(?:(?:i'?m|im|i am) )?(?:going to|off to|heading to|heading off to) (?:bed|sleep)(?: now)?(?:,? thea)?"
+                    r"|(?:i'?m|im|i am) turning in(?: now)?|good ?night(?:,? thea)?", low):
+        from aletheia import localtime
+        import datetime as _dt
+        now = _dt.datetime.now(localtime.operator_tz())
+        if now.hour >= 19 or now.hour < 5:
+            clock = now.strftime("%I:%M %p").lstrip("0").lower()
+            return {"command": {"kind": "note", "text": f"I went to bed at {clock}"},
+                    "say": "Goodnight. I'll keep going quietly."}
     if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
     # "I woke up at 7", "I went to bed at 11" (2026-10-07: to the planner).
@@ -8724,6 +8781,48 @@ def _interpret(transcript: str) -> dict:
     # "I STARTED READING THE HOBBIT" (2026-10-07: to the planner); "what am
     # I reading" reads it back until he finishes it.
     if re.fullmatch(r"i(?:'ve| have)? (?:just )?(?:started|begun|began) reading [a-z0-9][a-z0-9 ,:'&-]{1,60}", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # A PLACE HE WANTS TO GO, A RATING (2026-10-08: to the planner): "I'd
+    # like to visit Japan someday", "rate Inception 5 stars". Kept in his
+    # words; "where do I want to travel" and "what did I rate Inception" read them.
+    if re.fullmatch(r"(?:i'?d|i would|i really want to|i want to|we'?d|we would) (?:love|like)? ?(?:to )?(?:visit|go to|see|travel to)"
+                    r" (?:[a-z][a-z' ]{1,30}?)(?: someday| one day| sometime| before i die| eventually)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    m = re.fullmatch(r"(?:rate|i(?:'d)? (?:rate|give)|i rated|i gave) (?P<what>[a-z0-9][a-z0-9' :-]{1,40}?) (?P<n>[0-5](?:\.5)?|one|two|three|four|five)"
+                     r" (?:stars?|out of (?:5|five|10|ten))", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"I rated {_as_he_said(text, m.group('what'))} {m.group('n')} "
+                                                    f"{'stars' if 'star' in low else low.split(m.group('n') + ' ', 1)[1]}"},
+                "say": None}
+    # "Remind me on the last day of the month to pay rent" (2026-10-08: to
+    # the planner): this month's last day, at 9 unless he says a time.
+    m = re.fullmatch(r"remind me (?:on )?the last day of (?:the |this )?month(?: at (?P<t>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon))?"
+                     r" (?:to|about) (?P<what>.{2,80})", low)
+    if m:
+        import calendar as _cal
+        import datetime as _dt
+        from aletheia import localtime
+        now = _dt.datetime.now(localtime.operator_tz())
+        clock = _spoken_time(m.group("t")) if m.group("t") else "09:00"
+        if clock:
+            hh, mm = map(int, clock.split(":"))
+            if m.group("t") and _is_bare_hour(m.group("t")) and hh < 7:
+                hh += 12
+            last = now.replace(day=_cal.monthrange(now.year, now.month)[1], hour=hh, minute=mm, second=0, microsecond=0)
+            if last <= now:
+                nxt = (now.replace(day=1) + _dt.timedelta(days=32)).replace(day=1)
+                last = last.replace(year=nxt.year, month=nxt.month, day=_cal.monthrange(nxt.year, nxt.month)[1])
+            return {"command": {"kind": "remind_at", "at": last.isoformat(), "text": _as_he_said(text, m.group("what"))}, "say": None}
+    # HABITS HE KEEPS (2026-10-08: to the planner): "I want to work out 4
+    # times a week", "I smoked a cigarette", "I didn't drink today". Kept in
+    # his words; "am I on track with my workouts" and "how many cigarettes
+    # this week" read them.
+    if re.fullmatch(r"i (?:want|need|plan|am going|'m going|aim) to (?:work out|exercise|go to the gym|hit the gym|train|run|meditate|read)"
+                    r" (?:\d|one|two|three|four|five|six|seven) (?:times|days) (?:a|per|each) week", low) \
+            or re.fullmatch(r"i (?:just )?smoked (?:\d+|a|an|one|two|three|four|five|a couple(?: of)?|a few) (?:more )?(?:cigarettes?|smokes?)"
+                            r"(?: today| tonight| this morning)?", low) \
+            or re.fullmatch(r"i (?:didn'?t|did not) (?:drink|smoke|have (?:a|any) (?:drinks?|alcohol|cigarettes?))(?: any(?: alcohol)?)?"
+                            r"(?: today| tonight| this week| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHO SOMEBODY IS TO HIM, BY NAME (2026-10-08: "my wife is Anna" and
     # "my neighbor is Bob" went to the planner; "Bob's wife is Linda" too).
