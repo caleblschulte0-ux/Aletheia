@@ -7287,9 +7287,10 @@ class WhoCalledAndHowLongUntilANotedThing(unittest.TestCase):
         self.assertNotEqual(cmd.get("kind"), "note")
 
     def test_who_called_reads_the_days_notes(self):
-        _needs_today_to_hold(self, dt.timedelta(minutes=10))
-        with mock.patch.object(quick, "_notes", return_value=[self._note("Dana stopped by"),
-                                                               self._note("the dentist is at 3")]):
+        now, clock = _her_clock_at_noon()
+        notes = [{"text": t, "ts": (now - dt.timedelta(minutes=5)).isoformat()}
+                 for t in ("Dana stopped by", "the dentist is at 3")]
+        with clock, mock.patch.object(quick, "_notes", return_value=notes):
             said = quick.answer("who called today")
             self.assertIn("Dana stopped by", said)
             self.assertNotIn("dentist", said)
@@ -7490,16 +7491,6 @@ class HalfTheCommute(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=self._notes("I start work at 9")), \
                 mock.patch.object(voice, "_known_place", return_value=None):
             self.assertIn("how long the trip is", voice.interpret("thea when should I leave for work")["say"])
-
-
-def _needs_today_to_hold(case, span):
-    """A fixture that puts `span` of his day behind now cannot exist in the
-    first minutes after his midnight: "today" is shorter than that. Found
-    at 00:05 on 2026-10-08, when five such tests went red at once."""
-    from aletheia import localtime
-    now = dt.datetime.now(localtime.operator_tz())
-    if (now - span).date() != now.date():
-        case.skipTest(f"his day is only {now.hour}h{now.minute:02d}m old; this fixture needs {span} of it")
 
 
 if __name__ == "__main__":
