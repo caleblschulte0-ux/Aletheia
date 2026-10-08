@@ -1906,6 +1906,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "When did I last get a haircut" (2026-10-07: to a model). Only a
         # service: "when did I get that email" belongs to the mail.
         r"|^when did i (?:last )?(?P<did_v3>get|have) (?P<did_o3>" + _SERVICES + r")(?: last| done)?\s*\??$"
+        # "When did the dog get his heartworm pill" (2026-10-08: to a model,
+        # a turn after "I gave the dog his heartworm pill").
+        r"|^when did (?P<did_who6>the (?:dog|cat|puppy|kitten|baby|kids?)|my (?:dog|cat|son|daughter|kids?|wife|husband|mom|dad)"
+        r"|(?!i\b|you\b|we\b|they\b|it\b)[a-z]{2,15}) (?:last )?(?:get|have|take) (?P<did_pro6>his|her|their|its|the|a) (?P<did_o6>[a-z][a-z' ]{1,30}?)"
+        r"(?: last)?\s*\??$"
         r"|^(?:did|have) i (?:already )?(?P<did_v4>get|got|gotten|have|had) (?P<did_o4>" + _SERVICES + r")"
         r"(?P<did_today2> today| yet| this morning| this week| this month)?\s*\??$"
         # "How long since I talked to mom" (2026-10-07: to a model).
@@ -4981,6 +4986,9 @@ def _did_last(text: str) -> str | None:
     g = _groups("did_last", text)
     verb = (g.get("did_v") or g.get("did_v2") or g.get("did_v3") or g.get("did_v4") or g.get("did_v5") or "").strip()
     thing = (g.get("did_o") or g.get("did_o2") or g.get("did_o3") or g.get("did_o4") or g.get("did_o5") or "").strip()
+    if g.get("did_o6"):
+        # what somebody got is what he says he GAVE them
+        verb, thing = "give", f"{g.get('did_who6') or ''} {g['did_o6']}"
     window = (g.get("did_today") or g.get("did_today2") or "").strip()
     service = bool(g.get("did_v3") or g.get("did_v4"))
     if not verb or not thing:
@@ -5059,6 +5067,10 @@ def _did_last(text: str) -> str | None:
                 return f"Yes - you {got}, {when}."
             return f"You {got} {when} - you ticked it off your list."
     say = f"I {past} {thing}"
+    if g.get("did_o6"):
+        # "I gave Max his flea medicine", his capitals and his pronoun
+        who6 = str(g.get("did_who6") or "")
+        say = f"I {past} {who6 if re.match(r"(?:the|my) ", who6) else _named(who6)} {g.get('did_pro6')} {g['did_o6']}"
     return (f"Not that you've told me. Say \"{say}\" when you do and I'll keep track."
             if g.get("did_v2") or g.get("did_v4") else
             f"You haven't told me. Say \"{say}\" when you do and I'll keep track.")

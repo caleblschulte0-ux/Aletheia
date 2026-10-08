@@ -1181,7 +1181,11 @@ _TASK_VERB = re.compile(
     r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
     r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical)"
     # "I need to get gas" (2026-10-08: the shopping list).
-    r"|get (?:gas|fuel|petrol|diesel)|fill up(?: the (?:car|tank|truck))?|fill (?:the )?(?:car|tank|truck) up)\b")
+    r"|get (?:gas|fuel|petrol|diesel)|fill up(?: the (?:car|tank|truck))?|fill (?:the )?(?:car|tank|truck) up"
+    # "I need to change the air filter" (2026-10-08: to the planner).
+    r"|change (?:the|my) (?:air filters?|furnace filters?|water filters?|filters?|oil|sheets|bed|batteries|battery|light ?bulbs?|bulbs?"
+    r"|smoke detector batter(?:y|ies)|tires?|wipers?|litter(?: box)?|cat litter)"
+    r"|sweep|mop|dust|rake|shovel|trim|weed|unclog|descale|defrost|flip (?:the|my) mattress|empty (?:the|my)|unload|load (?:the|my))\b")
 
 
 def _birthday_reminder(m) -> dict:

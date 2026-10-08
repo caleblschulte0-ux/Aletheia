@@ -6155,5 +6155,25 @@ class SchoolDaysAreKeptAndReadBack(unittest.TestCase):
         self.assertFalse(quick._groups("owed", "does leo have anything thursday"))
 
 
+
+class ChoresAroundTheHouse(unittest.TestCase):
+    """2026-10-08: "I need to change the air filter" went to the planner,
+    and "when did the dog get his heartworm pill" to a model a turn after
+    "I gave the dog his heartworm pill"."""
+
+    def test_a_chore_is_a_task(self):
+        for said, task in (("I need to change the air filter", "change the air filter"),
+                           ("I have to mop the kitchen", "mop the kitchen")):
+            self.assertEqual(voice._interpret(said)["command"]["description"], task)
+        self.assertEqual(voice._interpret("I need to change my mind")["command"]["kind"], "intent")
+
+    def test_what_somebody_got_is_what_he_gave(self):
+        notes = [{"text": "I gave the dog his heartworm pill", "ts": "2026-10-08T01:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertIn("you gave the dog his heartworm pill", quick.answer("when did the dog get his heartworm pill"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn('"I gave Max his flea medicine"', quick.answer("when did Max get his flea medicine"))
+
+
 if __name__ == "__main__":
     unittest.main()
