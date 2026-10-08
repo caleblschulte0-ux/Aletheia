@@ -12540,6 +12540,16 @@ class HomeTech(unittest.TestCase):
         self.assertEqual(voice.interpret("I rebooted my modem this morning")["command"]["kind"], "note")
 
 
+class WhoDidTheChore(unittest.TestCase):
+    def test_who_did_it_is_kept_and_read(self):
+        self.assertEqual(voice.interpret("my wife did the laundry")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("Sam took out the trash")["command"]["kind"], "note")
+        self.assertEqual(voice.interpret("I did the laundry")["command"]["kind"], "task_done")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my wife did the laundry"}]):
+            self.assertEqual(quick.answer("who did the laundry"), "You told me your wife did the laundry.")
+            self.assertIsNone(quick.answer("who walked the dog"))
+
+
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")

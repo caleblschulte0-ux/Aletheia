@@ -11345,6 +11345,14 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:i|we) (?:usually |normally )?(?:go to|see|visit|get) (?:the |my |a |an )?(?:barber|hairdresser|stylist|hair ?cut|trim|dentist|chiropractor"
                     r"|massage|therapist|nail salon|manicure|pedicure|groomer|cleaning) (?:every|once every) (?:\d{1,2}|two|three|four|five|six|other) (?:weeks?|months?)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My wife did the laundry" (2026-10-08: to the planner). Who did a
+    # chore, kept so "who did the laundry" has an answer.
+    if re.fullmatch(r"(?:my (?:wife|husband|partner|son|daughter|kids|roommate|mom|dad|brother|sister|boyfriend|girlfriend)|the kids"
+                    r"|(?!(?:i|we|you|who|what|it|that|this|he|she|they|someone|somebody|nobody|anyone)\b)[a-z]{2,15})"
+                    r" (?:already |just )?(?:did|finished|took out|emptied|mowed|vacuumed|unloaded|loaded|walked|fed|cleaned|folded|washed)"
+                    r" (?:the |our )?(?:dishes|laundry|trash|garbage|recycling|lawn|dishwasher|dog|cat|kitchen|bathroom|floors?|car|vacuuming|groceries)"
+                    r"(?: today| tonight| this morning| yesterday)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
