@@ -8770,7 +8770,7 @@ def _interpret(transcript: str) -> dict:
                      r" (?:really |so |very |pretty |a bit |kind of |kinda |a little |super |quite )?"
                      r"(?P<mood>stressed(?: out)?|anxious|happy|great|sad|down|exhausted|overwhelmed|lonely|excited"
                      r"|calm|relaxed|depressed|awful|terrible|amazing|nervous|worried|burned out|burnt out|tired"
-                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself)"
+                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself|better|much better|a lot better)"
                      r"(?: (?:today|right now|now|tonight|this morning|lately|again))?"
                      r"|(?:i (?:had|have had|'ve had) a(?:n)? (?:really |pretty |very |so )?"
                      r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)", low)
