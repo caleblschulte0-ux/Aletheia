@@ -54,7 +54,7 @@ class WhereTheyWait(unittest.TestCase):
                 row("CLOSED", closed_kind="left", closed_because="the browser could not finish it", closed_at=at),
                 row("CLOSED", closed_because="this posting is no longer available", closed_at=at)]
         self.assertEqual(hunt_funnel.counts(rows, now=NOW)["waiting"]["closed"],
-                         {"gone": 1, "left": 1, "not_a_form_other_on_employer_site": 2, "stale": 1})
+                         {"gone_on_employer_site": 1, "left": 1, "not_a_form_other_on_employer_site": 2, "stale": 1})
 
     def test_a_page_that_was_not_a_form_says_which_finding_and_which_system(self):
         from aletheia import apply_run
