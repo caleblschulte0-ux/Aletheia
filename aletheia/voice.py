@@ -11045,7 +11045,7 @@ def _interpret(transcript: str) -> dict:
     # back Sunday" - all to the planner).
     if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:going on|taking|planning) (?:a |our )?(?:road trip|trip|vacation|cruise|camping trip|ski trip|beach trip|getaway)"
                     r"(?: to [a-z][a-z' ]{1,25})?(?: (?:next|this) [a-z]{3,10}| in [a-z]{3,10}| on [a-z0-9 ]{3,20}| tomorrow)?", low) \
-            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:driving|flying|heading|going|road tripping) (?:up |down |out )?to (?!(?:the )?(?:store|gym|work|bed|sleep|school|church|doctor|dentist)\b)[a-z][a-z' ]{1,25}"
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:driving|flying|heading|going|road tripping) (?:up |down |out )?to (?!(?:the )?(?:store|gym|work|bed|sleep|school|church|doctor|dentist|grocery store|supermarket|costco|target|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|home depot|lowe'?s|cvs|walgreens|sam'?s club)\b)[a-z][a-z' ]{1,25}"
                             r"(?: (?:next|this) [a-z]{3,10}| tomorrow| on [a-z]{3,10}| for (?:the )?(?:weekend|week|holidays?))?", low) \
             or re.fullmatch(r"(?:the |our )?(?:drive|flight|train ride|trip) (?:there |home |back )?(?:is|takes|will take) (?:about |around )?(?:\d{1,2}(?:\.\d)?|an?|one|two|three|four|five|six|seven|eight|nine|ten) (?:and a half )?(?:hours?|minutes?|days?)", low) \
             or re.fullmatch(r"(?:we'?re|we are|i'?m|i am) (?:leaving|heading out|taking off|hitting the road) (?:at \d{1,2}(?::\d\d)? ?(?:am|pm)?|early|first thing)(?: (?:tomorrow|on [a-z]+|in the morning))?", low) \
@@ -11570,6 +11570,10 @@ def _interpret(transcript: str) -> dict:
     # to the planner). Who reached him is a note; reading it is his mail.
     if re.fullmatch(r"(?:my (?:son|daughter|kid)'s (?:teacher|coach|principal|school|daycare|doctor|pediatrician)|the (?:school|daycare|principal|coach|nurse|school nurse))"
                     r" (?:emailed|called|texted|messaged|sent a note to|sent home a note for) (?:me|us)(?: today| this morning| again)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The leftovers are from Monday" (2026-10-08: to the planner) is the
+    # day "are the leftovers still good" counts from.
+    if re.fullmatch(r"(?:the |these |our )?(?:leftovers?|left overs|[a-z]{3,12} leftovers) (?:are|is|were|was) from (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|yesterday|last night|the other day)", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):

@@ -12977,5 +12977,23 @@ class WeeksUntilHerBirthday(unittest.TestCase):
             self.assertIsNone(quick.answer("how many weeks until my sister's birthday"))
 
 
+class GoingToAStoreByName(unittest.TestCase):
+    def test_the_list_is_read(self):
+        with mock.patch.object(quick, "_shopping", return_value="2 things on your shopping list: eggs and milk."):
+            for said in ("I'm going to Costco", "I'm heading to the grocery store"):
+                self.assertNotEqual((voice._interpret(said) or {}).get("command", {}).get("kind"), "note", said)
+                self.assertEqual(quick.answer(said), "See you. 2 things on your shopping list: eggs and milk.", said)
+        self.assertEqual(voice.interpret("I'm going to Chicago next week")["command"]["kind"], "note")
+
+
+class LeftoversFromADay(unittest.TestCase):
+    def test_counted_from_the_day(self):
+        self.assertEqual(voice.interpret("the leftovers are from Monday")["command"]["kind"], "note")
+        told = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "the leftovers are from yesterday", "ts": told.isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("are the leftovers still good").startswith("They went in yesterday"))
+
+
 if __name__ == "__main__":
     unittest.main()

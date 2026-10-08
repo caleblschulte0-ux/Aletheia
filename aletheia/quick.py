@@ -1814,7 +1814,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "I'm going to the gym" (2026-10-07: queued for a model to plan).
         r"|^(?:(?:i'?m|im|i am) )?(?:going|off|heading|leaving|popping out) (?:to|for) (?:the |a |my )?"
         r"(?:gym|store|shops?|grocery store|supermarket|walk|run|jog|class|practice|appointment|doctor'?s?|dentist'?s?|"
-        r"school|church|lunch|dinner|coffee|movies|party|game|meeting|errands?|park|office|airport)(?: now| for a bit)?$"
+        r"school|church|lunch|dinner|coffee|movies|party|game|meeting|errands?|park|office|airport"
+        # "I'm going to Costco" (2026-10-08: kept as a note, and the list unread).
+        r"|costco|target|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|sam'?s club|home depot|lowe'?s)(?: now| for a bit)?$"
         # "I'm leaving the store" (2026-10-08: to the planner) is on his way.
         r"|^(?:(?:i'?m|im|i am) )?(?:leaving|done at|finished at|walking out of|out of) (?:the )?"
         r"(?:gym|store|shops?|grocery store|supermarket|doctor'?s?|dentist'?s?|school|church|park|office|airport|mall|bank"
@@ -7798,7 +7800,7 @@ def _farewell(text: str) -> str:
         if rows:
             return f"Safe trip home. {speech.count_phrase(len(rows), 'thing')} waiting on you when you're in."
         return "Safe trip home. Nothing's waiting on you."
-    if re.search(r"\b(?:store|shops?|grocery|supermarket)\b", low):
+    if re.search(r"\b(?:store|shops?|grocery|supermarket|costco|target|walmart|trader joe'?s|whole foods|aldi|kroger|safeway|publix|sam'?s club)\b", low):
         # Going shopping is the moment the list matters.
         try:
             listed = _shopping()
@@ -16817,13 +16819,14 @@ def _still_good(food: str) -> str | None:
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).rstrip(".")
         low = said.casefold()
-        if not re.search(rf"\b{re.escape(stem)}", low) or not re.search(r"\b(?:fridge|refrigerator|freezer)\b", low):
+        dated = re.search(r"\bleft ?overs? (?:are|is|were|was) from\b", low)
+        if not re.search(rf"\b{re.escape(stem)}", low) or not (dated or re.search(r"\b(?:fridge|refrigerator|freezer)\b", low)):
             continue
         if "freezer" in low or "froze" in low:
             return "You told me they're in the freezer - frozen, they keep for months, though they're best within 3 or 4."
         now = dt.datetime.now(localtime.operator_tz())
         put = None
-        day = re.search(r"\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
+        day = re.search(r"\b(?:on|from) (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", low)
         try:
             told = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(now.tzinfo)
         except ValueError:
@@ -16831,7 +16834,9 @@ def _still_good(food: str) -> str | None:
         if day and told:
             back = (told.weekday() - _WEEKDAYS.index(day.group(1))) % 7
             put = told.date() - dt.timedelta(days=back)
-        elif told and not re.search(r"\b(?:yesterday|last)\b", low):
+        elif told and re.search(r"\bfrom (?:yesterday|last night)\b", low):
+            put = told.date() - dt.timedelta(days=1)
+        elif told and not re.search(r"\b(?:yesterday|last|the other day)\b", low):
             put = told.date()
         if put is None:
             told_words = speech.as_she_says_it(said)
