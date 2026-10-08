@@ -844,7 +844,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What am I forgetting" (2026-10-07: to a model).
         r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
         r"|what am i forgetting|is there anything i(?:'m| am) forgetting)"
-        r"(?: today)?(?P<due4>)\s*\??$")),
+        r"(?: today)?(?P<due4>)\s*\??$"
+        # "What's on my list for Friday" (2026-10-08: to a model).
+        r"|^(?:what(?:'s| is|s) (?:on my (?:list|task list|to ?do list)(?: due)?|due) (?:for|on) "
+        r"|what do i have (?:to do|due|on my list) (?:on )?|what(?:'s| is|s) due (?:on )?)"
+        r"(?P<due6>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
@@ -2498,7 +2502,7 @@ def match(question: str) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "syn", "syn2", "ant",
+                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bwin3", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -3343,6 +3347,21 @@ def _tasks_due(which: str = "") -> str | None:
     end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
     if which in ("today", "tomorrow", "this week", "next week", "this month", "next month"):
         which = "due " + which
+    if which in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+        from aletheia import voice
+        iso = voice._spoken_day(which)
+        if not iso:
+            return None
+        day = which.capitalize()
+        on = [t for t in rows if (tasks_mod.parse_deadline(t.get("deadline")) or now).astimezone(tz).date().isoformat() == iso
+              and tasks_mod.parse_deadline(t.get("deadline"))]
+        rem = _reminders_on(which) or ""
+        rem = "" if rem.startswith("No reminders") else " " + rem
+        if not on:
+            return f"Nothing's due on {day}." + rem
+        said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") for t in on[:5]])
+        more = f", and {len(on) - 5} more" if len(on) > 5 else ""
+        return f"{speech.count_phrase(len(on), 'thing')} due on {day}: {said}{more}.{rem}"
     overdue_only = which in ("overdue", "late", "past due", "")
     limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
              "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),

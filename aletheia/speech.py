@@ -533,6 +533,14 @@ def _quoted(text: str) -> str:
     return str(text or "").strip().rstrip(".")
 
 
+def _yours(text: str) -> str:
+    """His reminder, said back to him: "take my vitamins" is "take your
+    vitamins" in her mouth (2026-10-08: "I'll remind you: take my vitamins")."""
+    said = re.sub(r"\bmy\b", "your", _quoted(text))
+    said = re.sub(r"\bMy\b", "Your", said)
+    return re.sub(r"\bmyself\b", "yourself", said)
+
+
 def clock_words(hhmm: str) -> str:
     """"09:00" -> "9 am". A 24-hour clock is a display, not a sentence."""
     try:
@@ -645,7 +653,7 @@ def spoken_receipt(kind: str, detail: str, *,
             return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:
             return (f"I'll remind you {humanize_time(when.group(0), now)}: "
-                    f"{_quoted(what.group(1))}.")
+                    f"{_yours(what.group(1))}.")
     if kind in ("remind_daily", "remind_weekly") and re.search(r"\bset every \d+ (?:days|weeks)\b", text):
         # "reminder remind-every-9f2 set every 2 days from 2026-10-08T09:00:00-05:00 — 'run'"
         span = re.search(r"set every (\d+) (days|weeks)(?: on (\w+))?", text)
@@ -656,7 +664,7 @@ def spoken_receipt(kind: str, detail: str, *,
             lead = ("Every other day" if (n, unit) == (2, "days") else
                     f"Every other {day}" if (n, unit) == (2, "weeks") and day else f"Every {n} {unit}")
             return (f"{lead}, starting {humanize_time(when.group(0), now)}, I'll remind you: "
-                    f"{_quoted(what.group(1))}.")
+                    f"{_yours(what.group(1))}.")
     if kind == "remind_every":
         # "reminder remind-every-9f2 set every 60 minutes from 2026-10-07T04:00:00+00:00 — 'drink water'"
         span = re.search(r"set every (\d+) minutes", text)
@@ -666,7 +674,7 @@ def spoken_receipt(kind: str, detail: str, *,
             hours, mins = divmod(n, 60)
             lead = ("Every hour" if n == 60 else "Every half hour" if n == 30
                     else f"Every {hours} hours" if hours and not mins else f"Every {n} minutes")
-            return f"{lead} from now I'll remind you: {_quoted(what.group(1))}."
+            return f"{lead} from now I'll remind you: {_yours(what.group(1))}."
     if kind == "remind_monthly":
         # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
         when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
@@ -675,13 +683,13 @@ def spoken_receipt(kind: str, detail: str, *,
             n = int(when.group(1))
             nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
             return (f"On the {nth} of every month at {clock_words(when.group(2))} I'll remind you: "
-                    f"{_quoted(what.group(1))}.")
+                    f"{_yours(what.group(1))}.")
     if kind == "remind_daily":
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
         what = _reminder_quote(text)
         if when and what:
             return (f"Every day at {clock_words(when.group(1))} I'll remind "
-                    f"you: {_quoted(what.group(1))}.")
+                    f"you: {_yours(what.group(1))}.")
     if kind == "remind_weekly":
         # "weekly reminder remind-weekly-9f2 set for Monday at 09:00 —
         # 'take out the trash'"
@@ -692,7 +700,7 @@ def spoken_receipt(kind: str, detail: str, *,
             lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
             return (f"{lead[0].upper()}{lead[1:]} at "
                     f"{clock_words(when.group(2))} I'll remind you: "
-                    f"{_quoted(what.group(1))}.")
+                    f"{_yours(what.group(1))}.")
     if kind == "notify_snooze":
         # "quiet until 2026-10-07T18:05:00Z" - do not disturb (2026-10-07).
         quiet = re.search(r"quiet until (\S+?)(?: \((speaking first is off anyway)\))?$", text)
@@ -710,7 +718,7 @@ def spoken_receipt(kind: str, detail: str, *,
         what = _reminder_quote(text)
         if when and what:
             return (f"Put away until {humanize_time(when.group(0), now)}: "
-                    f"{_quoted(what.group(1))}." + (f" {hush}" if hush else ""))
+                    f"{_yours(what.group(1))}." + (f" {hush}" if hush else ""))
     if kind == "reminder_on" and text.startswith(("Back on", "Its time", "All ")):
         return text
     if kind == "reminder_off":

@@ -6524,5 +6524,26 @@ class TakingBackDoneAndWhatHeJustDid(unittest.TestCase):
             self.assertEqual(quick.answer("what did I just do"), 'You said "mark it done", and I answered: Done: email the landlord.')
 
 
+
+class HisWordsSaidBackAndHisFriday(unittest.TestCase):
+    """2026-10-08: "I'll remind you: take my vitamins", and "what's on my
+    list for Friday" went to a model."""
+
+    def test_a_reminder_is_said_back_as_his(self):
+        from aletheia import speech
+        self.assertEqual(speech._yours("take my vitamins"), "take your vitamins")
+        self.assertEqual(speech._yours("My keys are by the door"), "Your keys are by the door")
+
+    def test_whats_on_my_list_for_a_weekday(self):
+        from aletheia import intercom, voice
+        iso = voice._spoken_day("friday")
+        rows = [{"id": "t1", "description": "call the bank", "deadline": iso + "T17:00:00+00:00"},
+                {"id": "t2", "description": "mow the lawn"}]
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows), \
+                mock.patch.object(quick, "_reminders_on", return_value="No reminders on Friday."):
+            self.assertEqual(quick.answer("what's on my list for Friday"), "1 thing due on Friday: call the bank.")
+        self.assertEqual(quick.match("what's on friday")[0], "agenda")
+
+
 if __name__ == "__main__":
     unittest.main()

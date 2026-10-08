@@ -8701,6 +8701,18 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"i (?:just )?(?:took|had) a (?:quick |short |long |little |power )?nap(?: (?:for|of) (?:\d{1,3}|an?|one|two) (?:minutes?|mins?|hours?))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I'm going to bed" with no time (2026-10-08: "what time did I go to
+    # bed" a turn later said "You haven't told me"). Saying it IS the time,
+    # in the evening or the small hours; at noon it is a nap, not a night.
+    if re.fullmatch(r"(?:(?:i'?m|im|i am) )?(?:going to|off to|heading to|heading off to) (?:bed|sleep)(?: now)?(?:,? thea)?"
+                    r"|(?:i'?m|im|i am) turning in(?: now)?|good ?night(?:,? thea)?", low):
+        from aletheia import localtime
+        import datetime as _dt
+        now = _dt.datetime.now(localtime.operator_tz())
+        if now.hour >= 19 or now.hour < 5:
+            clock = now.strftime("%I:%M %p").lstrip("0").lower()
+            return {"command": {"kind": "note", "text": f"I went to bed at {clock}"},
+                    "say": "Goodnight. I'll keep going quietly."}
     if re.fullmatch(r"(?:i'?m|i am) going to (?:bed|sleep) (?:at |around )\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?(?: tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Goodnight when you get there."}
     # "I woke up at 7", "I went to bed at 11" (2026-10-07: to the planner).
