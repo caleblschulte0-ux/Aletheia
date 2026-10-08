@@ -8688,5 +8688,20 @@ class ThreeFromTheHouseholdSweep(unittest.TestCase):
 
 
 
+class ATickedTaskAnswersDidI(unittest.TestCase):
+    """2026-10-08: "I picked up my prescription" ticked the task off, and
+    "is my prescription picked up" was answered about the fleet pulse."""
+
+    def test_both_phrasings_read_the_task(self):
+        from aletheia import quick, tasks
+        for status, lead in (("COMPLETED", "Yes - you ticked off pick up your prescription"),
+                             ("PENDING", "Not yet - pick up your prescription is still on your list")):
+            rows = [{"description": "pick up my prescription", "status": status, "updated_at": "2026-10-08T12:00:00+00:00"}]
+            with mock.patch.object(tasks, "all_tasks", lambda: rows), mock.patch.object(quick, "_notes", lambda: []):
+                for q in ("is my prescription picked up", "did I pick up my prescription"):
+                    self.assertTrue(quick.answer(q).startswith(lead), q)
+
+
+
 if __name__ == "__main__":
     unittest.main()

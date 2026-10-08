@@ -2720,6 +2720,15 @@ def _direct(text: str) -> str:
                         r"what time (?:is it|will it be|would it be) (?:in|for) (?P<place>[a-z][a-z .'-]{1,30}?)\s*\??", text)
     if m:
         return f"convert {m.group('t').replace(' ', '')} to {m.group('place')} time"
+    # "Is my prescription picked up" (2026-10-08: read as a repository
+    # called "prescription picked", and answered about the fleet pulse).
+    m = re.fullmatch(r"(?:is|are|has|have) (?P<w>my|our|the) (?P<o>[a-z][a-z' ]{1,40}?) (?:been )?"
+                     r"(?P<v>picked up|dropped off|paid|returned|mailed|renewed|walked|fed|watered|taken out|changed|washed|cleaned)(?: yet| today)?\s*\??", text)
+    if m:
+        base = {"picked up": "pick up", "dropped off": "drop off", "paid": "pay", "returned": "return", "mailed": "mail",
+                "renewed": "renew", "walked": "walk", "fed": "feed", "watered": "water", "taken out": "take out",
+                "changed": "change", "washed": "wash", "cleaned": "clean"}[m.group("v")]
+        return f"did i {base} {m.group('w')} {m.group('o')}" + (" today" if text.rstrip(" ?").endswith("today") else "")
     # "What's the plan for tomorrow" (2026-10-08: to a model): the day.
     m = re.fullmatch(r"what(?:'s| is) (?:the|my|our) (?:plan|schedule|agenda|game plan)(?: for)? (?P<day>today|tomorrow|tonight)\s*\??", text)
     if m:
@@ -5845,6 +5854,26 @@ def _did_last(text: str) -> str | None:
             if window in ("today", "yet", "this morning"):
                 return f"Yes - you {got}, {when}."
             return f"You {got} {when} - you ticked it off your list."
+    # "I picked up my prescription" ticked the task off instead of writing a
+    # note (2026-10-08: "not that you've told me" one turn later).
+    if not service:
+        try:
+            from aletheia import tasks
+            n = len(verb.split())
+            rows = [t for t in tasks.all_tasks() if tasks.is_his(t)
+                    and _past_of(" ".join(str(t.get("description") or "").casefold().split()[:n])) == past
+                    and all(re.search(r"\b" + re.escape(w), str(t.get("description") or "").casefold()) for w in words)]
+        except Exception:
+            rows = []
+        done = sorted((t for t in rows if str(t.get("status") or "").upper() in ("DONE", "COMPLETED")),
+                      key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+        if done:
+            desc = re.sub(r"\bmy\b", "your", str(done[0].get("description") or "").strip().rstrip("."), flags=re.I)
+            when = speech.humanize_time(str(done[0].get("updated_at") or "")) if done[0].get("updated_at") else ""
+            return f"Yes - you ticked off {desc}" + (f" {when}." if when else ".")
+        if any(str(t.get("status") or "").upper() not in _TASK_CLOSED for t in rows):
+            desc = re.sub(r"\bmy\b", "your", str(rows[0].get("description") or "").strip().rstrip("."), flags=re.I)
+            return f"Not yet - {desc} is still on your list."
     say = f"I {past} {thing}"
     if g.get("did_o6"):
         # "I gave Max his flea medicine", his capitals and his pronoun
