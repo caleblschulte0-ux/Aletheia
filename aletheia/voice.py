@@ -2364,9 +2364,19 @@ def _names_one_open_task(words: str) -> bool:
     try:
         from aletheia import intercom
         found, _why = intercom._one_task(words)
-        return found is not None
     except Exception:
         return False
+    if found is None:
+        return False
+    # "Move my dentist appointment to Thursday" moved the task "reschedule
+    # my dentist appointment", and "cancel my dentist appointment" dropped
+    # it, while the appointment itself sat on her calendar (2026-10-08). A
+    # task ABOUT the appointment is not the appointment.
+    about = r"(?:reschedule|cancel|move|confirm|book|make|schedule|set up|call (?:about|to (?:reschedule|cancel|confirm)))\b"
+    if re.match(about, str(found.get("description") or "").casefold()) and not re.match(about, " ".join(str(words).casefold().split())) \
+            and _one_of_her_holds(words)[0]:
+        return False
+    return True
 
 
 def _named_list_said(low: str, text: str) -> dict | None:
@@ -4348,7 +4358,10 @@ def _interpret(transcript: str) -> dict:
                              r"|my|our|oil change|tune-?up|car wash|check-?up|physical|flu shot|vaccine|shots?|massage"
                              r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment"
                              # "I need to get gas" (2026-10-08: the shopping list) is a stop on the way.
-                             r"|gas|fuel|petrol|diesel)\b", m.group("item")):
+                             r"|gas|fuel|petrol|diesel"
+                             # "I need a filling" (2026-10-08: the shopping list) is the dentist.
+                             r"|filling|root canal|crown|tooth pulled|wisdom teeth|teeth whitened|x-?rays?|prescription"
+                             r"|prescription refill|refill|hearing test|allergy test)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -5805,6 +5818,20 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I don't keep passwords, so I can't look it up. The \"forgot password\" link on the sign-in page will reset it, "
                        "or your password manager has it."}
+    # "I have a cavity", "my dentist is on Main Street" (2026-10-08: to the planner).
+    if re.fullmatch(r"i (?:have|'ve got|got) (?:a |an |another |two |2 )?(?:cavity|cavities|chipped tooth|cracked tooth|toothache|tooth ache|abscess|ear infection|sinus infection"
+                    r"|pink eye|strep(?: throat)?|uti|ingrown toenail|sprained (?:ankle|wrist)|pulled muscle|rash|sunburn|blister)(?: again)?", low):
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": "Sorry, that's no fun. I've put it in your journal, so you can tell the doctor how long it's been."}
+    m = re.fullmatch(r"(?:my|the|our) (?P<who>dentist|doctor|vet|pharmacy|gym|barber|hairdresser|salon|mechanic|chiropractor|therapist)"
+                     r"(?:'s office)? is (?:on|over on|down on) (?P<where>(?:the )?[a-z0-9][a-z0-9 .'&-]{2,40})", low)
+    if m and not re.search(r"\b(?:vacation|leave|holiday|break|call|duty|time|it|me|my side|board|track|the phone|hold|the way)$", low):
+        # The place store "the gym is at 20 Oak Ave" already keeps; "on" is
+        # the same thing said another way.
+        again = _interpret(f"the {m.group('who')} is at {text[len(text) - len(m.group('where')):] if text.lower().endswith(m.group('where')) else m.group('where')}")
+        if ((again or {}).get("command") or {}).get("kind") not in (None, "intent"):
+            return again
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My basil is dying" (2026-10-08: to the planner) - kept, the way "how
     # is my garden" reads it back.
     if re.fullmatch(r"(?:my|the|our) (?:[a-z]+ )?(?:basil|tomato|tomatoes|plant|plants|garden|flowers|roses|herbs|lawn|grass|tree|trees|hedge|succulent|cactus|orchid|fern|peppers|mint|lettuce)"
@@ -7612,6 +7639,12 @@ def _interpret(transcript: str) -> dict:
                 if _is_bare_hour(day_to.group("t")) and 1 <= hour <= 7:
                     hour += 12
             new = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+            # "Move it to Thursday", said on a Thursday afternoon, moved a
+            # 9 am hold into the morning already gone (2026-10-08). A weekday
+            # whose hour has passed is next week's.
+            if new <= dt.datetime.now(tz) and re.fullmatch(r"(?:on )?(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
+                                                           day_to.group("day").strip()):
+                new += dt.timedelta(days=7)
             return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
                                 "minutes": max(5, int((ends - was).total_seconds() // 60)),
                                 "replaces": hold["start"]}, "say": None}

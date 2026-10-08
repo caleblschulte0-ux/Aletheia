@@ -170,7 +170,10 @@ _SERVICES = (r"(?:a |an |my |the )?(?:haircut|hair cut|trim|oil change|flu shot|
              r"|tetanus shot|massage|checkup|check-up|physical|manicure|pedicure|car wash|eye exam|teeth cleaning|dental cleaning"
              r"|tune-?up|inspection|blood test|blood work|mammogram|colonoscopy|tattoo|facial|wax"
              # "I got new tires today" (2026-10-08: to the planner)
-             r"|new tires|new tyres|new brakes|brakes done|tires rotated|tire rotation|alignment|new battery|new wipers)")
+             r"|new tires|new tyres|new brakes|brakes done|tires rotated|tire rotation|alignment|new battery|new wipers"
+             # "I need a filling" went on the SHOPPING list (2026-10-08).
+             r"|filling|root canal|crown|tooth pulled|wisdom teeth (?:out|pulled|removed)|teeth whitened|x-?rays?"
+             r"|new prescription|prescription refill|refill|new glasses|glasses|contacts|new contacts|hearing test|allergy test)")
 
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in

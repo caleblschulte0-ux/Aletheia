@@ -10858,5 +10858,31 @@ class SpentAtAPlace(unittest.TestCase):
                              "$190 this week, from what you've told me: $150 at costco and $40 on gas.")
 
 
+class TheDentist(unittest.TestCase):
+    """2026-10-08: "move my dentist appointment to thursday" moved the task
+    "reschedule my dentist appointment" and "cancel my dentist appointment"
+    dropped it, with the appointment on her calendar; "I need a filling"
+    went on the shopping list; "I have a cavity" and "my dentist is on Main
+    Street" went to the planner."""
+
+    def test_a_task_about_it_is_not_it(self):
+        from aletheia import intercom
+        task = {"id": "r", "description": "reschedule my dentist appointment", "status": "PENDING"}
+        hold = {"title": "dentist appointment", "start": "2026-10-13T09:00:00-05:00"}
+        with mock.patch.object(intercom, "_one_task", lambda w: (task, "")), \
+                mock.patch.object(voice, "_one_of_her_holds", lambda w: (hold, "")):
+            self.assertFalse(voice._names_one_open_task("dentist appointment"))
+            self.assertEqual(voice._interpret("cancel my dentist appointment")["command"]["kind"], "hold_release")
+        with mock.patch.object(intercom, "_one_task", lambda w: (task, "")), \
+                mock.patch.object(voice, "_one_of_her_holds", lambda w: (None, "")):
+            self.assertTrue(voice._names_one_open_task("dentist appointment"))
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("I need a filling")["command"]["description"], "get a filling")
+        self.assertEqual(voice._interpret("I have a cavity")["command"]["kind"], "note")
+        self.assertEqual(voice._interpret("my dentist is on main street")["command"]["kind"], "note")
+        self.assertNotEqual((voice._interpret("my doctor is on vacation")["command"] or {}).get("kind"), "note")
+
+
 if __name__ == "__main__":
     unittest.main()
