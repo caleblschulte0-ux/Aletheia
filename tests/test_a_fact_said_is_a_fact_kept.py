@@ -4582,7 +4582,9 @@ class TheKidsDays(unittest.TestCase):
         r = self._r("my daughter is sick")
         self.assertEqual(r["command"]["kind"], "note")
         self.assertIn("she feels better", r["say"])
-        self.assertNotEqual((self._r("dinner is at 6").get("command") or {}).get("kind"), "note")
+        # A time is not a place: "dinner is at 6" is kept as the time, and
+        # "what time is dinner" reads it back (2026-10-08).
+        self.assertEqual(self._r("dinner is at 6")["command"], {"kind": "note", "text": "dinner is at 6"})
 
     def test_where_a_person_is_is_never_a_file(self):
         from unittest import mock
@@ -11434,6 +11436,34 @@ class AtTheDoctor(unittest.TestCase):
         from aletheia import intercom
         with mock.patch.object(intercom, "_open_tasks", lambda: [{"description": "ask the doctor about my knee"}]):
             self.assertEqual(quick.answer("what do I need to ask the doctor"), "Your list says: ask the doctor about your knee.")
+
+
+class HostingAHoliday(unittest.TestCase):
+    """2026-10-08: hosting Thanksgiving went to the planner sentence by
+    sentence - who is coming, who brings what, when dinner is, who is
+    allergic, when the in-laws arrive - and every question about it to a
+    model."""
+
+    def test_said(self):
+        for said in ("I am hosting thanksgiving this year", "12 people are coming to thanksgiving",
+                     "my sister is bringing the pie", "dinner is at 4"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertNotEqual((voice._interpret("he is bringing it up") or {}).get("command", {}).get("kind"), "note")
+        self.assertRegex(voice._interpret("my in laws arrive Wednesday")["command"]["text"], r"^my in laws arrive on Wednesday \d+ \w+$")
+
+    def test_read(self):
+        notes = [{"text": "12 people are coming to thanksgiving"}, {"text": "my sister is bringing the pie"},
+                 {"text": "Sam is bringing the wine"}, {"text": "dinner is at 4"}, {"text": "mom is allergic to nuts"},
+                 {"text": "I need to buy a 20 pound turkey"}]
+        with mock.patch.object(quick, "_notes", lambda: notes):
+            self.assertEqual(quick.answer("who is bringing the pie"), "You told me: your sister is bringing the pie.")
+            self.assertIn("Sam is bringing the wine", quick.answer("what is everyone bringing"))
+            self.assertIn("12 people", quick.answer("how many people are coming to thanksgiving"))
+            self.assertEqual(quick.answer("what time is dinner"), "You told me dinner is at 4.")
+            self.assertIn("mom is allergic to nuts", quick.answer("who is allergic to nuts"))
+            self.assertIn("20-pound turkey needs about 5 days", quick.answer("when should I start thawing the turkey"))
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("who is bringing the pie"))
 
 
 if __name__ == "__main__":

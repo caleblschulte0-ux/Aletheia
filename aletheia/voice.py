@@ -10497,7 +10497,7 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My sister lands at 4 on Friday", "my sister left" (2026-10-08: to the
     # planner). Kept with the day it meant, for "when does my sister land".
-    m = re.fullmatch(r"(?P<who>(?:my|our) [a-z]{2,15}(?: in law)?|[a-z]{2,15}) (?P<verb>lands|arrives|gets in|flies in|gets here|comes in)"
+    m = re.fullmatch(r"(?P<who>(?:my|our) (?:in[ -]laws|[a-z]{2,15}(?: in[ -]laws?)?)|[a-z]{2,15}) (?P<verb>lands?|arrives?|gets? in|flies in|fly in|gets? here|comes? in)"
                      r"(?P<at> at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)?(?: (?:on |this )?(?P<day>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?"
                      r"(?P<at2> at \d{1,2}(?::\d\d)?(?: ?[ap]m)?)?", low)
     if m and (m.group("at") or m.group("at2") or m.group("day")) and m.group("who") not in ("it", "he", "she", "who", "what", "that", "this", "the", "everyone"):
@@ -10643,6 +10643,19 @@ def _interpret(transcript: str) -> dict:
         when = f"{day:%A} {day.day} {day:%B}"
         return {"command": {"kind": "note", "text": f"{_as_he_said(text, m.group('head'))} around {when}"},
                 "say": f"Noted - that's around {when}."}
+    # HOSTING (2026-10-08: "I'm hosting Thanksgiving this year", "12 people
+    # are coming to Thanksgiving", "my sister is bringing the pie", "dinner is
+    # at 4", "mom is allergic to nuts" - to the planner).
+    if re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:hosting|having|throwing|doing) (?:thanksgiving|christmas|easter|passover|hanukkah|friendsgiving|the [a-z]{3,15} party"
+                    r"|(?:a |the )?(?:party|barbecue|bbq|cookout|potluck|dinner party|game night|birthday party|baby shower|bridal shower))"
+                    r"(?: (?:this year|at (?:our|my) (?:house|place)|on [a-z0-9 ]{3,20}|this [a-z]{3,10}|next [a-z]{3,10}))?", low) \
+            or re.fullmatch(r"(?:\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)(?: people| guests| of us| adults| kids)? (?:are|is) coming(?: to [a-z][a-z' ]{2,25})?", low) \
+            or re.fullmatch(r"(?:my [a-z]{2,15}(?: in law)?|[a-z]{2,15}(?: and [a-z]{2,15})?|the [a-z]{2,15}) (?:is|are) bringing (?:the |a |an |some |her |his |their )?(?!up\b|it\b|that\b|this\b|them\b)[a-z][a-z' ]{1,30}", low) \
+            or re.fullmatch(r"(?:thanksgiving |christmas |the |easter )?(?:dinner|lunch|brunch|the party|the barbecue|the bbq|the potluck) (?:is|starts) at \d{1,2}(?::\d\d)?(?: ?[ap]m)?(?: (?:on )?(?:thanksgiving|christmas|saturday|sunday|friday))?", low):
+        say = None
+        if re.match(r"(?:i'?m|i am|we'?re|we are) ", low):
+            say = "Noted. Tell me who's coming and what they're bringing, and I'll keep it straight."
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": say}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

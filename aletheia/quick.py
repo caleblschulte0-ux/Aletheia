@@ -2478,6 +2478,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # to a model) after "the interviewer is Sarah Chen" and "they said they
     # would get back to me next week".
     ("hear_back", re.compile(r"^when (?:will|are|do|should) (?:they|i|the [a-z]{3,15}) (?:get back to me|be getting back to me|hear back|call me back|let me know|going to let me know)\s*\??$")),
+    # "Who is bringing the pie", "what is everyone bringing", "how many people
+    # are coming to thanksgiving", "what time is dinner", "who is allergic to
+    # nuts", "when should I start thawing the turkey" (2026-10-08: to a model).
+    ("who_brings", re.compile(r"^(?:who(?:'s| is) bringing (?:the |a |an |some )?(?P<who_brings>[a-z][a-z' ]{1,30}?)|what(?:'s| is) everyone bringing|who(?:'s| is) bringing what)\s*\??$")),
+    ("coming_count", re.compile(r"^how many (?:people|guests|of us|folks) (?:are|is) coming(?: to (?P<coming_count>[a-z][a-z' ]{2,25}?))?\s*\??$")),
+    ("dinner_at", re.compile(r"^what time is (?P<dinner_at>(?:thanksgiving |christmas |easter )?(?:dinner|lunch|brunch|the party|the barbecue|the bbq|the potluck))(?: on [a-z]+)?\s*\??$")),
+    ("allergic_who", re.compile(r"^who(?:'s| is) allergic to (?P<allergic_who>[a-z][a-z ]{1,20}?)\s*\??$")),
+    ("thaw_when", re.compile(r"^when (?:should|do) i (?:start )?(?:thaw(?:ing)?|defrost(?:ing)?|take out) (?:the|my|a) turkey(?: out)?\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3409,7 +3417,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16957,6 +16965,91 @@ def _hear_back(_rest: str = "") -> str | None:
     return None
 
 
+def _said_lines(pattern: str, limit: int = 6) -> list:
+    """His notes that match, newest first, said as she says them."""
+    from aletheia import speech
+    out = []
+    for row in _notes():
+        line = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.search(pattern, line, re.I) and not re.match(r"(?:who|what|when|how)\b", line, re.I):
+            said = speech.as_she_says_it(line)
+            if said not in out:
+                out.append(said)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _who_brings(text: str) -> str | None:
+    """Who said they are bringing what."""
+    from aletheia import speech
+    g = _groups("who_brings", text)
+    thing = str(g.get("who_brings") or "").strip()
+    if thing:
+        found = _said_lines(rf"\b(?:is|are) bringing (?:the |a |an |some |her |his |their )?{re.escape(thing)}\b", 1)
+    else:
+        found = _said_lines(r"\b(?:is|are) bringing\b")
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
+def _coming_count(text: str) -> str | None:
+    """How many he said are coming."""
+    from aletheia import speech
+    found = _said_lines(r"^(?:\d{1,3}|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty)(?: people| guests| of us| adults| kids)? (?:are|is) coming\b", 1)
+    return f"You told me {found[0]}." if found else None
+
+
+def _dinner_at(text: str) -> str | None:
+    """The time he said the meal is."""
+    g = _groups("dinner_at", text)
+    meal = re.sub(r"^(?:thanksgiving|christmas|easter) ", "", str(g.get("dinner_at") or ""))
+    found = _said_lines(rf"^(?:thanksgiving |christmas |easter )?{re.escape(meal)} (?:is|starts) at \d", 1)
+    return f"You told me {found[0]}." if found else None
+
+
+def _allergic_who(text: str) -> str | None:
+    """Everybody he said is allergic to it."""
+    from aletheia import speech
+    g = _groups("allergic_who", text)
+    what = str(g.get("allergic_who") or "").strip()
+    if not what:
+        return None
+    found = _said_lines(rf"\ballergic to {re.escape(what)}\b")
+    return f"You told me: {speech.and_list(found)}." if found else None
+
+
+def _thaw_when(_rest: str = "") -> str | None:
+    """A day in the fridge for every four to five pounds, worked back from
+    the weight he gave and the holiday."""
+    import datetime as dt
+    from aletheia import localtime
+    pounds = None
+    rows = [str(r.get("text") or "") for r in _notes()]
+    try:
+        from aletheia import intercom
+        rows += [str(t.get("description") or "") for t in intercom._open_tasks()]
+    except Exception:  # noqa: BLE001
+        pass
+    for line in rows:
+        m = re.search(r"\b(\d{1,2}) ?(?:-| )?(?:pound|lb|lbs)\b[a-z ]{0,10}turkey", line, re.I)
+        if m:
+            pounds = int(m.group(1))
+            break
+    if not pounds:
+        return ("In the fridge, allow about a day for every 4 to 5 pounds. Tell me how big the turkey is "
+                "and I'll work out the day.")
+    days = -(-pounds // 4)
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    nov1 = dt.date(today.year, 11, 1)
+    thanks = nov1 + dt.timedelta(days=(3 - nov1.weekday()) % 7 + 21)
+    if thanks < today:
+        nov1 = dt.date(today.year + 1, 11, 1)
+        thanks = nov1 + dt.timedelta(days=(3 - nov1.weekday()) % 7 + 21)
+    start = thanks - dt.timedelta(days=days)
+    return (f"A {pounds}-pound turkey needs about {days} days in the fridge, so move it there by "
+            f"{start:%A} {start.day} {start:%B} for Thanksgiving on {thanks:%A} {thanks.day} {thanks:%B}.")
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -17772,6 +17865,11 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "who_brings": _who_brings,
+           "coming_count": _coming_count,
+           "dinner_at": _dinner_at,
+           "allergic_who": _allergic_who,
+           "thaw_when": _thaw_when,
            "interviewer": _interviewer,
            "hear_back": _hear_back,
            "registered_at": _registered_at,
