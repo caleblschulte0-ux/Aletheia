@@ -8135,10 +8135,14 @@ def _weekday_of(text: str) -> str | None:
         bare = re.sub(r"\s+(?:this|last|next) year$", "", words)
         if re.match(r"(?:my|our|[a-z]+'s) ", bare):
             try:
-                return _until(bare, which_day=True)
+                said = _until(bare, which_day=True)
             except Exception:  # noqa: BLE001
-                return None
-        return None
+                said = None
+            if said:
+                return said
+        # "What day is leg day" after "my leg day is Monday" (2026-10-08: to
+        # a model): the weekday he gave it.
+        return _its_weekday(bare)
     # "What day was July 4 this year" said 2027, and "was" with no year
     # read forward (2026-10-07). The year he names is the year; "was"
     # alone is the last one.
@@ -16149,6 +16153,20 @@ def _my_classes(_text: str = "") -> str | None:
     said = [speech.as_she_says_it(n) for n in found[:6]]
     return f"From what you've told me: {speech.and_list(said)}." + (
         f" You dropped {speech.and_list(sorted(dropped))}." if dropped else "")
+
+
+def _its_weekday(thing: str) -> str | None:
+    """The weekday he said a thing falls on ("my leg day is Monday")."""
+    from aletheia import speech
+    key = re.sub(r"^(?:my|our|the) ", "", " ".join(str(thing or "").casefold().split()))
+    if not key:
+        return None
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        if re.fullmatch(rf"(?:my |our |the )?{re.escape(key)}(?: day)? (?:is|are|falls on|is on|is every) (?:on )?(?:every )?"
+                        r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?: (?:and|or) [a-z]+day)?(?: .{0,20})?", said, re.I):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
 
 
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}

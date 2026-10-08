@@ -10510,5 +10510,17 @@ class HowHeFeelsAboutSomething(unittest.TestCase):
             self.assertNotEqual((voice._interpret(said)["command"] or {}).get("kind"), "note", said)
 
 
+class TheDayAThingFallsOn(unittest.TestCase):
+    """2026-10-08: "what day is leg day", a turn after "my leg day is
+    Monday", went to a model."""
+
+    def test_read(self):
+        with mock.patch.object(quick, "_notes", lambda: [{"text": "my leg day is Monday"}]):
+            self.assertEqual(quick.answer("what day is leg day"), "You told me: your leg day is Monday.")
+            self.assertEqual(quick.answer("what day is my leg day"), "You told me: your leg day is Monday.")
+        with mock.patch.object(quick, "_notes", lambda: []):
+            self.assertIsNone(quick.answer("what day is leg day"))
+
+
 if __name__ == "__main__":
     unittest.main()
