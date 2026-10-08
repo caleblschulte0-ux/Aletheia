@@ -1938,7 +1938,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:does|do) (?:anyone|anybody) (?:still )?owe me(?: (?:any )?(?:money|anything))?\s*\??$"
         r"|^(?:do i owe|does) (?:anyone|anybody) (?:any )?(?:money|anything)(?: owe me(?: money)?)?\s*\??$"
         r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
-        r"|^how much (?:do i owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: owe me)?\s*\??$"
+        r"|^how much (?:do i (?:still )?owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: still)?(?: owe me)?(?: now| still)?\s*\??$"
         # "Do I still owe Sam" (2026-10-07: to the planner).
         r"|^(?:do i (?:still )?owe|does(?=.*\bowe me\b)) (?P<owe_who>(?!anyone\b|anybody\b)[a-z][a-z ]{0,25}?)(?: still)?(?: owe me)?(?: (?:any )?money| anything)?\s*\??$")),
     # "When did I last change the oil", "did I give the dog his medicine"
@@ -5142,7 +5142,8 @@ def _ledger() -> dict:
             who = m.group("who")
             out[who] = min(0.0, out[who] + float(m.group("amt"))) if m.group("amt") else 0.0
             continue
-        m = re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) paid me back(?: " + _MONEY + r")?", low)
+        m = (re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) paid me back(?: " + _MONEY + r")?", low)
+             or re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) (?:paid|gave) me " + _MONEY + r"(?: back)?", low))
         if m and out.get(m.group("who"), 0) > 0:
             who = m.group("who")
             out[who] = max(0.0, out[who] - float(m.group("amt"))) if m.group("amt") else 0.0

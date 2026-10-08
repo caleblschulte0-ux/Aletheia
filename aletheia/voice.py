@@ -8214,7 +8214,9 @@ def _interpret(transcript: str) -> dict:
     _amt = r"\$?\d+(?:\.\d{1,2})?(?: ?(?:dollars|bucks))?"
     if re.fullmatch(r"(?:i owe [a-z][a-z ]{0,25}? " + _amt + r"|[a-z][a-z ]{0,25}? owes me " + _amt
                     + r"|i (?:lent|loaned) [a-z][a-z ]{0,25}? " + _amt + r"|i borrowed " + _amt + r" from [a-z][a-z ]{0,25}?"
-                    + r"|i paid [a-z][a-z ]{0,25}? back(?: " + _amt + r")?|[a-z][a-z ]{0,25}? paid me back(?: " + _amt + r")?)"
+                    + r"|i paid [a-z][a-z ]{0,25}? back(?: " + _amt + r")?|[a-z][a-z ]{0,25}? paid me back(?: " + _amt + r")?"
+                    # "Jake paid me 20" (2026-10-08: to the planner) - part of it back.
+                    + r"|[a-z][a-z ]{0,25}? (?:paid|gave) me " + _amt + r"(?: back)?)"
                     + r"(?: for [a-z][a-z ]{0,30})?", low) and not low.startswith(("you ", "she ", "thea ")):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "My blood pressure was 120 over 80" (2026-10-07: to the planner), and

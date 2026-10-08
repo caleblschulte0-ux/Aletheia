@@ -6767,5 +6767,18 @@ class UntilSunsetAndSinceABirthday(unittest.TestCase):
             self.assertIn("You haven't told me when your birthday is", quick.answer("how many days since my birthday"))
 
 
+
+class PartOfItPaidBack(unittest.TestCase):
+    """2026-10-08: "Jake paid me 20" went to the planner, and "how much does
+    Jake owe me now" answered about somebody called "Jake Owe Me Now"."""
+
+    def test_a_part_paid_back_comes_off(self):
+        self.assertEqual(voice.interpret("Jake paid me 20")["command"], {"kind": "note", "text": "Jake paid me 20"})
+        rows = [{"text": "Jake paid me 20", "ts": "2026-10-08T10:00:00+00:00"},
+                {"text": "Jake owes me 50 bucks", "ts": "2026-10-08T09:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how much does Jake owe me now"), "Jake owes you $30.")
+
+
 if __name__ == "__main__":
     unittest.main()
