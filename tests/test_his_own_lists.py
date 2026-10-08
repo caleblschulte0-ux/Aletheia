@@ -99,7 +99,8 @@ class TheStoreAnswers(unittest.TestCase):
 
     def test_a_list_he_never_made_is_not_denied_it_is_offered(self):
         out = self.run_it(kind="list_read", list="camping")
-        self.assertIn("make a list called camping", out)
+        # Offered as the sentence that starts it: adding to it does.
+        self.assertIn("to my camping list", out)
 
 
 if __name__ == "__main__":

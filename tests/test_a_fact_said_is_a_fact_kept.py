@@ -3235,10 +3235,10 @@ class WatchedAndRead(unittest.TestCase):
             lists.take_off("reading", "the hobbit")
             self.assertEqual(quick.answer("what have I watched"), "You've watched Dune.")
             self.assertEqual(quick.answer("what was the last book I read"), "The Hobbit, from your list.")
-            self.assertEqual(quick.answer("how many books have I read this year"), "1 book this year, off your list.")
+            self.assertEqual(quick.answer("how many books have I read this year"), "1 book this year, from what you've told me.")
             now = dt.datetime.now(dt.timezone.utc).isoformat()
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading Dune Messiah", "ts": now}]):
-                self.assertEqual(quick.answer("what am I reading"), "You told me you started Dune Messiah.")
+                self.assertEqual(quick.answer("what am I reading"), "You told me you're reading Dune Messiah.")
             with mock.patch.object(quick, "_notes", return_value=[{"text": "I started reading The Hobbit", "ts": now}]):
                 # finished is not "still reading", and not "never told me"
                 self.assertIn("you've finished it", quick.answer("what am I reading"))
@@ -5970,6 +5970,189 @@ class ATaskMovesToNextWeekAndABillIsABill(unittest.TestCase):
                 mock.patch.object(quick, "_cost_mine", return_value=None):
             said = intercom.execute_command({"kind": "subscriptions"}, {"repos": {}})
         self.assertIn("pay the water bill", said)
+
+
+class BeforeADayHeToldHer(unittest.TestCase):
+    """2026-10-08: "Anna's favorite flower is tulips", "what flowers does
+    Anna like" and "remind me to buy flowers two days before our
+    anniversary" each went to the planner or a model."""
+
+    def test_a_favorite_of_theirs(self):
+        self.assertEqual(voice._interpret("Anna's favorite flower is tulips")["command"]["kind"], "note")
+        rows = [{"text": "Anna's favorite flower is tulips", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what flowers does Anna like"), "You told me Anna's favorite flower is tulips.")
+            self.assertIsNone(quick.answer("what food does Anna like"))
+
+    def test_days_before_the_anniversary(self):
+        rows = [{"text": "my anniversary is June 20", "ts": "2026-10-08T00:00:00+00:00"},
+                {"text": "my mom's birthday is March 3", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            got = voice._interpret("remind me to buy flowers two days before our anniversary")["command"]
+            self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%m-%d %H"), "06-18 09")
+            self.assertTrue(got["text"].startswith("buy flowers - your anniversary is in 2 days"))
+            card = voice._interpret("remind me to get a card the day before my mom's birthday")["command"]
+            self.assertEqual(card["text"], "get a card - your mom's birthday is tomorrow")
+            self.assertIn("don't know when Sam's birthday", voice._interpret("remind me to call Sam the day before Sam's birthday")["say"])
+
+
+class AMeetingWithANameKeepsItsCapitals(unittest.TestCase):
+    """2026-10-08: "I have a meeting with Dana at 2 tomorrow" was held as
+    "meeting with dana", and "what time do I meet Dana" went to a model."""
+
+    def test_each(self):
+        self.assertEqual(voice._interpret("I have a meeting with Dana at 2 tomorrow")["command"]["title"], "meeting with Dana")
+        self.assertEqual(quick.match("what time do I meet Dana")[0], "when_meeting")
+
+
+class GasAndMilesToTheOilChange(unittest.TestCase):
+    """2026-10-08: "I need to get gas" went on the shopping list, and "the
+    oil change is due at 45000 miles" and "how many miles until my oil
+    change" went to the planner and a model."""
+
+    def test_gas_is_an_errand(self):
+        self.assertEqual(voice._interpret("I need to get gas")["command"]["kind"], "task_new")
+
+    def test_miles_left(self):
+        self.assertEqual(voice._interpret("the oil change is due at 45000 miles")["command"]["kind"], "note")
+        rows = [{"text": "my car has 43,000 miles", "ts": "2026-10-08T01:00:00+00:00"},
+                {"text": "the oil change is due at 45000 miles", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how many miles until my oil change").startswith("About 2,000 miles"))
+        with mock.patch.object(quick, "_notes", return_value=rows[1:]):
+            self.assertIn("don't know your mileage", quick.answer("how many miles until my oil change"))
+
+
+class ASplitWithATipIsArithmetic(unittest.TestCase):
+    """2026-10-08: "split 120 three ways with tip" was refused as spending,
+    and "how much is the tip on 64 dollars" went to a model."""
+
+    def test_each(self):
+        self.assertTrue(quick.answer("split 120 three ways with tip").startswith("With a 20% tip, $48 each - $144 in all."))
+        self.assertTrue(quick.answer("split 120 between 4 with a 15% tip").startswith("With a 15% tip, $34.50 each"))
+        self.assertIn("20% is $12.80", quick.answer("how much is the tip on 64 dollars"))
+
+
+class PillsLeftAndARefill(unittest.TestCase):
+    """2026-10-08: "I'm out of my medicine", "I have 10 pills left", "I take
+    2 a day" and "when will I run out" each went to the planner or a model."""
+
+    def test_refill_is_a_task(self):
+        self.assertEqual(voice._interpret("I'm out of my medicine")["command"]["description"], "refill my medicine")
+
+    def test_count_and_dose(self):
+        import datetime as dt
+        for said in ("I have 10 pills left", "I take 2 a day"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        when = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat()
+        rows = [{"text": "I take 2 a day", "ts": when}, {"text": "I have 10 pills left", "ts": when}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how many pills do I have left").startswith("About 6 left"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("when will I run out"))
+            self.assertIn("I have 10 pills left", quick.answer("how many pills do I have left"))
+
+
+class WhereSomeoneLives(unittest.TestCase):
+    """2026-10-08: "when am I seeing Kate" read back "Kate lives at 44 Pine
+    St"; "what time is it where my sister lives" went to a model."""
+
+    def test_an_address_is_not_a_when(self):
+        rows = [{"text": "Kate lives at 44 Pine St", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIsNone(quick.answer("when am I seeing Kate"))
+        rows.insert(0, {"text": "I'm visiting Kate next weekend", "ts": "2026-10-08T01:00:00+00:00"})
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertIn("visiting Kate next weekend", quick.answer("when am I seeing Kate"))
+
+    def test_the_time_where_she_lives(self):
+        rows = [{"text": "my sister lives in Denver", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIn("in Denver", quick.answer("what time is it where my sister lives"))
+
+
+class WatchAndReadingLists(unittest.TestCase):
+    """2026-10-08: "I want to watch Oppenheimer", "I'm reading Project Hail
+    Mary", "what movies do I want to watch" and "what did I watch recently"
+    went to the planner or a model."""
+
+    def test_writers(self):
+        self.assertEqual(voice._interpret("I want to watch Oppenheimer")["command"],
+                         {"kind": "list_add", "list": "watch", "item": "Oppenheimer"})
+        self.assertEqual(voice._interpret("I want to read Circe")["command"]["list"], "reading")
+        for said in ("I want to watch a movie tonight", "I want to watch the news", "I want to read something"):
+            got = voice._interpret(said)
+            self.assertNotEqual((got.get("command") or {}).get("kind"), "list_add", said)
+        self.assertEqual(voice._interpret("I'm reading Project Hail Mary")["command"]["text"], "I'm reading Project Hail Mary")
+        self.assertEqual(voice._interpret("what movies do I want to watch")["command"], {"kind": "list_read", "list": "watch"})
+
+    def test_readers(self):
+        rows = [{"text": "I'm reading Project Hail Mary", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what am I reading"), "You told me you're reading Project Hail Mary.")
+        self.assertEqual(quick.match("what did I watch recently")[0], "off_lists")
+
+
+class AVacationByItsDates(unittest.TestCase):
+    """2026-10-08: "I'm going on vacation to Hawaii December 10 to 17", "how
+    long is my vacation", "remind me to pack the day before my vacation",
+    "I'm flying out at 7am on December 10" and "what time is my flight"
+    went to the planner or a model."""
+
+    def test_writers(self):
+        for said in ("I'm going on vacation to Hawaii December 10 to 17", "my vacation is December 10 to 17",
+                     "I'm flying out at 7am on December 10"):
+            self.assertEqual(voice._interpret(said)["command"]["kind"], "note", said)
+        self.assertEqual(voice._interpret("what do I need to pack")["command"], {"kind": "list_read", "list": "packing"})
+
+    def test_readers(self):
+        rows = [{"text": "I'm flying out at 7am on December 10", "ts": "2026-10-08T01:00:00+00:00"},
+                {"text": "my vacation is December 10 to 17", "ts": "2026-10-08T00:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows), mock.patch.object(quick, "_coming", return_value=[]):
+            self.assertTrue(quick.answer("how long is my vacation").startswith("7 nights - December 10 to December 17"))
+            self.assertIn("flying out at 7am", quick.answer("what time is my flight"))
+            got = voice._interpret("remind me to pack the day before my vacation")["command"]
+            self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%m-%d"), "12-09")
+
+
+class WhatHeSpentTheMostOn(unittest.TestCase):
+    """2026-10-08: "what did I spend the most on this month" answered with
+    the total."""
+
+    def test_the_biggest_leads(self):
+        import datetime as dt
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I spent 60 on groceries", "ts": now}, {"text": "I spent 120 on dinner", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick._spent("what did i spend the most on this month")
+        self.assertTrue(said.startswith("Dinner: $120 of the $180"), said)
+
+
+
+class SchoolDaysAreKeptAndReadBack(unittest.TestCase):
+    """2026-10-08: "school starts August 20" went to a model, "when does
+    school start" read back the pictures day, and "does Leo have anything
+    Thursday" was asked of the money ledger."""
+
+    NOTES = [{"text": "Leo has a field trip Thursday"}, {"text": "Leo's school pictures are on the 14th"},
+             {"text": "school starts August 20"}]
+
+    def test_the_dates_are_notes(self):
+        for said in ("school starts August 20", "Leo's school pictures are on the 14th", "Leo has a field trip Thursday",
+                     "work ends friday"):
+            self.assertEqual(voice._interpret(said)["command"], {"kind": "note", "text": said}, said)
+        self.assertNotEqual(voice._interpret("the meeting is over")["command"]["kind"], "note")
+
+    def test_when_it_starts_is_the_start(self):
+        with mock.patch.object(quick, "_notes", return_value=self.NOTES):
+            self.assertEqual(quick.answer("when does school start"), "You told me: school starts August 20.")
+            self.assertIn("pictures", quick.answer("when are school pictures"))
+
+    def test_what_a_name_is_doing_is_the_calendar_and_notes(self):
+        for said in ("what's Leo doing Thursday", "does Leo have anything Thursday"):
+            self.assertEqual(quick.match(said)[0], "event_detail", said)
+        self.assertEqual(quick._groups("owed", "does sam owe me money").get("owe_who"), "sam")
+        self.assertFalse(quick._groups("owed", "does leo have anything thursday"))
 
 
 if __name__ == "__main__":

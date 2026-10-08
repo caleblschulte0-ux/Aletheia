@@ -1179,7 +1179,9 @@ _TASK_VERB = re.compile(
     r"make an? (?:appointment|reservation|call|plan|list|dentist|doctor)|do (?:the|my) "
     # "I have to take the car in for service on Monday" (2026-10-07: to the planner).
     r"|take (?:the|my) (?:car|truck|van|dog|cat|kids?|trash|recycling|bins?|garbage|laundry|package|parcel)|get (?:the|my) (?:car|truck|oil|tires?|hair|teeth|flu shot|eyes)"
-    r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical))\b")
+    r"|get (?:a|an) (?:haircut|oil change|flu shot|checkup|check-up|physical)"
+    # "I need to get gas" (2026-10-08: the shopping list).
+    r"|get (?:gas|fuel|petrol|diesel)|fill up(?: the (?:car|tank|truck))?|fill (?:the )?(?:car|tank|truck) up)\b")
 
 
 def _birthday_reminder(m) -> dict:
@@ -3593,6 +3595,56 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
 
+    # "I want to watch Oppenheimer", "I want to read Dune", "I'm reading
+    # Project Hail Mary" (2026-10-08: to the planner, and "I'm reading" to a
+    # model). A title goes on his watch or reading list; what he is reading
+    # is a note, which "what am I reading" reads.
+    m = re.fullmatch(r"i (?:really )?(?:want|wanna|would like|'d like|need) to (?P<v>watch|see|read) (?P<t>[a-z0-9].{1,60}?)"
+                     r"(?: (?:sometime|someday|soon|at some point|one day|eventually))?", low)
+    if m and not re.match(r"(?:a|an|some|something|anything|more|less|it|that|this|them|tv|television|the news|the game"
+                          r"|the match|a movie|a show|youtube|netflix|my|your|his|her|their|what|how|if|whether|you|him)\b", m.group("t")) \
+            and not re.search(r"\b(?:tonight|today|tomorrow|later|now|this weekend|with (?:you|me))$", m.group("t")):
+        listed = "reading" if m.group("v") == "read" else "watch"
+        return {"command": {"kind": "list_add", "list": listed, "item": _as_he_said(text, m.group("t"))}, "say": None}
+    m = re.fullmatch(r"i'?m (?:currently |now |still )?reading (?P<t>[a-z0-9].{1,60})", low)
+    if m and not re.match(r"(?:it|that|this|them|a |an |some|the news|my |your |about |up on |through |over )", m.group("t")) \
+            and "?" not in text:
+        return {"command": {"kind": "note", "text": "I'm reading " + _as_he_said(text, m.group("t"))},
+                "say": "Noted. Ask me \"what am I reading\" and I'll tell you."}
+    if re.fullmatch(r"what (?:movies|shows|films|tv shows|things|stuff) (?:do|did) i (?:want|say i wanted) to (?:watch|see)\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "watch"}, "say": None}
+    if re.fullmatch(r"what books? (?:do|did) i (?:want|say i wanted) to read\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "reading"}, "say": None}
+
+    # "I'm going on vacation to Hawaii December 10 to 17", "my vacation is
+    # December 10 to 17", "I'm flying out at 7am on December 10" (2026-10-08:
+    # to the planner). Kept in his words; "when is my vacation", "how long
+    # is my vacation" and "what time is my flight" read them.
+    _range_day = r"(?:" + _MONTH + r"\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)?(?: of " + _MONTH + r")?)"
+    if re.fullmatch(r"(?:(?:i'?m|i am|we'?re|we are) (?:going|heading|off) on (?:a |our |my )?(?:vacation|holiday|trip|cruise|honeymoon)"
+                    r"|(?:my|our) (?:vacation|holiday|trip|cruise|honeymoon) is)"
+                    r"(?: (?:to|in) [a-z][a-z .'-]{1,30}?)? (?:from )?" + _range_day
+                    + r"(?:,? \d{4})?(?: (?:to|through|thru|until|till|-) " + _range_day + r")?", low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:flying|leaving|heading) (?:out|off|home|back)(?: to [a-z][a-z .'-]{1,30}?)?"
+                            r" (?:at \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?" + _range_day
+                            + r"(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    if re.fullmatch(r"what (?:do|should) i (?:need to |have to )?pack(?: for (?:my |the |our )?(?:trip|vacation|holiday))?\s*\??", low):
+        return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
+
+    # "I'm out of my medicine" (2026-10-08: to the planner; "my" kept it off
+    # the shopping list). A prescription is refilled, not bought off a list.
+    m = re.fullmatch(r"(?:we(?:'re| are)|i(?:'m| am)|im) (?:all |almost |nearly |running )?(?:out of|low on) (?:my |the )?"
+                     r"(?P<rx>medicine|medication|meds|pills|prescription|inhaler|insulin|blood pressure (?:pills|meds|medicine)"
+                     r"|[a-z]+ (?:pills|meds|tablets)|contacts|contact lenses)", low)
+    if m:
+        return _new_task(f"refill my {m.group('rx')}")
+    # "I have 10 pills left", "I take 2 a day" (2026-10-08: to the planner).
+    # Kept; "how many pills do I have left" and "when will I run out" read them.
+    if re.fullmatch(r"i(?:'ve| have)(?: got)? (?:about |only |just )?\d{1,3} (?:pills|tablets|capsules|doses)(?: of (?:my )?[a-z ]{2,30})? left", low) \
+            or re.fullmatch(r"i take (?:\d|one|two|three|four) (?:pills?|tablets?|capsules?|doses?)?(?: of (?:it|them|my [a-z ]{2,30}))? ?(?:a|per|each|every) day", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+
     # "WE'RE OUT OF COFFEE", "we need paper towels", "I need to buy
     # batteries": a thing to buy, said as a need (2026-10-07: the planner,
     # and the last one refused as SPENDING). It goes on the list; buying
@@ -3629,7 +3681,9 @@ def _interpret(transcript: str) -> dict:
                              # SHOPPING list (2026-10-07): a service, or a thing of his, is
                              # an errand.
                              r"|my|our|oil change|tune-?up|car wash|check-?up|physical|flu shot|vaccine|shots?|massage"
-                             r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment)\b", m.group("item")):
+                             r"|manicure|pedicure|tattoo|blood test|blood work|x-?ray|eye exam|inspection|appointment"
+                             # "I need to get gas" (2026-10-08: the shopping list) is a stop on the way.
+                             r"|gas|fuel|petrol|diesel)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                 "say": None}
 
@@ -4410,6 +4464,42 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "remind_at", "at": at,
                                 "text": f"{event.get('title') or 'your next event'} in {said}{plural}"},
                     "say": None}
+
+    # "Remind me to buy flowers two days before our anniversary", "remind me
+    # a week before my anniversary", "remind me to get a card the day before
+    # Mom's birthday" (2026-10-08: to the planner). The date is in his note.
+    m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
+                     r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
+                     r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"
+                     r"|[a-z][a-z' ]{0,30}?(?:'s|s') (?:birthday|bday|anniversary))", low)
+    if m and (m.group("task") or not re.search(r"\b(?:birthday|bday)$", m.group("what"))):
+        import datetime as dt
+        from aletheia import localtime, quick as _q
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(tz)
+        what = m.group("what")
+        day = _q._date_in_notes(what, now.date())
+        if day is None:
+            whose = "your " + what if not re.match(r"[a-z]+(?:'s|s') ", what) or what.split("'")[0] in _q._relation_words() else what
+            return {"command": None, "say": f"I don't know when {_as_he_said(text, whose)} is. Tell me the date once and I'll remember it."}
+        lead = m.group("lead")
+        days = (14 if lead == "two weeks" else 7 if "week" in lead else 0 if lead == "the morning"
+                else (_spoken_amount(m.group("n")) if m.group("n") else 1) or 1)
+        hour = {"the night": 19, "the morning": 8}.get(lead, 9)
+        at = dt.datetime.combine(day - dt.timedelta(days=int(days)), dt.time(hour, 0), tzinfo=tz)
+        if at <= now:
+            try:
+                day = day.replace(year=day.year + 1)
+            except ValueError:            # February 29
+                day = day.replace(year=day.year + 1, day=28)
+            at = dt.datetime.combine(day - dt.timedelta(days=int(days)), dt.time(hour, 0), tzinfo=tz)
+        said = what.replace("my ", "your ", 1) if what.startswith("my ") else what
+        if not re.match(r"[a-z]+(?:'s|s') ", said) or re.split(r"'s?\b", said)[0] in _q._relation_words():
+            said = "your " + said
+        said = _as_he_said(text, said) if not said.startswith("your ") else said
+        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {days} days, on {day.strftime('%A')}")
+        text = (f"{_as_he_said(text, m.group('task'))} - {said} is {when}" if m.group("task") else f"{said} is {when}")
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text}, "say": None}
 
     # "REMIND ME THE DAY BEFORE MY DENTIST APPOINTMENT" (2026-10-07: to the
     # planner). The same lookup, a day-sized lead: the day before at nine,
@@ -7858,6 +7948,9 @@ def _interpret(transcript: str) -> dict:
         if swap:
             again = _interpret(f"{swap.group('head')} {swap.group('day')} at {swap.group('time')}")
             if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                # The sentence was rebuilt lowercased: "meeting with dana"
+                # (2026-10-08). His capitals go back on the title.
+                again["command"]["title"] = _as_he_said(text, again["command"]["title"])
                 return again
         # "I'M MEETING SAM FOR COFFEE AT 10 TOMORROW" (2026-10-07: to the
         # planner, and "who am I meeting tomorrow" found nothing). The same
@@ -8136,6 +8229,11 @@ def _interpret(transcript: str) -> dict:
         job = {"tire pressure": "check the tire pressure", "tyre pressure": "check the tire pressure",
                "low fuel": "get gas"}.get(light, f"get the {light} light looked at")
         return _new_task(job)
+    # "The oil change is due at 45000 miles" (2026-10-08: to the planner).
+    # Kept; "how many miles until my oil change" reads it against his mileage.
+    if re.fullmatch(r"(?:my |the |our )?(?:next )?(?:car'?s? )?(?:oil change|service|tune-?up|tire rotation|inspection|timing belt)"
+                    r" (?:is )?(?:due|needed) (?:at|by|around) [\d,]+(?:k)? ?(?:miles|mi|km)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:my |the |our )(?:car|truck|van|suv)(?:'s| is)? (?:due|overdue) for (?:an? |its |her |his )?"
                     r"(?:inspection|service|oil change|tune-?up|smog check|emissions test|tire rotation|registration)"
                     r"(?: (?:in|on|by|next|this|at) [a-z0-9 ,]{2,30})?", low):
@@ -8176,7 +8274,16 @@ def _interpret(transcript: str) -> dict:
          or re.fullmatch(r"(?:the |my |our )?(?P<thing4>dentist|doctor|vet|haircut|interview|meeting|party|wedding|game|recital"
                          r"|concert|game|recital|surgery|checkup|check-up|physical|[a-z]+ appointment) is (?:on )?(?:"
                          + SPOKEN_DATE + r"|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-                         r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low))
+                         r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?)" + _at, low)
+         # "School starts August 20", "Leo's school pictures are on the 14th"
+         # and "Leo has a field trip Thursday" (2026-10-08: to the planner).
+         or re.fullmatch(r"(?:the |my |our |[a-z]{2,15}'s )?(?P<thing7>[a-z][a-z ]{1,25}?) (?:starts?|begins?|ends?|finishes|opens|closes"
+                         r"|is|are|is over|gets out|lets out) (?:on |back )?(?:" + SPOKEN_DATE
+                         + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday|thursday"
+                         r"|friday|saturday|sunday))" + _at, low)
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|[a-z]{2,15}) (?:has|have) (?:a |an )(?P<thing8>[a-z][a-z ]{1,25}?)"
+                         r" (?:on )?(?:" + SPOKEN_DATE + r"|" + _MONTH + r" \d{1,2}(?:st|nd|rd|th)?|today|tomorrow|(?:this |next )?"
+                         r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low))
     if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6")) and low.startswith("i have ")
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
@@ -8207,7 +8314,9 @@ def _interpret(transcript: str) -> dict:
                      # "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln
                      # Elementary" (2026-10-07: to the planner).
                      r"|teacher|school|coach|pediatrician|doctor|dentist|class|grade|team|best friend|nickname|shoe size"
-                     r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name)"
+                     r"|clothes size|shirt size|bedtime|daycare|babysitter|nanny|tutor|vet|middle name|last name"
+                     # "Anna's favorite flower is tulips" (2026-10-08: to the planner).
+                     r"|(?:favou?rite|fave) [a-z]{2,20}(?: [a-z]{2,20})?)"
                      r"|blood type|shoe size|shirt size|ring size|pants size|dress size|wifi(?: password| name| network(?: name| password)?)?|wi-fi(?: password| network)?"
                      r"|gate code|door code|garage code|locker(?: number| combination| code)?|license plate|plate number"
                      # "My doctor is Dr Patel" (2026-10-07: to the planner) -
