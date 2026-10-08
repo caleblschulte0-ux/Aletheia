@@ -631,7 +631,7 @@
     },
     {
       "id": "calendar.availability",
-      "description": "Timezone-aware local conflict, buffer, work-window and multi-day slot reasoning",
+      "description": "Check your calendar and tell you when you're free, around your work hours and the gaps you like between things",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",
@@ -1517,7 +1517,7 @@
     },
     {
       "id": "research.answer",
-      "description": "Look into a question and answer it from real sources, with every claim bound to the page it came from",
+      "description": "Search the web and answer a question from real sources, with every claim tied to the page it came from",
       "provider": "aletheia.local",
       "status": "AVAILABLE",
       "risk_class": "read",

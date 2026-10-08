@@ -8347,5 +8347,255 @@ class RemindMeWhenILeaveWork(unittest.TestCase):
 
 
 
+class HowOldIfBornIn(unittest.TestCase):
+    """"How old am I if I was born in 1990" went to a model (2026-10-08)."""
+
+    def test_both_ages_are_said(self):
+        import datetime as dt
+        from aletheia import quick
+        age = dt.date.today().year - 1990
+        self.assertEqual(quick.answer("how old am I if I was born in 1990"),
+                         f"{age} if the birthday has already come this year, {age - 1} if not.")
+        self.assertIsNotNone(quick.answer("how old is someone born in 2001"))
+
+
+
+class WhatExpiresSoon(unittest.TestCase):
+    """"What expires soon" went to a model with "my license expires on
+    November 5" kept (2026-10-08)."""
+
+    def test_it_reads_the_dates_he_told_her(self):
+        from aletheia import quick
+        for said in ("what expires soon", "is anything expiring", "what needs renewing"):
+            self.assertEqual(quick._direct(said), "what's due next month", said)
+
+
+
+class AmIBusyTomorrowMorning(unittest.TestCase):
+    """"Am I busy tomorrow morning" went to the planner (2026-10-08)."""
+
+    def test_it_is_the_free_question(self):
+        from aletheia import voice
+        cmd = voice._interpret("am I busy tomorrow morning")["command"]
+        self.assertEqual((cmd["kind"], cmd.get("part")), ("free_time", "morning"))
+
+
+
+class TheLastDoseIsWhenHeSaidHeTookIt(unittest.TestCase):
+    """"I took 2 advil at 3", said at 5:44, was counted as "the last at 5:44
+    am" (2026-10-08)."""
+
+    def test_the_time_he_said_is_the_time_said_back(self):
+        import datetime as dt
+        from aletheia import quick
+        rows = [{"text": "I took 2 advil at 3", "ts": dt.datetime.now(dt.timezone.utc).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("how much advil have I taken today")
+        self.assertIn("2 advil today, the last at 3", said)
+
+
+
+class HowLongHaveIHadThisCold(unittest.TestCase):
+    """"I have a cold" got "rest up" and was gone; "how long have I had this
+    cold" went to a model (2026-10-08)."""
+
+    def test_the_cold_is_kept_and_still_gets_its_word(self):
+        from aletheia import voice
+        out = voice._interpret("I have a cold")
+        self.assertEqual(out["command"], {"kind": "note", "text": "Journal: I have a cold"})
+        self.assertTrue(out["say"])
+
+    def test_how_long_counts_from_the_first_mention(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "Journal: I have a cold", "ts": now.isoformat()},
+                {"text": "Journal: I have a cold", "ts": (now - dt.timedelta(days=3)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how long have I had this cold").startswith("3 days"))
+
+    def test_feeling_better_ends_the_run(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [{"text": "Journal: I have a cold", "ts": now.isoformat()},
+                {"text": "Journal: I feel better now", "ts": (now - dt.timedelta(days=5)).isoformat()},
+                {"text": "Journal: I have a cold", "ts": (now - dt.timedelta(days=9)).isoformat()}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("how long have I had this cold").startswith("Since today"))
+
+    def test_since_monday_is_said_back(self):
+        from aletheia import quick
+        rows = [{"text": "Journal: I have had a headache since monday", "ts": "2026-10-08T05:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how long have I had a headache"), "Since Monday, you told me.")
+
+
+
+class WhatsMyMaxBench(unittest.TestCase):
+    """"I benched 185 today" went to the planner and "what's my max bench"
+    to a model (2026-10-08)."""
+
+    def test_the_heaviest_is_read_back(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("I benched 185 today")["command"]["kind"], "note")
+        rows = [{"text": "I benched 185 today", "ts": "2026-10-08T12:00:00+00:00"},
+                {"text": "I benched 205 for 3 reps", "ts": "2026-10-07T12:00:00+00:00"},
+                {"text": "I squatted 300", "ts": "2026-10-07T12:00:00+00:00"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertTrue(quick.answer("whats my max bench").startswith("Your best bench is 205"))
+            self.assertTrue(quick.answer("how much can I squat").startswith("Your best squat is 300"))
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIn("I deadlifted 275", quick.answer("what's my best deadlift"))
+
+
+
+class WhatDoINeedToDoIsTasks(unittest.TestCase):
+    """"What do I need to do" read the shopping list a turn after a birthday
+    card went on it (2026-10-08)."""
+
+    def test_to_do_is_tasks_after_a_shopping_turn(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "I need to buy a birthday card for mom",
+                  "she_answered": "Added to the shopping list: birthday card for mom."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice._interpret("what do I need to do")["command"], {"kind": "tasks"})
+            self.assertEqual(voice._interpret("what do I need")["command"], {"kind": "shopping_list"})
+
+
+
+class WhichOfThoseIsMostUrgent(unittest.TestCase):
+    """"Which of those is most urgent" after his list went to a model (2026-10-08)."""
+
+    def test_it_is_the_focus_question(self):
+        from aletheia import quick
+        for said in ("which of those is most urgent", "which one should I do first"):
+            self.assertEqual((quick.match(said) or ("",))[0], "focus", said)
+
+
+
+class APlacesHoursHeToldHer(unittest.TestCase):
+    """"My gym opens at 5am" went to the planner, and "when does the pharmacy
+    close" searched the web with his own note kept (2026-10-08)."""
+
+    def test_the_hours_are_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("my gym opens at 5am")["command"], {"kind": "note", "text": "my gym opens at 5am"})
+
+    def test_his_note_answers_before_a_search(self):
+        from aletheia import quick, voice
+        rows = [{"text": "the pharmacy closes at 9 on weekdays"}, {"text": "my gym opens at 5am"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(voice._interpret("when does the pharmacy close")["say"],
+                             "You told me the pharmacy closes at 9 on weekdays.")
+            self.assertIn("but not when it closes", voice._interpret("what time does my gym close")["say"])
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertEqual(voice._interpret("when does target close")["command"]["kind"], "research")
+
+
+
+class IMovedMyCar(unittest.TestCase):
+    """"I moved my car to the garage" went to the planner, and "where did I
+    park" kept the old spot (2026-10-08)."""
+
+    def test_it_is_a_new_spot(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("I moved my car to the garage")["command"],
+                         {"kind": "note", "text": "I parked in the garage"})
+        self.assertNotEqual((voice._interpret("I put the car in drive")["command"] or {}).get("text"), "I parked in drive")
+
+
+
+class TheDaySaidFirst(unittest.TestCase):
+    """"Tomorrow I need to go to the bank" and "add call mom to tomorrow"
+    went to the planner; "what's the plan for tomorrow" to a model; and a
+    list of tasks with their own "and" ran together (2026-10-08)."""
+
+    def test_the_day_first_is_the_same_task(self):
+        from aletheia import voice
+        cmd = voice._interpret("tomorrow I need to go to the bank")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "go to the bank"))
+        self.assertTrue(cmd.get("deadline"))
+        cmd = voice._interpret("add call mom to tomorrow")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "call mom"))
+        self.assertTrue(cmd.get("deadline"))
+
+    def test_the_plan_for_tomorrow_is_the_day(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("what's the plan for tomorrow"), "what do i have to do tomorrow")
+
+    def test_an_item_with_its_own_and_is_kept_apart(self):
+        from aletheia import speech
+        self.assertEqual(speech.and_list(["go to the bank and call Sarah", "pick up dry cleaning"]),
+                         "go to the bank and call Sarah; and pick up dry cleaning")
+        self.assertEqual(speech.and_list(["milk", "eggs"]), "milk and eggs")
+
+
+
+class HeyTheaAndOtherPoliteWays(unittest.TestCase):
+    """"Hey Thea, can you remind me to call mom at 5", "I was wondering if
+    you could add a task...", "can you check if I have anything tomorrow"
+    went to the planner, and "is there anything on my calendar today" was
+    answered "Yes" with a description of her calendar code (2026-10-08)."""
+
+    def test_hey_before_her_name(self):
+        from aletheia import voice
+        self.assertEqual(voice.strip_wake_word("Hey Thea, add milk"), "add milk")
+        self.assertEqual(voice.interpret("hey thea can you remind me to call mom at 5")["command"]["kind"], "remind_at")
+        self.assertEqual(voice.strip_wake_word("hey there"), "hey there")
+
+    def test_i_was_wondering_if_you_could(self):
+        from aletheia import voice
+        cmd = voice.interpret("I was wondering if you could add a task to clean the garage")["command"]
+        self.assertEqual((cmd["kind"], cmd["description"]), ("task_new", "clean the garage"))
+
+    def test_check_if_is_the_question(self):
+        from aletheia import quick
+        self.assertEqual(quick._direct("can you check if i have anything tomorrow"), "do i have anything tomorrow")
+        self.assertEqual(quick.match("could you see if there is anything on my calendar today"), ("agenda", "today"))
+        self.assertEqual(quick.match("is there anything on my calendar"), ("coming_up", ""))
+
+
+
+class CanYouCheckMyCalendarInPlainWords(unittest.TestCase):
+    """"Can you check my calendar" was answered "Yes - Timezone-aware local
+    conflict, buffer, work-window and multi-day slot reasoning" (2026-10-08)."""
+
+    def test_the_answer_is_said_plainly(self):
+        from aletheia import quick
+        said = quick.answer("can you check my calendar") or ""
+        self.assertNotIn("Timezone-aware", said)
+        self.assertNotIn("slot reasoning", said)
+
+
+
+class ForgetThatAfterAQuestion(unittest.TestCase):
+    """"Note that the dog needs a bath", "what notes do I have", "forget
+    that" answered "nothing was waiting" and kept the note (2026-10-08)."""
+
+    def test_that_is_the_note_before_the_question(self):
+        from aletheia import converse, voice
+        turns = [{"he_asked": "thea note that the dog needs a bath", "she_answered": "Noted."},
+                 {"he_asked": "thea what notes do I have", "she_answered": "1 note: the dog needs a bath."}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            out = voice._interpret("forget that")
+        self.assertEqual(out["command"], {"kind": "forget", "about": "the dog needs a bath"})
+
+
+
+class WhatDoILike(unittest.TestCase):
+    """"I love hiking" went to the planner and "what do I like" to a model
+    (2026-10-08)."""
+
+    def test_his_likes_are_kept_and_read_back(self):
+        from aletheia import quick, voice
+        self.assertEqual(voice._interpret("I love hiking")["command"], {"kind": "note", "text": "I love hiking"})
+        self.assertNotEqual((voice._interpret("I like that")["command"] or {}).get("kind"), "note")
+        rows = [{"text": "my favorite color is blue"}, {"text": "I love hiking"}, {"text": "Sam likes coffee"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what do I like"), "You told me: your favorite color is blue; you love hiking.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

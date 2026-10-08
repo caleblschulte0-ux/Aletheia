@@ -28,6 +28,9 @@ WAKE_WORDS = ("thea", "theia", "tia", "althea", "aletheia")
 
 def strip_wake_word(text: str) -> str:
     t = text.strip()
+    # "Hey Thea, can you remind me at 5..." (2026-10-08: to the planner) -
+    # the greeting before her name hid her name, so nothing after it matched.
+    t = re.sub(r"^(?:hey|hi|ok|okay|yo|oh|hello)[\s,.!]+(?=(?:%s)\b)" % "|".join(WAKE_WORDS), "", t, flags=re.IGNORECASE)
     for w in WAKE_WORDS:
         # A whole word only: "theater tickets" was "ter tickets" (2026-10-07).
         if t.lower().startswith(w) and not t[len(w):len(w) + 1].isalnum():
@@ -1374,6 +1377,22 @@ def _work_reminders_said(when: str = "get to work", since: str = "started work",
         return None
     done = {"get to work": "got to work", "leave work": "left work"}.get(when, when)
     return f"{lead} You asked me to remind you when you {done}: {speech.and_list(out)}."
+
+
+def _hours_he_told(place: str) -> str | None:
+    """His own note of a place's hours - "my gym opens at 5am" - newest
+    first, said back as his; None when he never told her."""
+    try:
+        from aletheia import quick
+        rows = quick._notes()
+    except Exception:  # noqa: BLE001
+        return None
+    place = re.sub(r"^(?:my|the|our) ", "", " ".join(str(place or "").casefold().split()))
+    for row in rows:
+        said = " ".join(str(row.get("text") or "").split())
+        if re.fullmatch(rf"(?:my|the|our) (?:local )?{re.escape(place)} (?:opens|closes|is open|is closed)\b.*", said, re.I):
+            return f"You told me {speech.as_she_says_it(said).rstrip('.')}."
+    return None
 
 
 def _new_task(raw: str) -> dict:
@@ -2782,7 +2801,10 @@ def _a_polite_ask(transcript: str) -> str:
     # ask that ends "please" (2026-10-07: all three to the planner, and "I
     # need you to remind me to pay rent" refused as SPENDING).
     m = re.fullmatch(r"(?:hey |ok |okay )?(?P<lead>would (?:you|u) mind |(?:can|could|would|will) (?:you|u) (?:please |kindly |just )?"
-                     r"|(?:i need|i want|i'd like|i would like) (?:you|u) to (?:please )?)?"
+                     r"|(?:i need|i want|i'd like|i would like) (?:you|u) to (?:please )?"
+                     # "I was wondering if you could add a task..." (2026-10-08: to the planner)
+                     r"|i (?:was|am|'m) wondering if (?:you|u) (?:could|would|can) (?:please )?"
+                     r"|(?:is there any way|is it possible) (?:that )?(?:you|u) (?:could|can) (?:please )?)?"
                      r"(?P<rest>.{3,160}?)(?P<tail>,? please|, thanks|, thank you)?(?: for me)?\s*[?.!]?",
                      " ".join(bare.split()), re.IGNORECASE)
     if not m or not (m.group("lead") or m.group("tail")):
@@ -3820,7 +3842,10 @@ def _interpret(transcript: str) -> dict:
     # "I'm at the store", then "what do I need" (2026-10-08: to a model).
     # Bare, it is whichever list the last turns were about.
     if re.fullmatch(r"what (?:else )?do i (?:still )?need(?: to (?:do|get))?", low):
-        return {"command": {"kind": "shopping_list" if _in_a_shopping_turns() or low.endswith("get") else "tasks"}, "say": None}
+        # "...need TO DO" is his tasks whatever came before (2026-10-08: it
+        # read the shopping list a turn after a birthday card went on it).
+        return {"command": {"kind": "shopping_list" if not low.endswith("to do") and (_in_a_shopping_turns() or low.endswith("get"))
+                            else "tasks"}, "say": None}
     # "I left the stove on" (2026-10-08: to the planner). Nothing of hers
     # reaches it; the honest answer is what would.
     m = re.fullmatch(r"i (?:think i |might have |may have )?left (?:the |my )?(?P<thing>stove|oven|iron|hair straightener|straightener"
@@ -4623,6 +4648,17 @@ def _interpret(transcript: str) -> dict:
     if m:
         return _interpret(f"remind me {m.group('n')} {m.group('unit')} before my {m.group('what')}")
 
+    # THE DAY SAID FIRST (2026-10-08: "tomorrow I need to go to the bank"
+    # and "add call mom to tomorrow" both to the planner). The same sentence
+    # with the day where the rules below look for it.
+    m = re.fullmatch(r"(?P<day>today|tomorrow|tonight|this weekend|(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)),? "
+                     r"(?P<rest>(?:i (?:need|have|got) to|i've got to|i gotta|i should|i must|remind me to) .{3,120})", low)
+    if m:
+        return _interpret(f"{m.group('rest')} {re.sub(r'^on ', '', m.group('day'))}")
+    m = re.fullmatch(r"(?:add|put) (?P<what>(?!it\b|that\b|this\b)[a-z].{2,80}?) (?:to|on|for) (?P<day>today|tomorrow|(?:monday|tuesday|wednesday"
+                     r"|thursday|friday|saturday|sunday))(?:'s)?(?: (?:list|to ?do list|tasks|plan))?", low)
+    if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:to|on) (?:my|the) (?:[a-z]+ )?(?:list|tasks|to ?dos?|to-dos?)\b", m.group("what")):
+        return _new_task(_as_he_said(text, f"{m.group('what')} {m.group('day')}"))
     # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
     # Only when what follows starts like a thing to do - "I need to know"
@@ -6059,7 +6095,9 @@ def _interpret(transcript: str) -> dict:
     # free time. "Am I free tomorrow afternoon" is how a person asks this
     # and it matched none of these, so it fell through to the planner: six
     # and a half seconds, and the word "afternoon" thrown away on the way.
-    m = re.fullmatch(r"(?:when am i free|am i free|are we free|"
+    # "Am I busy tomorrow morning" (2026-10-08: to the planner) is the same
+    # question the other way round, answered with the same free time.
+    m = re.fullmatch(r"(?:when am i free|am i free|are we free|am i busy|are we busy|am i booked|will i be busy|"
                      r"what'?s my availability|any free time|do i have time)"
                      r"(?:\s+(?:on\s+|this\s+)?(.+?))?\s*\??", low)
     if m:
@@ -6461,11 +6499,25 @@ def _interpret(transcript: str) -> dict:
                      r"|is (?:the )?(?P<p2>[a-z0-9][a-z0-9 .'&-]{1,40}?) (?:open|closed|still open)"
                      r"(?P<when2> today| tonight| right now| now| tomorrow|(?: on)? [a-z]+days?| on the weekend|(?: this)? weekend| late)?"
                      r"|what are (?:the )?(?P<p3>[a-z0-9][a-z0-9 .'&-]{1,40}?)(?:'s|s')? (?:hours|opening hours)(?: today)?", low)
+    if m and (m.group("p") or m.group("p2") or "").startswith("my "):
+        # "What time does my gym close" with only "my gym opens at 5am"
+        # kept (2026-10-08: to a model): what he told her, and what he didn't.
+        told = _hours_he_told(m.group("p") or m.group("p2"))
+        if told:
+            asked = "close" if re.search(r"\bclos", low) else "open"
+            if not re.search(rf"\b{asked[:4]}", told.casefold()):
+                told = told.rstrip(".") + f", but not when it {asked}s."
+            return {"command": None, "say": told}
     if m and not re.search(r"\b(?:it|that|this|my|your|door|window|app|file|tab|browser|calendar|spotify|chrome"
                            r"|garage|fridge|microphone|mic|ticket|application|position|job|pr|pull request)\b",
                            m.group("p") or m.group("p2") or m.group("p3") or ""):
         place = (m.group("p") or m.group("p2") or m.group("p3")).strip()
         when = (m.group("when") or m.group("when2") or "").strip()
+        # "The pharmacy closes at 9 on weekdays" he told her answers it
+        # before a search does (2026-10-08: searched with the note kept).
+        told = _hours_he_told(place)
+        if told:
+            return {"command": None, "say": told}
         return {"command": {"kind": "research", "question": f"{place} hours {when}".strip()}, "say": None}
     # DIRECTIONS, TRAFFIC AND THE COMMUTE (2026-10-07: all to the planner).
     # "How do I get to work", "directions to the airport", "take me home"
@@ -8025,6 +8077,21 @@ def _interpret(transcript: str) -> dict:
             noted = re.match(r"(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
                              r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
                              _previous_ask().casefold().rstrip(".!"))
+            if not noted:
+                # "Note that the dog needs a bath", "what notes do I have",
+                # "forget that" (2026-10-08: "nothing was waiting") - a
+                # question between does not change which note "that" is.
+                try:
+                    from aletheia import converse
+                    turns = list(reversed(converse.recent(limit=3) or []))
+                except Exception:  # noqa: BLE001
+                    turns = []
+                for turn in turns[1:2] if turns and re.match(
+                        r"(?:what|which|how|when|where|who|do|did|is|are)\b", " ".join(str(turns[0].get("he_asked") or "").split()).casefold()
+                        .removeprefix("thea ")) else []:
+                    noted = re.match(r"(?:thea,? )?(?:remember that|note that|make a note(?: that| of)?|take a note(?: that)?|"
+                                     r"jot down(?: that)?|write down(?: that)?)\s+(.+)",
+                                     " ".join(str(turn.get("he_asked") or "").split()).casefold().rstrip(".!"))
             if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and noted:
                 return {"command": {"kind": "forget", "about": noted.group(1)}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
@@ -8768,7 +8835,7 @@ def _interpret(transcript: str) -> dict:
                      r" (?:really |so |very |pretty |a bit |kind of |kinda |a little |super |quite )?"
                      r"(?P<mood>stressed(?: out)?|anxious|happy|great|sad|down|exhausted|overwhelmed|lonely|excited"
                      r"|calm|relaxed|depressed|awful|terrible|amazing|nervous|worried|burned out|burnt out|tired"
-                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself)"
+                     r"|motivated|unmotivated|productive|frustrated|angry|upset|hopeful|proud of myself|better|much better|a lot better)"
                      r"(?: (?:today|right now|now|tonight|this morning|lately|again))?"
                      r"|(?:i (?:had|have had|'ve had) a(?:n)? (?:really |pretty |very |so )?"
                      r"(?:good|great|bad|rough|long|hard|productive|tough|amazing|awful|weird|fun|busy|terrible) day(?: today)?)", low)
@@ -8779,6 +8846,23 @@ def _interpret(transcript: str) -> dict:
             say = None
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
                 "say": say or "Noted. I've put it in your journal."}
+    # BEING ILL (2026-10-08): "I have a cold" got "rest up" and was gone, so
+    # "how long have I had this cold" had nothing to count from.
+    m = re.fullmatch(r"i(?:'ve| have)(?: got| had)? (?:a |an |the )?(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)"
+                     r"(?: (?:since (?:this morning|last night|yesterday|lunch|[a-z]+day)|all (?:day|morning|week)|again|today|right now|now))?", low)
+    if m:
+        try:
+            say = _quick.answer(text)
+        except Exception:  # noqa: BLE001
+            say = None
+        return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)},
+                "say": say or "Noted. I've put it in your journal."}
+    # WHAT HE LIKES (2026-10-08: "I love hiking" to the planner) - kept in
+    # his words; "what do I like" reads it with his favorites.
+    m = re.fullmatch(r"i (?:really |also |just )?(?:like|love|enjoy|adore|am into|'m into|am a big fan of|'m a big fan of) "
+                     r"(?P<what>(?!(?:you|u|it|that|this|them|him|her|the way|how|what|when|your|it's|thea|these|those|my)\b)[a-z0-9].{1,50})", low)
+    if m and "?" not in text:
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # WHAT SOMEONE LIKES (2026-10-07: "Sam likes coffee", "my mom loves
     # tulips" went to the planner). A note in his words, read back by "what
     # does Sam like" - and by "what did I tell you about Sam".
@@ -9722,6 +9806,24 @@ def _interpret(transcript: str) -> dict:
     if m:
         where = _as_he_said(text, m.group("at")) + (" " + _as_he_said(text, m.group("in").strip()) if m.group("in") else "")
         return {"command": {"kind": "note", "text": f"my hotel is {where}"}, "say": None}
+    # "I benched 185 today" (2026-10-08: to the planner). A lift he logs;
+    # "what's my max bench" reads the heaviest.
+    if re.fullmatch(r"i (?:just )?(?:benched|bench pressed|squatted|deadlifted|overhead pressed|military pressed|curled|leg pressed|"
+                    r"did (?:a )?(?:bench|squat|deadlift)(?: of)?) \d{2,4}(?: ?(?:pounds|lbs?|kilos|kgs?))?"
+                    r"(?: (?:for|x|times) \d{1,2}(?: reps?)?)?(?: (?:today|this morning|tonight|yesterday|at the gym))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My gym opens at 5am" (2026-10-08: to the planner) - kept in his
+    # words, read back by "what time does my gym open".
+    if re.fullmatch(r"(?:my|the|our) (?:local )?[a-z][a-z' ]{1,25}? (?:opens|closes|is open|is closed)(?: (?:at|until|till|from))? "
+                    r"\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?(?:(?: to| until| till|-) ?\d{1,2}(?::\d\d)? ?(?:am|pm)?)?"
+                    r"(?: (?:on )?(?:weekdays|weekends|every day|daily|on sundays|on saturdays|on sunday|on saturday))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I moved my car to the garage" (2026-10-08: to the planner, after
+    # "where did I park" had been answered from the old spot) - a new spot.
+    m = re.fullmatch(r"i (?:just )?(?:moved|re-?parked|left|put) (?:my|the) (?:car|truck|van) (?P<prep>to|in|into|at|on|by|outside|behind) (?P<where>(?!(?:drive|park|neutral|reverse|gear|sport mode)\b).{2,60})", low)
+    if m:
+        prep = {"to": "in", "into": "in"}.get(m.group("prep"), m.group("prep"))
+        return {"command": {"kind": "note", "text": f"I parked {prep} {_as_he_said(text, m.group('where'))}"}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.
     if re.fullmatch(r"i (?:just )?(?:got|bought|put in|filled up(?: on)?) gas(?: in (?:the|my) (?:car|truck))?"
