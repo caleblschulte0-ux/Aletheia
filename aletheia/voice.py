@@ -10925,6 +10925,11 @@ def _interpret(transcript: str) -> dict:
         if held:
             held["command"]["minutes"] = 8 * 60
             return held
+    # "Add chips to the list for Saturday" (2026-10-08: to the planner): the
+    # thing goes on the list, and the day stays with it.
+    m = re.fullmatch(r"(?:add|put) (?P<item>[a-z][a-z' -]{1,30}?) (?:to|on) (?:the|my) (?:shopping |grocery )?list (?P<for>for (?:saturday|sunday|monday|tuesday|wednesday|thursday|friday|the party|the weekend|tomorrow|tonight|the trip|thanksgiving|christmas))", low)
+    if m:
+        return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item")) + " " + _as_he_said(text, m.group("for"))}, "say": None}
     # "The dishwasher is running" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:the |my )?(?:dishwasher|washer|washing machine|dryer|laundry|oven|slow cooker|crock ?pot|instant pot|roomba|sprinklers?)"
                     r" (?:is|are) (?:running|going|on|done|finished|preheating|preheated|in)", low):

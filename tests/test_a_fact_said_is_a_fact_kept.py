@@ -11801,5 +11801,15 @@ class TheCalendarAgain(unittest.TestCase):
         self.assertIn("lunch with Sam at 12 pm", said)
 
 
+class TheShoppingListAgain(unittest.TestCase):
+    """2026-10-08: "add chips to the list for Saturday" and "read me my list"
+    went to the planner."""
+
+    def test_said(self):
+        self.assertEqual(voice._interpret("add chips to the list for Saturday")["command"],
+                         {"kind": "shopping_add", "item": "chips for Saturday"})
+        self.assertEqual(quick.match("read me my list")[0], "the_list")
+
+
 if __name__ == "__main__":
     unittest.main()

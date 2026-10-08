@@ -1427,7 +1427,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^who do i (?:still )?owe (?:a |an )?(?P<tv4>text|call|email|thank you(?: note| card)?)\s*\??$"
         # "What calls do I need to make" (2026-10-07: to a model).
         r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
-    ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?the list$")),
+    ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?(?:the|my) list$")),
     ("shopping", re.compile(
         r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
         r"|^(?:my )?shopping list$|^what do (?:i|we) need (?:to buy|from the store)$"
