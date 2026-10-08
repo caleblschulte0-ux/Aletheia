@@ -7940,5 +7940,13 @@ class TheWeekKeepsWhatHeFinished(unittest.TestCase):
 
 
 
+class PayingBackSettlesHisHalfOnly(unittest.TestCase):
+    def test_what_mike_owes_survives_paying_mike_back(self):
+        notes = [{"text": "I paid Mike back"}, {"text": "Mike owes me 50"}, {"text": "I owe Mike 20 dollars"}]
+        with mock.patch.object(quick, "_notes", return_value=notes):
+            self.assertEqual(quick._ledger(), {"mike": 50.0})
+
+
+
 if __name__ == "__main__":
     unittest.main()

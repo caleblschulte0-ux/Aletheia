@@ -5510,10 +5510,14 @@ _MONEY = r"\$?(?P<amt>\d+(?:\.\d{1,2})?)(?: ?(?:dollars|bucks|usd|\$))?"
 
 def _ledger() -> dict:
     """{person: amount} from his notes, oldest first: positive is owed TO
-    him, negative is what he owes. "Paid back" settles that direction."""
+    him, negative is what he owes. "Paid back" settles that direction.
+
+    The two directions are kept apart until the end (2026-10-08): "I owe
+    Mike 20", "Mike owes me 50", "I paid Mike back" left Mike owing 30,
+    because the 20 had already been netted away before it was paid."""
     rows = list(reversed(_notes()))
-    out: dict[str, float] = {}
-    shown: dict[str, str] = {}
+    owe: dict[str, float] = {}
+    owed: dict[str, float] = {}
     for row in rows:
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold().rstrip(".")
@@ -5522,25 +5526,25 @@ def _ledger() -> dict:
              or re.fullmatch(r"i borrowed " + _MONEY + r" from (?P<who>[a-z][a-z ]{0,25}?)(?: for .+)?", low))
         if m:
             who = m.group("who")
-            out[who] = out.get(who, 0) - float(m.group("amt"))
-            shown[who] = who
+            owe[who] = owe.get(who, 0) + float(m.group("amt"))
             continue
         m = (re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) owes me " + _MONEY + r"(?: for .+)?", low)
              or re.fullmatch(r"i (?:lent|loaned|gave) (?P<who>[a-z][a-z ]{0,25}?) " + _MONEY + r"(?: for .+)?", low))
         if m and m.group("who") not in ("i", "you"):
             who = m.group("who")
-            out[who] = out.get(who, 0) + float(m.group("amt"))
+            owed[who] = owed.get(who, 0) + float(m.group("amt"))
             continue
         m = re.fullmatch(r"i paid (?P<who>[a-z][a-z ]{0,25}?) back(?: " + _MONEY + r")?", low)
-        if m and out.get(m.group("who"), 0) < 0:
+        if m and owe.get(m.group("who"), 0) > 0:
             who = m.group("who")
-            out[who] = min(0.0, out[who] + float(m.group("amt"))) if m.group("amt") else 0.0
+            owe[who] = max(0.0, owe[who] - float(m.group("amt"))) if m.group("amt") else 0.0
             continue
         m = (re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) paid me back(?: " + _MONEY + r")?", low)
              or re.fullmatch(r"(?P<who>[a-z][a-z ]{0,25}?) (?:paid|gave) me " + _MONEY + r"(?: back)?", low))
-        if m and out.get(m.group("who"), 0) > 0:
+        if m and owed.get(m.group("who"), 0) > 0:
             who = m.group("who")
-            out[who] = max(0.0, out[who] - float(m.group("amt"))) if m.group("amt") else 0.0
+            owed[who] = max(0.0, owed[who] - float(m.group("amt"))) if m.group("amt") else 0.0
+    out = {who: owed.get(who, 0) - owe.get(who, 0) for who in list(owe) + [w for w in owed if w not in owe]}
     return {k: round(v, 2) for k, v in out.items() if abs(v) >= 0.005}
 
 
