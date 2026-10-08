@@ -6622,5 +6622,22 @@ class SleepBillsAndTheDayBeforeABill(unittest.TestCase):
         self.assertEqual(said["text"], f"your car insurance is due in 3 days, on {due.strftime('%A')}")
 
 
+
+class AHoldMadeLongerOrShorter(unittest.TestCase):
+    """2026-10-08: "how long is my meeting with Tom", "make it 30 minutes"
+    went to a model."""
+
+    def test_make_it_a_length_resizes_the_hold(self):
+        held = {"title": "meeting with Tom", "start": "2026-10-09T15:00:00-05:00", "minutes": 60}
+        with mock.patch.object(voice, "_recent_ask_of", return_value=held), \
+                mock.patch.object(voice, "_hold_as_it_is_now", side_effect=lambda h: h), \
+                mock.patch.object(voice, "_moved_reminder", return_value=None):
+            short = voice.interpret("make it 30 minutes")["command"]
+            long_ = voice.interpret("make it an hour and a half")["command"]
+        self.assertEqual(short, {"kind": "calendar_hold", "title": "meeting with Tom", "start": held["start"],
+                                 "minutes": 30, "replaces": held["start"]})
+        self.assertEqual(long_["minutes"], 90)
+
+
 if __name__ == "__main__":
     unittest.main()

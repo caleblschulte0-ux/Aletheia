@@ -7763,6 +7763,22 @@ def _interpret(transcript: str) -> dict:
     # "Push it to 6" (2026-10-07: to the planner) is the same move.
     m = re.fullmatch(r"(?:make (?:that|it)|(?:change|move|push|bump|shift|switch|reschedule) (?:that|it) to|actually,? make (?:that|it)|"
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
+    # "Make it 30 minutes" after "how long is my meeting with Tom"
+    # (2026-10-08: to a model): the hold he just made, a new length.
+    length = m and re.fullmatch(r"(?:(?P<n>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty"
+                                r"|forty|forty-five|ninety) ?(?P<unit>hours?|minutes?|mins?)|(?P<hh>an? hour and a half|one and a half hours))"
+                                r"(?: long)?", m.group("time").strip())
+    if length:
+        held = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
+        if held and held.get("title"):
+            n = length.group("n") or ""
+            amount = 1.5 if length.group("hh") else {"a": 1, "an": 1, "one": 1, "half a": 0.5, "half an": 0.5}.get(n)
+            amount = amount if amount is not None else (int(n) if n.isdigit() else _spoken_amount(n))
+            if amount:
+                minutes = int(amount * 60) if length.group("hh") or length.group("unit").startswith("h") else int(amount)
+                if 5 <= minutes <= 24 * 60:
+                    return {"command": {"kind": "calendar_hold", "title": held["title"], "start": held["start"],
+                                        "minutes": minutes, "replaces": held["start"]}, "say": None}
     if m:
         moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))
         if moved:
