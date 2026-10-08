@@ -6386,5 +6386,17 @@ class WhoSomebodyIsByName(unittest.TestCase):
         self.assertEqual(voice._interpret("don't let me forget to call mom")["command"]["description"], "call mom")
 
 
+
+class TheYearHeWasBorn(unittest.TestCase):
+    """2026-10-08: "what year was I born" went to a model."""
+
+    def test_the_year_first(self):
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(3, 3, 1990)):
+            self.assertEqual(quick.answer("what year was I born"), "March 3, 1990.")
+        with mock.patch.object(quick, "_birthday_on_file", return_value=(3, 3, None)):
+            self.assertIn("but not the year", quick.answer("what year was I born"))
+            self.assertIn("can't say how old", quick.answer("how old am I"))
+
+
 if __name__ == "__main__":
     unittest.main()

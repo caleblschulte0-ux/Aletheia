@@ -811,6 +811,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("birthday", re.compile(
         r"^(?:when(?:'s| is|s) my birthday|what(?:'s| is|s) my (?:birthday|date of birth|birth ?date|dob)"
         r"|how old am i(?: turning| going to be)?|how many days (?:until|till|to|before) my birthday"
+        # "What year was I born" (2026-10-08: to a model)
+        r"|(?:what year|when) was i born|what(?:'s| is) my birth year"
         r"|how long (?:until|till|before) my birthday|when(?:'s| is|s) my next birthday"
         r"|how many days (?:until|till|to|before) my next birthday"
         # "How old will I be on my birthday" (2026-10-07: to a model).
@@ -2468,7 +2470,7 @@ def match(question: str) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last"):
@@ -3658,7 +3660,7 @@ def _age_in(year: str = "", years: str = "") -> str:
     return f"You'll turn {turns} on {when} {target}, so {turns - 1} before that."
 
 
-def _birthday() -> str:
+def _birthday(text: str = "") -> str:
     """When his birthday is, how far off, and how old he is when the year is known."""
     import datetime as dt
     from aletheia import localtime
@@ -3666,6 +3668,12 @@ def _birthday() -> str:
     if not held:
         return "I don't have your birthday. Say \"my birthday is March 3rd, 1995\" and I'll remember it."
     month, day, year = held
+    # "What year was I born" is the year, first (2026-10-08)
+    if re.search(r"\bborn\b|\bbirth year\b", _tidy(text)):
+        if not year:
+            return (f"You told me your birthday is {dt.date(2000, month, day).strftime('%B')} {day}, but not the year. "
+                    "Say \"my birthday is\" with the year, and I'll remember it.")
+        return f"{dt.date(year, month, day).strftime('%B')} {day}, {year}."
     today = dt.datetime.now(localtime.operator_tz()).date()
     try:
         this_year = dt.date(today.year, month, day)
@@ -3681,6 +3689,9 @@ def _birthday() -> str:
         turning = age if away == 0 else age + 1
         return (f"You're {age}. Your birthday is {when}" +
                 ("." if away == 0 else f", when you turn {turning}."))
+    if re.search(r"\bold\b|\bage\b", _tidy(text)):
+        # "How old am I" with no year answered only when the birthday is
+        return f"Your birthday is {when}, but you haven't told me the year, so I can't say how old. Say \"my birthday is\" with the year."
     return f"Your birthday is {when}."
 
 
@@ -12054,7 +12065,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "until_day": lambda rest: _until(rest, which_day=True),
            "weeks_until": lambda rest: _weeks_until(rest),
            "tasks_due": lambda rest: _tasks_due(rest),
-           "birthday": lambda rest: _birthday(),
+           "birthday": lambda text: _birthday(text),
            "calendar_fact": lambda rest: _calendar_fact(rest),
            "sent_window": lambda rest: _applied_in_window(_night_words(rest)),
            "time_in": _time_in,
