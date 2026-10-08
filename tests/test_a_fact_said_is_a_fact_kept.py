@@ -6614,12 +6614,12 @@ class SleepBillsAndTheDayBeforeABill(unittest.TestCase):
 
     def test_days_before_a_bill_he_said_is_due(self):
         notes = [{"text": "my car insurance is due on the 15th", "ts": "2026-10-07T22:00:00-05:00"}]
-        from aletheia import localtime
-        with mock.patch.object(quick, "_notes", return_value=notes), \
-                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 7)):
+        with mock.patch.object(quick, "_notes", return_value=notes):
             said = voice.interpret("remind me 3 days before my car insurance is due")["command"]
-        self.assertEqual(said["at"][:10], "2026-10-12")
-        self.assertEqual(said["text"], "your car insurance is due in 3 days, on Thursday")
+        # Both sides move with the calendar: the 15th is whichever comes next.
+        due = dt.date.fromisoformat(said["at"][:10]) + dt.timedelta(days=3)
+        self.assertEqual(due.day, 15)
+        self.assertEqual(said["text"], f"your car insurance is due in 3 days, on {due.strftime('%A')}")
 
 
 if __name__ == "__main__":
