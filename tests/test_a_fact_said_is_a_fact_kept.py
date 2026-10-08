@@ -8155,5 +8155,25 @@ class IMadeTacosForDinnerIsAMeal(unittest.TestCase):
 
 
 
+class HowManyCaloriesDidIEat(unittest.TestCase):
+    """"I ate 2000 calories today" was kept and "how many calories did I eat
+    today" went to a model (2026-10-08)."""
+
+    def test_they_are_added_up(self):
+        import datetime as dt
+        from aletheia import quick
+        now = dt.datetime.now(dt.timezone.utc).isoformat()
+        rows = [{"text": "I ate 1500 calories", "ts": now}, {"text": "I had 500 calories", "ts": now}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("how many calories did I eat today"), "2,000 calories today.")
+
+    def test_none_kept_says_how_to_tell_her(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            said = quick._counted("how many calories did I eat today")
+        self.assertIn("I ate 500 calories", said)
+
+
+
 if __name__ == "__main__":
     unittest.main()

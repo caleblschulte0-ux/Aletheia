@@ -451,7 +451,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s| are)? )?(?:the |an |some )?(?:opposite of|antonyms? (?:for|of)) (?P<ant>[a-z][a-z'-]{1,30})\s*\??$")),
     ("counted", re.compile(
         r"^how many (?P<counted>(?!tasks|reminders|notes|things|emails|people|contacts|days|hours|minutes|weeks)[a-z][a-z -]{1,20}?) "
-        r"(?:have i done|did i do|have i walked|did i walk|did i take|have i taken)"
+        r"(?:have i done|did i do|have i walked|did i walk|did i take|have i taken"
+        # "how many calories did I eat today", with "I ate 2000 calories" kept (2026-10-08)
+        r"|(?<=calories )(?:did i eat|have i eaten|have i had|did i have))"
         r"(?P<counted_when> today| this week| yesterday)?\s*\??$")),
     ("ate", re.compile(
         r"^what did i (?:have|eat) for (?P<ate_meal>breakfast|lunch|dinner|supper|dessert)(?P<ate_when> today| yesterday| last night| this morning| tonight)?\s*\??$"
@@ -10999,7 +11001,7 @@ def _counted(text: str) -> str | None:
              "this week": today - dt.timedelta(days=today.weekday())}[when]
     end = start if when == "yesterday" else today
     total, seen = 0, False
-    said = re.compile(r"^i (?:did|just did|have done|walked|took|swam|rowed) (?:another )?(\d[\d,]*) ([a-z][a-z -]{1,20})", re.IGNORECASE)
+    said = re.compile(r"^i (?:did|just did|have done|walked|took|swam|rowed|ate|had|ate about|had about) (?:another )?(\d[\d,]*) ([a-z][a-z -]{1,20})", re.IGNORECASE)
     for row in _notes():
         m = said.match(str(row.get("text") or ""))
         if not m or re.sub(r"(?:es|s)$", "", m.group(2).strip().casefold().replace("-", "").split()[0]) != stem.split()[0]:
@@ -11015,7 +11017,8 @@ def _counted(text: str) -> str | None:
         if stem in ("step", "heart rate", "calorie"):
             return None                 # those have their own honest answer
         # "Say 'I did 20 pills'" (2026-10-08): a pill is taken.
-        verb, n = ("took", 2) if stem in ("pill", "tablet", "capsule", "dose", "painkiller", "vitamin") else ("did", 20)
+        verb, n = ("took", 2) if stem in ("pill", "tablet", "capsule", "dose", "painkiller", "vitamin") \
+            else ("ate", 500) if what == "calories" else ("did", 20)
         return f"You haven't told me about any {what} {when}. Say \"I {verb} {n} {what}\" and I'll add them up."
     return f"{total:,} {what} {when}."
 
