@@ -2115,6 +2115,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Can I eat chicken" with "I am vegetarian" kept (2026-10-08: to the
     # planner). Only what his notes settle; anything else is a model's.
     ("can_eat", re.compile(r"^(?:can|should) i (?:eat|have|drink) (?:a |an |some |the )?(?P<can_eat>[a-z][a-z ]{1,25}?)\s*\??$")),
+    # "What bills do I have coming up" (2026-10-08: to a model, with "the
+    # water bill is due on the 15th" kept).
+    ("bills_due", re.compile(
+        r"^(?:what|which) bills (?:do i (?:need|have) to pay|(?:do i have |have i got |are )?(?:coming up|due|to pay|left to pay))"
+        r"(?: this (?:week|month)| soon| next)?\s*\??$")),
     ("did_last", re.compile(
         r"^when did i (?:last )?(?P<did_v>change|give|feed|walk|water|clean|wash|mow|vacuum|replace|renew|fix|service"
         r"|rotate|flush|empty|refill|fill|charge|back up|update|trim|cut|groom|bathe|drop off|pick up|return|mail|post"
@@ -6011,7 +6016,12 @@ def _due_note(words: str) -> str | None:
         thing = " ".join(asked)
         verb = "are" if thing.endswith("s") and not thing.endswith("ss") else "is"
         return f"You haven't told me when your {thing} {verb} due. Say \"my {thing} {verb} due on the 1st\" and I'll remember."
-    return _recall(words)
+    # "When is the water bill due" was answered with "you paid the electric
+    # bill" (2026-10-08): memory's answer counts only if it names it all.
+    held = _recall(words)
+    if held and all(re.search(rf"\b{re.escape(w)}", held, re.I) for w in asked) and " and you told me" not in held:
+        return held
+    return None
 
 
 def _task_progress() -> str:
@@ -12370,11 +12380,15 @@ def _cost_mine(text: str) -> str | None:
     if not thing or not re.fullmatch(_BILL_KEYS, thing):
         return None
     for said in rows:
-        if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|costs?) .*\d", said.casefold()):
+        if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|was|were|costs?|came to|came out to) .*\d", said.casefold()):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     # "How much is my rent" with nothing told (2026-10-07: to a model, which
-    # has no way to know). Her memory first; then plainly not told.
-    held = _recall(thing)
+    # has no way to know). Her memory first; then plainly not told. Only a
+    # note naming ALL of it: "the electric bill" read back the water bill
+    # beside it (2026-10-08).
+    words = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in ("my", "the", "our")]
+    named = [said for said in rows if all(re.search(rf"\b{re.escape(w)}", said.casefold()) for w in words)]
+    held = f"You told me: {speech.as_she_says_it(named[0]).rstrip('.')}." if named else None
     if held and not held.startswith("I have nothing"):
         # "My car insurance renews on December 1" is not what it costs
         # (2026-10-08: read back as the answer to "how much").
@@ -13602,6 +13616,27 @@ def _say_mine(said: str) -> str:
     return speech.as_she_says_it(said).rstrip(".")
 
 
+def _bills_due() -> str | None:
+    """Bills he told her are due and reminders to pay one, together. None
+    when neither store has any: his mail may, and a model can read it."""
+    from aletheia import speech
+    said, seen = [], set()
+    for row in _notes():
+        note = " ".join(str(row.get("text") or "").split())
+        low = note.casefold()
+        if re.search(rf"\b(?:{_BILL_KEYS}|bill|payment)\b", low) and re.search(r"\bdue\b", low):
+            key = re.sub(r"\W+", " ", low)
+            if key not in seen:
+                seen.add(key)
+                said.append(speech.as_she_says_it(note).rstrip("."))
+    for at, what, store in _coming():
+        if store == "reminder" and re.search(r"\b(?:pay|bill|rent|mortgage)\b", str(what).casefold()):
+            said.append(f"a reminder {speech.humanize_time(at.isoformat())} to {str(what).rstrip('.')}")
+    if not said:
+        return None
+    return f"From what you've told me: {speech.and_list(said[:5])}."
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -14409,6 +14444,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "bills_due": lambda rest: _bills_due(),
            "can_eat": _can_eat,
            "event_who": lambda rest: _event_who(rest),
            "task_about": _task_about,

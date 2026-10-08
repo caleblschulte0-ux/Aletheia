@@ -9026,5 +9026,34 @@ class ATripToParis(unittest.TestCase):
 
 
 
+class HisBills(unittest.TestCase):
+    """2026-10-08: "when is the water bill due" was answered with "you paid
+    the electric bill", "the electric bill was 140" went to the planner, and
+    "what bills do I have coming up" to a model."""
+
+    rows = [{"text": "the electric bill was 140", "ts": "2026-10-08T11:00:00+00:00"},
+            {"text": "the water bill is due on the 15th", "ts": "2026-10-08T10:00:00+00:00"},
+            {"text": "I paid the electric bill", "ts": "2026-10-08T09:00:00+00:00"}]
+
+    def test_kept(self):
+        from aletheia import voice
+        self.assertEqual(voice._interpret("the electric bill was 140")["command"]["kind"], "note")
+
+    def test_each_bill_is_its_own(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", lambda: self.rows), mock.patch.object(quick, "_coming", lambda now=None: []):
+            self.assertEqual(quick.answer("how much was the electric bill"), "You told me: the electric bill was 140.")
+            self.assertIsNone(quick.answer("when is the gas bill due"))
+        with mock.patch.object(quick, "_notes", lambda: self.rows[2:]), mock.patch.object(quick, "_coming", lambda now=None: []):
+            self.assertIsNone(quick.answer("when is the water bill due"))
+
+    def test_bills_coming_up(self):
+        from aletheia import quick
+        with mock.patch.object(quick, "_notes", lambda: self.rows), mock.patch.object(quick, "_coming", lambda now=None: []):
+            self.assertEqual(quick.answer("which bills do I need to pay"),
+                             "From what you've told me: the water bill is due on the 15th.")
+
+
+
 if __name__ == "__main__":
     unittest.main()

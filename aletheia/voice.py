@@ -9049,6 +9049,11 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"i(?:'m| am| have to| need to|'ve got to| got to| gotta| will| will be|'ll be|'ll)? (?:be )?work(?:ing)? "
                     r"(?:late|(?:until|till) \d{1,2}(?::\d\d)? ?(?:am|pm)?)(?: tonight| today| tomorrow)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "The electric bill was 140" (2026-10-08: to the planner). A note;
+    # "how much was the electric bill" reads it.
+    if re.fullmatch(r"(?:the|my|our|this month'?s) (?:[a-z]+ ){0,2}(?:bill|payment|invoice) (?:was|is|came to|came out to|ended up being)"
+                    r" (?:about |around |only |almost )?\$?\d[\d,]*(?:\.\d\d)?(?: dollars| bucks)?(?: this month| this time)?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # THINGS BROKEN AND FIXED (2026-10-08: "the dishwasher is broken" and
     # "the landlord fixed the sink" both to the planner). Notes; "what's
     # broken" and "is the sink fixed" read them.
