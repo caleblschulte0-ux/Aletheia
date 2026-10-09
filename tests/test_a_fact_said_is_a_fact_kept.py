@@ -13171,5 +13171,20 @@ class TheNextOilChange(unittest.TestCase):
             self.assertNotIn("50,000", quick.answer("when is my next oil change due") or "")
 
 
+class WhoHasPracticeAndSchool(unittest.TestCase):
+    def test_who_has_it_on_a_day(self):
+        rows = [{"text": "my daughter has soccer every Tuesday and Thursday at 5"}, {"text": "my son has piano on Wednesdays at 4"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("who has soccer on Tuesday"), "You told me your daughter has soccer every Tuesday and Thursday at 5.")
+            self.assertEqual(quick.answer("who has practice on Wednesday"), "You told me your son has piano on Wednesdays at 4.")
+            self.assertEqual(quick.answer("who has soccer on Friday"), "Nobody on Friday, from what you've told me.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("who has soccer on Friday"))
+
+    def test_no_school(self):
+        self.assertEqual(voice.interpret("there's no school on Monday")["command"]["kind"], "note")
+        self.assertEqual(quick.match("is there school Monday"), quick.match("do the kids have school on monday"))
+
+
 if __name__ == "__main__":
     unittest.main()

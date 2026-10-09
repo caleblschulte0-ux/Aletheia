@@ -2717,6 +2717,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "When do I start my new role" (2026-10-08: to a model, a turn after
     # "I start my new role on Monday").
     ("start_new", re.compile(r"^when (?:do|will) i (?:start|begin) (?:my (?:new )?(?:job|role|position|work)|work at [a-z][a-z0-9&.' -]{1,30}?|at [a-z][a-z0-9&.' -]{1,30}?)\s*\??$")),
+    # "Who has practice today" (2026-10-08: to a model, with "my daughter
+    # has soccer every Tuesday and Thursday at 5" kept).
+    ("who_has_act", re.compile(r"^who(?:'s| has| have) (?:got )?(?P<wha_act>[a-z]{3,15}(?: practice| lessons?| class)?) (?P<wha_when>today|tomorrow|tonight|on (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -3354,6 +3357,10 @@ def _direct(text: str) -> str:
             and _said_lines(r"\b(?:got|had|did) (?:my |the |an? )?oil (?:changed|change)\b.*\bat \d", 1) \
             and not _said_lines(r"\boil change\b.*\bdue\b", 1):
         return "how many miles until my next oil change"
+    # "Is there school Monday" (2026-10-08: to a model) is the kids'.
+    m = re.fullmatch(r"is there (?:any )?school (?:on |this |next )?(?P<d>monday|tuesday|wednesday|thursday|friday|tomorrow)\s*\??", text)
+    if m:
+        return f"do the kids have school {'on ' if m.group('d') != 'tomorrow' else ''}{m.group('d')}"
     # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
     # model, after he said so) is what he told her about it.
     m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"
@@ -3680,7 +3687,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "visitor", "hosting", "idea_said", "wants_watch", "finished_shows", "lived_since", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "who_has_act", "visitor", "hosting", "idea_said", "wants_watch", "finished_shows", "lived_since", "eating_where", "let_go", "autopay", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -18938,6 +18945,40 @@ def _start_new() -> str | None:
     return f"You told me {found[0].rstrip('.')}." if found else None
 
 
+def _who_has_act(text: str) -> str | None:
+    """Who has an activity on a day, from his notes of the weekly ones:
+    "my daughter has soccer every Tuesday and Thursday at 5"."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("who_has_act", text)
+    act = str(g.get("wha_act") or "").strip()
+    when = re.sub(r"^on ", "", str(g.get("wha_when") or "").strip())
+    if not act or not when:
+        return None
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    day = (_DAYS[today.weekday()] if when in ("today", "tonight") else
+           _DAYS[(today + dt.timedelta(days=1)).weekday()] if when == "tomorrow" else when)
+    # "Practice" is any of them; "soccer practice" is soccer.
+    words = [w for w in act.split() if w not in ("practice", "lesson", "lessons", "class")] or [act.split()[-1]]
+    about, found = False, []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.match(r"(?:my |our |the )?(?P<who>[a-z]+(?: [a-z]+)?) (?:has|have|goes to|go to) (?P<what>.+)$", said, re.I)
+        if not m or not re.search(r"\b(?:every|on) [a-z]+day|\b[a-z]+days\b", said, re.I):
+            continue
+        if not all(re.search(rf"\b{re.escape(w.rstrip('s'))}", m.group("what"), re.I) for w in words) \
+                and not (act in ("practice", "lessons", "class") and re.search(r"\b(?:practice|lessons?|class|soccer|football|baseball|basketball|hockey|dance|swim|piano|gymnastics|karate|tennis|band)\b", m.group("what"), re.I)):
+            continue
+        about = True
+        if re.search(rf"\b{day}s?\b", said, re.I):
+            found.append(speech.as_she_says_it(said))
+    if found:
+        return f"You told me {speech.and_list(found[:3])}."
+    if about:
+        return f"Nobody {when if when in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}, from what you've told me."
+    return None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19771,6 +19812,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "who_has_act": _who_has_act,
            "start_new": lambda _rest: _start_new(),
            "visitor": _visitor,
            "hosting": _hosting,

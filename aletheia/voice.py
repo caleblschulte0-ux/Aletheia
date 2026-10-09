@@ -11662,6 +11662,10 @@ def _interpret(transcript: str) -> dict:
         how = {"rotat": "rotated", "replac": "replaced", "chang": "changed", "check": "checked", "align": "aligned",
                "fix": "fixed", "balanc": "balanced"}[stem]
         return _new_task(f"get the {m.group('part')} {how}")
+    # "There's no school on Monday" (2026-10-08: to the planner). "Is there
+    # school Monday" reads it.
+    if re.fullmatch(r"there(?:'s| is) no school (?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday)", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}
