@@ -11653,6 +11653,15 @@ def _interpret(transcript: str) -> dict:
         said = _interpret(f"my {m.group('role')} is {_as_he_said(text, m.group('who'))}")
         if said:
             return said
+    # "My tires need rotating", "the brakes need replacing" (2026-10-08: to
+    # the planner; "my car needs an oil change" was a task).
+    m = re.fullmatch(r"(?:my|the|our) (?:car'?s? |truck'?s? )?(?P<part>tires|brakes|brake pads|wipers|windshield wipers|car battery|battery|headlight|headlights|tail ?light|air filter|cabin filter|transmission fluid|alignment)"
+                     r" (?:needs?|need to be|needs to be|should be) (?P<how>rotat(?:ing|ed)|replac(?:ing|ed)|chang(?:ing|ed)|check(?:ing|ed)|aligned|fixed|fixing|balanced|balancing)", low)
+    if m:
+        stem = re.sub(r"(?:ing|ed)$", "", m.group("how"))
+        how = {"rotat": "rotated", "replac": "replaced", "chang": "changed", "check": "checked", "align": "aligned",
+               "fix": "fixed", "balanc": "balanced"}[stem]
+        return _new_task(f"get the {m.group('part')} {how}")
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

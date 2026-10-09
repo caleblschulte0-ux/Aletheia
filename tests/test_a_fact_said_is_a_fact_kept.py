@@ -13153,5 +13153,12 @@ class ANewRole(unittest.TestCase):
             self.assertIsNone(quick.answer("when do I start my new role"))
 
 
+class TheCarsPartsNeedWork(unittest.TestCase):
+    def test_a_task(self):
+        for said, task in (("my tires need rotating", "get the tires rotated"), ("the brakes need replacing", "get the brakes replaced"),
+                           ("my tires need to be rotated", "get the tires rotated"), ("my wipers need changing", "get the wipers changed")):
+            self.assertEqual(voice.interpret(said)["command"]["description"], task, said)
+
+
 if __name__ == "__main__":
     unittest.main()
