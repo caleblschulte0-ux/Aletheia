@@ -50,10 +50,10 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 8,
+      "gone_on_ashbyhq": 9,
       "gone_on_greenhouse": 4,
       "gone_on_lever": 1,
-      "left_captcha": 4,
+      "left_captcha": 5,
       "left_error": 3,
       "left_going_in_circles": 1,
       "left_no_way_forward": 6,
@@ -266,22 +266,22 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 35,
-      "found": 51,
+      "filled": 38,
+      "found": 56,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
-      "sent": 16
+      "sent": 17
     }
   },
-  "generated_at": "2026-10-09T01:38:21Z",
-  "sent_all_time": 286,
+  "generated_at": "2026-10-09T02:12:53Z",
+  "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
     },
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 18,
+      "nothing_to_press_on_captcha/filled": 19,
       "nothing_to_press_on_captcha/observed": 2
     },
     "error": {
@@ -326,7 +326,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 3,
+        "nothing_to_press_on_captcha/filled": 4,
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
@@ -339,7 +339,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 1,
-        "nothing_to_press_on_content/observed": 2,
+        "nothing_to_press_on_content/observed": 1,
         "nothing_to_press_on_form/observed": 1,
         "unclear_button/observed": 2
       },
@@ -352,12 +352,12 @@
     }
   },
   "totals": {
-    "filled": 370,
-    "found": 740,
+    "filled": 373,
+    "found": 745,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
-    "sent": 286
+    "sent": 287
   },
   "waiting": {
     "asked_about": {
@@ -368,19 +368,19 @@
       "education": 1,
       "on_site": 2,
       "other": 10,
-      "pay": 1,
+      "pay": 2,
       "travel": 1,
       "years_experience": 1
     },
     "closed": {
       "duplicate": 3,
-      "gone_on_ashbyhq": 20,
+      "gone_on_ashbyhq": 21,
       "gone_on_employer_site": 1,
       "gone_on_greenhouse": 11,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "left_approval_denied": 16,
-      "left_captcha": 16,
+      "left_captcha": 17,
       "left_error": 12,
       "left_going_in_circles": 14,
       "left_no_way_forward": 75,
@@ -398,9 +398,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 78
     },
-    "failed": 14,
+    "failed": 15,
     "failed_because": {
-      "ApplyError": 8,
+      "ApplyError": 9,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -409,9 +409,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 15,
+    "needs_answer": 16,
     "oldest_days": 26,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
