@@ -338,6 +338,34 @@ def _result(task: dict, step: int | None, tool: str, outcome: str, said: str, no
     task["results"] = rows[-12:]
 
 
+#: The one capability a mission step may carry out under a standing grant
+#: instead of a handoff: his sign-ups ruling (2026-10-09, "signing me up for
+#: stuff"). `event_signup` spends the grant itself, after every one of its
+#: refusals, so a page that costs money or wants an account never gets near it.
+SIGN_UP_CAPABILITY = "event.register"
+
+
+def _signed_up_under_grant(tool, args: dict, task: dict, step: int, now: dt.datetime) -> bool:
+    """True when the sign-up was settled here (done, or left for a stated
+    reason); False hands the step to Caleb as before - the switch is off, the
+    grant is missing or spent, or the page broke."""
+    if tool.capability != SIGN_UP_CAPABILITY:
+        return False
+    try:
+        from aletheia import agent_session, event_signup
+        if not event_signup.status()["on"]:
+            return False
+        outcome, result = agent_session.execute(tool, args, timeout_s=TOOL_TIMEOUT_S,
+                                                quote=f"sign-up for {task.get('title', '')}"[:200])
+    except Exception:  # noqa: BLE001 - anything unclear is his
+        return False
+    state = str((result or {}).get("state") or "") if isinstance(result, dict) else ""
+    if outcome != "ok" or state in ("", "needs_grant", "failed"):
+        return False
+    _result(task, step, tool.name, "ok", str((result or {}).get("said") or state), now, sign_up=state)
+    return True
+
+
 def _said(result: Any) -> str:
     from aletheia import handoffs
     return handoffs._said_result(result)
@@ -435,6 +463,12 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             task["cursor"] = i + 1
             extra = (lambda r, t=task, s=said: pg.record_monitor(r, t, s, now)) if task.get("from_activity") else None
             _commit(pid, task, now, extra)
+            continue
+        if decision.verdict == agent_session.HANDOFF and _signed_up_under_grant(tool, args, task, i, now):
+            # His sign-ups ruling covers this one act: the step ran under the grant (or was left by
+            # one of the sign-up rules), so there is nothing to hand him.
+            task["cursor"] = i + 1
+            _commit(pid, task, now)
             continue
         if decision.verdict == agent_session.HANDOFF:
             try:

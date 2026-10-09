@@ -171,7 +171,7 @@
           "said": "Okay, you're allowed to go ahead and finish building that, the signing up and stuff."
         }
       ],
-      "means": "When an email invites him to a free event about his job hunt or his move (a hiring webinar, an info session, a career fair, a networking event), she registers him with his name and email and puts it on his calendar, then tells him. At most 5 a week. Nothing that costs money, wants an account or a password, has a robot check, asks him to agree to terms, or clashes with something already on his calendar: those are left, and said. Off only if he turns it off at his keyboard (python -m aletheia.event_signup off)."
+      "means": "When an email invites him to a free event about his job hunt or his move (a hiring webinar, an info session, a career fair, a networking event), she registers him with his name and email and puts it on his calendar, then tells him. Events she finds herself while working on his missions are signed up for the same way, and she puts his email on a few free Sioux Falls event mailing lists (config/sign_up_lists.json) so invitations arrive. Evenings after 5:30 pm Central and weekends only, at most 3 a week (his Project Reboot answers). Nothing that costs money, wants an account or a password, has a robot check, asks him to agree to terms, or clashes with something already on his calendar: those are left, and said. Off only if he turns it off at his keyboard (python -m aletheia.event_signup off)."
     }
   ]
 }

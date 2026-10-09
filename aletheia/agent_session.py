@@ -201,6 +201,10 @@ def parse_reply(output: Any) -> ToolRequest | Final | Invalid:
 
 # ---- the policy broker -----------------------------------------------------
 
+#: The stores a write may touch and still be unable to spend: her own workspace.
+WORKSPACE_ONLY = frozenset({"workspace"})
+
+
 class Broker:
     """Decides whether a request may run INSIDE the loop. Never executes."""
 
@@ -251,7 +255,15 @@ class Broker:
     @staticmethod
     def spends(tool: tools.Tool, args: dict) -> bool:
         """The one permanent rule, by the predicate every other gate uses.
-        Fails closed: if the predicate cannot be asked, it spends."""
+        Fails closed: if the predicate cannot be asked, it spends.
+
+        A file written into her own workspace cannot spend anything, whatever
+        words are in it: on his PC (2026-10-09) "save Caleb's answers as
+        job-hunt preferences" was refused as spending because his answers
+        mention pay. Only a tool that writes nothing but her workspace and
+        reaches nothing outside is exempt."""
+        if tool.writes and set(tool.writes) <= WORKSPACE_ONLY and not tool.open_world:
+            return False
         text = tool.name.replace("_", " ") + " " + " ".join(
             str(v) for v in args.values() if isinstance(v, (str, int, float)))
         try:

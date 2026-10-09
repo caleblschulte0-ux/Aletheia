@@ -59,6 +59,10 @@ VERB_SENSES: dict[str, tuple[str, ...]] = {
     "note": ("note", "remember", "memory"),
     "remember": ("remember", "memory", "recall"),
     "recall": ("recall", "memory", "remember"),
+    "register": ("register", "event"),
+    "rsvp": ("rsvp", "register", "event"),
+    "join": ("join", "register"),
+    "subscribe": ("join", "register"),
     "list": ("list", "task", "tasks"),
     "plan": ("plan", "task", "steps"),
     "apply": ("apply", "application", "form"),
@@ -159,10 +163,28 @@ def usable_tools(catalog: dict) -> dict:
     return {name: t for name, t in catalog.items() if not excluded(t)}
 
 
+#: A need that STARTS with one of these is a look-up: it is met by reading, and
+#: a tool that changes something (a form filled, an event registered, a web
+#: task that needs his approval) is never the answer to it. Measured on his PC
+#: 2026-10-09: "Search for upcoming job fairs, hiring events..." waited for his
+#: approval, because the step went to the website catch-all.
+LOOKUP_VERBS = frozenset({"search", "find", "look", "research", "read", "check", "compare", "browse",
+                          "discover", "identify", "scan", "review", "see", "learn"})
+
+
+def looks_up(need: str) -> bool:
+    first = re.findall(r"[a-z]+", str(need or "").lower())[:1]
+    return bool(first) and first[0] in LOOKUP_VERBS
+
+
 def best_tool(need: str, catalog: dict) -> tuple[Any, int]:
     best, top = None, 0
+    reading = looks_up(need)
     for name, tool in sorted(usable_tools(catalog).items()):
-        s = score(need, tool)
+        if reading and not tool.read_only:
+            continue
+        # A look-up about the world reads the world: her own repository is not where events are.
+        s = score(need, tool) + (1 if reading and tool.open_world else 0)
         # Prefer what only looks when two tools tie: the smaller act first.
         if s > top or (s == top and s and best is not None and tool.read_only and not best.read_only):
             best, top = tool, s
@@ -198,8 +220,14 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
     usable = usable_tools(catalog)
     steps: list[dict] = []
     seen: set[str] = set()
+    lookup = looks_up(task.get("title") or "")
     for name in task.get("uses") or []:
         tool = usable.get(str(name))
+        if tool is not None and lookup and not tool.read_only:
+            # A model named a doing tool for a task that only looks something up: the reading tool
+            # that fits does it without asking him. With none, the named one stands.
+            reader, _top = best_tool(str(task.get("title") or ""), catalog)
+            tool = reader or tool
         if tool is not None and tool.name not in seen:
             steps.append({"tool": tool.name, "for": "", "by": "named", "score": None})
             seen.add(tool.name)
