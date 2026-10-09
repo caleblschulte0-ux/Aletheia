@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-a3",
+  "filed": "2026-10-09T00:32:11Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "In-person events: Sioux Falls and towns within about an hour's drive (Brandon, Tea, Harrisburg, Brookings, Mitchell). Online events are fine on any evening after 5:30pm Central and on weekends."
+  }
+}
