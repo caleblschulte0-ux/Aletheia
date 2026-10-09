@@ -3347,6 +3347,13 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"what(?:'s| is) (?:the )?(?P<end>first|last) (?:thing |event |appointment )?on my (?:calendar|schedule)(?P<d> today| tomorrow)?\s*\??", text)
     if m:
         return f"when's my {m.group('end')} meeting{m.group('d') or ' today'}"
+    # "When is my next oil change due" a turn after "I got my oil changed
+    # at 45000 miles" (2026-10-08: to a model) is the miles from that one.
+    # With no such note, the task or the due date he gave answers it.
+    if re.fullmatch(r"(?:when(?:'s| is) my next oil change due|when (?:do|will) i need (?:my |an |the )?(?:next )?oil change|when(?:'s| is) my next oil change)\s*\??", text) \
+            and _said_lines(r"\b(?:got|had|did) (?:my |the |an? )?oil (?:changed|change)\b.*\bat \d", 1) \
+            and not _said_lines(r"\boil change\b.*\bdue\b", 1):
+        return "how many miles until my next oil change"
     # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
     # model, after he said so) is what he told her about it.
     m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"
@@ -19112,15 +19119,30 @@ def _miles_until(text: str) -> str | None:
                 odo = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
         if due is not None and odo is not None:
             break
+    guessed = None
+    if due is None and what == "oil change":
+        # "I got my oil changed today at 45000 miles" (2026-10-08: "you
+        # haven't told me when it's due"): the next is about 5,000 on.
+        for row in _notes():
+            said = " ".join(str(row.get("text") or "").split()).casefold()
+            m = re.search(r"\b(?:got|had|did) (?:my |the |an? )?oil (?:changed|change)\b.*?\bat " + number + r" ?(?:miles|mi)?\b", said)
+            if m:
+                guessed = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
+                due = guessed + 5000
+                break
     if due is None:
         return f"You haven't told me when your {what} is due. Say \"my {what} is due at 45,000 miles\" and I'll keep it."
-    if odo is None:
-        return (f"Your {what} is due at {due:,.0f} miles, but I don't know your mileage. "
+    rule = (f" That's 5,000 after the last one at {guessed:,.0f} - your sticker or manual may say 7,500 or more."
+            if guessed is not None else "")
+    if odo is None or (guessed is not None and odo < guessed):
+        return (f"Your {what} is due at about {due:,.0f} miles.{rule} Tell me the mileage "
+                "(\"my car has 46,000 miles\") and I'll work out how far that is.") if guessed is not None else \
+               (f"Your {what} is due at {due:,.0f} miles, but I don't know your mileage. "
                 "Say \"my car has 43,000 miles\" and I'll work it out.")
     left = due - odo
     if left <= 0:
-        return f"It's due now - your {what} was due at {due:,.0f} miles and you told me the car has {odo:,.0f}."
-    return f"About {left:,.0f} miles: it's due at {due:,.0f} and you told me the car has {odo:,.0f}."
+        return f"It's due now - your {what} was due at {due:,.0f} miles and you told me the car has {odo:,.0f}.{rule}"
+    return f"About {left:,.0f} miles: it's due at {due:,.0f} and you told me the car has {odo:,.0f}.{rule}"
 
 
 def _their_kind(text: str) -> str | None:

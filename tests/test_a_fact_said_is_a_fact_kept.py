@@ -13160,5 +13160,16 @@ class TheCarsPartsNeedWork(unittest.TestCase):
             self.assertEqual(voice.interpret(said)["command"]["description"], task, said)
 
 
+class TheNextOilChange(unittest.TestCase):
+    def test_counted_on_from_the_last(self):
+        rows = [{"text": "the car is at 46200 miles"}, {"text": "I got my oil changed today at 45000 miles"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            said = quick.answer("when is my next oil change due")
+            self.assertTrue(said.startswith("About 3,800 miles: it's due at 50,000"), said)
+            self.assertIn("7,500", said)
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertNotIn("50,000", quick.answer("when is my next oil change due") or "")
+
+
 if __name__ == "__main__":
     unittest.main()
