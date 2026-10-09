@@ -26,24 +26,25 @@
     "2026-10-08": {
       "duplicate": 19,
       "employer_full": 0,
-      "minutes": 355,
+      "minutes": 473,
       "needs_account": 1,
-      "needs_answer": 20,
-      "not_realistic": 609,
-      "offered": 816,
-      "ready": 16,
-      "runs": 27,
+      "needs_answer": 24,
+      "not_realistic": 622,
+      "offered": 844,
+      "ready": 22,
+      "runs": 28,
       "unfit_clearance": 2,
       "unfit_language": 12,
       "unfit_license": 34,
-      "unfit_model": 39,
-      "unfit_pay": 120,
-      "unfit_sales": 392,
+      "unfit_model": 45,
+      "unfit_pay": 123,
+      "unfit_sales": 396,
       "unfit_years": 10,
       "unjudged": 47,
-      "unreachable": 18,
+      "unreachable": 19,
       "unreachable_ApplyError": 7,
       "unreachable_left_till_tomorrow": 11,
+      "unreachable_no_form": 1,
       "weak_shot": 2
     }
   },
@@ -266,15 +267,15 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 38,
-      "found": 56,
+      "filled": 41,
+      "found": 59,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 17
     }
   },
-  "generated_at": "2026-10-09T02:12:53Z",
+  "generated_at": "2026-10-09T02:43:32Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -352,8 +353,8 @@
     }
   },
   "totals": {
-    "filled": 373,
-    "found": 745,
+    "filled": 376,
+    "found": 748,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
@@ -361,13 +362,13 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
+      "address": 2,
       "demographic_gender": 1,
       "demographic_race": 4,
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 10,
+      "other": 12,
       "pay": 2,
       "travel": 1,
       "years_experience": 1
@@ -398,9 +399,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 78
     },
-    "failed": 15,
+    "failed": 16,
     "failed_because": {
-      "ApplyError": 9,
+      "ApplyError": 10,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -409,7 +410,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 16,
+    "needs_answer": 18,
     "oldest_days": 26,
     "to_send": 0
   },
