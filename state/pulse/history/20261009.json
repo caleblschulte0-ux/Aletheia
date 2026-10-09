@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-09T06:16:47Z",
+  "generated_at": "2026-10-09T13:29:25Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,59 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "408e90ebeb04",
+          "date": "2026-10-09T11:50:35Z",
+          "message": "intercom: relay 20261009-reboot-morning"
+        },
+        {
+          "sha": "7fe01773b65d",
+          "date": "2026-10-09T11:49:20Z",
+          "message": "Merge pull request #353 from caleblschulte0-ux/claude/reboot-sign-ups"
+        },
+        {
+          "sha": "9f7acdb031fa",
+          "date": "2026-10-09T06:17:07Z",
+          "message": "pulse: 2026-10-09T06:17Z"
+        },
+        {
+          "sha": "dde5ebab8093",
+          "date": "2026-10-09T02:47:59Z",
+          "message": "Her Reboot tasks stop waiting on him for what she can do herself"
+        },
+        {
           "sha": "25128cf9b87e",
           "date": "2026-10-09T02:40:55Z",
           "message": "core: 1 local command receipt(s)"
-        },
-        {
-          "sha": "206fb668d1b7",
-          "date": "2026-10-09T02:40:04Z",
-          "message": "intercom: relay 20261009-reboot-waiting"
-        },
-        {
-          "sha": "845be4de749e",
-          "date": "2026-10-09T02:39:26Z",
-          "message": "core: 1 local command receipt(s)"
-        },
-        {
-          "sha": "42997e176010",
-          "date": "2026-10-09T02:37:37Z",
-          "message": "core: state checkpoint"
-        },
-        {
-          "sha": "902ab03112e2",
-          "date": "2026-10-09T02:33:49Z",
-          "message": "intercom: relay 20261009-reboot-progress"
         }
       ],
       "commit": {
-        "sha": "25128cf9b87e",
-        "date": "2026-10-09T02:40:55Z",
-        "message": "core: 1 local command receipt(s)"
+        "sha": "408e90ebeb04",
+        "date": "2026-10-09T11:50:35Z",
+        "message": "intercom: relay 20261009-reboot-morning"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-09T06:16:44Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37892700692"
+          "updated_at": "2026-10-09T13:29:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37937185352"
         },
         "ci.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-10-09T03:10:50Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37876277705"
+          "conclusion": "failure",
+          "updated_at": "2026-10-09T12:12:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/37926098476",
+          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-nod"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21975
+          "bytes": 22011
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -71,48 +72,48 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "4cadcb9e30d2",
-          "date": "2026-10-09T05:49:21Z",
-          "message": "Stock fallback cache: versioned records, 30-day expiry, dead-candidate eviction (doctor f85f65be87b6) (#568)"
+          "sha": "c85f36b46565",
+          "date": "2026-10-09T13:18:23Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "43e63ee910c3",
-          "date": "2026-10-09T05:47:51Z",
-          "message": "claim: mailbox verdicts 2026-10-09T05:47Z [skip ci]"
+          "sha": "289324e1202e",
+          "date": "2026-10-09T13:17:51Z",
+          "message": "explainer: posted permafrost-thaw [skip ci]"
         },
         {
-          "sha": "8edaa399af1d",
-          "date": "2026-10-09T05:31:01Z",
-          "message": "doctor: evidence pack + backlog 2026-10-09 [skip ci]"
+          "sha": "68a6f92efb5a",
+          "date": "2026-10-09T13:17:41Z",
+          "message": "explainer: claim upload slot permafrost-thaw [skip ci]"
         },
         {
-          "sha": "071cea269165",
-          "date": "2026-10-09T04:48:14Z",
-          "message": "claim: mailbox verdicts 2026-10-09T04:48Z [skip ci]"
+          "sha": "d9eef2d40513",
+          "date": "2026-10-09T12:47:56Z",
+          "message": "claim: mailbox verdicts 2026-10-09T12:47Z [skip ci]"
         },
         {
-          "sha": "56d337904cb3",
-          "date": "2026-10-09T04:11:07Z",
-          "message": "Third stories: no more than two candidates from one streamer per attempt (#567)"
+          "sha": "d4b1b48aeed9",
+          "date": "2026-10-09T12:46:21Z",
+          "message": "third: analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "4cadcb9e30d2",
-        "date": "2026-10-09T05:49:21Z",
-        "message": "Stock fallback cache: versioned records, 30-day expiry, dead-candidate eviction (doctor f85f65be87b6) (#568)"
+        "sha": "c85f36b46565",
+        "date": "2026-10-09T13:18:23Z",
+        "message": "explainer: update posted log + analytics [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 424
+          "value": 429
         },
         {
           "label": "explainer posted",
-          "value": 308
+          "value": 311
         },
         {
           "label": "third posted",
-          "value": 875
+          "value": 887
         },
         {
           "label": "curiosity posted",
@@ -122,40 +123,40 @@
       "workflows": {
         "daily.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-10-08T11:59:07Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37771445724"
+          "conclusion": "failure",
+          "updated_at": "2026-10-09T12:41:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37928323512",
+          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-09T05:49:41Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37890413872"
+          "updated_at": "2026-10-09T12:28:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37930151218"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-08T20:01:01Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37836209878"
+          "updated_at": "2026-10-09T11:32:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37924308725"
         },
         "story_forge.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-09T05:45:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37890134513"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-09T12:33:34Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37926939199"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-08T17:52:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37819575081"
+          "updated_at": "2026-10-09T13:04:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37930157819"
         },
         "explainer.yml": {
-          "status": "completed",
-          "conclusion": "failure",
-          "updated_at": "2026-10-09T00:20:39Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37850858585",
-          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
+          "status": "in_progress",
+          "conclusion": null,
+          "updated_at": "2026-10-09T13:18:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37928316997"
         },
         "retro.yml": {
           "status": "completed",
@@ -166,22 +167,22 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-09T05:31:05Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37888931650"
+          "updated_at": "2026-10-09T11:51:47Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/37926321873"
         }
       },
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 143810
+          "bytes": 146964
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 139714
+          "bytes": 143902
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 490245
+          "bytes": 497299
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,7 +190,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 3841208
+          "bytes": 3957255
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -438,18 +439,10 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-09T02:40:55Z",
+        "last_progress_at": "2026-10-09T11:50:35Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
-          {
-            "number": 353,
-            "title": "Sign him up for events she finds herself, and unstick his Reboot tasks",
-            "head": "claude/reboot-sign-ups",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/353",
-            "created_at": "2026-10-09T02:08:25Z"
-          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
@@ -480,7 +473,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 15,
+        "days_quiet": 16,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -544,23 +537,25 @@
     {
       "repo": "aletheia",
       "github": "Aletheia",
-      "from": "unknown",
-      "to": "green"
-    },
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
       "from": "green",
       "to": "red"
     }
   ],
   "alerts": [
     {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "health": "red",
+      "failing": [
+        "ci.yml"
+      ]
+    },
+    {
       "repo": "shorts_pipeline",
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "explainer.yml"
+        "daily.yml"
       ]
     }
   ],
