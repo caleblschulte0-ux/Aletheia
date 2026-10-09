@@ -250,6 +250,61 @@ def interviews_status() -> dict:
             "expires": grant.get("expires") if grant else "", "command": "python -m aletheia.interviews on"}
 
 
+SIGN_UP_CAPABILITIES = ("event.register", "calendar.write")
+SIGN_UPS_GRANT_ID = "standing-sign-ups"
+DEFAULT_SIGN_UP_DAYS = 90
+DEFAULT_SIGN_UP_USES = 60
+
+
+def sign_ups_active() -> dict | None:
+    for grant in authority.active_grants():
+        if "event.register" in grant.get("capability_ids", []):
+            return grant
+    return None
+
+
+def sign_ups_enable(*, days: int = DEFAULT_SIGN_UP_DAYS, uses: int = DEFAULT_SIGN_UP_USES,
+                    via: str = "operator", quote: str = "") -> dict:
+    """Sign him up for free events and put them on his calendar, without a
+    tap, on his ruling (`config/rulings.json`, switch "sign_ups")."""
+    if not 1 <= int(days) <= 365:
+        raise ValueError("days must be 1..365")
+    existing = sign_ups_active()
+    if existing:
+        return existing
+    import uuid
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:4]
+    approval_id = f"{SIGN_UPS_GRANT_ID}-{stamp}"
+    policy.request(
+        approval_id,
+        requested_action=f"standing authority over {', '.join(SIGN_UP_CAPABILITIES)}",
+        reason="sign him up for free events about his job hunt and his move, and put them on his calendar",
+        consequence=(f"when an email invites him to a free event she registers him with his name and email "
+                     f"and puts it on his calendar, at most 5 a week, for {days} days or {uses} uses; nothing "
+                     "that costs money, needs an account or a password, or asks him to agree to terms"),
+        reversible=True)
+    policy.decide(approval_id, "APPROVED", via=via,
+                  because=("granted by the operator" + (f" - his words: {quote}" if quote else "")))
+    grant = authority.create(
+        approval_id[:60], capability_ids=list(SIGN_UP_CAPABILITIES), approval_id=approval_id,
+        expires=_expiry(int(days)), max_uses=int(uses),
+        note="sign-ups: register him for free events and put them on his calendar"
+             + (f" - his words: {quote}" if quote else ""))
+    journal.append("decision", "authority",
+                   f"standing authority granted over {', '.join(SIGN_UP_CAPABILITIES)} for {days} days / "
+                   f"{uses} uses" + (f" - his words: {quote}" if quote else ""), actor=ACTOR)
+    return grant
+
+
+def sign_ups_disable(via: str = "operator") -> bool:
+    grant = sign_ups_active()
+    if not grant:
+        return False
+    authority.revoke(grant["id"])
+    journal.append("decision", "authority", "standing authority over event.register revoked", actor=via)
+    return True
+
+
 def jobs_disable(via: str = "operator") -> bool:
     grant = jobs_active()
     if not grant:

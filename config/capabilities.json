@@ -948,6 +948,18 @@
       "verification": "tests/test_a_calendly_link_is_booked_in_his_window.py (fixture page in Chromium); tests/test_a_polite_subject_is_not_an_answer.py (availability page: a scripted grid, never a live Greenhouse page); no live booking or availability submission yet"
     },
     {
+      "id": "event.register",
+      "description": "Sign you up for a free event (a hiring webinar, an info session, a career fair) with your name and email, and put it on your calendar",
+      "module": "aletheia.event_signup",
+      "provider": "aletheia.local",
+      "risk_class": "medium",
+      "approval_policy": "registry_grant",
+      "status": "EXPERIMENTAL",
+      "caller": "aletheia.runtime.process_new_events -> runtime._event_invitation (an email whose subject names an event) -> aletheia.event_signup.consider_mail -> register; the Register press is made only under the sign-ups standing grant, created from his ruling sign-ups-on by runtime._apply_rulings; python -m aletheia.event_signup register <url>",
+      "notes": "His words, 2026-10-09: 'until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.' A free registration form, his ordinary contact details, and the Register button: nothing else. Refused by construction before anything is pressed: a price or a card field (no grant reaches spending), a password box (an account), a CAPTCHA, a required agreement box, a required question his facts do not answer, a time that clashes with his calendar, and more than 5 sign-ups a week. The phone is his sign-up number, never his real one. Every sign-up is journaled, recorded as OUTWARD in the unattended ledger, and told to him in one notice. EXPERIMENTAL until a real registration is seen; tests drive a scripted page.",
+      "verification": "tests/test_she_signs_him_up_for_free_events.py (scripted page: money, account, CAPTCHA, agreement, clash, weekly cap, the grant, the mail caller, the ruling)"
+    },
+    {
       "id": "attention.policy",
       "description": "When may a notice interrupt you: quiet hours, priority escalation with age, bypass list — classification only, never delivery",
       "provider": "aletheia.local",
