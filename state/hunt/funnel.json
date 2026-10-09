@@ -266,15 +266,15 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 32,
-      "found": 48,
+      "filled": 33,
+      "found": 49,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 15
     }
   },
-  "generated_at": "2026-10-09T00:41:36Z",
+  "generated_at": "2026-10-09T01:12:46Z",
   "sent_all_time": 285,
   "stuck_at": {
     "approval_denied": {
@@ -352,8 +352,8 @@
     }
   },
   "totals": {
-    "filled": 367,
-    "found": 737,
+    "filled": 368,
+    "found": 738,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
@@ -367,10 +367,10 @@
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 10,
+      "other": 11,
       "pay": 1,
       "travel": 1,
-      "years_experience": 1
+      "years_experience": 2
     },
     "closed": {
       "duplicate": 3,
@@ -409,8 +409,8 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 15,
-    "oldest_days": 25,
+    "needs_answer": 16,
+    "oldest_days": 26,
     "to_send": 0
   },
   "window_days": 30
