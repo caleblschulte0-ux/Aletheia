@@ -51,17 +51,17 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 9,
+      "gone_on_ashbyhq": 2,
       "gone_on_greenhouse": 4,
       "gone_on_lever": 1,
-      "left_captcha": 5,
-      "left_error": 3,
+      "left_captcha": 4,
+      "left_error": 1,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 6,
+      "left_no_way_forward": 4,
       "left_out_of_steps": 1,
       "left_sign_in": 2,
       "not_a_form_asks_nothing_on_bamboohr": 1,
-      "not_a_form_asks_nothing_on_smartrecruiters": 15,
+      "not_a_form_asks_nothing_on_smartrecruiters": 13,
       "not_realistic": 9
     }
   },
@@ -267,15 +267,23 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 41,
-      "found": 59,
+      "filled": 40,
+      "found": 58,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 17
+    },
+    "2026-10-09": {
+      "filled": 1,
+      "found": 1,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-10-09T02:43:32Z",
+  "generated_at": "2026-10-09T23:31:52Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -340,7 +348,6 @@
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 1,
-        "nothing_to_press_on_content/observed": 1,
         "nothing_to_press_on_form/observed": 1,
         "unclear_button/observed": 2
       },
