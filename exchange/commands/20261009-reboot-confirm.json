@@ -1,0 +1,11 @@
+{
+  "id": "20261009-reboot-confirm",
+  "filed": "2026-10-09T01:01:47Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_confirm",
+    "mission": "Project Reboot"
+  }
+}
