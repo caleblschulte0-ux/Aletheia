@@ -7374,7 +7374,10 @@ class HowMuchToSaveAndWhenPayday(unittest.TestCase):
         return [{"text": t, "ts": ts} for t in texts]
 
     def test_a_weekly_amount_from_the_goal_date(self):
-        today = dt.date.today()
+        # His day, not the machine's: at 7 pm Central the UTC date is
+        # tomorrow, and 71 days came out $69 (2026-10-09).
+        from aletheia import localtime
+        today = localtime.today()
         with mock.patch.object(quick, "_notes", return_value=self._notes("I want to save 700 dollars by december")), \
                 mock.patch.object(quick, "_save_by", return_value=today + dt.timedelta(days=70)):
             said = quick.answer("how much do I need to save each week")
@@ -13124,6 +13127,21 @@ class FamilyComingToStay(unittest.TestCase):
             self.assertEqual(quick.answer("when do my parents get here"), "You told me your parents arrive on Friday.")
             self.assertEqual(quick.answer("who am I picking up"), "You told me you're picking up your sister from the airport.")
             self.assertEqual(quick.answer("what time does my sister's flight land"), "You told me your sister's flight lands at 3.")
+
+
+class BooksFinishedAndRated(unittest.TestCase):
+    def test_a_book_is_what_he_was_reading(self):
+        rows = [{"text": "I finished reading Dune"}, {"text": "I finished Breaking Bad"},
+                {"text": "I finished Project Hail Mary"}, {"text": "I started reading Project Hail Mary"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertEqual(quick.answer("what books have I finished"), "You told me you finished Dune and Project Hail Mary.")
+            self.assertEqual(quick.answer("what shows have I finished"), "You told me you finished Breaking Bad.")
+
+    def test_it_skips_a_question_in_between(self):
+        from aletheia import converse
+        turns = [{"he_asked": "I finished Project Hail Mary"}, {"he_asked": "what books have I finished"}]
+        with mock.patch.object(converse, "recent", return_value=turns):
+            self.assertEqual(voice.interpret("I gave it 5 stars")["command"]["text"], "I rated Project Hail Mary 5 stars")
 
 
 if __name__ == "__main__":

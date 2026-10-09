@@ -18813,12 +18813,17 @@ def _finished_shows(text: str) -> str | None:
     not a show."""
     g = _groups("finished_shows", text)
     books = g.get("fs_kind") == "books"
-    verb = r"finished reading|read" if books else r"finished(?: watching)?|binged|watched all of"
+    verb = r"finished reading|finished|read" if books else r"finished(?: watching)?|binged|watched all of"
+    # "I finished Project Hail Mary" is a book when he said he was reading
+    # it, and a show otherwise (2026-10-08: "what books have I finished").
+    read = " ".join(str(r.get("text") or "") for r in _notes() if re.search(r"\breading\b|\bbook\b", str(r.get("text") or ""), re.I)).casefold()
     out = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).rstrip(".!")
         m = re.match(rf"(?i:i|we) (?:just |finally )?(?:{verb}) (?P<t>(?:the |season \d+ of )?[A-Z0-9][\w:'&,. -]{{1,60}}?)(?: last night| tonight| today| yesterday| this weekend| again)?$", said)
-        if m and m.group("t") not in out and not re.match(r"(?:the |my )?(?:laundry|dishes|work|homework|report|project|chores?)\b", m.group("t"), re.I):
+        # A chore is in lower case ("the project"); a title keeps its capitals ("Project Hail Mary").
+        if m and m.group("t") not in out and not re.match(r"(?:the |my )?(?:laundry|dishes|work|homework|report|project|chores?)\b", m.group("t")) \
+                and bool(re.search(r"\bread", said, re.I) or m.group("t").casefold() in read) == books:
             out.append(m.group("t"))
     if not out:
         return None

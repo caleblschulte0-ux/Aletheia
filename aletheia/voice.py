@@ -11800,9 +11800,20 @@ def _interpret(transcript: str) -> dict:
         # "I gave it 4 stars" a turn after "I watched Oppenheimer last
         # night" (2026-10-08: kept as "I rated it 4 stars", which no
         # question about Oppenheimer could find) is the thing he just named.
-        said_before, _ = _previous_turn()
-        named = re.fullmatch(r"i (?:just )?(?:watched|finished(?: watching| reading)?|read|saw|played|beat|listened to)"
-                             r" (?P<t>[a-z0-9].{1,50}?)(?: (?:last night|today|yesterday|this morning|again))?\.?", said_before.casefold())
+        # A question in between ("what books have I finished") is not what
+        # "it" is (2026-10-08): the newest of the last three he named.
+        befores = [_previous_turn()[0]]
+        try:
+            from aletheia import converse
+            befores += [" ".join(str(t.get("he_asked") or "").split()) for t in reversed(converse.recent(limit=3) or [])]
+        except Exception:  # noqa: BLE001
+            pass
+        said_before, named = "", None
+        for said_before in befores:
+            named = re.fullmatch(r"i (?:just )?(?:watched|finished(?: watching| reading)?|read|saw|played|beat|listened to)"
+                                 r" (?P<t>[a-z0-9].{1,50}?)(?: (?:last night|today|yesterday|this morning|again))?\.?", said_before.casefold())
+            if named:
+                break
         if named and named.group("t") not in ("it", "that", "this", "tv", "the news", "a movie", "a show"):
             title = _as_he_said(said_before, named.group("t"))
             stars = "stars" if "star" in low else low.split(m.group("n") + " ", 1)[1]
