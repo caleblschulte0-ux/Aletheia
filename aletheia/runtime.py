@@ -690,6 +690,28 @@ def _consider_interview(event: dict, entry: dict, subject: str, text: str = "") 
         pass
 
 
+def _event_invitation(event: dict) -> dict | None:
+    """An email inviting him to an event about his job or his move: sign him
+    up, under his sign-ups ruling (`event_signup`). Off, nothing; his own
+    mail, nothing; never breaks the beat."""
+    if event.get("kind") != "mail.received" or _his_own_mail(event):
+        return None
+    try:
+        from aletheia import event_signup
+        if not event_signup.status()["on"]:
+            return None
+        subject = " ".join(str(event.get("summary") or "").split())
+        if not event_signup._EVENT_WORDS.search(subject):
+            # The body is read only for mail whose subject names an event:
+            # most mail does not, and reading every body is a mailbox fetch
+            # per message on every beat.
+            return None
+        text = _body_of(event, subject)
+        return event_signup.consider_mail(event, subject=subject, text=text) if text else None
+    except Exception:
+        return None
+
+
 def _heard_back(application_id: str, subject: str, outcome: str) -> None:
     """Until 2026-09-21 an employer's reply was classified and notified and
     then FORGOTTEN: nothing wrote it onto the application, so "what has
@@ -782,6 +804,9 @@ def process_new_events(*, now: dt.datetime | None = None,
         wrote_back = _job_reply(event)
         if wrote_back is not None:
             actions.append({"event": event["id"], "action": "job_reply", **wrote_back})
+        signed = _event_invitation(event)
+        if signed is not None:
+            actions.append({"event": event["id"], "action": "sign_up", "state": signed.get("state", "")})
         judged = _advisor_judgment(event, now)
         if judged is not None:
             actions.append({"event": event["id"],
@@ -1044,6 +1069,18 @@ def _apply_rulings(*, now_s: float | None = None) -> list[dict]:
                        f"interview scheduling is ON by his ruling {ruled} (config/rulings.json), so the "
                        f"interviews grant {grant.get('id', '')} was created from his words", actor=RULINGS_ACTOR)
         out.append({"ruling": ruled, "grant": grant.get("id", "")})
+    # Sign-ups the same way (his words, 2026-10-09: "signing me up for stuff").
+    from aletheia import event_signup
+    signs = event_signup.status()
+    if signs.get("ruled_by") and signs.get("on") and standing.sign_ups_active() is None:
+        ruling = rulings.for_switch("sign_ups") or {}
+        grant = standing.sign_ups_enable(via=f"ruling:{signs['ruled_by']}", quote=rulings.quote(ruling))
+        from aletheia import journal
+        journal.append("decision", "rulings",
+                       f"signing him up for free events is ON by his ruling {signs['ruled_by']} "
+                       f"(config/rulings.json), so the sign-ups grant {grant.get('id', '')} was created "
+                       "from his words", actor=RULINGS_ACTOR)
+        out.append({"ruling": signs["ruled_by"], "grant": grant.get("id", "")})
     return out
 
 

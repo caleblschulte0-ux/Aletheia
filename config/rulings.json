@@ -155,6 +155,23 @@
         }
       ],
       "means": "A voluntary self-identification question about gender, race, Hispanic/Latino ethnicity or veteran status is answered Male, White, Not Hispanic or Latino, Not a veteran. Where the form offers no option that plainly says that, the option that declines to answer is chosen instead. Disability, orientation, signatures and every legal declaration are untouched by this ruling."
+    },
+    {
+      "id": "sign-ups-on",
+      "switch": "sign_ups",
+      "on": true,
+      "since": "2026-10-09",
+      "quotes": [
+        {
+          "on": "2026-10-09T00:08:51Z",
+          "said": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff."
+        },
+        {
+          "on": "2026-10-09T00:22:52Z",
+          "said": "Okay, you're allowed to go ahead and finish building that, the signing up and stuff."
+        }
+      ],
+      "means": "When an email invites him to a free event about his job hunt or his move (a hiring webinar, an info session, a career fair, a networking event), she registers him with his name and email and puts it on his calendar, then tells him. At most 5 a week. Nothing that costs money, wants an account or a password, has a robot check, asks him to agree to terms, or clashes with something already on his calendar: those are left, and said. Off only if he turns it off at his keyboard (python -m aletheia.event_signup off)."
     }
   ]
 }
