@@ -712,6 +712,11 @@ def _event_invitation(event: dict) -> dict | None:
         return None
 
 
+def _join_event_lists() -> list[dict]:
+    from aletheia import event_signup
+    return event_signup.join_lists()
+
+
 def _heard_back(application_id: str, subject: str, outcome: str) -> None:
     """Until 2026-09-21 an employer's reply was classified and notified and
     then FORGOTTEN: nothing wrote it onto the application, so "what has
@@ -1461,6 +1466,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # keyboard: the interviews grant is created from his own words when the
     # ruling says ON and no grant is live. Cheap: one grant listing.
     guarded("rulings", _apply_rulings)
+    # His sign-ups ruling: one free event mailing list a day, so invitations arrive.
+    guarded("sign_up_lists", _join_event_lists)
     mail_events = guarded("mail", poll_mail_events)
     # The hunt's counts, published for the morning brief (which is composed
     # in the cloud and cannot see the records on this PC). Counts only.

@@ -1,0 +1,8 @@
+{
+  "_about": "Pages whose free email lists carry events about his job hunt and his move (Project Reboot: Sioux Falls). With the sign-ups switch on (ruling sign-ups-on), she visits each page once and, only if it offers a FREE email list, puts his name and email on it, so invitations reach his inbox and the inbox path signs him up. A page with no free list, a price, an account or a robot check is left and recorded. A reviewed edit adds a page; nothing in code names a place.",
+  "pages": [
+    {"url": "https://siouxfallsypn.com/", "why": "Sioux Falls Young Professionals Network events"},
+    {"url": "https://siouxfallschamber.com/events-programs/events/", "why": "Greater Sioux Falls Chamber events"},
+    {"url": "https://dlr.sd.gov/localoffices/siouxfalls", "why": "Sioux Falls Job Service hiring events and job fairs"}
+  ]
+}

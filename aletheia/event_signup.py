@@ -30,6 +30,8 @@ What it will not do, by construction rather than by remembering to:
 - **A clash.** When the page names one time and it overlaps something
   already on his calendar - an interview, above all - she does not sign
   him up for it.
+- **His hours.** A weekday event that starts before 5:30 pm Central is left:
+  he works days. Evenings and weekends only.
 - **Volume.** At most `MAX_PER_WEEK` sign-ups a week, and one per page
   ever. "Signing me up for stuff" is not "fill my inbox with webinars".
 
@@ -61,8 +63,10 @@ EVENT_HOSTS = ("eventbrite.com", "lu.ma", "luma.com", "meetup.com", "on24.com", 
                "events.zoom.us", "attendee.gotowebinar.com", "webinar.ringcentral.com")
 _REGISTER_PATHS = (("zoom.us", "/webinar/register"), ("zoom.us", "/meeting/register"),
                    ("zoom.com", "/webinar/register"), ("gotowebinar.com", "/register"))
-#: His sign-ups in one week, at most.
-MAX_PER_WEEK = 5
+#: His sign-ups in one week, at most. His Project Reboot answers, 2026-10-09:
+#: at most three a week, evenings after 5:30 pm Central and weekends only.
+MAX_PER_WEEK = 3
+EVENINGS_FROM = dt.time(17, 30)
 HIS_ZONE = "America/Chicago"
 DEFAULT_MINUTES = 60
 
@@ -139,6 +143,12 @@ _BUTTONS_JS = """() => Array.from(document.querySelectorAll('button, input[type=
   .map((el, i) => ({index: i, text: ((el.innerText || el.value || el.getAttribute('aria-label') || '') + '').trim().slice(0, 80),
                     submit: (el.type || '').toLowerCase() === 'submit',
                     visible: el.offsetParent !== null}))"""
+
+
+def _rehearsal() -> bool:
+    """A rehearsal (`talk --sandbox`) never presses anything on a real site."""
+    import os
+    return bool(os.environ.get("ALETHEIA_REHEARSAL"))
 
 
 # ---- what a link is ----------------------------------------------------------
@@ -416,8 +426,15 @@ def consider_mail(event: dict, *, subject: str, text: str, registrar=None,
 
 # ---- doing it ----------------------------------------------------------------
 
+def in_his_hours(slot: dict) -> bool:
+    """Evenings from 5:30 pm Central, or any time at the weekend."""
+    start = dt.datetime.fromisoformat(slot["start"]).astimezone(ZoneInfo(HIS_ZONE))
+    return start.weekday() >= 5 or start.time() >= EVENINGS_FROM
+
+
 def register(url: str, *, why: str = "", page=None, spender=None, now: dt.datetime | None = None,
-             facts: dict | None = None, busy=None, calendar_writer=None, notify=None) -> dict:
+             facts: dict | None = None, busy=None, calendar_writer=None, notify=None,
+             any_host: bool = False) -> dict:
     """Sign him up on one free event page. Never raises.
 
     {"state": registered | unconfirmed | needs_grant | costs_money | blocked |
@@ -426,7 +443,9 @@ def register(url: str, *, why: str = "", page=None, spender=None, now: dt.dateti
     browser profile is opened. `spender(capability, action_id)` returns the
     grant covering the press, or None; otherwise `authority.satisfy`."""
     now = now or dt.datetime.now(dt.timezone.utc)
-    if not is_event_page(url):
+    if _rehearsal():
+        return {"state": "failed", "say": "this is a rehearsal, so I didn't sign you up"}
+    if not is_event_page(url) and not (any_host and urlsplit(str(url)).scheme in ("http", "https")):
         return {"state": "not_an_event", "say": "that is not an event's sign-up page I know"}
     done = registered().get(_key(url))
     if done and done.get("state") == "registered":
@@ -457,6 +476,14 @@ def register(url: str, *, why: str = "", page=None, spender=None, now: dt.dateti
         if stop:
             return _left(url, title, stop, now)
         slot = when(body, now=now)
+        if any_host and not is_event_page(url) and not (slot and _EVENT_WORDS.search(body[:6000])):
+            # A page she found on her own, on a host that is not an event site, has to say it is an
+            # event AND name its one time; a shop's "sign up" is not one, and neither is a
+            # newsletter box under "upcoming events" (that is a list, joined by `join_list`).
+            return _left(url, title, {"state": "not_an_event", "say": "the page doesn't say it's an event"}, now)
+        if slot and not in_his_hours(slot):
+            return _left(url, title, {"state": "outside_hours",
+                                      "say": f"it's {said_when(slot['start'])}, inside your working day"}, now)
         if slot:
             clash = _clash(slot, busy)
             if clash:
@@ -604,6 +631,181 @@ def _put_on_calendar(name: str, slot: dict, calendar_writer=None) -> str:
     if live.get("state") == "written":
         return "it's on your calendar"
     return "it's on your calendar here, and the organiser's invitation will add it to yours" if held else ""
+
+
+# ---- mailing lists: so the invitations arrive ---------------------------------------
+
+#: The pages whose free email lists carry the events he would want, as DATA
+#: (`config/sign_up_lists.json`): a reviewed edit adds one, nothing in code
+#: names a place. She looks for a free "subscribe" form on each once.
+def _lists_path():
+    from aletheia.fleet import REPO_ROOT
+    return REPO_ROOT / "config" / "sign_up_lists.json"
+
+
+def list_pages() -> list[dict]:
+    try:
+        raw = json.loads(_lists_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    rows = raw.get("pages") if isinstance(raw, dict) else None
+    return [r for r in rows or [] if isinstance(r, dict) and str(r.get("url") or "").startswith("https://")]
+
+
+_SUBSCRIBE_BUTTON = re.compile(r"^\s*(?:subscribe(?: now)?|sign ?up(?: now| for (?:updates|our newsletter|emails))?|"
+                               r"join(?: (?:the|our) (?:list|newsletter|mailing list))?|get updates|keep me (?:posted|updated)|"
+                               r"submit|send)\s*$", re.I)
+_SUBSCRIBED = re.compile(r"thank(?:s| you)(?: for (?:subscribing|signing up|joining))?|you(?:'|’| a)?re (?:subscribed|on the list|in\b|all set)|"
+                         r"successfully (?:subscribed|signed up)|check your (?:email|inbox)|confirm your (?:email|subscription)",
+                         re.I)
+_LIST_WORDS = re.compile(r"newsletter|mailing list|email (?:list|updates)|subscribe|stay (?:in the loop|informed|connected)|"
+                         r"get (?:our )?(?:updates|emails)", re.I)
+
+
+def join_list(url: str, *, why: str = "", page=None, spender=None, now: dt.datetime | None = None,
+              facts: dict | None = None, notify=None) -> dict:
+    """Put his email on one free mailing list so event invitations reach his
+    inbox. Never raises. Only his name and email are given; the same walls
+    stop her as on an event page (money, an account, a robot check, a box to
+    agree to, a question she cannot answer). Tried once per page.
+
+    {"state": joined | unconfirmed | no_list | needs_grant | costs_money | blocked | already | failed, "say"}."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    if _rehearsal():
+        return {"state": "failed", "say": "this is a rehearsal, so I didn't sign you up"}
+    if urlsplit(str(url)).scheme != "https":
+        return {"state": "blocked", "say": "only a secure page gets his email"}
+    if _key(url) in registered():
+        return {"state": "already", "say": "I've already been to that list"}
+    facts = _facts() if facts is None else facts
+    facts = {k: v for k, v in facts.items() if k in ("first_name", "last_name", "legal_name", "email")}
+    if not facts.get("email"):
+        return {"state": "blocked", "say": "I don't have your email address to sign you up with"}
+    session = None
+    try:
+        if page is None:
+            from aletheia import browse
+            ok, why_not = browse.available()
+            if not ok:
+                return {"state": "failed", "say": f"my browser isn't ready ({why_not})"}
+            session = browse._Session()
+            page = session.__enter__().new_page()
+        page.goto(url, wait_until="domcontentloaded")
+        _settle(page, 1500)
+        body = _text(page)
+        title = _title(page, body)
+        fields = _read_fields(page)
+        stop = _stopped(body, fields, page)
+        if stop:
+            return _left(url, title, stop, now)
+        fills, stops = plan_fields(fields, facts)
+        if not _LIST_WORDS.search(body) or not any(f["field"] == "email" for f in fills):
+            return _left(url, title, {"state": "no_list", "say": "there's no free email list on that page"}, now)
+        if stops:
+            return _left(url, title, {"state": "blocked", "say": stops[0]}, now)
+        if spender is None:
+            from aletheia import authority
+            spender = authority.satisfy
+        grant = spender(CAPABILITY, f"list-{re.sub(r'[^a-z0-9]+', '-', _key(url).casefold())[:60]}")
+        if not grant:
+            return {"state": "needs_grant", "title": title, "url": url,
+                    "say": "signing you up for things needs the sign-ups permission, and it isn't on"}
+        for f in fills:
+            _fill(page, f)
+        if not _press_matching(page, _SUBSCRIBE_BUTTON):
+            return _left(url, title, {"state": "blocked", "say": "I couldn't find its Subscribe button"}, now)
+        _settle(page, 2000)
+        after = _text(page)
+        confirmed = bool(_SUBSCRIBED.search(after)) and not _REFUSED.search(after[:2000])
+        state = "joined" if confirmed else "unconfirmed"
+        name = title or _key(url)
+        _remember(url, {"state": state, "title": title, "at": now.isoformat(), "grant": grant, "why": why[:200]})
+        sentence = (f"I put your email on {name}'s list so their event invitations come to you"
+                    if confirmed else f"I tried to join {name}'s email list and the page didn't say it worked")
+        from aletheia import notifications
+        (notify or notifications.publish)(
+            f"Joined a list: {name}" if confirmed else f"Not sure I joined {name}'s list",
+            sentence + ".", priority="LOW", source="sign-ups", about=notifications.CHANGED,
+            dedupe_key=f"sign-up-list:{_key(url)}", related={"url": url})
+        journal.append("action", "sign-ups", f"{sentence} (under grant {grant})", actor=ACTOR)
+        try:
+            from aletheia import autonomy, tools
+            autonomy.record(tool="event_signup.join_list", args={"url": url}, consequence=tools.OUTWARD,
+                            said=sentence, route="sign-ups",
+                            undo={"how": autonomy.NONE, "why": "unsubscribe from the link in their emails"})
+        except Exception:
+            pass
+        return {"state": state, "title": title, "url": url, "grant": grant, "say": sentence}
+    except Exception as exc:  # noqa: BLE001 - never breaks the beat
+        return {"state": "failed", "say": f"the page broke ({type(exc).__name__})"}
+    finally:
+        if session is not None:
+            try:
+                session.__exit__(None, None, None)
+            except Exception:
+                pass
+
+
+_LISTS_TRIED = {"day": ""}
+
+
+def join_lists(*, now: dt.datetime | None = None, joiner=None) -> list[dict]:
+    """The beat's step: when the switch is on, one list page a day that she
+    has not been to yet. Never raises."""
+    now = now or dt.datetime.now(dt.timezone.utc)
+    day = now.date().isoformat()
+    if _LISTS_TRIED["day"] == day:
+        return []
+    try:
+        if not status()["on"]:
+            return []
+        done = registered()
+        todo = [r for r in list_pages() if _key(r["url"]) not in done]
+        if not todo:
+            return []
+        _LISTS_TRIED["day"] = day
+        row = todo[0]
+        out = (joiner or join_list)(row["url"], why=str(row.get("why") or "so event invitations reach you"),
+                                    now=now)
+        return [{"url": row["url"], "state": out.get("state", "")}]
+    except Exception:
+        return []
+
+
+def sign_up_tool(url: str, why: str = "") -> dict:
+    """The tool a long mission's task uses (`browser_tools`, "event.register"):
+    an event page is registered for, a mailing-list page is joined, both under
+    every rule above. Called by `program_run` under his grant."""
+    if is_event_page(url):
+        return register(url, why=why or "found while working on a mission")
+    out = register(url, why=why or "found while working on a mission", any_host=True)
+    if out.get("state") == "not_an_event":
+        _forget(url)
+        return join_list(url, why=why or "found while working on a mission")
+    return out
+
+
+def _forget(url: str) -> None:
+    rows = registered()
+    if rows.pop(_key(url), None) is not None:
+        path = _ledger_path()
+        stateio.write_json_atomic(path, {"version": 1, "pages": rows})
+
+
+def _press_matching(page, pattern) -> bool:
+    try:
+        buttons = page.evaluate(_BUTTONS_JS) or []
+    except Exception:
+        return False
+    wanted = [b for b in buttons if isinstance(b, dict) and b.get("visible") and pattern.match(str(b.get("text") or ""))]
+    wanted = [b for b in wanted if b.get("submit")] or wanted
+    if not wanted:
+        return False
+    try:
+        page.locator("button, input[type=submit], a[role=button], a").nth(int(wanted[0]["index"])).click()
+        return True
+    except Exception:
+        return False
 
 
 # ---- the page, thinly ---------------------------------------------------------

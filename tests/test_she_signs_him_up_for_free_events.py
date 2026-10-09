@@ -197,11 +197,26 @@ class WhatSheLeaves(Base):
         self.assertEqual(out["state"], "needs_grant")
         self.assertEqual(page.clicked, [])
 
-    def test_five_a_week_is_enough(self):
-        rows = {f"eventbrite.com/e/{i}": {"state": "registered", "at": NOW.isoformat()} for i in range(5)}
+    def test_three_a_week_is_enough(self):
+        rows = {f"eventbrite.com/e/{i}": {"state": "registered", "at": NOW.isoformat()} for i in range(3)}
         with mock.patch.object(event_signup, "registered", return_value=rows):
             page = FakePage()
             self.assertEqual(self.sign_up(page)["state"], "enough_this_week")
+        self.assertEqual(page.clicked, [])
+
+    def test_his_working_day_is_left(self):
+        page = FakePage(body=BODY.replace("6:00 PM - 8:00 PM", "11:00 AM - 12:00 PM"))
+        self.assertLeft(page, "outside_hours", "working day")
+
+    def test_a_weekend_morning_is_his(self):
+        page = FakePage(body=BODY.replace("Thursday, October 15", "Saturday, October 17")
+                        .replace("6:00 PM - 8:00 PM", "10:00 AM - 11:00 AM"))
+        self.assertEqual(self.sign_up(page)["state"], "registered")
+
+    def test_a_rehearsal_presses_nothing(self):
+        page = FakePage()
+        with mock.patch.dict(os.environ, {"ALETHEIA_REHEARSAL": "1"}):
+            self.assertEqual(self.sign_up(page)["state"], "failed")
         self.assertEqual(page.clicked, [])
 
     def test_a_link_that_is_not_an_event_is_not_followed(self):
@@ -281,6 +296,134 @@ class HisRuling(Base):
         entry = capabilities.get("event.register")
         self.assertEqual(entry["approval_policy"], "registry_grant")
         self.assertNotEqual(entry["risk_class"], "high")
+
+
+LIST_URL = "https://siouxfallschamber.example/news/"
+LIST_BODY = "Stay in the loop\nSubscribe to our newsletter for upcoming events."
+LIST_FORM = [box(0, "Email address", type_="email")]
+
+
+class FoundOnHerOwn(Base):
+    """A page a mission found, on a host that is not an event site."""
+
+    def test_an_event_page_anywhere_is_registered_for_when_it_says_it_is_an_event(self):
+        page = FakePage(body=BODY + "\nA networking event for young professionals.")
+        out = event_signup.register("https://chamber.example/events/hiring-night", page=page, now=NOW,
+                                    facts=dict(FACTS), any_host=True, spender=lambda c, a: "g",
+                                    busy=lambda s, e: [], calendar_writer=lambda **k: {},
+                                    notify=lambda *a, **k: None)
+        self.assertEqual(out["state"], "registered", out)
+
+    def test_a_shops_sign_up_is_not_an_event(self):
+        page = FakePage(body="Sign up for 10% off your first order")
+        out = event_signup.register("https://shop.example/signup", page=page, now=NOW, facts=dict(FACTS),
+                                    any_host=True, spender=lambda c, a: "g", busy=lambda s, e: [])
+        self.assertEqual(out["state"], "not_an_event")
+        self.assertEqual(page.clicked, [])
+
+
+    def test_a_newsletter_box_under_upcoming_events_is_a_list_not_an_event(self):
+        pages = [FakePage(body=LIST_BODY, fields=LIST_FORM), FakePage(body=LIST_BODY, fields=LIST_FORM,
+                 after="Thanks for subscribing!",
+                 buttons=[{"index": 0, "text": "Subscribe", "submit": True, "visible": True}])]
+        with mock.patch.object(event_signup, "_facts", return_value=dict(FACTS)), \
+             mock.patch("aletheia.authority.satisfy", return_value="g"), \
+             mock.patch("aletheia.notifications.publish"), \
+             mock.patch("aletheia.browse.available", return_value=(True, "")), \
+             mock.patch("aletheia.browse._Session") as session:
+            session.return_value.__enter__.return_value.new_page.side_effect = pages
+            out = event_signup.sign_up_tool(LIST_URL)
+        self.assertEqual(out["state"], "joined", out)
+        self.assertEqual(pages[0].clicked, [])
+
+
+class MailingLists(Base):
+    def join(self, page, grant="g"):
+        return event_signup.join_list(LIST_URL, page=page, now=NOW, facts={**FACTS, "phone": "605-555-0100"},
+                                      spender=lambda c, a: grant, notify=lambda t, b, **k: self.notes.append((t, b)))
+
+    def test_only_his_email_goes_on_a_free_list(self):
+        page = FakePage(body=LIST_BODY, fields=LIST_FORM, after="Thanks for subscribing!",
+                        buttons=[{"index": 0, "text": "Subscribe", "submit": True, "visible": True}])
+        out = self.join(page)
+        self.assertEqual(out["state"], "joined", out)
+        self.assertEqual(page.filled, {0: "caleb@openrange.example"})
+        self.assertIn("event invitations come to you", self.notes[0][1])
+
+    def test_a_page_with_no_list_is_left_and_not_tried_again(self):
+        page = FakePage(body="About the Chamber", fields=[])
+        self.assertEqual(self.join(page)["state"], "no_list")
+        self.assertEqual(self.join(FakePage(body=LIST_BODY, fields=LIST_FORM))["state"], "already")
+
+    def test_a_paid_membership_is_money(self):
+        page = FakePage(body=LIST_BODY + "\nMembership fee: $75 per year", fields=LIST_FORM)
+        self.assertEqual(self.join(page)["state"], "costs_money")
+        self.assertEqual(page.clicked, [])
+
+    def test_without_the_grant_nothing_is_pressed(self):
+        page = FakePage(body=LIST_BODY, fields=LIST_FORM)
+        self.assertEqual(self.join(page, grant=None)["state"], "needs_grant")
+        self.assertEqual(page.clicked, [])
+
+    def test_one_list_a_day_from_the_registry_and_only_when_on(self):
+        event_signup._LISTS_TRIED["day"] = ""
+        seen = []
+        with mock.patch.object(event_signup, "status", return_value={"on": True}):
+            event_signup.join_lists(now=NOW, joiner=lambda url, **k: seen.append(url) or {"state": "joined"})
+            event_signup.join_lists(now=NOW, joiner=lambda url, **k: seen.append(url) or {"state": "joined"})
+        self.assertEqual(len(seen), 1)
+        self.assertTrue(seen[0].startswith("https://"))
+        event_signup._LISTS_TRIED["day"] = ""
+        with mock.patch.object(event_signup, "status", return_value={"on": False}):
+            self.assertEqual(event_signup.join_lists(now=NOW, joiner=lambda url, **k: seen.append(url)), [])
+        self.assertEqual(len(seen), 1)
+
+
+class AMissionStep(Base):
+    def setUp(self):
+        super().setUp()
+        from aletheia import tools
+        self.tool = tools.catalog(fresh=True)["event.register"]
+
+    def test_the_tool_is_in_the_catalog_and_the_broker_still_hands_it_off(self):
+        from aletheia import agent_session, tools
+        self.assertEqual(self.tool.approval, "registry_grant")
+        self.assertEqual(self.tool.consequence, tools.OUTWARD)
+        decision = agent_session.Broker({"event.register": self.tool}, audience="all", halted=lambda: None) \
+            .check(agent_session.ToolRequest("event.register", {"url": URL}))
+        self.assertEqual(decision.verdict, agent_session.HANDOFF)
+
+    def test_a_mission_need_finds_it(self):
+        from aletheia import program_compose, tools
+        tool, _score = program_compose.best_tool("register for the Chamber networking event", tools.catalog())
+        self.assertEqual(tool.name, "event.register")
+
+    def run_step(self, result, on=True):
+        from aletheia import program_run, tools
+        fake = tools.with_handler(self.tool, lambda args: result)
+        task = {"title": "Sign up for a networking night"}
+        with mock.patch.object(event_signup, "status", return_value={"on": on}):
+            done = program_run._signed_up_under_grant(fake, {"url": URL}, task, 0, NOW)
+        return done, task
+
+    def test_under_the_grant_the_step_runs_instead_of_asking_him(self):
+        done, task = self.run_step({"state": "registered", "said": "I signed you up"})
+        self.assertTrue(done)
+        self.assertEqual(task["results"][-1]["sign_up"], "registered")
+
+    def test_a_left_page_is_settled_too(self):
+        self.assertTrue(self.run_step({"state": "costs_money", "said": "it costs money"})[0])
+
+    def test_no_grant_or_switch_off_goes_to_him_as_before(self):
+        self.assertFalse(self.run_step({"state": "needs_grant"})[0])
+        self.assertFalse(self.run_step({"state": "failed"})[0])
+        self.assertFalse(self.run_step({"state": "registered"}, on=False)[0])
+
+    def test_no_other_tool_takes_this_door(self):
+        from aletheia import program_run, tools
+        other = tools.catalog()["browser.pursue"]
+        with mock.patch.object(event_signup, "status", return_value={"on": True}):
+            self.assertFalse(program_run._signed_up_under_grant(other, {"url": URL}, {}, 0, NOW))
 
 
 if __name__ == "__main__":
