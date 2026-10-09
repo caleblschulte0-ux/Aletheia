@@ -428,3 +428,49 @@ class AMissionStep(Base):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhereHerMissionWasStuck(unittest.TestCase):
+    """His PC, 2026-10-09: 7 of 10 Project Reboot tasks waiting on him for
+    things she should have done herself."""
+
+    def setUp(self):
+        from aletheia import tools
+        self.catalog = tools.catalog()
+
+    def test_looking_for_events_reads_the_web_instead_of_asking_him(self):
+        from aletheia import program_compose as pc
+        tool, _ = pc.best_tool("Search for upcoming job fairs, hiring events, networking events and info sessions",
+                               self.catalog)
+        self.assertTrue(tool.read_only, tool.name)
+        self.assertTrue(tool.open_world, tool.name)
+
+    def test_a_doing_tool_named_for_a_look_up_is_swapped_for_a_reader(self):
+        from aletheia import program_compose as pc
+        steps = pc.compose({"title": "Search for upcoming hiring events in Sioux Falls", "uses": ["web_task"]},
+                           self.catalog)["steps"]
+        self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
+
+    def test_a_check_does_not_ask_him_for_a_calendar_time(self):
+        from aletheia import program_compose as pc
+        steps = pc.compose({"title": "Check the confidentiality of the setup",
+                            "detail": "confirm which calendar holds are written to",
+                            "uses": ["calendar.propose"]}, self.catalog)["steps"]
+        self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
+
+    def test_doing_is_still_doing(self):
+        from aletheia import program_compose as pc
+        self.assertEqual(pc.best_tool("register for the Chamber networking event", self.catalog)[0].name,
+                         "event.register")
+        self.assertEqual(pc.best_tool("join the Chamber mailing list", self.catalog)[0].name, "event.register")
+        self.assertEqual(pc.best_tool("make a list called packing", self.catalog)[0].name, "list_new")
+
+    def test_saving_his_answers_to_her_workspace_is_not_spending(self):
+        from aletheia import agent_session as a
+        broker = a.Broker(self.catalog, audience="all", halted=lambda: None)
+        text = "Pay floor 95K, rent budget 1200 a month, buy a house next year"
+        self.assertEqual(broker.check(a.ToolRequest("file_write", {"path": "reboot/answers.md", "text": text}))
+                         .verdict, a.RUN)
+        # ...and the same words on a tool that reaches the world are still refused.
+        self.assertEqual(broker.check(a.ToolRequest("web_task", {"goal": "buy a house next year"})).verdict,
+                         a.REFUSED)
