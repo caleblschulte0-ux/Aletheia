@@ -61,10 +61,15 @@ _MONTHDAY_RE = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sept|sep|oct|nov|
                           r"(?:st|nd|rd|th)?\b(?!\s*(?::|am|pm))", re.I)
 _NUMERIC_RE = re.compile(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b")
 _RELATIVE_RE = re.compile(r"\b(today|tomorrow|tonight)\b", re.I)
-_RANGE_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(?:-|–|to|and)\s*(\d{1,2})(?::(\d{2}))?\s*"
-                       r"(a\.?m\.?|p\.?m\.?)(?![a-z])", re.I)
+# "1-2pm" and, as Greenhouse's confirmations write it, "1:00pm-1:30pm": the
+# start may carry its own meridiem (group 6), and the end is never a start.
+_RANGE_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?\s*(?:-|–|to|and)\s*"
+                       r"(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])", re.I)
 _TIME_RE = re.compile(r"\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])", re.I)
-_CLOCK_RE = re.compile(r"\b([01]?\d|2[0-3]):([0-5]\d)\b(?!\s*(?:a\.?m|p\.?m))", re.I)
+# Never a UTC offset: "(GMT-05:00) Central Time" is a zone, and read as a
+# clock it put a 5 PM interview beside the real 1 PM one.
+_CLOCK_RE = re.compile(r"(?<![+\-−])(?<!gmt)(?<!utc)\b([01]?\d|2[0-3]):([0-5]\d)\b"
+                       r"(?!\s*(?:a\.?m|p\.?m))", re.I)
 _NOON_RE = re.compile(r"\b(noon|midday)\b", re.I)
 _BARE_AT_RE = re.compile(r"\bat\s+(\d{1,2})\b(?!\s*(?::|/|%|\d|a\.?m|p\.?m|percent|dollars))", re.I)
 
@@ -164,9 +169,11 @@ def _times(text: str) -> list[tuple[int, int, int, int]]:
         return all(b <= x or a >= y for x, y in taken)
 
     for m in _RANGE_RE.finditer(text):
-        end_hour = int(m.group(3))
+        if m.group(3) and re.search(r"\band\b", m.group(0), re.I):
+            continue            # "10am and 2pm" is two times, not one span
+        end_hour = int(m.group(4))
         start = _meridiem(int(m.group(1)), int(m.group(2) or 0),
-                          m.group(5) if int(m.group(1)) <= end_hour else None)
+                          m.group(3) or (m.group(6) if int(m.group(1)) <= end_hour else None))
         if start:
             spans.append((m.start(), m.end(), *start))
             taken.append((m.start(), m.end()))
