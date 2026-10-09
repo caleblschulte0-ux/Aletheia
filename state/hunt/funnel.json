@@ -266,16 +266,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 33,
-      "found": 49,
+      "filled": 35,
+      "found": 51,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
-      "sent": 15
+      "sent": 16
     }
   },
-  "generated_at": "2026-10-09T01:12:46Z",
-  "sent_all_time": 285,
+  "generated_at": "2026-10-09T01:38:21Z",
+  "sent_all_time": 286,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -341,7 +341,7 @@
         "nothing_to_press_on_content+no_apply/observed": 1,
         "nothing_to_press_on_content/observed": 2,
         "nothing_to_press_on_form/observed": 1,
-        "unclear_button/observed": 3
+        "unclear_button/observed": 2
       },
       "out_of_steps": {
         "nothing_to_press_on_unread/observed": 1
@@ -352,12 +352,12 @@
     }
   },
   "totals": {
-    "filled": 368,
-    "found": 738,
+    "filled": 370,
+    "found": 740,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
-    "sent": 285
+    "sent": 286
   },
   "waiting": {
     "asked_about": {
@@ -367,10 +367,10 @@
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 11,
+      "other": 10,
       "pay": 1,
       "travel": 1,
-      "years_experience": 2
+      "years_experience": 1
     },
     "closed": {
       "duplicate": 3,
@@ -398,9 +398,9 @@
       "not_a_form_signup_list_on_employer_site": 9,
       "not_realistic": 78
     },
-    "failed": 13,
+    "failed": 14,
     "failed_because": {
-      "ApplyError": 7,
+      "ApplyError": 8,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
@@ -409,9 +409,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 16,
+    "needs_answer": 15,
     "oldest_days": 26,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
