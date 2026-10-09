@@ -11645,6 +11645,14 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"(?:my|our) (?:in-laws'?|parents'|[a-z]+'s|[a-z]+-in-law'?s?) (?:flight|plane|train|bus) (?:lands|gets in|arrives|comes in|is landing|is getting in)(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?", low) \
             or re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:picking up|getting|grabbing) " + _fam[:-1] + r") (?:from|at) (?:the )?(?:airport|station|train station|bus station)(?: (?:on|this|next) [a-z]+| tomorrow| today| tonight)?(?: at \d{1,2}(?::\d\d)? ?(?:am|pm)?)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "My new manager is Lisa" (2026-10-08: to the planner, where "my
+    # manager is Lisa" was kept) is the same fact; "new" is the news.
+    m = re.fullmatch(r"my new (?P<role>manager|boss|supervisor|doctor|dentist|neighbou?r|coworker|co-worker|teacher|landlord|roommate"
+                     r"|trainer|therapist|vet|mechanic|barber|hairdresser|team lead|lead|pediatrician|accountant) (?:is|'s) (?!named |called )(?P<who>[a-z][a-z' .-]{1,30})", low)
+    if m:
+        said = _interpret(f"my {m.group('role')} is {_as_he_said(text, m.group('who'))}")
+        if said:
+            return said
     # "I had a cheat day", "I skipped my workout" (2026-10-08: to the planner).
     if re.fullmatch(r"(?:i|we) (?:had|have|'m having|am having) (?:a |my )?cheat (?:day|meal)(?: today| yesterday| tonight)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": "Noted. Tomorrow's a fresh start."}

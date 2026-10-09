@@ -2714,6 +2714,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What am I hosting" (2026-10-08: to a model, after "I'm hosting
     # Thanksgiving this year").
     ("hosting", re.compile(r"^what (?:am i|are we) hosting(?: this year| next| soon)?\s*\??$|^(?:am i|are we) hosting (?P<host_what>[a-z][a-z' ]{2,25}?)(?: this year)?\s*\??$")),
+    # "When do I start my new role" (2026-10-08: to a model, a turn after
+    # "I start my new role on Monday").
+    ("start_new", re.compile(r"^when (?:do|will) i (?:start|begin) (?:my (?:new )?(?:job|role|position|work)|work at [a-z][a-z0-9&.' -]{1,30}?|at [a-z][a-z0-9&.' -]{1,30}?)\s*\??$")),
     # "What day of the year is it" (2026-10-08: to a model).
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
@@ -18922,6 +18925,12 @@ def _visitor(text: str) -> str | None:
     return f"You told me {heard}."
 
 
+def _start_new() -> str | None:
+    """When he starts a new job, as he said it."""
+    found = _said_lines(r"^i (?:start|begin|'m starting|am starting) (?:my |a )?(?:new )?(?:job|role|position|work)\b|^i (?:start|begin) (?:at|with) [a-z]", 1)
+    return f"You told me {found[0].rstrip('.')}." if found else None
+
+
 _NEWS_PAST = {"get": "got", "graduate": "graduated", "quit": "quit", "lose": "lost", "buy": "bought", "close": "closed"}
 
 
@@ -19740,6 +19749,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "to_bring": _to_bring,
            "still_valid": _still_valid,
            "who_lives": _who_lives,
+           "start_new": lambda _rest: _start_new(),
            "visitor": _visitor,
            "hosting": _hosting,
            "idea_said": _idea_said,

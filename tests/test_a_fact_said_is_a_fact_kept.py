@@ -13144,5 +13144,14 @@ class BooksFinishedAndRated(unittest.TestCase):
             self.assertEqual(voice.interpret("I gave it 5 stars")["command"]["text"], "I rated Project Hail Mary 5 stars")
 
 
+class ANewRole(unittest.TestCase):
+    def test_new_manager_and_start(self):
+        self.assertEqual(voice.interpret("my new manager is Lisa")["command"], {"kind": "note", "text": "my manager is Lisa"})
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "I start my new role on Monday"}]):
+            self.assertEqual(quick.answer("when do I start my new role"), "You told me you start your new role on Monday.")
+        with mock.patch.object(quick, "_notes", return_value=[]):
+            self.assertIsNone(quick.answer("when do I start my new role"))
+
+
 if __name__ == "__main__":
     unittest.main()
