@@ -26,24 +26,24 @@
     "2026-10-08": {
       "duplicate": 19,
       "employer_full": 0,
-      "minutes": 330,
+      "minutes": 355,
       "needs_account": 1,
       "needs_answer": 20,
-      "not_realistic": 608,
-      "offered": 812,
-      "ready": 15,
-      "runs": 26,
+      "not_realistic": 609,
+      "offered": 816,
+      "ready": 16,
+      "runs": 27,
       "unfit_clearance": 2,
       "unfit_language": 12,
       "unfit_license": 34,
-      "unfit_model": 38,
+      "unfit_model": 39,
       "unfit_pay": 120,
       "unfit_sales": 392,
       "unfit_years": 10,
       "unjudged": 47,
-      "unreachable": 16,
-      "unreachable_ApplyError": 6,
-      "unreachable_left_till_tomorrow": 10,
+      "unreachable": 18,
+      "unreachable_ApplyError": 7,
+      "unreachable_left_till_tomorrow": 11,
       "weak_shot": 2
     }
   },
@@ -266,16 +266,16 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 31,
-      "found": 47,
+      "filled": 32,
+      "found": 48,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
-      "sent": 14
+      "sent": 15
     }
   },
-  "generated_at": "2026-10-09T00:00:04Z",
-  "sent_all_time": 284,
+  "generated_at": "2026-10-09T00:41:36Z",
+  "sent_all_time": 285,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -340,25 +340,24 @@
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 1,
         "nothing_to_press_on_content/observed": 2,
-        "nothing_to_press_on_form/observed": 3,
+        "nothing_to_press_on_form/observed": 1,
         "unclear_button/observed": 3
       },
       "out_of_steps": {
         "nothing_to_press_on_unread/observed": 1
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1,
         "nothing_to_press_on_account_login/submit_clicked": 2
       }
     }
   },
   "totals": {
-    "filled": 366,
-    "found": 736,
+    "filled": 367,
+    "found": 737,
     "interviews": 3,
     "rejections": 5,
     "replies": 37,
-    "sent": 284
+    "sent": 285
   },
   "waiting": {
     "asked_about": {
