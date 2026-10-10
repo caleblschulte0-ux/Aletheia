@@ -454,7 +454,8 @@ KIND_NOTES: dict[str, str] = {
     "missions": (
         "How his long missions are going: outcomes, what is running, what is waiting "
         "and why, and the decisions that are his. about=waiting lists only what is "
-        "waiting and what wakes it; which names one mission."),
+        "waiting and what wakes it; about=steps shows each unfinished task's steps, for "
+        "fixing one that will not move; which names one mission."),
     "mission_activity": (
         "Fired by a long mission's recurring schedule to start this occurrence of its "
         "activity. Never compiled from something he says."),
@@ -3019,6 +3020,8 @@ def _mission_command(kind: str, cmd: dict, quote: str) -> str:
     if kind == "missions":
         if str(cmd.get("about") or "").strip().lower() == "waiting":
             return programs.spoken_waiting(cmd.get("which", ""))
+        if str(cmd.get("about") or "").strip().lower() == "steps":
+            return programs.spoken_steps(cmd.get("which", ""))
         return programs.spoken_status(cmd.get("which", ""))
     if kind == "mission_activity":
         made = programs.activity_due(cmd["mission"], cmd["activity"])

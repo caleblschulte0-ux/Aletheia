@@ -371,6 +371,46 @@ def _said(result: Any) -> str:
     return handoffs._said_result(result)
 
 
+def his_answers(record: dict) -> str:
+    """What he has told this mission - its questions with his answers, and what he added since -
+    as text a step can write from. "Save Caleb's answers" and "write the move criteria from
+    Caleb's answers" had nothing to read: the answers live on the record, not in a file."""
+    rows = [f"Q: {q.get('ask')}\nA: {q.get('answer')}" for q in record.get("questions") or []
+            if q.get("answer")]
+    said = {str(q.get("answer")) for q in record.get("questions") or []}
+    rows += [str(a["words"]) for a in record.get("asks") or []
+             if a.get("kind") in ("objective", "more", "revision") and a.get("words") and a["words"] not in said]
+    return "\n\n".join(rows)
+
+
+def _answers_file(record: dict) -> str | None:
+    """His answers kept as a file of hers, so a step that writes FROM them has a source. Returns
+    the workspace-relative path, or None when there is nothing to keep or no workspace."""
+    text = his_answers(record)
+    if not text:
+        return None
+    from aletheia import workspace
+    rel = f"missions/{record['id']}-his-answers.md"
+    body = f"# What Caleb has told {record.get('title') or 'this mission'}\n\n{text}\n"
+    try:
+        target = workspace.resolve(rel)
+        if not target.exists() or target.read_text(encoding="utf-8") != body:
+            workspace.write(rel, body, why="his answers, for the mission steps that write from them")
+    except Exception:  # noqa: BLE001 - no workspace: the step goes on without the file
+        return None
+    return rel
+
+
+def _found(record: dict, task: dict) -> list[str]:
+    """What this task's earlier steps and the tasks it needs have read, plus his answers."""
+    keys = set(task.get("needs") or [])
+    rows = [r for t in record.get("tasks") or [] if t.get("key") in keys for r in t.get("results") or []]
+    rows += list(task.get("results") or [])
+    found = [str(r.get("said") or "") for r in rows if r.get("outcome") == "ok" and r.get("said")][-5:]
+    answers = his_answers(record)
+    return ([f"What Caleb has told this mission:\n{answers[:2000]}"] if answers else []) + found
+
+
 #: The waits a step's CLASSIFICATION put a task in: handed to him, refused, or asked an argument.
 #: A rule change can make any of them wrong; a wait for a reply, a date or a model it cannot.
 RECLASSIFIABLE = ("handoff", "refused", "args")
@@ -394,6 +434,8 @@ def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
     if any(not str(args.get(m) or "").strip() for m in missing):
         return False
     verdict = agent_session.Broker(tools, audience="all").check(agent_session.ToolRequest(tool.name, args)).verdict
+    if was == "source":
+        return verdict == agent_session.RUN
     if was == "path":
         # It ran and failed on where it wrote; it goes on only with a path it would not fail on.
         return verdict == agent_session.RUN and args.get("path") != (plan["steps"][i].get("args") or {}).get("path")
@@ -407,7 +449,7 @@ def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
 
 
 def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
-    from aletheia import handoffs, program_compose as compose
+    from aletheia import program_compose as compose
     plan = task.get("plan")
     if not plan or not plan.get("steps"):
         return None
@@ -417,35 +459,77 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     # A write that failed three times on a path outside her workspace (2026-10-10) was a bad
     # argument, not a bad task: the path is dropped and filled now, so it may try again.
     bad_path = task["state"] == ws.FAILED and "OutsideWorkspace" in str(task.get("reason") or "")
+    # A document that failed for want of anything to write from has his answers to read now; once.
+    no_source = (task["state"] == ws.FAILED and "ComposeError" in str(task.get("reason") or "")
+                 and not task.get("source_retried"))
     if bad_path:
         purpose = "path"
-    if purpose not in RECLASSIFIABLE and not refused and not bad_path:
-        return None
-    fresh = compose.compose(task, tools)
-    if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
+    elif no_source:
+        purpose = "source"
+    if purpose not in RECLASSIFIABLE and not refused and not bad_path and not no_source:
         return None
     i = int(task.get("cursor") or 0)
-    old_tools = [s["tool"] for s in plan["steps"]]
-    new_tools = [s["tool"] for s in fresh["steps"]]
-    if new_tools[:i] != old_tools[:i]:
-        return None  # a step that already ran would be a different one now: leave it to him
-    # A bad path is a bad argument to the right step: the plan stays as it was.
-    candidate = dict(task, plan=fresh if new_tools != old_tools and not bad_path else plan)
+    if bad_path or no_source:
+        # A bad path is a bad argument to the right step: the plan stays exactly as it was.
+        candidate = dict(task, plan=plan)
+    else:
+        fresh = compose.compose(task, tools)
+        if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
+            return None
+        old_tools = [s["tool"] for s in plan["steps"]]
+        new_tools = [s["tool"] for s in fresh["steps"]]
+        if new_tools[:i] != old_tools[:i]:
+            # The steps that already ran would be chosen differently now. They stay as they ran;
+            # only the step it is parked on is chosen again, from what that step was for.
+            fresh = _rechoose_step(task, plan, tools, i)
+            if fresh is None:
+                return None
+            new_tools = [s["tool"] for s in fresh["steps"]]
+        candidate = dict(task, plan=fresh if new_tools != old_tools else plan)
+    if purpose == "args" and not task.get("args_retried") and not _would_go_further(
+            candidate, candidate["plan"], tools, purpose) and _found(record, task):
+        # Asked him for arguments the steps before it have since found (the events a search
+        # read, his answers): once, it tries again with them in front of the model.
+        candidate = dict(candidate, mark="args_retried")
+        return _release(record, task, candidate, held, purpose, now)
     if not _would_go_further(candidate, candidate["plan"], tools, purpose or "refused"):
         return None
+    if no_source:
+        candidate = dict(candidate, mark="source_retried")
+    return _release(record, task, candidate, held, purpose, now)
+
+
+def _rechoose_step(task: dict, plan: dict, tools: dict, i: int) -> dict | None:
+    """The plan with only step i chosen again; None when nothing better can be said."""
+    from aletheia import program_compose as compose
+    if i >= len(plan["steps"]):
+        return None
+    need = str(plan["steps"][i].get("for") or task.get("title") or "")
+    again = compose.compose({"title": task.get("title"), "detail": need, "does": [need], "uses": []}, tools)
+    if len(again["steps"]) != 1 or any(g["outcome"] == "refuse_policy" for g in again["gaps"]):
+        return None
+    step = dict(plan["steps"][i], tool=again["steps"][0]["tool"], args={})
+    return dict(plan, steps=plan["steps"][:i] + [step] + plan["steps"][i + 1:])
+
+
+def _release(record: dict, task: dict, candidate: dict, held: dict | None, purpose: str | None,
+             now: dt.datetime) -> dict | None:
+    from aletheia import handoffs
     handoff_id = ((held or {}).get("condition") or {}).get("handoff_id")
     if handoff_id and not handoffs.withdraw(handoff_id, "not needed any more: the step runs on its own now"):
         return None  # he already answered it: his answer moves the task, not this
     if held is not None:
         waits.cancel(held["id"], why="the rules that parked it have changed", now=now)
-    key, new_plan = task["key"], candidate["plan"]
+    key, new_plan, mark = task["key"], candidate["plan"], candidate.get("mark")
 
-    def change(r, key=key, new_plan=new_plan):
+    def change(r, key=key, new_plan=new_plan, mark=mark):
         t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
         if t is None:
             return None
         t.update(plan=new_plan, state=ws.READY, reason="", next="run its next step", run=None,
                  not_before=None, attempts=0, updated_at=pg.stamp(now))
+        if mark:
+            t[mark] = True
         pg._history(t, "trying again: the rules that parked it have changed", now)
         r["updated_at"] = pg.stamp(now)
         return t
@@ -529,9 +613,19 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             _commit(pid, task, now)
             return {"state": ws.RETRY_LATER}
         args, missing = compose.fill_args(tool, task, step.get("args"))
+        if "sources" in ((tool.input_schema or {}).get("properties") or {}) and tool.writes \
+                and set(tool.writes) <= {"workspace"}:
+            # A document written "from Caleb's answers" reads them: without a source that reads,
+            # compose refuses rather than invent (2026-10-10: "compose failed 3 times").
+            kept = _answers_file(record)
+            given = args.get("sources") or []
+            given = [given] if isinstance(given, str) else list(given)
+            if kept and kept not in given:
+                args["sources"] = given + [kept]
         if missing:
             try:
-                args.update(compose.model_args(tool, task, args, missing, think=think))
+                args.update(compose.model_args(tool, task, args, missing, think=think,
+                                               found=_found(record, task)))
             except reasoner.ReasonerUnavailable as exc:
                 step["args"] = args
                 pg.hold(record, task, {"kind": "model_available", "requirement": "reasoning",

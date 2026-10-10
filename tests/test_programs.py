@@ -888,7 +888,20 @@ class ATaskParkedUnderOldRulesTriesAgain(Sandbox):
             t["plan"]["steps"].reverse()           # step 0 (already run) is now one the fresh plan lacks
             t["cursor"] = 1
         pg.update(self.pid, change)
-        self.assertEqual(program_run.requeue_reclassified(now=self.at(minutes=5)), [])
+        program_run.requeue_reclassified(now=self.at(minutes=5))
+        steps = [s["tool"] for s in self.task(self.pid, "t1")["plan"]["steps"]]
+        # The step that ran stays as it ran; only the one it was parked on is chosen again.
+        self.assertEqual(steps, ["calendar.hold", "look.up"])
+
+    def test_a_parked_step_that_cannot_be_rechosen_leaves_the_task_alone(self):
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t1")
+            t["plan"]["steps"].append({"tool": "calendar.hold", "for": "", "by": "named", "score": None})
+            t["plan"]["steps"].reverse()
+            t["cursor"] = 1
+        pg.update(self.pid, change)
+        with mock.patch.object(program_run, "_rechoose_step", return_value=None):
+            self.assertEqual(program_run.requeue_reclassified(now=self.at(minutes=5)), [])
 
 
 class _FakeTransport:
