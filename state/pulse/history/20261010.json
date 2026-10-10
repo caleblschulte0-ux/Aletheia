@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-10T12:40:00Z",
+  "generated_at": "2026-10-10T21:49:53Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "c1a4a51f2958",
-          "date": "2026-10-10T05:59:54Z",
-          "message": "pulse: 2026-10-10T05:59Z"
+          "sha": "111682758db9",
+          "date": "2026-10-10T20:37:18Z",
+          "message": "core: 1 local command receipt(s)"
         },
         {
-          "sha": "a0e87c2d6caa",
-          "date": "2026-10-10T05:45:23Z",
-          "message": "intercom: relay Project Reboot status checks"
+          "sha": "2b09b1ad5afc",
+          "date": "2026-10-10T20:36:18Z",
+          "message": "intercom: relay 20261010-reboot-steps-364"
         },
         {
-          "sha": "16d9fc7252b0",
-          "date": "2026-10-10T03:44:15Z",
-          "message": "Merge pull request #358 from caleblschulte0-ux/claude/reboot-requeue-3"
+          "sha": "5091b352cfe4",
+          "date": "2026-10-10T20:36:04Z",
+          "message": "core: 1 local command receipt(s)"
         },
         {
-          "sha": "8f68732568a8",
-          "date": "2026-10-10T03:08:15Z",
-          "message": "Mission: a recurring watch or sweep is a look, and a refused workspace path is filled"
+          "sha": "1991c40cdabb",
+          "date": "2026-10-10T20:35:44Z",
+          "message": "intercom: relay 20261010-reboot-status-364"
         },
         {
-          "sha": "4fbbe132dae6",
-          "date": "2026-10-10T02:58:28Z",
-          "message": "core: state checkpoint"
+          "sha": "b96d649a55e7",
+          "date": "2026-10-10T20:20:09Z",
+          "message": "core: 1 local command receipt(s)"
         }
       ],
       "commit": {
-        "sha": "c1a4a51f2958",
-        "date": "2026-10-10T05:59:54Z",
-        "message": "pulse: 2026-10-10T05:59Z"
+        "sha": "111682758db9",
+        "date": "2026-10-10T20:37:18Z",
+        "message": "core: 1 local command receipt(s)"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "in_progress",
           "conclusion": null,
-          "updated_at": "2026-10-10T12:39:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38052782507"
+          "updated_at": "2026-10-10T21:49:50Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38089108586"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-10T04:06:12Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38021611607"
+          "updated_at": "2026-10-10T21:11:14Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38085149083"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21537
+          "bytes": 21350
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "58c0c5c14181",
-          "date": "2026-10-10T12:36:31Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+          "sha": "0a3529c056dd",
+          "date": "2026-10-10T21:47:43Z",
+          "message": "claim: mailbox verdicts 2026-10-10T21:47Z [skip ci]"
         },
         {
-          "sha": "6063c75c994e",
-          "date": "2026-10-10T12:30:55Z",
-          "message": "watchdog: chatgpt task verdicts 20261010 [skip ci]"
+          "sha": "e728211b56cf",
+          "date": "2026-10-10T21:06:08Z",
+          "message": "story forge: new real-data stories [skip ci]"
         },
         {
-          "sha": "229c19ae68ce",
-          "date": "2026-10-10T12:11:49Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+          "sha": "452b4922e61a",
+          "date": "2026-10-10T20:48:02Z",
+          "message": "claim: mailbox verdicts 2026-10-10T20:48Z [skip ci]"
         },
         {
-          "sha": "f2e1bee37e7b",
-          "date": "2026-10-10T11:54:02Z",
-          "message": "daily: 2026-10-10 report + state [skip ci]"
+          "sha": "7e8f0c7e4125",
+          "date": "2026-10-10T20:14:17Z",
+          "message": "claim: mailbox verdicts 2026-10-10T20:14Z [skip ci]"
         },
         {
-          "sha": "eae449e97eab",
-          "date": "2026-10-10T11:48:15Z",
-          "message": "daily: 2026-10-10 report + state [skip ci]"
+          "sha": "8196c262d4d1",
+          "date": "2026-10-10T19:48:05Z",
+          "message": "claim: mailbox verdicts 2026-10-10T19:48Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "58c0c5c14181",
-        "date": "2026-10-10T12:36:31Z",
-        "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+        "sha": "0a3529c056dd",
+        "date": "2026-10-10T21:47:43Z",
+        "message": "claim: mailbox verdicts 2026-10-10T21:47Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 316
+          "value": 319
         },
         {
           "label": "third posted",
-          "value": 897
+          "value": 913
         },
         {
           "label": "curiosity posted",
@@ -123,39 +123,39 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "failure",
-          "updated_at": "2026-10-10T11:54:07Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38048720351",
+          "updated_at": "2026-10-10T13:19:17Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38054356097",
           "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://githu"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-10T10:15:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38044272754"
+          "updated_at": "2026-10-10T19:40:45Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38080711912"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-10T11:30:19Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38048596493"
+          "updated_at": "2026-10-10T18:44:19Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38076974042"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-10T11:51:02Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38047678781"
+          "updated_at": "2026-10-10T21:06:14Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38084326918"
         },
         "third.yml": {
-          "status": "pending",
-          "conclusion": null,
-          "updated_at": "2026-10-10T11:31:39Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38048718818"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-10T16:40:57Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38066685995"
         },
         "explainer.yml": {
           "status": "pending",
           "conclusion": null,
-          "updated_at": "2026-10-10T11:31:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38048717192"
+          "updated_at": "2026-10-10T20:33:30Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38084205626"
         },
         "retro.yml": {
           "status": "completed",
@@ -177,11 +177,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 152401
+          "bytes": 155636
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 504509
+          "bytes": 515124
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,11 +189,11 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 4052015
+          "bytes": 4069857
         },
         "config/channel_registry.json": {
           "exists": true,
-          "bytes": 18639
+          "bytes": 19209
         }
       },
       "health": "red"
@@ -362,7 +362,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 16,
+        "days_quiet": 17,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -438,10 +438,18 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-10T05:59:54Z",
+        "last_progress_at": "2026-10-10T20:37:18Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
+          {
+            "number": 365,
+            "title": "Reboot: empty research is not done, sign-ups unstuck, holds look again, free events searched",
+            "head": "claude/reboot-requeue-8",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/365",
+            "created_at": "2026-10-10T20:47:52Z"
+          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
