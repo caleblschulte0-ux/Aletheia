@@ -46,13 +46,33 @@
       "unreachable_left_till_tomorrow": 11,
       "unreachable_no_form": 1,
       "weak_shot": 2
+    },
+    "2026-10-09": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 85,
+      "needs_account": 0,
+      "needs_answer": 1,
+      "not_realistic": 19,
+      "offered": 25,
+      "ready": 4,
+      "runs": 1,
+      "unfit_language": 1,
+      "unfit_model": 1,
+      "unfit_pay": 7,
+      "unfit_sales": 9,
+      "unfit_years": 1,
+      "unjudged": 0,
+      "unreachable": 1,
+      "unreachable_no_form": 1,
+      "weak_shot": 0
     }
   },
   "closed_recently": {
     "days": 3,
     "why": {
       "gone_on_ashbyhq": 2,
-      "gone_on_greenhouse": 4,
+      "gone_on_greenhouse": 5,
       "gone_on_lever": 1,
       "left_captcha": 4,
       "left_error": 1,
@@ -267,23 +287,23 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 25,
-      "found": 43,
+      "filled": 24,
+      "found": 42,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 17
     },
     "2026-10-09": {
-      "filled": 17,
-      "found": 17,
+      "filled": 19,
+      "found": 20,
       "interviews": 0,
       "rejections": 6,
       "replies": 6,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-10T01:10:48Z",
+  "generated_at": "2026-10-10T01:41:51Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -339,7 +359,7 @@
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
-        "nothing_to_press_on_unread/observed": 2,
+        "nothing_to_press_on_unread/observed": 1,
         "nothing_to_press_on_unread/submit_clicked": 1
       },
       "going_in_circles": {
@@ -348,7 +368,6 @@
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 1,
-        "nothing_to_press_on_form/observed": 1,
         "unclear_button/observed": 2
       },
       "out_of_steps": {
@@ -360,8 +379,8 @@
     }
   },
   "totals": {
-    "filled": 377,
-    "found": 749,
+    "filled": 378,
+    "found": 751,
     "interviews": 3,
     "rejections": 11,
     "replies": 43,
@@ -375,16 +394,17 @@
       "demographic_veteran": 1,
       "education": 1,
       "on_site": 2,
-      "other": 12,
+      "other": 13,
       "pay": 2,
       "travel": 1,
+      "why_this_job": 1,
       "years_experience": 1
     },
     "closed": {
       "duplicate": 3,
       "gone_on_ashbyhq": 21,
       "gone_on_employer_site": 1,
-      "gone_on_greenhouse": 11,
+      "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "left_approval_denied": 16,
@@ -417,9 +437,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 19,
     "oldest_days": 27,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
