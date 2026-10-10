@@ -572,6 +572,21 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         waits.cancel(held["id"], why="his okay is a choice now, not a gate", now=now)
         _finish(record["id"], dict(task), now, extra=_confirm_later(task))
         return {"program": record["id"], "task": task["key"], "was": "then"}
+    if (task["state"] in (ws.FAILED, ws.RETRY_LATER) and not refused and not bad_path and not no_source
+            and held is None and not task.get("recomposed")):
+        # A LOOK composed under rules since changed: "search for free newcomer events" went to the
+        # free-time tool and failed three times (2026-10-10) after the composer learned better. Once,
+        # when the composer would no longer choose the tool it is stuck on, the task is planned again;
+        # steps that already ran must come out the same. A doing step that failed is left alone.
+        fresh = compose.compose(task, tools)
+        old_tools = [s["tool"] for s in plan["steps"]]
+        new_tools = [s["tool"] for s in fresh["steps"]]
+        i = int(task.get("cursor") or 0)
+        stuck = tools.get(old_tools[i]) if i < len(old_tools) else None
+        if (stuck is not None and stuck.read_only and stuck.name not in new_tools
+                and new_tools and new_tools[:i] == old_tools[:i]
+                and not any(g["outcome"] == "refuse_policy" for g in fresh["gaps"])):
+            return _release(record, task, dict(task, plan=fresh, mark="recomposed"), None, "recomposed", now)
     if bad_path:
         purpose = "path"
     elif no_source:

@@ -143,6 +143,35 @@ def queries_without_a_model(question: str) -> dict:
             "why": "nobody could plan the search, so the question itself is the query"}
 
 
+#: Words that say nothing about WHAT is being asked: a query or a result sharing only these
+#: with the question is about something else.
+_FILLER = frozenset("""a an and or the to of for in on at by with from into about as is are be it its this that
+these those what which who how why when where can could would should will do does did i me my his her
+their our your find search look up compare list show get give tell write more most best any some all each
+other than then also not no yes one two using use used vs versus""".split())
+
+
+def topic_words(text: str) -> set[str]:
+    """The words of `text` that say what it is about, crudely stemmed."""
+    words = set()
+    for w in re.findall(r"[a-z0-9]+", str(text or "").casefold()):
+        if len(w) < 3 or w in _FILLER:
+            continue
+        for end in ("ies", "es", "s"):
+            if len(w) > 4 and w.endswith(end):
+                w = w[: -len(end)] + ("y" if end == "ies" else "")
+                break
+        words.add(w)
+    return words
+
+
+def on_topic(text: str, question: str) -> bool:
+    """Does `text` share at least one word that says what `question` is about? Unknown (either side
+    filler alone) counts as yes: the check may only ever drop what is plainly about something else."""
+    want, have = topic_words(question), topic_words(text)
+    return not want or not have or bool(want & have)
+
+
 def _plan_validator(value: dict) -> dict:
     if not isinstance(value, dict) or set(value) - {"queries", "why"}:
         raise ValueError("invalid research plan fields")
@@ -388,8 +417,28 @@ def http_search(query: str, *, opener=None) -> dict:
     return {"url": "", "title": "", "text": "", "links": [], "error": "; ".join(refused)}
 
 
+def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str) -> list[dict]:
+    """Only the results whose title, snippet or address share a word with what was asked. An engine
+    answering with pages about something else is an engine that gave no results, and the next one is
+    tried; what was dropped is journaled with the query, so "what did it search for" has an answer."""
+    if not about:
+        return found
+    snippets = {str(link.get("href") or ""): str(link.get("snippet") or "") for link in page.get("links") or []}
+    def said(f):
+        return " ".join((f.get("title") or "", snippets.get(f["url"], "")))
+
+    # Judged only on enough words to judge by: a result titled "Primary source" is unknown, and
+    # unknown is kept. A result that says plainly what it is about, and it is not this, is dropped.
+    kept = [f for f in found if len(topic_words(said(f))) < 3 or on_topic(said(f) + " " + f["url"], about)]
+    if len(kept) < len(found):
+        journal.append("event", "research",
+                       f"{engine} for {query!r}: kept {len(kept)} of {len(found)} results; off the subject: "
+                       + ", ".join(_host(f["url"]) for f in found if f not in kept)[:200], actor=ACTOR)
+    return kept
+
+
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
-                 reader=browse.read_page, http=http_search) -> list[dict]:
+                 reader=browse.read_page, http=http_search, about: str = "") -> list[dict]:
     """Search the way a person does — no API key, per §6.
 
     Failure here is survivable and must not end a run: a search engine that
@@ -400,7 +449,8 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
     """
     if http is not None:
         page = http(query)
-        found = _results(page.get("engine") or "http", page, limit)
+        found = _relevant(_results(page.get("engine") or "http", page, limit), page, about, query,
+                          page.get("engine") or "http")
         if found:
             return found
         journal.append("event", "research",
@@ -415,7 +465,7 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
                            f"{engine} search failed for {query!r}: {type(exc).__name__}",
                            actor=ACTOR)
             continue
-        found = _results(engine, page, limit)
+        found = _relevant(_results(engine, page, limit), page, about, query, engine)
         if found:
             return found
         journal.append("event", "research",
@@ -548,11 +598,20 @@ def run(question: str, *, reader=browse.read_page, think=None,
         # person does by typing the question into the box. The question IS
         # the query; a model only ever made it a slightly better one.
         plan = queries_without_a_model(question)
+    # A planned query sharing no word with the question searches for something else: on his PC
+    # every question came back as pages about spelling and semicolons (2026-10-10), the words a
+    # small model takes from the planning instructions rather than from the question.
+    kept = [q for q in plan["queries"] if on_topic(q, question)]
+    if not kept:
+        journal.append("event", "research", f"no planned query was about {question[:80]!r} "
+                       f"({'; '.join(plan['queries'])[:160]}); searching the question itself", actor=ACTOR)
+        kept = queries_without_a_model(question)["queries"]
+    plan = dict(plan, queries=kept)
 
     candidates, seen_hosts = [], set()
     for query in plan["queries"]:
         policy.ensure_not_halted()
-        for source in find_sources(query, reader=reader, http=http):
+        for source in find_sources(query, reader=reader, http=http, about=question):
             host = _host(source["url"])
             if host in seen_hosts and not source.get("library"):
                 continue
@@ -619,6 +678,8 @@ def as_markdown(report: dict) -> str:
     if report.get("gaps"):
         lines += ["## What this does not settle", ""]
         lines += [f"- {g}" for g in report["gaps"]] + [""]
+    if report.get("queries"):
+        lines += ["## Searched for", ""] + [f"- {q}" for q in report["queries"]] + [""]
     lines += ["## Sources read", ""]
     lines += [f"- [{s['title'] or s['url']}]({s['url']})" for s in report["sources"]]
     if report.get("unreadable"):
@@ -678,6 +739,11 @@ def spoken(report: dict) -> str:
     """Out loud: the answer, then where it came from. Not the whole report —
     he asked a question, not for a document to be read at him."""
     n = len(report["sources"])
+    if not report.get("findings") and report.get("queries"):
+        # Nothing it could cite: say what it searched for, so a wrong search is visible rather
+        # than a mystery (2026-10-10: every question read the same pages about grammar).
+        return (f"{report['answer']} I searched for {speech.or_list(report['queries'])}, read "
+                f"{n} page{'s' if n != 1 else ''}, and none of them answered it.")
     return (f"{report['answer']} "
             f"That is from {n} source{'s' if n != 1 else ''}; "
             "the full write-up is in your documents.")

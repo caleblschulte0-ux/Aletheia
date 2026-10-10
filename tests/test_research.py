@@ -309,3 +309,55 @@ class TheRedirectWrapperIsUnwrapped(ResearchCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ASearchAboutSomethingElseIsNoSearch(ResearchCase):
+    """His PC, 2026-10-10: every research question - the cost of living in warm places, free
+    networking events in Sioux Falls - read the same pages about spelling and semicolons."""
+
+    GRAMMAR = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+               "text": "x" * 600,
+               "links": [{"href": "https://grammar.test/using", "text": "Using vs. useing: which spelling is correct",
+                          "snippet": "Learn when to write using and when useing is a misspelling of the word."},
+                         {"href": "https://punctuation.test/semi", "text": "Semicolons and dashes explained",
+                          "snippet": "How to punctuate a sentence with semicolons, colons and dashes."}]}
+
+    def test_a_planned_query_about_something_else_becomes_the_question(self):
+        searched = []
+
+        def http(query, **_):
+            searched.append(query)
+            return {"url": "", "text": "", "links": [], "error": "none"}
+
+        def think(system, text, **kw):
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["specific nouns no filler quotes phrase"], "why": "x"}
+            else:
+                value = {"answer": "Forty two.", "gaps": [], "confidence": 0.8,
+                         "findings": [{"claim": "It is forty two", "url": "https://example.org/a"}]}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        report = research.run("free networking events Sioux Falls", http=http, reader=reader, think=think)
+        self.assertEqual(searched[0], "free networking events Sioux Falls")
+        self.assertEqual(report["queries"], ["free networking events Sioux Falls"])
+
+    def test_results_about_something_else_are_dropped_and_the_next_engine_is_asked(self):
+        found = research.find_sources("free networking events Sioux Falls", reader=reader,
+                                      http=lambda q, **_: dict(self.GRAMMAR),
+                                      about="free networking events Sioux Falls")
+        hosts = {research._host(f["url"]) for f in found}
+        self.assertFalse(hosts & {"grammar.test", "punctuation.test"}, found)
+        self.assertIn("example.org", hosts)               # the next engine's results
+
+    def test_results_on_the_subject_are_kept(self):
+        page = dict(self.GRAMMAR, links=[{"href": "https://chamber.test/events",
+                                          "text": "Sioux Falls networking events this month",
+                                          "snippet": "Free business networking events in Sioux Falls."}])
+        found = research.find_sources("free networking events Sioux Falls", reader=reader,
+                                      http=lambda q, **_: page, about="free networking events Sioux Falls")
+        self.assertEqual([research._host(f["url"]) for f in found], ["chamber.test"])
+
+    def test_nothing_it_could_cite_says_what_it_searched_for(self):
+        said = research.spoken({"answer": "I couldn't find any events in these sources.", "findings": [],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["Sioux Falls events"]})
+        self.assertIn("I searched for Sioux Falls events", said)

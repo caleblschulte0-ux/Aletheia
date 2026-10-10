@@ -541,3 +541,25 @@ class WhatHisPcDidAfterTheSeventhFix(HisHoursAndHisCalendar):
         said = pg.spoken_steps("Project Reboot")
         self.assertIn("hold taken back | Hold Friday at 10 for the tour", said)
         self.assertIn("CANCELLED", said)
+
+
+class ALookComposedUnderOldRules(HisMissionRunsWithoutHim):
+    def test_a_failed_look_the_composer_would_no_longer_choose_is_planned_again_once(self):
+        """His PC, 2026-10-10 22:34Z: "calendar.find_free failed 3 times" on a search for free events."""
+        self._run_everything()
+
+        def stuck(record):
+            t7 = next(t for t in record["tasks"] if t["key"] == "t7")
+            t7.update(state=ws.FAILED, cursor=0, attempts=3, results=[],
+                      plan={"steps": [{"tool": "calendar.find_free", "for": t7["does"][0], "by": "reader",
+                                       "args": {"when": "the next 30 days"}}], "requires": [], "gaps": []},
+                      reason="calendar.find_free failed 3 times: the tool failed (ValueError)")
+        pg.update(self.pid, stuck)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t7", "recomposed"), [(r["task"], r["was"]) for r in released])
+        t7 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t7")
+        self.assertEqual(t7["state"], ws.READY)
+        self.assertNotIn("calendar.find_free", [s["tool"] for s in t7["plan"]["steps"]])
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t7").update(
+            state=ws.FAILED, reason="research failed 3 times"))
+        self.assertNotIn("t7", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])  # once
