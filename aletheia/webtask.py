@@ -180,6 +180,27 @@ SALARY_PAY = re.compile(
     re.I)
 
 
+# A LIMIT ON SPENDING is not spending. "Register for free events; stop at
+# payment or unknown required fields" (his mission, 2026-10-10) was refused as
+# a payment, so the step whose whole rule is "never pay" could never run. Only
+# the limiting clause itself is lifted out, and only where nothing can follow
+# it that names what to buy: "stop at payment", "stop before the checkout",
+# "never pay", "don't pay anything", "no payment", "without paying". "Don't
+# pay more than $50 for it" keeps its money words (a ceiling is a purchase),
+# and anything else in the sentence that pays is still read as paying.
+SPENDING_LIMIT = re.compile(
+    r"\b(?:stop|halt|pause|quit|turn\s+back|back\s+out|bail)\s+(?:at|before|on|if|when)\s+"
+    r"(?:(?:it|they|the\s+(?:page|site|form))\s+(?:asks?|wants?|needs?)\s+for\s+|(?:it\s+|you\s+)?(?:reach(?:es)?|hits?|gets?\s+to)\s+)?"
+    r"(?:any|a|the)?\s*(?:payment|paying|checkout|check\s*out|billing|card\s+details|credit\s+card)"
+    r"(?:\s+(?:page|pages|step|steps|screen|screens|form|forms|details|field|fields|request|requests))?\b"
+    r"|\b(?:never|don'?t|do\s+not|without|not)\s+(?:ever\s+)?(?:pay|paying|purchase|purchasing|buy|buying|"
+    r"enter(?:ing)?\s+(?:a\s+|any\s+)?(?:payment|card|credit\s+card|billing)(?:\s+details)?)"
+    r"(?:\s+(?:anything|for\s+anything|a\s+(?:cent|dime|penny|thing)|money))?"
+    r"(?=\s*(?:$|[.;,:)!]|\band\b|\bor\b|\bif\b|\bunless\b|\bever\b))"
+    r"|\bno\s+(?:payments?|paying|purchases?|checkouts?|paid\s+(?:events?|tickets?))(?:\s+(?:required|needed|ever|at\s+all))?\b",
+    re.I)
+
+
 def would_spend(goal: str) -> bool:
     """Does this ask commit money, by the same reading the runner uses?
 
@@ -188,6 +209,7 @@ def would_spend(goal: str) -> bool:
     """
     text = SOFTWARE_CHECKOUT.sub(" ", str(goal or ""))
     text = SALARY_PAY.sub(" ", text)
+    text = SPENDING_LIMIT.sub(" ", text)
     return bool(MONEY_WORDS.search(text) or SPENDS_BY_VERB.search(text))
 
 SYSTEM = """You are driving a web browser for Caleb, one step at a time, to
