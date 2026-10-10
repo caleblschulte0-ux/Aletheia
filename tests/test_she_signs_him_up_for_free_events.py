@@ -465,6 +465,32 @@ class WhereHerMissionWasStuck(unittest.TestCase):
                            self.catalog)["steps"]
         self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
 
+    def test_a_recurring_watch_or_sweep_is_a_look_and_needs_no_yes(self):
+        """His PC, 2026-10-10: both still waited "for Caleb's approval" to look."""
+        from aletheia import program_compose as pc
+        for task in ({"title": "Weekly sweep for new job-search events",
+                      "detail": "search for newly listed events", "uses": ["web_task"]},
+                     {"title": "Watch shortlisted cities for roles and cost changes",
+                      "does": ["look for new matching postings in shortlisted cities"], "uses": ["web_task"]}):
+            steps = pc.compose(task, self.catalog)["steps"]
+            self.assertTrue(steps and all(self.catalog[s["tool"]].read_only for s in steps), (task, steps))
+        self.assertFalse(pc.looks_up("Weekly send the digest to Dana"))
+
+    def test_a_path_her_workspace_would_refuse_is_filled_instead_of_failing(self):
+        import tempfile
+        from aletheia import program_compose as pc
+        tool = self.catalog["file_write"]
+        task = {"title": "Save Caleb's answers as job-hunt preferences"}
+        with tempfile.TemporaryDirectory() as home, mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": home}):
+            for bad in ("C:\\Users\\caleb\\Documents\\Aletheia\\answers.md", "/home/caleb/answers.md",
+                        "../outside.md", ""):
+                args, missing = pc.fill_args(tool, task, {"path": bad, "text": "his answers"})
+                self.assertIn("path", missing, bad)
+                filled = pc.default_args(tool, task, missing)
+                self.assertTrue(filled["path"].startswith("missions/"), filled)
+            args, missing = pc.fill_args(tool, task, {"path": "reboot/answers.md", "text": "x"})
+            self.assertEqual((args["path"], missing), ("reboot/answers.md", []))
+
     def test_a_search_for_events_asks_the_web_not_her_own_repository(self):
         """2026-10-10: "search for newly listed events" tied research with repo.list."""
         from aletheia import program_compose as pc
