@@ -440,3 +440,104 @@ class HisHoursAndHisCalendar(HisMissionRunsWithoutHim):
         self.assertIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
         self._run_everything()
         self.assertEqual(self.task_state("t6"), ws.DONE)
+
+
+class WhatHisPcDidAfterTheSeventhFix(HisHoursAndHisCalendar):
+    """His PC, 2026-10-10 20:37Z, after the seventh fix: the comparison DONE on pages about grammar,
+    the sign-up still refused, the holds asking him for a start and title once free windows were
+    read, and the newcomer-events task reading his free time with a stretch it cannot read."""
+
+    def test_a_sign_up_refused_as_spending_runs_though_its_step_has_no_address_yet(self):
+        self._run_everything()
+
+        def refuse(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, results=[], uses=["event.register"],
+                      does=["register for free events", "stop at payment or unknown required fields",
+                            "count sign-ups against the weekly limit"],
+                      plan={"steps": [{"tool": "event.register", "for": "register for free events", "by": "named",
+                                       "score": None}], "requires": [],
+                            "gaps": [{"need": "stop at payment or unknown required fields",
+                                      "outcome": "refuse_policy", "next": "",
+                                      "why": "it commits money, and only Caleb spends money"}]},
+                      reason="stop at payment or unknown required fields: it commits money, and only Caleb "
+                             "spends money")
+        pg.update(self.pid, refuse)
+        self.assertIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual((t6["state"], t6["plan"]["gaps"]), (ws.READY, []))
+
+    def test_free_windows_are_not_an_event_so_it_looks_again_instead_of_asking(self):
+        with self._with_event("Free: Saturday 3:30 pm to 10 pm and Sunday 9 am to 10 pm."):
+            self._run_everything()
+        t3 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")
+        self.assertEqual(t3["state"], ws.RETRY_LATER, t3.get("reason"))
+        self.assertNotIn("what should I use", str(t3.get("reason")))
+
+    def test_a_when_question_asked_again_after_its_one_retry_is_taken_back(self):
+        self._run_everything()
+        record = pg.load(self.pid)
+        t3 = dict(next(t for t in record["tasks"] if t["key"] == "t3"))
+        pg.hold(record, t3, {"kind": "user_decision", "question": "what should I use for start and title?"},
+                reason="what should I use for start and title?", purpose="args", now=NOW,
+                extra={"step": 0, "missing": ["start", "title"]})
+        t3.update(dated_retried=True, cursor=0, run=None)
+        pg.update(self.pid, lambda r: [t.update(t3) for t in r["tasks"] if t["key"] == "t3"])
+        self.assertIn("t3", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+    def test_a_stretch_the_calendar_cannot_read_becomes_the_default_one(self):
+        self.assertFalse(program_run._readable_window("the next 30 days"))
+        self.assertTrue(program_run._readable_window("next week"))
+        self._run_everything()
+
+        def free_read(record):
+            t1 = next(t for t in record["tasks"] if t["key"] == "t1")
+            t1.update(state=ws.READY, cursor=0, results=[], plan={"steps": [
+                {"tool": "calendar_find_free", "for": "find free windows",
+                 "args": {"when": "the next 30 days", "part": "weekends and after 17:30"}}],
+                "requires": [], "gaps": []})
+        pg.update(self.pid, free_read)
+        self.ran.clear()
+        program_run.run_task(self.pid, "t1", now=NOW)
+        reads = [a for name, a in self.ran if name == "calendar_find_free"]
+        self.assertEqual(reads[0]["when"], program_compose.DEFAULT_WINDOW)
+
+    def test_a_look_that_found_nothing_is_not_done_and_a_done_one_is_done_again(self):
+        empty = ("I can't give you a city comparison from these sources. The four pages supplied are about "
+                 "spelling and punctuation. I won't invent figures. That is from 4 sources.")
+        with self._with_event(empty):
+            self._run_everything()
+        t2 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t2")
+        self.assertNotEqual(t2["state"], ws.DONE)
+        self.assertEqual(t2["results"][-1]["outcome"], "empty")
+
+        def as_his_pc_left_it(record):
+            by = {t["key"]: t for t in record["tasks"]}
+            by["t2"].update(state=ws.DONE, cursor=len(by["t2"]["plan"]["steps"]), attempts=0)
+            by["t2"]["results"] = [dict(by["t2"]["results"][-1], outcome="ok")]
+            by["t3"].update(state=ws.DONE, cursor=1)
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t2", "done"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual((self.task_state("t2"), self.task_state("t3")), (ws.READY, ws.READY))
+        self._run_everything()
+        self.assertEqual((self.task_state("t2"), self.task_state("t3")), (ws.DONE, ws.DONE))
+
+    def test_free_events_are_searched_for_and_the_holds_and_sign_ups_stay(self):
+        plan = program_compose.compose({
+            "title": "Find free relocation and newcomer events for the shortlisted places",
+            "does": ["search for free relocation and newcomer events", "hold fitting ones on the calendar",
+                     "register for free ones with his approval"],
+            "uses": ["web_task", "calendar_hold", "event.register"]}, self.catalog)
+        self.assertEqual([s["tool"] for s in plan["steps"]], ["research", "calendar_hold", "event.register"])
+
+    def test_the_steps_view_says_which_holds_were_taken_back(self):
+        from aletheia import calendar_reasoning, localtime
+        import datetime as dt
+        start = dt.datetime(2023, 10, 6, 10, tzinfo=localtime.operator_tz())
+        made = calendar_reasoning.hold("Hold Friday at 10 for the tour", start.isoformat(),
+                                       (start + dt.timedelta(hours=1)).isoformat())
+        calendar_reasoning.release_hold(made["event"]["id"], why="taken back: that time had already passed")
+        said = pg.spoken_steps("Project Reboot")
+        self.assertIn("hold taken back | Hold Friday at 10 for the tour", said)
+        self.assertIn("CANCELLED", said)

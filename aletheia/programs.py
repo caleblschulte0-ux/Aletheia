@@ -920,7 +920,30 @@ def spoken_steps(which: str = "") -> str:
             "args " + ",".join(sorted((here.get("args") or {}).keys())) if here.get("args") else "",
             "attempts " + str(t.get("attempts")) if t.get("attempts") else "",
             str(t.get("reason") or "")[:200]) if x))
+    for t in record.get("tasks") or []:
+        opened = [h for h in t.get("history") or [] if str(h.get("did") or "").startswith("opened again")]
+        if opened:
+            out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")
+    out += _holds_taken_back()
     return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
+
+
+def _holds_taken_back(limit: int = 5) -> list[str]:
+    """Her own tentative holds she took back as wrong: what each was and why, so "was it removed"
+    has an answer on the relay (2026-10-10). A hold's title names an event, not his details."""
+    try:
+        from aletheia import calendar, calendar_reasoning, stateio
+        rows = []
+        for path in calendar_reasoning.holds_dir().glob("*.json"):
+            record = stateio.read_json(path)
+            last = (record.get("history") or [{}])[-1]
+            if record.get("state") == "RELEASED" and str(last.get("did") or "").startswith("taken back"):
+                event = calendar.load(record["id"])
+                rows.append((str(last.get("at") or ""), f"hold taken back | {event.get('title')} at "
+                             f"{event.get('start')} | now {event.get('status')} | {last.get('did')}"))
+        return [r for _at, r in sorted(rows)[-limit:]]
+    except Exception:  # noqa: BLE001 - the steps view never fails for want of the holds
+        return []
 
 
 def section(now: dt.datetime | None = None) -> dict:
