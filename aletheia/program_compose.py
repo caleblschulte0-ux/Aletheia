@@ -170,8 +170,8 @@ def usable_tools(catalog: dict) -> dict:
 #: approval, because the step went to the website catch-all.
 LOOKUP_VERBS = frozenset({"search", "find", "look", "research", "read", "check", "compare", "browse",
                           "discover", "identify", "scan", "review", "see", "learn",
-                          # A recurring look: "Weekly sweep for new events", "Watch shortlisted
-                          # cities for roles" both waited for his yes on 2026-10-10.
+                          # A recurring look: a weekly sweep and a watch both waited for his
+                          # yes on 2026-10-10.
                           "watch", "monitor", "sweep", "scout"})
 #: How often, said before the verb: "Weekly sweep", "Daily check". Not the act itself.
 CADENCE_WORDS = frozenset({"daily", "weekly", "monthly", "nightly", "hourly", "regular", "recurring"})
@@ -182,6 +182,25 @@ def looks_up(need: str) -> bool:
     while said and said[0] in CADENCE_WORDS:
         said = said[1:]
     return bool(said) and said[0] in LOOKUP_VERBS
+
+
+def reader_for(task: dict, catalog: dict) -> Any:
+    """The reading tool for a task that looks something up, or None.
+
+    Its own needs are asked before its title: a title saying "watch ..." matched the tool that
+    watches a PAGE, which needs an address the task never had, so it asked him for a url
+    (2026-10-10), while the need under it was plainly a search. A reader whose required
+    address the task does not contain is not one that fits."""
+    text = " ".join(str(x) for x in (task.get("title"), task.get("detail"), *(task.get("does") or [])) if x)
+    has_address = bool(re.search(r"https?://|www\.", text))
+    readers = {n: t for n, t in catalog.items() if t.read_only
+               and (has_address or "url" not in ((t.input_schema or {}).get("required") or []))}
+    phrases = [str(n) for n in task.get("does") or [] if looks_up(str(n))] + [str(task.get("title") or "")]
+    for phrase in phrases:
+        tool, _top = best_tool(phrase, readers)
+        if tool is not None:
+            return tool
+    return None
 
 
 def best_tool(need: str, catalog: dict) -> tuple[Any, int]:
@@ -239,8 +258,7 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
         if tool is not None and lookup and not tool.read_only:
             # A model named a doing tool for a task that only looks something up: the reading tool
             # that fits does it without asking him. With none, the named one stands.
-            reader, _top = best_tool(lookup, catalog)
-            tool = reader or tool
+            tool = reader_for(task, catalog) or tool
         if tool is not None and tool.name not in seen:
             steps.append({"tool": tool.name, "for": "", "by": "named", "score": None})
             seen.add(tool.name)
@@ -268,8 +286,8 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
         if tool is not None and lookup and not tool.read_only:
             # "Check the confidentiality of the setup" whose need says "confirm which calendar
             # holds are written to" matched the tool that WRITES a hold, and asked him for a time.
-            reader, _r = best_tool(lookup, catalog)
-            tool, top = (reader, _r) if reader is not None else (tool, top)
+            reader = reader_for(task, catalog)
+            tool = reader if reader is not None else tool
         if tool is None:
             verdict = work_gaps.classify(need, registry=registry)
             gaps.append({"need": need, "outcome": verdict["outcome"], "why": verdict["why"],
@@ -384,15 +402,23 @@ def default_args(tool, task: dict, missing: list[str]) -> dict:
 ARGS_SYSTEM = """You fill in the arguments for ONE tool call that carries out one task of a
 long-running mission for Caleb. Use only facts present in the task text and the known values.
 Never invent a person, an address, a date or a number that is not written there: leave an
-argument out when the text does not say it. Reply with JSON {"args": {...}} only."""
+argument out when the text does not say it. found_by_earlier_steps is what earlier steps of the
+mission read; a value written there counts as written. Reply with JSON {"args": {...}} only."""
 
 
-def model_args(tool, task: dict, args: dict, missing: list[str], *, think=None) -> dict:
-    """Ask a ROUTINE thinker for the missing arguments. Raises ReasonerUnavailable."""
+def model_args(tool, task: dict, args: dict, missing: list[str], *, think=None,
+               found: list[str] | None = None) -> dict:
+    """Ask a ROUTINE thinker for the missing arguments. Raises ReasonerUnavailable.
+
+    `found` is what the steps before it read (this task's and the tasks it needs): a hold for
+    "the fitting events" takes its start and title from the events a search found, and without
+    them the only honest answer was to ask him (2026-10-10)."""
     props = (tool.input_schema or {}).get("properties") or {}
     context = {"tool": tool.name, "description": tool.description[:300],
                "arguments_needed": {k: props.get(k, {}) for k in missing},
                "known": args, "task": {"title": task.get("title"), "detail": task.get("detail")}}
+    if found:
+        context["found_by_earlier_steps"] = [str(x)[:600] for x in found[-6:]]
 
     def validate(value: dict) -> dict:
         got = value.get("args") if isinstance(value, dict) else None

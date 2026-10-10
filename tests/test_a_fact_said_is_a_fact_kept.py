@@ -5553,7 +5553,8 @@ class AChildsWeekAndAWeeklyThree(unittest.TestCase):
 
     def test_what_does_leo_have_reads_his_lines(self):
         from aletheia import calendar, localtime
-        soon = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=2)).replace(hour=16, minute=0, second=0, microsecond=0)
+        # Minutes from now, not two days: on a Saturday two days on is next week (2026-10-10).
+        soon = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(minutes=5)).replace(second=0, microsecond=0)
         rows = [{"title": "Leo's dentist appointment", "start": soon.isoformat(), "end": (soon + dt.timedelta(hours=1)).isoformat()},
                 {"title": "Lunch with Sam", "start": soon.isoformat()}]
         with mock.patch.object(calendar, "all_events", return_value=rows):

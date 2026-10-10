@@ -886,6 +886,34 @@ def spoken_waiting(which: str = "", *, now: dt.datetime | None = None) -> str:
     return f"{len(rows)} waiting. " + "; ".join(lines) + "." + more
 
 
+def spoken_steps(which: str = "") -> str:
+    """Every unfinished task's shape - its steps, where it stands, the argument NAMES of the step
+    it is on - for whoever is fixing why a task will not move. Argument values are left out:
+    this answer travels over the relay, and a value can be his address or number."""
+    record = find(which)
+    if record is None:
+        return "You don't have a long mission yet."
+    out = []
+    for t in record.get("tasks") or []:
+        if t.get("state") == ws.DONE:
+            continue
+        plan = t.get("plan") or {}
+        steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
+        i = int(t.get("cursor") or 0)
+        here = steps[i] if i < len(steps) else {}
+        out.append(" | ".join(str(x) for x in (
+            t.get("key"), t.get("title"), t.get("state"),
+            "needs " + ",".join(t.get("needs") or []) if t.get("needs") else "",
+            "does " + "; ".join(t.get("does") or []) if t.get("does") else "",
+            "uses " + ",".join(t.get("uses") or []) if t.get("uses") else "",
+            "steps " + " > ".join(f"[{s.get('tool')}]" if n == i else str(s.get("tool")) for n, s in enumerate(steps)),
+            "for " + str(here.get("for") or "") if here.get("for") else "",
+            "args " + ",".join(sorted((here.get("args") or {}).keys())) if here.get("args") else "",
+            "attempts " + str(t.get("attempts")) if t.get("attempts") else "",
+            str(t.get("reason") or "")[:200]) if x))
+    return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
+
+
 def section(now: dt.datetime | None = None) -> dict:
     """The compact block current_state carries. Never raises."""
     try:
