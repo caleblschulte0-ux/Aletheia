@@ -403,11 +403,21 @@ def counts(rows: list[dict], *, now: dt.datetime | None = None, days: int = DAYS
                 bump(when, "interviews")
             if outcome == "rejected":
                 bump(when, "rejections")
+    # WHERE the window's applications went, by system name only (never an
+    # employer): "is she applying beyond Greenhouse" was unanswerable.
+    sent_by_system: dict[str, int] = {}
+    for r in rows:
+        if isinstance(r, dict) and r.get("state") in PRESSED:
+            when = _day(r.get("submitted_at") or r.get("pressed_at") or r.get("staged_at"), zone)
+            if when and when >= first:
+                system = _system_of(r.get("url"))
+                sent_by_system[system] = sent_by_system.get(system, 0) + 1
     total = {"found": 0, "filled": 0, "sent": 0, "replies": 0, "interviews": 0, "rejections": 0}
     for day in by_day.values():
         for key in total:
             total[key] += day[key]
     return {"days": dict(sorted(by_day.items())), "window_days": days, "totals": total,
+            "sent_by_system": dict(sorted(sent_by_system.items())),
             "sent_all_time": sum(1 for r in rows if isinstance(r, dict) and r.get("state") in PRESSED),
             "waiting": waiting(rows, now=now, first=first),
             # THE LAST FEW DAYS APART. A month's closures mix causes already
