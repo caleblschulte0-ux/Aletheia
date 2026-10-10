@@ -50,22 +50,23 @@
     "2026-10-09": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 85,
-      "needs_account": 0,
-      "needs_answer": 1,
-      "not_realistic": 19,
-      "offered": 25,
-      "ready": 4,
-      "runs": 1,
+      "minutes": 133,
+      "needs_account": 1,
+      "needs_answer": 6,
+      "not_realistic": 30,
+      "offered": 54,
+      "ready": 5,
+      "runs": 2,
       "unfit_language": 1,
-      "unfit_model": 1,
-      "unfit_pay": 7,
-      "unfit_sales": 9,
+      "unfit_model": 8,
+      "unfit_pay": 8,
+      "unfit_sales": 12,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 1,
+      "unreachable": 2,
+      "unreachable_ApplyError": 1,
       "unreachable_no_form": 1,
-      "weak_shot": 0
+      "weak_shot": 1
     }
   },
   "closed_recently": {
@@ -295,15 +296,15 @@
       "sent": 17
     },
     "2026-10-09": {
-      "filled": 20,
-      "found": 26,
+      "filled": 21,
+      "found": 27,
       "interviews": 0,
       "rejections": 6,
       "replies": 6,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-10T02:42:38Z",
+  "generated_at": "2026-10-10T02:45:43Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -380,8 +381,8 @@
     }
   },
   "totals": {
-    "filled": 379,
-    "found": 757,
+    "filled": 380,
+    "found": 758,
     "interviews": 3,
     "rejections": 11,
     "replies": 43,
@@ -440,7 +441,7 @@
     "needs_account": 0,
     "needs_answer": 20,
     "oldest_days": 27,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
