@@ -267,9 +267,10 @@ def _periods_for(periods: list, wanted: str):
         days = [p for p in periods if p.get("isDaytime", True) and
                 str(p.get("name", "")).casefold() in ("saturday", "sunday", "today")]
         if periods and str(periods[0].get("name", "")).casefold() == "today":
-            # "Today" is only the weekend when today is Saturday or Sunday.
-            import datetime as dt
-            if dt.date.today().weekday() < 5:
+            # "Today" is only the weekend when today is Saturday or Sunday - HIS today, not
+            # the machine's (a UTC clock says Saturday at 7 pm on his Friday).
+            from aletheia import localtime
+            if localtime.today().weekday() < 5:
                 days = [p for p in days if str(p.get("name", "")).casefold() != "today"]
         if not days:
             return "The forecast doesn't reach the weekend yet - ask me again in a day or two."

@@ -371,6 +371,97 @@ def _said(result: Any) -> str:
     return handoffs._said_result(result)
 
 
+#: The waits a step's CLASSIFICATION put a task in: handed to him, refused, or asked an argument.
+#: A rule change can make any of them wrong; a wait for a reply, a date or a model it cannot.
+RECLASSIFIABLE = ("handoff", "refused", "args")
+
+
+def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
+    """Would the rules as they stand now carry this parked step past where `was` stopped it?
+
+    A step handed to him goes on only when it would now RUN (or sign up under his ruling); a
+    step refused or missing an argument goes on when it is neither any more - at worst it is
+    handed to him properly, which is still further than a refusal or a wrong question."""
+    from aletheia import agent_session, program_compose as compose
+    i = int(task.get("cursor") or 0)
+    if i >= len(plan["steps"]):
+        return False
+    tool = tools.get(plan["steps"][i]["tool"])
+    if tool is None:
+        return False
+    args, missing = compose.fill_args(tool, task, plan["steps"][i].get("args"))
+    if missing:
+        return False
+    verdict = agent_session.Broker(tools, audience="all").check(agent_session.ToolRequest(tool.name, args)).verdict
+    if verdict == agent_session.RUN:
+        return True
+    if verdict == agent_session.HANDOFF and tool.capability == SIGN_UP_CAPABILITY:
+        from aletheia import event_signup
+        if event_signup.status()["on"]:
+            return True
+    return was != "handoff" and verdict != agent_session.REFUSED
+
+
+def requeue_reclassified(*, now: dt.datetime | None = None) -> list[dict]:
+    """A mission task parked under rules that have since changed tries again.
+
+    A task's plan and its wait are stored, so a fix to how steps are chosen or gated
+    reached only tasks composed after it: seven of his mission's tasks went on waiting
+    for a yes to a web search, failing a workspace note as "spending", and asking which
+    calendar a check should write to, on the new code (2026-10-09). Each beat this re-composes a task
+    whose wait came from a step's classification and lets it run when the current rules
+    would carry it further. Unknown means leave it: it never releases a step he already
+    approved, a step that still needs him, or a task whose finished steps would change."""
+    from aletheia import handoffs, program_compose as compose
+    now = pg._now(now)
+    tools = catalog()
+    released: list[dict] = []
+    for record in pg.all_programs():
+        if record.get("state") != pg.ACTIVE:
+            continue
+        for task in record.get("tasks") or []:
+            plan = task.get("plan")
+            if not plan or not plan.get("steps"):
+                continue
+            held = pg.current_wait(task) if task["state"] in ws.WORK_WAITING else None
+            purpose = ((held or {}).get("context") or {}).get("purpose")
+            refused = task["state"] == ws.FAILED and " was refused: " in str(task.get("reason") or "")
+            if purpose not in RECLASSIFIABLE and not refused:
+                continue
+            fresh = compose.compose(task, tools)
+            if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
+                continue
+            i = int(task.get("cursor") or 0)
+            old_tools = [s["tool"] for s in plan["steps"]]
+            new_tools = [s["tool"] for s in fresh["steps"]]
+            if new_tools[:i] != old_tools[:i]:
+                continue  # a step that already ran would be a different one now: leave it to him
+            candidate = dict(task, plan=fresh if new_tools != old_tools else plan)
+            if not _would_go_further(candidate, candidate["plan"], tools, purpose or "refused"):
+                continue
+            handoff_id = ((held or {}).get("condition") or {}).get("handoff_id")
+            if handoff_id and not handoffs.withdraw(handoff_id, "not needed any more: the step runs on its own now"):
+                continue  # he already answered it: his answer moves the task, not this
+            if held is not None:
+                waits.cancel(held["id"], why="the rules that parked it have changed", now=now)
+            key, new_plan = task["key"], candidate["plan"]
+
+            def change(r, key=key, new_plan=new_plan):
+                t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
+                if t is None:
+                    return None
+                t.update(plan=new_plan, state=ws.READY, reason="", next="run its next step", run=None,
+                         not_before=None, attempts=0, updated_at=pg.stamp(now))
+                pg._history(t, "trying again: the rules that parked it have changed", now)
+                r["updated_at"] = pg.stamp(now)
+                return t
+            pg.update(record["id"], change)
+            pg._journal("event", pg.item_id(record["id"], key),
+                        f"{record.get('title') or record['id']}: {task['title']} tries again on the current rules")
+            released.append({"program": record["id"], "task": key, "was": purpose or "refused"})
+    return released
+
+
 def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Callable | None = None) -> dict:
     """Carry one task as far as it can go now. Returns {"state", ...}. Never raises for a step's failure."""
     from aletheia import agent_session, handoffs, program_compose as compose, reasoner, work_gaps

@@ -220,18 +220,22 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
     usable = usable_tools(catalog)
     steps: list[dict] = []
     seen: set[str] = set()
-    lookup = looks_up(task.get("title") or "")
+    does = [str(n) for n in (task.get("does") or []) if str(n).strip()]
+    title = str(task.get("title") or "")
+    # A task looks something up when its title says so, or when every thing it does does
+    # ("Weekly sweep for new events" whose one need is "search for newly listed events").
+    lookup = title if looks_up(title) else (does[0] if does and all(looks_up(n) for n in does) else "")
     for name in task.get("uses") or []:
         tool = usable.get(str(name))
         if tool is not None and lookup and not tool.read_only:
             # A model named a doing tool for a task that only looks something up: the reading tool
             # that fits does it without asking him. With none, the named one stands.
-            reader, _top = best_tool(str(task.get("title") or ""), catalog)
+            reader, _top = best_tool(lookup, catalog)
             tool = reader or tool
         if tool is not None and tool.name not in seen:
             steps.append({"tool": tool.name, "for": "", "by": "named", "score": None})
             seen.add(tool.name)
-    needs = [str(n) for n in (task.get("does") or []) if str(n).strip()]
+    needs = does
     if not needs and not steps:
         needs = [" ".join(str(x) for x in (task.get("title"), task.get("detail")) if x)]
     gaps: list[dict] = []

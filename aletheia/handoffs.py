@@ -211,6 +211,26 @@ def file(*, tool, args: dict, session_id: str, question: str = "", why: str = ""
     return record
 
 
+def withdraw(hid: str, why: str) -> bool:
+    """Take back a question nobody has answered yet, because she no longer needs the yes.
+
+    Only ever narrows: an approval he already decided is left exactly as it is (False), and
+    the request is written down as expired with the reason, never as approved."""
+    from aletheia import journal, policy
+    try:
+        record = load(hid)
+        approval = policy.load(record.get("approval") or hid)
+    except (OSError, ValueError, KeyError):
+        return False
+    if record.get("state") != AWAITING or approval.get("state") != "PENDING":
+        return False
+    approval.update(state=policy.EXPIRED, expired_at=stateio.utcnow(), expired_because=str(why)[:200])
+    policy.save(approval)
+    journal.append("decision", f"approval:{approval['id']}", f"EXPIRED — {why}"[:240], actor=ACTOR)
+    _finish(record, EXPIRED, str(why)[:200])
+    return True
+
+
 # ---- after he decides ---------------------------------------------------------
 
 def _her_own(via: str) -> bool:

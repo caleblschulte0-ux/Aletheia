@@ -124,7 +124,8 @@ class NamingDaysCase(unittest.TestCase):
         got = voice._spoken_day("friday")
         self.assertIsNotNone(got)
         self.assertEqual(dt.date.fromisoformat(got).strftime("%A"), "Friday")
-        self.assertGreaterEqual(dt.date.fromisoformat(got), dt.date.today())
+        from aletheia import localtime
+        self.assertGreaterEqual(dt.date.fromisoformat(got), localtime.today())   # HIS today, not the machine's
 
     def test_this_friday_is_the_same_friday(self):
         self.assertEqual(voice._spoken_day("this friday"),
@@ -134,9 +135,11 @@ class NamingDaysCase(unittest.TestCase):
         """It means the coming Friday to half the people who say it and the
         one after to the other half. Picking silently is how she confirms
         the wrong thing confidently."""
-        said = voice.interpret("thea am i free next friday")
+        from aletheia import localtime
+        other = voice.WEEKDAYS[(localtime.today().weekday() + 2) % 7]   # never today: see _spoken_day
+        said = voice.interpret(f"thea am i free next {other}")
         self.assertIsNone(said["command"])
-        self.assertIn("Which Friday", said["say"])
+        self.assertIn(f"Which {other.capitalize()}", said["say"])
         self.assertRegex(said["say"], r"\d+(st|nd|rd|th)")
 
     def test_ordinals_are_sayable(self):

@@ -458,6 +458,13 @@ class WhereHerMissionWasStuck(unittest.TestCase):
                             "uses": ["calendar.propose"]}, self.catalog)["steps"]
         self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
 
+    def test_a_sweep_whose_every_need_looks_something_up_reads_too(self):
+        from aletheia import program_compose as pc
+        steps = pc.compose({"title": "Weekly sweep for new job-search events",
+                            "does": ["search for newly listed events"], "uses": ["web_task"]},
+                           self.catalog)["steps"]
+        self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
+
     def test_doing_is_still_doing(self):
         from aletheia import program_compose as pc
         self.assertEqual(pc.best_tool("register for the Chamber networking event", self.catalog)[0].name,
