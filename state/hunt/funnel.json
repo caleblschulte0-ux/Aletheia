@@ -71,13 +71,13 @@
     "2026-10-10": {
       "duplicate": 3,
       "employer_full": 0,
-      "minutes": 56,
+      "minutes": 61,
       "needs_account": 0,
-      "needs_answer": 4,
+      "needs_answer": 5,
       "not_realistic": 24,
-      "offered": 56,
-      "ready": 1,
-      "runs": 9,
+      "offered": 58,
+      "ready": 2,
+      "runs": 10,
       "unfit_clearance": 1,
       "unfit_model": 11,
       "unfit_pay": 6,
@@ -96,7 +96,7 @@
       "gone_on_greenhouse": 1,
       "left_captcha": 5,
       "left_error": 2,
-      "left_no_way_forward": 9,
+      "left_no_way_forward": 10,
       "left_out_of_steps": 1,
       "left_questions": 1,
       "left_sign_in": 3,
@@ -321,15 +321,15 @@
       "sent": 1
     },
     "2026-10-10": {
-      "filled": 8,
-      "found": 18,
+      "filled": 9,
+      "found": 20,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T17:25:17Z",
+  "generated_at": "2026-10-10T20:09:20Z",
   "sent_all_time": 289,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -360,6 +360,7 @@
     },
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
+      "nothing_to_press_on_content+empty_page/observed": 1,
       "nothing_to_press_on_content+no_apply/observed": 2,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form+no_apply/filled": 1,
@@ -397,6 +398,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
+        "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 2,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
@@ -415,8 +417,8 @@
     }
   },
   "totals": {
-    "filled": 374,
-    "found": 763,
+    "filled": 375,
+    "found": 765,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -443,7 +445,7 @@
       "left_captcha": 18,
       "left_error": 14,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 80,
+      "left_no_way_forward": 81,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 2,
