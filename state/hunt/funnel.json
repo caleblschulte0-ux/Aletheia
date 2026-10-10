@@ -267,23 +267,23 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 40,
-      "found": 58,
+      "filled": 27,
+      "found": 45,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 17
     },
     "2026-10-09": {
-      "filled": 1,
-      "found": 1,
+      "filled": 14,
+      "found": 14,
       "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
+      "rejections": 6,
+      "replies": 6,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-09T23:31:52Z",
+  "generated_at": "2026-10-10T00:02:54Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -363,8 +363,8 @@
     "filled": 376,
     "found": 748,
     "interviews": 3,
-    "rejections": 5,
-    "replies": 37,
+    "rejections": 11,
+    "replies": 43,
     "sent": 287
   },
   "waiting": {
