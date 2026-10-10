@@ -60,9 +60,21 @@ class WhatCountsAsSpendingCase(unittest.TestCase):
                      "git checkout claude/tiktok-review-demo",
                      "checkout claude/tiktok-review-demo",
                      "check out the demo branch",
-                     "git fetch origin then git checkout -b feature/x"):
+                     "git fetch origin then git checkout -b feature/x",
+                     # 2026-10-10: salary maths in his mission refused as spending
+                     "compute adjusted pay equivalent",
+                     "save per-city pay floors",
+                     "compare pay ranges for account managers",
+                     "what is the base pay in austin"):
             with self.subTest(goal=goal):
                 self.assertFalse(webtask.would_spend(goal), goal)
+
+    def test_pay_the_noun_never_hides_pay_the_act(self):
+        for goal in ("pay for the event", "pay $20 to register", "pay my rent",
+                     "compute adjusted pay for the ticket", "adjusted pay $40 fee",
+                     "pay the registration fee and compare pay ranges"):
+            with self.subTest(goal=goal):
+                self.assertTrue(webtask.would_spend(goal), goal)
 
     def test_one_predicate_for_the_plan_and_the_run(self):
         """The sentence he hears and the thing that happens cannot be

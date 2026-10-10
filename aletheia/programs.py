@@ -894,6 +894,15 @@ def spoken_steps(which: str = "") -> str:
     if record is None:
         return "You don't have a long mission yet."
     out = []
+    by_key = {t.get("key"): t for t in record.get("tasks") or []}
+    needed = {k for t in record.get("tasks") or [] if t.get("state") != ws.DONE for k in t.get("needs") or []}
+    for k in sorted(needed):
+        t = by_key.get(k)
+        if t is not None and t.get("state") == ws.DONE:
+            # What a finished task found is what the ones waiting on it work from (titles and
+            # dates of events, not his details: a search result is about the world).
+            found = [str(r.get("said") or "")[:300] for r in (t.get("results") or [])[-2:] if r.get("said")]
+            out.append(f"{k} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
     for t in record.get("tasks") or []:
         if t.get("state") == ws.DONE:
             continue

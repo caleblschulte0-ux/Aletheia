@@ -468,7 +468,11 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         return None
     held = pg.current_wait(task) if task["state"] in ws.WORK_WAITING else None
     purpose = ((held or {}).get("context") or {}).get("purpose")
-    refused = task["state"] == ws.FAILED and " was refused: " in str(task.get("reason") or "")
+    refused = task["state"] == ws.FAILED and (
+        " was refused: " in str(task.get("reason") or "")
+        # A need the money door refused, re-read on the door as it stands now: the fresh plan
+        # below is refused again if it still spends (2026-10-10: "adjusted pay equivalent").
+        or "only Caleb spends money" in str(task.get("reason") or ""))
     # A write that failed three times on a path outside her workspace (2026-10-10) was a bad
     # argument, not a bad task: the path is dropped and filled now, so it may try again.
     bad_path = task["state"] == ws.FAILED and "OutsideWorkspace" in str(task.get("reason") or "")
@@ -506,6 +510,12 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
                 return None
             new_tools = [s["tool"] for s in fresh["steps"]]
         candidate = dict(task, plan=fresh if new_tools != old_tools else plan)
+    asked_when = set(((held or {}).get("context") or {}).get("missing") or []) & set(WHEN_ARGS)
+    if purpose == "args" and asked_when and task.get("needs") and not task.get("dated_retried"):
+        # Asked him WHEN about something earlier tasks were to find, before "nothing dated yet"
+        # was a look-again (2026-10-10, still asking after the fifth fix): once more on the
+        # current rules, which either fill it from what was found or look again tomorrow.
+        return _release(record, task, dict(candidate, mark="dated_retried"), held, purpose, now)
     if purpose == "args" and not task.get("args_retried") and not _would_go_further(
             candidate, candidate["plan"], tools, purpose) and _found(record, task):
         # Asked him for arguments the steps before it have since found (the events a search

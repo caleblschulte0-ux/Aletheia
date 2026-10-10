@@ -265,3 +265,49 @@ class HisMissionRunsWithoutHim(Sandbox):
 
     def task_state(self, key):
         return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]
+
+    def test_a_when_question_already_asked_is_taken_back_once(self):
+        """His PC, 2026-10-10 17:56Z: t3 still asked "start and title" after the fifth fix."""
+        with mock.patch.object(agent_session, "execute", lambda tool, args, **kw: (
+                self.ran.append((tool.name, dict(args))) or ("ok", {"text": "Lots of job fairs happen here."}))):
+            self._run_everything()
+            record = pg.load(self.pid)
+            t3 = next(t for t in record["tasks"] if t["key"] == "t3")
+            t3.update(state=ws.READY, not_before=None, args_retried=True)
+            pg.hold(record, t3, {"kind": "user_decision", "question": "what should I use for start and title?"},
+                    reason="what should I use for start and title?", purpose="args", now=NOW,
+                    extra={"step": 0, "missing": ["start", "title"]})
+            pg.update(self.pid, lambda r: [t.update(t3) for t in r["tasks"] if t["key"] == "t3"])
+            released = program_run.requeue_reclassified(now=NOW)
+            self.assertIn(("t3", "args"), [(r["task"], r["was"]) for r in released])
+            program_run.run_task(self.pid, "t3", now=NOW)
+            self.assertEqual(self.task_state("t3"), ws.RETRY_LATER)
+            self.assertEqual(program_run.requeue_reclassified(now=NOW), [])       # once
+
+    def test_salary_maths_is_not_spending_and_a_task_refused_for_it_runs(self):
+        """His PC, 2026-10-10 17:56Z: "compute adjusted pay equivalent: it commits money"."""
+        from aletheia import webtask
+        self.assertFalse(webtask.would_spend("compute adjusted pay equivalent"))
+        self.assertTrue(webtask.would_spend("pay for the event"))
+        self._run_everything()
+
+        def refuse(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, results=[],
+                      does=["pick a shortlist that fits the criteria", "compute adjusted pay equivalent"],
+                      uses=["web_task", "compose"],
+                      plan={"steps": [{"tool": "research", "for": "pick a shortlist", "by": "matched",
+                                       "score": 3}], "requires": [], "gaps": []},
+                      reason="compute adjusted pay equivalent: it commits money, and only Caleb spends money")
+        pg.update(self.pid, refuse)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn("t6", [r["task"] for r in released])
+        self._run_everything()
+        self.assertEqual(self.task_state("t6"), ws.DONE)
+
+    def test_the_steps_view_shows_what_a_finished_task_found_for_the_ones_waiting(self):
+        self._run_everything()
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(state=ws.BLOCKED_USER))
+        said = pg.spoken_steps("Project Reboot")
+        self.assertIn("t2 |", said)
+        self.assertIn("found: " + EVENT[:40], said)
