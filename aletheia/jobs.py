@@ -1147,6 +1147,11 @@ def search_many(roles: list[str], *, where: str = "", limit: int = 10,
             listed.setdefault(key, set()).add(job["id"])
     beyond, unlisted = drop_unlisted(beyond, listed=listed,
                                      lister=_read_listing if fetcher is None else None)
+    # A system he has paused (`pause-greenhouse`) is not offered at all, so
+    # the batch's slots go to openings she may actually apply to.
+    from aletheia import job_fit as _fit
+    board = [j for j in board if not _fit.paused_system_reason(j.get("apply_url"), j.get("url"))]
+    beyond = [j for j in beyond if not _fit.paused_system_reason(j.get("apply_url"), j.get("url"))]
     # Two from the boards, then one found beyond them, so both get tried.
     # ONE ROLE, ONE SLOT. A role posted in five cities is five openings and
     # one application (`apply_run.role_taken`); live 2026-10-07 the batch

@@ -185,6 +185,22 @@
         }
       ],
       "means": "Jobs on an employer's own site, or on any system with no specialised form adapter, are applied to through the general browser loop (apply_run.stage_via_loop), staged under the same approval and standing-grant rules as every other application. LinkedIn and Indeed stay off-limits. Off only if he turns it off at his keyboard (python -m aletheia.apply_run engine off)."
+    },
+    {
+      "id": "pause-greenhouse",
+      "switch": "pause_ats",
+      "on": true,
+      "since": "2026-10-10",
+      "quotes": [
+        {
+          "on": "2026-10-10",
+          "said": "I honestly don't want us applying on greenhouse anymore at this point. Like, we will again in the future, but right now, like, we need to fix this. She needs to be applying on company websites."
+        }
+      ],
+      "answers": {
+        "systems": "greenhouse"
+      },
+      "means": "For now she does not choose or send applications whose form is hosted on a system named here (answers.systems, comma separated); she applies on employers' own sites instead. Temporary by his words: remove the ruling, or set on to false, when he says Greenhouse is back."
     }
   ]
 }
