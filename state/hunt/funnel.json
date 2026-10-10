@@ -71,20 +71,21 @@
     "2026-10-10": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 39,
+      "minutes": 47,
       "needs_account": 0,
       "needs_answer": 4,
       "not_realistic": 17,
-      "offered": 27,
+      "offered": 29,
       "ready": 1,
-      "runs": 5,
+      "runs": 7,
       "unfit_clearance": 1,
       "unfit_model": 7,
       "unfit_pay": 6,
       "unfit_sales": 3,
       "unjudged": 0,
-      "unreachable": 4,
-      "unreachable_ApplyError": 4,
+      "unreachable": 6,
+      "unreachable_ApplyError": 5,
+      "unreachable_left_till_tomorrow": 1,
       "weak_shot": 0
     }
   },
@@ -328,7 +329,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T14:56:03Z",
+  "generated_at": "2026-10-10T15:26:16Z",
   "sent_all_time": 289,
   "stuck_at": {
     "approval_denied": {
