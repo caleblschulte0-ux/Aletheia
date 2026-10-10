@@ -301,11 +301,11 @@
       "interviews": 0,
       "rejections": 6,
       "replies": 6,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-10-10T02:45:43Z",
-  "sent_all_time": 287,
+  "generated_at": "2026-10-10T02:57:06Z",
+  "sent_all_time": 288,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
@@ -386,7 +386,7 @@
     "interviews": 3,
     "rejections": 11,
     "replies": 43,
-    "sent": 287
+    "sent": 288
   },
   "waiting": {
     "asked_about": {
@@ -441,7 +441,7 @@
     "needs_account": 0,
     "needs_answer": 20,
     "oldest_days": 27,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
