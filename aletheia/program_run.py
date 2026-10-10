@@ -451,6 +451,25 @@ def _finds_free_time(tool) -> bool:
     return "part" in props and "when" in props and tool.read_only
 
 
+def _readable_window(when) -> bool:
+    from aletheia import calendar_reasoning
+    try:
+        calendar_reasoning.window(str(when or ""))
+        return bool(str(when or "").strip())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+#: A look that came back saying it found nothing to answer with: "I can't give you a comparison
+#: from these sources", "none of them has data on". Done on that is done on nothing.
+NOTHING_FOUND = re.compile(
+    r"\bI (?:can'?t|cannot|couldn'?t|could not|was unable to) (?:give|answer|tell|find|say|compare|provide)"
+    r"[^.]{0,120}\b(?:from (?:these|the|those) (?:sources|pages)|sources|pages)\b"
+    r"|\bnone (?:of them |of these |of the pages )?(?:has|have|had|contains?|mentions?) (?:any )?"
+    r"(?:data|information|details|anything)\b"
+    r"|\bI won'?t invent\b|\bno readable sources\b", re.I)
+
+
 def _writes_holds(tool) -> bool:
     props = (tool.input_schema or {}).get("properties") or {}
     return (tool.capability == "calendar.hold" and not tool.read_only and bool(tool.writes)
@@ -583,7 +602,7 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         kept = plan if new_tools != old_tools or not refused else dict(plan, gaps=fresh_gaps)
         candidate = dict(task, plan=fresh if new_tools != old_tools else kept)
     asked_when = set(((held or {}).get("context") or {}).get("missing") or []) & set(WHEN_ARGS)
-    if purpose == "args" and asked_when and task.get("needs") and not task.get("dated_retried"):
+    if purpose == "args" and asked_when and task.get("needs"):
         # Asked him WHEN about something earlier tasks were to find, before "nothing dated yet"
         # was a look-again (2026-10-10, still asking after the fifth fix): once more on the
         # current rules, which either fill it from what was found or look again tomorrow.
@@ -593,6 +612,11 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         # Asked him for arguments the steps before it have since found (the events a search
         # read, his answers): once, it tries again with them in front of the model.
         candidate = dict(candidate, mark="args_retried")
+        return _release(record, task, candidate, held, purpose, now)
+    if refused and "only Caleb spends money" in str(task.get("reason") or "") and not bad_path and not no_source:
+        # Refused as spending before any step ran, and the money door no longer says so: the task
+        # simply runs, and its steps meet their own gates (2026-10-10: "stop at payment" stayed
+        # FAILED because its sign-up step had no address yet, which is no reason to stay refused).
         return _release(record, task, candidate, held, purpose, now)
     if not _would_go_further(candidate, candidate["plan"], tools, purpose or "refused"):
         return None
@@ -636,6 +660,10 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
         elif hours and _finds_free_time(tool) and not str(args.get("part") or "").strip() \
                 and not task.get("hours_rechecked"):
             why, mark = "it counted his working day as free", "hours_rechecked"
+        elif tool.read_only and tool.open_world and not task.get("empty_rechecked") and any(
+                r.get("step") == i and r.get("outcome") == "ok" and NOTHING_FOUND.search(str(r.get("said") or ""))
+                for r in (task.get("results") or [])[-1:]):
+            why, mark = "its look found nothing to answer with", "empty_rechecked"
         if not why:
             continue
         key = task["key"]
@@ -649,6 +677,22 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
                      attempts=0, updated_at=pg.stamp(now))
             t[mark] = True
             pg._history(t, f"opened again: {why}", now)
+            # What was done FROM it is done again after it, where nothing of that reached anybody
+            # (2026-10-10: the job search was retargeted on an empty comparison).
+            again, grew = {key}, True
+            while grew:
+                grew = False
+                for d in r.get("tasks") or []:
+                    if d["key"] in again or d.get("state") != ws.DONE or not set(d.get("needs") or []) & again:
+                        continue
+                    steps_d = (d.get("plan") or {}).get("steps") or []
+                    if any(getattr(tools.get(x.get("tool")), "consequence", "outward") == "outward" for x in steps_d):
+                        continue
+                    d.update(state=ws.READY, cursor=0, reason="", next="run its next step", run=None,
+                             not_before=None, attempts=0, updated_at=pg.stamp(now))
+                    pg._history(d, f"opened again: {t['title'][:80]} is being done again", now)
+                    again.add(d["key"])
+                    grew = True
             r["updated_at"] = pg.stamp(now)
             return t
         pg.update(record["id"], change)
@@ -802,14 +846,18 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # hers goes) is never a question for him.
             args.update(compose.default_args(tool, task, missing))
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
-        if missing and set(missing) & set(WHEN_ARGS) and task.get("needs") \
-                and not any(DATED.search(x) for x in _found(record, task, answers=False)):
+        if missing and set(missing) & set(WHEN_ARGS) and task.get("needs"):
             # "When?" about something the steps before it were to find, and nothing they found has
             # a date: there is nothing to put on the calendar YET. That is a look again tomorrow,
             # never a question for him he could only answer by doing the search himself.
+            # Free windows have dates and are still not an event (2026-10-10: it asked him "what
+            # should I use for start and title?" once the free time had been read). Whatever was found,
+            # a when nobody could fill is a look again, never a question only a search could answer.
+            dated = any(DATED.search(x) for x in _found(record, task, answers=False))
             step["args"] = args
             task.update(state=ws.RETRY_LATER, run=None, next="look again for something dated",
-                        reason="nothing found yet has a date to put on the calendar",
+                        reason=("nothing found yet says what to put on the calendar and when" if dated
+                                else "nothing found yet has a date to put on the calendar"),
                         not_before=pg.stamp(now + NOTHING_DATED_RETRY))
             _commit(pid, task, now)
             return {"state": ws.RETRY_LATER, "why": "nothing dated found yet"}
@@ -822,6 +870,10 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             task["run"] = None
             _commit(pid, task, now)
             return {"state": ws.BLOCKED_USER, "why": question}
+        if _finds_free_time(tool) and not _readable_window(args.get("when")):
+            # "the next 30 days" is not a stretch the calendar reads: it failed as a ValueError three
+            # times (2026-10-10). A read over the default stretch needs nobody's judgement.
+            args["when"] = compose.DEFAULT_WINDOW
         hours = his_hours(record)
         if hours and _finds_free_time(tool) and not str(args.get("part") or "").strip():
             # He said when he is free for this mission; a free-time read looks only there.
@@ -847,6 +899,10 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 tool, args, timeout_s=TOOL_TIMEOUT_S,
                 quote=f"long mission {record.get('title')}: {task['title']}"[:200])
             said = _said(result)
+            if outcome == "ok" and tool.read_only and tool.open_world and NOTHING_FOUND.search(said):
+                # The look ran and found nothing it could answer with: a try that failed, so the task
+                # looks again later instead of handing an empty answer to the tasks after it.
+                outcome = "empty"
             _result(task, i, tool.name, outcome, said, now)
             if outcome != "ok":
                 task["attempts"] = int(task.get("attempts") or 0) + 1

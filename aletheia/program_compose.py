@@ -153,8 +153,15 @@ def _tool_words(tool) -> tuple[set[str], set[str]]:
     return words(tool.name), (words(tool.description) | words(_capability_text(tool))) - _WEAK
 
 
+#: "Free" that means costing nothing, not free time: "free newcomer events" matched the tool
+#: that finds free time on his calendar, and the search for events never ran (his PC, 2026-10-10).
+NO_COST_FREE = re.compile(r"\bfree\s+(?!time\b|windows?\b|slots?\b|hours?\b|evenings?\b|days?\b|"
+                          r"afternoons?\b|mornings?\b|weekends?\b|periods?\b|blocks?\b|on\b|at\b|between\b|"
+                          r"for\b|to\b)", re.I)
+
+
 def score(need: str, tool) -> int:
-    want = need_words(need)
+    want = need_words(NO_COST_FREE.sub("", str(need or "")))
     name_w, desc_w = _tool_words(tool)
     return 3 * len(want & name_w) + len((want & desc_w) - name_w)
 
@@ -175,6 +182,20 @@ LOOKUP_VERBS = frozenset({"search", "find", "look", "research", "read", "check",
                           "watch", "monitor", "sweep", "scout"})
 #: How often, said before the verb: "Weekly sweep", "Daily check". Not the act itself.
 CADENCE_WORDS = frozenset({"daily", "weekly", "monthly", "nightly", "hourly", "regular", "recurring"})
+
+
+#: A need that STARTS with one of these does something: a task that also holds, signs up or
+#: writes is not a look-up, so the tools named for those acts are kept (2026-10-10: "Find free
+#: newcomer events" with "hold fitting ones" and "register for free ones" kept only a reader).
+DOING_VERBS = frozenset({"hold", "register", "sign", "book", "write", "save", "send", "apply", "prepare",
+                         "pencil", "put", "add", "update", "draft", "submit", "schedule", "email", "message"})
+
+
+def does_something(need: str) -> bool:
+    said = [w for w in re.findall(r"[a-z]+", str(need or "").lower())]
+    while said and said[0] in CADENCE_WORDS:
+        said = said[1:]
+    return bool(said) and said[0] in DOING_VERBS
 
 
 def looks_up(need: str) -> bool:
@@ -252,7 +273,8 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
     title = str(task.get("title") or "")
     # A task looks something up when its title says so, or when every thing it does does
     # ("Weekly sweep for new events" whose one need is "search for newly listed events").
-    lookup = title if looks_up(title) else (does[0] if does and all(looks_up(n) for n in does) else "")
+    lookup = "" if any(does_something(n) for n in does) else (
+        title if looks_up(title) else (does[0] if does and all(looks_up(n) for n in does) else ""))
     for name in task.get("uses") or []:
         tool = usable.get(str(name))
         if tool is not None and lookup and not tool.read_only:
@@ -310,9 +332,19 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
                 reader = reader_for({"title": title, "does": [step["for"]]}, catalog)
                 if reader is not None and reader.name not in seen:
                     seen.add(reader.name)
-                    steps.insert(steps.index(step), {"tool": reader.name, "for": step["for"], "by": "reader",
+                    moved = step["for"]
+                    steps.insert(steps.index(step), {"tool": reader.name, "for": moved, "by": "reader",
                                                      "score": None})
                     step["for"] = ""
+                    rest = [n for n in needs if n != moved]
+                    if not any(score(n, catalog[step["tool"]]) >= MATCH_THRESHOLD
+                               for n in rest) and not any(s is not step and s["tool"] == step["tool"] for s in steps):
+                        # It was named only for the look the reader now does: nothing is left for it,
+                        # and an idle doing step would only hand him an empty approval.
+                        others = [x for x in steps if x is not step and not catalog[x["tool"]].read_only]
+                        if others:
+                            steps.remove(step)
+                            seen.discard(step["tool"])
     reqs: list[str] = []
     for step in steps:
         reqs += requirements(catalog[step["tool"]])
@@ -361,6 +393,10 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
         except Exception:  # noqa: BLE001 - refused, or no workspace: either way not this path
             args.pop("path")
     words_of_task = " ".join(str(x) for x in (task.get("detail") or task.get("title"),) if x).strip()
+    if not task.get("detail") and task.get("does") and task.get("title"):
+        # The title alone searched for the wrong thing: "Compare a shortlist of warm ... places"
+        # read pages about grammar. What it does says what it is about.
+        words_of_task = (f"{task['title']}: " + "; ".join(str(n) for n in task["does"] if str(n).strip()))
     missing = []
     for key in schema.get("required") or []:
         if key in args and str(args[key]).strip():
