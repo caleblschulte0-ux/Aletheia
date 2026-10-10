@@ -2623,6 +2623,9 @@ ADAPTER_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com", "workable.com",
 
 LOOP_GOAL = "apply for this job"
 
+#: Never the loop's to walk (2026-10-10: "I don't want to get banned on those").
+OFF_LIMITS_HOSTS = ("linkedin.com", "indeed.com")
+
 _MISSION_TO_APPLICATION = {"AWAITING_APPROVAL": "AWAITING_YOU", "DONE": "SUBMITTED",
                            "SUBMITTED_UNCONFIRMED": "SUBMITTED", "SUBMITTING": "SUBMITTING",
                            "REJECTED": "REJECTED", "REFUSED": "FAILED", "MANUAL_ONLY": "FAILED",
@@ -2635,9 +2638,20 @@ def engine_settings_path():
 
 def loop_engine_on() -> bool:
     try:
-        return stateio.read_json(engine_settings_path()).get("loop_for_unadapted") is True
-    except (OSError, ValueError, AttributeError):
+        raw = stateio.read_json(engine_settings_path())
+    except (OSError, ValueError):
+        raw = {}
+    if isinstance(raw, dict) and "loop_for_unadapted" in raw:
+        return raw.get("loop_for_unadapted") is True  # his own hand wins
+    # Where he never touched it, his RULING is the default (2026-10-10:
+    # "literally anywhere else besides Greenhouse ... is free game"). No
+    # ruling file, or a broken one: off.
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("site_loop")
+    except Exception:
         return False
+    return bool(ruled and ruled.get("on"))
 
 
 def set_loop_engine(on: bool, *, by: str) -> dict:
@@ -2677,6 +2691,9 @@ def has_adapter(url: str, provider: str = "") -> bool:
 def uses_loop(url: str, provider: str = "") -> bool:
     """The engine choice for one application: the loop only when he switched
     it on AND the site has no specialised adapter."""
+    host = (urllib.parse.urlparse(str(url or "")).hostname or "").casefold()
+    if any(host == b or host.endswith("." + b) for b in OFF_LIMITS_HOSTS):
+        return False  # his ruling: not where an account can be banned
     return loop_engine_on() and not has_adapter(url, provider)
 
 
