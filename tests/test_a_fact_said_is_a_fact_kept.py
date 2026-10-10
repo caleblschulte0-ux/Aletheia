@@ -648,8 +648,10 @@ class DaysThatMeanOneDay(unittest.TestCase):
         self.assertTrue(voice._spoken_day("the end of the month").startswith(today.isoformat()[:8]))
         self.assertEqual(voice._interpret("add a task to renew my passport in 2 weeks")["command"]["deadline"],
                          (today + dt.timedelta(days=14)).isoformat())
-        # "Next Friday" is still asked about, never guessed.
-        self.assertIsNone(voice._spoken_day("next friday"))
+        # "Next Friday" is still asked about, never guessed - unless today IS that day
+        # (then it can only mean a week out), so ask about a day that is not today.
+        other = voice.WEEKDAYS[(today.weekday() + 2) % 7]
+        self.assertIsNone(voice._spoken_day(f"next {other}"))
 
 
 class WhenItIsDue(unittest.TestCase):
