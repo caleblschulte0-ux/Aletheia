@@ -237,3 +237,4 @@
 {"ts": "2026-10-09T13:29:54Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
 {"ts": "2026-10-09T17:16:08Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-09"}
 {"ts": "2026-10-10T05:59:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
+{"ts": "2026-10-10T16:04:36Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-10"}
