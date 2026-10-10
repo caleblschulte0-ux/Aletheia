@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import re
 import threading
 import uuid
 from typing import Any, Callable
@@ -401,14 +402,26 @@ def _answers_file(record: dict) -> str | None:
     return rel
 
 
-def _found(record: dict, task: dict) -> list[str]:
+def _found(record: dict, task: dict, *, answers: bool = True) -> list[str]:
     """What this task's earlier steps and the tasks it needs have read, plus his answers."""
     keys = set(task.get("needs") or [])
-    rows = [r for t in record.get("tasks") or [] if t.get("key") in keys for r in t.get("results") or []]
+    rows = [r for t in record.get("tasks") or []
+            if t.get("key") in keys or (t.get("from_activity") and t.get("key") != task.get("key"))
+            for r in t.get("results") or []]
+    rows.sort(key=lambda r: str(r.get("at") or ""))
     rows += list(task.get("results") or [])
     found = [str(r.get("said") or "") for r in rows if r.get("outcome") == "ok" and r.get("said")][-5:]
-    answers = his_answers(record)
-    return ([f"What Caleb has told this mission:\n{answers[:2000]}"] if answers else []) + found
+    told = his_answers(record) if answers else ""
+    return ([f"What Caleb has told this mission:\n{told[:2000]}"] if told else []) + found
+
+
+#: The arguments that say WHEN, and what a date or a time looks like written down.
+WHEN_ARGS = ("start", "when", "date", "time", "at")
+DATED = re.compile(r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}|\d{1,2}(?::\d{2})?\s?(?:am|pm)|\d{1,2}:\d{2}|"
+                   r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
+                   r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|"
+                   r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|tomorrow)\b", re.I)
+NOTHING_DATED_RETRY = dt.timedelta(days=1)
 
 
 #: The waits a step's CLASSIFICATION put a task in: handed to him, refused, or asked an argument.
@@ -462,6 +475,13 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     # A document that failed for want of anything to write from has his answers to read now; once.
     no_source = (task["state"] == ws.FAILED and "ComposeError" in str(task.get("reason") or "")
                  and not task.get("source_retried"))
+    if (purpose == "then" and held is not None and _waits_only_on_his_ok(task)
+            and int(task.get("cursor") or 0) >= len(plan["steps"])):
+        # Parked on his okay of her own work before that stopped being a gate: done, and his
+        # okay is an open choice instead.
+        waits.cancel(held["id"], why="his okay is a choice now, not a gate", now=now)
+        _finish(record["id"], dict(task), now, extra=_confirm_later(task))
+        return {"program": record["id"], "task": task["key"], "was": "then"}
     if bad_path:
         purpose = "path"
     elif no_source:
@@ -643,6 +663,17 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # hers goes) is never a question for him.
             args.update(compose.default_args(tool, task, missing))
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
+        if missing and set(missing) & set(WHEN_ARGS) and task.get("needs") \
+                and not any(DATED.search(x) for x in _found(record, task, answers=False)):
+            # "When?" about something the steps before it were to find, and nothing they found has
+            # a date: there is nothing to put on the calendar YET. That is a look again tomorrow,
+            # never a question for him he could only answer by doing the search himself.
+            step["args"] = args
+            task.update(state=ws.RETRY_LATER, run=None, next="look again for something dated",
+                        reason="nothing found yet has a date to put on the calendar",
+                        not_before=pg.stamp(now + NOTHING_DATED_RETRY))
+            _commit(pid, task, now)
+            return {"state": ws.RETRY_LATER, "why": "nothing dated found yet"}
         if missing:
             step["args"] = args
             question = (f"For \"{task['title']}\", what should I use for {' and '.join(missing)}? "
@@ -745,10 +776,38 @@ def _no_tool(record: dict, task: dict, now: dt.datetime) -> dict:
     return {"state": task["state"], "gap": gap["outcome"]}
 
 
+#: Who "a reply from" means when it means him.
+HIM = re.compile(r"\b(?:caleb|him|me|operator)\b", re.I)
+
+
+def _waits_only_on_his_ok(task: dict) -> bool:
+    """A task that wrote something of hers and then waits for HIS reply, having sent nobody
+    anything: "ask him to confirm the list". His okay is a choice he makes when he likes, not a
+    gate on everything after it (2026-10-10: the whole move plan waited on "waiting for Caleb")."""
+    tw = task.get("then_wait") or {}
+    return (tw.get("for") == "reply" and bool(HIM.search(str(tw.get("who") or "")))
+            and not any(r.get("sent_to") for r in task.get("results") or []))
+
+
+def _confirm_later(task: dict) -> Callable[[dict], None]:
+    """The record change that leaves his okay as an open choice once the task is done."""
+    def add(record: dict) -> None:
+        key = f"confirm-{task['key']}"
+        if any(d.get("key") == key for d in record.get("decisions") or []):
+            return
+        record.setdefault("decisions", []).append(
+            {"key": key, "workstream": task.get("workstream", ""), "question":
+             f"I did \"{task['title']}\" from what you've told me. Does it look right, or should I change it?",
+             "options": ["Looks right", "Change it"], "after": [task["key"]], "state": "pending"})
+    return add
+
+
 def _after_steps(pid: str, record: dict, task: dict, now: dt.datetime) -> dict:
     tw = task.get("then_wait")
     if not tw or task.get("waited"):
         return _finish(pid, task, now)
+    if _waits_only_on_his_ok(task):
+        return _finish(pid, task, now, extra=_confirm_later(task))
     kind = tw["for"]
     item = pg.item_id(pid, task["key"])
     follow_up = ({"after_s": float(tw["follow_up_days"]) * 86400, "needs_approval": True,
@@ -784,14 +843,19 @@ def _after_steps(pid: str, record: dict, task: dict, now: dt.datetime) -> dict:
     return {"state": task["state"], "waiting": kind}
 
 
-def _finish(pid: str, task: dict, now: dt.datetime, text: str = "") -> dict:
+def _finish(pid: str, task: dict, now: dt.datetime, text: str = "",
+            extra: Callable[[dict], None] | None = None) -> dict:
     said = text or next((r["said"] for r in reversed(task.get("results") or []) if r.get("said")), "") or "done"
     task.update(state=ws.DONE, run=None, reason="", next="", not_before=None, updated_at=pg.stamp(now))
     pg._history(task, "done: " + said[:160], now)
 
+    more = extra
+
     def extra(record):
         record["results"] = (record.get("results") or [])[-pg.MAX_RESULTS:] + [
             {"at": pg.stamp(now), "task": task["key"], "text": f"{task['title']}: {said[:300]}"}]
+        if more is not None:
+            more(record)
     _commit(pid, task, now, extra)
     pg._journal("action", pg.item_id(pid, task["key"]), f"mission task done: {task['title']}")
     return {"state": ws.DONE}

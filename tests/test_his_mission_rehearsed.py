@@ -45,12 +45,16 @@ def reboot_draft() -> dict:
                   ["calendar.hold"], ["t2"]),
             _task("t4", "Save Caleb's answers as job-hunt preferences",
                   ["write his answers down as job-hunt preferences"], ["file_write"]),
-            _task("t5", "Write the move criteria from Caleb's answers",
-                  ["write the move criteria from his answers"], ["compose"]),
+            dict(_task("t5", "Write the move criteria from Caleb's answers",
+                       ["write the move criteria from his answers", "ask him to confirm the list"], ["compose"]),
+                 then_wait={"for": "reply", "who": "Caleb"}),
             _task("t6", "Compare a shortlist of warm red-state cities",
                   ["compare warm red-state cities on cost of living, taxes, housing and jobs"], [], ["t5"]),
             _task("t7", "Find free relocation or newcomer events in the shortlisted cities",
                   ["search for free newcomer events in the shortlisted cities"], ["web_task"], ["t6"]),
+            _task("t8", "Prepare application packets for matching roles",
+                  ["find matching postings", "prepare packets", "ask approval before sending"],
+                  ["apply_prepare", "apply_campaign"], ["t4"]),
         ],
         "activities": [
             {"key": "a1", "workstream": "w1", "title": "Weekly sweep for new job-search events",
@@ -83,6 +87,8 @@ def think(system, text, *, context=None, validator=None, **_):
         elif key in ("text", "what"):
             if "What Caleb has told" in seen:
                 got[key] = "His preferences, from what he told the mission."
+        elif key == "role" and "Business development" in seen:
+            got[key] = "Business development"
         elif key in ("question", "query", "topic"):
             got[key] = str((context or {}).get("task", {}).get("title") or text)
     value = {"args": got}
@@ -136,9 +142,30 @@ class HisMissionRunsWithoutHim(Sandbox):
                  for t in pg.load(self.pid)["tasks"]
                  if t["state"] != ws.DONE and never.search(str(t.get("reason") or ""))]
         self.assertEqual(stuck, [])
+        # The one thing left is his: preparing applications keeps its own gate, after the look ran.
         unfinished = [(t["title"], t["state"], t.get("reason")) for t in pg.load(self.pid)["tasks"]
                       if t["state"] != ws.DONE]
-        self.assertEqual(unfinished, [])
+        self.assertEqual([u[0] for u in unfinished], ["Prepare application packets for matching roles"])
+        self.assertIn("needs Caleb's approval", unfinished[0][2])
+        self.assertIn("research", [name for name, _a in self.ran])
+
+    def test_his_okay_of_her_own_work_is_a_choice_not_a_gate(self):
+        self._run_everything()
+        record = pg.load(self.pid)
+        by = {t["key"]: t for t in record["tasks"]}
+        self.assertEqual((by["t5"]["state"], by["t6"]["state"], by["t7"]["state"]), (ws.DONE,) * 3)
+        confirm = next(d for d in record["decisions"] if d["key"] == "confirm-t5")
+        self.assertEqual((confirm["state"], confirm["options"]), ("open", ["Looks right", "Change it"]))
+
+    def test_nothing_dated_found_means_look_again_not_ask_him(self):
+        with mock.patch.object(self, "_execute", lambda tool, args, **_: (
+                self.ran.append((tool.name, dict(args))) or ("ok", {"text": "Lots of job fairs happen in the area."}))), \
+                mock.patch.object(agent_session, "execute", lambda tool, args, **kw: self._execute(tool, args)):
+            self._run_everything()
+        t3 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")
+        self.assertEqual(t3["state"], ws.RETRY_LATER)
+        self.assertIn("nothing found yet has a date", t3["reason"])
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
 
     def test_the_holds_take_the_event_the_search_found(self):
         self._run_everything()
@@ -196,7 +223,7 @@ class HisMissionRunsWithoutHim(Sandbox):
         self.ran.clear()
         self._run_everything()
         left = [(t["title"], t["state"], t.get("reason")) for t in pg.load(self.pid)["tasks"]
-                if t["state"] != ws.DONE]
+                if t["state"] != ws.DONE and not t["title"].startswith("Prepare application packets")]
         self.assertEqual(left, [])
         written = [a["path"] for name, a in self.ran if name == "file_write"]
         self.assertTrue(written and written[0].startswith("missions/"), written)
@@ -212,3 +239,29 @@ class HisMissionRunsWithoutHim(Sandbox):
         self.assertIn("[file_write]", said)
         self.assertIn("args path,text", said)
         self.assertNotIn("555-0100", said)
+
+    def test_a_task_already_parked_on_his_okay_finishes_on_the_next_beat(self):
+        """His PC, 2026-10-10 16:51Z: "waiting for Caleb about Write the move criteria"."""
+        self._run_everything()
+
+        def unpick(record):
+            record["decisions"] = [d for d in record.get("decisions") or [] if d["key"] != "confirm-t5"]
+            t5 = next(t for t in record["tasks"] if t["key"] == "t5")
+            t5.update(state=ws.READY)
+        pg.update(self.pid, unpick)
+        record = pg.load(self.pid)
+        t5 = next(t for t in record["tasks"] if t["key"] == "t5")
+        pg.hold(record, t5, {"kind": "event", "event_kind": "mission.reply", "subject_prefix": "x",
+                             "describe": "a reply from Caleb is recorded"},
+                reason="waiting for Caleb about Write the move criteria from Caleb's answers", purpose="then",
+                now=NOW)
+        pg.update(self.pid, lambda r: [t.update(t5) for t in r["tasks"] if t["key"] == "t5"])
+        self.assertEqual(self.task_state("t5"), ws.BLOCKED_EXTERNAL)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t5", "then"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual(self.task_state("t5"), ws.DONE)
+        self.assertTrue(any(d["key"] == "confirm-t5" and d["state"] == "open"
+                            for d in pg.load(self.pid)["decisions"]))
+
+    def task_state(self, key):
+        return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]
