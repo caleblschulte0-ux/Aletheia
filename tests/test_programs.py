@@ -833,6 +833,20 @@ class ATaskParkedUnderOldRulesTriesAgain(Sandbox):
             released = program_run.requeue_reclassified(now=self.at(minutes=5))
         self.assertIn(("t3", "args"), [(r["task"], r["was"]) for r in released])
 
+    def test_one_task_that_cannot_be_rechecked_does_not_stop_the_others(self):
+        """His PC, 2026-10-10: with the re-check live, a parked task still did not move."""
+        def change(record):
+            record["tasks"].insert(0, {"key": "odd", "title": "odd", "state": ws.BLOCKED_USER,
+                                       "plan": {"steps": "not a list"}})
+        pg.update(self.pid, change)
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertEqual([r["task"] for r in released], ["t1"])
+
+    def test_the_beat_rechecks_before_anything_slow_can_spend_its_budget(self):
+        from aletheia import runtime
+        src = Path(runtime.__file__).read_text(encoding="utf-8")
+        self.assertLess(src.index('guarded("mission_requeue"'), src.index('guarded("sign_up_lists"'))
+
     def test_a_step_that_already_ran_is_never_swapped_under_it(self):
         def change(record):
             t = next(x for x in record["tasks"] if x["key"] == "t1")
