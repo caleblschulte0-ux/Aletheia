@@ -301,6 +301,18 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
             continue
         steps.append({"tool": tool.name, "for": need, "by": "matched", "score": top})
         seen.add(tool.name)
+    if named:
+        for step in list(steps):
+            if step["for"] and looks_up(step["for"]) and not catalog[step["tool"]].read_only:
+                # A named doing tool whose own step only looks something up ("find matching
+                # postings" given to the tool that prepares applications) handed a READ to him.
+                # The look runs first on its own; the doing tool keeps its own gate after it.
+                reader = reader_for({"title": title, "does": [step["for"]]}, catalog)
+                if reader is not None and reader.name not in seen:
+                    seen.add(reader.name)
+                    steps.insert(steps.index(step), {"tool": reader.name, "for": step["for"], "by": "reader",
+                                                     "score": None})
+                    step["for"] = ""
     reqs: list[str] = []
     for step in steps:
         reqs += requirements(catalog[step["tool"]])
@@ -433,7 +445,8 @@ def model_args(tool, task: dict, args: dict, missing: list[str], *, think=None,
         # Boring work is ROUTINE (her own model first). With no frontier model, though, the routine
         # ceiling (15 s local, 45 s total) is shorter than her own model needs on a CPU, so the
         # standard class carries it: frontier is out anyway, and local gets the time to answer.
-        policy = "routine" if reasoning_gateway.frontier_available() else "standard"
+        # With findings to read it is not boring work: the standard class reads them first.
+        policy = "routine" if reasoning_gateway.frontier_available() and not found else "standard"
         return reasoning_gateway.reason_json(ARGS_SYSTEM, str(task.get("title") or ""), context=context,
                                              policy=policy, validator=validate).output["args"]
     return think(ARGS_SYSTEM, str(task.get("title") or ""), context=context, validator=validate)["args"]
