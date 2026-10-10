@@ -1471,11 +1471,12 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # keyboard: the interviews grant is created from his own words when the
     # ruling says ON and no grant is live. Cheap: one grant listing.
     guarded("rulings", _apply_rulings)
+    # Mission tasks parked under rules that have since changed (a newer gate, a better
+    # tool choice) try again; anything that still needs him stays with him. Cheap, and
+    # BEFORE the sign-up lists, which may hold a browser for most of the beat's budget.
+    mission_requeued = guarded("mission_requeue", _requeue_mission_tasks)
     # His sign-ups ruling: one free event mailing list a day, so invitations arrive.
     guarded("sign_up_lists", _join_event_lists)
-    # Mission tasks parked under rules that have since changed (a newer gate, a better
-    # tool choice) try again; anything that still needs him stays with him.
-    guarded("mission_requeue", _requeue_mission_tasks)
     mail_events = guarded("mail", poll_mail_events)
     # The hunt's counts, published for the morning brief (which is composed
     # in the cloud and cannot see the records on this PC). Counts only.
@@ -1560,6 +1561,7 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
         "failures": failures,
         "local_ai": local_ai_heal,
         "skipped": skipped,
+        "mission_requeued": mission_requeued,
         "schedules": schedules,
         "mail_events": mail_events,
         "pulse_events": pulse_events,

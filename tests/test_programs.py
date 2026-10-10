@@ -748,6 +748,10 @@ def _old_rules_catalog() -> dict:
         input_schema={"properties": {"question": {"type": "string"}}, "required": ["question"]},
         handler=lambda a, **_: {"text": "visited"}, capability="test.visit", risk=intercom.TIER_WORLD,
         writes=("browser",), open_world=True, approval="operator_once")
+    catalog["free.window"] = tools.declare(
+        "free.window", description="Find free time over a stretch of days",
+        input_schema={"properties": {"when": {"type": "string"}}, "required": ["when"]},
+        handler=lambda a, **_: {"text": f"free {a['when']}"}, capability="test.free", reads=("calendar",))
     return catalog
 
 
@@ -814,6 +818,34 @@ class ATaskParkedUnderOldRulesTriesAgain(Sandbox):
         released = program_run.requeue_reclassified(now=self.at(minutes=5))
         self.assertIn(("t3", "refused"), [(r["task"], r["was"]) for r in released])
         self.assertEqual(self.task(self.pid, "t3")["state"], ws.READY)
+
+    def test_a_window_it_was_asked_about_is_filled_and_it_runs(self):
+        def window_plan(task, catalog):
+            return {"steps": [{"tool": "free.window", "for": "", "by": "named", "score": None}],
+                    "requires": [], "gaps": []}
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(needs=[]))
+        with mock.patch.object(program_compose, "compose", window_plan), \
+                mock.patch.object(program_compose, "default_args", return_value={}):
+            parked = program_run.run_task(self.pid, "t3", now=NOW)
+        self.assertEqual(parked["state"], ws.BLOCKED_USER)
+        self.assertIn("when", parked["why"])
+        with mock.patch.object(program_compose, "compose", window_plan):
+            released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertIn(("t3", "args"), [(r["task"], r["was"]) for r in released])
+
+    def test_one_task_that_cannot_be_rechecked_does_not_stop_the_others(self):
+        """His PC, 2026-10-10: with the re-check live, a parked task still did not move."""
+        def change(record):
+            record["tasks"].insert(0, {"key": "odd", "title": "odd", "state": ws.BLOCKED_USER,
+                                       "plan": {"steps": "not a list"}})
+        pg.update(self.pid, change)
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertEqual([r["task"] for r in released], ["t1"])
+
+    def test_the_beat_rechecks_before_anything_slow_can_spend_its_budget(self):
+        from aletheia import runtime
+        src = Path(runtime.__file__).read_text(encoding="utf-8")
+        self.assertLess(src.index('guarded("mission_requeue"'), src.index('guarded("sign_up_lists"'))
 
     def test_a_step_that_already_ran_is_never_swapped_under_it(self):
         def change(record):
