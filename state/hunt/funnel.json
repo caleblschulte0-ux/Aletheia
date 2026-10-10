@@ -74,12 +74,12 @@
       "gone_on_ashbyhq": 2,
       "gone_on_greenhouse": 5,
       "gone_on_lever": 1,
-      "left_captcha": 4,
-      "left_error": 1,
+      "left_captcha": 5,
+      "left_error": 3,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 4,
+      "left_no_way_forward": 5,
       "left_out_of_steps": 1,
-      "left_sign_in": 2,
+      "left_sign_in": 3,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 13,
       "not_realistic": 9
@@ -295,27 +295,27 @@
       "sent": 17
     },
     "2026-10-09": {
-      "filled": 19,
-      "found": 20,
+      "filled": 20,
+      "found": 26,
       "interviews": 0,
       "rejections": 6,
       "replies": 6,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-10T01:41:51Z",
+  "generated_at": "2026-10-10T02:42:38Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
     },
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 19,
+      "nothing_to_press_on_captcha/filled": 20,
       "nothing_to_press_on_captcha/observed": 2
     },
     "error": {
       "nothing_to_press_on_unread/filled": 8,
-      "nothing_to_press_on_unread/observed": 5,
+      "nothing_to_press_on_unread/observed": 7,
       "nothing_to_press_on_unread/submit_clicked": 1
     },
     "going_in_circles": {
@@ -328,7 +328,7 @@
     },
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
-      "nothing_to_press_on_content+no_apply/observed": 1,
+      "nothing_to_press_on_content+no_apply/observed": 2,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form/observed": 5,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -347,7 +347,7 @@
       "nothing_to_press_on_form/filled": 3
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 4,
+      "nothing_to_press_on_account_login/observed": 5,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -355,11 +355,11 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 3,
+        "nothing_to_press_on_captcha/filled": 4,
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
-        "nothing_to_press_on_unread/observed": 1,
+        "nothing_to_press_on_unread/observed": 3,
         "nothing_to_press_on_unread/submit_clicked": 1
       },
       "going_in_circles": {
@@ -367,20 +367,21 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 1,
+        "nothing_to_press_on_content+no_apply/observed": 2,
         "unclear_button/observed": 2
       },
       "out_of_steps": {
         "nothing_to_press_on_unread/observed": 1
       },
       "sign_in": {
+        "nothing_to_press_on_account_login/observed": 1,
         "nothing_to_press_on_account_login/submit_clicked": 2
       }
     }
   },
   "totals": {
-    "filled": 378,
-    "found": 751,
+    "filled": 379,
+    "found": 757,
     "interviews": 3,
     "rejections": 11,
     "replies": 43,
@@ -392,7 +393,7 @@
       "demographic_gender": 1,
       "demographic_race": 4,
       "demographic_veteran": 1,
-      "education": 1,
+      "education": 2,
       "on_site": 2,
       "other": 13,
       "pay": 2,
@@ -408,14 +409,14 @@
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "left_approval_denied": 16,
-      "left_captcha": 17,
-      "left_error": 12,
+      "left_captcha": 18,
+      "left_error": 14,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 75,
+      "left_no_way_forward": 76,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 1,
-      "left_sign_in": 6,
+      "left_sign_in": 7,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
       "not_a_form_asks_nothing_on_employer_site": 20,
@@ -437,7 +438,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 19,
+    "needs_answer": 20,
     "oldest_days": 27,
     "to_send": 0
   },
