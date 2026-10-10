@@ -329,8 +329,14 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T16:32:56Z",
+  "generated_at": "2026-10-10T16:53:35Z",
   "sent_all_time": 289,
+  "sent_by_system": {
+    "ashbyhq": 25,
+    "employer_site": 10,
+    "greenhouse": 239,
+    "lever": 15
+  },
   "stuck_at": {
     "approval_denied": {
       "nothing_to_press_on_unread/review_reached": 16
