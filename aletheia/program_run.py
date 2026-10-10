@@ -390,7 +390,8 @@ def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
     if tool is None:
         return False
     args, missing = compose.fill_args(tool, task, plan["steps"][i].get("args"))
-    if missing:
+    args.update(compose.default_args(tool, task, missing))
+    if any(not str(args.get(m) or "").strip() for m in missing):
         return False
     verdict = agent_session.Broker(tools, audience="all").check(agent_session.ToolRequest(tool.name, args)).verdict
     if verdict == agent_session.RUN:
@@ -522,6 +523,11 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 return {"state": ws.BLOCKED_MODEL}
             except Exception:  # noqa: BLE001 - an unusable answer means ask him
                 pass
+            missing = [m for m in missing if not str(args.get(m) or "").strip()]
+        if missing:
+            # What needs nobody's judgement (the window a read looks over, where a new file of
+            # hers goes) is never a question for him.
+            args.update(compose.default_args(tool, task, missing))
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
         if missing:
             step["args"] = args

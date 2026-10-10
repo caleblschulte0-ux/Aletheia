@@ -184,7 +184,9 @@ def best_tool(need: str, catalog: dict) -> tuple[Any, int]:
         if reading and not tool.read_only:
             continue
         # A look-up about the world reads the world: her own repository is not where events are.
-        s = score(need, tool) + (1 if reading and tool.open_world else 0)
+        # (+1 tied "search for newly listed events" between research and repo.list, and the
+        # tie went to her own repository by name order - his PC, 2026-10-10.)
+        s = score(need, tool) + (2 if reading and tool.open_world else 0)
         # Prefer what only looks when two tools tie: the smaller act first.
         if s > top or (s == top and s and best is not None and tool.read_only and not best.read_only):
             best, top = tool, s
@@ -256,6 +258,11 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
             covered["for"] = covered["for"] or need
             continue
         tool, top = best_tool(need, catalog)
+        if tool is not None and lookup and not tool.read_only:
+            # "Check the confidentiality of the setup" whose need says "confirm which calendar
+            # holds are written to" matched the tool that WRITES a hold, and asked him for a time.
+            reader, _r = best_tool(lookup, catalog)
+            tool, top = (reader, _r) if reader is not None else (tool, top)
         if tool is None:
             verdict = work_gaps.classify(need, registry=registry)
             gaps.append({"need": need, "outcome": verdict["outcome"], "why": verdict["why"],
@@ -324,6 +331,37 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
         else:
             missing.append(key)
     return args, missing
+
+
+#: Spoken windows `calendar_reasoning.window` understands, in the order a task's words are tried.
+WINDOW_WORDS = ("this weekend", "next week", "this week", "tomorrow", "today", "next two weeks")
+#: What a READ over a stretch of days looks at when the task names none: enough to see a pattern.
+DEFAULT_WINDOW = "next two weeks"
+#: The arguments that carry what a new file SAYS; a tool with one of them and a path creates.
+CONTENT_ARGS = ("text", "content", "what", "body")
+
+
+def default_args(tool, task: dict, missing: list[str]) -> dict:
+    """Values that need no one's judgement, for arguments nobody supplied: the window a
+    READ looks over, and where a NEW file in her own workspace goes. Each is safe because
+    of what the tool is - looking changes nothing, and a file of hers is hers to undo -
+    so a wrong default costs a re-read or a rename, never something he would have refused.
+    Everything else stays missing, which is a question for him."""
+    words_of_task = " ".join(str(x) for x in (task.get("title"), task.get("detail"),
+                                             " ".join(task.get("does") or [])) if x).lower()
+    props = (tool.input_schema or {}).get("properties") or {}
+    required = set((tool.input_schema or {}).get("required") or [])
+    out: dict = {}
+    for key in missing:
+        prop = props.get(key) or {}
+        if "enum" in prop:
+            continue
+        if key == "when" and tool.read_only:
+            out[key] = next((w for w in WINDOW_WORDS if w in words_of_task), DEFAULT_WINDOW)
+        elif (key == "path" and tool.writes and set(tool.writes) <= {"workspace"} and not tool.destructive
+              and not tool.open_world and required & set(CONTENT_ARGS)):
+            out[key] = f"missions/{new_id(str(task.get('title') or 'notes'))}.md"
+    return out
 
 
 ARGS_SYSTEM = """You fill in the arguments for ONE tool call that carries out one task of a

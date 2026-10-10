@@ -465,6 +465,39 @@ class WhereHerMissionWasStuck(unittest.TestCase):
                            self.catalog)["steps"]
         self.assertTrue(all(self.catalog[s["tool"]].read_only for s in steps), steps)
 
+    def test_a_search_for_events_asks_the_web_not_her_own_repository(self):
+        """2026-10-10: "search for newly listed events" tied research with repo.list."""
+        from aletheia import program_compose as pc
+        for need in ("search for newly listed events", "search event listings and local sources"):
+            tool, _ = pc.best_tool(need, self.catalog)
+            self.assertTrue(tool.open_world, (need, tool.name))
+
+    def test_a_check_whose_need_names_a_writer_still_only_reads(self):
+        from aletheia import program_compose as pc
+        steps = pc.compose({"title": "Check the confidentiality of the setup",
+                            "detail": "confirm which calendar holds are written to",
+                            "does": ["confirm which calendar holds are written to"]}, self.catalog)["steps"]
+        self.assertTrue(steps and all(self.catalog[s["tool"]].read_only for s in steps), steps)
+
+    def test_a_window_to_look_over_is_not_a_question_for_him(self):
+        from aletheia import program_compose as pc
+        tool = self.catalog["calendar_find_free"]
+        task = {"title": "Find free windows for the events found", "does": ["find free evening and weekend windows"]}
+        self.assertEqual(pc.default_args(tool, task, ["when"]), {"when": "next two weeks"})
+        self.assertEqual(pc.default_args(tool, {"title": "Find a free slot this weekend"}, ["when"]),
+                         {"when": "this weekend"})
+        # ...but a time to BOOK is his: a writer gets no made-up start.
+        self.assertEqual(pc.default_args(self.catalog["calendar_hold"], task, ["start"]), {})
+
+    def test_a_new_file_of_hers_gets_a_name_instead_of_a_question(self):
+        from aletheia import program_compose as pc
+        task = {"title": "Write the move criteria from Caleb's answers"}
+        path = pc.default_args(self.catalog["file_write"], task, ["path"])["path"]
+        self.assertTrue(path.startswith("missions/write-the-move-criteria") and path.endswith(".md"), path)
+        self.assertEqual(pc.default_args(self.catalog["file_write"], task, ["path"])["path"], path)  # stable
+        for other in ("file_delete", "file_move", "file_edit"):    # an existing file is never guessed
+            self.assertEqual(pc.default_args(self.catalog[other], task, ["path"]), {}, other)
+
     def test_doing_is_still_doing(self):
         from aletheia import program_compose as pc
         self.assertEqual(pc.best_tool("register for the Chamber networking event", self.catalog)[0].name,
