@@ -833,6 +833,40 @@ class ATaskParkedUnderOldRulesTriesAgain(Sandbox):
             released = program_run.requeue_reclassified(now=self.at(minutes=5))
         self.assertIn(("t3", "args"), [(r["task"], r["was"]) for r in released])
 
+    def test_a_write_that_failed_on_a_path_outside_her_workspace_tries_again(self):
+        """His PC, 2026-10-10: "file_write error: the tool failed (OutsideWorkspace)"."""
+        import tempfile
+        catalog = dict(program_run.CATALOG)
+        catalog["note.write"] = tools.declare(
+            "note.write", description="Write a note file in her workspace",
+            input_schema={"properties": {"path": {"type": "string"}, "text": {"type": "string"}},
+                          "required": ["path", "text"]},
+            handler=lambda a, **_: {"text": "written"}, capability="test.note", risk=intercom.TIER_ROUTINE,
+            writes=("workspace",))
+        bad = "C:\\Users\\caleb\\Documents\\Aletheia\\answers.md"
+
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t3")
+            t.update(state=ws.FAILED, cursor=0, needs=[], attempts=3,
+                     plan={"steps": [{"tool": "note.write", "for": "", "by": "named", "score": None,
+                                      "args": {"path": bad, "text": "his answers"}}],
+                           "requires": [], "gaps": []},
+                     reason="note.write failed 3 times: the tool failed (OutsideWorkspace)")
+        pg.update(self.pid, change)
+        with tempfile.TemporaryDirectory() as home, \
+                mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": home}), \
+                mock.patch.object(program_run, "CATALOG", catalog):
+            released = program_run.requeue_reclassified(now=self.at(minutes=5))
+            self.assertIn(("t3", "path"), [(r["task"], r["was"]) for r in released])
+            self.assertEqual(self.task(self.pid, "t3")["state"], ws.READY)
+            args, missing = program_compose.fill_args(catalog["note.write"], self.task(self.pid, "t3"),
+                                                      {"path": bad, "text": "his answers"})
+            self.assertEqual((missing, args["text"]), (["path"], "his answers"))
+            # a write that failed for any other reason is not touched
+            pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(
+                state=ws.FAILED, reason="note.write failed 3 times: disk full"))
+            self.assertNotIn("t3", [r["task"] for r in program_run.requeue_reclassified(now=self.at(minutes=9))])
+
     def test_one_task_that_cannot_be_rechecked_does_not_stop_the_others(self):
         """His PC, 2026-10-10: with the re-check live, a parked task still did not move."""
         def change(record):

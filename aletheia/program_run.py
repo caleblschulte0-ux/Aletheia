@@ -394,6 +394,9 @@ def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
     if any(not str(args.get(m) or "").strip() for m in missing):
         return False
     verdict = agent_session.Broker(tools, audience="all").check(agent_session.ToolRequest(tool.name, args)).verdict
+    if was == "path":
+        # It ran and failed on where it wrote; it goes on only with a path it would not fail on.
+        return verdict == agent_session.RUN and args.get("path") != (plan["steps"][i].get("args") or {}).get("path")
     if verdict == agent_session.RUN:
         return True
     if verdict == agent_session.HANDOFF and tool.capability == SIGN_UP_CAPABILITY:
@@ -411,7 +414,12 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     held = pg.current_wait(task) if task["state"] in ws.WORK_WAITING else None
     purpose = ((held or {}).get("context") or {}).get("purpose")
     refused = task["state"] == ws.FAILED and " was refused: " in str(task.get("reason") or "")
-    if purpose not in RECLASSIFIABLE and not refused:
+    # A write that failed three times on a path outside her workspace (2026-10-10) was a bad
+    # argument, not a bad task: the path is dropped and filled now, so it may try again.
+    bad_path = task["state"] == ws.FAILED and "OutsideWorkspace" in str(task.get("reason") or "")
+    if bad_path:
+        purpose = "path"
+    if purpose not in RECLASSIFIABLE and not refused and not bad_path:
         return None
     fresh = compose.compose(task, tools)
     if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
@@ -421,7 +429,8 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     new_tools = [s["tool"] for s in fresh["steps"]]
     if new_tools[:i] != old_tools[:i]:
         return None  # a step that already ran would be a different one now: leave it to him
-    candidate = dict(task, plan=fresh if new_tools != old_tools else plan)
+    # A bad path is a bad argument to the right step: the plan stays as it was.
+    candidate = dict(task, plan=fresh if new_tools != old_tools and not bad_path else plan)
     if not _would_go_further(candidate, candidate["plan"], tools, purpose or "refused"):
         return None
     handoff_id = ((held or {}).get("condition") or {}).get("handoff_id")

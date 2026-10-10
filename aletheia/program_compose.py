@@ -169,12 +169,19 @@ def usable_tools(catalog: dict) -> dict:
 #: 2026-10-09: "Search for upcoming job fairs, hiring events..." waited for his
 #: approval, because the step went to the website catch-all.
 LOOKUP_VERBS = frozenset({"search", "find", "look", "research", "read", "check", "compare", "browse",
-                          "discover", "identify", "scan", "review", "see", "learn"})
+                          "discover", "identify", "scan", "review", "see", "learn",
+                          # A recurring look: "Weekly sweep for new events", "Watch shortlisted
+                          # cities for roles" both waited for his yes on 2026-10-10.
+                          "watch", "monitor", "sweep", "scout"})
+#: How often, said before the verb: "Weekly sweep", "Daily check". Not the act itself.
+CADENCE_WORDS = frozenset({"daily", "weekly", "monthly", "nightly", "hourly", "regular", "recurring"})
 
 
 def looks_up(need: str) -> bool:
-    first = re.findall(r"[a-z]+", str(need or "").lower())[:1]
-    return bool(first) and first[0] in LOOKUP_VERBS
+    said = [w for w in re.findall(r"[a-z]+", str(need or "").lower())]
+    while said and said[0] in CADENCE_WORDS:
+        said = said[1:]
+    return bool(said) and said[0] in LOOKUP_VERBS
 
 
 def best_tool(need: str, catalog: dict) -> tuple[Any, int]:
@@ -313,6 +320,16 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
     schema = tool.input_schema or {}
     props = schema.get("properties") or {}
     args = {k: v for k, v in dict(given or {}).items() if k in props}
+    if "path" in args and tool.writes and set(tool.writes) <= {"workspace"}:
+        # A path in her own workspace that the workspace would refuse (a model wrote
+        # "C:\\Users\\...\\Documents\\Aletheia\\answers.md") is a path not given: it is
+        # dropped here so it is filled like any missing one, instead of failing the step
+        # three times (his PC, 2026-10-10: "file_write error: OutsideWorkspace").
+        try:
+            from aletheia import workspace
+            workspace.resolve(str(args["path"]))
+        except Exception:  # noqa: BLE001 - refused, or no workspace: either way not this path
+            args.pop("path")
     words_of_task = " ".join(str(x) for x in (task.get("detail") or task.get("title"),) if x).strip()
     missing = []
     for key in schema.get("required") or []:
