@@ -424,6 +424,71 @@ DATED = re.compile(r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}|\d{1,2}(?::\d{2})?\s
 NOTHING_DATED_RETRY = dt.timedelta(days=1)
 
 
+#: "Evenings after 5:30 pm and weekends", as he says it: both words, and the time if he gave one.
+EVENINGS = re.compile(r"\bevenings?\b", re.I)
+WEEKENDS = re.compile(r"\bweekends?\b", re.I)
+AFTER_TIME = re.compile(r"\bafter\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?", re.I)
+DEFAULT_EVENING = dt.time(17, 0)
+
+
+def his_hours(record: dict) -> dt.time | None:
+    """When his evenings start, when he has told this mission he is free evenings and weekends;
+    None when he has said no such thing. Read from his own words on the record, never assumed."""
+    told = " ".join([his_answers(record), str(record.get("objective") or "")])
+    if not (EVENINGS.search(told) and WEEKENDS.search(told)):
+        return None
+    for m in AFTER_TIME.finditer(told):
+        hour, minute, half = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+        if half.startswith("p") and hour < 12:
+            hour += 12
+        if 15 <= hour <= 21 and minute < 60:
+            return dt.time(hour, minute)
+    return DEFAULT_EVENING
+
+
+def _finds_free_time(tool) -> bool:
+    props = (tool.input_schema or {}).get("properties") or {}
+    return "part" in props and "when" in props and tool.read_only
+
+
+def _writes_holds(tool) -> bool:
+    props = (tool.input_schema or {}).get("properties") or {}
+    return (tool.capability == "calendar.hold" and not tool.read_only and bool(tool.writes)
+            and "title" in props and "start" in props)
+
+
+#: Words in a hold's title that say nothing about what it is for.
+_HOLD_FILLER = re.compile(r"\b(?:hold|holds|tentative|pencil(?:led)?|calendar|event|events|for|the|a|an|at|on|in|"
+                          r"to|of|and|with|am|pm|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|"
+                          r"friday|saturday|sunday|\d+(?::\d+)?)\b", re.I)
+
+
+def _wrong_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime, *,
+                made_at: dt.datetime | None = None) -> str:
+    """Why a hold this mission step would make (or made, at `made_at`) is wrong; "" when it is not."""
+    if not _writes_holds(tool) or not str(args.get("start") or "").strip():
+        return ""
+    from aletheia import localtime
+    try:
+        start = dt.datetime.fromisoformat(str(args["start"]).replace("Z", "+00:00"))
+    except ValueError:
+        return f"its time ({str(args['start'])[:40]}) could not be read"
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=localtime.operator_tz())
+    if start <= (made_at or now):
+        return "that time had already passed"
+    hours = his_hours(record)
+    local = start.astimezone(localtime.operator_tz())
+    if hours and local.weekday() < 5 and local.time() < hours:
+        return f"it is in his working day, and he said evenings from {hours:%H:%M} and weekends"
+    words = {w for w in re.findall(r"[a-z]{4,}", _HOLD_FILLER.sub(" ", str(args.get("title") or "").lower()))}
+    seen = " ".join(str(r.get("said") or "") for t in record.get("tasks") or [] for r in t.get("results") or []
+                    if r.get("outcome") == "ok" and t.get("key") != task.get("key")).lower()
+    if words and not any(w in seen for w in words):
+        return "its title names nothing the steps before it found"
+    return ""
+
+
 #: The waits a step's CLASSIFICATION put a task in: handed to him, refused, or asked an argument.
 #: A rule change can make any of them wrong; a wait for a reply, a date or a model it cannot.
 RECLASSIFIABLE = ("handoff", "refused", "args")
@@ -466,6 +531,8 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     plan = task.get("plan")
     if not plan or not plan.get("steps"):
         return None
+    if task.get("state") == ws.DONE:
+        return _recheck_done(record, task, tools, now)
     held = pg.current_wait(task) if task["state"] in ws.WORK_WAITING else None
     purpose = ((held or {}).get("context") or {}).get("purpose")
     refused = task["state"] == ws.FAILED and (
@@ -500,6 +567,7 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         fresh = compose.compose(task, tools)
         if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
             return None
+        fresh_gaps = fresh["gaps"]
         old_tools = [s["tool"] for s in plan["steps"]]
         new_tools = [s["tool"] for s in fresh["steps"]]
         if new_tools[:i] != old_tools[:i]:
@@ -509,7 +577,11 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
             if fresh is None:
                 return None
             new_tools = [s["tool"] for s in fresh["steps"]]
-        candidate = dict(task, plan=fresh if new_tools != old_tools else plan)
+        # The plan it keeps carries the gaps as they read NOW: the stored one still held the refusal
+        # that failed it, so a money need re-read as no money was refused again on the very next
+        # run (2026-10-10: the comparison stayed FAILED after the fix that cleared its words).
+        kept = plan if new_tools != old_tools or not refused else dict(plan, gaps=fresh_gaps)
+        candidate = dict(task, plan=fresh if new_tools != old_tools else kept)
     asked_when = set(((held or {}).get("context") or {}).get("missing") or []) & set(WHEN_ARGS)
     if purpose == "args" and asked_when and task.get("needs") and not task.get("dated_retried"):
         # Asked him WHEN about something earlier tasks were to find, before "nothing dated yet"
@@ -527,6 +599,63 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     if no_source:
         candidate = dict(candidate, mark="source_retried")
     return _release(record, task, candidate, held, purpose, now)
+
+
+def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
+    """A finished task whose step did the wrong thing under rules since made stricter is opened
+    again at that step: a hold that was wrong when it was made is taken back first (her own
+    tentative hold, released with the reason), and a free-time read that looked at his working
+    day reads again. Once per task each: what it does the second time stands."""
+    from aletheia import calendar as _calendar, calendar_reasoning, localtime
+    steps = (task.get("plan") or {}).get("steps") or []
+    hours = his_hours(record)
+    for i, step in enumerate(steps):
+        tool = tools.get(step.get("tool"))
+        args = step.get("args") or {}
+        if tool is None:
+            continue
+        why, mark = "", ""
+        if _writes_holds(tool) and not task.get("holds_rechecked"):
+            made = next((r.get("at") for r in task.get("results") or []
+                         if r.get("step") == i and r.get("outcome") == "ok"), None)
+            if made is None:
+                continue
+            why = _wrong_hold(record, task, tool, args, now, made_at=waits.parse(made))
+            mark = "holds_rechecked"
+            if why:
+                try:
+                    start = dt.datetime.fromisoformat(str(args["start"]).replace("Z", "+00:00"))
+                    start = start if start.tzinfo else start.replace(tzinfo=localtime.operator_tz())
+                    event_id = calendar_reasoning.hold_id(" ".join(str(args.get("title") or "").split()),
+                                                          start.isoformat(), str(args.get("thread") or ""))
+                    held = _calendar.load(event_id)
+                    if held and held.get("status") != "CANCELLED":
+                        calendar_reasoning.release_hold(event_id, why=f"taken back: {why}")
+                except (ValueError, OSError, KeyError):
+                    pass  # no such hold left to take back: the step is still done again
+        elif hours and _finds_free_time(tool) and not str(args.get("part") or "").strip() \
+                and not task.get("hours_rechecked"):
+            why, mark = "it counted his working day as free", "hours_rechecked"
+        if not why:
+            continue
+        key = task["key"]
+
+        def change(r, key=key, i=i, mark=mark, why=why):
+            t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
+            if t is None or t.get("state") != ws.DONE:
+                return None
+            t["plan"]["steps"][i]["args"] = {}
+            t.update(state=ws.READY, cursor=i, reason="", next="run its next step", run=None, not_before=None,
+                     attempts=0, updated_at=pg.stamp(now))
+            t[mark] = True
+            pg._history(t, f"opened again: {why}", now)
+            r["updated_at"] = pg.stamp(now)
+            return t
+        pg.update(record["id"], change)
+        pg._journal("event", pg.item_id(record["id"], key),
+                    f"{record.get('title') or record['id']}: {task['title']} is done again: {why}"[:240])
+        return {"program": record["id"], "task": key, "was": "done", "why": why}
+    return None
 
 
 def _rechoose_step(task: dict, plan: dict, tools: dict, i: int) -> dict | None:
@@ -693,6 +822,23 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             task["run"] = None
             _commit(pid, task, now)
             return {"state": ws.BLOCKED_USER, "why": question}
+        hours = his_hours(record)
+        if hours and _finds_free_time(tool) and not str(args.get("part") or "").strip():
+            # He said when he is free for this mission; a free-time read looks only there.
+            from aletheia import calendar_reasoning
+            args["part"] = calendar_reasoning.after_work_part(hours)
+        wrong = _wrong_hold(record, task, tool, args, now)
+        if wrong:
+            # A hold at a time that has passed, inside his working day, or titled with nothing the
+            # steps before it found is a wrong hold, never a hold: the step looks again tomorrow,
+            # its arguments worked out afresh (2026-10-10: "Hold Friday at 10 for the tour", for
+            # a Friday three years gone).
+            # Never a failure: what was found may simply not fit him yet.
+            step["args"] = {}
+            task.update(state=ws.RETRY_LATER, run=None, reason=f"left a calendar hold: {wrong}",
+                        next="look again for something that fits", not_before=pg.stamp(now + NOTHING_DATED_RETRY))
+            _commit(pid, task, now)
+            return {"state": task["state"], "why": wrong}
         step["args"] = args
         broker = agent_session.Broker(tools, audience="all")
         decision = broker.check(agent_session.ToolRequest(tool.name, args))

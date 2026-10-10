@@ -236,3 +236,23 @@ class AtTheDoorCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ALimitOnSpendingIsNotSpending(unittest.TestCase):
+    """His mission, 2026-10-10: "register for free events; stop at payment or unknown required
+    fields" was refused as a payment. A rule that says never pay is not paying; a sentence that
+    also asks to buy something still is."""
+
+    def test_the_limit_alone_is_not_spending(self):
+        from aletheia.webtask import would_spend
+        for words in ("register for free events; stop at payment or unknown required fields",
+                      "stop before the checkout page", "stop if it asks for payment", "never pay",
+                      "sign up but don't pay anything", "free only, no payment", "register without paying"):
+            self.assertFalse(would_spend(words), words)
+
+    def test_a_limit_beside_a_purchase_is_still_a_purchase(self):
+        from aletheia.webtask import would_spend
+        for words in ("buy the ticket and stop at payment", "don't pay more than $50 for the monitor",
+                      "never pay late, pay my rent", "stop at payment then pay", "register and pay the fee",
+                      "not paying attention, buy it", "do not buy until friday then buy it"):
+            self.assertTrue(would_spend(words), words)

@@ -28,6 +28,7 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import re
 import sys
 from typing import Callable
 from zoneinfo import ZoneInfo
@@ -168,6 +169,17 @@ def conflicts_for(start: str, end: str, *, location: str | None = None, events: 
     return out
 
 
+#: "Evenings after 5:30 and weekends" as a part of the week: weekday slots from that time to
+#: AFTER_WORK_END, any daytime slot at the weekend. A mission whose rules say when he is free
+#: asks for this (2026-10-10: "free Monday 9 am to 12:30" was his working day at the office).
+AFTER_WORK = re.compile(r"^\s*weekends\s+and\s+after\s+(\d{1,2}):(\d{2})\s*$", re.I)
+AFTER_WORK_END = dt.time(22, 0)
+
+
+def after_work_part(from_time: dt.time) -> str:
+    return f"weekends and after {from_time.hour:02d}:{from_time.minute:02d}"
+
+
 def find_free(first: dt.date, last: dt.date, *, minutes: int = 60, location: str | None = None,
               part: str | None = None, events: list[dict] | None = None, estimator: Estimator | None = None,
               day_start: dt.time = DEFAULT_DAY_START, day_end: dt.time = DEFAULT_DAY_END,
@@ -177,10 +189,18 @@ def find_free(first: dt.date, last: dt.date, *, minutes: int = 60, location: str
     never in the past. Each slot says when in words."""
     zone_name = tz_name(timezone)
     source = calendar.all_events() if events is None else events
+    after = AFTER_WORK.match(str(part or ""))
+    if after:
+        evening = dt.time(int(after.group(1)) % 24, int(after.group(2)) % 60)
+        day_end = max(day_end, AFTER_WORK_END)
+        part = None
     raw = calendar.find_slots(first, last, duration_minutes=minutes, timezone=zone_name, work_start=day_start,
                               work_end=day_end, events=source, step_minutes=step_minutes, limit=2000)
     if part:
         raw = calendar.in_part(raw, part)
+    if after:
+        local = lambda value: calendar.parse_time(value).astimezone(ZoneInfo(zone_name))  # noqa: E731
+        raw = [(a, b) for a, b in raw if local(a).weekday() >= 5 or local(a).time() >= evening]
     floor = _utc(now)
     out = []
     for start, end in raw:

@@ -296,8 +296,11 @@ class HisMissionRunsWithoutHim(Sandbox):
             t6.update(state=ws.FAILED, cursor=0, results=[],
                       does=["pick a shortlist that fits the criteria", "compute adjusted pay equivalent"],
                       uses=["web_task", "compose"],
+                      # As his PC stored it: the refusal that failed it is still on the plan.
                       plan={"steps": [{"tool": "research", "for": "pick a shortlist", "by": "matched",
-                                       "score": 3}], "requires": [], "gaps": []},
+                                       "score": 3}], "requires": [],
+                            "gaps": [{"need": "compute adjusted pay equivalent", "outcome": "refuse_policy",
+                                      "why": "it commits money, and only Caleb spends money", "next": ""}]},
                       reason="compute adjusted pay equivalent: it commits money, and only Caleb spends money")
         pg.update(self.pid, refuse)
         released = program_run.requeue_reclassified(now=NOW)
@@ -311,3 +314,129 @@ class HisMissionRunsWithoutHim(Sandbox):
         said = pg.spoken_steps("Project Reboot")
         self.assertIn("t2 |", said)
         self.assertIn("found: " + EVENT[:40], said)
+
+
+HOURS = ("Off limits for events: weekdays 8:00am-5:00pm Central (his workday), except that 1:00-2:30pm "
+         "Central on weekdays is kept free for job interviews. Events go on weekday evenings after 5:30pm "
+         "Central and on weekends; virtual events are fine at those times too.")
+
+
+class HisHoursAndHisCalendar(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-10 19:10Z: a hold "for the tour Friday, October 6 at 10 am" (a Friday three
+    years gone, titled from an example), free windows on Monday morning at the office, and a
+    sign-up step refused as spending for saying "stop at payment"."""
+
+    def setUp(self):
+        super().setUp()
+        pg.update(self.pid, lambda r: r["asks"].append({"at": "2026-09-16T15:00:00Z", "kind": "more",
+                                                         "words": HOURS, "via": "operator-voice"}))
+
+    def _with_event(self, text):
+        def run(tool, args, **_):
+            self.ran.append((tool.name, dict(args)))
+            return ("ok", {"text": text}) if tool.read_only and tool.open_world else ("ok", {"text": "done"})
+        return mock.patch.object(agent_session, "execute", run)
+
+    def test_his_hours_are_read_from_his_words(self):
+        import datetime as dt
+        self.assertEqual(program_run.his_hours(pg.load(self.pid)), dt.time(17, 30))
+        self.assertIsNone(program_run.his_hours({"questions": [], "asks": [{"kind": "more", "words": "no cold calls"}]}))
+        # Both ways of holding are held to it: the tool and the command his PC's step used.
+        self.assertTrue(all(program_run._writes_holds(self.catalog[n]) for n in ("calendar.hold", "calendar_hold")))
+        self.assertFalse(program_run._writes_holds(self.catalog["calendar_propose"]))
+
+    def test_an_evening_event_is_held(self):
+        self._run_everything()
+        holds = [a for name, a in self.ran if name == "calendar.hold"]
+        self.assertEqual([h["title"] for h in holds], ["Sioux Falls Fall Job Fair"])
+
+    def test_an_event_in_his_working_day_is_never_held(self):
+        with self._with_event("Sioux Falls Fall Job Fair - Thursday 2026-10-15 at 10:00, free"):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
+        t3 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")
+        self.assertEqual(t3["state"], ws.RETRY_LATER)
+        self.assertIn("working day", t3["reason"])
+
+    def test_a_time_that_has_passed_is_never_held(self):
+        with self._with_event("Sioux Falls Fall Job Fair - Friday 2023-10-06 at 18:00, free"):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
+        self.assertIn("already passed", next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")["reason"])
+
+    def test_a_title_naming_nothing_found_is_never_held(self):
+        def made_up(system, text, *, context=None, validator=None, **kw):
+            value = think(system, text, context=context, validator=None, **kw)
+            if system is program_compose.ARGS_SYSTEM and "title" in value.get("args", {}):
+                value["args"]["title"] = "Hold Friday at 10 for the tour"
+            return validator(value) if validator else value
+        with mock.patch.object(program_run, "THINK", made_up):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
+        self.assertIn("names nothing", next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")["reason"])
+
+    def test_a_wrong_hold_already_made_is_taken_back_and_done_again(self):
+        from aletheia import calendar, calendar_reasoning, localtime
+        import datetime as dt
+        self._run_everything()
+        bad = {"title": "Hold Friday at 10 for the tour", "start": "2023-10-06T10:00"}
+        start = dt.datetime.fromisoformat(bad["start"]).replace(tzinfo=localtime.operator_tz())
+        made = calendar_reasoning.hold(bad["title"], start.isoformat(), (start + dt.timedelta(hours=1)).isoformat())
+        event_id = made["event"]["id"]
+
+        def as_his_pc_left_it(record):
+            t3 = next(t for t in record["tasks"] if t["key"] == "t3")
+            t3["plan"]["steps"][0]["args"] = dict(bad)
+            t3["results"] = [{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "calendar_hold", "outcome": "ok",
+                              "said": "Pencilled in Hold Friday at 10 for the tour"}]
+            t3.update(state=ws.DONE, cursor=1)
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t3", "done"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual(calendar.load(event_id)["status"], "CANCELLED")
+        self.assertEqual(self.task_state("t3"), ws.READY)
+        self.assertEqual(program_run.requeue_reclassified(now=NOW), [])       # once
+        self.ran.clear()
+        self._run_everything()
+        self.assertEqual(self.task_state("t3"), ws.DONE)
+        self.assertEqual([a["title"] for name, a in self.ran if name == "calendar.hold"],
+                         ["Sioux Falls Fall Job Fair"])
+
+    def test_a_free_time_read_that_counted_his_working_day_reads_again(self):
+        self._run_everything()
+
+        def free_read(record):
+            t1 = next(t for t in record["tasks"] if t["key"] == "t1")
+            t1.update(state=ws.DONE, cursor=1, plan={"steps": [
+                {"tool": "calendar_find_free", "for": "find free windows", "args": {"when": "this week"}}],
+                "requires": [], "gaps": []})
+        pg.update(self.pid, free_read)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t1", "done"), [(r["task"], r["was"]) for r in released])
+        self.ran.clear()
+        program_run.run_task(self.pid, "t1", now=NOW)
+        reads = [a for name, a in self.ran if name == "calendar_find_free"]
+        self.assertEqual(reads[0].get("part"), "weekends and after 17:30")
+        self.assertEqual(program_run.requeue_reclassified(now=NOW), [])
+
+    def test_a_sign_up_refused_for_its_own_stop_at_payment_rule_runs(self):
+        from aletheia import webtask
+        self.assertFalse(webtask.would_spend("stop at payment or unknown required fields"))
+        self._run_everything()
+
+        def refuse(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, results=[],
+                      does=["compare the shortlisted places", "stop at payment or unknown required fields"],
+                      uses=["web_task"],
+                      plan={"steps": [{"tool": "research", "for": "compare the shortlisted places", "by": "named",
+                                       "score": None}], "requires": [],
+                            "gaps": [{"need": "stop at payment or unknown required fields",
+                                      "outcome": "refuse_policy", "next": "",
+                                      "why": "it commits money, and only Caleb spends money"}]},
+                      reason="stop at payment or unknown required fields: it commits money, and only Caleb "
+                             "spends money")
+        pg.update(self.pid, refuse)
+        self.assertIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        self._run_everything()
+        self.assertEqual(self.task_state("t6"), ws.DONE)
