@@ -267,23 +267,23 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 27,
-      "found": 45,
+      "filled": 25,
+      "found": 43,
       "interviews": 1,
       "rejections": 1,
       "replies": 4,
       "sent": 17
     },
     "2026-10-09": {
-      "filled": 14,
-      "found": 14,
+      "filled": 17,
+      "found": 17,
       "interviews": 0,
       "rejections": 6,
       "replies": 6,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-10T00:02:54Z",
+  "generated_at": "2026-10-10T01:10:48Z",
   "sent_all_time": 287,
   "stuck_at": {
     "approval_denied": {
@@ -335,7 +335,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 4,
+        "nothing_to_press_on_captcha/filled": 3,
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
@@ -360,8 +360,8 @@
     }
   },
   "totals": {
-    "filled": 376,
-    "found": 748,
+    "filled": 377,
+    "found": 749,
     "interviews": 3,
     "rejections": 11,
     "replies": 43,
@@ -418,8 +418,8 @@
     },
     "needs_account": 0,
     "needs_answer": 18,
-    "oldest_days": 26,
-    "to_send": 0
+    "oldest_days": 27,
+    "to_send": 1
   },
   "window_days": 30
 }
