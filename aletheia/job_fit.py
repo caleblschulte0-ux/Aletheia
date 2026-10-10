@@ -506,6 +506,7 @@ def verdict(job: dict, resume_text: str = "", known: dict | None = None, *,
     # he had said by then, and a part-time job is his to see before it goes.
     stamp = {"at": stateio.utcnow(), "employment": employment_type(title, text)}
     why = (rival_reason(company)
+           or paused_system_reason(job.get("url"), job.get("posting"), job.get("apply_url"))
            or hard_reason(title, text, resume_text=resume_text, known=known, early=early))
     if why:
         return {"realistic": False, "why": why, "by": "rules", **stamp}
@@ -544,6 +545,33 @@ def rival_reason(company: str) -> str:
     return ""
 
 
+def paused_system_reason(*addresses) -> str:
+    """Why this application's form is off limits for now, or "".
+
+    His ruling, 2026-10-10 (`pause-greenhouse`): "I honestly don't want us
+    applying on greenhouse anymore at this point ... we will again in the
+    future". Matched on the address's host, so an employer's own page that
+    merely carries a job id is still the employer's page."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("pause_ats")
+    except Exception:
+        return ""
+    if not (ruled and ruled.get("on")):
+        return ""
+    paused = {s.strip().casefold() for s in str((ruled.get("answers") or {}).get("systems") or "").split(",")
+              if s.strip()}
+    if not paused:
+        return ""
+    import urllib.parse
+    for address in addresses:
+        host = (urllib.parse.urlparse(str(address or "")).hostname or "").casefold()
+        for system in paused:
+            if system in host.split("."):
+                return f"applications on {system} are paused for now"
+    return ""
+
+
 def quick_reason(record: dict, resume_text: str = "", known: dict | None = None) -> str:
     """Why a staged application should not go, from what is ALREADY on it.
 
@@ -551,7 +579,8 @@ def quick_reason(record: dict, resume_text: str = "", known: dict | None = None)
     before a send. A verdict the campaign stored (`fit`) counts, and so do
     the rules that read a title alone.
     """
-    rival = rival_reason(record.get("company") or "")
+    rival = rival_reason(record.get("company") or "") or paused_system_reason(
+        record.get("url"), record.get("posting"), record.get("apply_url"))
     if rival:
         return rival
     fit = record.get("fit") if isinstance(record.get("fit"), dict) else {}
