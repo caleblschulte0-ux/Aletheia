@@ -100,7 +100,7 @@
       "left_out_of_steps": 1,
       "left_questions": 1,
       "left_sign_in": 3,
-      "not_realistic": 6
+      "not_realistic": 12
     }
   },
   "days": {
@@ -321,7 +321,7 @@
       "sent": 1
     },
     "2026-10-10": {
-      "filled": 14,
+      "filled": 8,
       "found": 18,
       "interviews": 0,
       "rejections": 1,
@@ -329,7 +329,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T16:53:35Z",
+  "generated_at": "2026-10-10T17:25:17Z",
   "sent_all_time": 289,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -415,7 +415,7 @@
     }
   },
   "totals": {
-    "filled": 380,
+    "filled": 374,
     "found": 763,
     "interviews": 3,
     "rejections": 12,
@@ -425,13 +425,9 @@
   "waiting": {
     "asked_about": {
       "address": 1,
-      "demographic_gender": 1,
-      "demographic_race": 4,
-      "demographic_veteran": 1,
       "education": 2,
       "on_site": 2,
-      "other": 11,
-      "pay": 2,
+      "other": 10,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -460,7 +456,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 78
+      "not_realistic": 84
     },
     "failed": 16,
     "failed_because": {
@@ -473,7 +469,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 12,
     "oldest_days": 27,
     "to_send": 0
   },
