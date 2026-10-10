@@ -329,7 +329,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T20:09:20Z",
+  "generated_at": "2026-10-10T22:38:15Z",
   "sent_all_time": 289,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -394,7 +394,7 @@
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
-        "nothing_to_press_on_unread/observed": 3
+        "nothing_to_press_on_unread/observed": 2
       },
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
