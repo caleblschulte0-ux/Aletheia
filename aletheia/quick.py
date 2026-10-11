@@ -227,7 +227,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what|which)(?: events?| things?| lists?)? (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?|put) me (?:up )?(?:for|on)(?: so far| yet)?\s*\??$"
         r"|^(?:what|which) (?:events? )?(?:am i|have i been) (?:signed up|registered) for\s*\??$"
         r"|^(?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?) me (?:up )?for anything(?: yet)?\s*\??$"
+        r"|^how many (?:events?|things?) (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?) me (?:up )?for(?: this week| so far| yet)?\s*\??$"
         r"|^(?:what|which) (?:event )?lists? (?:did|have) (?:you|u) (?:join(?:ed)?|sign(?:ed)? me up for)\s*\??$")),
+    # "What did you put on my calendar" (2026-10-11: to a model, which has never seen her holds).
+    ("her_holds", re.compile(
+        r"^what (?:did|have) (?:you|u) (?:put|pencil(?:l?ed)?|add(?:ed)?|hold|held|book(?:ed)?) (?:on|onto|in|into|to) my (?:calendar|schedule)(?: so far| yet| this week)?\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:put|pencil(?:l?ed)?|add(?:ed)?) anything (?:on|onto|in|into|to) my (?:calendar|schedule)(?: yet)?\s*\??$"
+        r"|^what (?:holds? )?(?:have|did) (?:you|u) (?:pencil(?:l?ed)? in|made|make)\s*\??$"
+        r"|^what(?:'s| is|s) (?:pencil(?:l?ed)? in|tentative) on my (?:calendar|schedule)\s*\??$"
+        r"|^(?:what are |show me |list )?(?:your|the) (?:tentative )?holds(?: on my calendar)?\s*\??$")),
     ("waiting", re.compile(
         r"^what(?:'s| is|s)? waiting(?: on| for)? me(?: right now| now)?$"
         r"|^what(?:'s| is|s)? waiting$"
@@ -19026,6 +19034,7 @@ def _good_morning() -> str:
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "signed_up": lambda rest: __import__("aletheia.event_signup", fromlist=["spoken"]).spoken(),
+           "her_holds": lambda rest: _her_holds(),
            "power": lambda rest: _power(rest),
            "joke": lambda rest: _joke(),
            "meal_idea": lambda rest: _meal_idea(rest),
@@ -19707,6 +19716,20 @@ def _follow_up(question: str) -> str | None:
 _HANDS_ON = frozenset({"my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
+
+
+def _her_holds() -> str | None:
+    """Her own tentative holds still to come, soonest first; an empty store still proves the store."""
+    from aletheia import calendar_reasoning, speech
+    try:
+        held = sorted(calendar_reasoning.upcoming_holds(), key=lambda h: str(h.get("start") or ""))
+    except Exception:  # noqa: BLE001 - unreadable: a model may still say something useful
+        return None
+    if not held:
+        return "I haven't pencilled anything in that's still to come."
+    named = [f"{h.get('title') or 'something'} {calendar_reasoning.human(h['start'])}" for h in held[:4]]
+    more = f" - and {speech.count_phrase(len(held) - 4, 'more')}" if len(held) > 4 else ""
+    return f"I've pencilled in {speech.and_list(named)}{more}. Tell me to take any of them off."
 
 
 def answer(question: str) -> str | None:

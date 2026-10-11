@@ -3808,9 +3808,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         except (OSError, ValueError):
             held = None
         if not held or held.get("status") == "CANCELLED":
-            return f"hold none released — there's no hold for {cmd['title']} at that time"
+            return f"There's no hold of mine for {cmd['title']} at that time."
         calendar_reasoning.release_hold(event_id, why="released: he cancelled it")
-        return f"hold {event_id} released — {held.get('title')} {calendar_reasoning.human(held['start'])}"
+        return f"Took {held.get('title')} {calendar_reasoning.human(held['start'])} off your calendar."
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
         import datetime as _dt
