@@ -710,6 +710,30 @@ def implied_needs(record: dict, task: dict) -> list[dict]:
     return out
 
 
+def what_it_watches(record: dict, task: dict, *, most: int = 2) -> list[dict]:
+    """The finished tasks a recurring occurrence's words are about, newest first. A watch over "the
+    shortlisted ..." waits on the task that makes the shortlist (implied_needs), and once that task
+    was DONE it ran without it: "No shortlist has been chosen" beside the comparison that chose
+    one (his PC, 2026-10-11). A finished, non-recurring task of the same workstream whose title or
+    steps share a word stem with the occurrence's words. The words decide; nothing here names a thing."""
+    if not task.get("from_activity"):
+        return []
+    said = " ".join([str(task.get("title") or ""), str(task.get("detail") or "")]
+                    + [str(d) for d in task.get("does") or []]).casefold()
+    words = {w for w in re.findall(r"[a-z][a-z-]+", said) if len(w) >= 5}
+    out = []
+    for t in record.get("tasks") or []:
+        if (t.get("from_activity") or t.get("state") != ws.DONE
+                or (task.get("workstream") and t.get("workstream") != task.get("workstream"))):
+            continue
+        theirs = " ".join([str(t.get("title") or "")] + [str(d) for d in t.get("does") or []]).casefold()
+        stems = {w for w in re.findall(r"[a-z][a-z-]+", theirs) if len(w) >= 5}
+        if any(w.startswith(n) or n.startswith(w) for n in stems for w in words):
+            out.append(t)
+    out.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+    return out[:most]
+
+
 def unmet_needs(record: dict, task: dict) -> list[dict]:
     """The tasks this one needs first that are not done, and those its words wait on."""
     by_key = {t["key"]: t for t in record.get("tasks") or []}
@@ -1001,7 +1025,12 @@ def spoken_steps(which: str = "") -> str:
             "for " + str(here.get("for") or "") if here.get("for") else "",
             "args " + ",".join(sorted((here.get("args") or {}).keys())) if here.get("args") else "",
             "attempts " + str(t.get("attempts")) if t.get("attempts") else "",
-            str(t.get("reason") or "")[:200]) if x))
+            str(t.get("reason") or "")[:200],
+            # Why a parked task is not running, on the relay: RETRY_LATER sat 26 hours past its
+            # retry and nothing could say whether an old wait or the engine held it (2026-10-11).
+            "not before " + str(t.get("not_before")) if t.get("not_before") else "",
+            _open_waits_line(t),
+            _engine_line(item_id(record["id"], t.get("key")))) if x))
     for t in record.get("tasks") or []:
         # What the last look of a task stuck on one read, page by page, and what refused it: four
         # rounds went blind on one comparison without it (2026-10-11). Hosts and sizes only.
@@ -1032,6 +1061,36 @@ def spoken_steps(which: str = "") -> str:
             out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")
     out += _holds_taken_back()
     return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
+
+
+def _open_waits_line(task: dict) -> str:
+    """The task's waits still WAITING: purpose, what it asks or the argument names it lacks, and
+    when it next wakes. Her own questions and argument NAMES only, never a value."""
+    rows = []
+    for wid in task.get("waits") or []:
+        try:
+            held = waits.load(wid)
+        except (ValueError, OSError):
+            continue
+        if held.get("state") != waits.WAITING:
+            continue
+        ctx = held.get("context") or {}
+        asked = ",".join(ctx.get("missing") or []) or str((held.get("condition") or {}).get("kind") or "")
+        rows.append(f"{ctx.get('purpose') or '?'}:{asked} wakes {waits.next_wake_at(held) or 'never'}")
+    return ("open waits " + "; ".join(rows)) if rows else ""
+
+
+def _engine_line(item: str) -> str:
+    """What the work engine last checkpointed for this task, when it holds anything."""
+    try:
+        from aletheia import work_engine
+        held = (work_engine.load_store().get("items") or {}).get(item)
+    except Exception:  # noqa: BLE001 - the steps view never fails for want of the engine
+        return ""
+    if not held:
+        return ""
+    return (f"engine {held.get('state')} until {held.get('not_before') or '-'} "
+            f"(as of {held.get('native_state') or '?'})")
 
 
 def _holds_taken_back(limit: int = 5) -> list[str]:

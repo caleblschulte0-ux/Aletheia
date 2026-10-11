@@ -315,6 +315,20 @@ class HisMissionRunsWithoutHim(Sandbox):
         self.assertIn("t2 |", said)
         self.assertIn("found: " + EVENT[:40], said)
 
+    def test_the_steps_view_says_when_a_parked_task_may_run_and_what_holds_it(self):
+        # His PC, 2026-10-11: t3 sat RETRY_LATER 26 hours past its retry and the relay could not say why.
+        self._run_everything()
+        record = pg.load(self.pid)
+        t3 = dict(next(t for t in record["tasks"] if t["key"] == "t3"))
+        pg.hold(record, t3, {"kind": "user_decision", "question": "what should I use for start and title?"},
+                reason="what should I use for start and title?", purpose="args", now=NOW,
+                extra={"step": 0, "missing": ["start", "title"]})
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(
+            state=ws.RETRY_LATER, not_before="2026-10-11T20:09:20Z", waits=t3.get("waits")))
+        said = pg.spoken_steps("Project Reboot")
+        self.assertIn("not before 2026-10-11T20:09:20Z", said)
+        self.assertIn("open waits args:start,title", said)
+
 
 HOURS = ("Off limits for events: weekdays 8:00am-5:00pm Central (his workday), except that 1:00-2:30pm "
          "Central on weekdays is kept free for job interviews. Events go on weekday evenings after 5:30pm "
@@ -1346,3 +1360,25 @@ class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
         t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
         self.assertEqual(t6["state"], ws.RETRY_LATER, t6.get("reason"))
         self.assertNotIn("what should I use", str(t6.get("reason")))
+
+    def test_an_address_asked_for_before_that_fix_is_asked_again_once_on_the_new_rule(self):
+        # His PC, 2026-10-11 20:56Z: t12 still BLOCKED on "what should I use for url?" hours after
+        # the fix that stops asking, because nothing requeued a question asked before it.
+        self._run_everything()
+        record = pg.load(self.pid)
+        t6 = dict(next(t for t in record["tasks"] if t["key"] == "t6"))
+        t6.update(cursor=0, run=None, results=[], uses=["event.register"], does=["register for free events"],
+                  args_retried=True,
+                  plan={"steps": [{"tool": "event.register", "for": "register for free events", "by": "named",
+                                   "score": None}], "requires": [], "gaps": []})
+        pg.hold(record, t6, {"kind": "user_decision", "question": "what should I use for url?"},
+                reason="what should I use for url?", purpose="args", now=NOW,
+                extra={"step": 0, "missing": ["url"]})
+        pg.update(self.pid, lambda r: [t.update(t6) for t in r["tasks"] if t["key"] == "t6"])
+        self.assertIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        program_run.run_task(self.pid, "t6", now=NOW)
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual(t6["state"], ws.RETRY_LATER, t6.get("reason"))
+        self.assertTrue(t6.get("where_retried"))
+        # and once is once
+        self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
