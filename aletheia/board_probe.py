@@ -49,6 +49,17 @@ _GENERIC = frozenset("inc llc ltd corp corporation company co group holdings lab
 _DEMO = re.compile(r"\b(?:sample|demo|test|example|placeholder|lorem)\b", re.I)
 
 
+def seed_rows() -> list[dict]:
+    """Employer names from `config/employer_seeds.json`, as rows. A missing or
+    malformed file seeds nothing."""
+    try:
+        data = json.loads((stateio.REPO_ROOT / "config" / "employer_seeds.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, AttributeError):
+        return []
+    names = data.get("employers") if isinstance(data, dict) else None
+    return [{"name": str(n)} for n in names or [] if isinstance(n, str) and n.strip()]
+
+
 def _ledger_path():
     return stateio.private_dir("jobs") / "probed_employers.json"
 
@@ -150,7 +161,7 @@ def probe(*, limit: int | None = None, fetcher=None, now: dt.datetime | None = N
     now = now or dt.datetime.now(dt.timezone.utc)
     report = {"tried": [], "found": []}
     try:
-        rows = employers.all_rows() if rows is None else rows
+        rows = (seed_rows() + employers.all_rows()) if rows is None else rows
         learned = {(r["provider"], r["token"]) for r in jobs._learned_boards()}
         learned |= {employers.name_key(r.get("company") or "") for r in jobs._learned_boards()} - {""}
         ledger = _ledger()
