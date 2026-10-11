@@ -975,16 +975,27 @@ def spoken_steps(which: str = "") -> str:
     for t in record.get("tasks") or []:
         # What the last look of a task stuck on one read, page by page, and what refused it: four
         # rounds went blind on one comparison without it (2026-10-11). Hosts and sizes only.
+        # The newest look at or before the step it is on: once the look passed and the step after
+        # it failed, what the look read had vanished from this view (2026-10-11).
         if t.get("state") == ws.DONE:
             continue
         steps = (t.get("plan") or {}).get("steps") or []
         i = int(t.get("cursor") or 0)
-        question = ((steps[i] if i < len(steps) else {}).get("args") or {}).get("question")
-        if question and steps[i].get("tool") == "research":
+        at = next((n for n in range(min(i, len(steps) - 1), -1, -1) if steps[n].get("tool") == "research"), None)
+        question = ((steps[at].get("args") or {}).get("question")) if at is not None else None
+        if question:
             from aletheia import research
             look = research.last_look(str(question))
             if look:
-                out.append(f"{t.get('key')} | last look at {look.get('at')} | {research.look_words(look)}")
+                out.append(f"{t.get('key')} | last look at {look.get('at')} | {research.look_words(look)}"
+                           + (f" | looked again r{t.get('relooked')}" if t.get("relooked") else ""))
+            elif t.get("relooked"):
+                out.append(f"{t.get('key')} | looked again r{t.get('relooked')} | no look recorded for its question")
+        if at is not None and at < i:
+            found = [_found_line(r.get("said")) for r in (t.get("results") or [])
+                     if r.get("outcome") == "ok" and r.get("said")][-1:]
+            if found:
+                out.append(f"{t.get('key')} | found so far: {found[0]}")
     for t in record.get("tasks") or []:
         opened = [h for h in t.get("history") or [] if str(h.get("did") or "").startswith("opened again")]
         if opened:

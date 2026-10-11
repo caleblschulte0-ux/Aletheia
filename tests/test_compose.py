@@ -181,3 +181,44 @@ class TheGrammarSteersTowardIt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WhenTheSubscriptionsAreOutHerOwnModelWrites(ComposeCase):
+    """His PC, 2026-10-11: every document of the move plan failed with ComposeError while Claude
+    and ChatGPT rested - compose asked only the subscriptions, never her own model."""
+
+    def test_her_own_model_writes_it_and_the_receipt_says_so(self):
+        from aletheia import reasoner
+        (self.ws / "found.md").write_text("Tampa: index 102. " * 400)
+        asked = {}
+
+        def local(system, prompt, **kwargs):
+            asked["prompt"] = prompt
+            return "- Tampa first", "ollama:qwen3:4b"
+        with mock.patch.object(reasoner, "subscription_text",
+                               side_effect=reasoner.ReasonerUnavailable("both out")), \
+                mock.patch.object(reasoner, "local_text", local):
+            out = compose.compose("rank the places", "ranked.md", sources=["found.md"])
+        self.assertEqual((self.ws / "ranked.md").read_text(), f"- Tampa first\n\n_{compose.LOCAL_NOTE}_")
+        self.assertLess(len(asked["prompt"]), compose.LOCAL_SOURCE_CHARS + 400)
+        self.assertIn("my own model", compose.spoken(out))
+
+    def test_nobody_to_write_it_still_saves_nothing_and_says_both(self):
+        from aletheia import reasoner
+        with mock.patch.object(reasoner, "subscription_text",
+                               side_effect=reasoner.ReasonerUnavailable("both out")), \
+                mock.patch.object(reasoner, "local_text",
+                                  side_effect=reasoner.ReasonerUnavailable("my own model is off")):
+            with self.assertRaises(compose.ComposeError) as caught:
+                compose.compose("rank the places", "ranked.md")
+        self.assertIn("my own model is off", str(caught.exception))
+        self.assertFalse((self.ws / "ranked.md").exists())
+
+    def test_a_writer_the_caller_chose_is_never_swapped_for_another(self):
+        from aletheia import reasoner
+
+        def out(*a, **k):
+            raise reasoner.ReasonerUnavailable("out")
+        with mock.patch.object(reasoner, "local_text", side_effect=AssertionError("not asked")):
+            with self.assertRaises(compose.ComposeError):
+                compose.compose("a letter", "letter.md", think=out)

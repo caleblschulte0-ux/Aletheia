@@ -387,6 +387,11 @@ def execute(tool: tools.Tool, args: dict, *, timeout_s: float = TOOL_TIMEOUT_S,
     except intercom.Unavailable as exc:
         return "unavailable", {"error": f"unavailable on this machine: {exc}"}
     except Exception as exc:                                          # noqa: BLE001
+        from aletheia import compose
+        if isinstance(exc, compose.ComposeError):
+            # Written to be read: "the tool failed (ComposeError)" on three documents in a row hid
+            # whether it had nothing to write from or nobody to write it (2026-10-11).
+            return "error", {"error": f"the tool failed (ComposeError: {str(exc)[:200]})"}
         return "error", {"error": f"the tool failed ({type(exc).__name__})"}
     if isinstance(result, dict) and set(result) == {"error"}:
         return "error", result

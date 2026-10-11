@@ -630,3 +630,13 @@ class AStateSpelledTheWayHeSaysItStillFilters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AComposeFailureSaysWhy(unittest.TestCase):
+    def test_the_reason_travels_with_the_failure(self):
+        from aletheia import compose
+        tool = mock.Mock(handler=mock.Mock(side_effect=compose.ComposeError("I could not read x.md")),
+                         kind="")
+        outcome, result = s.execute(tool, {})
+        self.assertEqual(outcome, "error")
+        self.assertIn("I could not read x.md", result["error"])

@@ -66,7 +66,9 @@ ALLOWED = {
         ("standard", "conversation is prose; Claude then ChatGPT, then the disclosed local rung"),
     # -- prose writers the gateway (JSON-only) cannot express yet
     ("compose", "compose", "subscription_text"):
-        ("standard", "document prose; no gateway text route and no own-model disclosure on a saved file yet"),
+        ("standard", "document prose; no gateway text route; Claude then ChatGPT, then the disclosed local rung"),
+    ("compose", "compose", "local_text"):
+        ("standard", "document prose's local rung when both subscriptions are out; the file and the reply say so"),
     ("webtask", "run", "subscription_text"):
         ("standard", "the older selector loop (superseded by browser_loop for start-page asks)"),
     # -- the script sandbox is frozen by operator rule; migrate in its own reviewed change
