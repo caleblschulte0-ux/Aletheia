@@ -91,15 +91,15 @@
     "2026-10-11": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 48,
+      "minutes": 70,
       "needs_account": 0,
-      "needs_answer": 2,
-      "not_realistic": 21,
-      "offered": 180,
+      "needs_answer": 4,
+      "not_realistic": 22,
+      "offered": 270,
       "ready": 0,
-      "runs": 2,
+      "runs": 3,
       "unfit_model": 2,
-      "unfit_sales": 19,
+      "unfit_sales": 20,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -114,7 +114,7 @@
       "left_no_way_forward": 10,
       "left_questions": 3,
       "left_sign_in": 2,
-      "not_realistic": 13
+      "not_realistic": 14
     }
   },
   "days": {
@@ -343,15 +343,15 @@
       "sent": 5
     },
     "2026-10-11": {
-      "filled": 13,
-      "found": 19,
+      "filled": 15,
+      "found": 22,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T06:25:54Z",
+  "generated_at": "2026-10-11T06:58:05Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -443,8 +443,8 @@
     }
   },
   "totals": {
-    "filled": 383,
-    "found": 787,
+    "filled": 385,
+    "found": 790,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -455,7 +455,8 @@
       "background_check": 2,
       "education": 2,
       "on_site": 2,
-      "other": 13,
+      "other": 12,
+      "pay": 2,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -484,7 +485,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 91
+      "not_realistic": 92
     },
     "failed": 16,
     "failed_because": {
@@ -497,7 +498,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 16,
+    "needs_answer": 18,
     "oldest_days": 28,
     "to_send": 0
   },
