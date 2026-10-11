@@ -37,6 +37,9 @@ from aletheia import journal, stateio
 
 ACTOR = "aletheia-jobs"
 MAX_EMPLOYERS_PER_BATCH = 6
+#: While a system is paused by his ruling, the openings that matter come from
+#: the others, and each probe is one small public read: look at more names.
+PAUSED_EMPLOYERS_PER_BATCH = 30
 PROBE_AGAIN_AFTER = dt.timedelta(days=30)
 MAX_LEDGER = 3000
 #: Words that name a kind of company, not the company.
@@ -80,8 +83,13 @@ def slugs(name: str) -> dict[str, list[str]]:
 def candidates(name: str) -> list[dict]:
     from aletheia import jobs
     out = []
+    try:
+        from aletheia import job_fit
+        paused = job_fit.paused_systems()
+    except Exception:
+        paused = set()
     for provider, tokens in slugs(name).items():
-        if provider not in jobs.PROVIDERS:
+        if provider not in jobs.PROVIDERS or provider in paused:
             continue
         for token in tokens:
             out.append({"provider": provider, "board": token, "company": name, "found_by": "name probe"})
@@ -129,10 +137,16 @@ def pick(rows: list[dict], *, learned: set, ledger: dict, now: dt.datetime, limi
     return out
 
 
-def probe(*, limit: int = MAX_EMPLOYERS_PER_BATCH, fetcher=None, now: dt.datetime | None = None,
+def probe(*, limit: int | None = None, fetcher=None, now: dt.datetime | None = None,
           rows: list[dict] | None = None) -> dict:
     """Try the next few employers' names on every system. Never raises."""
     from aletheia import employers, jobs
+    if limit is None:
+        try:
+            from aletheia import job_fit
+            limit = PAUSED_EMPLOYERS_PER_BATCH if job_fit.paused_systems() else MAX_EMPLOYERS_PER_BATCH
+        except Exception:
+            limit = MAX_EMPLOYERS_PER_BATCH
     now = now or dt.datetime.now(dt.timezone.utc)
     report = {"tried": [], "found": []}
     try:

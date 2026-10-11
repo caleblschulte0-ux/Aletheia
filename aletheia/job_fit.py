@@ -545,6 +545,20 @@ def rival_reason(company: str) -> str:
     return ""
 
 
+def paused_systems() -> set:
+    """The application systems he has paused for now (`pause-greenhouse`),
+    as lowercase names; empty when nothing is paused."""
+    try:
+        from aletheia import rulings
+        ruled = rulings.for_switch("pause_ats")
+    except Exception:
+        return set()
+    if not (ruled and ruled.get("on")):
+        return set()
+    return {s.strip().casefold() for s in str((ruled.get("answers") or {}).get("systems") or "").split(",")
+            if s.strip()}
+
+
 def paused_system_reason(*addresses) -> str:
     """Why this application's form is off limits for now, or "".
 
@@ -552,15 +566,7 @@ def paused_system_reason(*addresses) -> str:
     applying on greenhouse anymore at this point ... we will again in the
     future". Matched on the address's host, so an employer's own page that
     merely carries a job id is still the employer's page."""
-    try:
-        from aletheia import rulings
-        ruled = rulings.for_switch("pause_ats")
-    except Exception:
-        return ""
-    if not (ruled and ruled.get("on")):
-        return ""
-    paused = {s.strip().casefold() for s in str((ruled.get("answers") or {}).get("systems") or "").split(",")
-              if s.strip()}
+    paused = paused_systems()
     if not paused:
         return ""
     import urllib.parse
