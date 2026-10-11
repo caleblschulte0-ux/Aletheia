@@ -417,7 +417,12 @@ def fill_args(tool, task: dict, given: dict | None = None) -> tuple[dict, list[s
         except Exception:  # noqa: BLE001 - refused, or no workspace: either way not this path
             args.pop("path")
     words_of_task = " ".join(str(x) for x in (task.get("detail") or task.get("title"),) if x).strip()
-    if not task.get("detail") and task.get("does") and task.get("title"):
+    if task.get("detail") and task.get("title") and str(task["title"]).casefold() not in str(task["detail"]).casefold():
+        # The detail alone dropped what the task is ABOUT: "pick a shortlist that fits the criteria;
+        # compare cost of living..." never said which places, so the look read national pages only
+        # (2026-10-11). The title leads.
+        words_of_task = f"{task['title']}: {task['detail']}"
+    elif not task.get("detail") and task.get("does") and task.get("title"):
         # The title alone searched for the wrong thing: "Compare a shortlist of warm ... places"
         # read pages about grammar. What it does says what it is about.
         words_of_task = (f"{task['title']}: " + "; ".join(str(n) for n in task["does"] if str(n).strip()))
