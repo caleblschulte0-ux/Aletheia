@@ -96,10 +96,10 @@
       "gone_on_greenhouse": 1,
       "left_captcha": 5,
       "left_error": 2,
-      "left_no_way_forward": 10,
+      "left_no_way_forward": 12,
       "left_out_of_steps": 1,
-      "left_questions": 1,
-      "left_sign_in": 3,
+      "left_questions": 2,
+      "left_sign_in": 4,
       "not_realistic": 12
     }
   },
@@ -305,7 +305,7 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 24,
+      "filled": 23,
       "found": 42,
       "interviews": 1,
       "rejections": 1,
@@ -321,15 +321,15 @@
       "sent": 1
     },
     "2026-10-10": {
-      "filled": 9,
-      "found": 20,
+      "filled": 10,
+      "found": 24,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-10T22:38:15Z",
+  "generated_at": "2026-10-11T00:28:06Z",
   "sent_all_time": 289,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -361,7 +361,7 @@
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 1,
-      "nothing_to_press_on_content+no_apply/observed": 2,
+      "nothing_to_press_on_content+no_apply/observed": 4,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form+no_apply/filled": 1,
       "nothing_to_press_on_form+no_apply/observed": 2,
@@ -379,10 +379,11 @@
       "nothing_to_press_on_content/observed": 6
     },
     "questions": {
-      "nothing_to_press_on_form/filled": 4
+      "nothing_to_press_on_form/filled": 4,
+      "nothing_to_press_on_form/observed": 1
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 5,
+      "nothing_to_press_on_account_login/observed": 6,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -399,7 +400,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+empty_page/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 2,
+        "nothing_to_press_on_content+no_apply/observed": 4,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 3
@@ -408,17 +409,18 @@
         "nothing_to_press_on_unread/observed": 1
       },
       "questions": {
-        "nothing_to_press_on_form/filled": 1
+        "nothing_to_press_on_form/filled": 1,
+        "nothing_to_press_on_form/observed": 1
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1,
+        "nothing_to_press_on_account_login/observed": 2,
         "nothing_to_press_on_account_login/submit_clicked": 2
       }
     }
   },
   "totals": {
     "filled": 375,
-    "found": 765,
+    "found": 769,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -429,7 +431,7 @@
       "address": 1,
       "education": 2,
       "on_site": 2,
-      "other": 10,
+      "other": 9,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -445,11 +447,11 @@
       "left_captcha": 18,
       "left_error": 14,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 81,
+      "left_no_way_forward": 83,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
-      "left_questions": 2,
-      "left_sign_in": 7,
+      "left_questions": 3,
+      "left_sign_in": 8,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
       "not_a_form_asks_nothing_on_employer_site": 20,
