@@ -611,3 +611,35 @@ class ShareOfAPageIsWhatBearsOnTheQuestion(unittest.TestCase):
                                 "unreadable": [{"url": "https://www.numbeo.com/y", "reason": "no readable text"}],
                                 "queries": ["warm red-state cities"]})
         self.assertTrue(said.startswith("I read www.bestplaces.net; I couldn't read www.numbeo.com."), said)
+
+
+class DatedLinesTravelWithTheAnswer(unittest.TestCase):
+    """His PC, 2026-10-11: the young professionals' list had dated items and the hold step after
+    the look found "nothing with a date" in an answer that left them out."""
+
+    def test_a_page_with_dated_items_gives_its_timed_lines(self):
+        page = ("Upcoming\n605 Connections: Networking After Hours - Tuesday, Oct 14, 5:30 pm - 7:00 pm\n"
+                "Coffee Connect, Saturday October 25\nYPN Lunch | Oct. 19 at 12:00 pm | Downtown")
+        lines = research.dated_lines([{"url": "https://x.org", "full": page}])
+        self.assertTrue(any("605 Connections" in x and "5:30 pm" in x for x in lines), lines)
+        self.assertFalse(any("Coffee Connect" in x for x in lines))
+
+    def test_the_answer_carries_them(self):
+        said = research.spoken({"answer": "There is a networking night.", "findings": [{"claim": "c", "url": "u"}],
+                                "confidence": 0.8, "sources": [{"url": "https://x.org", "title": "t"}],
+                                "unreadable": [], "dated": ["605 Connections, Tuesday, Oct 14, 5:30 pm"]})
+        self.assertIn("Dated: 605 Connections, Tuesday, Oct 14, 5:30 pm.", said)
+
+    def test_an_answer_that_says_it_cannot_answer_says_what_it_read(self):
+        said = research.spoken({"answer": "I can't deliver the comparison from these sources.",
+                                "findings": [{"claim": "c", "url": "u"}], "confidence": 0.6,
+                                "sources": [{"url": "https://www.bestplaces.net/a", "title": "t"}], "unreadable": []})
+        self.assertTrue(said.startswith("I read www.bestplaces.net."), said)
+
+    def test_a_look_is_remembered_by_host_and_size(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict("os.environ", {"ALETHEIA_PRIVATE_STATE": tmp}):
+            research._note_look("Compare cities", [{"url": "https://www.bestplaces.net/a", "extract": "x" * 420}],
+                                [{"url": "https://www.numbeo.com/b", "reason": "no readable text"}], shown_of=3)
+            words = research.look_words(research.last_look("compare  CITIES"))
+        self.assertEqual(words, "shown: www.bestplaces.net (420) (+2 read, left out to fit) | "
+                                "couldn't read: www.numbeo.com (no readable text)")
