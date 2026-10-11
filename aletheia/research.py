@@ -274,12 +274,12 @@ def _phrase_in(phrase: str, text: str) -> bool:
     return bool(re.search(r"\b" + re.escape(phrase.casefold()) + r"\b", text))
 
 
-def listings_for(question: str) -> tuple[list[dict], set[str]]:
+def listings_for(question: str, *, at: dict | None = None) -> tuple[list[dict], set[str]]:
     """The listing pages that answer this kind of question, read before any search, and the hosts
     whose search results are about something else for it. A search for events in a city came back
     as encyclopedia pages about the city (2026-10-11); the listings are where events are."""
     said = " ".join(str(question or "").split()).casefold()
-    named = place_in(question)
+    named = at or place_in(question)
     home = None
     out, drop, seen = [], set(), set()
     for row in _listings():
@@ -294,6 +294,8 @@ def listings_for(question: str) -> tuple[list[dict], set[str]]:
             if str(where.get("city") or "").casefold() != str(row["place"]).casefold():
                 continue
         url = str(row["url"])
+        if at is not None and "{city" not in url:
+            continue  # a page for one place: the pages for every place were already read
         if "{city" in url or "{state" in url:
             if not where and row.get("place_default") == "home":
                 home = _home() if home is None else home
@@ -320,6 +322,24 @@ def listings_for(question: str) -> tuple[list[dict], set[str]]:
         drop |= {str(h).casefold() for h in row.get("instead_of") or []}
         out.append({"url": url, "title": str(row.get("name") or url)[:160], "library": True, "listing": True})
     return out[:MAX_LISTINGS], drop
+
+
+#: How many places a question that names none reads the per-place pages for.
+MAX_PLACES = 4
+_PLACE_WORDS = re.compile(r"\b(?:cit(?:y|ies)|towns?|places?|metros?|metro areas?)\b", re.I)
+
+
+def places_in_text(text: str) -> list[dict]:
+    """"Tampa, FL" style places a page names, most named first: the candidates a question about
+    places that names none can be answered for, taken from what was read rather than guessed."""
+    counts: dict[tuple[str, str], int] = {}
+    for m in re.finditer(r"\b([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2}),\s*([A-Z]{2})\b", str(text or "")):
+        city, state = m.group(1), m.group(2)
+        if city.casefold() in _NOT_PLACES or city in ("United States",):
+            continue
+        counts[(city, state)] = counts.get((city, state), 0) + 1
+    ranked = sorted(counts, key=lambda k: -counts[k])
+    return [{"city": c, "state": st} for c, st in ranked]
 
 
 def _dropped_host(url: str, drop: set[str]) -> bool:
@@ -819,6 +839,20 @@ def run(question: str, *, reader=browse.read_page, think=None,
             "differently, or it may be something the open web does not answer")
 
     sources, failed = read_sources(candidates, reader=reader)
+    if sources and listed and not place_in(question) and _PLACE_WORDS.search(question):
+        # A question about places that names none ("compare a shortlist of warm ... cities") read
+        # the national pages and no place's own figures (2026-10-11). The places those pages name
+        # are the candidates; their own pages are read next.
+        more = []
+        for where in places_in_text(" ".join(x["extract"] for x in sources))[:MAX_PLACES]:
+            more += [x for x in listings_for(question, at=where)[0]
+                     if x["url"] not in {c["url"] for c in candidates + more}]
+        if more:
+            journal.append("event", "research", "reading " + speech.count_phrase(len(more), "more page")
+                           + " for the places those pages named", actor=ACTOR)
+            got, lost = read_sources(more, reader=reader)
+            sources += got
+            failed += lost
     if not sources:
         raise ResearchError(
             "found " + speech.count_phrase(len(candidates), "candidate page")
@@ -920,6 +954,12 @@ def spoken(report: dict) -> str:
     """Out loud: the answer, then where it came from. Not the whole report —
     he asked a question, not for a document to be read at him."""
     n = len(report["sources"])
+    unread = [_host(u.get("url") or "") for u in report.get("unreadable") or [] if u.get("url")]
+    if unread and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
+        # Which pages refused her travels with an unsure answer, so a listing site that only shows a
+        # robot check is visible on the relay rather than a guess (2026-10-11).
+        report = dict(report, answer=f"{report['answer'].rstrip()} I couldn't read "
+                                     f"{speech.and_list(list(dict.fromkeys(unread))[:4])}.")
     if report.get("queries") and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
         # Nothing it could cite: say what it searched for, so a wrong search is visible rather
         # than a mystery (2026-10-10: every question read the same pages about grammar).

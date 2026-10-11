@@ -903,6 +903,15 @@ def spoken_steps(which: str = "") -> str:
             # dates of events, not his details: a search result is about the world).
             found = [str(r.get("said") or "")[:300] for r in (t.get("results") or [])[-2:] if r.get("said")]
             out.append(f"{k} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
+    sweeps: dict[str, dict] = {}
+    for t in record.get("tasks") or []:
+        if t.get("from_activity") and t.get("state") == ws.DONE and t["key"] not in needed:
+            sweeps[t["from_activity"]] = t
+    for t in sweeps.values():
+        # The newest finished occurrence of each recurring look: what the sweep found is what the
+        # holds work from, and a finished sweep had vanished from this view (2026-10-11).
+        found = [str(r.get("said") or "")[:300] for r in (t.get("results") or [])[-1:] if r.get("said")]
+        out.append(f"{t['key']} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
     for t in record.get("tasks") or []:
         if t.get("state") == ws.DONE:
             continue

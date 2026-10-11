@@ -671,3 +671,29 @@ class WhatHisPcDidAfterTheTenthFix(HisMissionRunsWithoutHim):
 
     def task_state(self, key):
         return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]
+
+
+class WhatHisPcDidAfterTheEleventhFix(HisHoursAndHisCalendar):
+    """His PC, 2026-10-11 02:41Z: the young professionals' October events were found; a weekend
+    one may be held, a weekday lunch may not, and a finished weekly sweep vanished from the steps."""
+
+    def test_a_saturday_event_is_held(self):
+        with self._with_event("Community Job Fair - Saturday 2026-10-17 at 11:00, Sioux Falls"):
+            self._run_everything()
+        self.assertEqual([a["title"] for n, a in self.ran if n == "calendar.hold"], ["Community Job Fair"])
+
+    def test_a_monday_lunch_is_not_held(self):
+        # October 19 and 26, 2026 are Mondays: a lunch then is his working day.
+        with self._with_event("Lunch Job Fair - Monday 2026-10-19 at 12:00, Sioux Falls"):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [n for n, _a in self.ran])
+
+    def test_the_steps_view_shows_what_the_finished_sweep_found(self):
+        self._run_everything()
+        key = next(t["key"] for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")
+        self.assertEqual(self.task_state(key), ws.DONE)
+        said = pg.spoken_steps("Project Reboot")
+        self.assertIn(f"{key} | Weekly sweep for new job-search events | DONE | found:", said)
+
+    def task_state(self, key):
+        return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]

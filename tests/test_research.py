@@ -491,3 +491,47 @@ class EventsAreReadOffTheListings(ResearchCase):
                                   http=lambda q, **_: dict(wiki), reader=reading, think=think)
         self.assertEqual(report["sources"][0]["url"], listing["url"])
         self.assertNotIn("wikipedia.org", " ".join(s["url"] for s in report["sources"]))
+
+
+class PlacesFromWhatWasRead(ResearchCase):
+    """His PC, 2026-10-11: "compare a shortlist of warm ... cities" read the national pages and no
+    city's own figures, because the question names no city."""
+
+    def test_the_places_a_page_names_are_found_most_named_first(self):
+        text = "Rank 1 Tampa, FL, United States 60.1. Rank 2 Austin, TX 63. Tampa, FL again. In October, we"
+        self.assertEqual(research.places_in_text(text)[:2],
+                         [{"city": "Tampa", "state": "FL"}, {"city": "Austin", "state": "TX"}])
+
+    def test_a_question_about_places_reads_the_places_the_first_pages_named(self):
+        ranking = "https://www.numbeo.com/cost-of-living/country_result.jsp?country=United+States"
+        pages = {ranking: {"url": ranking, "title": "ranking",
+                           "text": ("Tampa, FL, United States 61.2 rent 40. Austin, TX, United States 63.0. " * 10)},
+                 "https://www.numbeo.com/cost-of-living/in/Tampa": {"url": "x", "title": "Tampa",
+                                                                    "text": "Tampa rent 1-bed 1,650 USD. " * 20},
+                 "https://www.numbeo.com/cost-of-living/in/Austin": {"url": "y", "title": "Austin",
+                                                                     "text": "Austin rent 1-bed 1,700 USD. " * 20}}
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if url in pages:
+                return pages[url]
+            return reader(url)
+
+        def think(system, text, **kw):
+            value = {"answer": "Tampa is cheaper.", "gaps": [], "confidence": 0.7,
+                     "findings": [{"claim": "Tampa rent 1,650", "url": "x"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        research.run("Compare a shortlist of warm cities on cost of living", http=None,
+                     reader=reading, think=think)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Tampa", read)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Austin", read)
+
+    def test_an_unsure_answer_says_which_pages_refused(self):
+        said = research.spoken({"answer": "Not sure.", "findings": [], "sources": [{"url": "u", "title": "t"}],
+                                "queries": ["q"], "unreadable": [{"url": "https://www.eventbrite.com/d/x",
+                                                                  "reason": "no readable text"}]})
+        self.assertIn("I couldn't read www.eventbrite.com", said)
