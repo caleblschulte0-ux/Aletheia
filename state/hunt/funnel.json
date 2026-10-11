@@ -91,15 +91,15 @@
     "2026-10-11": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 29,
+      "minutes": 48,
       "needs_account": 0,
       "needs_answer": 2,
-      "not_realistic": 14,
-      "offered": 90,
+      "not_realistic": 21,
+      "offered": 180,
       "ready": 0,
-      "runs": 1,
+      "runs": 2,
       "unfit_model": 2,
-      "unfit_sales": 12,
+      "unfit_sales": 19,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -114,7 +114,7 @@
       "left_no_way_forward": 10,
       "left_questions": 3,
       "left_sign_in": 2,
-      "not_realistic": 10
+      "not_realistic": 13
     }
   },
   "days": {
@@ -344,14 +344,14 @@
     },
     "2026-10-11": {
       "filled": 13,
-      "found": 16,
+      "found": 19,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T05:55:31Z",
+  "generated_at": "2026-10-11T06:25:54Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -444,7 +444,7 @@
   },
   "totals": {
     "filled": 383,
-    "found": 784,
+    "found": 787,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -452,7 +452,6 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
       "background_check": 2,
       "education": 2,
       "on_site": 2,
@@ -485,7 +484,7 @@
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
       "not_a_form_signup_list_on_employer_site": 9,
-      "not_realistic": 88
+      "not_realistic": 91
     },
     "failed": 16,
     "failed_because": {
