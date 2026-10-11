@@ -98,7 +98,7 @@
       "left_error": 2,
       "left_no_way_forward": 13,
       "left_out_of_steps": 1,
-      "left_questions": 2,
+      "left_questions": 3,
       "left_sign_in": 4,
       "not_realistic": 12
     }
@@ -305,7 +305,7 @@
       "sent": 36
     },
     "2026-10-08": {
-      "filled": 23,
+      "filled": 22,
       "found": 42,
       "interviews": 1,
       "rejections": 1,
@@ -329,7 +329,7 @@
       "sent": 5
     }
   },
-  "generated_at": "2026-10-11T01:48:48Z",
+  "generated_at": "2026-10-11T03:11:39Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -380,7 +380,8 @@
     },
     "questions": {
       "nothing_to_press_on_form/filled": 4,
-      "nothing_to_press_on_form/observed": 1
+      "nothing_to_press_on_form/observed": 1,
+      "nothing_to_press_on_multi_page_wizard/filled": 1
     },
     "sign_in": {
       "nothing_to_press_on_account_login/observed": 6,
@@ -410,7 +411,8 @@
       },
       "questions": {
         "nothing_to_press_on_form/filled": 1,
-        "nothing_to_press_on_form/observed": 1
+        "nothing_to_press_on_form/observed": 1,
+        "nothing_to_press_on_multi_page_wizard/filled": 1
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 2,
@@ -419,7 +421,7 @@
     }
   },
   "totals": {
-    "filled": 378,
+    "filled": 377,
     "found": 773,
     "interviews": 3,
     "rejections": 12,
@@ -428,10 +430,9 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
       "education": 2,
       "on_site": 2,
-      "other": 9,
+      "other": 8,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -450,7 +451,7 @@
       "left_no_way_forward": 84,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
-      "left_questions": 3,
+      "left_questions": 4,
       "left_sign_in": 8,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
@@ -473,7 +474,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 11,
+    "needs_answer": 10,
     "oldest_days": 28,
     "to_send": 0
   },
