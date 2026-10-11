@@ -38,6 +38,7 @@ from __future__ import annotations
 from aletheia import speech
 
 import argparse
+import datetime as dt
 import base64
 import binascii
 import json
@@ -948,6 +949,7 @@ def run(question: str, *, reader=browse.read_page, think=None,
             sources += got
             failed += lost
     if not sources:
+        _note_look(question, [], failed)
         raise ResearchError(
             "found " + speech.count_phrase(len(candidates), "candidate page")
             + " and could read none of them")
@@ -968,10 +970,88 @@ def run(question: str, *, reader=browse.read_page, think=None,
         "queries": plan["queries"],
         "sources": [{"url": s["url"], "title": s["title"]} for s in sources],
         "unreadable": failed,
+        "dated": dated_lines(sources),
         "at": stateio.utcnow(),
     })
+    _note_look(question, bounded, failed, shown_of=len(sources))
     _deliver(report)
     return report
+
+
+#: Dated lines a look carries beside its answer, at most.
+MAX_DATED = 8
+
+
+def dated_lines(sources: list[dict]) -> list[str]:
+    """The lines of the pages read that carry a date AND a time, as the pages wrote them: the
+    step after a look that puts something on his calendar reads these, not the prose of an answer
+    that left the dates out (2026-10-11: the young professionals' list had five dated items and the
+    hold step found "nothing with a date")."""
+    from aletheia import dated_text, localtime
+    now, tz = dt.datetime.now(dt.timezone.utc), localtime.operator_tz()
+    out: list[str] = []
+    for s in sources:
+        for occ in dated_text.occurrences(s.get("full") or s.get("extract") or "", now=now, tz=tz):
+            if occ["timed"] and occ["date"] >= now.astimezone(tz).date().isoformat():
+                line = f"{occ['title']}, {occ['line']}" if occ["title"] not in occ["line"] else occ["line"]
+                if line not in out:
+                    out.append(line)
+            if len(out) >= MAX_DATED:
+                return out
+    return out
+
+
+#: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
+#: is tried once more on the new one (program_run releases it).
+REVISION = 2
+#: How many looks are remembered for "what did the last look read".
+MAX_LOOKS = 40
+
+
+def _looks_path():
+    return stateio.private_dir("research") / "looks.json"
+
+
+def look_key(question: str) -> str:
+    return " ".join(str(question or "").casefold().split())[:300]
+
+
+def _note_look(question: str, shown: list[dict], failed: list[dict], *, shown_of: int = 0) -> None:
+    """What a look read, how much of each page it showed the writer, and what refused it: kept so
+    a look that came back empty can be explained without guessing (four rounds went blind on one
+    comparison, 2026-10-11). Hosts and sizes only, never page text."""
+    try:
+        looks = stateio.read_json(_looks_path()) if _looks_path().exists() else {}
+        looks = looks if isinstance(looks, dict) else {}
+        looks[look_key(question)] = {
+            "at": stateio.utcnow(), "revision": REVISION,
+            "shown": [{"host": _host(r["url"]), "kept": len(r.get("extract") or "")} for r in shown],
+            "read": shown_of, "failed": [{"host": _host(f.get("url") or ""), "reason": str(f.get("reason") or "")[:60]}
+                                         for f in failed]}
+        for k in sorted(looks, key=lambda k: looks[k].get("at") or "")[:-MAX_LOOKS]:
+            looks.pop(k)
+        stateio.write_json_atomic(_looks_path(), looks)
+    except Exception:  # noqa: BLE001 - a note about a look must never fail the look
+        pass
+
+
+def last_look(question: str) -> dict | None:
+    try:
+        looks = stateio.read_json(_looks_path()) if _looks_path().exists() else {}
+        return (looks or {}).get(look_key(question))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def look_words(look: dict) -> str:
+    """One line about a look: the pages shown to the writer with the characters kept of each,
+    and the ones that refused it."""
+    shown = ", ".join(f"{r['host']} ({r['kept']})" for r in look.get("shown") or []) or "nothing"
+    left = int(look.get("read") or 0) - len(look.get("shown") or [])
+    line = f"shown: {shown}" + (f" (+{left} read, left out to fit)" if left > 0 else "")
+    if look.get("failed"):
+        line += " | couldn't read: " + ", ".join(f"{f['host']} ({f['reason']})" for f in look["failed"])
+    return line
 
 
 def as_markdown(report: dict) -> str:
@@ -1042,6 +1122,8 @@ def _deliver(report: dict) -> str:
 
 #: Below this the report is said with what it searched for.
 LOW_CONFIDENCE = 0.3
+#: An answer that says it could not answer is unsure whatever confidence it gave itself.
+_CANT = re.compile(r"\b(?:can't|cannot|can not|couldn't|unable to)\b", re.I)
 
 
 def spoken(report: dict) -> str:
@@ -1050,7 +1132,12 @@ def spoken(report: dict) -> str:
     n = len(report["sources"])
     unread = [_host(u.get("url") or "") for u in report.get("unreadable") or [] if u.get("url")]
     read = [_host(s.get("url") or "") for s in report.get("sources") or [] if s.get("url")]
-    if (unread or read) and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
+    unsure = (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE
+              or bool(_CANT.search(str(report.get("answer") or ""))))
+    if report.get("dated"):
+        # The dated lines the pages carried travel with the answer, as the pages wrote them.
+        report = dict(report, answer=f"{report['answer'].strip()} Dated: " + "; ".join(report["dated"]) + ".")
+    if (unread or read) and unsure:
         # Which pages she read and which refused her travel FIRST with an unsure answer, so a site
         # that only shows a robot check, or a page never reached, is visible on the relay at a glance
         # rather than a guess (2026-10-11).

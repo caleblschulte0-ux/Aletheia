@@ -973,6 +973,19 @@ def spoken_steps(which: str = "") -> str:
             "attempts " + str(t.get("attempts")) if t.get("attempts") else "",
             str(t.get("reason") or "")[:200]) if x))
     for t in record.get("tasks") or []:
+        # What the last look of a task stuck on one read, page by page, and what refused it: four
+        # rounds went blind on one comparison without it (2026-10-11). Hosts and sizes only.
+        if t.get("state") == ws.DONE:
+            continue
+        steps = (t.get("plan") or {}).get("steps") or []
+        i = int(t.get("cursor") or 0)
+        question = ((steps[i] if i < len(steps) else {}).get("args") or {}).get("question")
+        if question and steps[i].get("tool") == "research":
+            from aletheia import research
+            look = research.last_look(str(question))
+            if look:
+                out.append(f"{t.get('key')} | last look at {look.get('at')} | {research.look_words(look)}")
+    for t in record.get("tasks") or []:
         opened = [h for h in t.get("history") or [] if str(h.get("did") or "").startswith("opened again")]
         if opened:
             out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")

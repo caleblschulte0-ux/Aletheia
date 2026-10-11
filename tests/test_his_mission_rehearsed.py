@@ -370,7 +370,9 @@ class HisHoursAndHisCalendar(HisMissionRunsWithoutHim):
             if system is program_compose.ARGS_SYSTEM and "title" in value.get("args", {}):
                 value["args"]["title"] = "Hold Friday at 10 for the tour"
             return validator(value) if validator else value
-        with mock.patch.object(program_run, "THINK", made_up):
+        # The model's own title, so the dated line the search read is not there to fill it first.
+        with mock.patch.object(program_run, "THINK", made_up), mock.patch.object(program_run, "_dated_hold",
+                                                                                 lambda *a, **k: {}):
             self._run_everything()
         self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
         self.assertIn("names nothing", next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")["reason"])
@@ -780,7 +782,7 @@ class WhatHisPcDidAfterTheThirteenthFix(HisMissionRunsWithoutHim):
             out = program_run.run_task(self.pid, key, now=NOW)
         self.assertEqual(out["state"], ws.RETRY_LATER)
         self.assertNotIn("what should I use", str(self._sweep().get("reason") or ""))
-        self.assertNotIn("calendar.hold", [n for n, _a in self.ran])
+        self.assertNotIn("calendar_hold", [n for n, _a in self.ran])
 
     def test_a_comparison_planned_again_once_still_tries_the_pages_it_reads_now(self):
         def as_his_pc_left_it(record):
@@ -859,3 +861,52 @@ class WhatHisPcDidAfterTheFourteenthFix(HisMissionRunsWithoutHim):
         pg.update(self.pid, change)
         line = next(x for x in pg.spoken_steps("Project Reboot").splitlines() if x.startswith("a9-2026101100 |"))
         self.assertIn("| waits on t6 |", line)
+
+
+class WhatHisPcDidAfterTheFifteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 08:45Z: the sweep looked again for "a date" while its look had read
+    dated items; the comparison failed again before it read pages the new way."""
+
+    def _sweep_at_hold(self, said):
+        key = next(t for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")["key"]
+
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == key)
+            t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[],
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}},
+                                     {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
+                                      "by": "named", "args": {}}], "requires": [], "gaps": []},
+                     results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                               "said": said}])
+        pg.update(self.pid, change)
+        return key
+
+    def test_a_dated_evening_line_its_own_look_read_becomes_the_hold_with_no_model(self):
+        key = self._sweep_at_hold("Two groups meet. Dated: 605 Connections: Networking After Hours, "
+                                  "Thursday, Sep 17, 6:00 pm; YPN Lunch, Friday, Sep 18, 12:00 pm.")
+        with mock.patch.object(program_compose, "model_args", side_effect=AssertionError("no model")):
+            program_run.run_task(self.pid, key, now=NOW)
+        holds = [a for n, a in self.ran if n == "calendar_hold"]
+        self.assertEqual([a["title"] for a in holds], ["605 Connections: Networking After Hours"])
+        self.assertTrue(holds[0]["start"].startswith("2026-09-17T18:00"))
+
+    def test_a_date_with_no_time_is_not_a_hold(self):
+        key = self._sweep_at_hold("Dated: Coffee Connect, Saturday September 19.")
+        with mock.patch.object(program_compose, "model_args", lambda *a, **k: {}):
+            out = program_run.run_task(self.pid, key, now=NOW)
+        self.assertEqual(out["state"], ws.RETRY_LATER)
+        self.assertNotIn("calendar_hold", [n for n, _a in self.ran])
+
+    def test_a_look_that_failed_on_the_old_reading_tries_once_on_the_new(self):
+        def failed(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, attempts=3, needs=[], sources_retried=True, recomposed=True,
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader", "args": {}}],
+                            "requires": [], "gaps": []},
+                      reason="research failed 3 times: I can't deliver the full comparison")
+        pg.update(self.pid, failed)
+        self.assertIn(("t6", "sources"), [(r["task"], r["was"]) for r in program_run.requeue_reclassified(now=NOW)])
+        pg.update(self.pid, failed)
+        self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])

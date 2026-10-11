@@ -493,6 +493,26 @@ def _writes_holds(tool) -> bool:
             and "title" in props and "start" in props)
 
 
+def _dated_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime) -> dict:
+    """{"start", "title"} for the soonest dated, timed line the steps before it read that would make
+    a right hold (in the future, inside his hours, named by what was found); {} when there is none.
+    Read deterministically (`dated_text`), never guessed: a line with no time is not a hold."""
+    from aletheia import dated_text, localtime
+    best = None
+    for text in _found(record, task, answers=False):
+        for occ in dated_text.occurrences(text, now=now, tz=localtime.operator_tz()):
+            if not occ["timed"]:
+                continue
+            # Written as the planner writes a start: his local time, which a hold reads in his zone.
+            start = dt.datetime.fromisoformat(occ["start"]).strftime("%Y-%m-%dT%H:%M")
+            filled = {"start": start, "title": str(args.get("title") or "").strip() or occ["title"]}
+            if _wrong_hold(record, task, tool, dict(args, **filled), now):
+                continue
+            if best is None or occ["start"] < best["start"]:
+                best = filled
+    return best or {}
+
+
 #: Words in a hold's title that say nothing about what it is for.
 _HOLD_FILLER = re.compile(r"\b(?:hold|holds|tentative|pencil(?:led)?|calendar|event|events|for|the|a|an|at|on|in|"
                           r"to|of|and|with|am|pm|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|"
@@ -518,8 +538,10 @@ def _wrong_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime, *,
     if hours and local.weekday() < 5 and local.time() < hours:
         return f"it is in his working day, and he said evenings from {hours:%H:%M} and weekends"
     words = {w for w in re.findall(r"[a-z]{4,}", _HOLD_FILLER.sub(" ", str(args.get("title") or "").lower()))}
+    # What its own earlier steps found counts too: the weekly sweep's look is its own first step.
     seen = " ".join(str(r.get("said") or "") for t in record.get("tasks") or [] for r in t.get("results") or []
-                    if r.get("outcome") == "ok" and t.get("key") != task.get("key")).lower()
+                    if r.get("outcome") == "ok" and (t.get("key") != task.get("key") or r.get("tool") != tool.name)
+                    ).lower()
     if words and not any(w in seen for w in words):
         return "its title names nothing the steps before it found"
     return ""
@@ -563,7 +585,7 @@ def _would_go_further(task: dict, plan: dict, tools: dict, was: str) -> bool:
 
 
 def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
-    from aletheia import program_compose as compose
+    from aletheia import program_compose as compose, research
     plan = task.get("plan")
     if not plan or not plan.get("steps"):
         return None
@@ -614,7 +636,8 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
                 and new_tools and new_tools[:i] == old_tools[:i]
                 and not any(g["outcome"] == "refuse_policy" for g in fresh["gaps"])):
             return _release(record, task, dict(task, plan=fresh, mark="recomposed"), None, "recomposed", now)
-    if (task["state"] == ws.FAILED and held is None and not task.get("sources_retried")
+    if (task["state"] == ws.FAILED and held is None
+            and int(task.get("research_revision") or 0) < research.REVISION
             and not task.get("from_activity")
             and str(task.get("reason") or "").startswith("research failed")
             and int(task.get("cursor") or 0) < len(plan["steps"])
@@ -622,7 +645,9 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         # A look that failed for want of pages that answer it: once, on the pages she reads now
         # (2026-10-11: the city comparison failed before it read each city's own figures). After the
         # re-plan above, which comes first; a task planned again once may still try again here.
-        return _release(record, task, dict(task, plan=plan, mark="sources_retried"), None, "sources", now)
+        # Once per revision of how a look reads its pages: each pages a failed look is retried on.
+        return _release(record, task, dict(task, plan=plan, mark="sources_retried",
+                                           also={"research_revision": research.REVISION}), None, "sources", now)
     if bad_path:
         purpose = "path"
     elif no_source:
@@ -838,9 +863,9 @@ def _release(record: dict, task: dict, candidate: dict, held: dict | None, purpo
         return None  # he already answered it: his answer moves the task, not this
     if held is not None:
         waits.cancel(held["id"], why="the rules that parked it have changed", now=now)
-    key, new_plan, mark = task["key"], candidate["plan"], candidate.get("mark")
+    key, new_plan, mark, also = task["key"], candidate["plan"], candidate.get("mark"), candidate.get("also") or {}
 
-    def change(r, key=key, new_plan=new_plan, mark=mark):
+    def change(r, key=key, new_plan=new_plan, mark=mark, also=also):
         t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
         if t is None:
             return None
@@ -848,6 +873,7 @@ def _release(record: dict, task: dict, candidate: dict, held: dict | None, purpo
                  not_before=None, attempts=0, updated_at=pg.stamp(now))
         if mark:
             t[mark] = True
+        t.update(also)
         pg._history(t, "trying again: the rules that parked it have changed", now)
         r["updated_at"] = pg.stamp(now)
         return t
@@ -940,6 +966,10 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             given = [given] if isinstance(given, str) else list(given)
             if kept and kept not in given:
                 args["sources"] = given + [kept]
+        if missing and _writes_holds(tool) and set(missing) & set(WHEN_ARGS):
+            # A date and a time the steps before it read, as the page wrote them, need no model.
+            args.update(_dated_hold(record, task, tool, args, now))
+            missing = [m for m in missing if not str(args.get(m) or "").strip()]
         if missing:
             try:
                 args.update(compose.model_args(tool, task, args, missing, think=think,
