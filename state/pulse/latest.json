@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T13:00:09Z",
+  "generated_at": "2026-10-11T22:04:13Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,58 +11,58 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "57d924cf30f4",
-          "date": "2026-10-11T12:12:44Z",
+          "sha": "8fdd69f46dbc",
+          "date": "2026-10-11T22:03:04Z",
           "message": "core: 1 local command receipt(s)"
         },
         {
-          "sha": "e63b43503c9e",
-          "date": "2026-10-11T12:12:22Z",
-          "message": "intercom: relay 20261011-reboot-steps-374"
+          "sha": "f1273e8a904c",
+          "date": "2026-10-11T22:02:13Z",
+          "message": "intercom: relay 20261011-reboot-workreport-t3"
         },
         {
-          "sha": "50bd0315393f",
-          "date": "2026-10-11T11:42:09Z",
+          "sha": "32a540a9bc6d",
+          "date": "2026-10-11T22:01:51Z",
           "message": "core: 1 local command receipt(s)"
         },
         {
-          "sha": "8c13fb40dddb",
-          "date": "2026-10-11T11:41:48Z",
-          "message": "intercom: relay 20261011-reboot-code-374"
+          "sha": "1bb56a1c4344",
+          "date": "2026-10-11T22:00:39Z",
+          "message": "intercom: relay 20261011-reboot-waiting-t3"
         },
         {
-          "sha": "24cccf8dcb5a",
-          "date": "2026-10-11T11:31:22Z",
-          "message": "Merge pull request #374 from caleblschulte0-ux/claude/reboot-sweep-17"
+          "sha": "9d658a2c9a1c",
+          "date": "2026-10-11T21:58:16Z",
+          "message": "core: 1 local command receipt(s)"
         }
       ],
       "commit": {
-        "sha": "57d924cf30f4",
-        "date": "2026-10-11T12:12:44Z",
+        "sha": "8fdd69f46dbc",
+        "date": "2026-10-11T22:03:04Z",
         "message": "core: 1 local command receipt(s)"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-11T13:00:06Z",
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-11T13:00:40Z",
           "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38141422794"
         },
         "ci.yml": {
-          "status": "in_progress",
-          "conclusion": null,
-          "updated_at": "2026-10-11T12:39:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38140112496"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-11T21:48:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38176123430"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21786
+          "bytes": 21584
         }
       },
-      "health": "unknown"
+      "health": "green"
     },
     "shorts_pipeline": {
       "github": "Shorts-pipeline",
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "94defa69541d",
-          "date": "2026-10-11T12:57:58Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "432d78416e61",
+          "date": "2026-10-11T21:48:40Z",
+          "message": "claim: mailbox verdicts 2026-10-11T21:48Z [skip ci]"
         },
         {
-          "sha": "e7dfcdc7a114",
-          "date": "2026-10-11T12:57:45Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "7c20460d8bf5",
+          "date": "2026-10-11T20:56:54Z",
+          "message": "explainer: long-form log [skip ci]"
         },
         {
-          "sha": "e4d772c89367",
-          "date": "2026-10-11T12:55:30Z",
-          "message": "third: analytics [skip ci]"
+          "sha": "39bb9062c656",
+          "date": "2026-10-11T20:48:12Z",
+          "message": "claim: mailbox verdicts 2026-10-11T20:48Z [skip ci]"
         },
         {
-          "sha": "2532b3d56294",
-          "date": "2026-10-11T12:55:21Z",
-          "message": "third: update posted log + analytics [skip ci]"
+          "sha": "cc2c3341d5a5",
+          "date": "2026-10-11T20:19:44Z",
+          "message": "explainer: posted co2-pollen-season-stretch [skip ci]"
         },
         {
-          "sha": "b7280ee4a5b4",
-          "date": "2026-10-11T12:55:12Z",
-          "message": "third: checkpoint posted log (claim upload slot) [skip ci]"
+          "sha": "4d25869beffd",
+          "date": "2026-10-11T20:19:34Z",
+          "message": "explainer: claim upload slot co2-pollen-season-stretch [skip ci]"
         }
       ],
       "commit": {
-        "sha": "94defa69541d",
-        "date": "2026-10-11T12:57:58Z",
-        "message": "third: analytics [skip ci]"
+        "sha": "432d78416e61",
+        "date": "2026-10-11T21:48:40Z",
+        "message": "claim: mailbox verdicts 2026-10-11T21:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 320
+          "value": 321
         },
         {
           "label": "third posted",
@@ -130,32 +130,33 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-11T12:43:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38140280920"
+          "updated_at": "2026-10-11T20:11:32Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38171114692"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-11T11:32:03Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38135875076"
+          "updated_at": "2026-10-11T19:03:53Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38166411561"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-11T12:03:56Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38135618111"
+          "updated_at": "2026-10-11T18:20:46Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38161002528"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-11T12:58:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38137232226"
+          "updated_at": "2026-10-11T16:40:33Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38156200617"
         },
         "explainer.yml": {
-          "status": "pending",
-          "conclusion": null,
-          "updated_at": "2026-10-11T11:53:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38137230525"
+          "status": "completed",
+          "conclusion": "cancelled",
+          "updated_at": "2026-10-11T18:24:16Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38159968996",
+          "said": "Canceling since a higher priority waiting request for explainer-stories exists"
         },
         "retro.yml": {
           "status": "completed",
@@ -177,7 +178,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 156679
+          "bytes": 157725
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -189,7 +190,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 4093682
+          "bytes": 4096032
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -204,6 +205,11 @@
       "status": "active",
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
+        {
+          "sha": "5463380fe581",
+          "date": "2026-10-11T16:58:51Z",
+          "message": "backtest: weekly refresh [skip ci]"
+        },
         {
           "sha": "b4b5ed86ca47",
           "date": "2026-10-10T01:36:35Z",
@@ -223,17 +229,12 @@
           "sha": "24e393289435",
           "date": "2026-10-08T23:57:24Z",
           "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "7cbc729f191b",
-          "date": "2026-10-08T19:16:37Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "b4b5ed86ca47",
-        "date": "2026-10-10T01:36:35Z",
-        "message": "analyst: weekly review [skip ci]"
+        "sha": "5463380fe581",
+        "date": "2026-10-11T16:58:51Z",
+        "message": "backtest: weekly refresh [skip ci]"
       },
       "vitals": [],
       "private_vitals": [
@@ -297,14 +298,11 @@
       "vitals": [],
       "workflows": {
         "barkly-ci.yml": {
-          "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-09-23T14:54:09Z",
-          "url": "https://github.com/caleblschulte0-ux/Money_Machine/actions/runs/35875828526"
+          "error": "no finished run on main"
         }
       },
       "state_files": {},
-      "health": "green"
+      "health": "unknown"
     },
     "etsy_maker": {
       "github": "etsy_maker",
@@ -362,7 +360,7 @@
           "text": "Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push"
         },
         "last_progress_at": "2026-09-23T14:39:43Z",
-        "days_quiet": 17,
+        "days_quiet": 18,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -438,17 +436,33 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-11T12:12:44Z",
+        "last_progress_at": "2026-10-11T22:03:04Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
           {
-            "number": 375,
-            "title": "Reboot: a write-up reads what the look before it found",
-            "head": "claude/reboot-sweep-18",
+            "number": 392,
+            "title": "A store write Windows refuses mid-read is tried again instead of lost",
+            "head": "claude/windows-replace-retry",
             "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/375",
-            "created_at": "2026-10-11T12:39:45Z"
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/392",
+            "created_at": "2026-10-11T22:03:12Z"
+          },
+          {
+            "number": 390,
+            "title": "A stuck \"what should I use for url?\" clears itself, and the weekly city watch sees the shortlist",
+            "head": "claude/reboot-where-retry",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/390",
+            "created_at": "2026-10-11T21:11:52Z"
+          },
+          {
+            "number": 391,
+            "title": "\"Anything I need to do today\" answers with the day",
+            "head": "claude/today-to-do",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/391",
+            "created_at": "2026-10-11T21:22:39Z"
           },
           {
             "number": 351,
@@ -540,14 +554,28 @@
     ],
     "evidence": []
   },
-  "transitions": [],
+  "transitions": [
+    {
+      "repo": "aletheia",
+      "github": "Aletheia",
+      "from": "unknown",
+      "to": "green"
+    },
+    {
+      "repo": "money_machine",
+      "github": "Money_Machine",
+      "from": "green",
+      "to": "unknown"
+    }
+  ],
   "alerts": [
     {
       "repo": "shorts_pipeline",
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "daily.yml"
+        "daily.yml",
+        "explainer.yml"
       ]
     }
   ],
@@ -593,10 +621,10 @@
     ]
   },
   "tasks": {
-    "live": 4,
+    "live": 3,
     "by_status": {
-      "COMPLETED": 13,
-      "QUEUED": 4,
+      "COMPLETED": 14,
+      "QUEUED": 3,
       "CANCELLED": 1
     },
     "items": [
@@ -614,12 +642,6 @@
         "id": "verify-message-send",
         "status": "QUEUED",
         "description": "Verify or repair capability message.send",
-        "worker": "claude"
-      },
-      {
-        "id": "compose-fills-reversible-args",
-        "status": "QUEUED",
-        "description": "Teach program_compose.fill_args to fill a reversible writer's required arguments. Found 2026-09-18 in the C4b demonstration: the work session's compose route now RUNS reversible-local steps without asking, but fill_args only fills topic-shaped and person-shaped strings, so note needs text (fillable), task_new needs id, compose needs path and remember needs domain/key/value - and every one of those work items is handed to Caleb with \"which the work does not say\" instead of being done. The broker is not the bottleneck; the argument filling is.",
         "worker": "claude"
       }
     ]
