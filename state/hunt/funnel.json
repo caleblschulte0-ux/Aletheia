@@ -91,18 +91,18 @@
     "2026-10-11": {
       "duplicate": 88,
       "employer_full": 0,
-      "minutes": 82,
+      "minutes": 99,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 24,
-      "offered": 362,
+      "not_realistic": 25,
+      "offered": 364,
       "ready": 0,
-      "runs": 5,
-      "unfit_model": 3,
+      "runs": 6,
+      "unfit_model": 4,
       "unfit_sales": 21,
       "unjudged": 0,
-      "unreachable": 1,
-      "unreachable_ApplyError": 1,
+      "unreachable": 2,
+      "unreachable_ApplyError": 2,
       "weak_shot": 0
     }
   },
@@ -352,7 +352,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T14:23:51Z",
+  "generated_at": "2026-10-11T16:20:17Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -415,7 +415,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 4,
+        "nothing_to_press_on_captcha/filled": 3,
         "nothing_to_press_on_captcha/observed": 1
       },
       "error": {
@@ -426,7 +426,7 @@
         "nothing_to_press_on_content+no_apply/observed": 5,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
-        "unclear_button/observed": 4
+        "unclear_button/observed": 3
       },
       "questions": {
         "nothing_to_press_on_form/filled": 1,
