@@ -6453,7 +6453,12 @@ def _interpret(transcript: str) -> dict:
                 if re.fullmatch(r"(?:any )?(?:appointments?|meetings?|events?)(?: (?:on )?[a-z ]{3,12})?", what)
                 else "any birthdays coming up" if re.fullmatch(r"(?:any )?birthdays?(?: coming up| soon| this (?:week|month))?", what)
                 else "what packages am i expecting" if re.fullmatch(r"(?:any )?(?:packages?|deliveries|orders)(?: coming| on the way| arriving)?(?: today| this week)?", what)
-                else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what) else None)
+                else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what)
+                # "Do I have any interviews this week" searched his Documents (2026-10-11). An
+                # interview is on his calendar, where every one she books goes.
+                else "when's my next interview" if re.fullmatch(
+                    r"(?:an? |any )?(?:job )?interviews?(?: (?:coming up|scheduled|booked|lined up))?"
+                    r"(?: (?:today|tomorrow|this week|next week|soon))?", what) else None)
         if same:
             return _interpret(same)
     # "Do I have my passport" (2026-10-08: to the planner, once the passport

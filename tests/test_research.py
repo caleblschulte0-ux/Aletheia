@@ -573,7 +573,7 @@ class CandidatePlacesFromHisWords(ResearchCase):
         self.assertIn("https://www.bestplaces.net/cost_of_living/city/florida/tampa", read)
         self.assertIn("https://en.wikipedia.org/wiki/Austin,_Texas", read)
         self.assertLessEqual(len([u for u in read if "/in/" in u or "bestplaces" in u or "/wiki/" in u]),
-                             research.MAX_PLACE_PAGES)
+                             research.MAX_PLACE_PAGES + research.MAX_BASELINE_PAGES)
         self.assertTrue(report["sources"])
 
     def test_a_state_spelled_out_names_a_place(self):
@@ -696,3 +696,46 @@ class EachPlaceShowsItsPageRichestInFigures(unittest.TestCase):
                     research.run(q, reader=lambda url: {}, http=None, think=lambda *a, **k: {"queries": [q]})
         self.assertIn("dictionary.cambridge.org", seen[0])
         self.assertNotIn("dictionary.cambridge.org", seen[-1])
+
+
+class MeasuredAgainstWhereHeLives(ResearchCase):
+    """His PC, 2026-10-11 17:07Z: the first comparison of warm places measured cost of living against
+    New York - the index the pages use - and left out rent; his pay floor is measured against South
+    Dakota."""
+
+    Q = CandidatePlacesFromHisWords.Q
+
+    def test_the_entry_names_the_baseline_and_what_to_measure(self):
+        with mock.patch.object(research, "_home", return_value={}):
+            base = research.baseline_for(self.Q)
+        self.assertEqual((base["city"], base["state"]), ("Sioux Falls", "SD"))
+        self.assertIn("rent", base["measure"])
+        self.assertEqual(research.baseline_for("is Ramp hiring in Denver"), {})
+        with mock.patch.object(research, "_home", return_value={"city": "Fargo", "state": "ND"}):
+            self.assertEqual(research.baseline_for(self.Q)["city"], "Fargo")
+
+    def test_its_pages_are_read_beside_every_candidate_and_the_report_is_asked_against_it(self):
+        read, asked = [], []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            return {"url": url, "title": url, "text": "Rent 1-bed 1,600 USD. Index 70.1. " * 20}
+
+        def think(system, text, **kw):
+            value = {"answer": "Ranked.", "gaps": [], "confidence": 0.6,
+                     "findings": [{"claim": "Rent 1,600", "url": "https://www.numbeo.com/cost-of-living/in/Tampa"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            else:
+                asked.append(text)
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        with mock.patch.object(research, "_home", return_value={}):
+            research.run(self.Q, http=None, reader=reading, think=think)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Sioux-Falls", read)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Tampa", read)
+        self.assertIn("against Sioux Falls, SD", asked[-1])
+        self.assertIn("rent", asked[-1])
+
+    def test_a_question_with_no_baseline_is_asked_as_it_was(self):
+        self.assertEqual(research._measured("what is rent in Tampa", {}), "what is rent in Tampa")

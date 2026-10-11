@@ -1215,3 +1215,32 @@ class HeCanPauseHisMission(HisMissionRunsWithoutHim):
         from aletheia import agenda, intercom
         self.assertIn("mission_state", intercom.PLANNER_FORBIDDEN)
         self.assertIn("mission_state", agenda.FORBIDDEN_KINDS)
+
+
+class WhatHisPcDidAfterTheTwentyFirstFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 17:03Z: the weekly sweep sat on the found text from before looks read
+    dates, parked a day at a time to "look again for something dated" on that same reading."""
+
+    def _parked(self, **more):
+        def change(record):
+            t2 = next(t for t in record["tasks"] if t["key"] == "t2")
+            t2.update(state=ws.RETRY_LATER, cursor=1, needs=[], next="look again for something dated",
+                      not_before="2099-01-01T00:00:00Z",
+                      plan={"steps": [{"tool": "research", "for": "look", "by": "reader", "args": {}},
+                                      {"tool": "calendar_hold", "for": "hold", "by": "named", "args": {}}],
+                            "requires": [], "gaps": []},
+                      results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                                "said": "A fair, sometime."}], **more)
+        pg.update(self.pid, change)
+
+    def test_a_parked_look_on_an_old_reading_looks_again_now_once(self):
+        self._parked()
+        self.assertIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        t2 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t2")
+        self.assertEqual((t2["state"], t2["cursor"], t2["relooked"], t2["not_before"]),
+                         (ws.READY, 0, research.REVISION, None))
+        self.assertNotIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+    def test_a_parked_look_on_the_current_reading_waits_its_day(self):
+        self._parked(relooked=research.REVISION)
+        self.assertNotIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])

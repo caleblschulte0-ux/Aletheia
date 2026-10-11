@@ -640,3 +640,13 @@ class AComposeFailureSaysWhy(unittest.TestCase):
         outcome, result = s.execute(tool, {})
         self.assertEqual(outcome, "error")
         self.assertIn("I could not read x.md", result["error"])
+
+    def test_any_error_of_hers_says_why_and_a_librarys_does_not(self):
+        """His PC, 2026-10-11: "research failed 3 times: the tool failed (ResearchError)" - which of
+        its sentences it was never reached the mission."""
+        from aletheia import research
+        tool = mock.Mock(handler=mock.Mock(side_effect=research.ResearchError(
+            "found 6 candidate pages and could read none of them")), kind="")
+        self.assertIn("could read none of them", s.execute(tool, {})[1]["error"])
+        tool = mock.Mock(handler=mock.Mock(side_effect=KeyError("secret/path/in/a/library")), kind="")
+        self.assertNotIn("secret", s.execute(tool, {})[1]["error"])

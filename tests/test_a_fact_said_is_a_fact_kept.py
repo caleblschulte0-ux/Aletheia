@@ -3721,6 +3721,21 @@ class HisPlansAndHowHeFeels(unittest.TestCase):
             self.assertTrue(quick._interview_when().startswith("Your job interview is tomorrow"))
         with mock.patch("aletheia.calendar.all_events", return_value=[{"title": "Stripe interview", "start": at}]):
             self.assertTrue(quick._interview_when().startswith("Your interview with Stripe is"))
+        # Talked to her, 2026-10-11: her own hold is titled "an interview with Via", and was read back
+        # as "Your interview with an interview with Via".
+        for title, said in (("an interview with Via", "Your interview with Via is"),
+                            ("Interview with Withers Co", "Your interview with Withers Co is"),
+                            ("Interview: Gong", "Your interview with Gong is"),
+                            ("phone interview with Acme", "Your interview with Acme is")):
+            with mock.patch("aletheia.calendar.all_events", return_value=[{"title": title, "start": at}]):
+                self.assertTrue(quick._interview_when().startswith(said), (title, quick._interview_when()))
+
+    def test_any_interviews_this_week_is_his_calendar_not_his_documents(self):
+        from aletheia import voice
+        for asked in ("do I have any interviews this week", "do i have an interview tomorrow",
+                      "have i got any interviews coming up"):
+            got = voice._interpret(asked) or {}
+            self.assertNotEqual((got.get("command") or {}).get("kind"), "file_find", asked)
 
     def test_a_plan_with_a_when_is_kept_and_read_with_the_day_he_said_it(self):
         import datetime as dt
