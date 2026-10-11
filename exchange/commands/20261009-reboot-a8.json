@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-a8",
+  "filed": "2026-10-09T00:49:01Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "Yes. The newest resume (Caleb_Schulte_Resume, rewritten October 8) is current and was checked: it has only public-level facts about his role, nothing internal. It is the one he applies with."
+  }
+}

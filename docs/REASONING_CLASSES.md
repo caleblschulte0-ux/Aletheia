@@ -43,7 +43,7 @@ the call through the gateway.
 | `job_angle.find` | standard | job-hunt chain; both halves of every pair are verbatim quotes checked in code, whoever answered, and no answer is a plain application |
 | `pursuit._gateway_think` | standard | the pursuit IS the job hunt: the gateway first, then the same Codex rung (`codex_json`) while Claude rests — the gateway carries no Codex — then her own model, and only when `local_allowed()` says there is memory for it (a starved model is a timeout, not an answer; measured live 2026-09-21) |
 | `converse.answer`, `converse._from_my_own_model` | standard | conversation is prose, and the local rung DISCLOSES itself ("this answer is from my own model") |
-| `compose.compose` | standard | document prose; no gateway text route and no own-model disclosure on a saved file yet (gap) |
+| `compose.compose` | standard | document prose; no gateway text route. Claude, then ChatGPT, then her own model (`local_text`) from sources cut to fit it, and a document her own model wrote says so in the file and in the reply |
 | `webtask.run` | standard | the older selector loop, superseded by `browser_loop` whenever a start page is known (gap: route or retire) |
 | `script.write_program` | standard | authors sandboxed programs; the script sandbox is frozen for this wave |
 | `web_search_jobs._claude_search`, `_claude_ready`, `_codex_search` | critical | web search is a tool of the Claude/Codex CLIs; her own model cannot search |

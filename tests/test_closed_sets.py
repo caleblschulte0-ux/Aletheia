@@ -197,7 +197,9 @@ class TheKillSwitchIsNotSomethingASENTENCECanTrip(unittest.TestCase):
                                     # 2026-09-24: his interview hours are his to say
                                     "interview_window_set",
                                     # 2026-09-23: a page on his screen is his tap
-                                    "open_page"}))
+                                    "open_page",
+                                    # 2026-10-11: pausing or dropping his mission is his word
+                                    "mission_state"}))
 
     def test_the_agenda_refuses_the_same_ones(self):
         """Two lists that disagree is one list that is wrong."""

@@ -648,8 +648,10 @@ class DaysThatMeanOneDay(unittest.TestCase):
         self.assertTrue(voice._spoken_day("the end of the month").startswith(today.isoformat()[:8]))
         self.assertEqual(voice._interpret("add a task to renew my passport in 2 weeks")["command"]["deadline"],
                          (today + dt.timedelta(days=14)).isoformat())
-        # "Next Friday" is still asked about, never guessed.
-        self.assertIsNone(voice._spoken_day("next friday"))
+        # "Next Friday" is still asked about, never guessed - unless today IS that day
+        # (then it can only mean a week out), so ask about a day that is not today.
+        other = voice.WEEKDAYS[(today.weekday() + 2) % 7]
+        self.assertIsNone(voice._spoken_day(f"next {other}"))
 
 
 class WhenItIsDue(unittest.TestCase):
@@ -3719,6 +3721,21 @@ class HisPlansAndHowHeFeels(unittest.TestCase):
             self.assertTrue(quick._interview_when().startswith("Your job interview is tomorrow"))
         with mock.patch("aletheia.calendar.all_events", return_value=[{"title": "Stripe interview", "start": at}]):
             self.assertTrue(quick._interview_when().startswith("Your interview with Stripe is"))
+        # Talked to her, 2026-10-11: her own hold is titled "an interview with Via", and was read back
+        # as "Your interview with an interview with Via".
+        for title, said in (("an interview with Via", "Your interview with Via is"),
+                            ("Interview with Withers Co", "Your interview with Withers Co is"),
+                            ("Interview: Gong", "Your interview with Gong is"),
+                            ("phone interview with Acme", "Your interview with Acme is")):
+            with mock.patch("aletheia.calendar.all_events", return_value=[{"title": title, "start": at}]):
+                self.assertTrue(quick._interview_when().startswith(said), (title, quick._interview_when()))
+
+    def test_any_interviews_this_week_is_his_calendar_not_his_documents(self):
+        from aletheia import voice
+        for asked in ("do I have any interviews this week", "do i have an interview tomorrow",
+                      "have i got any interviews coming up"):
+            got = voice._interpret(asked) or {}
+            self.assertNotEqual((got.get("command") or {}).get("kind"), "file_find", asked)
 
     def test_a_plan_with_a_when_is_kept_and_read_with_the_day_he_said_it(self):
         import datetime as dt
@@ -3773,9 +3790,11 @@ class PartsOfDaysAndMeetingDetails(unittest.TestCase):
         with mock.patch("aletheia.calendar.all_events", return_value=self.events):
             self.assertTrue(quick.answer("how long is my meeting with Sam").startswith("45 minutes: meeting with Sam"))
             self.assertTrue(quick.answer("who is my meeting with at 3").startswith("Meeting with Sam, tomorrow"))
-            # tomorrow is next week's Monday when today is Sunday: both sides move
+            # tomorrow is next week's Monday when today is Sunday: both sides move, and "today" is
+            # HIS today - the process's date is already tomorrow on a Saturday evening in Chicago
             import datetime as dt
-            week = "next week" if (dt.date.today() + dt.timedelta(days=1)).weekday() == 0 else "this week"
+            from aletheia import localtime
+            week = "next week" if (localtime.today() + dt.timedelta(days=1)).weekday() == 0 else "this week"
             self.assertTrue(quick.answer(f"what's my busiest day {week}").endswith("with 2 things on it."))
         self.assertIsNone(quick.match("how long is my commute"))
 
@@ -5551,7 +5570,8 @@ class AChildsWeekAndAWeeklyThree(unittest.TestCase):
 
     def test_what_does_leo_have_reads_his_lines(self):
         from aletheia import calendar, localtime
-        soon = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(days=2)).replace(hour=16, minute=0, second=0, microsecond=0)
+        # Minutes from now, not two days: on a Saturday two days on is next week (2026-10-10).
+        soon = (dt.datetime.now(localtime.operator_tz()) + dt.timedelta(minutes=5)).replace(second=0, microsecond=0)
         rows = [{"title": "Leo's dentist appointment", "start": soon.isoformat(), "end": (soon + dt.timedelta(hours=1)).isoformat()},
                 {"title": "Lunch with Sam", "start": soon.isoformat()}]
         with mock.patch.object(calendar, "all_events", return_value=rows):
@@ -7374,7 +7394,10 @@ class HowMuchToSaveAndWhenPayday(unittest.TestCase):
         return [{"text": t, "ts": ts} for t in texts]
 
     def test_a_weekly_amount_from_the_goal_date(self):
-        today = dt.date.today()
+        # His day, not the machine's: at 7 pm Central the UTC date is
+        # tomorrow, and 71 days came out $69 (2026-10-09).
+        from aletheia import localtime
+        today = localtime.today()
         with mock.patch.object(quick, "_notes", return_value=self._notes("I want to save 700 dollars by december")), \
                 mock.patch.object(quick, "_save_by", return_value=today + dt.timedelta(days=70)):
             said = quick.answer("how much do I need to save each week")

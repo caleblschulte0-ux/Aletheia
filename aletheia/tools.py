@@ -762,6 +762,8 @@ INTERNAL_KINDS = frozenset({
     "fault_ack",
     # His "Clear" on a card that waits on him: a tap, like a decision.
     "mission_leave",
+    # His "pause the move plan": his word about his own mission.
+    "mission_state",
     "running", "brief", "setup_status", "notify_check", "notify_clear",
     "notify_snooze", "notify_operator", "announce_set", "rule",
     # His "undo that": a decision over her own ledger, like approve.

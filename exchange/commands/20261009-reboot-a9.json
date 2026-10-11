@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-a9",
+  "filed": "2026-10-09T00:51:57Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "The Open Range Interactive calendar (the one interviews already go on). It is his personal Google account, separate from anything Expansion Capital Group can see, so real event titles are fine there. Never put anything on a work calendar."
+  }
+}

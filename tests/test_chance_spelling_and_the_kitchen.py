@@ -35,14 +35,11 @@ WEEK = [
 
 class TheWeekendAndTheUmbrella(unittest.TestCase):
     def setUp(self):
-        patcher = mock.patch.object(weather, "forecast", return_value=forecast(WEEK))
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        # WEEK's "Today" is a Wednesday (Thursday follows it). Frozen with the fixture, because
-        # a frozen fixture beside a moving clock failed every Sunday.
-        today = mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 7))
-        today.start()
-        self.addCleanup(today.stop)
+        # WEEK reads Today, Thursday, ...: the forecast is asked for on a Wednesday.
+        for patcher in (mock.patch.object(weather, "forecast", return_value=forecast(WEEK)),
+                        mock.patch("aletheia.localtime.today", return_value=dt.date(2026, 10, 7))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_the_weekend_is_two_days(self):
         said = quick.answer("what's the weather this weekend")

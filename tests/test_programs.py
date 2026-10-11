@@ -431,7 +431,8 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
         program_run.run_task(pid, "t1", now=NOW)
         task = self.task(pid, "t1")
         self.assertEqual(task["state"], ws.DONE)
-        self.assertEqual(READS[0]["question"], "costs and neighbourhoods")
+        # The read asks what its step said, led by what the task is about (2026-10-11).
+        self.assertEqual(READS[0]["question"], f"{task['title']}: costs and neighbourhoods")
         self.assertIn("found three sources", pg.load(pid)["results"][-1]["text"])
         decision = pg.load(pid)["decisions"][0]
         self.assertEqual(decision["state"], "open")                   # its `after` task is done: his now
@@ -738,6 +739,170 @@ class OneOwnerRecordsOutboundMessages(Sandbox):
         after = conversations.load(thread["id"])
         self.assertEqual(after["follow_up"]["owner"], pg.item_id(pid, "t2"))
         self.assertIsNone(after["follow_up"]["due"])
+
+
+def _old_rules_catalog() -> dict:
+    """The fake catalog plus a doing tool an older composition picked for a look-up."""
+    catalog = fake_catalog()
+    catalog["web.visit"] = tools.declare(
+        "web.visit", description="Visit websites and do things there on his behalf",
+        input_schema={"properties": {"question": {"type": "string"}}, "required": ["question"]},
+        handler=lambda a, **_: {"text": "visited"}, capability="test.visit", risk=intercom.TIER_WORLD,
+        writes=("browser",), open_world=True, approval="operator_once")
+    catalog["free.window"] = tools.declare(
+        "free.window", description="Find free time over a stretch of days",
+        input_schema={"properties": {"when": {"type": "string"}}, "required": ["when"]},
+        handler=lambda a, **_: {"text": f"free {a['when']}"}, capability="test.free", reads=("calendar",))
+    return catalog
+
+
+def _old_plan(task, catalog):
+    return {"steps": [{"tool": "web.visit", "for": "research the places", "by": "named", "score": None}],
+            "requires": [], "gaps": []}
+
+
+class ATaskParkedUnderOldRulesTriesAgain(Sandbox):
+    """His PC, 2026-10-09: the fix for how mission steps are chosen and gated
+    went live, and his 7 Reboot tasks went on waiting under the old rules,
+    because a task keeps the plan and the wait it was parked with."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(program_run, "CATALOG", _old_rules_catalog())
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.pid = self.active()["id"]
+        with mock.patch.object(program_compose, "compose", _old_plan):
+            self.parked = program_run.run_task(self.pid, "t1", now=NOW)
+
+    def test_it_was_parked_on_a_yes_it_no_longer_needs(self):
+        self.assertEqual(self.parked["state"], ws.BLOCKED_USER)
+        self.assertEqual(self.task(self.pid, "t1")["plan"]["steps"][0]["tool"], "web.visit")
+
+    def test_after_the_upgrade_it_runs_and_the_old_question_is_taken_back(self):
+        hid = self.parked["handoff"]
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertEqual([(r["task"], r["was"]) for r in released], [("t1", "handoff")])
+        task = self.task(self.pid, "t1")
+        self.assertEqual((task["state"], task["plan"]["steps"][0]["tool"]), (ws.READY, "look.up"))
+        self.assertEqual(handoffs.load(hid)["state"], handoffs.EXPIRED)
+        self.assertEqual(policy.load(hid)["state"], policy.EXPIRED)       # never approved, only withdrawn
+        self.assertEqual(handoffs.all_handoffs(handoffs.AWAITING), [])
+        self.assertIsNone(pg.current_wait(task))
+        program_run.run_task(self.pid, "t1", now=self.at(minutes=6))
+        self.assertTrue(READS)
+        self.assertEqual(SENT, [])
+        self.assertEqual(program_run.requeue_reclassified(now=self.at(minutes=7)), [])   # once is once
+
+    def test_a_question_he_already_answered_is_his_and_is_left(self):
+        hid = self.parked["handoff"]
+        policy.decide(hid, "APPROVED", via="operator-phone", because="he said yes")
+        self.assertEqual(program_run.requeue_reclassified(now=self.at(minutes=5)), [])
+        self.assertEqual(self.task(self.pid, "t1")["state"], ws.BLOCKED_USER)
+        self.assertEqual(policy.load(hid)["state"], "APPROVED")
+
+    def test_a_step_that_still_needs_him_stays_with_him(self):
+        program_run.run_task(self.pid, "t2", now=NOW)
+        self.assertEqual(self.task(self.pid, "t2")["state"], ws.BLOCKED_USER)
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertNotIn("t2", [r["task"] for r in released])
+        self.assertEqual(self.task(self.pid, "t2")["state"], ws.BLOCKED_USER)
+
+    def test_an_old_spending_refusal_of_a_harmless_step_is_lifted(self):
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t3")
+            t.update(state=ws.FAILED, cursor=0, needs=[],
+                     plan={"steps": [{"tool": "look.up", "for": "", "by": "named", "score": None}],
+                           "requires": [], "gaps": []},
+                     reason="look.up was refused: that would spend money, and I never do that")
+        pg.update(self.pid, change)
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertIn(("t3", "refused"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual(self.task(self.pid, "t3")["state"], ws.READY)
+
+    def test_a_window_it_was_asked_about_is_filled_and_it_runs(self):
+        def window_plan(task, catalog):
+            return {"steps": [{"tool": "free.window", "for": "", "by": "named", "score": None}],
+                    "requires": [], "gaps": []}
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(needs=[]))
+        with mock.patch.object(program_compose, "compose", window_plan), \
+                mock.patch.object(program_compose, "default_args", return_value={}):
+            parked = program_run.run_task(self.pid, "t3", now=NOW)
+        self.assertEqual(parked["state"], ws.BLOCKED_USER)
+        self.assertIn("when", parked["why"])
+        with mock.patch.object(program_compose, "compose", window_plan):
+            released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertIn(("t3", "args"), [(r["task"], r["was"]) for r in released])
+
+    def test_a_write_that_failed_on_a_path_outside_her_workspace_tries_again(self):
+        """His PC, 2026-10-10: "file_write error: the tool failed (OutsideWorkspace)"."""
+        import tempfile
+        catalog = dict(program_run.CATALOG)
+        catalog["note.write"] = tools.declare(
+            "note.write", description="Write a note file in her workspace",
+            input_schema={"properties": {"path": {"type": "string"}, "text": {"type": "string"}},
+                          "required": ["path", "text"]},
+            handler=lambda a, **_: {"text": "written"}, capability="test.note", risk=intercom.TIER_ROUTINE,
+            writes=("workspace",))
+        bad = "C:\\Users\\caleb\\Documents\\Aletheia\\answers.md"
+
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t3")
+            t.update(state=ws.FAILED, cursor=0, needs=[], attempts=3,
+                     plan={"steps": [{"tool": "note.write", "for": "", "by": "named", "score": None,
+                                      "args": {"path": bad, "text": "his answers"}}],
+                           "requires": [], "gaps": []},
+                     reason="note.write failed 3 times: the tool failed (OutsideWorkspace)")
+        pg.update(self.pid, change)
+        with tempfile.TemporaryDirectory() as home, \
+                mock.patch.dict(os.environ, {"ALETHEIA_WORKSPACE": home}), \
+                mock.patch.object(program_run, "CATALOG", catalog):
+            released = program_run.requeue_reclassified(now=self.at(minutes=5))
+            self.assertIn(("t3", "path"), [(r["task"], r["was"]) for r in released])
+            self.assertEqual(self.task(self.pid, "t3")["state"], ws.READY)
+            args, missing = program_compose.fill_args(catalog["note.write"], self.task(self.pid, "t3"),
+                                                      {"path": bad, "text": "his answers"})
+            self.assertEqual((missing, args["text"]), (["path"], "his answers"))
+            # a write that failed for any other reason is not touched
+            pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(
+                state=ws.FAILED, reason="note.write failed 3 times: disk full"))
+            self.assertNotIn("t3", [r["task"] for r in program_run.requeue_reclassified(now=self.at(minutes=9))])
+
+    def test_one_task_that_cannot_be_rechecked_does_not_stop_the_others(self):
+        """His PC, 2026-10-10: with the re-check live, a parked task still did not move."""
+        def change(record):
+            record["tasks"].insert(0, {"key": "odd", "title": "odd", "state": ws.BLOCKED_USER,
+                                       "plan": {"steps": "not a list"}})
+        pg.update(self.pid, change)
+        released = program_run.requeue_reclassified(now=self.at(minutes=5))
+        self.assertEqual([r["task"] for r in released], ["t1"])
+
+    def test_the_beat_rechecks_before_anything_slow_can_spend_its_budget(self):
+        from aletheia import runtime
+        src = Path(runtime.__file__).read_text(encoding="utf-8")
+        self.assertLess(src.index('guarded("mission_requeue"'), src.index('guarded("sign_up_lists"'))
+
+    def test_a_step_that_already_ran_is_never_swapped_under_it(self):
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t1")
+            t["plan"]["steps"].append({"tool": "calendar.hold", "for": "", "by": "named", "score": None})
+            t["plan"]["steps"].reverse()           # step 0 (already run) is now one the fresh plan lacks
+            t["cursor"] = 1
+        pg.update(self.pid, change)
+        program_run.requeue_reclassified(now=self.at(minutes=5))
+        steps = [s["tool"] for s in self.task(self.pid, "t1")["plan"]["steps"]]
+        # The step that ran stays as it ran; only the one it was parked on is chosen again.
+        self.assertEqual(steps, ["calendar.hold", "look.up"])
+
+    def test_a_parked_step_that_cannot_be_rechosen_leaves_the_task_alone(self):
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == "t1")
+            t["plan"]["steps"].append({"tool": "calendar.hold", "for": "", "by": "named", "score": None})
+            t["plan"]["steps"].reverse()
+            t["cursor"] = 1
+        pg.update(self.pid, change)
+        with mock.patch.object(program_run, "_rechoose_step", return_value=None):
+            self.assertEqual(program_run.requeue_reclassified(now=self.at(minutes=5)), [])
 
 
 class _FakeTransport:

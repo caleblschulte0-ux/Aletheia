@@ -168,6 +168,31 @@ def find(which: str = "", *, include_finished: bool = False) -> dict | None:
     return sorted(rows, key=lambda p: p.get("updated_at") or "")[-1]
 
 
+#: Words that name no particular mission: every mission is a plan, a project, a mission.
+_NAMES_NONE = frozenset({"the", "my", "our", "your", "this", "that", "plan", "plans", "project",
+                         "mission", "big", "long", "whole", "thing", "stuff", "work"})
+
+
+def named(subject: str) -> dict | None:
+    """The live mission a subject names by a word of its title, its objective, what he added to it
+    or one of its tasks (a word he would use for it); None when it names none. Unlike `find`,
+    never the most recent mission by default: a subject that names nothing is not this."""
+    want = {w for w in re.findall(r"[a-z0-9]{3,}", str(subject or "").lower()) if w not in _NAMES_NONE}
+    if not want:
+        return None
+    try:
+        rows = [p for p in all_programs() if p.get("state") in LIVE]
+    except Exception:  # noqa: BLE001 - an unreadable store names nothing
+        return None
+    for record in sorted(rows, key=lambda p: p.get("updated_at") or "", reverse=True):
+        said = " ".join([str(record.get("title") or ""), str(record.get("objective") or "")]
+                        + [str(a.get("words") or "") for a in record.get("asks") or []]
+                        + [str(t.get("title") or "") for t in record.get("tasks") or []]).lower()
+        if want & set(re.findall(r"[a-z0-9]{3,}", said)):
+            return record
+    return None
+
+
 # ---- his words in ---------------------------------------------------------------------
 
 def propose(words: str, *, via: str, now: dt.datetime | None = None) -> dict:
@@ -659,10 +684,37 @@ def on_wait(held: dict, event: str, now: dt.datetime) -> dict:
 
 # ---- reading it back ---------------------------------------------------------------------
 
+#: What a task says it will MAKE: the word after one of these verbs is a thing a later look may name.
+MAKES = re.compile(r"\b(?:pick|choose|write|draft|make|build|compose|compile|create)\s+(?:an?\s+|the\s+)?"
+                   r"([a-z][a-z-]{4,})", re.I)
+
+
+def implied_needs(record: dict, task: dict) -> list[dict]:
+    """The unfinished tasks a recurring occurrence's own words wait on. An occurrence has no needs
+    of its own, yet a watch over "the shortlisted ..." can only look once a task has made the
+    shortlist: it read general pages twice and came back empty (2026-10-11). It waits on an
+    unfinished, non-recurring task of the mission whose steps say they make a thing the occurrence
+    names. The words decide; nothing here names a thing."""
+    if not task.get("from_activity"):
+        return []
+    said = " ".join([str(task.get("title") or ""), str(task.get("detail") or "")]
+                    + [str(d) for d in task.get("does") or []]).casefold()
+    words = set(re.findall(r"[a-z][a-z-]+", said))
+    out = []
+    for t in record.get("tasks") or []:
+        if t.get("from_activity") or t.get("key") == task.get("key") or t.get("state") == ws.DONE:
+            continue
+        made = {m.group(1).casefold() for d in t.get("does") or [] for m in MAKES.finditer(str(d))}
+        if any(w.startswith(n) for n in made for w in words):
+            out.append(t)
+    return out
+
+
 def unmet_needs(record: dict, task: dict) -> list[dict]:
-    """The tasks this one needs first that are not done."""
+    """The tasks this one needs first that are not done, and those its words wait on."""
     by_key = {t["key"]: t for t in record.get("tasks") or []}
-    return [by_key[k] for k in task.get("needs") or [] if k in by_key and by_key[k]["state"] != ws.DONE]
+    named = [by_key[k] for k in task.get("needs") or [] if k in by_key and by_key[k]["state"] != ws.DONE]
+    return named + [t for t in implied_needs(record, task) if t not in named]
 
 
 def blocked_by_needs(record: dict, task: dict) -> tuple[str, str, str] | None:
@@ -673,7 +725,9 @@ def blocked_by_needs(record: dict, task: dict) -> tuple[str, str, str] | None:
     unmet = unmet_needs(record, task)
     if not unmet:
         return None
-    failed = [t for t in unmet if t["state"] == ws.FAILED]
+    # Only a need it was GIVEN is his call when it fails; one its words imply simply waits, since
+    # the failed task is already his to see on its own.
+    failed = [t for t in unmet if t["state"] == ws.FAILED and t["key"] in (task.get("needs") or [])]
     if failed:
         return (ws.BLOCKED_USER, "a task it needs did not work: " + "; ".join(
                     f"{t['title']} ({t.get('reason') or 'failed'})" for t in failed)[:240],
@@ -853,6 +907,11 @@ def spoken_status(which: str = "", *, now: dt.datetime | None = None) -> str:
             parts.append(f"{m['title']} is a draft waiting for you"
                          + (f"; first, {q[0].rstrip('.?!')}?" if q else "; say confirm my mission to start it."))
             continue
+        if m["state"] == PAUSED:
+            # A paused mission said as a running one is the reader of "pause it" lying (2026-10-11).
+            parts.append(f"{m['title']} is paused, {m['done']} of {speech.count_phrase(m['total'], 'task')} "
+                         "done. Say resume it to carry on.")
+            continue
         bits = [f"{m['title']}: {m['done']} of {speech.count_phrase(m['total'], 'task')} done"]
         if m["executing"]:
             bits.append(f"working on {m['executing'][0]['title']}")
@@ -884,6 +943,113 @@ def spoken_waiting(which: str = "", *, now: dt.datetime | None = None) -> str:
         lines.append(f"{r['task']}: {r['why']}{tail}")
     more = f" And {len(rows) - 4} more." if len(rows) > 4 else ""
     return f"{len(rows)} waiting. " + "; ".join(lines) + "." + more
+
+
+#: The sentences of a look's answer that say how it looked: put first, so a cut line still shows
+#: which pages refused her and what she searched for (2026-10-11).
+_HOW_IT_LOOKED = re.compile(r"^(?:I read |I couldn't read|I searched for|I'm not sure of this)", re.I)
+
+
+def _found_line(said: str, limit: int = 300) -> str:
+    parts = re.split(r"(?<=[.!?])\s+", " ".join(str(said or "").split()))
+    how = [p for p in parts if _HOW_IT_LOOKED.match(p)]
+    return " ".join(how + [p for p in parts if p not in how])[:limit]
+
+
+def spoken_steps(which: str = "") -> str:
+    """Every unfinished task's shape - its steps, where it stands, the argument NAMES of the step
+    it is on - for whoever is fixing why a task will not move. Argument values are left out:
+    this answer travels over the relay, and a value can be his address or number."""
+    record = find(which)
+    if record is None:
+        return "You don't have a long mission yet."
+    out = []
+    by_key = {t.get("key"): t for t in record.get("tasks") or []}
+    needed = {k for t in record.get("tasks") or [] if t.get("state") != ws.DONE for k in t.get("needs") or []}
+    for k in sorted(needed):
+        t = by_key.get(k)
+        if t is not None and t.get("state") == ws.DONE:
+            # What a finished task found is what the ones waiting on it work from (titles and
+            # dates of events, not his details: a search result is about the world).
+            found = [_found_line(r.get("said")) for r in (t.get("results") or [])[-2:] if r.get("said")]
+            out.append(f"{k} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
+    sweeps: dict[str, dict] = {}
+    for t in record.get("tasks") or []:
+        if t.get("from_activity") and t.get("state") == ws.DONE and t["key"] not in needed:
+            sweeps[t["from_activity"]] = t
+    for t in sweeps.values():
+        # The newest finished occurrence of each recurring look: what the sweep found is what the
+        # holds work from, and a finished sweep had vanished from this view (2026-10-11).
+        found = [_found_line(r.get("said")) for r in (t.get("results") or [])[-1:] if r.get("said")]
+        out.append(f"{t['key']} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
+    for t in record.get("tasks") or []:
+        if t.get("state") == ws.DONE:
+            continue
+        plan = t.get("plan") or {}
+        steps = plan.get("steps") if isinstance(plan.get("steps"), list) else []
+        i = int(t.get("cursor") or 0)
+        here = steps[i] if i < len(steps) else {}
+        out.append(" | ".join(str(x) for x in (
+            t.get("key"), t.get("title"), t.get("state"),
+            "needs " + ",".join(t.get("needs") or []) if t.get("needs") else "",
+            # A recurring occurrence waiting on what another task makes shows it, or it reads as
+            # READY and never running (2026-10-11).
+            "waits on " + ",".join(w["key"] for w in implied_needs(record, t)) if implied_needs(record, t) else "",
+            "does " + "; ".join(t.get("does") or []) if t.get("does") else "",
+            "uses " + ",".join(t.get("uses") or []) if t.get("uses") else "",
+            "steps " + " > ".join(f"[{s.get('tool')}]" if n == i else str(s.get("tool")) for n, s in enumerate(steps)),
+            "for " + str(here.get("for") or "") if here.get("for") else "",
+            "args " + ",".join(sorted((here.get("args") or {}).keys())) if here.get("args") else "",
+            "attempts " + str(t.get("attempts")) if t.get("attempts") else "",
+            str(t.get("reason") or "")[:200]) if x))
+    for t in record.get("tasks") or []:
+        # What the last look of a task stuck on one read, page by page, and what refused it: four
+        # rounds went blind on one comparison without it (2026-10-11). Hosts and sizes only.
+        # The newest look at or before the step it is on: once the look passed and the step after
+        # it failed, what the look read had vanished from this view (2026-10-11).
+        if t.get("state") == ws.DONE:
+            continue
+        steps = (t.get("plan") or {}).get("steps") or []
+        i = int(t.get("cursor") or 0)
+        at = next((n for n in range(min(i, len(steps) - 1), -1, -1) if steps[n].get("tool") == "research"), None)
+        question = ((steps[at].get("args") or {}).get("question")) if at is not None else None
+        if question:
+            from aletheia import research
+            look = research.last_look(str(question))
+            if look:
+                out.append(f"{t.get('key')} | last look at {look.get('at')} | {research.look_words(look)}"
+                           + (f" | looked again r{t.get('relooked')}" if t.get("relooked") else ""))
+            elif t.get("relooked"):
+                out.append(f"{t.get('key')} | looked again r{t.get('relooked')} | no look recorded for its question")
+        if at is not None and at < i:
+            found = [_found_line(r.get("said")) for r in (t.get("results") or [])
+                     if r.get("outcome") == "ok" and r.get("said")][-1:]
+            if found:
+                out.append(f"{t.get('key')} | found so far: {found[0]}")
+    for t in record.get("tasks") or []:
+        opened = [h for h in t.get("history") or [] if str(h.get("did") or "").startswith("opened again")]
+        if opened:
+            out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")
+    out += _holds_taken_back()
+    return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
+
+
+def _holds_taken_back(limit: int = 5) -> list[str]:
+    """Her own tentative holds she took back as wrong: what each was and why, so "was it removed"
+    has an answer on the relay (2026-10-10). A hold's title names an event, not his details."""
+    try:
+        from aletheia import calendar, calendar_reasoning, stateio
+        rows = []
+        for path in calendar_reasoning.holds_dir().glob("*.json"):
+            record = stateio.read_json(path)
+            last = (record.get("history") or [{}])[-1]
+            if record.get("state") == "RELEASED" and str(last.get("did") or "").startswith("taken back"):
+                event = calendar.load(record["id"])
+                rows.append((str(last.get("at") or ""), f"hold taken back | {event.get('title')} at "
+                             f"{event.get('start')} | now {event.get('status')} | {last.get('did')}"))
+        return [r for _at, r in sorted(rows)[-limit:]]
+    except Exception:  # noqa: BLE001 - the steps view never fails for want of the holds
+        return []
 
 
 def section(now: dt.datetime | None = None) -> dict:

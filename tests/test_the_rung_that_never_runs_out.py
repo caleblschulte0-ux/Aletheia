@@ -97,6 +97,29 @@ class TheRulesUnderstandHim(unittest.TestCase):
         self.assertRegex(args["deadline"], r"^\d{4}-\d{2}-\d{2}$")
 
 
+class ALookIsResearchNotABrowserTask(unittest.TestCase):
+    """His PC, 2026-10-10: "look up free networking events in Sioux Falls this month" became a
+    browser task waiting for his yes. A look reads and changes nothing."""
+
+    def test_a_look_is_research_and_needs_no_yes(self):
+        from aletheia import intercom
+        for said, question in (
+                ("look up free networking events in Sioux Falls this month",
+                 "free networking events in Sioux Falls this month"),
+                ("Thea, search for warm cities in red states please", "warm cities in red states"),
+                ("find out about the Denver office", "the Denver office")):
+            kind, args, _ = rule_planner.match(said)
+            self.assertEqual((kind, args), ("research", {"question": question}), said)
+        self.assertEqual(intercom.tier("research"), "read")
+
+    def test_a_site_to_go_to_is_still_the_browser(self):
+        self.assertEqual(rule_planner.match("look up on amazon.com my order")[0], "web_task")
+
+    def test_a_question_about_him_is_not_a_web_search(self):
+        for said in ("find out if I'm free tomorrow", "look up my reminders"):
+            self.assertNotEqual((rule_planner.match(said) or ("",))[0], "research", said)
+
+
 class TheRungIsWiredIntoThePlanner(unittest.TestCase):
     FLEET = {"repos": {}}
     REGISTRY = {"capabilities": [{"id": "task.persist", "status": "AVAILABLE", "provider": "aletheia.local"}]}

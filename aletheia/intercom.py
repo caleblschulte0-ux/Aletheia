@@ -75,6 +75,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "mission_confirm":  (set(), {"mission"}),
     "missions":         (set(), {"which", "about"}),
     "mission_activity": ({"mission", "activity"}, set()),
+    "mission_state":    ({"state"}, {"which"}),
     # "Work on my projects." (aletheia.project_work): a bounded work session over
     # every queue - what can run now runs, what cannot is investigated or waits
     # with its reason. `work_report` is how he asks what came of it.
@@ -412,6 +413,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "jobs": (
+        'Search current job openings and postings on the hiring boards of the employers she follows '
+        '(their own Greenhouse, Lever, Ashby and similar boards; never LinkedIn or Indeed): role is the '
+        'kind of job, where narrows the openings to a place (a city or state), company to one employer, count how many to '
+        'give. The boards\' own listings, not the open web. "How many jobs are open at Anthropic", '
+        '"business development jobs in Austin".'),
     "instagram_post": (
         'Publish ONE picture or reel with a caption to his Instagram account: media is either a '
         'public https address or a path to a file on his PC (a JPEG or PNG picture, an MP4 video), '
@@ -454,7 +461,8 @@ KIND_NOTES: dict[str, str] = {
     "missions": (
         "How his long missions are going: outcomes, what is running, what is waiting "
         "and why, and the decisions that are his. about=waiting lists only what is "
-        "waiting and what wakes it; which names one mission."),
+        "waiting and what wakes it; about=steps shows each unfinished task's steps, for "
+        "fixing one that will not move; which names one mission."),
     "mission_activity": (
         "Fired by a long mission's recurring schedule to start this occurrence of its "
         "activity. Never compiled from something he says."),
@@ -636,6 +644,11 @@ KIND_NOTES: dict[str, str] = {
         'the fleet. repo names the project as the page does. It stays quiet '
         'while the readings show the same fault and is said again the moment '
         'a different one appears. His own tap or words only, never a plan step.'),
+    "mission_state": (
+        'Pause, resume or drop one of his long missions - "pause the move plan", "resume my mission", '
+        '"drop the mission". state is pause, resume or drop; which names the mission by a word of it. '
+        'Paused, nothing on it runs until he resumes it; dropped, its schedules stop and its waits are '
+        'cancelled. His own words only, never a plan step.'),
     "mission_leave": (
         'Clear a browser mission that stopped on him - his tap on "Clear" on a '
         'card that says stopped at a CAPTCHA, a sign-in, a question. It is left, '
@@ -922,6 +935,8 @@ ROUTINE_KINDS = frozenset({
     "fault_ack",
     # His "Clear" on a browser mission: its record left, nothing pressed.
     "mission_leave",
+    # His "pause the move plan": his own mission's state, in his own store.
+    "mission_state",
     # A page opened in his own browser, on his PC, from a record she holds.
     "open_page",
     # Starting and stopping a capped recording of one window, to a file on
@@ -1137,6 +1152,7 @@ PLANNER_FORBIDDEN = frozenset({
     "update_now",          # and a pull of her own code is his tap, not a plan step
     "fault_ack",           # a fault marked handled by a model is a fault hidden
     "mission_leave",       # clearing a card that waits on him is his tap
+    "mission_state",       # pausing or dropping his mission is his word, never a compiler's
     "undo",                # taking back one of her own acts is his word, never a compiler's
     "interview_window_set",  # his hours are his to say; a guess here books interviews at the wrong time
     "open_page",           # a page on his screen is his tap, never a compiler's
@@ -3011,6 +3027,35 @@ def _weekday_words(days: list[int]) -> str:
     return speech.and_list([WEEKDAY_NAMES[d].capitalize() for d in days])
 
 
+#: What he says, to the state a mission is set to.
+MISSION_STATES = {"pause": "PAUSED", "paused": "PAUSED", "hold": "PAUSED", "stop": "PAUSED",
+                  "resume": "ACTIVE", "active": "ACTIVE", "unpause": "ACTIVE", "restart": "ACTIVE",
+                  "drop": "DROPPED", "dropped": "DROPPED", "cancel": "DROPPED"}
+
+
+def _mission_state(cmd: dict, words: str) -> str:
+    """His "pause the move plan", "resume my mission", "drop the mission" (2026-10-11: there was a
+    store that could pause a mission and no way to say it - every phrasing went to the planner)."""
+    from aletheia import programs
+    want = MISSION_STATES.get(str(cmd.get("state") or "").strip().lower())
+    if want is None:
+        raise act.Refused("A mission can be paused, resumed or dropped.")
+    found = programs.find(str(cmd.get("which") or ""))
+    if found is None:
+        return "You don't have a long mission yet. Say start a mission, and what it is for."
+    title = found.get("title") or "your mission"
+    if found.get("state") not in (programs.ACTIVE, programs.PAUSED):
+        return f"{title} isn't running yet, so there's nothing to {'resume' if want == programs.ACTIVE else 'pause'}."
+    if found.get("state") == want:
+        return f"{title} is already {'on' if want == programs.ACTIVE else 'paused'}."
+    programs.set_state(found["id"], want, via=ACTOR, why=words)
+    if want == programs.PAUSED:
+        return f"Paused {title}. Nothing on it runs until you say resume it."
+    if want == programs.ACTIVE:
+        return f"{title} is back on."
+    return f"Dropped {title}. Its schedules are off and nothing on it runs again."
+
+
 def _mission_command(kind: str, cmd: dict, quote: str) -> str:
     """His long missions (aletheia.programs), said and answered in sentences."""
     from aletheia import programs
@@ -3019,6 +3064,8 @@ def _mission_command(kind: str, cmd: dict, quote: str) -> str:
     if kind == "missions":
         if str(cmd.get("about") or "").strip().lower() == "waiting":
             return programs.spoken_waiting(cmd.get("which", ""))
+        if str(cmd.get("about") or "").strip().lower() == "steps":
+            return programs.spoken_steps(cmd.get("which", ""))
         return programs.spoken_status(cmd.get("which", ""))
     if kind == "mission_activity":
         made = programs.activity_due(cmd["mission"], cmd["activity"])
@@ -3028,6 +3075,8 @@ def _mission_command(kind: str, cmd: dict, quote: str) -> str:
         record = programs.propose(cmd["objective"], via=via)
         return (f"Got it. I'll shape that into a mission - the outcomes, the workstreams and the "
                 f"questions only you can answer - and bring the draft back before anything starts.")
+    if kind == "mission_state":
+        return _mission_state(cmd, words)
     found = programs.find(cmd.get("mission", ""))
     if found is None:
         return "You don't have a long mission yet. Say start a mission, and what it is for."
@@ -3201,7 +3250,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         charters.ask("drop", project=found["slug"], via=ACTOR)
         return (f"Dropping {found['title']}. The builder will leave it alone "
                 "within half an hour.")
-    if kind in ("mission_new", "mission_add", "mission_confirm", "missions", "mission_activity"):
+    if kind in ("mission_new", "mission_add", "mission_confirm", "missions", "mission_activity", "mission_state"):
         return _mission_command(kind, cmd, quote)
     if kind == "work_projects":
         from aletheia import project_work

@@ -60,9 +60,21 @@ class WhatCountsAsSpendingCase(unittest.TestCase):
                      "git checkout claude/tiktok-review-demo",
                      "checkout claude/tiktok-review-demo",
                      "check out the demo branch",
-                     "git fetch origin then git checkout -b feature/x"):
+                     "git fetch origin then git checkout -b feature/x",
+                     # 2026-10-10: salary maths in his mission refused as spending
+                     "compute adjusted pay equivalent",
+                     "save per-city pay floors",
+                     "compare pay ranges for account managers",
+                     "what is the base pay in austin"):
             with self.subTest(goal=goal):
                 self.assertFalse(webtask.would_spend(goal), goal)
+
+    def test_pay_the_noun_never_hides_pay_the_act(self):
+        for goal in ("pay for the event", "pay $20 to register", "pay my rent",
+                     "compute adjusted pay for the ticket", "adjusted pay $40 fee",
+                     "pay the registration fee and compare pay ranges"):
+            with self.subTest(goal=goal):
+                self.assertTrue(webtask.would_spend(goal), goal)
 
     def test_one_predicate_for_the_plan_and_the_run(self):
         """The sentence he hears and the thing that happens cannot be
@@ -224,3 +236,23 @@ class AtTheDoorCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ALimitOnSpendingIsNotSpending(unittest.TestCase):
+    """His mission, 2026-10-10: "register for free events; stop at payment or unknown required
+    fields" was refused as a payment. A rule that says never pay is not paying; a sentence that
+    also asks to buy something still is."""
+
+    def test_the_limit_alone_is_not_spending(self):
+        from aletheia.webtask import would_spend
+        for words in ("register for free events; stop at payment or unknown required fields",
+                      "stop before the checkout page", "stop if it asks for payment", "never pay",
+                      "sign up but don't pay anything", "free only, no payment", "register without paying"):
+            self.assertFalse(would_spend(words), words)
+
+    def test_a_limit_beside_a_purchase_is_still_a_purchase(self):
+        from aletheia.webtask import would_spend
+        for words in ("buy the ticket and stop at payment", "don't pay more than $50 for the monitor",
+                      "never pay late, pay my rent", "stop at payment then pay", "register and pay the fee",
+                      "not paying attention, buy it", "do not buy until friday then buy it"):
+            self.assertTrue(would_spend(words), words)

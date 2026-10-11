@@ -221,6 +221,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:you|u) (?:there|awake|up|good|ok|alive|with me)$"
         r"|^(?:are|r) (?:you|u) (?:there|still there|still up)$"
         r"|^still (?:there|awake|up)$|^(?:you|u) still (?:there|up)$")),
+    # "What did you sign me up for" - her own ledger of sign-ups, which only a model was asked
+    # about (2026-10-11), and a model has never seen it.
+    ("signed_up", re.compile(
+        r"^(?:what|which)(?: events?| things?| lists?)? (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?|put) me (?:up )?(?:for|on)(?: so far| yet)?\s*\??$"
+        r"|^(?:what|which) (?:events? )?(?:am i|have i been) (?:signed up|registered) for\s*\??$"
+        r"|^(?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?) me (?:up )?for anything(?: yet)?\s*\??$"
+        r"|^(?:what|which) (?:event )?lists? (?:did|have) (?:you|u) (?:join(?:ed)?|sign(?:ed)? me up for)\s*\??$")),
     ("waiting", re.compile(
         r"^what(?:'s| is|s)? waiting(?: on| for)? me(?: right now| now)?$"
         r"|^what(?:'s| is|s)? waiting$"
@@ -1390,6 +1397,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
         r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
+        # "Any events this weekend" (2026-10-11: to the planner, which
+        # could not plan it with the models out).
+        r"|^(?:are there |is there |do i have |have i got )?any (?:events|plans)(?: (?:on|planned|scheduled|happening|going on|coming up))?"
+        r"(?: for| on)? (?P<day15>today|tonight|tomorrow|this week|next week|this weekend|the weekend|next weekend|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         # "Am I free this weekend" (2026-10-07: to the planner).
         r"|^am i (?:free|busy) (?P<day11>this weekend|the weekend|next weekend|this week|next week)$")),
     # "Do I have any meetings today" was answered "nothing coming up" - a
@@ -1591,7 +1602,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("interview_when", re.compile(
         r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
         r"|^how (?:long|many days|many hours) (?:until|till|before) (?:my|the) (?:next )?interview\s*\??$"
-        r"|^(?:do i have|is there) an interview (?:coming up|scheduled|booked)(?: today| tomorrow| this week)?\s*\??$"
+        r"|^(?:do i have|is there|have i got) an interview(?: coming up| scheduled| booked)?(?: today| tomorrow| this week| next week)?\s*\??$"
         r"|^when(?:'s| is) my next interview\s*\??$")),
     # THE DAY AS SHE HOLDS IT: calendar, tasks, the hunt.
     ("plan_today", re.compile(
@@ -3625,7 +3636,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "free", "free2", "free3",
                                            "down", "down2", "weather",
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
-                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13", "day14",
+                                           "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13", "day14", "day15",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
                                            "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bwin3", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
@@ -5930,7 +5941,11 @@ def _interview_when() -> str:
         return "No interview on your calendar. When one is booked it goes there and I tell you."
     coming.sort()
     start, title = coming[0]
-    who = re.sub(r"^\s*interview\s*[:with-]*\s*", "", title, flags=re.I).strip()
+    # "An interview with Via" (her own hold's title) read back as "Your interview with an interview
+    # with Via" (2026-10-11): the article and the kind of interview come off first, and "with" is
+    # a word, not the letters w, i, t and h.
+    who = re.sub(r"^\s*(?:(?:an?|the|my) )?(?:(?:job|phone|video|zoom|second|final|first|in-person|onsite|on-site) )*"
+                 r"interview\b\s*(?:with\b|:|-)?\s*", "", title, flags=re.I).strip()
     kind = re.fullmatch(r"\s*(?:(?:my|a|the) )?((?:job|phone|video|zoom|second|final|first|in-person|onsite|on-site) )*interview\s*", title, re.I)
     if kind or not who:
         named = f"Your {title.strip().lower()}" if kind and kind.group(1) else "Your interview"
@@ -11852,6 +11867,13 @@ def status_of(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _mission_named(subject: str) -> str | None:
+    """How a live long mission is going, when the subject names one (`programs.named`)."""
+    from aletheia import programs
+    record = programs.named(subject)
+    return programs.spoken_status(record["id"]) if record else None
+
+
 def _status_of(text: str) -> str | None:
     """Answer a status question from the store its subject names. Every
     number is a count of records; nothing here invents progress. None for a
@@ -11878,6 +11900,10 @@ def _status_of(text: str) -> str | None:
             return _doing()
         else:
             said = current_state.repo_words(subject)
+            if said is None:
+                # "How is the move plan going" is about a long mission of his, not a repository:
+                # it answered "No fleet reading yet" with the mission running (2026-10-11).
+                said = _mission_named(subject)
             if said is None and _no_pulse():
                 # "Is the trader running" with the pulse unwritten went to a
                 # model that knows no trader (2026-09-23 night sweep).
@@ -19001,6 +19027,7 @@ def _good_morning() -> str:
 
 
 ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
+           "signed_up": lambda rest: __import__("aletheia.event_signup", fromlist=["spoken"]).spoken(),
            "power": lambda rest: _power(rest),
            "joke": lambda rest: _joke(),
            "meal_idea": lambda rest: _meal_idea(rest),
