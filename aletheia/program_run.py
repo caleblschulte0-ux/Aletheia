@@ -418,6 +418,22 @@ def _answers_file(record: dict) -> str | None:
     return rel
 
 
+def _stale_look(task: dict, plan: dict, tools: dict, i: int) -> int | None:
+    """The look before step `i` whose answer was read the old way - before `research.REVISION` -
+    when it has not already looked again on this revision; None otherwise. A look that ran on the
+    current reading is never run twice."""
+    look = next((n for n in range(i - 1, -1, -1) if (tools.get(plan["steps"][n].get("tool")) is not None
+                 and tools[plan["steps"][n]["tool"]].read_only
+                 and tools[plan["steps"][n]["tool"]].open_world)), None)
+    from aletheia import research
+    if look is None or int(task.get("relooked") or 0) >= research.REVISION:
+        return None
+    ran = [r for r in task.get("results") or [] if r.get("step") == look and r.get("outcome") == "ok"]
+    if ran and int(ran[-1].get("revision") or 0) >= research.REVISION:
+        return None
+    return look
+
+
 #: What a writing step is handed to write from, revised: 2 is the found file beside his answers.
 WRITES_FROM = 2
 
@@ -1005,8 +1021,19 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 value = str(args.get(key) or "")
                 if value.strip() and str(task["title"]).casefold() not in value.casefold():
                     args[key] = f"{task['title']}: {value}"[:480]
-        if "sources" in ((tool.input_schema or {}).get("properties") or {}) and tool.writes \
-                and set(tool.writes) <= {"workspace"}:
+        writes_from = ("sources" in ((tool.input_schema or {}).get("properties") or {}) and tool.writes
+                       and set(tool.writes) <= {"workspace"})
+        look = _stale_look(task, plan, tools, i) if writes_from else None
+        if look is not None:
+            # A write-up whose look read its pages the old way writes from that old reading: the
+            # comparison's look kept 300 characters a page and its write-up refused (2026-10-11).
+            # Once per revision, it looks again first.
+            step["args"] = args
+            task.update(cursor=look, relooked=research.REVISION, state=ws.READY, run=None,
+                        reason="", next="look again on the current reading, then write")
+            _commit(pid, task, now)
+            return {"state": ws.READY, "why": "looking again on the current reading"}
+        if writes_from:
             # A document written "from Caleb's answers" reads them: without a source that reads,
             # compose refuses rather than invent (2026-10-10: "compose failed 3 times").
             given = args.get("sources") or []
@@ -1051,10 +1078,8 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # The same holds for a step whose own task looked first: the weekly sweep has no needs,
             # its look is its first step, and it asked him all the same (2026-10-11).
             dated = any(DATED.search(x) for x in _found(record, task, answers=False))
-            look = next((n for n in range(i - 1, -1, -1) if (tools.get(plan["steps"][n].get("tool")) is not None
-                         and tools[plan["steps"][n]["tool"]].read_only
-                         and tools[plan["steps"][n]["tool"]].open_world)), None)
-            if look is not None and int(task.get("relooked") or 0) < research.REVISION:
+            look = _stale_look(task, plan, tools, i)
+            if look is not None:
                 # Its own look ran before looks carried the dated lines they read: it looks again
                 # now, once per revision of how pages are read, rather than in a week (2026-10-11).
                 step["args"] = args
@@ -1111,7 +1136,8 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 # The look ran and found nothing it could answer with: a try that failed, so the task
                 # looks again later instead of handing an empty answer to the tasks after it.
                 outcome = "empty"
-            _result(task, i, tool.name, outcome, said, now)
+            _result(task, i, tool.name, outcome, said, now,
+                    **({"revision": research.REVISION} if tool.read_only and tool.open_world else {}))
             if outcome != "ok":
                 task["attempts"] = int(task.get("attempts") or 0) + 1
                 if task["attempts"] >= MAX_ATTEMPTS and _looks_again_tomorrow(record, task):
