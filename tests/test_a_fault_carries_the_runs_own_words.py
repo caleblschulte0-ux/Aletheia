@@ -41,7 +41,7 @@ NOTES = [{"annotation_level": "warning", "message": "Process completed with exit
 
 class TheRunsOwnWordsReachTheRow(unittest.TestCase):
     def test_a_failed_run_carries_its_first_real_annotation(self):
-        client = _Client({"/runs?per_page=1": RUN, "/runs/77/jobs": JOBS, "/check-runs/900/annotations": NOTES})
+        client = _Client({"/runs?per_page=": RUN, "/runs/77/jobs": JOBS, "/check-runs/900/annotations": NOTES})
         row = client.workflow_run("Shorts-pipeline", "daily.yml")
         self.assertEqual(row["conclusion"], "failure")
         self.assertTrue(row["said"].startswith("partial day (4 uploaded)"), row["said"])
@@ -49,17 +49,70 @@ class TheRunsOwnWordsReachTheRow(unittest.TestCase):
 
     def test_a_green_run_makes_no_extra_reads(self):
         green = {"workflow_runs": [{**RUN["workflow_runs"][0], "conclusion": "success"}]}
-        client = _Client({"/runs?per_page=1": green})
+        client = _Client({"/runs?per_page=": green})
         row = client.workflow_run("Shorts-pipeline", "daily.yml")
         self.assertNotIn("said", row)
         self.assertEqual(len(client.calls), 1)
 
     def test_a_second_read_that_fails_costs_the_words_not_the_pulse(self):
-        client = _Client({"/runs?per_page=1": RUN, "/runs/77/jobs": JOBS}, boom={"/runs/77/jobs"})
+        client = _Client({"/runs?per_page=": RUN, "/runs/77/jobs": JOBS}, boom={"/runs/77/jobs"})
         row = client.workflow_run("Shorts-pipeline", "daily.yml")
         self.assertEqual(row["conclusion"], "failure")
         self.assertNotIn("said", row)
 
+
+
+class TheRowIsTheLastFinishedRunOnTheFleetsBranch(unittest.TestCase):
+    """The brief read "Aletheia - NO TELEMETRY" every day (2026-10-11): the newest run of any
+    kind was the pulse's own run, in progress while it read itself, and a CI run on a pull
+    request branch beside it. Ask for what the health line means - finished, on the branch
+    the fleet runs from."""
+
+    def _runs(self, *rows):
+        base = {"status": "completed", "conclusion": "success", "updated_at": "2026-10-11T00:00:00Z",
+                "html_url": "https://example.invalid"}
+        return {"workflow_runs": [{**base, "id": n, **row} for n, row in enumerate(rows, 1)]}
+
+    def test_it_asks_for_finished_runs_only(self):
+        client = _Client({"/runs?per_page=": self._runs({"head_branch": "live", "event": "push"})})
+        row = client.workflow_run("Aletheia", "ci.yml", branch="live")
+        self.assertIn("status=completed", client.calls[0])
+        self.assertEqual(row["conclusion"], "success")
+
+    def test_a_red_pull_request_branch_is_not_the_repositorys_health(self):
+        client = _Client({"/runs?per_page=": self._runs(
+            {"head_branch": "claude/x", "event": "pull_request", "conclusion": "failure"},
+            {"head_branch": "live", "event": "push"})})
+        row = client.workflow_run("Aletheia", "ci.yml", branch="live")
+        self.assertEqual(row["conclusion"], "success")
+        self.assertEqual(len(client.calls), 1, "a green run reads no annotations")
+
+    def test_a_scheduled_run_counts_whatever_branch_github_ran_it_on(self):
+        client = _Client({"/runs?per_page=": self._runs({"head_branch": "main", "event": "schedule"})})
+        row = client.workflow_run("Aletheia", "pulse.yml", branch="live")
+        self.assertEqual(row["conclusion"], "success")
+
+    def test_nothing_finished_on_the_branch_says_so(self):
+        client = _Client({"/runs?per_page=": self._runs({"head_branch": "claude/x", "event": "pull_request"})})
+        row = client.workflow_run("Aletheia", "ci.yml", branch="live")
+        self.assertEqual(row, {"error": "no finished run on live"})
+
+    def test_the_collector_names_each_repos_own_default_branch(self):
+        from aletheia.fleet import load_fleet
+        from tests.test_pulse import FakeSource
+
+        asked = {}
+
+        class Source(FakeSource):
+            def workflow_run(self, gh, workflow, branch=""):
+                asked[gh] = branch
+                return super().workflow_run(gh, workflow, branch)
+
+        fleet = load_fleet()
+        pulse.collect(fleet, Source())
+        branch_of = {r["github"]: r["default_branch"] for r in fleet["repos"].values()}
+        self.assertTrue(asked, "no workflow was read")
+        self.assertEqual(asked, {gh: branch_of[gh] for gh in asked})
 
 class TheFaultSaysThem(unittest.TestCase):
     def test_the_sentence_carries_the_words_after_the_verdict(self):
