@@ -1244,3 +1244,105 @@ class WhatHisPcDidAfterTheTwentyFirstFix(HisMissionRunsWithoutHim):
     def test_a_parked_look_on_the_current_reading_waits_its_day(self):
         self._parked(relooked=research.REVISION)
         self.assertNotIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+
+class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
+    """His PC, 2026-10-11 18:22Z, once holds were made at all: a free Saturday-morning walk (kept: he
+    asked for his calendar filled with anything free in his hours), the newcomer-events task
+    pencilled in its own name at a free slot tomorrow at 6:15 pm, and then asked him for a url."""
+
+    WALK = "WWE South Dakota: Tails on the Trail - Saturday 2026-10-24 at 09:00, free"
+
+    def test_anything_free_found_in_his_hours_is_held_whatever_it_is_about(self):
+        with self._with_event(self.WALK):
+            self._run_everything()
+        self.assertEqual([a["title"] for name, a in self.ran if name == "calendar.hold"],
+                         ["WWE South Dakota: Tails on the Trail"])
+
+    def test_the_soonest_found_line_is_held(self):
+        with self._with_event(self.WALK + "\n" + EVENT):
+            self._run_everything()
+        self.assertEqual([a["title"] for name, a in self.ran if name == "calendar.hold"],
+                         ["Sioux Falls Fall Job Fair"])
+
+    def test_a_hold_for_a_day_nothing_found_names_is_never_made(self):
+        def other_day(system, text, *, context=None, validator=None, **kw):
+            value = think(system, text, context=context, validator=None, **kw)
+            if system is program_compose.ARGS_SYSTEM and "start" in (context or {}).get("arguments_needed", {}):
+                value["args"].update(title="Sioux Falls Fall Job Fair", start="2026-10-17T18:15")
+            return validator(value) if validator else value
+        with mock.patch.object(program_run, "THINK", other_day), \
+                mock.patch.object(program_run, "_dated_hold", lambda *a, **k: {}):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
+        self.assertIn("on that day", next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")["reason"])
+
+    def test_a_hold_named_for_the_task_itself_is_never_made(self):
+        def own_name(system, text, *, context=None, validator=None, **kw):
+            value = think(system, text, context=context, validator=None, **kw)
+            if system is program_compose.ARGS_SYSTEM and "title" in (context or {}).get("arguments_needed", {}):
+                value["args"].update(title=(context or {}).get("task", {}).get("title"), start="2026-10-17T18:15")
+            return validator(value) if validator else value
+        # The page echoes the task's words, as a search for them does, so only its own name is wrong.
+        echo = EVENT + "\nPencil the fitting events onto his calendar as tentative holds"
+        with mock.patch.object(program_run, "THINK", own_name), self._with_event(echo), \
+                mock.patch.object(program_run, "_dated_hold", lambda *a, **k: {}):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [name for name, _a in self.ran])
+        self.assertIn("own name", next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")["reason"])
+
+    def _made(self, title, start):
+        from aletheia import calendar_reasoning, localtime
+        import datetime as dt
+        at = dt.datetime.fromisoformat(start).replace(tzinfo=localtime.operator_tz())
+        return calendar_reasoning.hold(title, at.isoformat(), (at + dt.timedelta(hours=1)).isoformat())["event"]["id"]
+
+    def test_a_wrong_hold_made_by_a_task_still_under_way_is_taken_back(self):
+        from aletheia import calendar
+        self._run_everything()
+        bad = {"title": "Pencil the fitting events onto his calendar as tentative holds",
+               "start": "2026-10-17T18:15"}
+        event_id = self._made(bad["title"], bad["start"])
+
+        def as_his_pc_left_it(record):
+            t3 = next(t for t in record["tasks"] if t["key"] == "t3")
+            t3["plan"]["steps"][0]["args"] = dict(bad)
+            t3["results"] = [{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "calendar.hold", "outcome": "ok",
+                              "said": "Pencilled in Pencil the fitting events onto his calendar"}]
+            t3.update(state=ws.BLOCKED_USER, cursor=1, holds_rechecked=True)
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn(("t3", "hold"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual(calendar.load(event_id)["status"], "CANCELLED")
+        self.assertNotIn("t3", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])     # once
+
+    def test_a_right_hold_already_made_stays(self):
+        from aletheia import calendar
+        self._run_everything()
+        good = {"title": "Sioux Falls Fall Job Fair", "start": "2026-10-15T18:00"}
+        event_id = self._made(good["title"], good["start"])
+
+        def made_it(record):
+            t3 = next(t for t in record["tasks"] if t["key"] == "t3")
+            t3["plan"]["steps"][0]["args"] = dict(good)
+            t3["results"] = [{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "calendar.hold", "outcome": "ok",
+                              "said": "Pencilled in Sioux Falls Fall Job Fair"}]
+            t3.update(state=ws.BLOCKED_USER, cursor=1, holds_rechecked=True)
+        pg.update(self.pid, made_it)
+        self.assertNotIn("t3", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        self.assertNotEqual(calendar.load(event_id)["status"], "CANCELLED")
+
+    def test_a_sign_up_with_no_address_found_looks_again_instead_of_asking(self):
+        self._run_everything()
+
+        def sign_up(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.READY, cursor=0, results=[], uses=["event.register"],
+                      does=["register for free events"],
+                      plan={"steps": [{"tool": "event.register", "for": "register for free events", "by": "named",
+                                       "score": None}], "requires": [], "gaps": []})
+        pg.update(self.pid, sign_up)
+        program_run.run_task(self.pid, "t6", now=NOW)
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual(t6["state"], ws.RETRY_LATER, t6.get("reason"))
+        self.assertNotIn("what should I use", str(t6.get("reason")))
