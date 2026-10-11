@@ -168,6 +168,31 @@ def find(which: str = "", *, include_finished: bool = False) -> dict | None:
     return sorted(rows, key=lambda p: p.get("updated_at") or "")[-1]
 
 
+#: Words that name no particular mission: every mission is a plan, a project, a mission.
+_NAMES_NONE = frozenset({"the", "my", "our", "your", "this", "that", "plan", "plans", "project",
+                         "mission", "big", "long", "whole", "thing", "stuff", "work"})
+
+
+def named(subject: str) -> dict | None:
+    """The live mission a subject names by a word of its title, its objective, what he added to it
+    or one of its tasks (a word he would use for it); None when it names none. Unlike `find`,
+    never the most recent mission by default: a subject that names nothing is not this."""
+    want = {w for w in re.findall(r"[a-z0-9]{3,}", str(subject or "").lower()) if w not in _NAMES_NONE}
+    if not want:
+        return None
+    try:
+        rows = [p for p in all_programs() if p.get("state") in LIVE]
+    except Exception:  # noqa: BLE001 - an unreadable store names nothing
+        return None
+    for record in sorted(rows, key=lambda p: p.get("updated_at") or "", reverse=True):
+        said = " ".join([str(record.get("title") or ""), str(record.get("objective") or "")]
+                        + [str(a.get("words") or "") for a in record.get("asks") or []]
+                        + [str(t.get("title") or "") for t in record.get("tasks") or []]).lower()
+        if want & set(re.findall(r"[a-z0-9]{3,}", said)):
+            return record
+    return None
+
+
 # ---- his words in ---------------------------------------------------------------------
 
 def propose(words: str, *, via: str, now: dt.datetime | None = None) -> dict:
