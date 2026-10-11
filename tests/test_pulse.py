@@ -34,7 +34,7 @@ class FakeSource:
             "cash": 2.50,
         }
 
-    def workflow_run(self, gh, workflow):
+    def workflow_run(self, gh, workflow, branch=""):
         conclusion = "failure" if workflow in self.failed_workflows else "success"
         return {"status": "completed", "conclusion": conclusion,
                 "updated_at": "2026-08-25T00:00:00Z", "url": "https://example.invalid"}

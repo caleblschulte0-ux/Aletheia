@@ -50,6 +50,10 @@ def _utcnow() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+# How many finished runs to look through for one on the fleet's branch.
+RUNS_LOOKED_AT = 20
+
+
 class GitHubSource:
     """Reads the fleet through the GitHub REST API."""
 
@@ -78,10 +82,15 @@ class GitHubSource:
         import base64
         return json.loads(base64.b64decode(meta["content"]).decode("utf-8"))
 
-    def workflow_run(self, gh: str, workflow: str) -> dict:
+    def workflow_run(self, gh: str, workflow: str, branch: str = "") -> dict:
+        # The newest FINISHED run on the branch the fleet runs from, or one GitHub scheduled or
+        # was asked for by hand (those run on GitHub's own default branch, which for Aletheia is
+        # not the fleet's). The newest run of any kind was the pulse reading its own run, always
+        # in progress, beside a CI run that usually was too, so the hub read "NO TELEMETRY" in
+        # every brief (2026-10-11); and a red pull request branch is not the repository's health.
         try:
             runs = self._get(
-                f"/repos/{self.owner}/{gh}/actions/workflows/{workflow}/runs?per_page=1"
+                f"/repos/{self.owner}/{gh}/actions/workflows/{workflow}/runs?per_page={RUNS_LOOKED_AT}&status=completed"
             )["workflow_runs"]
         except urllib.error.HTTPError as exc:
             if exc.code == 404:
@@ -89,6 +98,10 @@ class GitHubSource:
             raise
         if not runs:
             return {"error": "never run"}
+        runs = [r for r in runs if not branch or r.get("head_branch") == branch
+                or r.get("event") in ("schedule", "workflow_dispatch")]
+        if not runs:
+            return {"error": f"no finished run on {branch}"}
         r = runs[0]
         row = {
             "status": r["status"],
@@ -197,7 +210,7 @@ class LocalSource:
     def read_json(self, gh: str, path: str, branch: str):
         return json.loads((self._dir(gh) / path).read_text(encoding="utf-8"))
 
-    def workflow_run(self, gh: str, workflow: str) -> dict:
+    def workflow_run(self, gh: str, workflow: str, branch: str = "") -> dict:
         return {"error": "unavailable offline"}
 
     def state_file(self, gh: str, path: str, branch: str) -> dict:
@@ -448,7 +461,7 @@ def collect(fleet: dict, source) -> dict:
             record["workflows"] = {}
             for wf in repo["watch"]["workflows"]:
                 try:
-                    record["workflows"][wf] = source.workflow_run(gh, wf)
+                    record["workflows"][wf] = source.workflow_run(gh, wf, branch=repo["default_branch"])
                 except Exception as exc:
                     record["workflows"][wf] = {"error": f"{type(exc).__name__}: {exc}"}
             record["state_files"] = {}

@@ -344,15 +344,15 @@
       "sent": 5
     },
     "2026-10-11": {
-      "filled": 16,
-      "found": 23,
+      "filled": 17,
+      "found": 24,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T17:19:37Z",
+  "generated_at": "2026-10-11T18:53:23Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -363,7 +363,7 @@
   "stop_shapes": {
     "employer_site: apply_not_taken: none": 2,
     "employer_site: empty_page: none": 1,
-    "employer_site: no_apply: none": 9
+    "employer_site: no_apply: none": 8
   },
   "stuck_at": {
     "approval_denied": {
@@ -428,7 +428,7 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 5,
+        "nothing_to_press_on_content+no_apply/observed": 4,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 3
@@ -445,8 +445,8 @@
     }
   },
   "totals": {
-    "filled": 386,
-    "found": 791,
+    "filled": 387,
+    "found": 792,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -457,8 +457,9 @@
       "background_check": 2,
       "education": 2,
       "on_site": 2,
-      "other": 12,
+      "other": 13,
       "pay": 3,
+      "referral": 1,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -500,7 +501,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 19,
+    "needs_answer": 20,
     "oldest_days": 28,
     "to_send": 0
   },

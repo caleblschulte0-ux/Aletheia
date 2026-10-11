@@ -9,7 +9,7 @@ import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import quick, weather
+from aletheia import localtime, quick, weather
 
 
 def forecast(periods):
@@ -57,6 +57,23 @@ class TheWeekendAndTheUmbrella(unittest.TestCase):
         said = quick.answer("will it rain this weekend")
         self.assertIn("Sunday", said)
         self.assertNotIn("Saturday", said)
+
+    def test_on_a_sunday_the_weekend_is_what_is_left_of_today(self):
+        sunday = [{**WEEK[0]}, WEEK[1], {**WEEK[2], "name": "Monday"}, WEEK[3],
+                  {**WEEK[6]}, WEEK[7]]
+        with mock.patch.object(weather, "forecast", return_value=forecast(sunday)), \
+                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 11)):
+            said = quick.answer("what's the weather this weekend")
+        self.assertIn("Today in Austin: Sunny, 80 degrees", said)
+        self.assertNotIn("Saturday", said, "next Saturday is not this weekend")
+
+    def test_on_a_saturday_the_weekend_is_today_and_tomorrow(self):
+        saturday = [WEEK[0], WEEK[1], WEEK[8]]
+        with mock.patch.object(weather, "forecast", return_value=forecast(saturday)), \
+                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 10)):
+            said = quick.answer("what's the weather this weekend")
+        self.assertIn("Today in Austin: Sunny, 80 degrees", said)
+        self.assertIn("Sunday: Thunderstorms", said)
 
     def test_a_weekend_past_the_forecast_says_so(self):
         with mock.patch.object(weather, "forecast", return_value=forecast(WEEK[:3])):
