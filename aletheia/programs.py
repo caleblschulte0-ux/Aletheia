@@ -917,7 +917,7 @@ def spoken_waiting(which: str = "", *, now: dt.datetime | None = None) -> str:
 
 #: The sentences of a look's answer that say how it looked: put first, so a cut line still shows
 #: which pages refused her and what she searched for (2026-10-11).
-_HOW_IT_LOOKED = re.compile(r"^(?:I couldn't read|I searched for|I'm not sure of this)", re.I)
+_HOW_IT_LOOKED = re.compile(r"^(?:I read |I couldn't read|I searched for|I'm not sure of this)", re.I)
 
 
 def _found_line(said: str, limit: int = 300) -> str:
@@ -962,6 +962,9 @@ def spoken_steps(which: str = "") -> str:
         out.append(" | ".join(str(x) for x in (
             t.get("key"), t.get("title"), t.get("state"),
             "needs " + ",".join(t.get("needs") or []) if t.get("needs") else "",
+            # A recurring occurrence waiting on what another task makes shows it, or it reads as
+            # READY and never running (2026-10-11).
+            "waits on " + ",".join(w["key"] for w in implied_needs(record, t)) if implied_needs(record, t) else "",
             "does " + "; ".join(t.get("does") or []) if t.get("does") else "",
             "uses " + ",".join(t.get("uses") or []) if t.get("uses") else "",
             "steps " + " > ".join(f"[{s.get('tool')}]" if n == i else str(s.get("tool")) for n, s in enumerate(steps)),

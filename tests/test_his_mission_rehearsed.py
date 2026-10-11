@@ -822,3 +822,40 @@ class WhatHisPcDidAfterTheThirteenthFix(HisMissionRunsWithoutHim):
         self._with_watch(ws.FAILED)
         record = pg.load(self.pid)
         self.assertEqual(pg.implied_needs(record, self._sweep()), [])
+
+
+class WhatHisPcDidAfterTheFourteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 07:04Z: the sweep still asked him "what should I use for start and title?"
+    from before the fix; the watch over the shortlist waited but read as READY."""
+
+    def test_the_sweeps_old_when_question_is_taken_back(self):
+        record = pg.load(self.pid)
+        sweep = dict(next(t for t in record["tasks"] if t.get("from_activity") == "a1"))
+        sweep.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], cursor=1, needs=[], run=None,
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}},
+                                     {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
+                                      "by": "named", "args": {}}], "requires": [], "gaps": []},
+                     results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                               "said": "605 Connections, a group for young professionals in town"}])
+        question = 'For "Weekly sweep for new job-search events", what should I use for start and title?'
+        pg.hold(record, sweep, {"kind": "user_decision", "question": question}, reason=question, purpose="args",
+                now=NOW, extra={"step": 1, "missing": ["start", "title"]})
+        pg.update(self.pid, lambda r: [t.update(sweep) for t in r["tasks"] if t["key"] == sweep["key"]])
+        self.assertIn(sweep["key"], [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        with mock.patch.object(program_compose, "model_args", lambda *a, **k: {}):
+            out = program_run.run_task(self.pid, sweep["key"], now=NOW)
+        self.assertEqual(out["state"], ws.RETRY_LATER)
+
+    def test_the_steps_view_says_what_a_watch_waits_on(self):
+        def change(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, does=["pick a shortlist that fits the criteria"])
+            record["tasks"].append(pg._task_from(
+                {"key": "a9-2026101100", "title": "Watch shortlisted places for roles and cost changes",
+                 "does": ["look for new matching postings in shortlisted places"], "uses": ["web_task"]},
+                NOW, activity="a9"))
+        pg.update(self.pid, change)
+        line = next(x for x in pg.spoken_steps("Project Reboot").splitlines() if x.startswith("a9-2026101100 |"))
+        self.assertIn("| waits on t6 |", line)
