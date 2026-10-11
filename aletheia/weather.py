@@ -264,16 +264,22 @@ def _periods_for(periods: list, wanted: str):
         return [periods[0]]
     wanted = re.sub(r"^(?:on|for) ", "", wanted)
     if wanted in _WEEKEND:
-        days = [p for p in periods if p.get("isDaytime", True) and
-                str(p.get("name", "")).casefold() in ("saturday", "sunday", "today")]
-        if periods and str(periods[0].get("name", "")).casefold() == "today":
-            # "Today" is only the weekend when today is Saturday or Sunday.
-            import datetime as dt
-            if dt.date.today().weekday() < 5:
-                days = [p for p in days if str(p.get("name", "")).casefold() != "today"]
+        # The coming Saturday and Sunday - and on a weekend day, what is left of this one: on a
+        # Sunday that is today alone, never today beside NEXT Saturday. His calendar's day, not
+        # the process's: the test suite failed every Sunday and her answer was wrong with it.
+        from aletheia import localtime
+        weekday = localtime.today().weekday()
+        daytime = [p for p in periods if p.get("isDaytime", True)]
+        first = str(daytime[0].get("name", "")).casefold() if daytime else ""
+        if first == "today" and weekday == 6:
+            days = daytime[:1]
+        elif first == "today" and weekday == 5:
+            days = daytime[:1] + [p for p in daytime[1:] if str(p.get("name", "")).casefold() == "sunday"][:1]
+        else:
+            days = [p for p in daytime if str(p.get("name", "")).casefold() in ("saturday", "sunday")][:2]
         if not days:
             return "The forecast doesn't reach the weekend yet - ask me again in a day or two."
-        return days[:2]
+        return days
     if wanted in ("this week", "the week", "the rest of the week", "week", "the next few days", "next few days"):
         # "What's the weather this week" (2026-10-07: to the planner) - the
         # daytime periods ahead, as far as the forecast reaches.

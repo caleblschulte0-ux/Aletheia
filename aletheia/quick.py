@@ -17666,7 +17666,9 @@ def _their_week(text: str) -> str | None:
     now = dt.datetime.now(tz)
     today = now.replace(hour=0, minute=0, second=0, microsecond=0)
     until = {"today": today + dt.timedelta(days=1), "tomorrow": today + dt.timedelta(days=2),
-             "this week": today + dt.timedelta(days=7 - today.weekday()),
+             # The seven days ahead, as her agenda reads "this week": the calendar week's end
+             # left nothing on a Sunday, which is when people ask what the week holds.
+             "this week": today + dt.timedelta(days=7),
              "this weekend": today + dt.timedelta(days=7 - today.weekday()),
              "next week": today + dt.timedelta(days=14 - today.weekday()),
              "coming up": today + dt.timedelta(days=14)}[when]

@@ -5,10 +5,11 @@ between 1 and 10", "spell necessary", "how many ounces in a cup", "do I
 need an umbrella" and "what's the weather this weekend" all went to the
 planner and came back "I could not plan that". None of them needs thinking.
 """
+import datetime as dt
 import unittest
 from unittest import mock
 
-from aletheia import quick, weather
+from aletheia import localtime, quick, weather
 
 
 def forecast(periods):
@@ -37,6 +38,11 @@ class TheWeekendAndTheUmbrella(unittest.TestCase):
         patcher = mock.patch.object(weather, "forecast", return_value=forecast(WEEK))
         patcher.start()
         self.addCleanup(patcher.stop)
+        # WEEK's "Today" is a Wednesday (Thursday follows it). Frozen with the fixture, because
+        # a frozen fixture beside a moving clock failed every Sunday.
+        today = mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 7))
+        today.start()
+        self.addCleanup(today.stop)
 
     def test_the_weekend_is_two_days(self):
         said = quick.answer("what's the weather this weekend")
@@ -54,6 +60,23 @@ class TheWeekendAndTheUmbrella(unittest.TestCase):
         said = quick.answer("will it rain this weekend")
         self.assertIn("Sunday", said)
         self.assertNotIn("Saturday", said)
+
+    def test_on_a_sunday_the_weekend_is_what_is_left_of_today(self):
+        sunday = [{**WEEK[0]}, WEEK[1], {**WEEK[2], "name": "Monday"}, WEEK[3],
+                  {**WEEK[6]}, WEEK[7]]
+        with mock.patch.object(weather, "forecast", return_value=forecast(sunday)), \
+                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 11)):
+            said = quick.answer("what's the weather this weekend")
+        self.assertIn("Today in Austin: Sunny, 80 degrees", said)
+        self.assertNotIn("Saturday", said, "next Saturday is not this weekend")
+
+    def test_on_a_saturday_the_weekend_is_today_and_tomorrow(self):
+        saturday = [WEEK[0], WEEK[1], WEEK[8]]
+        with mock.patch.object(weather, "forecast", return_value=forecast(saturday)), \
+                mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 10)):
+            said = quick.answer("what's the weather this weekend")
+        self.assertIn("Today in Austin: Sunny, 80 degrees", said)
+        self.assertIn("Sunday: Thunderstorms", said)
 
     def test_a_weekend_past_the_forecast_says_so(self):
         with mock.patch.object(weather, "forecast", return_value=forecast(WEEK[:3])):
