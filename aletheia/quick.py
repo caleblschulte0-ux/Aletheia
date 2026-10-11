@@ -7238,6 +7238,9 @@ def _agenda(day: str = "today") -> str | None:
     except Exception:
         return None                  # no calendar mirror: the model may know more
     label = (first.strftime("%A") if day in _WEEKDAYS      # he said Friday; say Friday
+             # Asked on a Sunday, the weekend is today - and still said as the weekend he asked
+             # about: "nothing on your calendar today" answered a different question (2026-10-11).
+             else "The rest of this weekend" if day in ("this weekend", "the weekend") and first == last == now.date()
              else "Today" if first == last == now.date()
              else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
              else first.strftime("%A") if first == last
@@ -7246,7 +7249,7 @@ def _agenda(day: str = "today") -> str | None:
              else "This month" if day == "this month"
              else "This week" if day == "this week" else "Next week")
     when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend", "Next weekend",
-                                           "This month") else label
+                                           "This month", "The rest of this weekend") else label
     # "We're having people over Friday night" is a note, and "what's
     # happening Friday" said only "Nothing on your calendar Friday"
     # (2026-10-07). His own word for the day, said this past week.
@@ -11875,6 +11878,25 @@ def status_of(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _fleet_knows(subject: str) -> bool:
+    """Does the fleet registry name a repository he could mean by `subject`? "How's the move going"
+    with no pulse written said "No fleet reading yet", as if the move were a repository (2026-10-11)."""
+    try:
+        from aletheia.fleet import load_fleet
+        repos = load_fleet().get("repos") or {}
+    except Exception:  # noqa: BLE001 - no registry: nothing is known to be a repository
+        return False
+    key = "".join(ch for ch in str(subject or "").casefold() if ch.isalnum())
+    if len(key) < 3:
+        return False
+    for slug, row in repos.items():
+        for said in (slug, str((row or {}).get("github") or "")):
+            plain = "".join(ch for ch in said.casefold() if ch.isalnum())
+            if plain == key or plain.startswith(key) or (len(key) >= 5 and key in plain):
+                return True
+    return False
+
+
 def _mission_named(subject: str) -> str | None:
     """How a live long mission is going, when the subject names one (`programs.named`)."""
     from aletheia import programs
@@ -11912,7 +11934,7 @@ def _status_of(text: str) -> str | None:
                 # "How is the move plan going" is about a long mission of his, not a repository:
                 # it answered "No fleet reading yet" with the mission running (2026-10-11).
                 said = _mission_named(subject)
-            if said is None and _no_pulse():
+            if said is None and _no_pulse() and _fleet_knows(subject):
                 # "Is the trader running" with the pulse unwritten went to a
                 # model that knows no trader (2026-09-23 night sweep).
                 return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."

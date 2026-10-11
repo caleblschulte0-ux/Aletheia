@@ -808,7 +808,9 @@ def _not_a_file(said: str) -> bool:
     # "Search for cheap flights to Denver" and "look up the best hotels" are
     # the web, never a file (2026-10-07: both compiled a file search).
     if re.search(r"\b(?:flights?|hotels?|tickets?|deals?|recipes?|restaurants?|reviews?|cheap|cheapest|best|"
-                 r"prices?|reservations?|airbnbs?|rentals?|apartments?|how to)\b", low):
+                 r"prices?|reservations?|airbnbs?|rentals?|apartments?|how to|"
+                 # "Find me free events this weekend" searched his Documents (2026-10-11).
+                 r"events?|meetups?|concerts?|festivals?|job fairs?|things to do)\b", low):
         return True
     # "Find my note about Dana" is a note of hers, not a file (2026-10-07:
     # a file search for "note about dana").
