@@ -7230,6 +7230,9 @@ def _agenda(day: str = "today") -> str | None:
     except Exception:
         return None                  # no calendar mirror: the model may know more
     label = (first.strftime("%A") if day in _WEEKDAYS      # he said Friday; say Friday
+             # Asked on a Sunday, the weekend is today - and still said as the weekend he asked
+             # about: "nothing on your calendar today" answered a different question (2026-10-11).
+             else "The rest of this weekend" if day in ("this weekend", "the weekend") and first == last == now.date()
              else "Today" if first == last == now.date()
              else "Tomorrow" if first == last and first == now.date() + dt.timedelta(days=1)
              else first.strftime("%A") if first == last
@@ -7238,7 +7241,7 @@ def _agenda(day: str = "today") -> str | None:
              else "This month" if day == "this month"
              else "This week" if day == "this week" else "Next week")
     when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend", "Next weekend",
-                                           "This month") else label
+                                           "This month", "The rest of this weekend") else label
     # "We're having people over Friday night" is a note, and "what's
     # happening Friday" said only "Nothing on your calendar Friday"
     # (2026-10-07). His own word for the day, said this past week.

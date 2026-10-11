@@ -215,8 +215,16 @@ def _research(m, request):
     return {"question": what}, f"Look up {what}"
 
 
+#: An object that only points back at something: taken literally, "sign me up for that" became a
+#: browser errand to sign up for "that" (2026-10-11, every model off).
+_ONLY_POINTS = re.compile(r"(?:that|this|it|them|those|these|one|the (?:first |last |other )?one|"
+                          r"(?:that|this|the) (?:one|event|thing|place|site|page|link|form))[.!?]?", re.I)
+
+
 def _web_task(m, request):
     goal = _clean(m.group("what"))
+    if _ONLY_POINTS.fullmatch(goal):
+        return {"say": "Which one? Tell me its name or paste its link and I'll take it from there."}
     if len(goal) < 4:
         return None
     args = {"goal": goal}
@@ -224,6 +232,13 @@ def _web_task(m, request):
     if found:
         args["url"] = _with_scheme(found.group(1))
     return args, f"Do this on the web: {goal}"
+
+
+def _whole_request(filled, request):
+    """The web errand with his whole sentence as its goal; an answer or nothing stays as it is."""
+    if not isinstance(filled, tuple):
+        return filled
+    return {**filled[0], "goal": _clean(request)}, f"Do this on the web: {_clean(request)}"
 
 
 def _contact_add(m, request):
@@ -443,7 +458,7 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
     (r"(?:on the (?:web|internet)|online),? (?P<what>.+)", "web_task", _web_task),
     (r"(?:sign me up for|sign up for|register (?:me )?(?:for|on)|create (?:me )?an account (?:on|at|with)|log ?in to|fill (?:in|out)|"
      r"order(?: me)?|book(?: me)?|reserve(?: me)?|renew|apply for|download|look up on|check on)\s+(?P<what>.+)",
-     "web_task", lambda m, r: _web_task(m, r) and ({**_web_task(m, r)[0], "goal": _clean(r)}, f"Do this on the web: {_clean(r)}")),
+     "web_task", lambda m, r: _whole_request(_web_task(m, r), r)),
     (r"(?:add|save)\s+(?P<what>[a-z][a-z .'-]{1,59}?)\s+(?:as a contact|to (?:my )?contacts)(?:[,:]?\s*(?:number|phone|email|at)?\s*(?P<detail>\S+))?",
      "contact_add", _contact_add),
     (r"remember(?: that)? (?P<key>(?:my |the )?[a-z][a-z' -]{1,50}?) (?:is|are|was|=|is called|is named) (?P<value>.+)",
