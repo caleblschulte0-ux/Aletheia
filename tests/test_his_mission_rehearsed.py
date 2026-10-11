@@ -563,3 +563,72 @@ class ALookComposedUnderOldRules(HisMissionRunsWithoutHim):
         pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t7").update(
             state=ws.FAILED, reason="research failed 3 times"))
         self.assertNotIn("t7", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])  # once
+
+
+class WhatHisPcDidAfterTheNinthFix(HisHoursAndHisCalendar):
+    """His PC, 2026-10-10 23:51Z: the comparison said its nothing in other words and stood as done,
+    and the weekly event sweep went FAILED for good after three bad searches in one evening."""
+
+    def _sweep_key(self):
+        return next(t["key"] for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")
+
+    def test_a_recurring_sweep_looks_again_tomorrow_instead_of_failing(self):
+        key = self._sweep_key()
+        empty = "I can't give you any events from these sources. All five pages are about something else."
+        with self._with_event(empty):
+            for n in range(program_run.MAX_ATTEMPTS):
+                pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == key).update(
+                    state=ws.READY, not_before=None))
+                program_run.run_task(self.pid, key, now=NOW)
+        sweep = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)
+        self.assertEqual(sweep["state"], ws.RETRY_LATER)
+        self.assertEqual(sweep["attempts"], 0)
+        self.assertEqual(sweep["next"], "look again tomorrow")
+
+    def test_a_sweep_with_a_newer_one_after_it_may_fail(self):
+        import datetime as dt
+        key = self._sweep_key()
+        pg.activity_due(self.pid, "a1", now=NOW + dt.timedelta(days=7))
+        record = pg.load(self.pid)
+        sweep = next(t for t in record["tasks"] if t["key"] == key)
+        self.assertFalse(program_run._looks_again_tomorrow(record, sweep))
+
+    def test_a_sweep_his_pc_left_failed_is_released_once(self):
+        key = self._sweep_key()
+        program_run.run_task(self.pid, key, now=NOW)  # composed, as his had been
+
+        def as_his_pc_left_it(record):
+            next(t for t in record["tasks"] if t["key"] == key).update(
+                state=ws.FAILED, attempts=3, cursor=0, run=None,
+                reason="research failed 3 times: I can't give you any events from these sources.")
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn((key, "recurring"), [(r["task"], r["was"]) for r in released])
+        self.assertEqual(self.task_state(key), ws.READY)
+        pg.update(self.pid, as_his_pc_left_it)
+        self.assertNotIn(key, [r["task"] for r in program_run.requeue_reclassified(now=NOW)])  # once
+
+    def test_nothing_said_in_other_words_is_still_nothing(self):
+        for said in ("I can't answer this from the sources provided. All five extracts are about spelling.",
+                     "I can’t give you a sourced comparison from what I was handed."):
+            self.assertTrue(program_run.NOTHING_FOUND.search(said), said)
+        self.assertFalse(program_run.NOTHING_FOUND.search("Three free events: a mixer on Oct 15 at the library."))
+
+    def test_a_look_done_again_that_came_back_empty_again_is_done_again(self):
+        import datetime as dt
+        empty = "I can't give you a sourced comparison from what I was handed."
+
+        def as_his_pc_left_it(record):
+            t2 = next(t for t in record["tasks"] if t["key"] == "t2")
+            t2.update(state=ws.DONE, cursor=len(t2["plan"]["steps"]), attempts=0, empty_rechecked=True,
+                      history=[{"at": "2026-09-16T15:00:00Z", "did": "opened again: its look found nothing to answer with"}],
+                      results=[{"at": "2026-09-16T15:30:00Z", "step": len(t2["plan"]["steps"]) - 1,
+                                "tool": t2["plan"]["steps"][-1]["tool"], "outcome": "ok", "said": empty}])
+        self._run_everything()
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW + dt.timedelta(hours=1))
+        self.assertIn(("t2", "done"), [(r["task"], r["was"]) for r in released])
+        # And not again for the same empty answer.
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t2").update(
+            state=ws.DONE, cursor=len(next(t for t in r["tasks"] if t["key"] == "t2")["plan"]["steps"])))
+        self.assertNotIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW + dt.timedelta(hours=2))])

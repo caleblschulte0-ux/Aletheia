@@ -119,7 +119,8 @@ class PickingAQueryNeedsNoModel(ResearchCase):
         with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
              mock.patch.object(reasoning_gateway, "frontier_available", return_value=False):
             research.run("what is the answer", http=None, reader=reader)
-        self.assertEqual(seen, [("routine", work_states.BACKGROUND), ("standard", work_states.BACKGROUND)])
+        # Alone, the queries are the question's own words: no model is asked to write them.
+        self.assertEqual(seen, [("standard", work_states.BACKGROUND)])
         with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
              mock.patch.object(reasoning_gateway, "frontier_available", return_value=True):
             seen.clear()
@@ -361,3 +362,69 @@ class ASearchAboutSomethingElseIsNoSearch(ResearchCase):
         said = research.spoken({"answer": "I couldn't find any events in these sources.", "findings": [],
                                 "sources": [{"url": "u", "title": "t"}], "queries": ["Sioux Falls events"]})
         self.assertIn("I searched for Sioux Falls events", said)
+
+
+class AloneTheQueryIsTheQuestionsOwnWords(ResearchCase):
+    """His PC, 2026-10-10, Claude and Codex out: her own model wrote the queries and searched for
+    "using vs useing" and semicolons; the weekly event sweep read pages about the Sioux people."""
+
+    SWEEP = ("Weekly sweep for new job-search events: search for newly listed events in Sioux Falls; "
+             "hold fitting ones on the calendar; register for free ones with his approval")
+
+    def test_the_query_is_the_subject_words_and_never_the_doing(self):
+        self.assertEqual(research.keyword_query(self.SWEEP), "job-search events listed Sioux Falls")
+        self.assertEqual(research.keyword_query(
+            "Compare a shortlist of warm red-state cities: compare cost of living, taxes, housing and "
+            "$95K+ jobs; write a ranked summary with sources"),
+            "warm red-state cities cost living taxes housing $95K jobs")
+        self.assertEqual(research.keyword_query("look up free networking events in Sioux Falls this month"),
+                         "free networking events Sioux Falls month")
+
+    def test_too_many_words_keeps_the_names(self):
+        q = research.keyword_query("alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo Denver Ramp")
+        self.assertLessEqual(len(q.split()), research.KEYWORD_QUERY_WORDS)
+        self.assertIn("Denver", q)
+        self.assertIn("Ramp", q)
+
+    def test_alone_no_model_writes_the_queries(self):
+        from aletheia import reasoning_gateway
+        searched, asked = [], []
+
+        def http(query, **_):
+            searched.append(query)
+            return {"url": "", "text": "", "links": [], "error": "none"}
+
+        def fake_thinker(policy, **fixed):
+            def think(system, text, **kw):
+                asked.append(system is research.PLAN_SYSTEM)
+                value = {"answer": "Two events.", "gaps": [], "confidence": 0.8,
+                         "findings": [{"claim": "There are two", "url": "https://example.org/a"}]}
+                validator = kw.get("validator")
+                return validator(value) if validator else value
+            return think
+        with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
+             mock.patch.object(reasoning_gateway, "frontier_available", return_value=False):
+            report = research.run(self.SWEEP, http=http, reader=reader)
+        self.assertNotIn(True, asked)
+        self.assertEqual(searched[0], "job-search events listed Sioux Falls")
+        self.assertEqual(report["queries"][0], "job-search events listed Sioux Falls")
+
+    def test_one_shared_word_is_not_enough_for_a_long_question(self):
+        page = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+                "text": "x" * 600,
+                "links": [{"href": "https://tribes.test/sioux", "text": "The Sioux people: history and culture",
+                           "snippet": "Bands, language and traditions of the Sioux nation."},
+                          {"href": "https://chamber.test/events", "text": "Sioux Falls networking events",
+                           "snippet": "Newly listed events in Sioux Falls this week."}]}
+        found = research.find_sources("x", reader=reader, http=lambda q, **_: page,
+                                      about="newly listed networking events Sioux Falls")
+        self.assertEqual([research._host(f["url"]) for f in found], ["chamber.test"])
+
+    def test_an_unsure_answer_says_what_it_searched_for(self):
+        said = research.spoken({"answer": "Maybe Tampa.", "confidence": 0.1,
+                                "findings": [{"claim": "c", "url": "u"}],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["warm cities taxes"]})
+        self.assertIn("I searched for warm cities taxes", said)
+        sure = research.spoken({"answer": "Tampa.", "confidence": 0.8, "findings": [{"claim": "c", "url": "u"}],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["warm cities taxes"]})
+        self.assertNotIn("I searched for", sure)
