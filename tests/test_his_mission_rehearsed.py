@@ -560,9 +560,13 @@ class ALookComposedUnderOldRules(HisMissionRunsWithoutHim):
         t7 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t7")
         self.assertEqual(t7["state"], ws.READY)
         self.assertNotIn("calendar.find_free", [s["tool"] for s in t7["plan"]["steps"]])
-        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t7").update(
+        fail = (lambda r: next(t for t in r["tasks"] if t["key"] == "t7").update(
             state=ws.FAILED, reason="research failed 3 times"))
-        self.assertNotIn("t7", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])  # once
+        pg.update(self.pid, fail)
+        # Planned again once; its look may still try the pages it reads now once, and then no more.
+        self.assertNotIn(("t7", "recomposed"), [(r["task"], r["was"]) for r in program_run.requeue_reclassified(now=NOW)])
+        pg.update(self.pid, fail)
+        self.assertNotIn("t7", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
 
 
 class WhatHisPcDidAfterTheNinthFix(HisHoursAndHisCalendar):
@@ -746,3 +750,75 @@ class WhatHisPcDidAfterTheTwelfthFix(HisMissionRunsWithoutHim):
     def test_the_steps_view_says_how_it_looked_first(self):
         self.assertTrue(pg._found_line("No figures here. More words. I couldn't read www.numbeo.com.")
                         .startswith("I couldn't read www.numbeo.com."))
+
+
+class WhatHisPcDidAfterTheThirteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 05:31Z: the sweep went on to hold and asked him "what should I use for start
+    and title?"; the comparison stayed failed without trying the pages it reads now; and the watch
+    over the shortlist looked twice before there was any shortlist."""
+
+    DOES = ["pick a shortlist that fits the criteria", "write a ranked summary with sources"]
+
+    def _sweep(self):
+        return next(t for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")
+
+    def test_a_sweep_whose_look_found_nothing_dated_looks_again_rather_than_asking_him(self):
+        key = self._sweep()["key"]
+
+        def as_his_pc_left_it(record):
+            t = next(x for x in record["tasks"] if x["key"] == key)
+            t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[],
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}},
+                                     {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
+                                      "by": "named", "args": {}}], "requires": [], "gaps": []},
+                     results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                               "said": "605 Connections, a group for young professionals in town"}])
+        pg.update(self.pid, as_his_pc_left_it)
+        with mock.patch.object(program_compose, "model_args", lambda *a, **k: {}):
+            out = program_run.run_task(self.pid, key, now=NOW)
+        self.assertEqual(out["state"], ws.RETRY_LATER)
+        self.assertNotIn("what should I use", str(self._sweep().get("reason") or ""))
+        self.assertNotIn("calendar.hold", [n for n, _a in self.ran])
+
+    def test_a_comparison_planned_again_once_still_tries_the_pages_it_reads_now(self):
+        def as_his_pc_left_it(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, attempts=3, needs=[], recomposed=True,
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader", "args": {}}],
+                            "requires": [], "gaps": []},
+                      reason="research failed 3 times: I can't give you a sourced shortlist")
+        pg.update(self.pid, as_his_pc_left_it)
+        self.assertIn(("t6", "sources"), [(r["task"], r["was"]) for r in program_run.requeue_reclassified(now=NOW)])
+
+    def _with_watch(self, t6_state):
+        def change(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=t6_state, does=list(self.DOES))
+            record["tasks"].append(pg._task_from(
+                {"key": "a9-2026101100", "title": "Watch shortlisted places for roles and cost changes",
+                 "does": ["look for new matching postings in shortlisted places"], "uses": ["web_task"]},
+                NOW, activity="a9"))
+        pg.update(self.pid, change)
+
+    def test_a_watch_over_the_shortlist_waits_for_the_shortlist(self):
+        self._with_watch(ws.FAILED)
+        out = program_run.run_task(self.pid, "a9-2026101100", now=NOW)
+        self.assertEqual(out["state"], ws.BLOCKED_EXTERNAL)
+        self.assertNotIn("research", [n for n, _a in self.ran])
+        record = pg.load(self.pid)
+        watch = next(t for t in record["tasks"] if t["key"] == "a9-2026101100")
+        # A failed shortlist is already his to see; the watch only waits, it does not ask him.
+        self.assertEqual(pg.blocked_by_needs(record, watch)[0], ws.BLOCKED_EXTERNAL)
+
+    def test_once_the_shortlist_is_made_the_watch_looks(self):
+        self._with_watch(ws.DONE)
+        record = pg.load(self.pid)
+        watch = next(t for t in record["tasks"] if t["key"] == "a9-2026101100")
+        self.assertEqual(pg.unmet_needs(record, watch), [])
+
+    def test_a_sweep_that_names_nothing_a_task_makes_waits_on_nothing(self):
+        self._with_watch(ws.FAILED)
+        record = pg.load(self.pid)
+        self.assertEqual(pg.implied_needs(record, self._sweep()), [])

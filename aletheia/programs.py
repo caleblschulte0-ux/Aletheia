@@ -659,10 +659,37 @@ def on_wait(held: dict, event: str, now: dt.datetime) -> dict:
 
 # ---- reading it back ---------------------------------------------------------------------
 
+#: What a task says it will MAKE: the word after one of these verbs is a thing a later look may name.
+MAKES = re.compile(r"\b(?:pick|choose|write|draft|make|build|compose|compile|create)\s+(?:an?\s+|the\s+)?"
+                   r"([a-z][a-z-]{4,})", re.I)
+
+
+def implied_needs(record: dict, task: dict) -> list[dict]:
+    """The unfinished tasks a recurring occurrence's own words wait on. An occurrence has no needs
+    of its own, yet a watch over "the shortlisted ..." can only look once a task has made the
+    shortlist: it read general pages twice and came back empty (2026-10-11). It waits on an
+    unfinished, non-recurring task of the mission whose steps say they make a thing the occurrence
+    names. The words decide; nothing here names a thing."""
+    if not task.get("from_activity"):
+        return []
+    said = " ".join([str(task.get("title") or ""), str(task.get("detail") or "")]
+                    + [str(d) for d in task.get("does") or []]).casefold()
+    words = set(re.findall(r"[a-z][a-z-]+", said))
+    out = []
+    for t in record.get("tasks") or []:
+        if t.get("from_activity") or t.get("key") == task.get("key") or t.get("state") == ws.DONE:
+            continue
+        made = {m.group(1).casefold() for d in t.get("does") or [] for m in MAKES.finditer(str(d))}
+        if any(w.startswith(n) for n in made for w in words):
+            out.append(t)
+    return out
+
+
 def unmet_needs(record: dict, task: dict) -> list[dict]:
-    """The tasks this one needs first that are not done."""
+    """The tasks this one needs first that are not done, and those its words wait on."""
     by_key = {t["key"]: t for t in record.get("tasks") or []}
-    return [by_key[k] for k in task.get("needs") or [] if k in by_key and by_key[k]["state"] != ws.DONE]
+    named = [by_key[k] for k in task.get("needs") or [] if k in by_key and by_key[k]["state"] != ws.DONE]
+    return named + [t for t in implied_needs(record, task) if t not in named]
 
 
 def blocked_by_needs(record: dict, task: dict) -> tuple[str, str, str] | None:
@@ -673,7 +700,9 @@ def blocked_by_needs(record: dict, task: dict) -> tuple[str, str, str] | None:
     unmet = unmet_needs(record, task)
     if not unmet:
         return None
-    failed = [t for t in unmet if t["state"] == ws.FAILED]
+    # Only a need it was GIVEN is his call when it fails; one its words imply simply waits, since
+    # the failed task is already his to see on its own.
+    failed = [t for t in unmet if t["state"] == ws.FAILED and t["key"] in (task.get("needs") or [])]
     if failed:
         return (ws.BLOCKED_USER, "a task it needs did not work: " + "; ".join(
                     f"{t['title']} ({t.get('reason') or 'failed'})" for t in failed)[:240],
