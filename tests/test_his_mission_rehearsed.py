@@ -315,6 +315,20 @@ class HisMissionRunsWithoutHim(Sandbox):
         self.assertIn("t2 |", said)
         self.assertIn("found: " + EVENT[:40], said)
 
+    def test_the_steps_view_says_when_a_parked_task_may_run_and_what_holds_it(self):
+        # His PC, 2026-10-11: t3 sat RETRY_LATER 26 hours past its retry and the relay could not say why.
+        self._run_everything()
+        record = pg.load(self.pid)
+        t3 = dict(next(t for t in record["tasks"] if t["key"] == "t3"))
+        pg.hold(record, t3, {"kind": "user_decision", "question": "what should I use for start and title?"},
+                reason="what should I use for start and title?", purpose="args", now=NOW,
+                extra={"step": 0, "missing": ["start", "title"]})
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t3").update(
+            state=ws.RETRY_LATER, not_before="2026-10-11T20:09:20Z", waits=t3.get("waits")))
+        said = pg.spoken_steps("Project Reboot")
+        self.assertIn("not before 2026-10-11T20:09:20Z", said)
+        self.assertIn("open waits args:start,title", said)
+
 
 HOURS = ("Off limits for events: weekdays 8:00am-5:00pm Central (his workday), except that 1:00-2:30pm "
          "Central on weekdays is kept free for job interviews. Events go on weekday evenings after 5:30pm "
