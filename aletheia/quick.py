@@ -259,7 +259,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # stores as "what's waiting on me".
         r"|^what do (?:you|u) need from me(?: right now| today)?$"
         r"|^(?:is there )?anything (?:you|u) need from me$"
-        r"|^what needs me$|^anything i need to (?:do|see|look at)$"
+        r"|^what needs me$|^(?:is there |do i have )?anything i (?:need|have|got|should) to (?:do|see|look at|handle|deal with)(?: right now| now)?$"
         r"|^what(?:'s| is|s)? on my plate$"
         r"|^is there anything waiting(?: on me| for me)?$"
         r"|^(?:is there )?anything i (?:should|need to|ought to) know(?: about)?$"
@@ -310,6 +310,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
         r"|^what do i need to (?:do|get done)(?: today)?$"
+        # "Anything I need to do today" went to the planner (2026-10-11): the day, not only his list.
+        r"|^(?:is there |do i have )?anything i (?:need|have|got|should) to (?:do|get done|handle|deal with) today$"
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
         # "Which of those is most urgent" after his list (2026-10-08: to a model).
