@@ -71,15 +71,15 @@
     "2026-10-10": {
       "duplicate": 3,
       "employer_full": 0,
-      "minutes": 61,
-      "needs_account": 0,
-      "needs_answer": 5,
-      "not_realistic": 24,
-      "offered": 58,
-      "ready": 2,
-      "runs": 10,
+      "minutes": 109,
+      "needs_account": 1,
+      "needs_answer": 8,
+      "not_realistic": 30,
+      "offered": 72,
+      "ready": 6,
+      "runs": 11,
       "unfit_clearance": 1,
-      "unfit_model": 11,
+      "unfit_model": 17,
       "unfit_pay": 6,
       "unfit_sales": 6,
       "unjudged": 0,
@@ -96,7 +96,7 @@
       "gone_on_greenhouse": 1,
       "left_captcha": 5,
       "left_error": 2,
-      "left_no_way_forward": 12,
+      "left_no_way_forward": 13,
       "left_out_of_steps": 1,
       "left_questions": 2,
       "left_sign_in": 4,
@@ -321,21 +321,21 @@
       "sent": 1
     },
     "2026-10-10": {
-      "filled": 10,
-      "found": 24,
+      "filled": 13,
+      "found": 28,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
-      "sent": 1
+      "sent": 5
     }
   },
-  "generated_at": "2026-10-11T00:28:06Z",
-  "sent_all_time": 289,
+  "generated_at": "2026-10-11T00:47:42Z",
+  "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
     "employer_site": 10,
     "greenhouse": 239,
-    "lever": 15
+    "lever": 19
   },
   "stuck_at": {
     "approval_denied": {
@@ -369,7 +369,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 1,
       "nothing_to_press_on_success/observed": 1,
       "nothing_to_press_on_success/receipt_verified": 1,
-      "unclear_button/observed": 18,
+      "unclear_button/observed": 19,
       "unreadable_page/observed": 1
     },
     "out_of_steps": {
@@ -403,7 +403,7 @@
         "nothing_to_press_on_content+no_apply/observed": 4,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
-        "unclear_button/observed": 3
+        "unclear_button/observed": 4
       },
       "out_of_steps": {
         "nothing_to_press_on_unread/observed": 1
@@ -419,12 +419,12 @@
     }
   },
   "totals": {
-    "filled": 375,
-    "found": 769,
+    "filled": 378,
+    "found": 773,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
-    "sent": 289
+    "sent": 293
   },
   "waiting": {
     "asked_about": {
@@ -447,7 +447,7 @@
       "left_captcha": 18,
       "left_error": 14,
       "left_going_in_circles": 14,
-      "left_no_way_forward": 83,
+      "left_no_way_forward": 84,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 3,
@@ -473,8 +473,8 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 12,
-    "oldest_days": 27,
+    "needs_answer": 11,
+    "oldest_days": 28,
     "to_send": 0
   },
   "window_days": 30
