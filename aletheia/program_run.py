@@ -434,6 +434,26 @@ def _stale_look(task: dict, plan: dict, tools: dict, i: int) -> int | None:
     return look
 
 
+def _stale_needs(record: dict, task: dict, tools: dict) -> list[tuple[dict, int]]:
+    """The tasks this one needs whose look read its pages the old way - (task, its look's step) -
+    when each has not already looked again on this revision.
+
+    A write-up's sources are mostly the looks of the tasks it NEEDS, not its own: the ranked
+    comparison has no look of its own, so the check above found nothing stale, and it wrote from
+    the comparison's 300-character pages again and refused again (his PC, 2026-10-11)."""
+    by_key = {t.get("key"): t for t in record.get("tasks") or []}
+    out = []
+    for key in task.get("needs") or []:
+        need = by_key.get(key)
+        if need is None or need.get("state") != ws.DONE or not (need.get("plan") or {}).get("steps"):
+            continue
+        steps = need["plan"]["steps"]
+        look = _stale_look(need, need["plan"], tools, len(steps))
+        if look is not None:
+            out.append((need, look))
+    return out
+
+
 #: What a writing step is handed to write from, revised: 2 is the found file beside his answers.
 WRITES_FROM = 2
 
@@ -1033,6 +1053,18 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                         reason="", next="look again on the current reading, then write")
             _commit(pid, task, now)
             return {"state": ws.READY, "why": "looking again on the current reading"}
+        stale = _stale_needs(record, task, tools) if writes_from else []
+        if stale:
+            # Once per revision, each task it needs looks again first, and this one waits for them.
+            for need, at in stale:
+                need.update(cursor=at, relooked=research.REVISION, state=ws.READY, run=None, reason="",
+                            next="look again on the current reading")
+                _commit(pid, need, now)
+            step["args"] = args
+            task.update(state=ws.READY, run=None, reason="",
+                        next="write once " + "; ".join(n["title"] for n, _ in stale)[:160] + " has looked again")
+            _commit(pid, task, now)
+            return {"state": ws.BLOCKED_EXTERNAL, "why": "the tasks it writes from are looking again"}
         if writes_from:
             # A document written "from Caleb's answers" reads them: without a source that reads,
             # compose refuses rather than invent (2026-10-10: "compose failed 3 times").

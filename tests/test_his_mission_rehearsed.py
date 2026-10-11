@@ -1132,3 +1132,48 @@ class HowTheMissionIsGoingIsAboutTheMission(HisMissionRunsWithoutHim):
             self.assertEqual(got["command"], {"kind": "missions", "about": "waiting", "which": self.pid}, asked)
         self.assertNotEqual((voice._interpret("what's the trader waiting on") or {}).get("command", {}).get("kind"),
                             "missions")
+
+    def test_what_she_found_for_a_named_mission_is_its_steps(self):
+        from aletheia import voice
+        pg.add_words(self.pid, "also start planning a move somewhere warm", via="operator-voice", now=NOW)
+        for asked in ("what have you found for the move plan", "what have you done on the reboot so far",
+                      "what did you find out about the move"):
+            got = voice._interpret(asked)
+            self.assertEqual(got["command"], {"kind": "missions", "about": "steps", "which": self.pid}, asked)
+        self.assertNotEqual((voice._interpret("what have you found about the trader") or {}).get("command", {})
+                            .get("kind"), "missions")
+
+
+class WhatHisPcDidAfterTheTwentiethFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 16:08Z: the ranked comparison's write-up has no look of its own - its
+    sources are the look of the task it needs - so the stale-look check found nothing, and it wrote
+    from 300-character pages again and refused again."""
+
+    def _needs_an_old_look(self, **t6_more):
+        def change(record):
+            tasks = {t["key"]: t for t in record["tasks"]}
+            tasks["t6"].update(state=ws.DONE, cursor=1, needs=[],
+                               plan={"steps": [{"tool": "research", "for": "compare", "by": "reader",
+                                                "args": {"question": "compare"}}], "requires": [], "gaps": []},
+                               results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research",
+                                         "outcome": "ok", "said": "Tampa: partial figures."}], **t6_more)
+            tasks["t7"].update(title="Write the ranked comparison", state=ws.READY, cursor=0, needs=["t6"],
+                               plan={"steps": [{"tool": "compose", "for": "write the ranked comparison",
+                                                "by": "named", "args": {"path": "missions/ranked.md",
+                                                                        "what": "rank them"}}],
+                                     "requires": [], "gaps": []})
+        pg.update(self.pid, change)
+
+    def test_the_task_it_writes_from_looks_again_first_once(self):
+        self._needs_an_old_look()
+        out = program_run.run_task(self.pid, "t7", now=NOW)
+        self.assertEqual(out["state"], ws.BLOCKED_EXTERNAL)
+        tasks = {t["key"]: t for t in pg.load(self.pid)["tasks"]}
+        self.assertEqual((tasks["t6"]["state"], tasks["t6"]["cursor"], tasks["t6"]["relooked"]),
+                         (ws.READY, 0, research.REVISION))
+        self.assertNotIn("compose", [n for n, _a in self.ran])
+
+    def test_a_task_that_already_looked_again_is_written_from(self):
+        self._needs_an_old_look(relooked=research.REVISION)
+        program_run.run_task(self.pid, "t7", now=NOW)
+        self.assertIn("compose", [n for n, _a in self.ran])

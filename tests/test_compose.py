@@ -222,3 +222,44 @@ class WhenTheSubscriptionsAreOutHerOwnModelWrites(ComposeCase):
         with mock.patch.object(reasoner, "local_text", side_effect=AssertionError("not asked")):
             with self.assertRaises(compose.ComposeError):
                 compose.compose("a letter", "letter.md", think=out)
+
+
+class APartialRefusalIsAskedAgain(ComposeCase):
+    """His PC, 2026-10-11: her own model answered "CANNOT WRITE: the source files show that previous
+    research found only partial cost-of-living figures" three runs running - the very case the
+    prompt says to write, partial and honest."""
+
+    def test_a_refusal_for_partial_sources_gets_one_plain_second_ask(self):
+        (self.ws / "found.md").write_text("Tampa: median rent $2,100.")
+        asked = []
+
+        def think(system, prompt, **kwargs):
+            asked.append(prompt)
+            return ("CANNOT WRITE: the sources found only partial figures." if len(asked) == 1
+                    else "# Comparison\n\nTampa: median rent $2,100. Still missing: Austin, Nashville.")
+        out = compose.compose("compare the places", "cmp.md", sources=["found.md"], think=think)
+        self.assertEqual(len(asked), 2)
+        self.assertIn(compose.PARTIAL_NUDGE, asked[1])
+        self.assertIn("Tampa: median rent $2,100.", asked[1])
+        self.assertIn("Still missing", (self.ws / "cmp.md").read_text())
+        self.assertTrue(out["created"])
+
+    def test_a_refusal_for_any_other_reason_is_not_argued_with(self):
+        (self.ws / "found.md").write_text("Nothing about the subject.")
+        asked = []
+
+        def think(system, prompt, **kwargs):
+            asked.append(prompt)
+            return "CANNOT WRITE: the sources are about a different subject."
+        with self.assertRaises(compose.ComposeError):
+            compose.compose("compare the places", "cmp.md", sources=["found.md"], think=think)
+        self.assertEqual(len(asked), 1)
+
+    def test_a_second_refusal_still_saves_nothing(self):
+        (self.ws / "found.md").write_text("Tampa: median rent $2,100.")
+
+        def think(system, prompt, **kwargs):
+            return "CANNOT WRITE: only partial figures."
+        with self.assertRaises(compose.ComposeError):
+            compose.compose("compare the places", "cmp.md", sources=["found.md"], think=think)
+        self.assertFalse((self.ws / "cmp.md").exists())
