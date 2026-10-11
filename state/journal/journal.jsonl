@@ -239,3 +239,4 @@
 {"ts": "2026-10-10T05:59:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
 {"ts": "2026-10-10T16:04:36Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-10"}
 {"ts": "2026-10-11T05:56:05Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> unknown"}
+{"ts": "2026-10-11T16:28:48Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-11"}
