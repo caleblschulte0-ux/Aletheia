@@ -478,7 +478,8 @@ CONTENT_ARGS = ("text", "content", "what", "body")
 
 def default_args(tool, task: dict, missing: list[str]) -> dict:
     """Values that need no one's judgement, for arguments nobody supplied: the window a
-    READ looks over, and where a NEW file in her own workspace goes. Each is safe because
+    READ looks over, where a NEW file in her own workspace goes, and the name and purpose of a
+    NEW task of hers (the task's own title and words). Each is safe because
     of what the tool is - looking changes nothing, and a file of hers is hers to undo -
     so a wrong default costs a re-read or a rename, never something he would have refused.
     Everything else stays missing, which is a question for him."""
@@ -496,6 +497,15 @@ def default_args(tool, task: dict, missing: list[str]) -> dict:
         elif (key == "path" and tool.writes and set(tool.writes) <= {"workspace"} and not tool.destructive
               and not tool.open_world and required & set(CONTENT_ARGS)):
             out[key] = f"missions/{new_id(str(task.get('title') or 'notes'))}.md"
+        elif tool.writes and set(tool.writes) <= {"tasks"} and not tool.destructive and not tool.open_world:
+            # A task of hers is hers to rename or drop: its name is the task's own title, and what it is
+            # for is the task's own words - never a question "which the work does not say" (2026-09-18,
+            # the C4b demonstration handed every new task to him for its id).
+            if key == "id":
+                out[key] = new_id(str(task.get("title") or "task"))
+            elif key == "description" and str(task.get("title") or "").strip():
+                out[key] = " - ".join(str(x).strip() for x in (task.get("title"), task.get("detail"))
+                                      if str(x or "").strip())[:400]
     return out
 
 

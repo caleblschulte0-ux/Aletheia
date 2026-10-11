@@ -239,3 +239,4 @@
 {"ts": "2026-10-10T05:59:52Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:aletheia", "text": "health red -> green"}
 {"ts": "2026-10-10T16:04:36Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-10"}
 {"ts": "2026-10-11T05:56:05Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> unknown"}
+{"ts": "2026-10-11T17:29:16Z", "kind": "task", "actor": "aletheia", "subject": "task:compose-fills-reversible-args", "text": "QUEUED -> COMPLETED — default_args fills a new task's id and description from the mission task's own words (tests/test_a_task_of_hers_needs_no_question.py); a new file's path was already filled; text, key, value and domain need a model's reading and go through model_args"}
