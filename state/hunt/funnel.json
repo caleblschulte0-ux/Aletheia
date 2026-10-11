@@ -351,7 +351,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T07:29:09Z",
+  "generated_at": "2026-10-11T07:59:51Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -453,7 +453,6 @@
   "waiting": {
     "asked_about": {
       "background_check": 2,
-      "cover_letter": 1,
       "education": 2,
       "on_site": 2,
       "other": 12,
