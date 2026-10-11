@@ -89,17 +89,17 @@
       "weak_shot": 0
     },
     "2026-10-11": {
-      "duplicate": 0,
+      "duplicate": 88,
       "employer_full": 0,
-      "minutes": 70,
+      "minutes": 77,
       "needs_account": 0,
-      "needs_answer": 4,
-      "not_realistic": 22,
-      "offered": 270,
+      "needs_answer": 5,
+      "not_realistic": 23,
+      "offered": 360,
       "ready": 0,
-      "runs": 3,
+      "runs": 4,
       "unfit_model": 2,
-      "unfit_sales": 20,
+      "unfit_sales": 21,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -343,15 +343,15 @@
       "sent": 5
     },
     "2026-10-11": {
-      "filled": 15,
-      "found": 22,
+      "filled": 16,
+      "found": 23,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T06:58:05Z",
+  "generated_at": "2026-10-11T07:29:09Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -443,8 +443,8 @@
     }
   },
   "totals": {
-    "filled": 385,
-    "found": 790,
+    "filled": 386,
+    "found": 791,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -453,10 +453,11 @@
   "waiting": {
     "asked_about": {
       "background_check": 2,
+      "cover_letter": 1,
       "education": 2,
       "on_site": 2,
       "other": 12,
-      "pay": 2,
+      "pay": 3,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -498,7 +499,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 19,
     "oldest_days": 28,
     "to_send": 0
   },
