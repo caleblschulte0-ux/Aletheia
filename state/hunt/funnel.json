@@ -321,15 +321,15 @@
       "sent": 1
     },
     "2026-10-10": {
-      "filled": 13,
-      "found": 28,
+      "filled": 16,
+      "found": 31,
       "interviews": 0,
       "rejections": 1,
       "replies": 1,
       "sent": 5
     }
   },
-  "generated_at": "2026-10-11T03:11:39Z",
+  "generated_at": "2026-10-11T04:54:21Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -421,8 +421,8 @@
     }
   },
   "totals": {
-    "filled": 377,
-    "found": 773,
+    "filled": 380,
+    "found": 776,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
@@ -430,9 +430,11 @@
   },
   "waiting": {
     "asked_about": {
+      "address": 1,
       "education": 2,
       "on_site": 2,
-      "other": 8,
+      "other": 11,
+      "referral": 1,
       "travel": 1,
       "why_this_job": 1,
       "years_experience": 1
@@ -474,7 +476,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 10,
+    "needs_answer": 13,
     "oldest_days": 28,
     "to_send": 0
   },
