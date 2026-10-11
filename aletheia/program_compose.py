@@ -52,7 +52,7 @@ VERB_SENSES: dict[str, tuple[str, ...]] = {
     "search": ("search", "research", "find"),
     "compare": ("research", "sources", "compare"),
     "read": ("read", "page", "browse"),
-    "check": ("read", "check", "status", "search"),
+    "check": ("read", "check", "status", "search", "research"),
     "browse": ("browse", "page", "website", "browser"),
     "track": ("task", "status", "watch", "record"),
     "watch": ("watch", "monitor", "notify"),
@@ -160,10 +160,28 @@ NO_COST_FREE = re.compile(r"\bfree\s+(?!time\b|windows?\b|slots?\b|hours?\b|even
                           r"for\b|to\b)", re.I)
 
 
+_LOOKING: set[str] = set()
+
+
+def _looking_words() -> set[str]:
+    """Every word a look-up verb stands for ("check" is also "read")."""
+    if not _LOOKING:
+        for verb in LOOKUP_VERBS:
+            _LOOKING.update(need_words(verb))
+    return _LOOKING
+
+
 def score(need: str, tool) -> int:
     want = need_words(NO_COST_FREE.sub("", str(need or "")))
     name_w, desc_w = _tool_words(tool)
-    return 3 * len(want & name_w) + len((want & desc_w) - name_w)
+    named = want & name_w
+    # A tool named for looking at ONE THING only fits a need that names that thing: "check rents in
+    # each city" took three points from the tool named for reading one unread email, for the word
+    # "read" that "check" stands for, and went there (his PC, 2026-10-11).
+    thing = name_w - _looking_words()
+    if named and named <= _looking_words() and thing and not thing & want:
+        named = set()
+    return 3 * len(named) + len((want & desc_w) - named)
 
 
 def usable_tools(catalog: dict) -> dict:
@@ -229,6 +247,11 @@ def best_tool(need: str, catalog: dict) -> tuple[Any, int]:
     reading = looks_up(need)
     for name, tool in sorted(usable_tools(catalog).items()):
         if reading and not tool.read_only:
+            continue
+        # A reader that needs an address cannot look up a need that holds none: it would stop and
+        # ask him for a url (reader_for's rule, 2026-10-10).
+        if reading and "url" in ((tool.input_schema or {}).get("required") or []) \
+                and not re.search(r"https?://|www\.", need):
             continue
         # A look-up about the world reads the world: her own repository is not where events are.
         # (+1 tied "search for newly listed events" between research and repo.list, and the

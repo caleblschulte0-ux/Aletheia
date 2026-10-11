@@ -1085,3 +1085,50 @@ class WhatHisPcDidAfterTheEighteenthFix(HisMissionRunsWithoutHim):
         looks = [r for r in t6["results"] if r["tool"] == "research"]
         self.assertEqual(looks[-1]["revision"], research.REVISION)
         self.assertIn("compose", [n for n, _a in self.ran])
+
+
+class WhatHisPcDidAfterTheNineteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 14:09Z: the watch for openings in the shortlisted places searched the open
+    web and read a sports app, a download page and two dictionary entries. The boards' own listings
+    had a tool all along, described only as "The 'jobs' command"."""
+
+    def test_a_look_for_openings_goes_to_the_boards_not_the_open_web(self):
+        for need in ("search job postings in each shortlisted place", "Watch job postings in the shortlisted cities"):
+            tool, _top = program_compose.best_tool(need, self.catalog)
+            self.assertEqual(tool.name, "jobs", need)
+
+    def test_checking_something_in_the_world_does_not_read_his_email(self):
+        """His PC, 2026-10-11: "check rents in each city" went to the tool that reads one unread
+        email, three points for the word "read" that "check" stands for."""
+        for need in ("check rents in each city", "check the cost of living"):
+            tool, _top = program_compose.best_tool(need, self.catalog)
+            self.assertEqual(tool.name, "research", need)
+        tool, _top = program_compose.best_tool("check my email", self.catalog)
+        self.assertTrue(tool.name.startswith("email_"))
+
+
+class HowTheMissionIsGoingIsAboutTheMission(HisMissionRunsWithoutHim):
+    """Talked to her, 2026-10-11: "how is the move plan going" answered "No fleet reading yet" -
+    the subject is no repository, and the mission he started was right there."""
+
+    def test_a_status_question_naming_the_mission_is_answered_from_it(self):
+        from aletheia import quick
+        pg.add_words(self.pid, "also start planning a move somewhere warm", via="operator-voice", now=NOW)
+        for asked in ("how is the move plan going", "how's the reboot going"):
+            said = quick.answer(asked)
+            self.assertIsNotNone(said, asked)
+            self.assertIn("Project Reboot", said, asked)
+            self.assertNotIn("fleet", said.lower(), asked)
+
+    def test_a_subject_naming_no_mission_is_not_answered_with_one(self):
+        from aletheia import quick
+        self.assertIsNone(quick._mission_named("the trader"))
+
+    def test_what_a_named_mission_waits_on_reaches_its_own_store(self):
+        from aletheia import voice
+        pg.add_words(self.pid, "also start planning a move somewhere warm", via="operator-voice", now=NOW)
+        for asked in ("what's the move plan waiting on", "what's next on the move plan"):
+            got = voice._interpret(asked)
+            self.assertEqual(got["command"], {"kind": "missions", "about": "waiting", "which": self.pid}, asked)
+        self.assertNotEqual((voice._interpret("what's the trader waiting on") or {}).get("command", {}).get("kind"),
+                            "missions")

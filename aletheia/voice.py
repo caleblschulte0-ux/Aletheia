@@ -7535,6 +7535,14 @@ def _interpret(transcript: str) -> dict:
                     r"|what(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission (?:still )?waiting (?:on|for)"
                     r"|what (?:are|is) (?:my |the )?(?:(?:long|big) )?missions? (?:still )?waiting (?:on|for)", low):
         return {"command": {"kind": "missions", "about": "waiting"}, "say": None}
+    m = re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(.{2,40}?) (?:still )?waiting (?:on|for)(?: now)?"
+                     r"|what(?:'s| is|s) (?:next|left) (?:on|for|in) (?:my |the )?(.{2,40}?)", low)
+    if m:
+        # "What's the move plan waiting on" names the mission by what it is about (2026-10-11).
+        from aletheia import programs
+        record = programs.named(m.group(1) or m.group(2))
+        if record is not None:
+            return {"command": {"kind": "missions", "about": "waiting", "which": record["id"]}, "say": None}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):

@@ -412,6 +412,12 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
 # generated from KIND_ARGS and these together, so the model learns the
 # shape of a step list from the registry rather than from a guess.
 KIND_NOTES: dict[str, str] = {
+    "jobs": (
+        'Search current job openings and postings on the hiring boards of the employers she follows '
+        '(their own Greenhouse, Lever, Ashby and similar boards; never LinkedIn or Indeed): role is the '
+        'kind of job, where narrows the openings to a place (a city or state), company to one employer, count how many to '
+        'give. The boards\' own listings, not the open web. "How many jobs are open at Anthropic", '
+        '"business development jobs in Austin".'),
     "instagram_post": (
         'Publish ONE picture or reel with a caption to his Instagram account: media is either a '
         'public https address or a path to a file on his PC (a JPEG or PNG picture, an MP4 video), '

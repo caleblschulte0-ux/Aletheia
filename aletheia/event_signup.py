@@ -325,6 +325,33 @@ def _remember(url: str, row: dict) -> None:
     stateio.write_json_atomic(path, {"version": 1, "pages": rows})
 
 
+def spoken(*, limit: int = 4) -> str:
+    """What she has signed him up for and which lists she joined, newest first, from her own
+    ledger: "what did you sign me up for" went to a model that had never seen it (2026-10-11)."""
+    from aletheia import speech
+    rows = sorted(registered().values(), key=lambda r: str(r.get("at") or ""), reverse=True)
+
+    def named(r):
+        name = str(r.get("title") or "an event")
+        start = (r.get("slot") or {}).get("start")
+        return name + (f", {said_when(start)}" if start else "")
+    signed = [named(r) for r in rows if r.get("state") == "registered"][:limit]
+    unsure = [str(r.get("title") or "an event") for r in rows if r.get("state") == "unconfirmed"][:limit]
+    lists = [str(r.get("title") or "a list") for r in rows if r.get("state") == "joined"][:limit]
+    parts = []
+    if signed:
+        parts.append("I signed you up for " + speech.and_list(signed) + ".")
+    if lists:
+        parts.append("I joined " + speech.count_phrase(len(lists), "event list") + ": " + speech.and_list(lists) + ".")
+    if unsure:
+        parts.append("I'm not sure these went through, so check your email: " + speech.and_list(unsure) + ".")
+    if parts:
+        return " ".join(parts)
+    switch = status()
+    return ("I haven't signed you up for anything yet."
+            + ("" if switch["on"] else " Signing you up is switched off."))
+
+
 def _key(url: str) -> str:
     parts = urlsplit(str(url or ""))
     return f"{(parts.hostname or '').casefold().removeprefix('www.')}{parts.path.rstrip('/')}"
