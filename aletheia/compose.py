@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 
 from aletheia import journal, reasoner, workspace
@@ -87,6 +88,18 @@ fence around the whole thing.
   only case where your output is not the document."""
 
 REFUSAL = "CANNOT WRITE"
+#: A refusal whose reason is that the sources cover only PART of it - the case SYSTEM says to write.
+PARTIAL = re.compile(r"\b(?:partial|partly|incomplete|only (?:some|part|a few|limited)|limited|missing|"
+                     r"not (?:all|every|complete|enough))\b", re.I)
+PARTIAL_NUDGE = ("The sources below are partial, and that is expected. Write the document from what they "
+                 "do say, and say plainly in it what is still missing. Do not answer CANNOT WRITE because "
+                 "the sources are partial.")
+
+
+def small_or(read: list[dict], sources) -> list[dict]:
+    """The sources cut to fit her own model, as the first ask had them."""
+    small, _ = _read_sources(list(sources or []), LOCAL_SOURCE_CHARS)
+    return small or read
 
 
 class ComposeError(RuntimeError):
@@ -148,6 +161,19 @@ def compose(what: str, path: str, *, sources: list[str] | None = None,
                                "Nothing was saved.") from None
 
     body = str(said or "").strip()[:MAX_OUTPUT_CHARS]
+    if body.upper().startswith(REFUSAL) and read and PARTIAL.search(body):
+        # "CANNOT WRITE: the sources found only partial figures" is the case the prompt says to
+        # write: her own model refused the comparison three runs running for exactly that (his PC,
+        # 2026-10-11). Asked once more, plainly, with its own reason in front of it.
+        local = str(provider or "").startswith("ollama:")
+        again = (f"{PARTIAL_NUDGE}\n\nYou answered: {body[:300]}\n\n"
+                 + _prompt(what, small_or(read, sources) if local else read, missing))
+        try:
+            said, provider = _ask(think or (reasoner.local_text if local else reasoner.subscription_text),
+                                  again, LOCAL_TIMEOUT_S if local else TIMEOUT_S)
+            body = str(said or "").strip()[:MAX_OUTPUT_CHARS]
+        except Exception:  # noqa: BLE001 - the first refusal stands, said as it was
+            pass
     if not body:
         raise ComposeError("the model returned nothing; nothing was saved")
     if body.upper().startswith(REFUSAL):

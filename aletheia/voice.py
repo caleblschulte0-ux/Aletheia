@@ -7543,6 +7543,15 @@ def _interpret(transcript: str) -> dict:
         record = programs.named(m.group(1) or m.group(2))
         if record is not None:
             return {"command": {"kind": "missions", "about": "waiting", "which": record["id"]}, "say": None}
+    m = re.fullmatch(r"what (?:have|did) you (?:done|do|found|find|got|get|learned|learnt|learn)(?: out)?(?: so far)?"
+                     r" (?:on|for|about|with|in) (?:my |the )?(.{2,40}?)(?: so far| yet)?", low)
+    if m:
+        # "What have you found for the move plan" needed a model, which has never read the
+        # mission's own steps (2026-10-11). Its steps say what each look found.
+        from aletheia import programs
+        record = programs.named(m.group(1))
+        if record is not None:
+            return {"command": {"kind": "missions", "about": "steps", "which": record["id"]}, "say": None}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
