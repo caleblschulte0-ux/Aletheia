@@ -759,7 +759,18 @@ def focus(text: str, question: str, per: int) -> str:
         if size + len(p) + 1 <= per:
             keep.append((i, p))
             size += len(p) + 1
-    return " ".join(p for _i, p in sorted(keep)) if keep else " ".join(text.split())[:per]
+    if not keep:
+        return " ".join(text.split())[:per]
+    # Room left over is filled with the rest of the page in its order: a share of 400 characters
+    # out of a 4,000 budget left the writer with almost nothing (2026-10-11).
+    taken = {i for i, _p in keep}
+    for i, p in enumerate(parts):
+        if size >= per:
+            break
+        if i not in taken and size + len(p) + 1 <= per:
+            keep.append((i, p))
+            size += len(p) + 1
+    return " ".join(p for _i, p in sorted(keep))
 
 
 def _bounded(question: str, sources: list[dict],
@@ -931,13 +942,16 @@ def run(question: str, *, reader=browse.read_page, think=None,
             "differently, or it may be something the open web does not answer")
 
     sources, failed = read_sources(candidates, reader=reader)
-    if not place_in(question) and _PLACE_WORDS.search(question):
+    listed = candidate_places(question)
+    if listed or (not place_in(question) and _PLACE_WORDS.search(question)):
         # A question about places that names none ("compare a shortlist of warm ... cities") read
         # the national pages and no place's own figures (2026-10-11). The candidates are the places
         # a reviewed entry lists for this kind of question, else the places those pages name; their
         # own pages are read next.
         more = []
-        places = candidate_places(question) or places_in_text(" ".join(x["extract"] for x in sources))
+        # The reviewed list is the source whenever it covers the question - never a fallback after
+        # the national pages, which on his PC came back as a few hundred characters (2026-10-11).
+        places = listed or places_in_text(" ".join(x["extract"] for x in sources))
         for where in places[:MAX_PLACES]:
             more += [x for x in listings_for(question, at=where)[0]
                      if x["url"] not in {c["url"] for c in candidates + more}]
@@ -973,7 +987,8 @@ def run(question: str, *, reader=browse.read_page, think=None,
         "dated": dated_lines(sources),
         "at": stateio.utcnow(),
     })
-    _note_look(question, bounded, failed, shown_of=len(sources))
+    _note_look(question, bounded, failed, shown_of=len(sources),
+               pages={s["url"]: len(s.get("full") or s["extract"]) for s in sources})
     _deliver(report)
     return report
 
@@ -1003,7 +1018,9 @@ def dated_lines(sources: list[dict]) -> list[str]:
 
 #: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
 #: is tried once more on the new one (program_run releases it).
-REVISION = 2
+REVISION = 3
+#: A page with less text than this is said to be too short in the look's line.
+SHORT_PAGE = 1500
 #: How many looks are remembered for "what did the last look read".
 MAX_LOOKS = 40
 
@@ -1016,7 +1033,8 @@ def look_key(question: str) -> str:
     return " ".join(str(question or "").casefold().split())[:300]
 
 
-def _note_look(question: str, shown: list[dict], failed: list[dict], *, shown_of: int = 0) -> None:
+def _note_look(question: str, shown: list[dict], failed: list[dict], *, shown_of: int = 0,
+               pages: dict | None = None) -> None:
     """What a look read, how much of each page it showed the writer, and what refused it: kept so
     a look that came back empty can be explained without guessing (four rounds went blind on one
     comparison, 2026-10-11). Hosts and sizes only, never page text."""
@@ -1025,7 +1043,8 @@ def _note_look(question: str, shown: list[dict], failed: list[dict], *, shown_of
         looks = looks if isinstance(looks, dict) else {}
         looks[look_key(question)] = {
             "at": stateio.utcnow(), "revision": REVISION,
-            "shown": [{"host": _host(r["url"]), "kept": len(r.get("extract") or "")} for r in shown],
+            "shown": [{"host": _host(r["url"]), "kept": len(r.get("extract") or ""),
+                       "page": int((pages or {}).get(r["url"]) or 0)} for r in shown],
             "read": shown_of, "failed": [{"host": _host(f.get("url") or ""), "reason": str(f.get("reason") or "")[:60]}
                                          for f in failed]}
         for k in sorted(looks, key=lambda k: looks[k].get("at") or "")[:-MAX_LOOKS]:
@@ -1046,7 +1065,13 @@ def last_look(question: str) -> dict | None:
 def look_words(look: dict) -> str:
     """One line about a look: the pages shown to the writer with the characters kept of each,
     and the ones that refused it."""
-    shown = ", ".join(f"{r['host']} ({r['kept']})" for r in look.get("shown") or []) or "nothing"
+    def one(r):
+        page = int(r.get("page") or 0)
+        if not page:
+            return f"{r['host']} ({r['kept']})"
+        # A page this short is a robot check or an empty shell far more often than an answer.
+        return f"{r['host']} ({r['kept']} of {page}{', too short to hold figures' if page < SHORT_PAGE else ''})"
+    shown = ", ".join(one(r) for r in look.get("shown") or []) or "nothing"
     left = int(look.get("read") or 0) - len(look.get("shown") or [])
     line = f"shown: {shown}" + (f" (+{left} read, left out to fit)" if left > 0 else "")
     if look.get("failed"):

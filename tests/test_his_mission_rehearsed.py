@@ -15,7 +15,7 @@ import re
 import tempfile
 from unittest import mock
 
-from aletheia import agent_session, program_compose, program_run, tools
+from aletheia import agent_session, program_compose, program_run, research, tools
 from aletheia import programs as pg
 from aletheia import work_states as ws
 from tests.test_programs import NOW, Sandbox
@@ -770,7 +770,7 @@ class WhatHisPcDidAfterTheThirteenthFix(HisMissionRunsWithoutHim):
         def as_his_pc_left_it(record):
             t = next(x for x in record["tasks"] if x["key"] == key)
             t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
-                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[], relooked=research.REVISION,
                      plan={"steps": [{"tool": "research", "for": "search for newly listed events",
                                       "by": "reader", "args": {"question": "events"}},
                                      {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
@@ -834,7 +834,7 @@ class WhatHisPcDidAfterTheFourteenthFix(HisMissionRunsWithoutHim):
         record = pg.load(self.pid)
         sweep = dict(next(t for t in record["tasks"] if t.get("from_activity") == "a1"))
         sweep.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
-                     uses=["browser.pursue", "calendar_hold"], cursor=1, needs=[], run=None,
+                     uses=["browser.pursue", "calendar_hold"], cursor=1, needs=[], relooked=research.REVISION, run=None,
                      plan={"steps": [{"tool": "research", "for": "search for newly listed events",
                                       "by": "reader", "args": {"question": "events"}},
                                      {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
@@ -873,7 +873,7 @@ class WhatHisPcDidAfterTheFifteenthFix(HisMissionRunsWithoutHim):
         def change(record):
             t = next(x for x in record["tasks"] if x["key"] == key)
             t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
-                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[], relooked=research.REVISION,
                      plan={"steps": [{"tool": "research", "for": "search for newly listed events",
                                       "by": "reader", "args": {"question": "events"}},
                                      {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
@@ -910,3 +910,45 @@ class WhatHisPcDidAfterTheFifteenthFix(HisMissionRunsWithoutHim):
         self.assertIn(("t6", "sources"), [(r["task"], r["was"]) for r in program_run.requeue_reclassified(now=NOW)])
         pg.update(self.pid, failed)
         self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+
+class WhatHisPcDidAfterTheSixteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 10:25Z: the comparison's look read two national pages and a tax table and
+    no place's own page - its question, stored from the task's detail, never said which places; and
+    the sweep's look predated the dated lines, so it would have waited a week to read them."""
+
+    def test_a_look_is_asked_with_its_tasks_title(self):
+        seen = []
+
+        def as_his_pc_left_it(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(title="Compare a shortlist of warm red-state places", state=ws.READY, cursor=0, needs=[],
+                      plan={"steps": [{"tool": "research", "for": "pick a shortlist", "by": "reader",
+                                       "args": {"question": "pick a shortlist that fits the criteria"}}],
+                            "requires": [], "gaps": []})
+        pg.update(self.pid, as_his_pc_left_it)
+        with mock.patch.object(agent_session, "execute",
+                               lambda tool, args, **k: (seen.append(dict(args)) or ("ok", {"text": EVENT}))):
+            program_run.run_task(self.pid, "t6", now=NOW)
+        self.assertEqual(seen[0]["question"],
+                         "Compare a shortlist of warm red-state places: pick a shortlist that fits the criteria")
+
+    def test_a_sweep_whose_look_predates_the_dated_lines_looks_again_now_once(self):
+        key = next(t for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")["key"]
+
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == key)
+            t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=1, needs=[],
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}},
+                                     {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
+                                      "by": "named", "args": {}}], "requires": [], "gaps": []},
+                     results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                               "said": "605 Connections, a group for young professionals in town"}])
+        pg.update(self.pid, change)
+        with mock.patch.object(program_compose, "model_args", lambda *a, **k: {}):
+            out = program_run.run_task(self.pid, key, now=NOW)
+        self.assertEqual(out["state"], ws.READY)
+        t = next(x for x in pg.load(self.pid)["tasks"] if x["key"] == key)
+        self.assertEqual((t["cursor"], t["relooked"]), (0, research.REVISION))

@@ -913,7 +913,7 @@ def requeue_reclassified(*, now: dt.datetime | None = None) -> list[dict]:
 
 def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Callable | None = None) -> dict:
     """Carry one task as far as it can go now. Returns {"state", ...}. Never raises for a step's failure."""
-    from aletheia import agent_session, handoffs, program_compose as compose, reasoner, work_gaps
+    from aletheia import agent_session, handoffs, program_compose as compose, reasoner, research, work_gaps
     now = pg._now(now)
     think = think or THINK
     record = pg.load(pid)
@@ -957,6 +957,14 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             _commit(pid, task, now)
             return {"state": ws.RETRY_LATER}
         args, missing = compose.fill_args(tool, task, step.get("args"))
+        if tool.read_only and task.get("title"):
+            # A look's question stored before it carried the task's title is asked with it now: the
+            # comparison asked "pick a shortlist ...; compare cost of living ..." with no word of
+            # which places, and read only national pages (2026-10-11).
+            for key in compose.TOPIC_ARGS:
+                value = str(args.get(key) or "")
+                if value.strip() and str(task["title"]).casefold() not in value.casefold():
+                    args[key] = f"{task['title']}: {value}"[:480]
         if "sources" in ((tool.input_schema or {}).get("properties") or {}) and tool.writes \
                 and set(tool.writes) <= {"workspace"}:
             # A document written "from Caleb's answers" reads them: without a source that reads,
@@ -1001,6 +1009,17 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # The same holds for a step whose own task looked first: the weekly sweep has no needs,
             # its look is its first step, and it asked him all the same (2026-10-11).
             dated = any(DATED.search(x) for x in _found(record, task, answers=False))
+            look = next((n for n in range(i - 1, -1, -1) if (tools.get(plan["steps"][n].get("tool")) is not None
+                         and tools[plan["steps"][n]["tool"]].read_only
+                         and tools[plan["steps"][n]["tool"]].open_world)), None)
+            if look is not None and int(task.get("relooked") or 0) < research.REVISION:
+                # Its own look ran before looks carried the dated lines they read: it looks again
+                # now, once per revision of how pages are read, rather than in a week (2026-10-11).
+                step["args"] = args
+                task.update(cursor=look, relooked=research.REVISION, state=ws.READY, run=None,
+                            reason="", next="look again, reading the dates off the pages")
+                _commit(pid, task, now)
+                return {"state": ws.READY, "why": "looking again on the current reading"}
             step["args"] = args
             task.update(state=ws.RETRY_LATER, run=None, next="look again for something dated",
                         reason=("nothing found yet says what to put on the calendar and when" if dated

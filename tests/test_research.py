@@ -643,3 +643,19 @@ class DatedLinesTravelWithTheAnswer(unittest.TestCase):
             words = research.look_words(research.last_look("compare  CITIES"))
         self.assertEqual(words, "shown: www.bestplaces.net (420) (+2 read, left out to fit) | "
                                 "couldn't read: www.numbeo.com (no readable text)")
+
+
+class TheListedPlacesAreReadWhateverElseTheQuestionNames(unittest.TestCase):
+    """His PC, 2026-10-11: a comparison read two national pages and a tax table and no place's own."""
+
+    def test_a_short_page_is_said_to_be_short(self):
+        words = research.look_words({"shown": [{"host": "www.numbeo.com", "kept": 398, "page": 412},
+                                               {"host": "taxfoundation.org", "kept": 4197, "page": 30000}]})
+        self.assertEqual(words, "shown: www.numbeo.com (398 of 412, too short to hold figures), "
+                                "taxfoundation.org (4197 of 30000)")
+
+    def test_a_share_with_room_left_is_filled_with_the_rest_of_the_page(self):
+        text = "Intro words here. " * 50 + "Cost of living index 103. " + "Other words follow. " * 50
+        got = research.focus(text, "cost of living", 600)
+        self.assertIn("103", got)
+        self.assertGreater(len(got), 400)

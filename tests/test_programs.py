@@ -431,7 +431,8 @@ class TasksRunThroughTheBrokerAndWait(Sandbox):
         program_run.run_task(pid, "t1", now=NOW)
         task = self.task(pid, "t1")
         self.assertEqual(task["state"], ws.DONE)
-        self.assertEqual(READS[0]["question"], "costs and neighbourhoods")
+        # The read asks what its step said, led by what the task is about (2026-10-11).
+        self.assertEqual(READS[0]["question"], f"{task['title']}: costs and neighbourhoods")
         self.assertIn("found three sources", pg.load(pid)["results"][-1]["text"])
         decision = pg.load(pid)["decisions"][0]
         self.assertEqual(decision["state"], "open")                   # its `after` task is done: his now
