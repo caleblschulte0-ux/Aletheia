@@ -1,19 +1,149 @@
 {
-  "_about": "Reviewed DATA for aletheia.research: pages that LIST the thing a question asks about, read directly before any search. A web search for events in a city returns encyclopedia pages about the city (2026-10-11, his PC: the city, its hockey team, a TV station), never the listings; these are the listings. An entry applies when one of its `about` phrases is in the question. {city}, {state} and {topic} are filled from the question; an entry whose url needs a place the question does not name uses his own town when `place_default` is \"home\", and is skipped otherwise. An entry with a `place` applies only to that place. `instead_of` names hosts whose search results are about something else for this kind of question and are dropped. Every page is public and read anonymously; nothing here logs in, signs up, writes or spends. A reviewed edit adds a page; nothing in code names a site or a place.",
+  "_about": "Reviewed DATA for aletheia.research: pages that LIST the thing a question asks about, read directly before any search. A web search for events in a city returns encyclopedia pages about the city (2026-10-11, his PC: the city, its hockey team, a TV station), never the listings; these are the listings. An entry applies when one of its `about` phrases is in the question. {city}, {state} and {topic} are filled from the question; an entry whose url needs a place the question does not name uses his own town when `place_default` is \"home\", and is skipped otherwise. An entry with a `place` applies only to that place. `instead_of` names hosts whose search results are about something else for this kind of question and are dropped. Every page is public and read anonymously; nothing here logs in, signs up, writes or spends. A reviewed edit adds a page; nothing in code names a site or a place. An entry with `places` is not a page: it lists the candidate places for a kind of question that names none, read through the per-place entries; its `ruling` quotes the words that decided what such a place is.",
   "listings": [
-    {"name": "Eventbrite listings", "about": ["networking", "job fair", "career fair", "hiring event", "info session", "newcomer", "meetup", "mixer", "events", "event"],
-     "url": "https://www.eventbrite.com/d/{state_lower}--{city_slug}/{topic_slug}/", "place_default": "home", "instead_of": ["wikipedia.org"]},
-    {"name": "Meetup events", "about": ["networking", "newcomer", "meetup", "mixer", "events", "event"],
-     "url": "https://www.meetup.com/find/?location=us--{state_lower}--{city_q}&source=EVENTS&keywords={topic_q}", "place_default": "home", "instead_of": ["wikipedia.org"]},
-    {"name": "Greater Sioux Falls Chamber events", "about": ["networking", "events", "event", "job fair", "hiring event"], "place": "Sioux Falls",
-     "url": "https://siouxfallschamber.com/events-programs/events/", "instead_of": ["wikipedia.org"]},
-    {"name": "Sioux Falls Young Professionals Network events", "about": ["networking", "events", "event", "young professionals"], "place": "Sioux Falls",
-     "url": "https://siouxfallsypn.com/", "instead_of": ["wikipedia.org"]},
-    {"name": "Numbeo cost of living in a city", "about": ["cost of living", "living costs", "rent", "housing costs", "prices"],
-     "url": "https://www.numbeo.com/cost-of-living/in/{city_dash}"},
-    {"name": "Numbeo cost of living, US cities ranked", "about": ["cost of living", "living costs", "cheapest cities", "affordable cities"],
-     "url": "https://www.numbeo.com/cost-of-living/country_result.jsp?country=United+States"},
-    {"name": "Tax Foundation state income tax rates", "about": ["income tax", "taxes", "tax rates", "state tax"],
-     "url": "https://taxfoundation.org/data/all/state/state-income-tax-rates/"}
+    {
+      "name": "Eventbrite listings",
+      "about": [
+        "networking",
+        "job fair",
+        "career fair",
+        "hiring event",
+        "info session",
+        "newcomer",
+        "meetup",
+        "mixer",
+        "events",
+        "event"
+      ],
+      "url": "https://www.eventbrite.com/d/{state_lower}--{city_slug}/{topic_slug}/",
+      "place_default": "home",
+      "instead_of": [
+        "wikipedia.org"
+      ]
+    },
+    {
+      "name": "Meetup events",
+      "about": [
+        "networking",
+        "newcomer",
+        "meetup",
+        "mixer",
+        "events",
+        "event"
+      ],
+      "url": "https://www.meetup.com/find/?location=us--{state_lower}--{city_q}&source=EVENTS&keywords={topic_q}",
+      "place_default": "home",
+      "instead_of": [
+        "wikipedia.org"
+      ]
+    },
+    {
+      "name": "Greater Sioux Falls Chamber events",
+      "about": [
+        "networking",
+        "events",
+        "event",
+        "job fair",
+        "hiring event"
+      ],
+      "place": "Sioux Falls",
+      "url": "https://siouxfallschamber.com/events-programs/events/",
+      "instead_of": [
+        "wikipedia.org"
+      ]
+    },
+    {
+      "name": "Sioux Falls Young Professionals Network events",
+      "about": [
+        "networking",
+        "events",
+        "event",
+        "young professionals"
+      ],
+      "place": "Sioux Falls",
+      "url": "https://siouxfallsypn.com/",
+      "instead_of": [
+        "wikipedia.org"
+      ]
+    },
+    {
+      "name": "Numbeo cost of living in a city",
+      "about": [
+        "cost of living",
+        "living costs",
+        "rent",
+        "housing costs",
+        "prices"
+      ],
+      "url": "https://www.numbeo.com/cost-of-living/in/{city_dash}"
+    },
+    {
+      "name": "BestPlaces cost of living in a city",
+      "about": [
+        "cost of living",
+        "living costs",
+        "rent",
+        "housing costs",
+        "prices",
+        "climate",
+        "weather"
+      ],
+      "url": "https://www.bestplaces.net/cost_of_living/city/{state_name_lower}/{city_lower_underscore}"
+    },
+    {
+      "name": "Wikipedia article on a city",
+      "about": [
+        "cost of living",
+        "climate",
+        "weather",
+        "warm",
+        "population",
+        "cities"
+      ],
+      "url": "https://en.wikipedia.org/wiki/{city_underscore},_{state_name}"
+    },
+    {
+      "name": "Numbeo cost of living, US cities ranked",
+      "about": [
+        "cost of living",
+        "living costs",
+        "cheapest cities",
+        "affordable cities"
+      ],
+      "url": "https://www.numbeo.com/cost-of-living/country_result.jsp?country=United+States"
+    },
+    {
+      "name": "Tax Foundation state income tax rates",
+      "about": [
+        "income tax",
+        "taxes",
+        "tax rates",
+        "state tax"
+      ],
+      "url": "https://taxfoundation.org/data/all/state/state-income-tax-rates/"
+    },
+    {
+      "name": "Warm places in states with Republican-led governments, for the move",
+      "about": [
+        "warm red-state",
+        "warm red state",
+        "red-state cities",
+        "red state cities"
+      ],
+      "ruling": "caaleb, 2026-10-09 23:54Z: \"start planning a move for me some where warm with nice red laws\"",
+      "places": [
+        "Tampa, FL",
+        "Austin, TX",
+        "Nashville, TN",
+        "Charleston, SC",
+        "Jacksonville, FL",
+        "Dallas, TX",
+        "San Antonio, TX",
+        "Orlando, FL",
+        "Greenville, SC",
+        "Huntsville, AL"
+      ],
+      "url": "places"
+    }
   ]
 }

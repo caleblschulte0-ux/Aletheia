@@ -378,7 +378,10 @@ class AloneTheQueryIsTheQuestionsOwnWords(ResearchCase):
             "$95K+ jobs; write a ranked summary with sources"),
             "warm red-state cities cost living taxes housing $95K jobs")
         self.assertEqual(research.keyword_query("look up free networking events in Sioux Falls this month"),
-                         "free networking events Sioux Falls month")
+                         "free networking events Sioux Falls")
+        # How often is not what: "once a week" searched for the film "Once" (2026-10-11).
+        self.assertNotIn("once", research.keyword_query(
+            "Watch shortlisted cities for roles and cost changes once a week").casefold().split())
 
     def test_too_many_words_keeps_the_names(self):
         q = research.keyword_query("alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo Denver Ramp")
@@ -535,3 +538,42 @@ class PlacesFromWhatWasRead(ResearchCase):
                                 "queries": ["q"], "unreadable": [{"url": "https://www.eventbrite.com/d/x",
                                                                   "reason": "no readable text"}]})
         self.assertIn("I couldn't read www.eventbrite.com", said)
+
+
+class CandidatePlacesFromHisWords(ResearchCase):
+    """His PC, 2026-10-11: the comparison failed three times with no city-level figures; the national
+    pages either refused her or name no city."""
+
+    Q = "Compare a shortlist of warm red-state cities: compare cost of living, taxes, housing"
+
+    def test_the_reviewed_entry_lists_the_places_and_carries_his_words(self):
+        rows = [r for r in research._listings() if r.get("places")]
+        self.assertTrue(rows and all(r.get("ruling") for r in rows))
+        self.assertEqual(research.candidate_places(self.Q)[0], {"city": "Tampa", "state": "FL"})
+        self.assertEqual(research.candidate_places("is Ramp hiring in Denver"), [])
+
+    def test_each_place_is_read_at_its_own_pages_even_when_the_national_pages_refuse(self):
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if "/in/" in url or "bestplaces" in url or "wikipedia.org/wiki/" in url:
+                return {"url": url, "title": url, "text": "Rent 1-bed 1,600 USD. Average high 80F. " * 20}
+            raise RuntimeError("robot check")
+
+        def think(system, text, **kw):
+            value = {"answer": "Ranked.", "gaps": [], "confidence": 0.6,
+                     "findings": [{"claim": "Rent 1,600", "url": "https://www.numbeo.com/cost-of-living/in/Tampa"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        report = research.run(self.Q, http=None, reader=reading, think=think)
+        self.assertIn("https://www.bestplaces.net/cost_of_living/city/florida/tampa", read)
+        self.assertIn("https://en.wikipedia.org/wiki/Austin,_Texas", read)
+        self.assertLessEqual(len([u for u in read if "/in/" in u or "bestplaces" in u or "/wiki/" in u]),
+                             research.MAX_PLACE_PAGES)
+        self.assertTrue(report["sources"])
+
+    def test_a_state_spelled_out_names_a_place(self):
+        self.assertEqual(research.places_in_text("Tampa\tFlorida 403,364"), [{"city": "Tampa", "state": "FL"}])
