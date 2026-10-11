@@ -13,6 +13,7 @@ import json
 import os
 import re
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +68,26 @@ def _encoded(value: dict[str, Any]) -> str:
     return data
 
 
+#: How many times a replace refused by Windows is tried, and the pause between tries.
+REPLACE_TRIES = 20
+REPLACE_PAUSE_S = 0.025
+
+
+def _replace(src: str, dst: Path) -> None:
+    """os.replace, tried again while Windows refuses it. Windows will not replace a file another
+    thread has open for reading, and the Core reads its stores from many threads: the CI run on
+    Windows lost one of eight concurrent conversation turns to it (2026-10-11), which on his PC is
+    an exchange she forgets. Anywhere else the first try either works or raises for real."""
+    for attempt in range(REPLACE_TRIES):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == REPLACE_TRIES - 1:
+                raise
+            time.sleep(REPLACE_PAUSE_S * (attempt + 1))
+
+
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = _encoded(value)
@@ -76,7 +97,7 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
             handle.write(data)
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(tmp_name, path)
+        _replace(tmp_name, path)
     finally:
         try:
             os.unlink(tmp_name)
