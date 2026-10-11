@@ -354,7 +354,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-11T20:52:02Z",
+  "generated_at": "2026-10-11T21:54:39Z",
   "sent_all_time": 294,
   "sent_by_system": {
     "ashbyhq": 26,
@@ -363,7 +363,7 @@
     "lever": 19
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: none": 2,
+    "employer_site: apply_not_taken: none": 1,
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: none": 8
   },
@@ -432,7 +432,7 @@
         "nothing_to_press_on_content+no_apply/observed": 4,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
-        "unclear_button/observed": 3
+        "unclear_button/observed": 2
       },
       "questions": {
         "nothing_to_press_on_form/filled": 1,
@@ -440,8 +440,7 @@
         "nothing_to_press_on_multi_page_wizard/filled": 1
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 2,
-        "nothing_to_press_on_account_login/submit_clicked": 2
+        "nothing_to_press_on_account_login/observed": 2
       }
     }
   },
