@@ -7764,9 +7764,9 @@ def _interpret(transcript: str) -> dict:
         if hold:
             return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
         if mine and (bare or why):
-            from aletheia import calendar_reasoning, speech
-            return {"command": None, "say": "Which one - " + speech.or_list(
-                [f"{e['title']} {calendar_reasoning.human(e['start'])}" for e in mine[:3]]) + "?"}
+            from aletheia import calendar_reasoning as _cr, speech as _sp
+            return {"command": None, "say": "Which one - " + _sp.or_list(
+                [f"{e['title']} {_cr.human(e['start'])}" for e in mine[:3]]) + "?"}
         if bare:
             return {"command": None, "say": "I haven't pencilled anything in that's still to come."}
     m = re.fullmatch(r"(?:cancel|delete|remove) (?:my |the )?(?P<w>(?:meeting|appointment|call|lunch|dinner|coffee|hold) with [a-z' ]{2,30}?)"
