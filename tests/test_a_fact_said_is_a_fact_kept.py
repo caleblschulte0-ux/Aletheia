@@ -3775,9 +3775,11 @@ class PartsOfDaysAndMeetingDetails(unittest.TestCase):
         with mock.patch("aletheia.calendar.all_events", return_value=self.events):
             self.assertTrue(quick.answer("how long is my meeting with Sam").startswith("45 minutes: meeting with Sam"))
             self.assertTrue(quick.answer("who is my meeting with at 3").startswith("Meeting with Sam, tomorrow"))
-            # tomorrow is next week's Monday when today is Sunday: both sides move
+            # tomorrow is next week's Monday when today is Sunday: both sides move, and "today" is
+            # HIS today - the process's date is already tomorrow on a Saturday evening in Chicago
             import datetime as dt
-            week = "next week" if (dt.date.today() + dt.timedelta(days=1)).weekday() == 0 else "this week"
+            from aletheia import localtime
+            week = "next week" if (localtime.today() + dt.timedelta(days=1)).weekday() == 0 else "this week"
             self.assertTrue(quick.answer(f"what's my busiest day {week}").endswith("with 2 things on it."))
         self.assertIsNone(quick.match("how long is my commute"))
 

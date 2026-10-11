@@ -463,11 +463,26 @@ def _readable_window(when) -> bool:
 #: A look that came back saying it found nothing to answer with: "I can't give you a comparison
 #: from these sources", "none of them has data on". Done on that is done on nothing.
 NOTHING_FOUND = re.compile(
-    r"\bI (?:can'?t|cannot|couldn'?t|could not|was unable to) (?:give|answer|tell|find|say|compare|provide)"
+    r"\bI (?:can['\u2019]?t|cannot|couldn['\u2019]?t|could not|was unable to) (?:give|answer|tell|find|say|compare|provide)"
     r"[^.]{0,120}\b(?:from (?:these|the|those) (?:sources|pages)|sources|pages)\b"
+    # "I can't give you a sourced comparison from what I was handed" (2026-10-10, his PC): the
+    # same empty answer in other words, so the look counted as done and fed nothing onward.
+    r"|\bI (?:can['\u2019]?t|cannot|couldn['\u2019]?t|could not)\b[^.]{0,80}\b(?:sources?|sourced|pages|extracts|handed|supplied)\b"
     r"|\bnone (?:of them |of these |of the pages )?(?:has|have|had|contains?|mentions?) (?:any )?"
     r"(?:data|information|details|anything)\b"
     r"|\bI won'?t invent\b|\bno readable sources\b", re.I)
+
+
+def _looks_again_tomorrow(record: dict, task: dict) -> bool:
+    """A recurring sweep is never given up on while it is the newest of its kind: a search that is
+    broken today is this week's sweep lost for good otherwise (2026-10-10: the weekly event sweep
+    went FAILED on three bad searches in one evening). Once a newer occurrence exists, that one
+    carries the work and this one may fail."""
+    activity = task.get("from_activity")
+    if not activity:
+        return False
+    return not any(t is not task and t.get("from_activity") == activity and str(t.get("key")) > str(task.get("key"))
+                   for t in record.get("tasks") or [])
 
 
 def _writes_holds(tool) -> bool:
@@ -572,6 +587,12 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         waits.cancel(held["id"], why="his okay is a choice now, not a gate", now=now)
         _finish(record["id"], dict(task), now, extra=_confirm_later(task))
         return {"program": record["id"], "task": task["key"], "was": "then"}
+    if (task["state"] == ws.FAILED and held is None and not task.get("recurring_released")
+            and re.search(r" failed \d+ times: ", str(task.get("reason") or ""))
+            and _looks_again_tomorrow(record, task)):
+        # A recurring sweep that failed before it looked again instead: it is still the newest of its
+        # kind, so this week's sweep goes on (2026-10-10: the weekly event sweep).
+        return _release(record, task, dict(task, plan=plan, mark="recurring_released"), None, "recurring", now)
     if (task["state"] in (ws.FAILED, ws.RETRY_LATER) and not refused and not bad_path and not no_source
             and held is None and not task.get("recomposed")):
         # A LOOK composed under rules since changed: "search for free newcomer events" went to the
@@ -640,6 +661,17 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     return _release(record, task, candidate, held, purpose, now)
 
 
+def _last_empty_recheck(task: dict) -> str:
+    """When this task was last opened again for an empty look ("" for never)."""
+    mark = task.get("empty_rechecked")
+    if isinstance(mark, str):
+        return mark
+    if not mark:
+        return ""
+    return max((str(h.get("at") or "") for h in task.get("history") or []
+                if str(h.get("did") or "").startswith("opened again: its look found nothing")), default="")
+
+
 def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
     """A finished task whose step did the wrong thing under rules since made stricter is opened
     again at that step: a hold that was wrong when it was made is taken back first (her own
@@ -675,8 +707,9 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
         elif hours and _finds_free_time(tool) and not str(args.get("part") or "").strip() \
                 and not task.get("hours_rechecked"):
             why, mark = "it counted his working day as free", "hours_rechecked"
-        elif tool.read_only and tool.open_world and not task.get("empty_rechecked") and any(
+        elif tool.read_only and tool.open_world and any(
                 r.get("step") == i and r.get("outcome") == "ok" and NOTHING_FOUND.search(str(r.get("said") or ""))
+                and str(r.get("at") or "") > _last_empty_recheck(task)
                 for r in (task.get("results") or [])[-1:]):
             why, mark = "its look found nothing to answer with", "empty_rechecked"
         if not why:
@@ -690,7 +723,9 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
             t["plan"]["steps"][i]["args"] = {}
             t.update(state=ws.READY, cursor=i, reason="", next="run its next step", run=None, not_before=None,
                      attempts=0, updated_at=pg.stamp(now))
-            t[mark] = True
+            # An empty look is opened again whenever it came back empty SINCE the last time: the
+            # second answer said the same nothing in other words and stood as done (2026-10-10).
+            t[mark] = pg.stamp(now) if mark == "empty_rechecked" else True
             pg._history(t, f"opened again: {why}", now)
             # What was done FROM it is done again after it, where nothing of that reached anybody
             # (2026-10-10: the job search was retargeted on an empty comparison).
@@ -921,7 +956,11 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             _result(task, i, tool.name, outcome, said, now)
             if outcome != "ok":
                 task["attempts"] = int(task.get("attempts") or 0) + 1
-                if task["attempts"] >= MAX_ATTEMPTS:
+                if task["attempts"] >= MAX_ATTEMPTS and _looks_again_tomorrow(record, task):
+                    task.update(state=ws.RETRY_LATER, run=None, attempts=0,
+                                reason=f"{tool.name} failed {MAX_ATTEMPTS} times: {said[:160]}",
+                                next="look again tomorrow", not_before=pg.stamp(now + NOTHING_DATED_RETRY))
+                elif task["attempts"] >= MAX_ATTEMPTS:
                     task.update(state=ws.FAILED, run=None, reason=f"{tool.name} failed {task['attempts']} times: {said[:160]}",
                                 next="")
                 else:

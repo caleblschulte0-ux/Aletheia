@@ -148,7 +148,59 @@ def queries_without_a_model(question: str) -> dict:
 _FILLER = frozenset("""a an and or the to of for in on at by with from into about as is are be it its this that
 these those what which who how why when where can could would should will do does did i me my his her
 their our your find search look up compare list show get give tell write more most best any some all each
-other than then also not no yes one two using use used vs versus""".split())
+other than then also not no yes one two using use used vs versus
+summary summarize summarise ranked rank ranking source sources sourced compute calculate pick picks
+shortlist shortlisted criteria fit fits fitting write writes written report reports save note notes
+based per them they ones new newly sweep weekly daily monthly""".split())
+
+#: A part of a task's question that starts with one of these is something to DO after the look
+#: ("hold fitting ones on the calendar", "register for free ones"), not what to look for.
+_DOING_PARTS = frozenset("""hold add put pencil register sign save write email send book update flag ask
+tell notify draft apply prepare count stop keep point create remind""".split())
+
+
+#: How many words a query a person types is, at most.
+KEYWORD_QUERY_WORDS = 10
+
+
+def keyword_query(question: str) -> str:
+    """The words a person would type into a search box for `question`, with no model: its own words
+    that say what it is about, in its order and capitals, the asking and task words gone.
+
+    Alone, her own model wrote the queries and on his PC (2026-10-10) every question came back as
+    pages about spelling and semicolons - it took "using" from the task, not the subject. The
+    question's own subject words cannot search for something else. Names (capitalised past the
+    first word) and numbers are kept first when there are too many words."""
+    parts = [p for p in re.split(r"[;:]", str(question or "")) if p.strip()]
+    looked = [p for p in parts if p.split()[0].casefold() not in _DOING_PARTS]
+    words, seen = [], set()
+    for n, w in enumerate(re.findall(r"[A-Za-z0-9$][A-Za-z0-9$'\-]*", " ; ".join(looked or parts))):
+        w = w.strip("'-")
+        low = w.casefold()
+        if len(w) < 2 or low in _FILLER or low in seen or low in _ASK_FILLER:
+            continue
+        seen.add(low)
+        words.append((n, w))
+    if len(words) > KEYWORD_QUERY_WORDS:
+        named = {n for n, w in words if n and (w[0].isupper() or any(c.isdigit() for c in w))}
+        keep = sorted(named)[:KEYWORD_QUERY_WORDS]
+        keep += [n for n, _ in words if n not in named][:KEYWORD_QUERY_WORDS - len(keep)]
+        words = [(n, w) for n, w in words if n in keep]
+    return " ".join(w for _, w in words)
+
+
+def queries_by_keywords(question: str) -> dict:
+    """The queries searched when no frontier model can plan: the subject words first, then the
+    question as said when it is short enough to be a search."""
+    queries = []
+    key = keyword_query(question)
+    if key:
+        queries.append(key[:200])
+    for q in queries_without_a_model(question)["queries"]:
+        if len(q) <= 100 and q.casefold() not in {x.casefold() for x in queries}:
+            queries.append(q)
+    return {"queries": (queries or queries_without_a_model(question)["queries"])[:MAX_QUERIES],
+            "why": "no frontier model could plan the search, so the question's own words are the query"}
 
 
 def topic_words(text: str) -> set[str]:
@@ -165,11 +217,12 @@ def topic_words(text: str) -> set[str]:
     return words
 
 
-def on_topic(text: str, question: str) -> bool:
-    """Does `text` share at least one word that says what `question` is about? Unknown (either side
-    filler alone) counts as yes: the check may only ever drop what is plainly about something else."""
+def on_topic(text: str, question: str, *, shared: int = 1) -> bool:
+    """Does `text` share at least `shared` words that say what `question` is about? Unknown (either
+    side filler alone) counts as yes: the check may only ever drop what is plainly about something
+    else. Never asks for more words than the question has."""
     want, have = topic_words(question), topic_words(text)
-    return not want or not have or bool(want & have)
+    return not want or not have or len(want & have) >= min(shared, len(want))
 
 
 def _plan_validator(value: dict) -> dict:
@@ -429,7 +482,11 @@ def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str
 
     # Judged only on enough words to judge by: a result titled "Primary source" is unknown, and
     # unknown is kept. A result that says plainly what it is about, and it is not this, is dropped.
-    kept = [f for f in found if len(topic_words(said(f))) < 3 or on_topic(said(f) + " " + f["url"], about)]
+    # A question with four or more subject words needs two of them in a result: pages about the
+    # Sioux people share one word with events in Sioux Falls, and nothing else (2026-10-10).
+    shared = 2 if len(topic_words(about)) >= 4 else 1
+    kept = [f for f in found if len(topic_words(said(f))) < 3
+            or on_topic(said(f) + " " + f["url"], about, shared=shared)]
     if len(kept) < len(found):
         journal.append("event", "research",
                        f"{engine} for {query!r}: kept {len(kept)} of {len(found)} results; off the subject: "
@@ -583,14 +640,20 @@ def run(question: str, *, reader=browse.read_page, think=None,
         # saying so - and saying BACKGROUND is also saying WORK to the lease,
         # so a real sentence of his still takes the queue.
         attention = work_states.BACKGROUND if alone else work_states.ATTENDED
-        plan_think = reasoning_gateway.thinker("routine", attention=attention)
+        # Alone, her own model is not asked for the queries at all: it searched for the words of
+        # its instructions instead of the question (2026-10-10), and the question's own words
+        # need no model.
+        plan_think = None if alone else reasoning_gateway.thinker("routine", attention=attention)
         think = reasoning_gateway.thinker("standard", attention=attention)
     else:
         plan_think = think
 
     try:
-        plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
-                          validator=_plan_validator)
+        if plan_think is None:
+            plan = queries_by_keywords(question)
+        else:
+            plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
+                              validator=_plan_validator)
     except reasoner.ReasonerUnavailable:
         # PICKING A QUERY NEEDS NO MODEL. With every frontier off and her own
         # model cold, "look into whether Ramp is hiring in Denver" died here
@@ -735,13 +798,22 @@ def _deliver(report: dict) -> str:
     return doc_id
 
 
+#: Below this the report is said with what it searched for.
+LOW_CONFIDENCE = 0.3
+
+
 def spoken(report: dict) -> str:
     """Out loud: the answer, then where it came from. Not the whole report —
     he asked a question, not for a document to be read at him."""
     n = len(report["sources"])
-    if not report.get("findings") and report.get("queries"):
+    if report.get("queries") and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
         # Nothing it could cite: say what it searched for, so a wrong search is visible rather
         # than a mystery (2026-10-10: every question read the same pages about grammar).
+        if report.get("findings"):
+            # Unsure of it: what it searched for is said too, so a wrong search shows in the
+            # mission's steps rather than looking like an answer (2026-10-10).
+            return (f"{report['answer']} I'm not sure of this: I searched for "
+                    f"{speech.or_list(report['queries'])} and it rests on {n} source{'s' if n != 1 else ''}.")
         return (f"{report['answer']} I searched for {speech.or_list(report['queries'])}, read "
                 f"{n} page{'s' if n != 1 else ''}, and none of them answered it.")
     return (f"{report['answer']} "
