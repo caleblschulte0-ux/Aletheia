@@ -2132,6 +2132,21 @@ def _her_holds_on(day_word: str) -> list:
         return []
 
 
+def _her_upcoming_holds() -> list:
+    """Every tentative hold SHE pencilled in that is still to come, soonest first: (local start, event)."""
+    import datetime as dt
+    try:
+        from aletheia import calendar, localtime
+        tz = localtime.operator_tz()
+        now = dt.datetime.now(dt.timezone.utc)
+        rows = [(calendar.parse_time(e["start"]).astimezone(tz), e) for e in calendar.all_events()
+                if e.get("status") == "TENTATIVE" and str(e.get("source") or "").startswith("hold:")
+                and calendar.parse_time(e["start"]) > now]
+        return sorted(rows, key=lambda r: r[0])
+    except Exception:
+        return []
+
+
 def _one_of_her_holds(words: str):
     """(hold, why-not): the one tentative hold SHE pencilled in that his
     words name - by its time ("my 2pm") or its title ("meeting with sam").
@@ -7732,6 +7747,28 @@ def _interpret(transcript: str) -> dict:
         r"|today|tonight|tomorrow|this (?:morning|afternoon|evening)|monday|tuesday|wednesday"
         r"|thursday|friday|saturday|sunday|weekend|lunch|dinner|breakfast|call|plans)\b", re.IGNORECASE)
 
+    # "Take that hold off my calendar" (2026-10-11: to the planner, which had nothing to plan it
+    # with). Her own holds are hers to take off: the one his words name, or the only one there is;
+    # with several and nothing to tell them apart, she asks which.
+    m = re.fullmatch(r"(?:take|get) (?P<w>.+?) off(?: of)? (?:my|the) (?:calendar|schedule)"
+                     r"|(?:remove|delete|drop|cancel) (?P<w2>.+?) from (?:my|the) (?:calendar|schedule)"
+                     r"|(?:cancel|remove|delete|drop|release|undo) (?P<w3>(?:that|this|the|your) (?:last |new |tentative )?hold)"
+                     r"(?: (?:you|u) (?:just )?(?:made|put in|pencilled in|penciled in|added))?", low)
+    if m:
+        words = (m.group("w") or m.group("w2") or m.group("w3") or "").strip()
+        bare = re.fullmatch(r"(?:that|this|the|your|it)(?: (?:last |new |tentative )?(?:hold|event|one|thing))?", words)
+        hold, why = (None, "") if bare else _one_of_her_holds(words)
+        mine = [e for _s, e in _her_upcoming_holds()]
+        if hold is None and bare and len(mine) == 1:
+            hold = mine[0]
+        if hold:
+            return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
+        if mine and (bare or why):
+            from aletheia import calendar_reasoning as _cr, speech as _sp
+            return {"command": None, "say": "Which one - " + _sp.or_list(
+                [f"{e['title']} {_cr.human(e['start'])}" for e in mine[:3]]) + "?"}
+        if bare:
+            return {"command": None, "say": "I haven't pencilled anything in that's still to come."}
     m = re.fullmatch(r"(?:cancel|delete|remove) (?:my |the )?(?P<w>(?:meeting|appointment|call|lunch|dinner|coffee|hold) with [a-z' ]{2,30}?)"
                      r"(?: (?:today|tomorrow|on [a-z]+))?", low)
     if m:

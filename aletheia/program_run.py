@@ -497,6 +497,8 @@ DATED = re.compile(r"\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}|\d{1,2}(?::\d{2})?\s
                    r"sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|"
                    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|tonight|tomorrow)\b", re.I)
 NOTHING_DATED_RETRY = dt.timedelta(days=1)
+#: The arguments that say WHERE on the web, which only something found can fill.
+WHERE_ARGS = ("url", "link")
 
 
 #: "Evenings after 5:30 pm and weekends", as he says it: both words, and the time if he gave one.
@@ -580,7 +582,9 @@ def _dated_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime) ->
                 continue
             # Written as the planner writes a start: his local time, which a hold reads in his zone.
             start = dt.datetime.fromisoformat(occ["start"]).strftime("%Y-%m-%dT%H:%M")
-            filled = {"start": start, "title": str(args.get("title") or "").strip() or occ["title"]}
+            # Named by what was found, never by what the task called itself (2026-10-11: a hold was
+            # titled with the task's own name at a free-time slot).
+            filled = {"start": start, "title": occ["title"]}
             if _wrong_hold(record, task, tool, dict(args, **filled), now):
                 continue
             if best is None or occ["start"] < best["start"]:
@@ -592,6 +596,42 @@ def _dated_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime) ->
 _HOLD_FILLER = re.compile(r"\b(?:hold|holds|tentative|pencil(?:led)?|calendar|event|events|for|the|a|an|at|on|in|"
                           r"to|of|and|with|am|pm|today|tomorrow|tonight|monday|tuesday|wednesday|thursday|"
                           r"friday|saturday|sunday|\d+(?::\d+)?)\b", re.I)
+
+
+#: Words that say what KIND of work something is, or when he is free, rather than what it names:
+#: a hold's title and the line it was found on are matched on what is left.
+_TASK_FILLER = re.compile(r"\b(?:find|finds|finding|search|searches|searching|sweep|sweeps|look|looks|looking|"
+                          r"check|checks|new|newly|listed|list|lists|listing|listings|upcoming|nearby|near|local|"
+                          r"area|free|fitting|fit|fits|ones|one|any|some|register|registers|sign|signs|ups?|book|"
+                          r"weekly|daily|monthly|every|week|weeks|month|weekends?|evenings?|mornings?|afternoons?|"
+                          r"nights?|time|times|slots?|windows?|shortlist|shortlisted|good|best|more|other|this|"
+                          r"that|these|those|his|her|him|them|they|their|what|which|where|when|from|into|"
+                          r"about|around|within|after|before|next|soon|soonest|first|each|all|add|adds|put|puts|get|set|use|"
+                          r"make|makes|onto|into|over|out|few|see|try|keep|tentative|pencil|pencils)\b", re.I)
+
+
+def _content_words(text: str, *, shortest: int = 3) -> set[str]:
+    text = _TASK_FILLER.sub(" ", _HOLD_FILLER.sub(" ", str(text or "").lower()))
+    return set(re.findall(r"[a-z]{%d,}" % shortest, text))
+
+
+def _found_event(record: dict, task: dict, title: str, day: dt.date, now: dt.datetime) -> dict | None:
+    """The dated line, among what the steps before it read, that a hold titled `title` on `day` is
+    for: on that day, and sharing a word of its title. None when nothing read says so."""
+    from aletheia import dated_text, localtime
+    named = _content_words(title, shortest=4)
+    for text in _found(record, task, answers=False):
+        for occ in dated_text.occurrences(text, now=now, tz=localtime.operator_tz()):
+            if occ["date"] != day.isoformat():
+                continue
+            if named & _content_words(occ["title"] + " " + occ["line"], shortest=4):
+                return occ
+    return None
+
+
+#: Raised whenever what makes a hold right gets stricter, so holds made under the looser rules are
+#: checked again once (1: time, hours and title; 2: a found event on that day, not its own name).
+HOLD_RULES = 2
 
 
 def _wrong_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime, *,
@@ -619,6 +659,16 @@ def _wrong_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime, *,
                     ).lower()
     if words and not any(w in seen for w in words):
         return "its title names nothing the steps before it found"
+    own = " ".join([str(task.get("title") or "")] + [str(n) for n in task.get("does") or []]).lower()
+    if not words or words <= {w for w in re.findall(r"[a-z]{4,}", _HOLD_FILLER.sub(" ", own))}:
+        # Its title is the task's own name (2026-10-11: "Pencilled in Find free ... events for the
+        # shortlisted ... tomorrow at 6:15 pm" - a free slot, and no event at all).
+        return "its title is the task's own name, not something found"
+    if _found_event(record, task, str(args.get("title") or ""), local.date(), made_at or now) is None:
+        # A hold is for something found: a dated line the steps before it read names it on that day.
+        # Anything free he could go to in his hours counts - he asked for his calendar filled - so
+        # what it is about is not narrowed (2026-10-11).
+        return "nothing the steps before it read names it on that day"
     return ""
 
 
@@ -666,6 +716,9 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         return None
     if task.get("state") == ws.DONE:
         return _recheck_done(record, task, tools, now)
+    taken = _recheck_holds_made(record, task, tools, now)
+    if taken:
+        return taken
     if task.get("state") == ws.RETRY_LATER and str(task.get("next") or "").startswith("look again"):
         # Parked until tomorrow on what an old reading found: the weekly sweep kept the found text
         # from before looks read dates, and waited a day each time to find the same (his PC,
@@ -844,12 +897,70 @@ def _last_empty_recheck(task: dict) -> str:
                 if str(h.get("did") or "").startswith("opened again: its look found nothing")), default="")
 
 
+def _take_back(args: dict, why: str) -> bool:
+    """Release her own tentative hold that a step made with `args`; False when none is left."""
+    from aletheia import calendar as _calendar, calendar_reasoning, localtime
+    try:
+        start = dt.datetime.fromisoformat(str(args["start"]).replace("Z", "+00:00"))
+        start = start if start.tzinfo else start.replace(tzinfo=localtime.operator_tz())
+        event_id = calendar_reasoning.hold_id(" ".join(str(args.get("title") or "").split()),
+                                              start.isoformat(), str(args.get("thread") or ""))
+        held = _calendar.load(event_id)
+        if held and held.get("status") != "CANCELLED":
+            calendar_reasoning.release_hold(event_id, why=f"taken back: {why}")
+            return True
+    except (ValueError, OSError, KeyError):
+        pass  # no such hold left to take back
+    return False
+
+
+def _recheck_holds_made(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
+    """A task still under way that made a hold the current rules call wrong takes it back, once
+    per tightening of the rules, and goes on from where it is (2026-10-11: a task whose later
+    step was waiting kept a hold titled with its own name at a free slot)."""
+    if int(task.get("holds_rechecked") or 0) >= HOLD_RULES:
+        return None
+    steps = (task.get("plan") or {}).get("steps") or []
+    taken: list[str] = []
+    made_any = False
+    for i, step in enumerate(steps):
+        tool = tools.get(step.get("tool"))
+        if tool is None or not _writes_holds(tool):
+            continue
+        made = next((r.get("at") for r in task.get("results") or []
+                     if r.get("step") == i and r.get("outcome") == "ok"), None)
+        if made is None:
+            continue
+        made_any = True
+        why = _wrong_hold(record, task, tool, step.get("args") or {}, now, made_at=waits.parse(made))
+        if why and _take_back(step.get("args") or {}, why):
+            taken.append(why)
+    if not made_any:
+        return None
+    key = task["key"]
+
+    def change(r):
+        t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
+        if t is None:
+            return None
+        t["holds_rechecked"] = HOLD_RULES
+        for why in taken:
+            pg._history(t, f"took back a calendar hold: {why}", now)
+        return t
+    pg.update(record["id"], change)
+    if not taken:
+        return None
+    pg._journal("event", pg.item_id(record["id"], key),
+                f"{record.get('title') or record['id']}: took back a calendar hold from {task['title']}: "
+                f"{taken[0]}"[:240])
+    return {"program": record["id"], "task": key, "was": "hold", "why": taken[0]}
+
+
 def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> dict | None:
     """A finished task whose step did the wrong thing under rules since made stricter is opened
     again at that step: a hold that was wrong when it was made is taken back first (her own
     tentative hold, released with the reason), and a free-time read that looked at his working
     day reads again. Once per task each: what it does the second time stands."""
-    from aletheia import calendar as _calendar, calendar_reasoning, localtime
     steps = (task.get("plan") or {}).get("steps") or []
     added = _steps_it_never_had(task, steps, tools, now)
     if added:
@@ -861,7 +972,7 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
         if tool is None:
             continue
         why, mark = "", ""
-        if _writes_holds(tool) and not task.get("holds_rechecked"):
+        if _writes_holds(tool) and int(task.get("holds_rechecked") or 0) < HOLD_RULES:
             made = next((r.get("at") for r in task.get("results") or []
                          if r.get("step") == i and r.get("outcome") == "ok"), None)
             if made is None:
@@ -869,16 +980,7 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
             why = _wrong_hold(record, task, tool, args, now, made_at=waits.parse(made))
             mark = "holds_rechecked"
             if why:
-                try:
-                    start = dt.datetime.fromisoformat(str(args["start"]).replace("Z", "+00:00"))
-                    start = start if start.tzinfo else start.replace(tzinfo=localtime.operator_tz())
-                    event_id = calendar_reasoning.hold_id(" ".join(str(args.get("title") or "").split()),
-                                                          start.isoformat(), str(args.get("thread") or ""))
-                    held = _calendar.load(event_id)
-                    if held and held.get("status") != "CANCELLED":
-                        calendar_reasoning.release_hold(event_id, why=f"taken back: {why}")
-                except (ValueError, OSError, KeyError):
-                    pass  # no such hold left to take back: the step is still done again
+                _take_back(args, why)
         elif hours and _finds_free_time(tool) and not str(args.get("part") or "").strip() \
                 and not task.get("hours_rechecked"):
             why, mark = "it counted his working day as free", "hours_rechecked"
@@ -900,7 +1002,7 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
                      attempts=0, updated_at=pg.stamp(now))
             # An empty look is opened again whenever it came back empty SINCE the last time: the
             # second answer said the same nothing in other words and stood as done (2026-10-10).
-            t[mark] = pg.stamp(now) if mark == "empty_rechecked" else True
+            t[mark] = pg.stamp(now) if mark == "empty_rechecked" else HOLD_RULES if mark == "holds_rechecked" else True
             pg._history(t, f"opened again: {why}", now)
             # What was done FROM it is done again after it, where nothing of that reached anybody
             # (2026-10-10: the job search was retargeted on an empty comparison).
@@ -1109,7 +1211,8 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # hers goes) is never a question for him.
             args.update(compose.default_args(tool, task, missing))
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
-        if missing and set(missing) & set(WHEN_ARGS) and (task.get("needs") or i > 0):
+        if missing and (set(missing) & set(WHEN_ARGS) or (_writes_holds(tool) and "title" in missing)) \
+                and (task.get("needs") or i > 0):
             # "When?" about something the steps before it were to find, and nothing they found has
             # a date: there is nothing to put on the calendar YET. That is a look again tomorrow,
             # never a question for him he could only answer by doing the search himself.
@@ -1135,6 +1238,15 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                         not_before=pg.stamp(now + NOTHING_DATED_RETRY))
             _commit(pid, task, now)
             return {"state": ws.RETRY_LATER, "why": "nothing dated found yet"}
+        if missing and set(missing) & set(WHERE_ARGS) and (task.get("needs") or i > 0):
+            # An address for something the steps before it were to find: nothing found yet has one,
+            # so there is nothing to sign up for YET (2026-10-11: "what should I use for url?").
+            step["args"] = args
+            task.update(state=ws.RETRY_LATER, run=None, next="look again for something with an address",
+                        reason="nothing found yet has an address to use",
+                        not_before=pg.stamp(now + NOTHING_DATED_RETRY))
+            _commit(pid, task, now)
+            return {"state": ws.RETRY_LATER, "why": "nothing with an address found yet"}
         if missing:
             step["args"] = args
             question = (f"For \"{task['title']}\", what should I use for {' and '.join(missing)}? "
