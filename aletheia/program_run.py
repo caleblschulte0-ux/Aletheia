@@ -595,14 +595,6 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         # A recurring sweep that failed before it looked again instead: it is still the newest of its
         # kind, so this week's sweep goes on (2026-10-10: the weekly event sweep).
         return _release(record, task, dict(task, plan=plan, mark="recurring_released"), None, "recurring", now)
-    if (task["state"] == ws.FAILED and held is None and not task.get("sources_retried")
-            and not task.get("recomposed") and not task.get("from_activity")
-            and str(task.get("reason") or "").startswith("research failed")
-            and int(task.get("cursor") or 0) < len(plan["steps"])
-            and plan["steps"][int(task.get("cursor") or 0)].get("tool") == "research"):
-        # A look that failed for want of pages that answer it: once, on the pages she reads now
-        # (2026-10-11: the city comparison failed before it read each city's own figures).
-        return _release(record, task, dict(task, plan=plan, mark="sources_retried"), None, "sources", now)
     if (task["state"] in (ws.FAILED, ws.RETRY_LATER) and not refused and not bad_path and not no_source
             and held is None and not task.get("recomposed")):
         # A LOOK composed under rules since changed: "search for free newcomer events" went to the
@@ -622,6 +614,15 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
                 and new_tools and new_tools[:i] == old_tools[:i]
                 and not any(g["outcome"] == "refuse_policy" for g in fresh["gaps"])):
             return _release(record, task, dict(task, plan=fresh, mark="recomposed"), None, "recomposed", now)
+    if (task["state"] == ws.FAILED and held is None and not task.get("sources_retried")
+            and not task.get("from_activity")
+            and str(task.get("reason") or "").startswith("research failed")
+            and int(task.get("cursor") or 0) < len(plan["steps"])
+            and plan["steps"][int(task.get("cursor") or 0)].get("tool") == "research"):
+        # A look that failed for want of pages that answer it: once, on the pages she reads now
+        # (2026-10-11: the city comparison failed before it read each city's own figures). After the
+        # re-plan above, which comes first; a task planned again once may still try again here.
+        return _release(record, task, dict(task, plan=plan, mark="sources_retried"), None, "sources", now)
     if bad_path:
         purpose = "path"
     elif no_source:
@@ -959,13 +960,15 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             # hers goes) is never a question for him.
             args.update(compose.default_args(tool, task, missing))
             missing = [m for m in missing if not str(args.get(m) or "").strip()]
-        if missing and set(missing) & set(WHEN_ARGS) and task.get("needs"):
+        if missing and set(missing) & set(WHEN_ARGS) and (task.get("needs") or i > 0):
             # "When?" about something the steps before it were to find, and nothing they found has
             # a date: there is nothing to put on the calendar YET. That is a look again tomorrow,
             # never a question for him he could only answer by doing the search himself.
             # Free windows have dates and are still not an event (2026-10-10: it asked him "what
             # should I use for start and title?" once the free time had been read). Whatever was found,
             # a when nobody could fill is a look again, never a question only a search could answer.
+            # The same holds for a step whose own task looked first: the weekly sweep has no needs,
+            # its look is its first step, and it asked him all the same (2026-10-11).
             dated = any(DATED.search(x) for x in _found(record, task, answers=False))
             step["args"] = args
             task.update(state=ws.RETRY_LATER, run=None, next="look again for something dated",
