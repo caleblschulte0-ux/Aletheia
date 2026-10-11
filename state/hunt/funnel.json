@@ -91,17 +91,18 @@
     "2026-10-11": {
       "duplicate": 88,
       "employer_full": 0,
-      "minutes": 77,
+      "minutes": 82,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 23,
-      "offered": 360,
+      "not_realistic": 24,
+      "offered": 362,
       "ready": 0,
-      "runs": 4,
-      "unfit_model": 2,
+      "runs": 5,
+      "unfit_model": 3,
       "unfit_sales": 21,
       "unjudged": 0,
-      "unreachable": 0,
+      "unreachable": 1,
+      "unreachable_ApplyError": 1,
       "weak_shot": 0
     }
   },
@@ -351,7 +352,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T13:53:42Z",
+  "generated_at": "2026-10-11T14:23:51Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
