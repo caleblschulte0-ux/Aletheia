@@ -773,6 +773,10 @@ def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
             # The whole page, kept for this question only: what bears on it is chosen from all of it
             # (`focus`), never stored in the report.
             "full": text[:MAX_PAGE_CHARS],
+            # Its links, so a dated line can carry the event's own page: a hold made from a listing
+            # had no address to sign up on (his PC, 2026-10-11). Never stored in the report.
+            "links": [{"text": str(a.get("text") or "")[:120], "href": str(a.get("href") or "")}
+                      for a in (page.get("links") or [])[:100] if isinstance(a, dict)],
         })
     return read, failed
 
@@ -1081,6 +1085,25 @@ def run(question: str, *, reader=browse.read_page, think=None,
 MAX_DATED = 8
 
 
+def event_link(title: str, links: list[dict], page_url: str = "") -> str:
+    """The page's own link whose words are the occurrence's title: the event's page on a listing.
+    Most of the title's words, and at least two, must be in the link's text; "" when no link is
+    plainly that one, because a wrong page is somewhere he gets signed up for the wrong thing."""
+    want = {w for w in re.findall(r"[a-z0-9]{3,}", str(title or "").casefold()) if w not in _FILLER}
+    if len(want) < 2:
+        return ""
+    best, score = "", 0
+    for a in links:
+        href = str(a.get("href") or "")
+        if not href.startswith(("http://", "https://")) or href.split("#")[0] == page_url.split("#")[0]:
+            continue
+        have = set(re.findall(r"[a-z0-9]{3,}", str(a.get("text") or "").casefold()))
+        hit = len(want & have)
+        if hit > score and hit >= max(2, (len(want) + 1) // 2):
+            best, score = href, hit
+    return best[:300]
+
+
 def dated_lines(sources: list[dict]) -> list[str]:
     """The lines of the pages read that carry a date AND a time, as the pages wrote them: the
     step after a look that puts something on his calendar reads these, not the prose of an answer
@@ -1093,6 +1116,9 @@ def dated_lines(sources: list[dict]) -> list[str]:
         for occ in dated_text.occurrences(s.get("full") or s.get("extract") or "", now=now, tz=tz):
             if occ["timed"] and occ["date"] >= now.astimezone(tz).date().isoformat():
                 line = f"{occ['title']}, {occ['line']}" if occ["title"] not in occ["line"] else occ["line"]
+                link = event_link(occ["title"], s.get("links") or [], s.get("url") or "")
+                if link:
+                    line = f"{line} (link {link})"
                 if line not in out:
                     out.append(line)
             if len(out) >= MAX_DATED:
@@ -1102,7 +1128,7 @@ def dated_lines(sources: list[dict]) -> list[str]:
 
 #: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
 #: is tried once more on the new one (program_run releases it).
-REVISION = 5
+REVISION = 6  # 6: a dated line carries the page's own link for it
 #: A page with less text than this is said to be too short in the look's line.
 SHORT_PAGE = 1500
 #: How many looks are remembered for "what did the last look read".
