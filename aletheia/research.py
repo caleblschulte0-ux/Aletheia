@@ -359,6 +359,8 @@ def listings_for(question: str, *, at: dict | None = None) -> tuple[list[dict], 
 MAX_PLACES = 5
 #: And how many per-place pages that reads in all.
 MAX_PLACE_PAGES = 10
+#: And how many pages of the place they are measured against, on top of those.
+MAX_BASELINE_PAGES = 2
 _PLACE_WORDS = re.compile(r"\b(?:cit(?:y|ies)|towns?|places?|metros?|metro areas?)\b", re.I)
 
 
@@ -375,6 +377,40 @@ def candidate_places(question: str) -> list[dict]:
             if m and {"city": m.group(1), "state": m.group(2).upper()} not in out:
                 out.append({"city": m.group(1), "state": m.group(2).upper()})
     return out
+
+
+def baseline_for(question: str) -> dict:
+    """The place every candidate is measured against, when a reviewed entry for this kind of question
+    names one: {"city", "state", "measure"}, else {}. "home" is his own town, else the entry's
+    `baseline_default`.
+
+    Her first comparison of the places he might move to measured their cost of living against New
+    York - the index the pages use - and left out rent (2026-10-11), while his own rulings measure
+    pay against where he lives now. What to measure is the entry's too, never the code's."""
+    said = " ".join(str(question or "").split()).casefold()
+    for row in _listings():
+        if not row.get("baseline") or not any(_phrase_in(str(a), said) for a in row.get("about") or []):
+            continue
+        where = _home() if row["baseline"] == "home" else {}
+        if not where.get("city"):
+            m = re.match(r"\s*(.+?),\s*([A-Za-z]{2})\s*$", str(row.get("baseline_default") or ""))
+            where = {"city": m.group(1), "state": m.group(2).upper()} if m else {}
+        if where.get("city"):
+            return dict(where, measure=str(row.get("measure") or "").strip())
+    return {}
+
+
+def _measured(question: str, base: dict) -> str:
+    """The question as the report is asked it: against the baseline, with what to measure."""
+    if not base:
+        return question
+    where = f"{base['city']}, {base['state']}" if base.get("state") else base["city"]
+    said = (f"{question.rstrip(' .')}. Measure every place against {where}, where Caleb lives now: say each "
+            f"figure beside {where}'s, and where a page's index is relative to another city, say so and compare "
+            f"the places to {where} instead.")
+    if base.get("measure"):
+        said += f" Give {base['measure']} for each place where the pages say them, and name the ones they do not."
+    return said
 
 
 def places_in_text(text: str) -> list[dict]:
@@ -984,11 +1020,19 @@ def run(question: str, *, reader=browse.read_page, think=None,
         more = []
         # The reviewed list is the source whenever it covers the question - never a fallback after
         # the national pages, which on his PC came back as a few hundred characters (2026-10-11).
-        places = listed or places_in_text(" ".join(x["extract"] for x in sources))
-        for where in places[:MAX_PLACES]:
+        places = (listed or places_in_text(" ".join(x["extract"] for x in sources)))[:MAX_PLACES]
+        for where in places:
             more += [dict(x, place=f"{where['city']}, {where['state']}") for x in listings_for(question, at=where)[0]
                      if x["url"] not in {c["url"] for c in candidates + more}]
         more = more[:MAX_PLACE_PAGES]
+        base = baseline_for(question)
+        if base and not any(p["city"].casefold() == base["city"].casefold() for p in places):
+            # Where he lives now is read beside the candidates, never instead of one of them, and
+            # one page of it is enough to measure against.
+            at = {"city": base["city"], "state": base.get("state") or ""}
+            more += [dict(x, place=f"{at['city']}, {at['state']}", baseline=True)
+                     for x in listings_for(question, at=at)[0]
+                     if x["url"] not in {c["url"] for c in candidates + more}][:MAX_BASELINE_PAGES]
         if more:
             journal.append("event", "research", "reading " + speech.count_phrase(len(more), "more page")
                            + " for the places those pages named", actor=ACTOR)
@@ -1005,17 +1049,18 @@ def run(question: str, *, reader=browse.read_page, think=None,
     # model writes the report, and 7.5 KB of extracts is a call it cannot
     # finish inside its ceiling on his laptop (measured 2026-09-22: 420 s
     # and no answer). Fewer words in, an answer out.
+    asked = _measured(question, baseline_for(question))
     if alone and any(s.get("place") for s in sources):
         # Fifteen pages for five places shared 3 KB, about 300 characters each, and the comparison
         # read no figures (his PC, 2026-10-11): each place shows its page richest in figures, the
         # national pages come after, and the budget is the one measured for a 4 KB local prompt.
-        bounded = _bounded(question, by_place(question, sources), limit=PLACE_REPORT_BYTES)
+        bounded = _bounded(asked, by_place(asked, sources), limit=PLACE_REPORT_BYTES)
     else:
-        bounded = (_bounded(question, sources, limit=LOCAL_REPORT_BYTES) if alone
-                   else _bounded(question, sources))
+        bounded = (_bounded(asked, sources, limit=LOCAL_REPORT_BYTES) if alone
+                   else _bounded(asked, sources))
     report = think(
-        WRITE_SYSTEM, question,
-        context={"question": question, "sources": bounded},
+        WRITE_SYSTEM, asked,
+        context={"question": asked, "sources": bounded},
         model=reasoner.PLAN_MODEL, validator=_report_validator)
     report = _verified(report, sources)
     report.update({
@@ -1057,7 +1102,7 @@ def dated_lines(sources: list[dict]) -> list[str]:
 
 #: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
 #: is tried once more on the new one (program_run releases it).
-REVISION = 4
+REVISION = 5
 #: A page with less text than this is said to be too short in the look's line.
 SHORT_PAGE = 1500
 #: How many looks are remembered for "what did the last look read".

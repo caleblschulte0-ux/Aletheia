@@ -1602,7 +1602,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("interview_when", re.compile(
         r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
         r"|^how (?:long|many days|many hours) (?:until|till|before) (?:my|the) (?:next )?interview\s*\??$"
-        r"|^(?:do i have|is there) an interview (?:coming up|scheduled|booked)(?: today| tomorrow| this week)?\s*\??$"
+        r"|^(?:do i have|is there|have i got) an interview(?: coming up| scheduled| booked)?(?: today| tomorrow| this week| next week)?\s*\??$"
         r"|^when(?:'s| is) my next interview\s*\??$")),
     # THE DAY AS SHE HOLDS IT: calendar, tasks, the hunt.
     ("plan_today", re.compile(
@@ -5941,7 +5941,11 @@ def _interview_when() -> str:
         return "No interview on your calendar. When one is booked it goes there and I tell you."
     coming.sort()
     start, title = coming[0]
-    who = re.sub(r"^\s*interview\s*[:with-]*\s*", "", title, flags=re.I).strip()
+    # "An interview with Via" (her own hold's title) read back as "Your interview with an interview
+    # with Via" (2026-10-11): the article and the kind of interview come off first, and "with" is
+    # a word, not the letters w, i, t and h.
+    who = re.sub(r"^\s*(?:(?:an?|the|my) )?(?:(?:job|phone|video|zoom|second|final|first|in-person|onsite|on-site) )*"
+                 r"interview\b\s*(?:with\b|:|-)?\s*", "", title, flags=re.I).strip()
     kind = re.fullmatch(r"\s*(?:(?:my|a|the) )?((?:job|phone|video|zoom|second|final|first|in-person|onsite|on-site) )*interview\s*", title, re.I)
     if kind or not who:
         named = f"Your {title.strip().lower()}" if kind and kind.group(1) else "Your interview"

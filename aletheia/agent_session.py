@@ -387,11 +387,13 @@ def execute(tool: tools.Tool, args: dict, *, timeout_s: float = TOOL_TIMEOUT_S,
     except intercom.Unavailable as exc:
         return "unavailable", {"error": f"unavailable on this machine: {exc}"}
     except Exception as exc:                                          # noqa: BLE001
-        from aletheia import compose
-        if isinstance(exc, compose.ComposeError):
-            # Written to be read: "the tool failed (ComposeError)" on three documents in a row hid
-            # whether it had nothing to write from or nobody to write it (2026-10-11).
-            return "error", {"error": f"the tool failed (ComposeError: {str(exc)[:200]})"}
+        # Her own errors are written to be read: "the tool failed (ComposeError)" on three documents
+        # in a row hid whether it had nothing to write from or nobody to write it, and "research
+        # failed 3 times: the tool failed (ResearchError)" hid which of its sentences it was
+        # (2026-10-11). Anything else keeps only its type: a library's message is for the log.
+        said = str(exc).strip()
+        if said and type(exc).__module__.startswith("aletheia."):
+            return "error", {"error": f"the tool failed ({type(exc).__name__}: {said[:200]})"}
         return "error", {"error": f"the tool failed ({type(exc).__name__})"}
     if isinstance(result, dict) and set(result) == {"error"}:
         return "error", result

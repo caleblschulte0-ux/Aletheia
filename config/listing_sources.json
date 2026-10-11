@@ -1,5 +1,5 @@
 {
-  "_about": "Reviewed DATA for aletheia.research: pages that LIST the thing a question asks about, read directly before any search. A web search for events in a city returns encyclopedia pages about the city (2026-10-11, his PC: the city, its hockey team, a TV station), never the listings; these are the listings. An entry applies when one of its `about` phrases is in the question. {city}, {state} and {topic} are filled from the question; an entry whose url needs a place the question does not name uses his own town when `place_default` is \"home\", and is skipped otherwise. An entry with a `place` applies only to that place. `instead_of` names hosts whose search results are about something else for this kind of question and are dropped. Every page is public and read anonymously; nothing here logs in, signs up, writes or spends. A reviewed edit adds a page; nothing in code names a site or a place. An entry with `places` is not a page: it lists the candidate places for a kind of question that names none, read through the per-place entries; its `ruling` quotes the words that decided what such a place is.",
+  "_about": "Reviewed DATA for aletheia.research: pages that LIST the thing a question asks about, read directly before any search. A web search for events in a city returns encyclopedia pages about the city (2026-10-11, his PC: the city, its hockey team, a TV station), never the listings; these are the listings. An entry applies when one of its `about` phrases is in the question. {city}, {state} and {topic} are filled from the question; an entry whose url needs a place the question does not name uses his own town when `place_default` is \"home\", and is skipped otherwise. An entry with a `place` applies only to that place. `instead_of` names hosts whose search results are about something else for this kind of question and are dropped. Every page is public and read anonymously; nothing here logs in, signs up, writes or spends. A reviewed edit adds a page; nothing in code names a site or a place. An entry with `places` is not a page: it lists the candidate places for a kind of question that names none, read through the per-place entries; its `ruling` quotes the words that decided what such a place is. An entry with `baseline` (\"home\": his own town, else `baseline_default`) has that place read beside its candidates and every figure measured against it; `measure` names what to give for each place.",
   "listings": [
     {
       "name": "Eventbrite listings",
@@ -143,7 +143,11 @@
         "Greenville, SC",
         "Huntsville, AL"
       ],
-      "url": "places"
+      "url": "places",
+      "baseline": "home",
+      "baseline_default": "Sioux Falls, SD",
+      "measure": "rent, state income tax and housing costs",
+      "baseline_why": "His pay floor is cost-of-living adjusted to South Dakota (his rulings, 2026-10-08), so every place is measured against where he lives now, not the pages' New York index."
     }
   ]
 }

@@ -666,6 +666,15 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         return None
     if task.get("state") == ws.DONE:
         return _recheck_done(record, task, tools, now)
+    if task.get("state") == ws.RETRY_LATER and str(task.get("next") or "").startswith("look again"):
+        # Parked until tomorrow on what an old reading found: the weekly sweep kept the found text
+        # from before looks read dates, and waited a day each time to find the same (his PC,
+        # 2026-10-11). Once per revision of how pages are read, it looks again now.
+        look = _stale_look(task, plan, tools, int(task.get("cursor") or 0) + 1)
+        if look is not None:
+            _commit(record["id"], dict(task, cursor=look, relooked=research.REVISION, state=ws.READY, not_before=None,
+                                       attempts=0, run=None, reason="", next="look again on the current reading"), now)
+            return {"program": record["id"], "task": task["key"], "was": "stale_look"}
     held = pg.current_wait(task) if task["state"] in ws.WORK_WAITING else None
     purpose = ((held or {}).get("context") or {}).get("purpose")
     refused = task["state"] == ws.FAILED and (
