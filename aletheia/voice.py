@@ -793,6 +793,10 @@ def _not_a_file(said: str) -> bool:
     # own approvals and what waits on him are hers to read.
     if re.fullmatch(r"(?:any |anything )?(?:pending |open )?(?:approvals?|requests?|decisions?|things? waiting(?: on me| for me)?)(?: pending| waiting)?", low):
         return True
+    # "Show me my missions" searched his Documents (2026-10-11): a mission is
+    # a store of hers.
+    if re.fullmatch(r"(?:any |all )?(?:my |the )?(?:(?:long|big) )?missions?", low):
+        return True
     # "Do I have any coupons" searched his Documents (2026-10-08): a coupon he
     # mentioned is a note.
     if re.fullmatch(r"(?:any )?(?:coupons?|gift cards?|store credit|vouchers?|discount codes?|promo codes?)(?: for [a-z' ]{2,20})?", low):
@@ -7539,10 +7543,12 @@ def _interpret(transcript: str) -> dict:
     # and asking what it waits on. The draft is a model's; the yes is his, and
     # it is only ever this layer that reads "confirm my mission" as that yes -
     # the words that start it are matched here, never compiled.
-    m = re.fullmatch(r"(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
-                     r"(?:a |my |the )?(?:new )?(?:(?:long|big|long-term|long term) )?mission"
+    # "new mission: get me in shape by summer" - the name of the thing as the
+    # verb, the way he writes "new task: ..." - went to the planner (2026-10-11).
+    m = re.fullmatch(r"(?:(?:(?:i want to |let's |lets |please )?(?:start|begin|create|make|open) )"
+                     r"(?:a |my |the )?(?:new )?|(?:a )?new )(?:(?:long|big|long-term|long term) )?mission"
                      r"(?: called| about| for| to)?[:,]? (.{3,})", low)
-    if m and not re.fullmatch(r"(?:draft|now|again|please)", m.group(1).strip()):
+    if m and not re.fullmatch(r"(?:draft|now|again|please|status|update|progress)", m.group(1).strip()):
         return {"command": {"kind": "mission_new", "objective": _as_he_said(transcript, m.group(1))},
                 "say": None}
     if re.fullmatch(r"(?:yes[,]? )?(?:confirm|activate|launch|go ahead with|start) (?:the |my )?"
@@ -7592,9 +7598,20 @@ def _interpret(transcript: str) -> dict:
             state = {"hold": "pause", "stop": "pause", "unpause": "resume", "restart": "resume",
                      "cancel": "drop", "scrap": "drop"}.get(verb, verb)
             return {"command": {"kind": "mission_state", "state": state, "which": record["id"]}, "say": None}
+        # "Cancel my mission" with no mission running was prepared as cancelling a
+        # SUBSCRIPTION called "mission" (2026-10-11). A mission is hers; say there is none.
+        if re.search(r"\bmissions?$", subject.strip()):
+            if bare or not programs.find(""):
+                return {"command": None, "say": "You haven't got a mission running, so there's nothing to " + verb + "."}
+            return {"command": None, "say": "I don't have a mission by that name. Ask me what missions you have and I'll list them."}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
-                    r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):
+                    r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at"
+                    # "what missions do I have" fell to the notes reader (2026-10-11):
+                    # "I have nothing about missions on file" while the store held them.
+                    r"|(?:what|which) (?:(?:long|big) )?missions? (?:do i have|have i (?:got|started)|am i on|are (?:running|open|going))"
+                    r"|what are my (?:(?:long|big) )?missions|do i have any (?:(?:long|big) )?missions"
+                    r"|(?:list|show)(?: me)? (?:my |all my |the )?(?:(?:long|big) )?missions", low.rstrip("?. ")):
         return {"command": {"kind": "missions"}, "say": None}
 
     # "STUDY THESE AND IMPROVE MY PROJECT." (aletheia.studies) - research that turns
