@@ -351,7 +351,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T07:59:51Z",
+  "generated_at": "2026-10-11T13:53:42Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
@@ -421,15 +421,11 @@
         "nothing_to_press_on_unread/observed": 2
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 5,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 4
-      },
-      "out_of_steps": {
-        "nothing_to_press_on_unread/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 1,
