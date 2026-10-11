@@ -7598,6 +7598,12 @@ def _interpret(transcript: str) -> dict:
             state = {"hold": "pause", "stop": "pause", "unpause": "resume", "restart": "resume",
                      "cancel": "drop", "scrap": "drop"}.get(verb, verb)
             return {"command": {"kind": "mission_state", "state": state, "which": record["id"]}, "say": None}
+        # "Cancel my mission" with no mission running was prepared as cancelling a
+        # SUBSCRIPTION called "mission" (2026-10-11). A mission is hers; say there is none.
+        if re.search(r"\bmissions?$", subject.strip()):
+            if bare or not programs.find(""):
+                return {"command": None, "say": "You haven't got a mission running, so there's nothing to " + verb + "."}
+            return {"command": None, "say": "I don't have a mission by that name. Ask me what missions you have and I'll list them."}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at"

@@ -28,6 +28,16 @@ class AMissionIsAskedTheWayHeSaysIt(unittest.TestCase):
         got = voice._interpret("new mission status") or {}
         self.assertNotEqual((got.get("command") or {}).get("kind"), "mission_new")
 
+    def test_cancelling_a_mission_that_is_not_there_is_never_a_subscription(self):
+        from unittest import mock
+        from aletheia import programs
+        with mock.patch.object(programs, "named", return_value=None), \
+                mock.patch.object(programs, "find", return_value=None):
+            for said in ("cancel my mission", "stop the mission", "drop my big mission"):
+                got = voice._interpret(said) or {}
+                self.assertIsNone(got.get("command"), said)
+                self.assertIn("mission", got.get("say") or "", said)
+
 
 if __name__ == "__main__":
     unittest.main()
