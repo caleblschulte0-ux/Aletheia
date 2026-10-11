@@ -7552,6 +7552,24 @@ def _interpret(transcript: str) -> dict:
         record = programs.named(m.group(1))
         if record is not None:
             return {"command": {"kind": "missions", "about": "steps", "which": record["id"]}, "say": None}
+    m = re.fullmatch(r"(pause|hold|stop|resume|unpause|restart|drop|cancel|scrap)"
+                     r"(?: (?:working on|work on))? (?:my |the )?(.{2,40}?)(?: for now| again)?", low) \
+        or re.fullmatch(r"(?:put )?(?:my |the )?(.{2,40}?) (?:on hold|back on)()", low)
+    if m:
+        # "Pause the move plan": there was a store that pauses a mission and no way to say it
+        # (2026-10-11). Only a subject that names a live mission, or the word mission itself: "pause
+        # the music" and "stop applying" are somebody else's verbs.
+        if m.re.pattern.startswith("(pause"):
+            verb, subject = m.group(1), m.group(2)
+        else:
+            subject, verb = m.group(1), ("resume" if low.endswith("back on") else "pause")
+        from aletheia import programs
+        bare = re.sub(r"\b(?:my|the|long|big)\b", " ", subject).split() == ["mission"]
+        record = programs.named(subject) if not bare else programs.find("")
+        if record is not None:
+            state = {"hold": "pause", "stop": "pause", "unpause": "resume", "restart": "resume",
+                     "cancel": "drop", "scrap": "drop"}.get(verb, verb)
+            return {"command": {"kind": "mission_state", "state": state, "which": record["id"]}, "say": None}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):

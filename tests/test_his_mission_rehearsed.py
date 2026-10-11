@@ -1177,3 +1177,41 @@ class WhatHisPcDidAfterTheTwentiethFix(HisMissionRunsWithoutHim):
         self._needs_an_old_look(relooked=research.REVISION)
         program_run.run_task(self.pid, "t7", now=NOW)
         self.assertIn("compose", [n for n, _a in self.ran])
+
+
+class HeCanPauseHisMission(HisMissionRunsWithoutHim):
+    """Talked to her, 2026-10-11: "pause the move plan" went to the planner. `programs.set_state`
+    had been written with no way to say it."""
+
+    def setUp(self):
+        super().setUp()
+        pg.add_words(self.pid, "also start planning a move somewhere warm", via="operator-voice", now=NOW)
+
+    def test_the_sentences_reach_the_mission(self):
+        from aletheia import voice
+        for asked, state in (("pause the move plan", "pause"), ("put the move plan on hold", "pause"),
+                             ("resume my mission", "resume"), ("drop the reboot", "drop"),
+                             ("stop working on the move plan", "pause")):
+            got = voice._interpret(asked)
+            self.assertEqual(got["command"], {"kind": "mission_state", "state": state, "which": self.pid}, asked)
+
+    def test_other_things_that_pause_are_not_the_mission(self):
+        from aletheia import voice
+        for asked in ("pause the music", "stop applying to jobs", "cancel that", "resume"):
+            got = (voice._interpret(asked) or {}).get("command") or {}
+            self.assertNotEqual(got.get("kind"), "mission_state", asked)
+
+    def test_paused_is_paused_and_resumed_is_on(self):
+        from aletheia import intercom
+        said = intercom._mission_state({"state": "pause", "which": self.pid}, "pause the move plan")
+        self.assertIn("Paused Project Reboot", said)
+        self.assertEqual(pg.load(self.pid)["state"], pg.PAUSED)
+        self.assertIn("already paused", intercom._mission_state({"state": "pause", "which": self.pid}, ""))
+        self.assertIn("is paused", pg.spoken_status(self.pid))
+        self.assertIn("back on", intercom._mission_state({"state": "resume", "which": self.pid}, ""))
+        self.assertEqual(pg.load(self.pid)["state"], pg.ACTIVE)
+
+    def test_it_is_never_a_plan_step(self):
+        from aletheia import agenda, intercom
+        self.assertIn("mission_state", intercom.PLANNER_FORBIDDEN)
+        self.assertIn("mission_state", agenda.FORBIDDEN_KINDS)

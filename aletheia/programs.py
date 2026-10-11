@@ -907,6 +907,11 @@ def spoken_status(which: str = "", *, now: dt.datetime | None = None) -> str:
             parts.append(f"{m['title']} is a draft waiting for you"
                          + (f"; first, {q[0].rstrip('.?!')}?" if q else "; say confirm my mission to start it."))
             continue
+        if m["state"] == PAUSED:
+            # A paused mission said as a running one is the reader of "pause it" lying (2026-10-11).
+            parts.append(f"{m['title']} is paused, {m['done']} of {speech.count_phrase(m['total'], 'task')} "
+                         "done. Say resume it to carry on.")
+            continue
         bits = [f"{m['title']}: {m['done']} of {speech.count_phrase(m['total'], 'task')} done"]
         if m["executing"]:
             bits.append(f"working on {m['executing'][0]['title']}")
