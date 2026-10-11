@@ -63,6 +63,11 @@ MAX_SOURCES = 3
 MAX_SOURCE_CHARS = 9_000
 MAX_OUTPUT_CHARS = 20_000
 TIMEOUT_S = 180.0
+# Her own model reads a far smaller prompt than a subscription does (a 4,096-token window on his
+# laptop), so when it is the one writing, the sources are cut to fit it.
+LOCAL_SOURCE_CHARS = 2_500
+LOCAL_TIMEOUT_S = 300.0
+LOCAL_NOTE = "Written with my own model because Claude and ChatGPT were out."
 
 SYSTEM = """You are writing a document for Caleb, who asked for it in one
 sentence. Produce the DOCUMENT ITSELF and nothing else: no preamble, no
@@ -85,9 +90,8 @@ class ComposeError(RuntimeError):
     pass
 
 
-def _read_sources(sources: list[str]) -> tuple[list[dict], list[str]]:
+def _read_sources(sources: list[str], budget: int = MAX_SOURCE_CHARS) -> tuple[list[dict], list[str]]:
     read, missing = [], []
-    budget = MAX_SOURCE_CHARS
     for name in sources[:MAX_SOURCES]:
         try:
             got = workspace.read(name)
@@ -113,7 +117,6 @@ def compose(what: str, path: str, *, sources: list[str] | None = None,
         raise ValueError(f"the instruction must be under {MAX_WHAT_CHARS} characters")
     if not str(path or "").strip():
         raise ValueError("say where to save it")
-    think = think or reasoner.subscription_text
 
     read, missing = _read_sources(list(sources or []))
     if missing and not read:
@@ -123,29 +126,32 @@ def compose(what: str, path: str, *, sources: list[str] | None = None,
             "I could not read " + "; ".join(missing)
             + " — so there is nothing to write this from. Nothing was saved.")
 
-    prompt = what
-    for handle in read:
-        prompt += (f"\n\n--- SOURCE: {handle['name']} (read from "
-                   f"{handle['path']}) ---\n{handle['text']}")
-    if missing:
-        prompt += ("\n\n--- COULD NOT READ ---\n" + "\n".join(missing)
-                   + "\nWrite from what you do have and do not invent the rest.")
-
     try:
-        said = think(SYSTEM, prompt, timeout_s=TIMEOUT_S)
-        provider = ""
-        if isinstance(said, tuple) and len(said) == 2:
-            said, provider = said
+        said, provider = _ask(think or reasoner.subscription_text, _prompt(what, read, missing), TIMEOUT_S)
     except Exception as exc:
         why_failed = str(exc).strip() or type(exc).__name__
-        raise ComposeError(f"I could not reach a model to write it: {why_failed}. "
-                           "Nothing was saved.") from None
+        if think is not None or not isinstance(exc, reasoner.ReasonerUnavailable):
+            raise ComposeError(f"I could not reach a model to write it: {why_failed}. "
+                               "Nothing was saved.") from None
+        # Claude and ChatGPT are both out: her own model writes it, from sources cut to fit it,
+        # and the receipt says whose words they are (2026-10-11: every document of the move
+        # plan failed while the subscriptions rested).
+        small, _ = _read_sources(list(sources or []), LOCAL_SOURCE_CHARS)
+        try:
+            said, provider = _ask(reasoner.local_text, _prompt(what, small, missing), LOCAL_TIMEOUT_S)
+        except Exception as local_exc:
+            raise ComposeError(f"I could not reach a model to write it: {why_failed}; and "
+                               f"{str(local_exc).strip() or type(local_exc).__name__}. "
+                               "Nothing was saved.") from None
 
     body = str(said or "").strip()[:MAX_OUTPUT_CHARS]
     if not body:
         raise ComposeError("the model returned nothing; nothing was saved")
     if body.upper().startswith(REFUSAL):
         raise ComposeError(body[:400] + " Nothing was saved.")
+    if provider.startswith("ollama:"):
+        # A document he trusts as Claude's and is not is the failure he cannot detect.
+        body += "\n\n_" + LOCAL_NOTE + "_"
 
     receipt = workspace.write(path, body, why=why or what[:100])
     journal.append("action", "compose",
@@ -153,7 +159,26 @@ def compose(what: str, path: str, *, sources: list[str] | None = None,
                    + (f" via {provider}" if provider else ""), actor=ACTOR)
     receipt["composed_from"] = [handle["path"] for handle in read]
     receipt["unreadable"] = missing
+    receipt["drafted_by"] = provider
     return receipt
+
+
+def _prompt(what: str, read: list[dict], missing: list[str]) -> str:
+    prompt = what
+    for handle in read:
+        prompt += (f"\n\n--- SOURCE: {handle['name']} (read from "
+                   f"{handle['path']}) ---\n{handle['text']}")
+    if missing:
+        prompt += ("\n\n--- COULD NOT READ ---\n" + "\n".join(missing)
+                   + "\nWrite from what you do have and do not invent the rest.")
+    return prompt
+
+
+def _ask(think, prompt: str, timeout_s: float) -> tuple[str, str]:
+    said = think(SYSTEM, prompt, timeout_s=timeout_s)
+    if isinstance(said, tuple) and len(said) == 2:
+        return said[0], str(said[1] or "")
+    return said, ""
 
 
 def spoken(receipt: dict) -> str:
@@ -162,6 +187,8 @@ def spoken(receipt: dict) -> str:
             + ("" if receipt.get("created") else ", keeping the previous version"))
     if receipt.get("unreadable"):
         said += f" — could not read {len(receipt['unreadable'])} source(s)"
+    if str(receipt.get("drafted_by") or "").startswith("ollama:"):
+        said += ", written with my own model because Claude and ChatGPT are out"
     return said
 
 

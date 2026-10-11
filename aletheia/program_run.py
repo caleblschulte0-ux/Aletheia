@@ -333,9 +333,15 @@ def _open_ready_decisions(record: dict, now: dt.datetime) -> None:
             pg.open_decision(record, decision, now)
 
 
+SAID_CHARS = 2400
+
+
 def _result(task: dict, step: int | None, tool: str, outcome: str, said: str, now: dt.datetime, **more) -> None:
     rows = list(task.get("results") or [])
-    rows.append({"at": pg.stamp(now), "step": step, "tool": tool, "outcome": outcome, "said": str(said)[:600], **more})
+    # What a look found is kept whole enough to write from: a comparison of five places cut at 600
+    # characters left the document after it with one place and a half (2026-10-11).
+    keep = SAID_CHARS if outcome == "ok" else 600
+    rows.append({"at": pg.stamp(now), "step": step, "tool": tool, "outcome": outcome, "said": str(said)[:keep], **more})
     task["results"] = rows[-12:]
 
 
@@ -368,7 +374,17 @@ def _signed_up_under_grant(tool, args: dict, task: dict, step: int, now: dt.date
 
 
 def _said(result: Any) -> str:
+    """What a step said, kept whole enough for the steps after it. The shared receipt line is cut
+    at 300 characters and a plain answer came back JSON-quoted, so a look's "Dated:" lines - at the
+    end of what it said - never reached the hold after it, nor its figures the document (2026-10-11)."""
     from aletheia import handoffs
+    if isinstance(result, str):
+        return result.strip()[:SAID_CHARS]
+    if isinstance(result, dict):
+        for key in ("text", "said", "error", "note"):
+            if result.get(key):
+                text = str(result[key]).strip()
+                return (" ".join(text.split()) if key == "error" else text)[:SAID_CHARS]
     return handoffs._said_result(result)
 
 
@@ -397,6 +413,29 @@ def _answers_file(record: dict) -> str | None:
         target = workspace.resolve(rel)
         if not target.exists() or target.read_text(encoding="utf-8") != body:
             workspace.write(rel, body, why="his answers, for the mission steps that write from them")
+    except Exception:  # noqa: BLE001 - no workspace: the step goes on without the file
+        return None
+    return rel
+
+
+#: What a writing step is handed to write from, revised: 2 is the found file beside his answers.
+WRITES_FROM = 2
+
+
+def _found_file(record: dict, task: dict) -> str | None:
+    """What this task's earlier steps and the tasks it needs have read, kept as a file of hers so
+    a step that writes has it to write from. Workspace-relative path, or None when nothing was read."""
+    found = _found(record, task, answers=False)
+    if not found:
+        return None
+    from aletheia import workspace
+    rel = f"missions/{record['id']}-{task.get('key')}-found.md"
+    body = (f"# What was found for: {task.get('title') or task.get('key')}\n\n"
+            + "\n\n".join(found) + "\n")
+    try:
+        target = workspace.resolve(rel)
+        if not target.exists() or target.read_text(encoding="utf-8") != body:
+            workspace.write(rel, body, why="what the steps before it read, for the step that writes from it")
     except Exception:  # noqa: BLE001 - no workspace: the step goes on without the file
         return None
     return rel
@@ -602,8 +641,9 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     # argument, not a bad task: the path is dropped and filled now, so it may try again.
     bad_path = task["state"] == ws.FAILED and "OutsideWorkspace" in str(task.get("reason") or "")
     # A document that failed for want of anything to write from has his answers to read now; once.
+    # And once more each time what a writing step is handed grows: the found file (2026-10-11).
     no_source = (task["state"] == ws.FAILED and "ComposeError" in str(task.get("reason") or "")
-                 and not task.get("source_retried"))
+                 and (not task.get("source_retried") or int(task.get("written_from") or 0) < WRITES_FROM))
     if (purpose == "then" and held is not None and _waits_only_on_his_ok(task)
             and int(task.get("cursor") or 0) >= len(plan["steps"])):
         # Parked on his okay of her own work before that stopped being a gate: done, and his
@@ -698,7 +738,7 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     if not _would_go_further(candidate, candidate["plan"], tools, purpose or "refused"):
         return None
     if no_source:
-        candidate = dict(candidate, mark="source_retried")
+        candidate = dict(candidate, mark="source_retried", also={"written_from": WRITES_FROM})
     return _release(record, task, candidate, held, purpose, now)
 
 
@@ -969,11 +1009,13 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
                 and set(tool.writes) <= {"workspace"}:
             # A document written "from Caleb's answers" reads them: without a source that reads,
             # compose refuses rather than invent (2026-10-10: "compose failed 3 times").
-            kept = _answers_file(record)
             given = args.get("sources") or []
             given = [given] if isinstance(given, str) else list(given)
-            if kept and kept not in given:
-                args["sources"] = given + [kept]
+            # And what the steps before it read: "write the ranked comparison" had only his answers
+            # to write from, never the look it followed, and said it could not (2026-10-11).
+            ours = [f for f in (_found_file(record, task), _answers_file(record)) if f]
+            if ours:
+                args["sources"] = ours + [g for g in given if g not in ours]
         if missing and _writes_holds(tool) and set(missing) & set(WHEN_ARGS):
             # A date and a time the steps before it read, as the page wrote them, need no model.
             args.update(_dated_hold(record, task, tool, args, now))

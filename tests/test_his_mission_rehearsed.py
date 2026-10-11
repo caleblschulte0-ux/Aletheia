@@ -952,3 +952,94 @@ class WhatHisPcDidAfterTheSixteenthFix(HisMissionRunsWithoutHim):
         self.assertEqual(out["state"], ws.READY)
         t = next(x for x in pg.load(self.pid)["tasks"] if x["key"] == key)
         self.assertEqual((t["cursor"], t["relooked"]), (0, research.REVISION))
+
+
+class WhatHisPcDidAfterTheSeventeenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 12:12Z: the comparison's look passed and the write-up after it failed with
+    ComposeError - it had only his answers to write from, never what the look read - and the sweep's
+    look carried dated lines that were cut off at 300 characters before the hold could read them."""
+
+    LONG = ("I read bestplaces.net, numbeo.com. " + "Young professionals meet across town most weeks. " * 8
+            + "Dated: 605 Connections: Networking After Hours, Thursday, Sep 17, 6:00 pm.")
+
+    def test_dated_lines_at_the_end_of_a_long_answer_reach_the_hold(self):
+        self.assertGreater(self.LONG.index("Dated:"), 300)
+        key = next(t for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")["key"]
+
+        def change(record):
+            t = next(x for x in record["tasks"] if x["key"] == key)
+            t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.READY, cursor=0, needs=[],
+                     relooked=research.REVISION,
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}},
+                                     {"tool": "calendar_hold", "for": "hold fitting ones on the calendar",
+                                      "by": "named", "args": {}}], "requires": [], "gaps": []})
+        pg.update(self.pid, change)
+
+        def execute(tool, args, **_):
+            self.ran.append((tool.name, dict(args)))
+            return ("ok", self.LONG) if tool.name == "research" else ("ok", {"text": "held"})
+        with mock.patch.object(agent_session, "execute", execute), \
+                mock.patch.object(program_compose, "model_args", lambda *a, **k: {}):
+            program_run.run_task(self.pid, key, now=NOW)
+        holds = [a for n, a in self.ran if n == "calendar_hold"]
+        self.assertEqual([a["title"] for a in holds], ["605 Connections: Networking After Hours"])
+
+    def test_a_write_up_is_handed_what_the_look_before_it_read(self):
+        def change(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(title="Compare warm red-state places", state=ws.READY, cursor=1, needs=[],
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader",
+                                       "args": {"question": "compare"}},
+                                      {"tool": "compose", "for": "write the ranked summary", "by": "named",
+                                       "args": {"path": "missions/ranked.md", "what": "rank them",
+                                                "sources": ["the research above"]}}],
+                            "requires": [], "gaps": []},
+                      results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                                "said": "Tampa: cost of living index 102; Austin: 119."}])
+        pg.update(self.pid, change)
+        program_run.run_task(self.pid, "t6", now=NOW)
+        wrote = [a for n, a in self.ran if n == "compose"]
+        self.assertTrue(wrote[0]["sources"][0].endswith("-t6-found.md"))
+        from aletheia import workspace
+        self.assertIn("Austin: 119", workspace.resolve(wrote[0]["sources"][0]).read_text(encoding="utf-8"))
+        self.assertIn("the research above", wrote[0]["sources"])
+
+    def test_the_steps_view_keeps_what_a_passed_look_read(self):
+        def change(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(title="Compare warm red-state places", state=ws.RETRY_LATER, cursor=1, needs=[],
+                      reason="compose error: the tool failed (ComposeError)",
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader",
+                                       "args": {"question": "Compare warm red-state places: compare"}},
+                                      {"tool": "compose", "for": "write", "by": "named", "args": {}}],
+                            "requires": [], "gaps": []},
+                      results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                                "said": "Tampa: cost of living index 102; Austin: 119."}])
+        pg.update(self.pid, change)
+        with mock.patch.object(research, "last_look",
+                               lambda q: {"at": "2026-10-11T12:00Z", "shown": [], "unread": []}), \
+                mock.patch.object(research, "look_words", lambda look: "shown: bestplaces.net (2400 of 9000)"):
+            said = pg.spoken_steps()
+        self.assertIn("t6 | last look at 2026-10-11T12:00Z | shown: bestplaces.net", said)
+        self.assertIn("t6 | found so far: Tampa: cost of living index 102; Austin: 119.", said)
+
+    def test_a_write_up_that_failed_for_want_of_a_source_tries_once_with_the_found_file(self):
+        def failed(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=1, attempts=3, needs=[], source_retried=True,
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader", "args": {}},
+                                      {"tool": "compose", "for": "write", "by": "named", "args": {}}],
+                            "requires": [], "gaps": []},
+                      results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                                "said": "Tampa: 102."}],
+                      reason="compose failed 3 times: the tool failed (ComposeError)")
+        pg.update(self.pid, failed)
+        self.assertIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual(t6["written_from"], program_run.WRITES_FROM)
+        pg.update(self.pid, failed)
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t6").update(
+            written_from=program_run.WRITES_FROM))
+        self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
