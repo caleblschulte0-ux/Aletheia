@@ -7,6 +7,7 @@ with the ways a research run can fail without taking the whole thing down.
 """
 import os
 import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -577,3 +578,36 @@ class CandidatePlacesFromHisWords(ResearchCase):
 
     def test_a_state_spelled_out_names_a_place(self):
         self.assertEqual(research.places_in_text("Tampa\tFlorida 403,364"), [{"city": "Tampa", "state": "FL"}])
+
+
+class ShareOfAPageIsWhatBearsOnTheQuestion(unittest.TestCase):
+    """His PC, 2026-10-11: twelve pages cut to their first 300 characters each - the sites' menus -
+    came back "none of them contains city-level figures"."""
+
+    MENU = "Home | Compare | Rankings | Sign in | Newsletter | About us | " * 40
+    FIGURE = "The cost of living index in Tampa is 103.5, with median rent of $1,850 a month."
+    Q = "Compare a shortlist of warm red-state cities: compare cost of living, housing, taxes"
+
+    def test_the_share_is_the_sentences_about_the_question(self):
+        text = self.MENU + " " + self.FIGURE + " " + self.MENU
+        self.assertIn("103.5", research.focus(text, self.Q, 300))
+
+    def test_a_page_with_nothing_on_it_is_shown_from_the_top(self):
+        self.assertTrue(research.focus("abc " * 500, self.Q, 100).startswith("abc"))
+
+    def test_many_pages_under_her_own_models_budget_still_carry_the_figures(self):
+        sources = [{"url": f"https://example.com/{i}", "title": f"Page {i}",
+                    "extract": self.MENU[:6000], "full": self.MENU + " " + self.FIGURE.replace("Tampa", f"City{i}")}
+                   for i in range(12)]
+        rows = research._bounded(self.Q, sources, limit=research.LOCAL_REPORT_BYTES)
+        size = len(json.dumps({"question": self.Q, "sources": rows}, ensure_ascii=False).encode("utf-8"))
+        self.assertLessEqual(size, research.LOCAL_REPORT_BYTES)
+        self.assertTrue(rows)
+        self.assertTrue(all("103.5" in r["extract"] for r in rows))
+
+    def test_an_unsure_answer_starts_with_what_was_read(self):
+        said = research.spoken({"answer": "None of them has city figures.", "findings": [], "confidence": 0.1,
+                                "sources": [{"url": "https://www.bestplaces.net/x", "title": "t"}],
+                                "unreadable": [{"url": "https://www.numbeo.com/y", "reason": "no readable text"}],
+                                "queries": ["warm red-state cities"]})
+        self.assertTrue(said.startswith("I read www.bestplaces.net; I couldn't read www.numbeo.com."), said)

@@ -724,8 +724,41 @@ def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
             "url": page.get("url") or source["url"],
             "title": (page.get("title") or source.get("title") or "")[:200],
             "extract": text[:MAX_EXTRACT_CHARS],
+            # The whole page, kept for this question only: what bears on it is chosen from all of it
+            # (`focus`), never stored in the report.
+            "full": text[:MAX_PAGE_CHARS],
         })
     return read, failed
+
+
+#: How much of one page is kept to choose from, and the smallest share a page is shown.
+MAX_PAGE_CHARS = 60_000
+MIN_SHARE_CHARS = 300
+_FIGURE = re.compile(r"[$€£]\s?\d|\d(?:[\d,.]*)\s?%|\b\d{2,}(?:[.,]\d+)?\b")
+
+
+def focus(text: str, question: str, per: int) -> str:
+    """The sentences of a page that bear on the question, in page order, up to `per` characters.
+
+    A share of a page used to be its first `per` characters, which on a city's cost-of-living page
+    is the site's menu: twelve pages cut to 300 characters each came back "none of them contains
+    city-level figures" (his PC, 2026-10-11). A sentence counts for each word of the question it
+    shares and once more for a figure in it; a page with nothing that counts is shown from the top."""
+    text = str(text or "")
+    if len(text) <= per:
+        return text
+    want = topic_words(question)
+    parts = [" ".join(p.split()) for p in re.split(r"(?<=[.!?])\s+|\n+|\s{2,}|\s[|•·]\s", text) if p.strip()]
+    scored = sorted(((len(topic_words(p) & want) + (1 if _FIGURE.search(p) else 0), i, p[:per])
+                     for i, p in enumerate(parts)), key=lambda x: (-x[0], x[1]))
+    keep, size = [], 0
+    for score, i, p in scored:
+        if score <= 0 or size >= per:
+            break
+        if size + len(p) + 1 <= per:
+            keep.append((i, p))
+            size += len(p) + 1
+    return " ".join(p for _i, p in sorted(keep)) if keep else " ".join(text.split())[:per]
 
 
 def _bounded(question: str, sources: list[dict],
@@ -735,17 +768,32 @@ def _bounded(question: str, sources: list[dict],
     Five pages at MAX_EXTRACT_CHARS is ~30 KB and the reasoner refuses
     anything over 8 KB outright — which is how the first live question
     (2026-09-02) found five good sources and then could not write a word.
-    Every source keeps a share; the share shrinks until the whole fits.
+    Every source keeps a share of what bears on the question; the share
+    shrinks until the whole fits, and when even the smallest share does not,
+    the pages that bear on it least are left out rather than every page
+    shown as its menu (2026-10-11).
     """
+    def size_of(rows):
+        return len(json.dumps({"question": question, "sources": rows}, ensure_ascii=False).encode("utf-8"))
+
     per = MAX_EXTRACT_CHARS
     while True:
         rows = [{"url": s["url"], "title": (s.get("title") or "")[:120],
-                 "extract": s["extract"][:per]} for s in sources]
-        size = len(json.dumps({"question": question, "sources": rows},
-                              ensure_ascii=False).encode("utf-8"))
-        if size <= limit or per <= 300:
+                 "extract": focus(s.get("full") or s["extract"], question, per)} for s in sources]
+        if size_of(rows) <= limit:
             return rows
-        per = int(per * 0.7)
+        if per <= MIN_SHARE_CHARS:
+            break
+        per = max(MIN_SHARE_CHARS, int(per * 0.7))
+    want = topic_words(question)
+    ranked = sorted(range(len(rows)), key=lambda i: (-(len(topic_words(rows[i]["extract"]) & want)
+                                                       + len(_FIGURE.findall(rows[i]["extract"])) / 10), i))
+    kept = list(rows)
+    for i in reversed(ranked):
+        if size_of(kept) <= limit or len(kept) <= 1:
+            break
+        kept.remove(rows[i])
+    return kept
 
 
 def _verified(report: dict, sources: list[dict]) -> dict:
@@ -1001,11 +1049,17 @@ def spoken(report: dict) -> str:
     he asked a question, not for a document to be read at him."""
     n = len(report["sources"])
     unread = [_host(u.get("url") or "") for u in report.get("unreadable") or [] if u.get("url")]
-    if unread and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
-        # Which pages refused her travels with an unsure answer, so a listing site that only shows a
-        # robot check is visible on the relay rather than a guess (2026-10-11).
-        report = dict(report, answer=f"{report['answer'].rstrip()} I couldn't read "
-                                     f"{speech.and_list(list(dict.fromkeys(unread))[:4])}.")
+    read = [_host(s.get("url") or "") for s in report.get("sources") or [] if s.get("url")]
+    if (unread or read) and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
+        # Which pages she read and which refused her travel FIRST with an unsure answer, so a site
+        # that only shows a robot check, or a page never reached, is visible on the relay at a glance
+        # rather than a guess (2026-10-11).
+        how = []
+        if read:
+            how.append(f"I read {speech.and_list(list(dict.fromkeys(read))[:6])}")
+        if unread:
+            how.append(f"I couldn't read {speech.and_list(list(dict.fromkeys(unread))[:4])}")
+        report = dict(report, answer=f"{'; '.join(how)}. {report['answer'].strip()}")
     if report.get("queries") and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
         # Nothing it could cite: say what it searched for, so a wrong search is visible rather
         # than a mystery (2026-10-10: every question read the same pages about grammar).

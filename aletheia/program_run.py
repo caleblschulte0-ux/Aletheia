@@ -653,10 +653,11 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         kept = plan if new_tools != old_tools or not refused else dict(plan, gaps=fresh_gaps)
         candidate = dict(task, plan=fresh if new_tools != old_tools else kept)
     asked_when = set(((held or {}).get("context") or {}).get("missing") or []) & set(WHEN_ARGS)
-    if purpose == "args" and asked_when and task.get("needs"):
+    if purpose == "args" and asked_when and (task.get("needs") or int(task.get("cursor") or 0) > 0):
         # Asked him WHEN about something earlier tasks were to find, before "nothing dated yet"
         # was a look-again (2026-10-10, still asking after the fifth fix): once more on the
-        # current rules, which either fill it from what was found or look again tomorrow.
+        # current rules, which either fill it from what was found or look again tomorrow. A step
+        # whose own task looked first is the same: the weekly sweep has no needs (2026-10-11).
         return _release(record, task, dict(candidate, mark="dated_retried"), held, purpose, now)
     if purpose == "args" and not task.get("args_retried") and not _would_go_further(
             candidate, candidate["plan"], tools, purpose) and _found(record, task):
