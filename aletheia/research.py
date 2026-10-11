@@ -151,7 +151,8 @@ their our your find search look up compare list show get give tell write more mo
 other than then also not no yes one two using use used vs versus
 summary summarize summarise ranked rank ranking source sources sourced compute calculate pick picks
 shortlist shortlisted criteria fit fits fitting write writes written report reports save note notes
-based per them they ones new newly sweep weekly daily monthly""".split())
+based per them they ones new newly sweep weekly daily monthly
+once twice again every week weeks month months day days year years today tomorrow tonight watch""".split())
 
 #: A part of a task's question that starts with one of these is something to DO after the look
 #: ("hold fitting ones on the calendar", "register for free ones"), not what to look for.
@@ -229,6 +230,19 @@ def on_topic(text: str, question: str, *, shared: int = 1) -> bool:
 
 #: How many listing pages one question reads before it searches.
 MAX_LISTINGS = 3
+
+#: Two-letter codes and the names the listing pages spell a state with.
+STATE_NAMES = {"AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+               "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+               "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+               "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
+               "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
+               "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
+               "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+               "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+               "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+               "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming"}
+_STATE_CODES = {v.casefold(): k for k, v in STATE_NAMES.items()}
 
 _NOT_PLACES = frozenset("""january february march april may june july august september october november
 december monday tuesday wednesday thursday friday saturday sunday i the this next""".split())
@@ -309,15 +323,23 @@ def listings_for(question: str, *, at: dict | None = None) -> tuple[list[dict], 
                     continue
                 where = dict(where, state=home["state"])
         city, state = str(where.get("city") or ""), str(where.get("state") or "")
+        state_name = STATE_NAMES.get(state.upper(), "")
+        if "{state_name" in url and not state_name:
+            continue
         try:
             url = url.format(city_slug=re.sub(r"[^a-z0-9]+", "-", city.casefold()).strip("-"),
                              city_dash="-".join(city.split()), city_q=quote_plus(city),
-                             state_lower=state.casefold(), topic_slug=re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-"),
+                             city_underscore="_".join(city.split()), city_lower_underscore="_".join(city.casefold().split()),
+                             state_lower=state.casefold(), state_name="_".join(state_name.split()),
+                             state_name_lower="_".join(state_name.casefold().split()),
+                             topic_slug=re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-"),
                              topic_q=quote_plus(topic))
         except (KeyError, IndexError, ValueError):
             continue
         if url in seen:
             continue
+        if row.get("places"):
+            continue  # a list of candidate places, not a page (see `candidate_places`)
         seen.add(url)
         drop |= {str(h).casefold() for h in row.get("instead_of") or []}
         out.append({"url": url, "title": str(row.get("name") or url)[:160], "library": True, "listing": True})
@@ -325,16 +347,37 @@ def listings_for(question: str, *, at: dict | None = None) -> tuple[list[dict], 
 
 
 #: How many places a question that names none reads the per-place pages for.
-MAX_PLACES = 4
+MAX_PLACES = 5
+#: And how many per-place pages that reads in all.
+MAX_PLACE_PAGES = 10
 _PLACE_WORDS = re.compile(r"\b(?:cit(?:y|ies)|towns?|places?|metros?|metro areas?)\b", re.I)
+
+
+def candidate_places(question: str) -> list[dict]:
+    """The places a reviewed entry lists for this kind of question ("warm red-state cities"), in its
+    order. His words decided what such a place is; the data file carries them, never the code."""
+    said = " ".join(str(question or "").split()).casefold()
+    out = []
+    for row in _listings():
+        if not isinstance(row.get("places"), list) or not any(_phrase_in(str(a), said) for a in row["about"]):
+            continue
+        for p in row["places"]:
+            m = re.match(r"\s*(.+?),\s*([A-Za-z]{2})\s*$", str(p))
+            if m and {"city": m.group(1), "state": m.group(2).upper()} not in out:
+                out.append({"city": m.group(1), "state": m.group(2).upper()})
+    return out
 
 
 def places_in_text(text: str) -> list[dict]:
     """"Tampa, FL" style places a page names, most named first: the candidates a question about
     places that names none can be answered for, taken from what was read rather than guessed."""
     counts: dict[tuple[str, str], int] = {}
-    for m in re.finditer(r"\b([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2}),\s*([A-Z]{2})\b", str(text or "")):
-        city, state = m.group(1), m.group(2)
+    names = "|".join(re.escape(n) for n in sorted(STATE_NAMES.values(), key=len, reverse=True))
+    for m in re.finditer(r"\b([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2})(?:,\s*([A-Z]{2})\b|[,\t]\s*(" + names + r")\b)",
+                         str(text or "")):
+        city, state = m.group(1), m.group(2) or _STATE_CODES.get(str(m.group(3) or "").casefold(), "")
+        if not state or (m.group(2) and state not in STATE_NAMES):
+            continue
         if city.casefold() in _NOT_PLACES or city in ("United States",):
             continue
         counts[(city, state)] = counts.get((city, state), 0) + 1
@@ -839,14 +882,17 @@ def run(question: str, *, reader=browse.read_page, think=None,
             "differently, or it may be something the open web does not answer")
 
     sources, failed = read_sources(candidates, reader=reader)
-    if sources and listed and not place_in(question) and _PLACE_WORDS.search(question):
+    if not place_in(question) and _PLACE_WORDS.search(question):
         # A question about places that names none ("compare a shortlist of warm ... cities") read
-        # the national pages and no place's own figures (2026-10-11). The places those pages name
-        # are the candidates; their own pages are read next.
+        # the national pages and no place's own figures (2026-10-11). The candidates are the places
+        # a reviewed entry lists for this kind of question, else the places those pages name; their
+        # own pages are read next.
         more = []
-        for where in places_in_text(" ".join(x["extract"] for x in sources))[:MAX_PLACES]:
+        places = candidate_places(question) or places_in_text(" ".join(x["extract"] for x in sources))
+        for where in places[:MAX_PLACES]:
             more += [x for x in listings_for(question, at=where)[0]
                      if x["url"] not in {c["url"] for c in candidates + more}]
+        more = more[:MAX_PLACE_PAGES]
         if more:
             journal.append("event", "research", "reading " + speech.count_phrase(len(more), "more page")
                            + " for the places those pages named", actor=ACTOR)

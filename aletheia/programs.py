@@ -886,6 +886,17 @@ def spoken_waiting(which: str = "", *, now: dt.datetime | None = None) -> str:
     return f"{len(rows)} waiting. " + "; ".join(lines) + "." + more
 
 
+#: The sentences of a look's answer that say how it looked: put first, so a cut line still shows
+#: which pages refused her and what she searched for (2026-10-11).
+_HOW_IT_LOOKED = re.compile(r"^(?:I couldn't read|I searched for|I'm not sure of this)", re.I)
+
+
+def _found_line(said: str, limit: int = 300) -> str:
+    parts = re.split(r"(?<=[.!?])\s+", " ".join(str(said or "").split()))
+    how = [p for p in parts if _HOW_IT_LOOKED.match(p)]
+    return " ".join(how + [p for p in parts if p not in how])[:limit]
+
+
 def spoken_steps(which: str = "") -> str:
     """Every unfinished task's shape - its steps, where it stands, the argument NAMES of the step
     it is on - for whoever is fixing why a task will not move. Argument values are left out:
@@ -901,7 +912,7 @@ def spoken_steps(which: str = "") -> str:
         if t is not None and t.get("state") == ws.DONE:
             # What a finished task found is what the ones waiting on it work from (titles and
             # dates of events, not his details: a search result is about the world).
-            found = [str(r.get("said") or "")[:300] for r in (t.get("results") or [])[-2:] if r.get("said")]
+            found = [_found_line(r.get("said")) for r in (t.get("results") or [])[-2:] if r.get("said")]
             out.append(f"{k} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
     sweeps: dict[str, dict] = {}
     for t in record.get("tasks") or []:
@@ -910,7 +921,7 @@ def spoken_steps(which: str = "") -> str:
     for t in sweeps.values():
         # The newest finished occurrence of each recurring look: what the sweep found is what the
         # holds work from, and a finished sweep had vanished from this view (2026-10-11).
-        found = [str(r.get("said") or "")[:300] for r in (t.get("results") or [])[-1:] if r.get("said")]
+        found = [_found_line(r.get("said")) for r in (t.get("results") or [])[-1:] if r.get("said")]
         out.append(f"{t['key']} | {t.get('title')} | DONE | found: " + (" / ".join(found) or "nothing recorded"))
     for t in record.get("tasks") or []:
         if t.get("state") == ws.DONE:

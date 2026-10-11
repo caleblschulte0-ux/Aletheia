@@ -468,6 +468,8 @@ NOTHING_FOUND = re.compile(
     # "I can't give you a sourced comparison from what I was handed" (2026-10-10, his PC): the
     # same empty answer in other words, so the look counted as done and fed nothing onward.
     r"|\bI (?:can['\u2019]?t|cannot|couldn['\u2019]?t|could not)\b[^.]{0,80}\b(?:sources?|sourced|pages|extracts|handed|supplied)\b"
+    # "The supplied sources can't answer this" (2026-10-11): the sources as the subject.
+    r"|\b(?:sources?|pages|extracts)\b[^.]{0,40}\b(?:can['\u2019]?t|cannot|don['\u2019]?t|do not)\b[^.]{0,20}\b(?:answer|say|tell)\b"
     r"|\bnone (?:of them |of these |of the pages )?(?:has|have|had|contains?|mentions?) (?:any )?"
     r"(?:data|information|details|anything)\b"
     r"|\bI won'?t invent\b|\bno readable sources\b", re.I)
@@ -593,6 +595,14 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         # A recurring sweep that failed before it looked again instead: it is still the newest of its
         # kind, so this week's sweep goes on (2026-10-10: the weekly event sweep).
         return _release(record, task, dict(task, plan=plan, mark="recurring_released"), None, "recurring", now)
+    if (task["state"] == ws.FAILED and held is None and not task.get("sources_retried")
+            and not task.get("recomposed") and not task.get("from_activity")
+            and str(task.get("reason") or "").startswith("research failed")
+            and int(task.get("cursor") or 0) < len(plan["steps"])
+            and plan["steps"][int(task.get("cursor") or 0)].get("tool") == "research"):
+        # A look that failed for want of pages that answer it: once, on the pages she reads now
+        # (2026-10-11: the city comparison failed before it read each city's own figures).
+        return _release(record, task, dict(task, plan=plan, mark="sources_retried"), None, "sources", now)
     if (task["state"] in (ws.FAILED, ws.RETRY_LATER) and not refused and not bad_path and not no_source
             and held is None and not task.get("recomposed")):
         # A LOOK composed under rules since changed: "search for free newcomer events" went to the
@@ -665,6 +675,52 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
     return _release(record, task, candidate, held, purpose, now)
 
 
+#: How recently a finished task must have run for steps the current rules give it to be added.
+STEPS_ADDED_WITHIN = dt.timedelta(days=14)
+
+
+def _steps_it_never_had(task: dict, steps: list[dict], tools: dict, now: dt.datetime) -> list[dict]:
+    """Steps the composer gives this finished task now, after the ones it ran: the weekly sweep was
+    composed as a look alone before a task that also holds and signs up kept those steps, so it
+    found "605 Connections" and said it had no way to hold it (2026-10-11). Once per task, only for
+    one that ran lately, and only when the steps it ran come out the same."""
+    from aletheia import program_compose as compose
+    if task.get("steps_added") or not steps:
+        return []
+    last = max((str(r.get("at") or "") for r in task.get("results") or []), default="")
+    if not last or waits.parse(last) < now - STEPS_ADDED_WITHIN:
+        return []
+    fresh = compose.compose(task, tools)
+    if any(g["outcome"] == "refuse_policy" for g in fresh["gaps"]):
+        return []
+    old = [s.get("tool") for s in steps]
+    new = [s["tool"] for s in fresh["steps"]]
+    if len(new) <= len(old) or new[:len(old)] != old:
+        return []
+    return fresh["steps"][len(old):]
+
+
+def _add_steps(record: dict, task: dict, steps: list[dict], added: list[dict], now: dt.datetime) -> dict | None:
+    key, at = task["key"], len(steps)
+    names = ", ".join(s["tool"] for s in added)
+
+    def change(r):
+        t = next((x for x in r.get("tasks") or [] if x["key"] == key), None)
+        if t is None or t.get("state") != ws.DONE:
+            return None
+        t["plan"] = dict(t.get("plan") or {}, steps=list(steps) + [dict(s, args={}) for s in added])
+        t.update(state=ws.READY, cursor=at, reason="", next="run its next step", run=None, not_before=None,
+                 attempts=0, steps_added=True, updated_at=pg.stamp(now))
+        pg._history(t, f"opened again: it has steps it never ran ({names})", now)
+        r["updated_at"] = pg.stamp(now)
+        return t
+    if pg.update(record["id"], change)[1] is None:
+        return None
+    pg._journal("event", pg.item_id(record["id"], key),
+                f"{record.get('title') or record['id']}: {task['title']} goes on to {names}"[:240])
+    return {"program": record["id"], "task": key, "was": "done", "why": f"steps it never ran: {names}"}
+
+
 def _last_empty_recheck(task: dict) -> str:
     """When this task was last opened again for an empty look ("" for never)."""
     mark = task.get("empty_rechecked")
@@ -683,6 +739,9 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
     day reads again. Once per task each: what it does the second time stands."""
     from aletheia import calendar as _calendar, calendar_reasoning, localtime
     steps = (task.get("plan") or {}).get("steps") or []
+    added = _steps_it_never_had(task, steps, tools, now)
+    if added:
+        return _add_steps(record, task, steps, added, now)
     hours = his_hours(record)
     for i, step in enumerate(steps):
         tool = tools.get(step.get("tool"))

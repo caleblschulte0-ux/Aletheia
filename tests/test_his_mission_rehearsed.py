@@ -697,3 +697,52 @@ class WhatHisPcDidAfterTheEleventhFix(HisHoursAndHisCalendar):
 
     def task_state(self, key):
         return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]
+
+
+class WhatHisPcDidAfterTheTwelfthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 04:02Z: the weekly sweep found "605 Connections" and said it had no way to
+    hold it (composed as a look alone); the comparison failed three times; a watch read pages about
+    the film "Once" and stood as done."""
+
+    def _sweep(self):
+        return next(t for t in pg.load(self.pid)["tasks"] if t.get("from_activity") == "a1")
+
+    def test_a_finished_sweep_composed_as_a_look_alone_goes_on_to_hold(self):
+        key = self._sweep()["key"]
+
+        def as_his_pc_left_it(record):
+            t = next(x for x in record["tasks"] if x["key"] == key)
+            t.update(does=["search for newly listed events", "hold fitting ones on the calendar"],
+                     uses=["browser.pursue", "calendar_hold"], state=ws.DONE, cursor=1,
+                     plan={"steps": [{"tool": "research", "for": "search for newly listed events",
+                                      "by": "reader", "args": {"question": "events"}}], "requires": [], "gaps": []},
+                     results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                               "said": EVENT}])
+        pg.update(self.pid, as_his_pc_left_it)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn((key, "done"), [(r["task"], r["was"]) for r in released])
+        t = self._sweep()
+        self.assertEqual((t["state"], t["cursor"]), (ws.READY, 1))
+        self.assertEqual([s["tool"] for s in t["plan"]["steps"]], ["research", "calendar_hold"])
+        self.assertEqual([r["task"] for r in program_run.requeue_reclassified(now=NOW)
+                          if r["task"] == key and r.get("why", "").startswith("steps")], [])
+
+    def test_the_sources_as_the_subject_is_still_nothing(self):
+        self.assertTrue(program_run.NOTHING_FOUND.search(
+            "The supplied sources can't answer this. They're about the film 'Once'."))
+
+    def test_a_look_that_failed_for_want_of_pages_tries_once_more(self):
+        def as_his_pc_left_it(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(state=ws.FAILED, cursor=0, attempts=3, needs=[],
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader", "args": {}}],
+                            "requires": [], "gaps": []},
+                      reason="research failed 3 times: I can't give you a sourced shortlist")
+        pg.update(self.pid, as_his_pc_left_it)
+        self.assertIn(("t6", "sources"), [(r["task"], r["was"]) for r in program_run.requeue_reclassified(now=NOW)])
+        pg.update(self.pid, as_his_pc_left_it)
+        self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+    def test_the_steps_view_says_how_it_looked_first(self):
+        self.assertTrue(pg._found_line("No figures here. More words. I couldn't read www.numbeo.com.")
+                        .startswith("I couldn't read www.numbeo.com."))
