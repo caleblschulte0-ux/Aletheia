@@ -7,6 +7,7 @@ with the ways a research run can fail without taking the whole thing down.
 """
 import os
 import tempfile
+import json
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -119,7 +120,8 @@ class PickingAQueryNeedsNoModel(ResearchCase):
         with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
              mock.patch.object(reasoning_gateway, "frontier_available", return_value=False):
             research.run("what is the answer", http=None, reader=reader)
-        self.assertEqual(seen, [("routine", work_states.BACKGROUND), ("standard", work_states.BACKGROUND)])
+        # Alone, the queries are the question's own words: no model is asked to write them.
+        self.assertEqual(seen, [("standard", work_states.BACKGROUND)])
         with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
              mock.patch.object(reasoning_gateway, "frontier_available", return_value=True):
             seen.clear()
@@ -309,3 +311,431 @@ class TheRedirectWrapperIsUnwrapped(ResearchCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ASearchAboutSomethingElseIsNoSearch(ResearchCase):
+    """His PC, 2026-10-10: every research question - the cost of living in warm places, free
+    networking events in Sioux Falls - read the same pages about spelling and semicolons."""
+
+    GRAMMAR = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+               "text": "x" * 600,
+               "links": [{"href": "https://grammar.test/using", "text": "Using vs. useing: which spelling is correct",
+                          "snippet": "Learn when to write using and when useing is a misspelling of the word."},
+                         {"href": "https://punctuation.test/semi", "text": "Semicolons and dashes explained",
+                          "snippet": "How to punctuate a sentence with semicolons, colons and dashes."}]}
+
+    def test_a_planned_query_about_something_else_becomes_the_question(self):
+        searched = []
+
+        def http(query, **_):
+            searched.append(query)
+            return {"url": "", "text": "", "links": [], "error": "none"}
+
+        def think(system, text, **kw):
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["specific nouns no filler quotes phrase"], "why": "x"}
+            else:
+                value = {"answer": "Forty two.", "gaps": [], "confidence": 0.8,
+                         "findings": [{"claim": "It is forty two", "url": "https://example.org/a"}]}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        report = research.run("free networking events Sioux Falls", http=http, reader=reader, think=think)
+        self.assertEqual(searched[0], "free networking events Sioux Falls")
+        self.assertEqual(report["queries"], ["free networking events Sioux Falls"])
+
+    def test_results_about_something_else_are_dropped_and_the_next_engine_is_asked(self):
+        found = research.find_sources("free networking events Sioux Falls", reader=reader,
+                                      http=lambda q, **_: dict(self.GRAMMAR),
+                                      about="free networking events Sioux Falls")
+        hosts = {research._host(f["url"]) for f in found}
+        self.assertFalse(hosts & {"grammar.test", "punctuation.test"}, found)
+        self.assertIn("example.org", hosts)               # the next engine's results
+
+    def test_results_on_the_subject_are_kept(self):
+        page = dict(self.GRAMMAR, links=[{"href": "https://chamber.test/events",
+                                          "text": "Sioux Falls networking events this month",
+                                          "snippet": "Free business networking events in Sioux Falls."}])
+        found = research.find_sources("free networking events Sioux Falls", reader=reader,
+                                      http=lambda q, **_: page, about="free networking events Sioux Falls")
+        self.assertEqual([research._host(f["url"]) for f in found], ["chamber.test"])
+
+    def test_nothing_it_could_cite_says_what_it_searched_for(self):
+        said = research.spoken({"answer": "I couldn't find any events in these sources.", "findings": [],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["Sioux Falls events"]})
+        self.assertIn("I searched for Sioux Falls events", said)
+
+
+class AloneTheQueryIsTheQuestionsOwnWords(ResearchCase):
+    """His PC, 2026-10-10, Claude and Codex out: her own model wrote the queries and searched for
+    "using vs useing" and semicolons; the weekly event sweep read pages about the Sioux people."""
+
+    SWEEP = ("Weekly sweep for new job-search events: search for newly listed events in Sioux Falls; "
+             "hold fitting ones on the calendar; register for free ones with his approval")
+
+    def test_the_query_is_the_subject_words_and_never_the_doing(self):
+        self.assertEqual(research.keyword_query(self.SWEEP), "job-search events listed Sioux Falls")
+        self.assertEqual(research.keyword_query(
+            "Compare a shortlist of warm red-state cities: compare cost of living, taxes, housing and "
+            "$95K+ jobs; write a ranked summary with sources"),
+            "warm red-state cities cost living taxes housing $95K jobs")
+        self.assertEqual(research.keyword_query("look up free networking events in Sioux Falls this month"),
+                         "free networking events Sioux Falls")
+        # How often is not what: "once a week" searched for the film "Once" (2026-10-11).
+        self.assertNotIn("once", research.keyword_query(
+            "Watch shortlisted cities for roles and cost changes once a week").casefold().split())
+
+    def test_too_many_words_keeps_the_names(self):
+        q = research.keyword_query("alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo Denver Ramp")
+        self.assertLessEqual(len(q.split()), research.KEYWORD_QUERY_WORDS)
+        self.assertIn("Denver", q)
+        self.assertIn("Ramp", q)
+
+    def test_alone_no_model_writes_the_queries(self):
+        from aletheia import reasoning_gateway
+        searched, asked = [], []
+
+        def http(query, **_):
+            searched.append(query)
+            return {"url": "", "text": "", "links": [], "error": "none"}
+
+        def fake_thinker(policy, **fixed):
+            def think(system, text, **kw):
+                asked.append(system is research.PLAN_SYSTEM)
+                value = {"answer": "Two events.", "gaps": [], "confidence": 0.8,
+                         "findings": [{"claim": "There are two", "url": "https://example.org/a"}]}
+                validator = kw.get("validator")
+                return validator(value) if validator else value
+            return think
+        with mock.patch.object(reasoning_gateway, "thinker", side_effect=fake_thinker), \
+             mock.patch.object(reasoning_gateway, "frontier_available", return_value=False):
+            report = research.run(self.SWEEP, http=http, reader=reader)
+        self.assertNotIn(True, asked)
+        self.assertEqual(searched[0], "job-search events listed Sioux Falls")
+        self.assertEqual(report["queries"][0], "job-search events listed Sioux Falls")
+
+    def test_one_shared_word_is_not_enough_for_a_long_question(self):
+        page = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+                "text": "x" * 600,
+                "links": [{"href": "https://tribes.test/sioux", "text": "The Sioux people: history and culture",
+                           "snippet": "Bands, language and traditions of the Sioux nation."},
+                          {"href": "https://chamber.test/events", "text": "Sioux Falls networking events",
+                           "snippet": "Newly listed events in Sioux Falls this week."}]}
+        found = research.find_sources("x", reader=reader, http=lambda q, **_: page,
+                                      about="newly listed networking events Sioux Falls")
+        self.assertEqual([research._host(f["url"]) for f in found], ["chamber.test"])
+
+    def test_an_unsure_answer_says_what_it_searched_for(self):
+        said = research.spoken({"answer": "Maybe Tampa.", "confidence": 0.1,
+                                "findings": [{"claim": "c", "url": "u"}],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["warm cities taxes"]})
+        self.assertIn("I searched for warm cities taxes", said)
+        sure = research.spoken({"answer": "Tampa.", "confidence": 0.8, "findings": [{"claim": "c", "url": "u"}],
+                                "sources": [{"url": "u", "title": "t"}], "queries": ["warm cities taxes"]})
+        self.assertNotIn("I searched for", sure)
+
+
+class EventsAreReadOffTheListings(ResearchCase):
+    """His PC, 2026-10-11: "free networking events in Sioux Falls this month" searched well and read
+    encyclopedia pages about the city, its hockey team and a TV station - none lists an event."""
+
+    HOME = {"city": "Sioux Falls", "state": "SD"}
+
+    def test_a_question_about_events_reads_the_listings_for_the_place_it_names(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, drop = research.listings_for("networking events in Austin, TX")
+        urls = [x["url"] for x in listed]
+        self.assertIn("https://www.eventbrite.com/d/tx--austin/networking/", urls)
+        self.assertFalse(any("siouxfalls" in u for u in urls))      # a page for another place
+        self.assertIn("wikipedia.org", drop)
+
+    def test_no_place_named_is_his_own_town(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, _ = research.listings_for("search for newly listed job-search events")
+        self.assertIn("https://www.eventbrite.com/d/sd--sioux-falls/events/", [x["url"] for x in listed])
+        self.assertLessEqual(len(listed), research.MAX_LISTINGS)
+
+    def test_a_place_with_no_state_skips_what_needs_one(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, _ = research.listings_for("events in Tampa in October")
+        self.assertFalse(any("{" in x["url"] or "--" in x["url"] for x in listed), listed)
+
+    def test_a_question_about_something_else_reads_no_listing(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            self.assertEqual(research.listings_for("is Ramp hiring in Denver")[0], [])
+
+    def test_no_listings_file_is_no_listings(self):
+        with mock.patch.object(research, "_listings_path", return_value=Path(self.tmp.name) / "none.json"):
+            self.assertEqual(research.listings_for("networking events in Austin, TX"), ([], set()))
+
+    def test_the_listings_are_read_first_and_encyclopedia_results_dropped(self):
+        listing = {"url": "https://www.eventbrite.com/d/sd--sioux-falls/networking/", "title": "Eventbrite",
+                   "text": "Sioux Falls Business Networking Mixer - Oct 16, 5:30 pm - Free. " * 10, "links": []}
+        wiki = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+                "text": "x" * 600,
+                "links": [{"href": "https://en.wikipedia.org/wiki/Sioux_Falls_Stampede",
+                           "text": "Sioux Falls Stampede networking events hockey",
+                           "snippet": "Sioux Falls networking events and hockey."}]}
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if url == listing["url"]:
+                return listing
+            return reader(url)
+
+        def think(system, text, **kw):
+            value = {"answer": "A mixer on Oct 16.", "gaps": [], "confidence": 0.8,
+                     "findings": [{"claim": "Mixer Oct 16", "url": listing["url"]}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["free networking events Sioux Falls"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            report = research.run("free networking events in Sioux Falls this month",
+                                  http=lambda q, **_: dict(wiki), reader=reading, think=think)
+        self.assertEqual(report["sources"][0]["url"], listing["url"])
+        self.assertNotIn("wikipedia.org", " ".join(s["url"] for s in report["sources"]))
+
+
+class PlacesFromWhatWasRead(ResearchCase):
+    """His PC, 2026-10-11: "compare a shortlist of warm ... cities" read the national pages and no
+    city's own figures, because the question names no city."""
+
+    def test_the_places_a_page_names_are_found_most_named_first(self):
+        text = "Rank 1 Tampa, FL, United States 60.1. Rank 2 Austin, TX 63. Tampa, FL again. In October, we"
+        self.assertEqual(research.places_in_text(text)[:2],
+                         [{"city": "Tampa", "state": "FL"}, {"city": "Austin", "state": "TX"}])
+
+    def test_a_question_about_places_reads_the_places_the_first_pages_named(self):
+        ranking = "https://www.numbeo.com/cost-of-living/country_result.jsp?country=United+States"
+        pages = {ranking: {"url": ranking, "title": "ranking",
+                           "text": ("Tampa, FL, United States 61.2 rent 40. Austin, TX, United States 63.0. " * 10)},
+                 "https://www.numbeo.com/cost-of-living/in/Tampa": {"url": "x", "title": "Tampa",
+                                                                    "text": "Tampa rent 1-bed 1,650 USD. " * 20},
+                 "https://www.numbeo.com/cost-of-living/in/Austin": {"url": "y", "title": "Austin",
+                                                                     "text": "Austin rent 1-bed 1,700 USD. " * 20}}
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if url in pages:
+                return pages[url]
+            return reader(url)
+
+        def think(system, text, **kw):
+            value = {"answer": "Tampa is cheaper.", "gaps": [], "confidence": 0.7,
+                     "findings": [{"claim": "Tampa rent 1,650", "url": "x"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        research.run("Compare a shortlist of warm cities on cost of living", http=None,
+                     reader=reading, think=think)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Tampa", read)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Austin", read)
+
+    def test_an_unsure_answer_says_which_pages_refused(self):
+        said = research.spoken({"answer": "Not sure.", "findings": [], "sources": [{"url": "u", "title": "t"}],
+                                "queries": ["q"], "unreadable": [{"url": "https://www.eventbrite.com/d/x",
+                                                                  "reason": "no readable text"}]})
+        self.assertIn("I couldn't read www.eventbrite.com", said)
+
+
+class CandidatePlacesFromHisWords(ResearchCase):
+    """His PC, 2026-10-11: the comparison failed three times with no city-level figures; the national
+    pages either refused her or name no city."""
+
+    Q = "Compare a shortlist of warm red-state cities: compare cost of living, taxes, housing"
+
+    def test_the_reviewed_entry_lists_the_places_and_carries_his_words(self):
+        rows = [r for r in research._listings() if r.get("places")]
+        self.assertTrue(rows and all(r.get("ruling") for r in rows))
+        self.assertEqual(research.candidate_places(self.Q)[0], {"city": "Tampa", "state": "FL"})
+        self.assertEqual(research.candidate_places("is Ramp hiring in Denver"), [])
+
+    def test_each_place_is_read_at_its_own_pages_even_when_the_national_pages_refuse(self):
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if "/in/" in url or "bestplaces" in url or "wikipedia.org/wiki/" in url:
+                return {"url": url, "title": url, "text": "Rent 1-bed 1,600 USD. Average high 80F. " * 20}
+            raise RuntimeError("robot check")
+
+        def think(system, text, **kw):
+            value = {"answer": "Ranked.", "gaps": [], "confidence": 0.6,
+                     "findings": [{"claim": "Rent 1,600", "url": "https://www.numbeo.com/cost-of-living/in/Tampa"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        report = research.run(self.Q, http=None, reader=reading, think=think)
+        self.assertIn("https://www.bestplaces.net/cost_of_living/city/florida/tampa", read)
+        self.assertIn("https://en.wikipedia.org/wiki/Austin,_Texas", read)
+        self.assertLessEqual(len([u for u in read if "/in/" in u or "bestplaces" in u or "/wiki/" in u]),
+                             research.MAX_PLACE_PAGES + research.MAX_BASELINE_PAGES)
+        self.assertTrue(report["sources"])
+
+    def test_a_state_spelled_out_names_a_place(self):
+        self.assertEqual(research.places_in_text("Tampa\tFlorida 403,364"), [{"city": "Tampa", "state": "FL"}])
+
+
+class ShareOfAPageIsWhatBearsOnTheQuestion(unittest.TestCase):
+    """His PC, 2026-10-11: twelve pages cut to their first 300 characters each - the sites' menus -
+    came back "none of them contains city-level figures"."""
+
+    MENU = "Home | Compare | Rankings | Sign in | Newsletter | About us | " * 40
+    FIGURE = "The cost of living index in Tampa is 103.5, with median rent of $1,850 a month."
+    Q = "Compare a shortlist of warm red-state cities: compare cost of living, housing, taxes"
+
+    def test_the_share_is_the_sentences_about_the_question(self):
+        text = self.MENU + " " + self.FIGURE + " " + self.MENU
+        self.assertIn("103.5", research.focus(text, self.Q, 300))
+
+    def test_a_page_with_nothing_on_it_is_shown_from_the_top(self):
+        self.assertTrue(research.focus("abc " * 500, self.Q, 100).startswith("abc"))
+
+    def test_many_pages_under_her_own_models_budget_still_carry_the_figures(self):
+        sources = [{"url": f"https://example.com/{i}", "title": f"Page {i}",
+                    "extract": self.MENU[:6000], "full": self.MENU + " " + self.FIGURE.replace("Tampa", f"City{i}")}
+                   for i in range(12)]
+        rows = research._bounded(self.Q, sources, limit=research.LOCAL_REPORT_BYTES)
+        size = len(json.dumps({"question": self.Q, "sources": rows}, ensure_ascii=False).encode("utf-8"))
+        self.assertLessEqual(size, research.LOCAL_REPORT_BYTES)
+        self.assertTrue(rows)
+        self.assertTrue(all("103.5" in r["extract"] for r in rows))
+
+    def test_an_unsure_answer_starts_with_what_was_read(self):
+        said = research.spoken({"answer": "None of them has city figures.", "findings": [], "confidence": 0.1,
+                                "sources": [{"url": "https://www.bestplaces.net/x", "title": "t"}],
+                                "unreadable": [{"url": "https://www.numbeo.com/y", "reason": "no readable text"}],
+                                "queries": ["warm red-state cities"]})
+        self.assertTrue(said.startswith("I read www.bestplaces.net; I couldn't read www.numbeo.com."), said)
+
+
+class DatedLinesTravelWithTheAnswer(unittest.TestCase):
+    """His PC, 2026-10-11: the young professionals' list had dated items and the hold step after
+    the look found "nothing with a date" in an answer that left them out."""
+
+    def test_a_page_with_dated_items_gives_its_timed_lines(self):
+        page = ("Upcoming\n605 Connections: Networking After Hours - Tuesday, Oct 14, 5:30 pm - 7:00 pm\n"
+                "Coffee Connect, Saturday October 25\nYPN Lunch | Oct. 19 at 12:00 pm | Downtown")
+        lines = research.dated_lines([{"url": "https://x.org", "full": page}])
+        self.assertTrue(any("605 Connections" in x and "5:30 pm" in x for x in lines), lines)
+        self.assertFalse(any("Coffee Connect" in x for x in lines))
+
+    def test_the_answer_carries_them(self):
+        said = research.spoken({"answer": "There is a networking night.", "findings": [{"claim": "c", "url": "u"}],
+                                "confidence": 0.8, "sources": [{"url": "https://x.org", "title": "t"}],
+                                "unreadable": [], "dated": ["605 Connections, Tuesday, Oct 14, 5:30 pm"]})
+        self.assertIn("Dated: 605 Connections, Tuesday, Oct 14, 5:30 pm.", said)
+
+    def test_an_answer_that_says_it_cannot_answer_says_what_it_read(self):
+        said = research.spoken({"answer": "I can't deliver the comparison from these sources.",
+                                "findings": [{"claim": "c", "url": "u"}], "confidence": 0.6,
+                                "sources": [{"url": "https://www.bestplaces.net/a", "title": "t"}], "unreadable": []})
+        self.assertTrue(said.startswith("I read www.bestplaces.net."), said)
+
+    def test_a_look_is_remembered_by_host_and_size(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict("os.environ", {"ALETHEIA_PRIVATE_STATE": tmp}):
+            research._note_look("Compare cities", [{"url": "https://www.bestplaces.net/a", "extract": "x" * 420}],
+                                [{"url": "https://www.numbeo.com/b", "reason": "no readable text"}], shown_of=3)
+            words = research.look_words(research.last_look("compare  CITIES"))
+        self.assertEqual(words, "shown: www.bestplaces.net (420) (+2 read, left out to fit) | "
+                                "couldn't read: www.numbeo.com (no readable text)")
+
+
+class TheListedPlacesAreReadWhateverElseTheQuestionNames(unittest.TestCase):
+    """His PC, 2026-10-11: a comparison read two national pages and a tax table and no place's own."""
+
+    def test_a_short_page_is_said_to_be_short(self):
+        words = research.look_words({"shown": [{"host": "www.numbeo.com", "kept": 398, "page": 412},
+                                               {"host": "taxfoundation.org", "kept": 4197, "page": 30000}]})
+        self.assertEqual(words, "shown: www.numbeo.com (398 of 412, too short to hold figures), "
+                                "taxfoundation.org (4197 of 30000)")
+
+    def test_a_share_with_room_left_is_filled_with_the_rest_of_the_page(self):
+        text = "Intro words here. " * 50 + "Cost of living index 103. " + "Other words follow. " * 50
+        got = research.focus(text, "cost of living", 600)
+        self.assertIn("103", got)
+        self.assertGreater(len(got), 400)
+
+
+class EachPlaceShowsItsPageRichestInFigures(unittest.TestCase):
+    """His PC, 2026-10-11 14:09Z: fifteen pages for five places shared 3 KB, about 300 characters each,
+    and two dictionary entries came in on a stray word of the question."""
+
+    def test_one_page_per_place_and_two_national_pages(self):
+        menu = "Home About Contact Sign in. " * 40
+        sources = [
+            {"url": "https://a.org/tampa-wiki", "place": "Tampa, FL", "extract": "", "full": menu + "Tampa is a city."},
+            {"url": "https://a.org/tampa-col", "place": "Tampa, FL", "extract": "",
+             "full": menu + "Tampa cost of living index 102. Median home $398,700. Rent $1,650."},
+            {"url": "https://a.org/austin-col", "place": "Austin, TX", "extract": "",
+             "full": "Austin cost of living index 119. Median home $550,000."},
+            {"url": "https://n.org/1", "extract": "", "full": "US cities ranked: index 70 to 150."},
+            {"url": "https://n.org/2", "extract": "", "full": "State income tax rates: 0% in Florida and Texas."},
+            {"url": "https://n.org/3", "extract": "", "full": "A page with nothing in it at all."},
+        ]
+        picked = [s["url"] for s in research.by_place("compare cost of living", sources)]
+        self.assertEqual(picked[:2], ["https://a.org/tampa-col", "https://a.org/austin-col"])
+        self.assertEqual(len(picked), 2 + research.MAX_NATIONAL_PAGES)
+        self.assertNotIn("https://n.org/3", picked)
+
+    def test_dictionary_pages_are_dropped_unless_a_meaning_is_asked(self):
+        seen = []
+
+        def find(query, **kw):
+            seen.append(kw.get("drop_hosts"))
+            return []
+        with mock.patch.object(research, "find_sources", find), \
+                mock.patch.object(research, "listings_for", lambda q, **k: ([], set())), \
+                mock.patch.object(research.policy, "ensure_not_halted", lambda: None):
+            for q in ("compare a shortlist of places", "what does shortlist mean"):
+                with self.assertRaises(research.ResearchError):
+                    research.run(q, reader=lambda url: {}, http=None, think=lambda *a, **k: {"queries": [q]})
+        self.assertIn("dictionary.cambridge.org", seen[0])
+        self.assertNotIn("dictionary.cambridge.org", seen[-1])
+
+
+class MeasuredAgainstWhereHeLives(ResearchCase):
+    """His PC, 2026-10-11 17:07Z: the first comparison of warm places measured cost of living against
+    New York - the index the pages use - and left out rent; his pay floor is measured against South
+    Dakota."""
+
+    Q = CandidatePlacesFromHisWords.Q
+
+    def test_the_entry_names_the_baseline_and_what_to_measure(self):
+        with mock.patch.object(research, "_home", return_value={}):
+            base = research.baseline_for(self.Q)
+        self.assertEqual((base["city"], base["state"]), ("Sioux Falls", "SD"))
+        self.assertIn("rent", base["measure"])
+        self.assertEqual(research.baseline_for("is Ramp hiring in Denver"), {})
+        with mock.patch.object(research, "_home", return_value={"city": "Fargo", "state": "ND"}):
+            self.assertEqual(research.baseline_for(self.Q)["city"], "Fargo")
+
+    def test_its_pages_are_read_beside_every_candidate_and_the_report_is_asked_against_it(self):
+        read, asked = [], []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            return {"url": url, "title": url, "text": "Rent 1-bed 1,600 USD. Index 70.1. " * 20}
+
+        def think(system, text, **kw):
+            value = {"answer": "Ranked.", "gaps": [], "confidence": 0.6,
+                     "findings": [{"claim": "Rent 1,600", "url": "https://www.numbeo.com/cost-of-living/in/Tampa"}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["warm cities cost of living"], "why": "x"}
+            else:
+                asked.append(text)
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        with mock.patch.object(research, "_home", return_value={}):
+            research.run(self.Q, http=None, reader=reading, think=think)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Sioux-Falls", read)
+        self.assertIn("https://www.numbeo.com/cost-of-living/in/Tampa", read)
+        self.assertIn("against Sioux Falls, SD", asked[-1])
+        self.assertIn("rent", asked[-1])
+
+    def test_a_question_with_no_baseline_is_asked_as_it_was(self):
+        self.assertEqual(research._measured("what is rent in Tampa", {}), "what is rent in Tampa")

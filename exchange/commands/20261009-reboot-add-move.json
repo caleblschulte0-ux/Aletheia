@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-add-move",
+  "filed": "2026-10-09T23:55:07Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Fix it also start planning a move for me some where warm with nice red laws",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "Add a move to Project Reboot: start planning a move for him somewhere warm with nice red laws (a warm-weather place in a Republican-led state with conservative laws). Compare a shortlist of warm red-state cities on cost of living, job market for his roles (business development, account management, customer success, BDR/SDR with no cold calling, $95K+ adjusted for local cost of living), taxes and housing; keep the job search and the move pointed at the same places, and put any free relocation or newcomer events there on his calendar under the same sign-up rules."
+  }
+}

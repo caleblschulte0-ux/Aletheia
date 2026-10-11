@@ -6453,7 +6453,12 @@ def _interpret(transcript: str) -> dict:
                 if re.fullmatch(r"(?:any )?(?:appointments?|meetings?|events?)(?: (?:on )?[a-z ]{3,12})?", what)
                 else "any birthdays coming up" if re.fullmatch(r"(?:any )?birthdays?(?: coming up| soon| this (?:week|month))?", what)
                 else "what packages am i expecting" if re.fullmatch(r"(?:any )?(?:packages?|deliveries|orders)(?: coming| on the way| arriving)?(?: today| this week)?", what)
-                else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what) else None)
+                else "what leftovers do i have" if re.fullmatch(r"(?:any )?leftovers", what)
+                # "Do I have any interviews this week" searched his Documents (2026-10-11). An
+                # interview is on his calendar, where every one she books goes.
+                else "when's my next interview" if re.fullmatch(
+                    r"(?:an? |any )?(?:job )?interviews?(?: (?:coming up|scheduled|booked|lined up))?"
+                    r"(?: (?:today|tomorrow|this week|next week|soon))?", what) else None)
         if same:
             return _interpret(same)
     # "Do I have my passport" (2026-10-08: to the planner, once the passport
@@ -7535,6 +7540,41 @@ def _interpret(transcript: str) -> dict:
                     r"|what(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission (?:still )?waiting (?:on|for)"
                     r"|what (?:are|is) (?:my |the )?(?:(?:long|big) )?missions? (?:still )?waiting (?:on|for)", low):
         return {"command": {"kind": "missions", "about": "waiting"}, "say": None}
+    m = re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(.{2,40}?) (?:still )?waiting (?:on|for)(?: now)?"
+                     r"|what(?:'s| is|s) (?:next|left) (?:on|for|in) (?:my |the )?(.{2,40}?)", low)
+    if m:
+        # "What's the move plan waiting on" names the mission by what it is about (2026-10-11).
+        from aletheia import programs
+        record = programs.named(m.group(1) or m.group(2))
+        if record is not None:
+            return {"command": {"kind": "missions", "about": "waiting", "which": record["id"]}, "say": None}
+    m = re.fullmatch(r"what (?:have|did) you (?:done|do|found|find|got|get|learned|learnt|learn)(?: out)?(?: so far)?"
+                     r" (?:on|for|about|with|in) (?:my |the )?(.{2,40}?)(?: so far| yet)?", low)
+    if m:
+        # "What have you found for the move plan" needed a model, which has never read the
+        # mission's own steps (2026-10-11). Its steps say what each look found.
+        from aletheia import programs
+        record = programs.named(m.group(1))
+        if record is not None:
+            return {"command": {"kind": "missions", "about": "steps", "which": record["id"]}, "say": None}
+    m = re.fullmatch(r"(pause|hold|stop|resume|unpause|restart|drop|cancel|scrap)"
+                     r"(?: (?:working on|work on))? (?:my |the )?(.{2,40}?)(?: for now| again)?", low) \
+        or re.fullmatch(r"(?:put )?(?:my |the )?(.{2,40}?) (?:on hold|back on)()", low)
+    if m:
+        # "Pause the move plan": there was a store that pauses a mission and no way to say it
+        # (2026-10-11). Only a subject that names a live mission, or the word mission itself: "pause
+        # the music" and "stop applying" are somebody else's verbs.
+        if m.re.pattern.startswith("(pause"):
+            verb, subject = m.group(1), m.group(2)
+        else:
+            subject, verb = m.group(1), ("resume" if low.endswith("back on") else "pause")
+        from aletheia import programs
+        bare = re.sub(r"\b(?:my|the|long|big)\b", " ", subject).split() == ["mission"]
+        record = programs.named(subject) if not bare else programs.find("")
+        if record is not None:
+            state = {"hold": "pause", "stop": "pause", "unpause": "resume", "restart": "resume",
+                     "cancel": "drop", "scrap": "drop"}.get(verb, verb)
+            return {"command": {"kind": "mission_state", "state": state, "which": record["id"]}, "say": None}
     if re.fullmatch(r"how(?:'s| is|s) (?:my |the )?(?:(?:long|big) )?mission(?: going| coming along| doing)?"
                     r"|how are my (?:(?:long|big) )?missions(?: going)?"
                     r"|(?:my |the )?(?:(?:long|big) )?missions?(?: status)?|mission status|where(?:'s| is) my mission at", low):

@@ -60,6 +60,12 @@ def _missions(args: dict) -> dict:
             "note": "empty: no browser goal has been pursued yet" if not rows else ""}
 
 
+def _sign_up(args: dict) -> dict:
+    from aletheia import event_signup
+    out = event_signup.sign_up_tool(str(args["url"]), str(args.get("why") or ""))
+    return {"state": out.get("state"), "said": out.get("say", "")}
+
+
 def _pursue(args: dict) -> dict:
     from aletheia import browser_loop, browser_mission as bm
     skill = None
@@ -125,6 +131,18 @@ TOOLS = (
         handler=_act, capability="web.task", risk=intercom.TIER_WORLD,
         writes=("browser-missions", "approvals"), reads=("web",), open_world=True,
         approval="operator_always", provenance=tools.UNTRUSTED_WEB),
+    tools.declare(
+        "event.register",
+        description=("Register Caleb for a free event, or put his email on a free event mailing list, on "
+                     "its page (url, why): sign him up, RSVP, join the list. Only his name, email and "
+                     "sign-up number; never anything that costs money, wants an account, has a robot "
+                     "check or terms, falls in his working day or clashes with his calendar."),
+        input_schema={"properties": {"url": {"type": "string"}, "why": {"type": "string"}},
+                      "required": ["url"]},
+        handler=_sign_up, capability="event.register", risk=intercom.TIER_WORLD,
+        writes=("sign-ups", "calendar", "notifications"), reads=("web",), open_world=True,
+        approval="registry_grant", standing_grant=True, provenance=tools.UNTRUSTED_WEB, idempotent=False,
+        notes="runs under the sign-ups grant his ruling creates (program_run); without it, handed to Caleb"),
     tools.declare(
         "browser.code",
         description="Give a waiting browser mission the verification code Caleb received (mission, code).",

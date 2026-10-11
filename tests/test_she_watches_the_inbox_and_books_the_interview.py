@@ -274,6 +274,7 @@ class HisRulingsAreData(unittest.TestCase):
                         return_value={"on": True, "window": {}, "ruled_by": "interviews-on", "quote": "q"}), \
              mock.patch("aletheia.standing.interviews_active", return_value=None), \
              mock.patch("aletheia.standing.interviews_enable", return_value={"id": "standing-interviews-1"}) as enable, \
+             mock.patch("aletheia.event_signup.status", return_value={"on": False, "ruled_by": ""}), \
              mock.patch("aletheia.journal.append"):
             out = runtime._apply_rulings(now_s=1000.0)
             self.assertEqual(out, [{"ruling": "interviews-on", "grant": "standing-interviews-1"}])

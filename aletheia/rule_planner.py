@@ -208,6 +208,13 @@ def _open_site(m, request):
     return args, f"Open {what} in the browser"
 
 
+def _research(m, request):
+    what = _clean(m.group("what"))
+    if len(what) < 4:
+        return None
+    return {"question": what}, f"Look up {what}"
+
+
 def _web_task(m, request):
     goal = _clean(m.group("what"))
     if len(goal) < 4:
@@ -424,6 +431,12 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
      "computer_do", _open_app),
     (r"(?:open|go to|pull up|bring up|launch)\s+(?P<what>(?!the folder|the file|my folder|my file)[a-z0-9][a-z0-9 .'-]{1,39}?)(?: in (?:the |my )?browser| for me)?",
      "web_task", _open_site),
+    # A LOOK is research, which reads and changes nothing: "look up free networking events in
+    # Sioux Falls this month" went to her own model, which made it a browser task that waited
+    # for his yes (2026-10-10). "Look up on <site>" is a site to go to, and stays below; "my ..." and
+    # "whether I ..." are about him, which no web page answers.
+    (r"(?:look up|search (?:for|up)|research|find out(?: about)?)\s+(?P<what>(?!on\b)(?!how to (?:sign|log))(?!my\b)(?!(?:if|whether) (?:i|i'm|im|i've|i have)\b).{4,}?)",
+     "research", _research),
     (r"find (?:me |us )?(?:a |an |some )?(?P<what>.+?) (?:near me|nearby|near here|around here|in town|close by)",
      "web_task", lambda m, r: ({"goal": f"find {_clean(m.group('what'))} near him"}, f"Look up {_clean(m.group('what'))} near you")),
     (r"(?:go|get) (?:online|on the (?:web|internet)) and (?P<what>.+)", "web_task", _web_task),

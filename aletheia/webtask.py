@@ -164,6 +164,43 @@ SOFTWARE_CHECKOUT = re.compile(
     re.I)
 
 
+# PAY THE NOUN: what a job pays is not a payment. "Compute adjusted pay
+# equivalent" (cost-of-living salary maths in his mission, 2026-10-10) was
+# refused as spending and took the whole move plan down with it. Only the
+# noun is lifted out, and only in a shape that cannot be the act: a pay word
+# BEFORE it ("adjusted pay", "take-home pay") not followed by what a payment
+# is for, or a salary word AFTER it ("pay range", "pay floor"). "Pay the
+# invoice", "pay for the event", "pay $20" and "pay my rent" are untouched.
+SALARY_PAY = re.compile(
+    r"\b(?:adjusted|take[- ]home|base|annual|hourly|weekly|monthly|equivalent|average|median|net|gross|"
+    r"starting|local|equal|higher|lower|better|comparable)\s+pay\b"
+    r"(?!\s*(?:for|to|the|a|an|my|his|her|their|it|them|with|via|by|online|now|off|out|up|\$|\d))"
+    r"|\bpay\s+(?:equivalents?|ranges?|floors?|bands?|scales?|rates?|grades?|gaps?|data|levels?|parity|"
+    r"transparency|cuts?|raises?|bumps?|stubs?|periods?|cycles?|structures?|expectations?|requirements?)\b",
+    re.I)
+
+
+# A LIMIT ON SPENDING is not spending. "Register for free events; stop at
+# payment or unknown required fields" (his mission, 2026-10-10) was refused as
+# a payment, so the step whose whole rule is "never pay" could never run. Only
+# the limiting clause itself is lifted out, and only where nothing can follow
+# it that names what to buy: "stop at payment", "stop before the checkout",
+# "never pay", "don't pay anything", "no payment", "without paying". "Don't
+# pay more than $50 for it" keeps its money words (a ceiling is a purchase),
+# and anything else in the sentence that pays is still read as paying.
+SPENDING_LIMIT = re.compile(
+    r"\b(?:stop|halt|pause|quit|turn\s+back|back\s+out|bail)\s+(?:at|before|on|if|when)\s+"
+    r"(?:(?:it|they|the\s+(?:page|site|form))\s+(?:asks?|wants?|needs?)\s+for\s+|(?:it\s+|you\s+)?(?:reach(?:es)?|hits?|gets?\s+to)\s+)?"
+    r"(?:any|a|the)?\s*(?:payment|paying|checkout|check\s*out|billing|card\s+details|credit\s+card)"
+    r"(?:\s+(?:page|pages|step|steps|screen|screens|form|forms|details|field|fields|request|requests))?\b"
+    r"|\b(?:never|don'?t|do\s+not|without|not)\s+(?:ever\s+)?(?:pay|paying|purchase|purchasing|buy|buying|"
+    r"enter(?:ing)?\s+(?:a\s+|any\s+)?(?:payment|card|credit\s+card|billing)(?:\s+details)?)"
+    r"(?:\s+(?:anything|for\s+anything|a\s+(?:cent|dime|penny|thing)|money))?"
+    r"(?=\s*(?:$|[.;,:)!]|\band\b|\bor\b|\bif\b|\bunless\b|\bever\b))"
+    r"|\bno\s+(?:payments?|paying|purchases?|checkouts?|paid\s+(?:events?|tickets?))(?:\s+(?:required|needed|ever|at\s+all))?\b",
+    re.I)
+
+
 def would_spend(goal: str) -> bool:
     """Does this ask commit money, by the same reading the runner uses?
 
@@ -171,6 +208,8 @@ def would_spend(goal: str) -> bool:
     hears and the thing that actually happens cannot disagree.
     """
     text = SOFTWARE_CHECKOUT.sub(" ", str(goal or ""))
+    text = SALARY_PAY.sub(" ", text)
+    text = SPENDING_LIMIT.sub(" ", text)
     return bool(MONEY_WORDS.search(text) or SPENDS_BY_VERB.search(text))
 
 SYSTEM = """You are driving a web browser for Caleb, one step at a time, to

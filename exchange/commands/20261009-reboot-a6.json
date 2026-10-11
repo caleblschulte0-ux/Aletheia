@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-a6",
+  "filed": "2026-10-09T00:40:59Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "Yes, sign him up with his name, but use openrangeinteractive@gmail.com, the job-hunt inbox she already watches, so confirmations and calendar invites land where she reads them. Phone: the signup phone (his Google Voice number), never his real one, and leave it blank if the form allows. Resume: the newest resume in Documents\\Aletheia, only when an event asks for one."
+  }
+}

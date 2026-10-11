@@ -30,7 +30,9 @@ class ARemindersDayIsReadCase(unittest.TestCase):
         self.assertEqual(dt.datetime.fromisoformat(out["command"]["at"]).strftime("%A"), "Friday")
 
     def test_next_friday_is_still_asked_about(self):
-        out = voice.interpret("thea remind me next friday to send the invoice")
+        # Said ON the day it names, "next" can only mean a week out; any other day is asked about.
+        other = voice.WEEKDAYS[(localtime.today().weekday() + 2) % 7]
+        out = voice.interpret(f"thea remind me next {other} to send the invoice")
         self.assertNotEqual(out["command"].get("kind") if out.get("command") else None, "remind_at")
 
 

@@ -38,6 +38,7 @@ from __future__ import annotations
 from aletheia import speech
 
 import argparse
+import datetime as dt
 import base64
 import binascii
 import json
@@ -89,6 +90,14 @@ SKIP_HOSTS = {
     "www.startpage.com", "youtube.com", "www.youtube.com",
     "facebook.com", "www.facebook.com", "x.com", "twitter.com",
 }
+#: Pages about what a word means: never an answer unless the question asks what a word means. A
+#: stray word of the comparison's question ("shortlist") came back as two dictionary entries
+#: (his PC, 2026-10-11).
+DICTIONARY_HOSTS = frozenset({"dictionary.cambridge.org", "www.merriam-webster.com", "merriam-webster.com",
+                              "www.dictionary.com", "dictionary.com", "www.collinsdictionary.com",
+                              "www.thesaurus.com", "www.vocabulary.com", "www.oxfordlearnersdictionaries.com",
+                              "en.wiktionary.org", "www.wordreference.com"})
+_ASKS_MEANING = re.compile(r"\b(?:mean|meaning|means|define|definition|synonyms?|spell|spelling)\b", re.I)
 
 PLAN_SYSTEM = """You turn one research question into search queries.
 Return exactly one JSON object: {"queries": [string], "why": string}.
@@ -141,6 +150,289 @@ def queries_without_a_model(question: str) -> dict:
         queries.append(stripped[:200])
     return {"queries": queries[:MAX_QUERIES],
             "why": "nobody could plan the search, so the question itself is the query"}
+
+
+#: Words that say nothing about WHAT is being asked: a query or a result sharing only these
+#: with the question is about something else.
+_FILLER = frozenset("""a an and or the to of for in on at by with from into about as is are be it its this that
+these those what which who how why when where can could would should will do does did i me my his her
+their our your find search look up compare list show get give tell write more most best any some all each
+other than then also not no yes one two using use used vs versus
+summary summarize summarise ranked rank ranking source sources sourced compute calculate pick picks
+shortlist shortlisted criteria fit fits fitting write writes written report reports save note notes
+based per them they ones new newly sweep weekly daily monthly
+once twice again every week weeks month months day days year years today tomorrow tonight watch""".split())
+
+#: A part of a task's question that starts with one of these is something to DO after the look
+#: ("hold fitting ones on the calendar", "register for free ones"), not what to look for.
+_DOING_PARTS = frozenset("""hold add put pencil register sign save write email send book update flag ask
+tell notify draft apply prepare count stop keep point create remind""".split())
+
+
+#: How many words a query a person types is, at most.
+KEYWORD_QUERY_WORDS = 10
+
+
+def keyword_query(question: str) -> str:
+    """The words a person would type into a search box for `question`, with no model: its own words
+    that say what it is about, in its order and capitals, the asking and task words gone.
+
+    Alone, her own model wrote the queries and on his PC (2026-10-10) every question came back as
+    pages about spelling and semicolons - it took "using" from the task, not the subject. The
+    question's own subject words cannot search for something else. Names (capitalised past the
+    first word) and numbers are kept first when there are too many words."""
+    parts = [p for p in re.split(r"[;:]", str(question or "")) if p.strip()]
+    looked = [p for p in parts if p.split()[0].casefold() not in _DOING_PARTS]
+    words, seen = [], set()
+    for n, w in enumerate(re.findall(r"[A-Za-z0-9$][A-Za-z0-9$'\-]*", " ; ".join(looked or parts))):
+        w = w.strip("'-")
+        low = w.casefold()
+        if len(w) < 2 or low in _FILLER or low in seen or low in _ASK_FILLER:
+            continue
+        seen.add(low)
+        words.append((n, w))
+    if len(words) > KEYWORD_QUERY_WORDS:
+        named = {n for n, w in words if n and (w[0].isupper() or any(c.isdigit() for c in w))}
+        keep = sorted(named)[:KEYWORD_QUERY_WORDS]
+        keep += [n for n, _ in words if n not in named][:KEYWORD_QUERY_WORDS - len(keep)]
+        words = [(n, w) for n, w in words if n in keep]
+    return " ".join(w for _, w in words)
+
+
+def queries_by_keywords(question: str) -> dict:
+    """The queries searched when no frontier model can plan: the subject words first, then the
+    question as said when it is short enough to be a search."""
+    queries = []
+    key = keyword_query(question)
+    if key:
+        queries.append(key[:200])
+    for q in queries_without_a_model(question)["queries"]:
+        if len(q) <= 100 and q.casefold() not in {x.casefold() for x in queries}:
+            queries.append(q)
+    return {"queries": (queries or queries_without_a_model(question)["queries"])[:MAX_QUERIES],
+            "why": "no frontier model could plan the search, so the question's own words are the query"}
+
+
+def topic_words(text: str) -> set[str]:
+    """The words of `text` that say what it is about, crudely stemmed."""
+    words = set()
+    for w in re.findall(r"[a-z0-9]+", str(text or "").casefold()):
+        if len(w) < 3 or w in _FILLER:
+            continue
+        for end in ("ies", "es", "s"):
+            if len(w) > 4 and w.endswith(end):
+                w = w[: -len(end)] + ("y" if end == "ies" else "")
+                break
+        words.add(w)
+    return words
+
+
+def on_topic(text: str, question: str, *, shared: int = 1) -> bool:
+    """Does `text` share at least `shared` words that say what `question` is about? Unknown (either
+    side filler alone) counts as yes: the check may only ever drop what is plainly about something
+    else. Never asks for more words than the question has."""
+    want, have = topic_words(question), topic_words(text)
+    return not want or not have or len(want & have) >= min(shared, len(want))
+
+
+# ---- listings read directly ------------------------------------------------------------
+
+#: How many listing pages one question reads before it searches.
+MAX_LISTINGS = 3
+
+#: Two-letter codes and the names the listing pages spell a state with.
+STATE_NAMES = {"AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California",
+               "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware", "FL": "Florida", "GA": "Georgia",
+               "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
+               "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
+               "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
+               "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
+               "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
+               "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina",
+               "SD": "South Dakota", "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont",
+               "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming"}
+_STATE_CODES = {v.casefold(): k for k, v in STATE_NAMES.items()}
+
+_NOT_PLACES = frozenset("""january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday i the this next""".split())
+
+
+def _listings_path():
+    from aletheia.fleet import REPO_ROOT
+    return REPO_ROOT / "config" / "listing_sources.json"
+
+
+def _listings() -> list[dict]:
+    """The reviewed listing pages; none when the file is missing or malformed."""
+    try:
+        rows = json.loads(_listings_path().read_text(encoding="utf-8")).get("listings") or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [r for r in rows if isinstance(r, dict) and r.get("url") and isinstance(r.get("about"), list)]
+
+
+def place_in(question: str) -> dict:
+    """{"city", "state"} for the place a question names ("in Sioux Falls", "near Austin, TX"), else {}."""
+    for m in re.finditer(r"\b(?:in|near|around|at)\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,2})"
+                         r"(?:,?\s+([A-Z]{2})\b)?", str(question or "")):
+        words = m.group(1).split()
+        while words and words[-1].casefold().strip(".") in _NOT_PLACES:
+            words.pop()
+        if words and words[0].casefold() not in _NOT_PLACES:
+            return {"city": " ".join(words), "state": (m.group(2) or "") if len(words) == len(m.group(1).split()) else ""}
+    return {}
+
+
+def _home() -> dict:
+    try:
+        from aletheia import profile
+        known = profile.known()
+    except Exception:  # noqa: BLE001 - no profile is no home town, never a failed look
+        return {}
+    city = str(known.get("city") or "").strip()
+    return {"city": city, "state": str(known.get("state") or "").strip()} if city else {}
+
+
+def _phrase_in(phrase: str, text: str) -> bool:
+    return bool(re.search(r"\b" + re.escape(phrase.casefold()) + r"\b", text))
+
+
+def listings_for(question: str, *, at: dict | None = None) -> tuple[list[dict], set[str]]:
+    """The listing pages that answer this kind of question, read before any search, and the hosts
+    whose search results are about something else for it. A search for events in a city came back
+    as encyclopedia pages about the city (2026-10-11); the listings are where events are."""
+    said = " ".join(str(question or "").split()).casefold()
+    named = at or place_in(question)
+    home = None
+    out, drop, seen = [], set(), set()
+    for row in _listings():
+        topic = next((str(a) for a in row["about"] if _phrase_in(str(a), said)), "")
+        if not topic:
+            continue
+        where = named
+        if row.get("place"):
+            if not where:
+                home = _home() if home is None else home
+                where = home
+            if str(where.get("city") or "").casefold() != str(row["place"]).casefold():
+                continue
+        url = str(row["url"])
+        if at is not None and "{city" not in url:
+            continue  # a page for one place: the pages for every place were already read
+        if "{city" in url or "{state" in url:
+            if not where and row.get("place_default") == "home":
+                home = _home() if home is None else home
+                where = home
+            if not where.get("city"):
+                continue
+            if "{state" in url and not where.get("state"):
+                # The state is known for his own town only.
+                home = _home() if home is None else home
+                if str(home.get("city") or "").casefold() != where["city"].casefold() or not home.get("state"):
+                    continue
+                where = dict(where, state=home["state"])
+        city, state = str(where.get("city") or ""), str(where.get("state") or "")
+        state_name = STATE_NAMES.get(state.upper(), "")
+        if "{state_name" in url and not state_name:
+            continue
+        try:
+            url = url.format(city_slug=re.sub(r"[^a-z0-9]+", "-", city.casefold()).strip("-"),
+                             city_dash="-".join(city.split()), city_q=quote_plus(city),
+                             city_underscore="_".join(city.split()), city_lower_underscore="_".join(city.casefold().split()),
+                             state_lower=state.casefold(), state_name="_".join(state_name.split()),
+                             state_name_lower="_".join(state_name.casefold().split()),
+                             topic_slug=re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-"),
+                             topic_q=quote_plus(topic))
+        except (KeyError, IndexError, ValueError):
+            continue
+        if url in seen:
+            continue
+        if row.get("places"):
+            continue  # a list of candidate places, not a page (see `candidate_places`)
+        seen.add(url)
+        drop |= {str(h).casefold() for h in row.get("instead_of") or []}
+        out.append({"url": url, "title": str(row.get("name") or url)[:160], "library": True, "listing": True})
+    return out[:MAX_LISTINGS], drop
+
+
+#: How many places a question that names none reads the per-place pages for.
+MAX_PLACES = 5
+#: And how many per-place pages that reads in all.
+MAX_PLACE_PAGES = 10
+#: And how many pages of the place they are measured against, on top of those.
+MAX_BASELINE_PAGES = 2
+_PLACE_WORDS = re.compile(r"\b(?:cit(?:y|ies)|towns?|places?|metros?|metro areas?)\b", re.I)
+
+
+def candidate_places(question: str) -> list[dict]:
+    """The places a reviewed entry lists for this kind of question ("warm red-state cities"), in its
+    order. His words decided what such a place is; the data file carries them, never the code."""
+    said = " ".join(str(question or "").split()).casefold()
+    out = []
+    for row in _listings():
+        if not isinstance(row.get("places"), list) or not any(_phrase_in(str(a), said) for a in row["about"]):
+            continue
+        for p in row["places"]:
+            m = re.match(r"\s*(.+?),\s*([A-Za-z]{2})\s*$", str(p))
+            if m and {"city": m.group(1), "state": m.group(2).upper()} not in out:
+                out.append({"city": m.group(1), "state": m.group(2).upper()})
+    return out
+
+
+def baseline_for(question: str) -> dict:
+    """The place every candidate is measured against, when a reviewed entry for this kind of question
+    names one: {"city", "state", "measure"}, else {}. "home" is his own town, else the entry's
+    `baseline_default`.
+
+    Her first comparison of the places he might move to measured their cost of living against New
+    York - the index the pages use - and left out rent (2026-10-11), while his own rulings measure
+    pay against where he lives now. What to measure is the entry's too, never the code's."""
+    said = " ".join(str(question or "").split()).casefold()
+    for row in _listings():
+        if not row.get("baseline") or not any(_phrase_in(str(a), said) for a in row.get("about") or []):
+            continue
+        where = _home() if row["baseline"] == "home" else {}
+        if not where.get("city"):
+            m = re.match(r"\s*(.+?),\s*([A-Za-z]{2})\s*$", str(row.get("baseline_default") or ""))
+            where = {"city": m.group(1), "state": m.group(2).upper()} if m else {}
+        if where.get("city"):
+            return dict(where, measure=str(row.get("measure") or "").strip())
+    return {}
+
+
+def _measured(question: str, base: dict) -> str:
+    """The question as the report is asked it: against the baseline, with what to measure."""
+    if not base:
+        return question
+    where = f"{base['city']}, {base['state']}" if base.get("state") else base["city"]
+    said = (f"{question.rstrip(' .')}. Measure every place against {where}, where Caleb lives now: say each "
+            f"figure beside {where}'s, and where a page's index is relative to another city, say so and compare "
+            f"the places to {where} instead.")
+    if base.get("measure"):
+        said += f" Give {base['measure']} for each place where the pages say them, and name the ones they do not."
+    return said
+
+
+def places_in_text(text: str) -> list[dict]:
+    """"Tampa, FL" style places a page names, most named first: the candidates a question about
+    places that names none can be answered for, taken from what was read rather than guessed."""
+    counts: dict[tuple[str, str], int] = {}
+    names = "|".join(re.escape(n) for n in sorted(STATE_NAMES.values(), key=len, reverse=True))
+    for m in re.finditer(r"\b([A-Z][a-z]+(?:[ -][A-Z][a-z]+){0,2})(?:,\s*([A-Z]{2})\b|[,\t]\s*(" + names + r")\b)",
+                         str(text or "")):
+        city, state = m.group(1), m.group(2) or _STATE_CODES.get(str(m.group(3) or "").casefold(), "")
+        if not state or (m.group(2) and state not in STATE_NAMES):
+            continue
+        if city.casefold() in _NOT_PLACES or city in ("United States",):
+            continue
+        counts[(city, state)] = counts.get((city, state), 0) + 1
+    ranked = sorted(counts, key=lambda k: -counts[k])
+    return [{"city": c, "state": st} for c, st in ranked]
+
+
+def _dropped_host(url: str, drop: set[str]) -> bool:
+    host = _host(url)
+    return any(host == d or host.endswith("." + d) for d in drop)
 
 
 def _plan_validator(value: dict) -> dict:
@@ -388,8 +680,36 @@ def http_search(query: str, *, opener=None) -> dict:
     return {"url": "", "title": "", "text": "", "links": [], "error": "; ".join(refused)}
 
 
+def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str,
+              drop_hosts: frozenset = frozenset()) -> list[dict]:
+    """Only the results whose title, snippet or address share a word with what was asked. An engine
+    answering with pages about something else is an engine that gave no results, and the next one is
+    tried; what was dropped is journaled with the query, so "what did it search for" has an answer."""
+    if drop_hosts:
+        found = [f for f in found if not _dropped_host(f["url"], set(drop_hosts))]
+    if not about:
+        return found
+    snippets = {str(link.get("href") or ""): str(link.get("snippet") or "") for link in page.get("links") or []}
+    def said(f):
+        return " ".join((f.get("title") or "", snippets.get(f["url"], "")))
+
+    # Judged only on enough words to judge by: a result titled "Primary source" is unknown, and
+    # unknown is kept. A result that says plainly what it is about, and it is not this, is dropped.
+    # A question with four or more subject words needs two of them in a result: pages about the
+    # Sioux people share one word with events in Sioux Falls, and nothing else (2026-10-10).
+    shared = 2 if len(topic_words(about)) >= 4 else 1
+    kept = [f for f in found if len(topic_words(said(f))) < 3
+            or on_topic(said(f) + " " + f["url"], about, shared=shared)]
+    if len(kept) < len(found):
+        journal.append("event", "research",
+                       f"{engine} for {query!r}: kept {len(kept)} of {len(found)} results; off the subject: "
+                       + ", ".join(_host(f["url"]) for f in found if f not in kept)[:200], actor=ACTOR)
+    return kept
+
+
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
-                 reader=browse.read_page, http=http_search) -> list[dict]:
+                 reader=browse.read_page, http=http_search, about: str = "",
+                 drop_hosts: frozenset = frozenset()) -> list[dict]:
     """Search the way a person does — no API key, per §6.
 
     Failure here is survivable and must not end a run: a search engine that
@@ -400,7 +720,8 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
     """
     if http is not None:
         page = http(query)
-        found = _results(page.get("engine") or "http", page, limit)
+        found = _relevant(_results(page.get("engine") or "http", page, limit), page, about, query,
+                          page.get("engine") or "http", drop_hosts)
         if found:
             return found
         journal.append("event", "research",
@@ -415,7 +736,7 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
                            f"{engine} search failed for {query!r}: {type(exc).__name__}",
                            actor=ACTOR)
             continue
-        found = _results(engine, page, limit)
+        found = _relevant(_results(engine, page, limit), page, about, query, engine, drop_hosts)
         if found:
             return found
         journal.append("event", "research",
@@ -445,11 +766,56 @@ def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
             failed.append({"url": source["url"], "reason": "no readable text"})
             continue
         read.append({
+            **({"place": source["place"]} if source.get("place") else {}),
             "url": page.get("url") or source["url"],
             "title": (page.get("title") or source.get("title") or "")[:200],
             "extract": text[:MAX_EXTRACT_CHARS],
+            # The whole page, kept for this question only: what bears on it is chosen from all of it
+            # (`focus`), never stored in the report.
+            "full": text[:MAX_PAGE_CHARS],
         })
     return read, failed
+
+
+#: How much of one page is kept to choose from, and the smallest share a page is shown.
+MAX_PAGE_CHARS = 60_000
+MIN_SHARE_CHARS = 300
+_FIGURE = re.compile(r"[$€£]\s?\d|\d(?:[\d,.]*)\s?%|\b\d{2,}(?:[.,]\d+)?\b")
+
+
+def focus(text: str, question: str, per: int) -> str:
+    """The sentences of a page that bear on the question, in page order, up to `per` characters.
+
+    A share of a page used to be its first `per` characters, which on a city's cost-of-living page
+    is the site's menu: twelve pages cut to 300 characters each came back "none of them contains
+    city-level figures" (his PC, 2026-10-11). A sentence counts for each word of the question it
+    shares and once more for a figure in it; a page with nothing that counts is shown from the top."""
+    text = str(text or "")
+    if len(text) <= per:
+        return text
+    want = topic_words(question)
+    parts = [" ".join(p.split()) for p in re.split(r"(?<=[.!?])\s+|\n+|\s{2,}|\s[|•·]\s", text) if p.strip()]
+    scored = sorted(((len(topic_words(p) & want) + (1 if _FIGURE.search(p) else 0), i, p[:per])
+                     for i, p in enumerate(parts)), key=lambda x: (-x[0], x[1]))
+    keep, size = [], 0
+    for score, i, p in scored:
+        if score <= 0 or size >= per:
+            break
+        if size + len(p) + 1 <= per:
+            keep.append((i, p))
+            size += len(p) + 1
+    if not keep:
+        return " ".join(text.split())[:per]
+    # Room left over is filled with the rest of the page in its order: a share of 400 characters
+    # out of a 4,000 budget left the writer with almost nothing (2026-10-11).
+    taken = {i for i, _p in keep}
+    for i, p in enumerate(parts):
+        if size >= per:
+            break
+        if i not in taken and size + len(p) + 1 <= per:
+            keep.append((i, p))
+            size += len(p) + 1
+    return " ".join(p for _i, p in sorted(keep))
 
 
 def _bounded(question: str, sources: list[dict],
@@ -459,17 +825,54 @@ def _bounded(question: str, sources: list[dict],
     Five pages at MAX_EXTRACT_CHARS is ~30 KB and the reasoner refuses
     anything over 8 KB outright — which is how the first live question
     (2026-09-02) found five good sources and then could not write a word.
-    Every source keeps a share; the share shrinks until the whole fits.
+    Every source keeps a share of what bears on the question; the share
+    shrinks until the whole fits, and when even the smallest share does not,
+    the pages that bear on it least are left out rather than every page
+    shown as its menu (2026-10-11).
     """
+    def size_of(rows):
+        return len(json.dumps({"question": question, "sources": rows}, ensure_ascii=False).encode("utf-8"))
+
     per = MAX_EXTRACT_CHARS
     while True:
         rows = [{"url": s["url"], "title": (s.get("title") or "")[:120],
-                 "extract": s["extract"][:per]} for s in sources]
-        size = len(json.dumps({"question": question, "sources": rows},
-                              ensure_ascii=False).encode("utf-8"))
-        if size <= limit or per <= 300:
+                 "extract": focus(s.get("full") or s["extract"], f"{question} {s.get('place') or ''}", per)}
+                for s in sources]
+        if size_of(rows) <= limit:
             return rows
-        per = int(per * 0.7)
+        if per <= MIN_SHARE_CHARS:
+            break
+        per = max(MIN_SHARE_CHARS, int(per * 0.7))
+    want = topic_words(question)
+    ranked = sorted(range(len(rows)), key=lambda i: (-(len(topic_words(rows[i]["extract"]) & want)
+                                                       + len(_FIGURE.findall(rows[i]["extract"])) / 10), i))
+    kept = list(rows)
+    for i in reversed(ranked):
+        if size_of(kept) <= limit or len(kept) <= 1:
+            break
+        kept.remove(rows[i])
+    return kept
+
+
+#: A local look over several places' own pages: measured at 4 KB, 113 s warm on his laptop.
+PLACE_REPORT_BYTES = 4_500
+#: The national pages a look over places keeps beside them.
+MAX_NATIONAL_PAGES = 2
+
+
+def by_place(question: str, sources: list[dict]) -> list[dict]:
+    """One page per place - the one whose relevant part holds the most figures - then at most
+    MAX_NATIONAL_PAGES of the rest, so each place's share of a small budget is its figures."""
+    def figures(s):
+        return len(_FIGURE.findall(focus(s.get("full") or s["extract"], f"{question} {s.get('place')}", 1500)))
+    best: dict[str, dict] = {}
+    for s in sources:
+        key = s.get("place")
+        if key and (key not in best or figures(s) > figures(best[key])):
+            best[key] = s
+    national = [s for s in sources if not s.get("place")]
+    national.sort(key=lambda s: -figures(s))
+    return list(best.values()) + national[:MAX_NATIONAL_PAGES]
 
 
 def _verified(report: dict, sources: list[dict]) -> dict:
@@ -533,14 +936,20 @@ def run(question: str, *, reader=browse.read_page, think=None,
         # saying so - and saying BACKGROUND is also saying WORK to the lease,
         # so a real sentence of his still takes the queue.
         attention = work_states.BACKGROUND if alone else work_states.ATTENDED
-        plan_think = reasoning_gateway.thinker("routine", attention=attention)
+        # Alone, her own model is not asked for the queries at all: it searched for the words of
+        # its instructions instead of the question (2026-10-10), and the question's own words
+        # need no model.
+        plan_think = None if alone else reasoning_gateway.thinker("routine", attention=attention)
         think = reasoning_gateway.thinker("standard", attention=attention)
     else:
         plan_think = think
 
     try:
-        plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
-                          validator=_plan_validator)
+        if plan_think is None:
+            plan = queries_by_keywords(question)
+        else:
+            plan = plan_think(PLAN_SYSTEM, question, model=reasoner.INTERPRET_MODEL,
+                              validator=_plan_validator)
     except reasoner.ReasonerUnavailable:
         # PICKING A QUERY NEEDS NO MODEL. With every frontier off and her own
         # model cold, "look into whether Ramp is hiring in Denver" died here
@@ -548,11 +957,30 @@ def run(question: str, *, reader=browse.read_page, think=None,
         # person does by typing the question into the box. The question IS
         # the query; a model only ever made it a slightly better one.
         plan = queries_without_a_model(question)
+    # A planned query sharing no word with the question searches for something else: on his PC
+    # every question came back as pages about spelling and semicolons (2026-10-10), the words a
+    # small model takes from the planning instructions rather than from the question.
+    kept = [q for q in plan["queries"] if on_topic(q, question)]
+    if not kept:
+        journal.append("event", "research", f"no planned query was about {question[:80]!r} "
+                       f"({'; '.join(plan['queries'])[:160]}); searching the question itself", actor=ACTOR)
+        kept = queries_without_a_model(question)["queries"]
+    plan = dict(plan, queries=kept)
 
-    candidates, seen_hosts = [], set()
+    # The pages that LIST this kind of thing first: events are on event listings, not on the
+    # encyclopedia page a search for the city ranks first (2026-10-11).
+    listed, drop = listings_for(question)
+    if not _ASKS_MEANING.search(question):
+        drop = set(drop) | DICTIONARY_HOSTS
+    candidates, seen_hosts = list(listed), {_host(x["url"]) for x in listed}
+    if listed:
+        journal.append("event", "research", f"reading {speech.count_phrase(len(listed), 'listing page')} for {question[:80]!r}: "
+                       + ", ".join(x["title"] for x in listed)[:200], actor=ACTOR)
     for query in plan["queries"]:
         policy.ensure_not_halted()
-        for source in find_sources(query, reader=reader, http=http):
+        if len(candidates) >= MAX_SOURCES:
+            break
+        for source in find_sources(query, reader=reader, http=http, about=question, drop_hosts=frozenset(drop)):
             host = _host(source["url"])
             if host in seen_hosts and not source.get("library"):
                 continue
@@ -583,7 +1011,36 @@ def run(question: str, *, reader=browse.read_page, think=None,
             "differently, or it may be something the open web does not answer")
 
     sources, failed = read_sources(candidates, reader=reader)
+    listed = candidate_places(question)
+    if listed or (not place_in(question) and _PLACE_WORDS.search(question)):
+        # A question about places that names none ("compare a shortlist of warm ... cities") read
+        # the national pages and no place's own figures (2026-10-11). The candidates are the places
+        # a reviewed entry lists for this kind of question, else the places those pages name; their
+        # own pages are read next.
+        more = []
+        # The reviewed list is the source whenever it covers the question - never a fallback after
+        # the national pages, which on his PC came back as a few hundred characters (2026-10-11).
+        places = (listed or places_in_text(" ".join(x["extract"] for x in sources)))[:MAX_PLACES]
+        for where in places:
+            more += [dict(x, place=f"{where['city']}, {where['state']}") for x in listings_for(question, at=where)[0]
+                     if x["url"] not in {c["url"] for c in candidates + more}]
+        more = more[:MAX_PLACE_PAGES]
+        base = baseline_for(question)
+        if base and not any(p["city"].casefold() == base["city"].casefold() for p in places):
+            # Where he lives now is read beside the candidates, never instead of one of them, and
+            # one page of it is enough to measure against.
+            at = {"city": base["city"], "state": base.get("state") or ""}
+            more += [dict(x, place=f"{at['city']}, {at['state']}", baseline=True)
+                     for x in listings_for(question, at=at)[0]
+                     if x["url"] not in {c["url"] for c in candidates + more}][:MAX_BASELINE_PAGES]
+        if more:
+            journal.append("event", "research", "reading " + speech.count_phrase(len(more), "more page")
+                           + " for the places those pages named", actor=ACTOR)
+            got, lost = read_sources(more, reader=reader)
+            sources += got
+            failed += lost
     if not sources:
+        _note_look(question, [], failed)
         raise ResearchError(
             "found " + speech.count_phrase(len(candidates), "candidate page")
             + " and could read none of them")
@@ -592,11 +1049,18 @@ def run(question: str, *, reader=browse.read_page, think=None,
     # model writes the report, and 7.5 KB of extracts is a call it cannot
     # finish inside its ceiling on his laptop (measured 2026-09-22: 420 s
     # and no answer). Fewer words in, an answer out.
-    bounded = (_bounded(question, sources, limit=LOCAL_REPORT_BYTES) if alone
-               else _bounded(question, sources))
+    asked = _measured(question, baseline_for(question))
+    if alone and any(s.get("place") for s in sources):
+        # Fifteen pages for five places shared 3 KB, about 300 characters each, and the comparison
+        # read no figures (his PC, 2026-10-11): each place shows its page richest in figures, the
+        # national pages come after, and the budget is the one measured for a 4 KB local prompt.
+        bounded = _bounded(asked, by_place(asked, sources), limit=PLACE_REPORT_BYTES)
+    else:
+        bounded = (_bounded(asked, sources, limit=LOCAL_REPORT_BYTES) if alone
+                   else _bounded(asked, sources))
     report = think(
-        WRITE_SYSTEM, question,
-        context={"question": question, "sources": bounded},
+        WRITE_SYSTEM, asked,
+        context={"question": asked, "sources": bounded},
         model=reasoner.PLAN_MODEL, validator=_report_validator)
     report = _verified(report, sources)
     report.update({
@@ -604,10 +1068,99 @@ def run(question: str, *, reader=browse.read_page, think=None,
         "queries": plan["queries"],
         "sources": [{"url": s["url"], "title": s["title"]} for s in sources],
         "unreadable": failed,
+        "dated": dated_lines(sources),
         "at": stateio.utcnow(),
     })
+    _note_look(question, bounded, failed, shown_of=len(sources),
+               pages={s["url"]: len(s.get("full") or s["extract"]) for s in sources})
     _deliver(report)
     return report
+
+
+#: Dated lines a look carries beside its answer, at most.
+MAX_DATED = 8
+
+
+def dated_lines(sources: list[dict]) -> list[str]:
+    """The lines of the pages read that carry a date AND a time, as the pages wrote them: the
+    step after a look that puts something on his calendar reads these, not the prose of an answer
+    that left the dates out (2026-10-11: the young professionals' list had five dated items and the
+    hold step found "nothing with a date")."""
+    from aletheia import dated_text, localtime
+    now, tz = dt.datetime.now(dt.timezone.utc), localtime.operator_tz()
+    out: list[str] = []
+    for s in sources:
+        for occ in dated_text.occurrences(s.get("full") or s.get("extract") or "", now=now, tz=tz):
+            if occ["timed"] and occ["date"] >= now.astimezone(tz).date().isoformat():
+                line = f"{occ['title']}, {occ['line']}" if occ["title"] not in occ["line"] else occ["line"]
+                if line not in out:
+                    out.append(line)
+            if len(out) >= MAX_DATED:
+                return out
+    return out
+
+
+#: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
+#: is tried once more on the new one (program_run releases it).
+REVISION = 5
+#: A page with less text than this is said to be too short in the look's line.
+SHORT_PAGE = 1500
+#: How many looks are remembered for "what did the last look read".
+MAX_LOOKS = 40
+
+
+def _looks_path():
+    return stateio.private_dir("research") / "looks.json"
+
+
+def look_key(question: str) -> str:
+    return " ".join(str(question or "").casefold().split())[:300]
+
+
+def _note_look(question: str, shown: list[dict], failed: list[dict], *, shown_of: int = 0,
+               pages: dict | None = None) -> None:
+    """What a look read, how much of each page it showed the writer, and what refused it: kept so
+    a look that came back empty can be explained without guessing (four rounds went blind on one
+    comparison, 2026-10-11). Hosts and sizes only, never page text."""
+    try:
+        looks = stateio.read_json(_looks_path()) if _looks_path().exists() else {}
+        looks = looks if isinstance(looks, dict) else {}
+        looks[look_key(question)] = {
+            "at": stateio.utcnow(), "revision": REVISION,
+            "shown": [{"host": _host(r["url"]), "kept": len(r.get("extract") or ""),
+                       "page": int((pages or {}).get(r["url"]) or 0)} for r in shown],
+            "read": shown_of, "failed": [{"host": _host(f.get("url") or ""), "reason": str(f.get("reason") or "")[:60]}
+                                         for f in failed]}
+        for k in sorted(looks, key=lambda k: looks[k].get("at") or "")[:-MAX_LOOKS]:
+            looks.pop(k)
+        stateio.write_json_atomic(_looks_path(), looks)
+    except Exception:  # noqa: BLE001 - a note about a look must never fail the look
+        pass
+
+
+def last_look(question: str) -> dict | None:
+    try:
+        looks = stateio.read_json(_looks_path()) if _looks_path().exists() else {}
+        return (looks or {}).get(look_key(question))
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def look_words(look: dict) -> str:
+    """One line about a look: the pages shown to the writer with the characters kept of each,
+    and the ones that refused it."""
+    def one(r):
+        page = int(r.get("page") or 0)
+        if not page:
+            return f"{r['host']} ({r['kept']})"
+        # A page this short is a robot check or an empty shell far more often than an answer.
+        return f"{r['host']} ({r['kept']} of {page}{', too short to hold figures' if page < SHORT_PAGE else ''})"
+    shown = ", ".join(one(r) for r in look.get("shown") or []) or "nothing"
+    left = int(look.get("read") or 0) - len(look.get("shown") or [])
+    line = f"shown: {shown}" + (f" (+{left} read, left out to fit)" if left > 0 else "")
+    if look.get("failed"):
+        line += " | couldn't read: " + ", ".join(f"{f['host']} ({f['reason']})" for f in look["failed"])
+    return line
 
 
 def as_markdown(report: dict) -> str:
@@ -619,6 +1172,8 @@ def as_markdown(report: dict) -> str:
     if report.get("gaps"):
         lines += ["## What this does not settle", ""]
         lines += [f"- {g}" for g in report["gaps"]] + [""]
+    if report.get("queries"):
+        lines += ["## Searched for", ""] + [f"- {q}" for q in report["queries"]] + [""]
     lines += ["## Sources read", ""]
     lines += [f"- [{s['title'] or s['url']}]({s['url']})" for s in report["sources"]]
     if report.get("unreadable"):
@@ -674,10 +1229,43 @@ def _deliver(report: dict) -> str:
     return doc_id
 
 
+#: Below this the report is said with what it searched for.
+LOW_CONFIDENCE = 0.3
+#: An answer that says it could not answer is unsure whatever confidence it gave itself.
+_CANT = re.compile(r"\b(?:can't|cannot|can not|couldn't|unable to)\b", re.I)
+
+
 def spoken(report: dict) -> str:
     """Out loud: the answer, then where it came from. Not the whole report —
     he asked a question, not for a document to be read at him."""
     n = len(report["sources"])
+    unread = [_host(u.get("url") or "") for u in report.get("unreadable") or [] if u.get("url")]
+    read = [_host(s.get("url") or "") for s in report.get("sources") or [] if s.get("url")]
+    unsure = (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE
+              or bool(_CANT.search(str(report.get("answer") or ""))))
+    if report.get("dated"):
+        # The dated lines the pages carried travel with the answer, as the pages wrote them.
+        report = dict(report, answer=f"{report['answer'].strip()} Dated: " + "; ".join(report["dated"]) + ".")
+    if (unread or read) and unsure:
+        # Which pages she read and which refused her travel FIRST with an unsure answer, so a site
+        # that only shows a robot check, or a page never reached, is visible on the relay at a glance
+        # rather than a guess (2026-10-11).
+        how = []
+        if read:
+            how.append(f"I read {speech.and_list(list(dict.fromkeys(read))[:6])}")
+        if unread:
+            how.append(f"I couldn't read {speech.and_list(list(dict.fromkeys(unread))[:4])}")
+        report = dict(report, answer=f"{'; '.join(how)}. {report['answer'].strip()}")
+    if report.get("queries") and (not report.get("findings") or float(report.get("confidence") or 0) < LOW_CONFIDENCE):
+        # Nothing it could cite: say what it searched for, so a wrong search is visible rather
+        # than a mystery (2026-10-10: every question read the same pages about grammar).
+        if report.get("findings"):
+            # Unsure of it: what it searched for is said too, so a wrong search shows in the
+            # mission's steps rather than looking like an answer (2026-10-10).
+            return (f"{report['answer']} I'm not sure of this: I searched for "
+                    f"{speech.or_list(report['queries'])} and it rests on {n} source{'s' if n != 1 else ''}.")
+        return (f"{report['answer']} I searched for {speech.or_list(report['queries'])}, read "
+                f"{n} page{'s' if n != 1 else ''}, and none of them answered it.")
     return (f"{report['answer']} "
             f"That is from {n} source{'s' if n != 1 else ''}; "
             "the full write-up is in your documents.")

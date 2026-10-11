@@ -5,6 +5,7 @@ between 1 and 10", "spell necessary", "how many ounces in a cup", "do I
 need an umbrella" and "what's the weather this weekend" all went to the
 planner and came back "I could not plan that". None of them needs thinking.
 """
+import datetime as dt
 import unittest
 from unittest import mock
 
@@ -34,9 +35,11 @@ WEEK = [
 
 class TheWeekendAndTheUmbrella(unittest.TestCase):
     def setUp(self):
-        patcher = mock.patch.object(weather, "forecast", return_value=forecast(WEEK))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        # WEEK reads Today, Thursday, ...: the forecast is asked for on a Wednesday.
+        for patcher in (mock.patch.object(weather, "forecast", return_value=forecast(WEEK)),
+                        mock.patch("aletheia.localtime.today", return_value=dt.date(2026, 10, 7))):
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def test_the_weekend_is_two_days(self):
         said = quick.answer("what's the weather this weekend")

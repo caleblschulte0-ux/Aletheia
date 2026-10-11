@@ -1,0 +1,12 @@
+{
+  "id": "20261009-reboot-a11",
+  "filed": "2026-10-09T00:57:30Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Okay, until I actually start getting into this, I need uh, her to just start throwing shit on my calendar and signing me up for stuff.",
+  "command": {
+    "kind": "mission_add",
+    "mission": "Project Reboot",
+    "text": "Keep that target for now: one interview a week and an accepted offer by December 31, 2026. He can change it later."
+  }
+}
