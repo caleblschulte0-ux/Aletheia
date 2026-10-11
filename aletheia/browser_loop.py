@@ -810,6 +810,12 @@ def _stop(record: dict, state: str, kind: str, obs: dict | None, step: str = "",
                 "step": step, "say": _say_boundary(kind, url, **bits)}
     if kind == "NO_WAY_FORWARD" and obs:
         boundary["dead_end"] = dead_end(obs)
+        # What she could have pressed, in the page's own words. Private state
+        # only: the funnel publishes these through a fixed vocabulary
+        # (`hunt_funnel.button_words`), so "which of these stops is fixable"
+        # has an answer without a page address or an employer in it.
+        boundary["buttons"] = [str(t.get("label") or "")[:60] for t in (obs.get("targets") or [])
+                               if t.get("role") in ps.PRESS_ROLES and t.get("label")][:8]
     boundary.update({k: v for k, v in bits.items()
                      if k in ("questions", "via", "why", "because", "mail", "site_said",
                               "question") and v})

@@ -508,6 +508,7 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     # The month mixes stops already fixed with ones still happening.
     fresh["stuck_recently"] = {"days": RECENT_DAYS,
                                "where": stuck_at(left, now=now, days=RECENT_DAYS)}
+    fresh["stop_shapes"] = stop_shapes(left, now=now)
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
@@ -572,6 +573,58 @@ def stuck_at(missions: list[dict], *, now: dt.datetime | None = None, days: int 
         except (ValueError, TypeError, AttributeError):
             continue
     return {kind: dict(sorted(c.items())) for kind, c in sorted(out.items())}
+
+
+#: The only words a button may be published in. A label can carry an
+#: employer ("Apply to Stripe") and this repo is public, so every other word
+#: is shown as "_".
+_BUTTON_VOCABULARY = frozenset(
+    "apply application now job role position submit continue next start begin interested join send review "
+    "sign in up create account login log register save back cancel view learn more details careers search "
+    "email share alert alerts referral resume upload with linkedin indeed google seek this for to the "
+    "easy quick online our team open openings jobs see all add ok yes no close accept reject decline "
+    "cookies cookie preferences privacy settings menu home about contact".split())
+
+
+def button_words(labels) -> str:
+    """A stop's buttons as published words: the fixed vocabulary above and
+    "_" for anything else, a handful of buttons, nothing that names a place."""
+    out = []
+    for label in list(labels or [])[:6]:
+        tokens = re.findall(r"[a-z]+", str(label or "").casefold())[:5]
+        words_ = [t if t in _BUTTON_VOCABULARY else "_" for t in tokens]
+        text = " ".join(words_).strip()
+        if text and text not in out:
+            out.append(text)
+    return " | ".join(out)
+
+
+def stop_shapes(missions: list[dict], *, now: dt.datetime | None = None, days: int = RECENT_DAYS) -> dict:
+    """For the recent no-way-forward stops: the system the page was on and the
+    buttons it offered, as counts, so the stops that are fixable can be told
+    from the ones that are not."""
+    from collections import Counter
+    from aletheia import browser_mission as bm
+    now = now or dt.datetime.now(dt.timezone.utc)
+    first = now - dt.timedelta(days=days)
+    out: Counter = Counter()
+    for mission in missions:
+        try:
+            if mission.get("state") != bm.LEFT or not bm._is_job(mission):
+                continue
+            boundary = mission.get("boundary") or {}
+            if str(boundary.get("kind") or "") != "NO_WAY_FORWARD":
+                continue
+            when = dt.datetime.fromisoformat(str(mission.get("left_at") or "").replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=dt.timezone.utc)
+            if when < first:
+                continue
+            held = str(boundary.get("dead_end") or _stuck_cause(boundary))
+            out[f"{_system_of(boundary.get('url'))}: {held}: {button_words(boundary.get('buttons')) or 'none'}"] += 1
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return dict(out.most_common(25))
 
 
 def _left_missions() -> list[dict]:
