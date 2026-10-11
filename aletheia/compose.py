@@ -79,9 +79,12 @@ fence around the whole thing.
 - If source files travel with the request, work from what they actually
   say. Do not invent a fact that is not in them.
 - Markdown is fine when it helps and unnecessary when it does not.
-- If you genuinely cannot write it from what you were given, say so in one
-  plain sentence, starting with the words CANNOT WRITE. That is the only
-  case where your output is not the document."""
+- If the sources cover only part of what he asked for, write the part they
+  support and say plainly, in the document, what is still missing. Partial
+  and honest is the document; never refuse for want of the rest.
+- If you genuinely cannot write any of it from what you were given, say so
+  in one plain sentence, starting with the words CANNOT WRITE. That is the
+  only case where your output is not the document."""
 
 REFUSAL = "CANNOT WRITE"
 

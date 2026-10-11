@@ -90,6 +90,14 @@ SKIP_HOSTS = {
     "www.startpage.com", "youtube.com", "www.youtube.com",
     "facebook.com", "www.facebook.com", "x.com", "twitter.com",
 }
+#: Pages about what a word means: never an answer unless the question asks what a word means. A
+#: stray word of the comparison's question ("shortlist") came back as two dictionary entries
+#: (his PC, 2026-10-11).
+DICTIONARY_HOSTS = frozenset({"dictionary.cambridge.org", "www.merriam-webster.com", "merriam-webster.com",
+                              "www.dictionary.com", "dictionary.com", "www.collinsdictionary.com",
+                              "www.thesaurus.com", "www.vocabulary.com", "www.oxfordlearnersdictionaries.com",
+                              "en.wiktionary.org", "www.wordreference.com"})
+_ASKS_MEANING = re.compile(r"\b(?:mean|meaning|means|define|definition|synonyms?|spell|spelling)\b", re.I)
 
 PLAN_SYSTEM = """You turn one research question into search queries.
 Return exactly one JSON object: {"queries": [string], "why": string}.
@@ -722,6 +730,7 @@ def read_sources(sources: list[dict], *, reader=browse.read_page) -> list[dict]:
             failed.append({"url": source["url"], "reason": "no readable text"})
             continue
         read.append({
+            **({"place": source["place"]} if source.get("place") else {}),
             "url": page.get("url") or source["url"],
             "title": (page.get("title") or source.get("title") or "")[:200],
             "extract": text[:MAX_EXTRACT_CHARS],
@@ -791,7 +800,8 @@ def _bounded(question: str, sources: list[dict],
     per = MAX_EXTRACT_CHARS
     while True:
         rows = [{"url": s["url"], "title": (s.get("title") or "")[:120],
-                 "extract": focus(s.get("full") or s["extract"], question, per)} for s in sources]
+                 "extract": focus(s.get("full") or s["extract"], f"{question} {s.get('place') or ''}", per)}
+                for s in sources]
         if size_of(rows) <= limit:
             return rows
         if per <= MIN_SHARE_CHARS:
@@ -806,6 +816,27 @@ def _bounded(question: str, sources: list[dict],
             break
         kept.remove(rows[i])
     return kept
+
+
+#: A local look over several places' own pages: measured at 4 KB, 113 s warm on his laptop.
+PLACE_REPORT_BYTES = 4_500
+#: The national pages a look over places keeps beside them.
+MAX_NATIONAL_PAGES = 2
+
+
+def by_place(question: str, sources: list[dict]) -> list[dict]:
+    """One page per place - the one whose relevant part holds the most figures - then at most
+    MAX_NATIONAL_PAGES of the rest, so each place's share of a small budget is its figures."""
+    def figures(s):
+        return len(_FIGURE.findall(focus(s.get("full") or s["extract"], f"{question} {s.get('place')}", 1500)))
+    best: dict[str, dict] = {}
+    for s in sources:
+        key = s.get("place")
+        if key and (key not in best or figures(s) > figures(best[key])):
+            best[key] = s
+    national = [s for s in sources if not s.get("place")]
+    national.sort(key=lambda s: -figures(s))
+    return list(best.values()) + national[:MAX_NATIONAL_PAGES]
 
 
 def _verified(report: dict, sources: list[dict]) -> dict:
@@ -903,6 +934,8 @@ def run(question: str, *, reader=browse.read_page, think=None,
     # The pages that LIST this kind of thing first: events are on event listings, not on the
     # encyclopedia page a search for the city ranks first (2026-10-11).
     listed, drop = listings_for(question)
+    if not _ASKS_MEANING.search(question):
+        drop = set(drop) | DICTIONARY_HOSTS
     candidates, seen_hosts = list(listed), {_host(x["url"]) for x in listed}
     if listed:
         journal.append("event", "research", f"reading {speech.count_phrase(len(listed), 'listing page')} for {question[:80]!r}: "
@@ -953,7 +986,7 @@ def run(question: str, *, reader=browse.read_page, think=None,
         # the national pages, which on his PC came back as a few hundred characters (2026-10-11).
         places = listed or places_in_text(" ".join(x["extract"] for x in sources))
         for where in places[:MAX_PLACES]:
-            more += [x for x in listings_for(question, at=where)[0]
+            more += [dict(x, place=f"{where['city']}, {where['state']}") for x in listings_for(question, at=where)[0]
                      if x["url"] not in {c["url"] for c in candidates + more}]
         more = more[:MAX_PLACE_PAGES]
         if more:
@@ -972,8 +1005,14 @@ def run(question: str, *, reader=browse.read_page, think=None,
     # model writes the report, and 7.5 KB of extracts is a call it cannot
     # finish inside its ceiling on his laptop (measured 2026-09-22: 420 s
     # and no answer). Fewer words in, an answer out.
-    bounded = (_bounded(question, sources, limit=LOCAL_REPORT_BYTES) if alone
-               else _bounded(question, sources))
+    if alone and any(s.get("place") for s in sources):
+        # Fifteen pages for five places shared 3 KB, about 300 characters each, and the comparison
+        # read no figures (his PC, 2026-10-11): each place shows its page richest in figures, the
+        # national pages come after, and the budget is the one measured for a 4 KB local prompt.
+        bounded = _bounded(question, by_place(question, sources), limit=PLACE_REPORT_BYTES)
+    else:
+        bounded = (_bounded(question, sources, limit=LOCAL_REPORT_BYTES) if alone
+                   else _bounded(question, sources))
     report = think(
         WRITE_SYSTEM, question,
         context={"question": question, "sources": bounded},
@@ -1018,7 +1057,7 @@ def dated_lines(sources: list[dict]) -> list[str]:
 
 #: Bumped whenever how a look reads its pages changes, so a look that failed on the old reading
 #: is tried once more on the new one (program_run releases it).
-REVISION = 3
+REVISION = 4
 #: A page with less text than this is said to be too short in the look's line.
 SHORT_PAGE = 1500
 #: How many looks are remembered for "what did the last look read".

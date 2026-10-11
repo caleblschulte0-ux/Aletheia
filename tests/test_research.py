@@ -659,3 +659,40 @@ class TheListedPlacesAreReadWhateverElseTheQuestionNames(unittest.TestCase):
         got = research.focus(text, "cost of living", 600)
         self.assertIn("103", got)
         self.assertGreater(len(got), 400)
+
+
+class EachPlaceShowsItsPageRichestInFigures(unittest.TestCase):
+    """His PC, 2026-10-11 14:09Z: fifteen pages for five places shared 3 KB, about 300 characters each,
+    and two dictionary entries came in on a stray word of the question."""
+
+    def test_one_page_per_place_and_two_national_pages(self):
+        menu = "Home About Contact Sign in. " * 40
+        sources = [
+            {"url": "https://a.org/tampa-wiki", "place": "Tampa, FL", "extract": "", "full": menu + "Tampa is a city."},
+            {"url": "https://a.org/tampa-col", "place": "Tampa, FL", "extract": "",
+             "full": menu + "Tampa cost of living index 102. Median home $398,700. Rent $1,650."},
+            {"url": "https://a.org/austin-col", "place": "Austin, TX", "extract": "",
+             "full": "Austin cost of living index 119. Median home $550,000."},
+            {"url": "https://n.org/1", "extract": "", "full": "US cities ranked: index 70 to 150."},
+            {"url": "https://n.org/2", "extract": "", "full": "State income tax rates: 0% in Florida and Texas."},
+            {"url": "https://n.org/3", "extract": "", "full": "A page with nothing in it at all."},
+        ]
+        picked = [s["url"] for s in research.by_place("compare cost of living", sources)]
+        self.assertEqual(picked[:2], ["https://a.org/tampa-col", "https://a.org/austin-col"])
+        self.assertEqual(len(picked), 2 + research.MAX_NATIONAL_PAGES)
+        self.assertNotIn("https://n.org/3", picked)
+
+    def test_dictionary_pages_are_dropped_unless_a_meaning_is_asked(self):
+        seen = []
+
+        def find(query, **kw):
+            seen.append(kw.get("drop_hosts"))
+            return []
+        with mock.patch.object(research, "find_sources", find), \
+                mock.patch.object(research, "listings_for", lambda q, **k: ([], set())), \
+                mock.patch.object(research.policy, "ensure_not_halted", lambda: None):
+            for q in ("compare a shortlist of places", "what does shortlist mean"):
+                with self.assertRaises(research.ResearchError):
+                    research.run(q, reader=lambda url: {}, http=None, think=lambda *a, **k: {"queries": [q]})
+        self.assertIn("dictionary.cambridge.org", seen[0])
+        self.assertNotIn("dictionary.cambridge.org", seen[-1])

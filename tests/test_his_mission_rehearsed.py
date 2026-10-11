@@ -997,7 +997,8 @@ class WhatHisPcDidAfterTheSeventeenthFix(HisMissionRunsWithoutHim):
                                                 "sources": ["the research above"]}}],
                             "requires": [], "gaps": []},
                       results=[{"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
-                                "said": "Tampa: cost of living index 102; Austin: 119."}])
+                                "said": "Tampa: cost of living index 102; Austin: 119.",
+                                "revision": research.REVISION}])
         pg.update(self.pid, change)
         program_run.run_task(self.pid, "t6", now=NOW)
         wrote = [a for n, a in self.ran if n == "compose"]
@@ -1043,3 +1044,44 @@ class WhatHisPcDidAfterTheSeventeenthFix(HisMissionRunsWithoutHim):
         pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t6").update(
             written_from=program_run.WRITES_FROM))
         self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+
+class WhatHisPcDidAfterTheEighteenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 14:09Z: the comparison's write-up ran on a look that kept 300 characters a
+    page and refused ("CANNOT WRITE ... partial cost-of-living data"); the sweep's re-look had run
+    while answers were still cut at 300 characters, so its dated lines never arrived."""
+
+    def _write_up_after(self, result):
+        def change(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(title="Compare warm red-state places", state=ws.READY, cursor=1, needs=[],
+                      plan={"steps": [{"tool": "research", "for": "compare", "by": "reader",
+                                       "args": {"question": "compare"}},
+                                      {"tool": "compose", "for": "write the ranked summary", "by": "named",
+                                       "args": {"path": "missions/ranked.md", "what": "rank them"}}],
+                            "requires": [], "gaps": []},
+                      results=[dict({"at": "2026-09-16T15:00:00Z", "step": 0, "tool": "research", "outcome": "ok",
+                                     "said": "Tampa: partial figures."}, **result)])
+        pg.update(self.pid, change)
+
+    def test_a_write_up_on_an_old_reading_looks_again_first_once(self):
+        self._write_up_after({})
+        out = program_run.run_task(self.pid, "t6", now=NOW)
+        self.assertEqual(out["state"], ws.READY)
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual((t6["cursor"], t6["relooked"]), (0, research.REVISION))
+        self.assertNotIn("compose", [n for n, _a in self.ran])
+
+    def test_a_write_up_on_the_current_reading_writes(self):
+        self._write_up_after({"revision": research.REVISION})
+        program_run.run_task(self.pid, "t6", now=NOW)
+        self.assertIn("compose", [n for n, _a in self.ran])
+
+    def test_a_look_that_runs_now_is_marked_with_the_current_reading(self):
+        self._write_up_after({})
+        pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t6").update(cursor=0))
+        program_run.run_task(self.pid, "t6", now=NOW)
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        looks = [r for r in t6["results"] if r["tool"] == "research"]
+        self.assertEqual(looks[-1]["revision"], research.REVISION)
+        self.assertIn("compose", [n for n, _a in self.ran])
