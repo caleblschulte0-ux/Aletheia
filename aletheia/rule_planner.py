@@ -452,6 +452,11 @@ RULES: tuple[tuple[str, str, Callable], ...] = (
     # "whether I ..." are about him, which no web page answers.
     (r"(?:look up|search (?:for|up)|research|find out(?: about)?)\s+(?P<what>(?!on\b)(?!how to (?:sign|log))(?!my\b)(?!(?:if|whether) (?:i|i'm|im|i've|i have)\b).{4,}?)",
      "research", _research),
+    # "Find me free events this weekend" searched his Documents, then waited for a model
+    # (2026-10-11): what is on is a look, the same as "look up free events".
+    (r"(?:find|look for)(?: me| us)? (?P<what>(?:(?:any|some|free|local|fun|upcoming|good|cheap) )*"
+     r"(?:events?|meetups?|concerts?|festivals?|things to do|job fairs?|networking events?)\b(?!.*\b(?:near me|nearby|near here|around here|in town|close by)$).*)",
+     "research", _research),
     (r"find (?:me |us )?(?:a |an |some )?(?P<what>.+?) (?:near me|nearby|near here|around here|in town|close by)",
      "web_task", lambda m, r: ({"goal": f"find {_clean(m.group('what'))} near him"}, f"Look up {_clean(m.group('what'))} near you")),
     (r"(?:go|get) (?:online|on the (?:web|internet)) and (?P<what>.+)", "web_task", _web_task),

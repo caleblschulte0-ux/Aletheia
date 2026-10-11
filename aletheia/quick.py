@@ -11870,6 +11870,25 @@ def status_of(text: str) -> tuple[str, str] | None:
     return None
 
 
+def _fleet_knows(subject: str) -> bool:
+    """Does the fleet registry name a repository he could mean by `subject`? "How's the move going"
+    with no pulse written said "No fleet reading yet", as if the move were a repository (2026-10-11)."""
+    try:
+        from aletheia.fleet import load_fleet
+        repos = load_fleet().get("repos") or {}
+    except Exception:  # noqa: BLE001 - no registry: nothing is known to be a repository
+        return False
+    key = "".join(ch for ch in str(subject or "").casefold() if ch.isalnum())
+    if len(key) < 3:
+        return False
+    for slug, row in repos.items():
+        for said in (slug, str((row or {}).get("github") or "")):
+            plain = "".join(ch for ch in said.casefold() if ch.isalnum())
+            if plain == key or plain.startswith(key) or (len(key) >= 5 and key in plain):
+                return True
+    return False
+
+
 def _mission_named(subject: str) -> str | None:
     """How a live long mission is going, when the subject names one (`programs.named`)."""
     from aletheia import programs
@@ -11907,7 +11926,7 @@ def _status_of(text: str) -> str | None:
                 # "How is the move plan going" is about a long mission of his, not a repository:
                 # it answered "No fleet reading yet" with the mission running (2026-10-11).
                 said = _mission_named(subject)
-            if said is None and _no_pulse():
+            if said is None and _no_pulse() and _fleet_knows(subject):
                 # "Is the trader running" with the pulse unwritten went to a
                 # model that knows no trader (2026-09-23 night sweep).
                 return "No fleet reading yet - the pulse hasn't been written on this machine, so I can't say."
