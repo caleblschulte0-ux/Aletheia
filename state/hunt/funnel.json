@@ -352,13 +352,18 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-11T16:20:17Z",
+  "generated_at": "2026-10-11T17:19:37Z",
   "sent_all_time": 293,
   "sent_by_system": {
     "ashbyhq": 25,
     "employer_site": 10,
     "greenhouse": 239,
     "lever": 19
+  },
+  "stop_shapes": {
+    "employer_site: apply_not_taken: none": 2,
+    "employer_site: empty_page: none": 1,
+    "employer_site: no_apply: none": 9
   },
   "stuck_at": {
     "approval_denied": {
