@@ -710,6 +710,30 @@ def implied_needs(record: dict, task: dict) -> list[dict]:
     return out
 
 
+def what_it_watches(record: dict, task: dict, *, most: int = 2) -> list[dict]:
+    """The finished tasks a recurring occurrence's words are about, newest first. A watch over "the
+    shortlisted ..." waits on the task that makes the shortlist (implied_needs), and once that task
+    was DONE it ran without it: "No shortlist has been chosen" beside the comparison that chose
+    one (his PC, 2026-10-11). A finished, non-recurring task of the same workstream whose title or
+    steps share a word stem with the occurrence's words. The words decide; nothing here names a thing."""
+    if not task.get("from_activity"):
+        return []
+    said = " ".join([str(task.get("title") or ""), str(task.get("detail") or "")]
+                    + [str(d) for d in task.get("does") or []]).casefold()
+    words = {w for w in re.findall(r"[a-z][a-z-]+", said) if len(w) >= 5}
+    out = []
+    for t in record.get("tasks") or []:
+        if (t.get("from_activity") or t.get("state") != ws.DONE
+                or (task.get("workstream") and t.get("workstream") != task.get("workstream"))):
+            continue
+        theirs = " ".join([str(t.get("title") or "")] + [str(d) for d in t.get("does") or []]).casefold()
+        stems = {w for w in re.findall(r"[a-z][a-z-]+", theirs) if len(w) >= 5}
+        if any(w.startswith(n) or n.startswith(w) for n in stems for w in words):
+            out.append(t)
+    out.sort(key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+    return out[:most]
+
+
 def unmet_needs(record: dict, task: dict) -> list[dict]:
     """The tasks this one needs first that are not done, and those its words wait on."""
     by_key = {t["key"]: t for t in record.get("tasks") or []}

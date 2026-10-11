@@ -486,8 +486,13 @@ def _found(record: dict, task: dict, *, answers: bool = True) -> list[str]:
     rows.sort(key=lambda r: str(r.get("at") or ""))
     rows += list(task.get("results") or [])
     found = [str(r.get("said") or "") for r in rows if r.get("outcome") == "ok" and r.get("said")][-5:]
+    # A recurring watch reads what the finished work it is about found, ahead of its own last five:
+    # otherwise the shortlist it watches is the oldest line and the first to fall off (2026-10-11).
+    watched = [said for t in pg.what_it_watches(record, task) if t.get("key") not in keys
+               for said in [next((str(r.get("said")) for r in reversed(t.get("results") or [])
+                                  if r.get("outcome") == "ok" and r.get("said")), "")] if said]
     told = his_answers(record) if answers else ""
-    return ([f"What Caleb has told this mission:\n{told[:2000]}"] if told else []) + found
+    return ([f"What Caleb has told this mission:\n{told[:2000]}"] if told else []) + watched + found
 
 
 #: The arguments that say WHEN, and what a date or a time looks like written down.
@@ -822,6 +827,14 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         # current rules, which either fill it from what was found or look again tomorrow. A step
         # whose own task looked first is the same: the weekly sweep has no needs (2026-10-11).
         return _release(record, task, dict(candidate, mark="dated_retried"), held, purpose, now)
+    asked_where = set(((held or {}).get("context") or {}).get("missing") or []) & set(WHERE_ARGS)
+    if (purpose == "args" and asked_where and not task.get("where_retried")
+            and (task.get("needs") or int(task.get("cursor") or 0) > 0)):
+        # Asked him for an ADDRESS for something earlier tasks were to find, before "nothing with an
+        # address yet" was a look-again (his PC, 2026-10-11: still "what should I use for url?" after
+        # the fix that stopped asking). Once, on the current rules: filled from what was found, or a
+        # look again later.
+        return _release(record, task, dict(candidate, mark="where_retried"), held, purpose, now)
     if purpose == "args" and not task.get("args_retried") and not _would_go_further(
             candidate, candidate["plan"], tools, purpose) and _found(record, task):
         # Asked him for arguments the steps before it have since found (the events a search
