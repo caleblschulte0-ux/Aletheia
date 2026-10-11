@@ -225,6 +225,108 @@ def on_topic(text: str, question: str, *, shared: int = 1) -> bool:
     return not want or not have or len(want & have) >= min(shared, len(want))
 
 
+# ---- listings read directly ------------------------------------------------------------
+
+#: How many listing pages one question reads before it searches.
+MAX_LISTINGS = 3
+
+_NOT_PLACES = frozenset("""january february march april may june july august september october november
+december monday tuesday wednesday thursday friday saturday sunday i the this next""".split())
+
+
+def _listings_path():
+    from aletheia.fleet import REPO_ROOT
+    return REPO_ROOT / "config" / "listing_sources.json"
+
+
+def _listings() -> list[dict]:
+    """The reviewed listing pages; none when the file is missing or malformed."""
+    try:
+        rows = json.loads(_listings_path().read_text(encoding="utf-8")).get("listings") or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [r for r in rows if isinstance(r, dict) and r.get("url") and isinstance(r.get("about"), list)]
+
+
+def place_in(question: str) -> dict:
+    """{"city", "state"} for the place a question names ("in Sioux Falls", "near Austin, TX"), else {}."""
+    for m in re.finditer(r"\b(?:in|near|around|at)\s+([A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,2})"
+                         r"(?:,?\s+([A-Z]{2})\b)?", str(question or "")):
+        words = m.group(1).split()
+        while words and words[-1].casefold().strip(".") in _NOT_PLACES:
+            words.pop()
+        if words and words[0].casefold() not in _NOT_PLACES:
+            return {"city": " ".join(words), "state": (m.group(2) or "") if len(words) == len(m.group(1).split()) else ""}
+    return {}
+
+
+def _home() -> dict:
+    try:
+        from aletheia import profile
+        known = profile.known()
+    except Exception:  # noqa: BLE001 - no profile is no home town, never a failed look
+        return {}
+    city = str(known.get("city") or "").strip()
+    return {"city": city, "state": str(known.get("state") or "").strip()} if city else {}
+
+
+def _phrase_in(phrase: str, text: str) -> bool:
+    return bool(re.search(r"\b" + re.escape(phrase.casefold()) + r"\b", text))
+
+
+def listings_for(question: str) -> tuple[list[dict], set[str]]:
+    """The listing pages that answer this kind of question, read before any search, and the hosts
+    whose search results are about something else for it. A search for events in a city came back
+    as encyclopedia pages about the city (2026-10-11); the listings are where events are."""
+    said = " ".join(str(question or "").split()).casefold()
+    named = place_in(question)
+    home = None
+    out, drop, seen = [], set(), set()
+    for row in _listings():
+        topic = next((str(a) for a in row["about"] if _phrase_in(str(a), said)), "")
+        if not topic:
+            continue
+        where = named
+        if row.get("place"):
+            if not where:
+                home = _home() if home is None else home
+                where = home
+            if str(where.get("city") or "").casefold() != str(row["place"]).casefold():
+                continue
+        url = str(row["url"])
+        if "{city" in url or "{state" in url:
+            if not where and row.get("place_default") == "home":
+                home = _home() if home is None else home
+                where = home
+            if not where.get("city"):
+                continue
+            if "{state" in url and not where.get("state"):
+                # The state is known for his own town only.
+                home = _home() if home is None else home
+                if str(home.get("city") or "").casefold() != where["city"].casefold() or not home.get("state"):
+                    continue
+                where = dict(where, state=home["state"])
+        city, state = str(where.get("city") or ""), str(where.get("state") or "")
+        try:
+            url = url.format(city_slug=re.sub(r"[^a-z0-9]+", "-", city.casefold()).strip("-"),
+                             city_dash="-".join(city.split()), city_q=quote_plus(city),
+                             state_lower=state.casefold(), topic_slug=re.sub(r"[^a-z0-9]+", "-", topic.casefold()).strip("-"),
+                             topic_q=quote_plus(topic))
+        except (KeyError, IndexError, ValueError):
+            continue
+        if url in seen:
+            continue
+        seen.add(url)
+        drop |= {str(h).casefold() for h in row.get("instead_of") or []}
+        out.append({"url": url, "title": str(row.get("name") or url)[:160], "library": True, "listing": True})
+    return out[:MAX_LISTINGS], drop
+
+
+def _dropped_host(url: str, drop: set[str]) -> bool:
+    host = _host(url)
+    return any(host == d or host.endswith("." + d) for d in drop)
+
+
 def _plan_validator(value: dict) -> dict:
     if not isinstance(value, dict) or set(value) - {"queries", "why"}:
         raise ValueError("invalid research plan fields")
@@ -470,10 +572,13 @@ def http_search(query: str, *, opener=None) -> dict:
     return {"url": "", "title": "", "text": "", "links": [], "error": "; ".join(refused)}
 
 
-def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str) -> list[dict]:
+def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str,
+              drop_hosts: frozenset = frozenset()) -> list[dict]:
     """Only the results whose title, snippet or address share a word with what was asked. An engine
     answering with pages about something else is an engine that gave no results, and the next one is
     tried; what was dropped is journaled with the query, so "what did it search for" has an answer."""
+    if drop_hosts:
+        found = [f for f in found if not _dropped_host(f["url"], set(drop_hosts))]
     if not about:
         return found
     snippets = {str(link.get("href") or ""): str(link.get("snippet") or "") for link in page.get("links") or []}
@@ -495,7 +600,8 @@ def _relevant(found: list[dict], page: dict, about: str, query: str, engine: str
 
 
 def find_sources(query: str, *, limit: int = MAX_SOURCES,
-                 reader=browse.read_page, http=http_search, about: str = "") -> list[dict]:
+                 reader=browse.read_page, http=http_search, about: str = "",
+                 drop_hosts: frozenset = frozenset()) -> list[dict]:
     """Search the way a person does — no API key, per §6.
 
     Failure here is survivable and must not end a run: a search engine that
@@ -507,7 +613,7 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
     if http is not None:
         page = http(query)
         found = _relevant(_results(page.get("engine") or "http", page, limit), page, about, query,
-                          page.get("engine") or "http")
+                          page.get("engine") or "http", drop_hosts)
         if found:
             return found
         journal.append("event", "research",
@@ -522,7 +628,7 @@ def find_sources(query: str, *, limit: int = MAX_SOURCES,
                            f"{engine} search failed for {query!r}: {type(exc).__name__}",
                            actor=ACTOR)
             continue
-        found = _relevant(_results(engine, page, limit), page, about, query, engine)
+        found = _relevant(_results(engine, page, limit), page, about, query, engine, drop_hosts)
         if found:
             return found
         journal.append("event", "research",
@@ -671,10 +777,18 @@ def run(question: str, *, reader=browse.read_page, think=None,
         kept = queries_without_a_model(question)["queries"]
     plan = dict(plan, queries=kept)
 
-    candidates, seen_hosts = [], set()
+    # The pages that LIST this kind of thing first: events are on event listings, not on the
+    # encyclopedia page a search for the city ranks first (2026-10-11).
+    listed, drop = listings_for(question)
+    candidates, seen_hosts = list(listed), {_host(x["url"]) for x in listed}
+    if listed:
+        journal.append("event", "research", f"reading {speech.count_phrase(len(listed), 'listing page')} for {question[:80]!r}: "
+                       + ", ".join(x["title"] for x in listed)[:200], actor=ACTOR)
     for query in plan["queries"]:
         policy.ensure_not_halted()
-        for source in find_sources(query, reader=reader, http=http, about=question):
+        if len(candidates) >= MAX_SOURCES:
+            break
+        for source in find_sources(query, reader=reader, http=http, about=question, drop_hosts=frozenset(drop)):
             host = _host(source["url"])
             if host in seen_hosts and not source.get("library"):
                 continue

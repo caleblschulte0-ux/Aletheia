@@ -323,6 +323,30 @@ def compose(task: dict, catalog: dict, *, registry: dict | None = None) -> dict:
             continue
         steps.append({"tool": tool.name, "for": need, "by": "matched", "score": top})
         seen.add(tool.name)
+    if named and any(looks_up(n) for n in needs):
+        # A named DOING tool none of the task's doing needs is for, beside tools that cover all of
+        # them, is there only for the look: "Compare a shortlist of warm ... places" named the
+        # website tool for "pick a shortlist" and asked him to approve a read (2026-10-11).
+        doing = [n for n in needs if does_something(n)]
+        for step in list(steps):
+            tool = catalog[step["tool"]]
+            others = [catalog[x["tool"]] for x in steps if x is not step]
+            # A step given a look is moved below; this is the step given what is neither a look nor
+            # an act ("pick", "compute"), which on a doing tool still only reads.
+            if (tool.read_only or not step["for"] or looks_up(step["for"]) or does_something(step["for"])
+                    or any(score(n, tool) >= MATCH_THRESHOLD for n in doing)
+                    or not all(any(score(n, o) >= MATCH_THRESHOLD for o in others) for n in doing)):
+                continue
+            reader = reader_for(task, catalog)
+            if reader is None:
+                continue
+            if reader.name in seen:
+                steps.remove(step)
+                seen.discard(step["tool"])
+            else:
+                seen.discard(step["tool"])
+                step.update(tool=reader.name, by="reader")
+                seen.add(reader.name)
     if named:
         for step in list(steps):
             if step["for"] and looks_up(step["for"]) and not catalog[step["tool"]].read_only:

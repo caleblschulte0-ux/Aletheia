@@ -428,3 +428,66 @@ class AloneTheQueryIsTheQuestionsOwnWords(ResearchCase):
         sure = research.spoken({"answer": "Tampa.", "confidence": 0.8, "findings": [{"claim": "c", "url": "u"}],
                                 "sources": [{"url": "u", "title": "t"}], "queries": ["warm cities taxes"]})
         self.assertNotIn("I searched for", sure)
+
+
+class EventsAreReadOffTheListings(ResearchCase):
+    """His PC, 2026-10-11: "free networking events in Sioux Falls this month" searched well and read
+    encyclopedia pages about the city, its hockey team and a TV station - none lists an event."""
+
+    HOME = {"city": "Sioux Falls", "state": "SD"}
+
+    def test_a_question_about_events_reads_the_listings_for_the_place_it_names(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, drop = research.listings_for("networking events in Austin, TX")
+        urls = [x["url"] for x in listed]
+        self.assertIn("https://www.eventbrite.com/d/tx--austin/networking/", urls)
+        self.assertFalse(any("siouxfalls" in u for u in urls))      # a page for another place
+        self.assertIn("wikipedia.org", drop)
+
+    def test_no_place_named_is_his_own_town(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, _ = research.listings_for("search for newly listed job-search events")
+        self.assertIn("https://www.eventbrite.com/d/sd--sioux-falls/events/", [x["url"] for x in listed])
+        self.assertLessEqual(len(listed), research.MAX_LISTINGS)
+
+    def test_a_place_with_no_state_skips_what_needs_one(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            listed, _ = research.listings_for("events in Tampa in October")
+        self.assertFalse(any("{" in x["url"] or "--" in x["url"] for x in listed), listed)
+
+    def test_a_question_about_something_else_reads_no_listing(self):
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            self.assertEqual(research.listings_for("is Ramp hiring in Denver")[0], [])
+
+    def test_no_listings_file_is_no_listings(self):
+        with mock.patch.object(research, "_listings_path", return_value=Path(self.tmp.name) / "none.json"):
+            self.assertEqual(research.listings_for("networking events in Austin, TX"), ([], set()))
+
+    def test_the_listings_are_read_first_and_encyclopedia_results_dropped(self):
+        listing = {"url": "https://www.eventbrite.com/d/sd--sioux-falls/networking/", "title": "Eventbrite",
+                   "text": "Sioux Falls Business Networking Mixer - Oct 16, 5:30 pm - Free. " * 10, "links": []}
+        wiki = {"url": "https://bing.example/rss", "title": "bing-rss results", "engine": "bing-rss",
+                "text": "x" * 600,
+                "links": [{"href": "https://en.wikipedia.org/wiki/Sioux_Falls_Stampede",
+                           "text": "Sioux Falls Stampede networking events hockey",
+                           "snippet": "Sioux Falls networking events and hockey."}]}
+        read = []
+
+        def reading(url, *a, **k):
+            read.append(url)
+            if url == listing["url"]:
+                return listing
+            return reader(url)
+
+        def think(system, text, **kw):
+            value = {"answer": "A mixer on Oct 16.", "gaps": [], "confidence": 0.8,
+                     "findings": [{"claim": "Mixer Oct 16", "url": listing["url"]}]}
+            if system is research.PLAN_SYSTEM:
+                value = {"queries": ["free networking events Sioux Falls"], "why": "x"}
+            validator = kw.get("validator")
+            return validator(value) if validator else value
+        with mock.patch.object(research, "_home", return_value=self.HOME):
+            report = research.run("free networking events in Sioux Falls this month",
+                                  http=lambda q, **_: dict(wiki), reader=reading, think=think)
+        self.assertEqual(report["sources"][0]["url"], listing["url"])
+        self.assertNotIn("wikipedia.org", " ".join(s["url"] for s in report["sources"]))

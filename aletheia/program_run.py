@@ -604,7 +604,11 @@ def _requeue_one(record: dict, task: dict, tools: dict, now: dt.datetime) -> dic
         new_tools = [s["tool"] for s in fresh["steps"]]
         i = int(task.get("cursor") or 0)
         stuck = tools.get(old_tools[i]) if i < len(old_tools) else None
+        # And a look is planned again only as a look: the comparison's research step came back as
+        # the website tool and waited for his yes on a read (2026-10-11).
+        now_at = tools.get(new_tools[i]) if i < len(new_tools) else None
         if (stuck is not None and stuck.read_only and stuck.name not in new_tools
+                and now_at is not None and now_at.read_only
                 and new_tools and new_tools[:i] == old_tools[:i]
                 and not any(g["outcome"] == "refuse_policy" for g in fresh["gaps"])):
             return _release(record, task, dict(task, plan=fresh, mark="recomposed"), None, "recomposed", now)

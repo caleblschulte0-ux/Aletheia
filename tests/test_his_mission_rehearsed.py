@@ -632,3 +632,42 @@ class WhatHisPcDidAfterTheNinthFix(HisHoursAndHisCalendar):
         pg.update(self.pid, lambda r: next(t for t in r["tasks"] if t["key"] == "t2").update(
             state=ws.DONE, cursor=len(next(t for t in r["tasks"] if t["key"] == "t2")["plan"]["steps"])))
         self.assertNotIn("t2", [r["task"] for r in program_run.requeue_reclassified(now=NOW + dt.timedelta(hours=2))])
+
+
+class WhatHisPcDidAfterTheTenthFix(HisMissionRunsWithoutHim):
+    """His PC, 2026-10-11 01:17Z: the city comparison was planned again as the website tool and
+    waited for his yes on "pick a shortlist that fits the criteria" - a read."""
+
+    DOES = ["pick a shortlist that fits the criteria", "compare cost of living, job market, taxes, housing",
+            "compute adjusted pay equivalent", "write a ranked summary with sources"]
+
+    def test_a_comparison_that_names_the_website_tool_is_a_look_and_a_write(self):
+        plan = program_compose.compose({"title": "Compare a shortlist of warm red-state places", "does": self.DOES,
+                                        "uses": ["web_task", "compose"]}, self.catalog)
+        self.assertEqual([s["tool"] for s in plan["steps"]], ["research", "compose"])
+
+    def test_a_doing_tool_a_doing_need_is_for_stays(self):
+        plan = program_compose.compose({"title": "Find free newcomer events and sign up",
+                                        "does": ["search for free newcomer events", "sign up for the newsletter"],
+                                        "uses": ["web_task"]}, self.catalog)
+        self.assertIn("web_task", [s["tool"] for s in plan["steps"]])
+
+    def test_the_comparison_his_pc_parked_on_his_yes_runs_as_a_look(self):
+        def as_his_pc_left_it(record):
+            t6 = next(t for t in record["tasks"] if t["key"] == "t6")
+            t6.update(does=list(self.DOES), uses=["web_task", "compose"], state=ws.READY, cursor=0, attempts=0,
+                      needs=[], recomposed=True,
+                      plan={"steps": [{"tool": "web_task", "for": self.DOES[0], "by": "named", "args": {}},
+                                      {"tool": "compose", "for": "", "by": "named", "args": {}}],
+                            "requires": [], "gaps": []})
+        pg.update(self.pid, as_his_pc_left_it)
+        program_run.run_task(self.pid, "t6", now=NOW)
+        self.assertEqual(self.task_state("t6"), ws.BLOCKED_USER)
+        released = program_run.requeue_reclassified(now=NOW)
+        self.assertIn("t6", [r["task"] for r in released])
+        t6 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t6")
+        self.assertEqual(t6["state"], ws.READY)
+        self.assertEqual(t6["plan"]["steps"][0]["tool"], "research")
+
+    def task_state(self, key):
+        return next(t for t in pg.load(self.pid)["tasks"] if t["key"] == key)["state"]
