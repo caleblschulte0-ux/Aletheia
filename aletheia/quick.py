@@ -312,9 +312,6 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do i need to (?:do|get done)(?: today)?$"
         # "Anything I need to do today" went to the planner (2026-10-11): the day, not only his list.
         r"|^(?:is there |do i have )?anything i (?:need|have|got|should) to (?:do|get done|handle|deal with) today$"
-        # "Anything I'm forgetting" (2026-10-12: to the planner) - the same rundown of the day.
-        r"|^(?:is there )?anything (?:i'?m|i am) forgetting(?: today| about)?$|^am i forgetting (?:anything|something)(?: today)?$"
-        r"|^what am i forgetting(?: today)?$|^(?:did|have) i forg[eo]t(?:ten)? (?:anything|something)(?: today)?$"
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
         # "Which of those is most urgent" after his list (2026-10-08: to a model).
@@ -1019,7 +1016,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:do i|have i got to|do i still) (?:have|need|got) to do (?P<due5>tomorrow|this week|this weekend)\s*\??$"
         # "What am I forgetting" (2026-10-07: to a model).
         r"|^(?:what did i forget(?: to do)?|did i forget (?:anything|something)|am i forgetting (?:anything|something)"
-        r"|what am i forgetting|is there anything i(?:'m| am) forgetting"
+        # "Anything I'm forgetting", without the "is there" (2026-10-12: to the planner).
+        r"|what am i forgetting|(?:is there )?anything i(?:'m|m| am) forgetting|have i forgotten (?:anything|something)"
         # "What did I not finish yesterday" (2026-10-08: to a model).
         r"|what did i not (?:finish|get to|do)(?: yesterday)?|what didn'?t i (?:finish|get to|do)(?: yesterday)?)"
         r"(?: today)?(?P<due4>)\s*\??$"

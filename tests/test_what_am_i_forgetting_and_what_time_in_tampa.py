@@ -1,5 +1,5 @@
 """Talked to her, 2026-10-12, every model off: "anything I'm forgetting" went to the planner while
-"what should I work on today" was answered from her stores, and "what time is it in Tampa" went to
+"is there anything I'm forgetting" was answered from his list, and "what time is it in Tampa" went to
 a model while Nashville and Austin - two other places on his move shortlist - were answered."""
 
 import unittest
@@ -7,12 +7,12 @@ import unittest
 from aletheia import quick
 
 
-class WhatAmIForgettingIsTheDay(unittest.TestCase):
+class WhatAmIForgettingIsHisList(unittest.TestCase):
 
-    def test_the_forgetting_phrasings_are_the_focus_question(self):
+    def test_the_forgetting_phrasings_reach_the_deadline_reader(self):
         for asked in ("anything i'm forgetting", "is there anything im forgetting", "am i forgetting anything",
-                      "what am i forgetting today", "did i forget anything"):
-            self.assertEqual((quick.match(asked) or ("",))[0], "focus", asked)
+                      "what am i forgetting today", "did i forget anything", "have i forgotten anything"):
+            self.assertEqual((quick.match(asked) or ("",))[0], "tasks_due", asked)
 
 
 class TheShortlistedPlacesHaveAClock(unittest.TestCase):
