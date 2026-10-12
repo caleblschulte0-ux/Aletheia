@@ -9422,6 +9422,18 @@ def _interpret(transcript: str) -> dict:
             # is what "that" means, the same way "cancel that" reads it.
             if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
+            # "Add paper towels" - "never mind" (2026-10-12: "Okay - nothing was
+            # waiting", and the paper towels stayed). Straight after an ask she can
+            # take back - the very last one, no question between - it is that.
+            if dropped_it and not re.fullmatch(r"forget (?:it|that)", low):
+                try:
+                    from aletheia import intercom as _icn
+                    said_last = _previous_ask()
+                    last = (interpret(f"thea {said_last}") or {}).get("command") or {} if said_last else {}
+                except Exception:  # noqa: BLE001
+                    last = {}
+                if str(last.get("kind") or "") in _icn.UNDOES_HIS_ASK:
+                    return {"command": {"kind": "undo"}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
             # leaves him believing he just cancelled something, and a bare
             # "Nothing is waiting for approval" answers a question he did
