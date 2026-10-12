@@ -1776,9 +1776,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("reminders_week", re.compile(
         r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week)\s*\??$"
         r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week)\s*\??$")),
+    # "What's my alarm for tomorrow" was answered as "1 reminder tomorrow:
+    # 6 am, wake up." (2026-10-12) - he asked about his alarm.
+    ("alarms_on", re.compile(
+        r"^(?:what are |what(?:'s| is) |when(?:'s| is) |read me |list )?(?:my |the )?alarms?(?: do i have)? (?:for|on) "
+        r"(?P<alarms_on>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("reminders_on", re.compile(
-        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
-        r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        # "What's my reminder on Thursday" (2026-10-12: to a model) - the singular too.
+        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?reminders?(?: do i have)? (?:for|on) "
+        r"(?P<reminders_on>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday"
         r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tonight|tomorrow"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
@@ -3712,7 +3718,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "time_in6", "time_in7", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -11581,8 +11587,9 @@ def _reminders_between(first, last, now) -> str:
     return f" You do have {speech.count_phrase(len(rows), 'reminder')}: " + "; ".join(said) + more + "."
 
 
-def _reminders_on(day: str) -> str | None:
-    """His reminders and alarms that go off on the day he names."""
+def _reminders_on(day: str, alarms: bool = False) -> str | None:
+    """His reminders and alarms that go off on the day he names - only the
+    alarms when he asked about those."""
     import datetime as dt
     from aletheia import localtime, voice
     # "What reminders do I have tonight" (2026-10-08: to a model): today's
@@ -11602,6 +11609,16 @@ def _reminders_on(day: str) -> str | None:
             and at.astimezone(tz).date().isoformat() == iso and (not tonight or at.astimezone(tz).hour >= 17)]
     if tonight:
         day = "tonight"
+    if alarms:
+        when = day if day in ("today", "tonight", "tomorrow") else "on " + day.capitalize()
+        rows = [(at, text) for at, text in rows if "wake up" in text.casefold()]
+        clock = [at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for at, _ in rows]
+        if not rows:
+            return f"No alarm set for {day}." if day in ("today", "tonight", "tomorrow") else f"No alarm set on {day.capitalize()}."
+        if len(rows) == 1:
+            return f"Your alarm {when} is at {clock[0]}."
+        from aletheia import speech
+        return f"{speech.count_phrase(len(rows), 'alarm')} {when}: {speech.and_list(clock)}."
     if not rows:
         return f"No reminders {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}."
     from aletheia import speech
@@ -19499,6 +19516,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
            "reminders_on": lambda rest: _reminders_on(rest),
+           "alarms_on": lambda rest: _reminders_on(rest, alarms=True),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
