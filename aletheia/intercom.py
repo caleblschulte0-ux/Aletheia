@@ -1644,6 +1644,31 @@ def _goes_off_on(spec: dict, once: str) -> bool:
     return False
 
 
+def _reminders_before(title: str, start: str) -> list[dict]:
+    """One-off reminders she set ahead of a calendar item: their words start
+    with its title ("dentist appointment Thursday at 3 pm") and they go off in
+    the week before it."""
+    title = " ".join(title.casefold().split())
+    try:
+        when = dt.datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except ValueError:
+        return []
+    if not title or when.tzinfo is None:
+        return []
+    rows = []
+    for row in _reminder_schedules():
+        words = " ".join(str((row.get("command") or {}).get("text") or "").casefold().split())
+        if row.get("kind") != "once" or not words.startswith(title):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if at.tzinfo is not None and when - dt.timedelta(days=8) <= at <= when:
+            rows.append(row)
+    return rows
+
+
 def _skip_once(found: dict, once: str) -> str:
     """"Skip tomorrow's pill reminder" (2026-10-08): that one time, and the
     schedule stays on. A one-off has nothing to skip but itself."""
@@ -3965,7 +3990,17 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if not held or held.get("status") == "CANCELLED":
             return f"There's no hold of mine for {cmd['title']} at that time."
         calendar_reasoning.release_hold(event_id, why="released: he cancelled it")
-        return f"Took {held.get('title')} {calendar_reasoning.human(held['start'])} off your calendar."
+        said = f"Took {held.get('title')} {calendar_reasoning.human(held['start'])} off your calendar."
+        # "Remind me an hour before" the dentist, then "cancel the dentist" (2026-10-12):
+        # the reminder still went off for an appointment that was gone.
+        before = _reminders_before(str(held.get("title") or ""), str(held.get("start") or ""))
+        if before:
+            from aletheia import scheduler
+            for row in before:
+                scheduler.set_enabled(row["id"], False)
+            said += (" The reminder for it is off too." if len(before) == 1
+                     else f" The {len(before)} reminders for it are off too.")
+        return said
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
         import datetime as _dt
