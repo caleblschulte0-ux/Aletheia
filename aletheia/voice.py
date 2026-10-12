@@ -2238,6 +2238,28 @@ def _moved_hold(time_words: str) -> dict | None:
     return {"command": command, "say": None}
 
 
+def _on_its_own_day(found: dict, hhmm: str, time_words: str) -> str:
+    """A one-off reminder's new time, on the day it was already on. "Change the rent
+    reminder to 2pm", said on Monday about Tuesday's, moved it to Monday (2026-10-12):
+    a new time is not a new day. Falls back to the next time it comes round when the
+    old moment can't be read, or the new one would already have passed."""
+    import datetime as dt
+    from aletheia import localtime
+    fallback = _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(time_words))
+    try:
+        was = dt.datetime.fromisoformat(str(found.get("at") or "").replace("Z", "+00:00"))
+        if was.tzinfo is None:
+            return fallback
+        was = was.astimezone(localtime.operator_tz())
+    except (TypeError, ValueError):
+        return fallback
+    hour, minute = map(int, hhmm.split(":"))
+    if _is_bare_hour(time_words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
+        hour += 12                       # "move my 3pm reminder to 4" means 4 pm
+    at = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return at.isoformat() if at > dt.datetime.now(at.tzinfo) else fallback
+
+
 def _reminder_moved_to(which: str, time_words: str) -> dict | None:
     """The one-off reminder named by its time ("3pm") or its words ("pill"),
     moved to `time_words` on the day it was already on. None when the new
@@ -9369,7 +9391,7 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": said_text}, "say": None}
         if hhmm and found is not None:
             said_text = str((found.get("command") or {}).get("text") or m.group("what"))
-            return {"command": {"kind": "remind_at", "at": _next_occurrence_iso(hhmm, bare_hour=_is_bare_hour(m.group("time"))),
+            return {"command": {"kind": "remind_at", "at": _on_its_own_day(found, hhmm, m.group("time")),
                                 "text": said_text, "replaces": said_text}, "say": None}
 
     # "MAKE ME A WORD DOCUMENT CALLED NOTES WITH THE TEXT HELLO": a document
