@@ -750,6 +750,9 @@ def spoken_receipt(kind: str, detail: str, *,
         skipped = re.search(r"skipped\s*[—-]\s*(.+?) won't go off (.+?)(?:; next (.+))?$", text)
         if skipped:
             what, when, nxt = skipped.groups()
+            if what.strip().casefold() == "wake up":
+                # "Skipped tomorrow at 7 am: wake up." (2026-10-12): an alarm is an alarm.
+                return f"No alarm {when}." + (f" It's back {nxt}." if nxt else "")
             return (f"Skipped {when}: {what}." + (f" It's back {nxt}." if nxt else "")).replace("Skipped today at", "Skipped today's, at")
         # "reminder remind-weekly-9f2 off — take out the trash — every
         # Monday at 9 am"
