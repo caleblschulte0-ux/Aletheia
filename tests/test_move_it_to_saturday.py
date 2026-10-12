@@ -56,5 +56,40 @@ class MakeThatADozenEggs(unittest.TestCase):
         self.assertEqual(got["kind"], "task_change")
 
 
+DAILY = {"id": "d1", "kind": "daily", "time": "08:00",
+         "command": {"kind": "notify_operator", "text": "take your vitamins"}}
+
+
+def asks(**by_kind):
+    return lambda kind, needs, turns=4: by_kind.get(kind, {})
+
+
+class MakeItNine(unittest.TestCase):
+    def test_a_daily_reminder_just_set_stays_daily_at_the_new_time(self):
+        with mock.patch("aletheia.voice._recent_ask_of",
+                        side_effect=asks(remind_daily={"time": "08:00", "text": "take your vitamins"})), \
+                mock.patch("aletheia.intercom._one_reminder", return_value=(DAILY, "")):
+            got = said("make it 9")["command"]
+        self.assertEqual(got, {"kind": "remind_daily", "time": "09:00", "text": "take your vitamins",
+                               "replaces": "take your vitamins"})
+
+    def test_a_weekly_reminder_keeps_its_days(self):
+        with mock.patch("aletheia.voice._recent_ask_of",
+                        side_effect=asks(remind_weekly={"days": ["sunday"], "time": "10:00",
+                                                        "text": "water the plants"})), \
+                mock.patch("aletheia.intercom._one_reminder", return_value=(WEEKLY, "")):
+            got = said("actually make that 11")["command"]
+        self.assertEqual(got, {"kind": "remind_weekly", "days": ["sunday"], "time": "11:00",
+                               "text": "water the plants", "replaces": "water the plants"})
+
+    def test_a_bare_hour_keeps_the_evening(self):
+        evening = {**DAILY, "time": "20:00"}
+        with mock.patch("aletheia.voice._recent_ask_of",
+                        side_effect=asks(remind_daily={"time": "20:00", "text": "take your vitamins"})), \
+                mock.patch("aletheia.intercom._one_reminder", return_value=(evening, "")):
+            got = said("make it 9")["command"]
+        self.assertEqual(got["time"], "21:00")
+
+
 if __name__ == "__main__":
     unittest.main()
