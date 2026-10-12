@@ -509,6 +509,7 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
     fresh["stuck_recently"] = {"days": RECENT_DAYS,
                                "where": stuck_at(left, now=now, days=RECENT_DAYS)}
     fresh["stop_shapes"] = stop_shapes(left, now=now)
+    fresh["question_shapes"] = question_shapes(rows, now=now)
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
@@ -625,6 +626,63 @@ def stop_shapes(missions: list[dict], *, now: dt.datetime | None = None, days: i
         except (ValueError, TypeError, AttributeError):
             continue
     return dict(out.most_common(25))
+
+
+#: The only words a held question may be published in, for the same reason
+#: as the buttons: a label can name the employer, a product or a city.
+_QUESTION_VOCABULARY = frozenset(
+    "are you do have will can would your you a an the of to in for on at or and with this that "
+    "is be been ever any want need what how why when where which who please describe tell us about "
+    "years year experience work working worked job role position company team office onsite remote "
+    "hybrid relocate relocation willing able open comfortable travel commute days week per "
+    "salary pay compensation expectations expected desired range base annual hourly "
+    "start date notice available availability authorized authorization sponsorship visa legally "
+    "us united states country state city address located live reside resident area "
+    "degree education school university college bachelor bachelors master gpa graduate "
+    "background check drug test screening criminal convicted felony "
+    "referred referral employee employed previously applied hear heard source "
+    "linkedin website portfolio github profile url link "
+    "cover letter resume additional information anything else share questions "
+    "language languages speak english fluent proficiency certification certified license "
+    "sales customer account manager management software saas b2b crm quota "
+    "agree acknowledge consent certify policy privacy terms ai "
+    "phone number email name first last preferred pronouns gender race ethnicity veteran disability "
+    "yes no select one all apply other none".split())
+
+
+def question_words(label) -> str:
+    """One held question as published words: the vocabulary above, "_" for
+    anything else, never more than twelve words."""
+    tokens = re.findall(r"[a-z]+", str(label or "").casefold())[:12]
+    return " ".join(t if t in _QUESTION_VOCABULARY else "_" for t in tokens).strip()
+
+
+def question_shapes(rows: list[dict], *, now: dt.datetime | None = None, days: int = RECENT_DAYS) -> dict:
+    """For the applications held on a question in the last few days: which
+    questions held them, as counts of published words, so the next fix can
+    answer the ones his facts already settle."""
+    from collections import Counter
+    now = now or dt.datetime.now(dt.timezone.utc)
+    first = now - dt.timedelta(days=days)
+    out: Counter = Counter()
+    for r in rows:
+        try:
+            if not isinstance(r, dict) or r.get("state") != "NEEDS_YOU":
+                continue
+            when = dt.datetime.fromisoformat(str(r.get("staged_at") or "").replace("Z", "+00:00"))
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=dt.timezone.utc)
+            if when < first:
+                continue
+            for q in r.get("questions") or []:
+                label = q.get("label") if isinstance(q, dict) else q
+                kind = (q.get("type") or "") if isinstance(q, dict) else ""
+                said = question_words(label)
+                if said:
+                    out[f"{_system_of(r.get('url'))}: {kind or 'field'}: {said}"] += 1
+        except (ValueError, TypeError, AttributeError):
+            continue
+    return dict(out.most_common(30))
 
 
 def _left_missions() -> list[dict]:
