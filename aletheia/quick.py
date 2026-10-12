@@ -131,7 +131,7 @@ _STATUS = re.compile(
     r" (?:still )?(?:running|healthy|ok|okay|fine|good|green|up|working|alive|broken|down|failing|red|"
     r"in trouble|having (?:problems|issues|trouble))(?: right now| now| today| at the moment)?$"
     r"|^how(?:'s| is|s) (?:the |my )?(?P<repo2>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?"
-    r"(?: doing| going| looking| holding up| running)(?: today| now| lately| these days)?$"
+    r"(?: doing| going| looking| holding up| running| coming(?: along)?)(?: today| now| lately| these days)?$"
     r"|^what(?:'s| is|s)? (?:the )?(?:status|state|health)(?: on| of)? (?:the |my )?"
     r"(?P<repo3>[a-z0-9][a-z0-9 _.-]{1,40}?)(?: pipeline| repo| project| bot)?$"
     # "what's the Barkly status" / "Barkly status" (offline 2026-09-24: a model
@@ -370,8 +370,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "Anything from Vanta" and "did Vanta reply" fell through to a planner
     # with every frontier off (2026-09-23 night sweep); the record answers.
     ("opportunity_loose", re.compile(
-        r"^(?:what(?:'s| is|s)? the latest (?:with|on|from)|any (?:news|word|update) (?:from|on|with)|"
-        r"how(?:'s| is) it going with|where (?:are we|am i) with|what(?:'s| is|s)? happening with|"
+        r"^(?:what(?:'s| is|s)? the latest (?:with|on|from)|any (?:news|word|update|progress) (?:from|on|with|about|for)|"
+        # "any updates on my job applications" is the replies question further down
+        r"any updates (?:from|on|with|about|for)(?! (?:my |the |your )?(?:job )?applications)|"
+        r"how(?:'s| is) it going with|where (?:are we|am i|are you|do we stand|do things stand) (?:with|on)|"
+        r"what(?:'s| is|s)? happening with|(?:is there )?anything new (?:on|with|about|for|in)|"
+        # "Any update on the move plan", "give me an update on the reboot" (2026-10-12: a model,
+        # or a web search for news about it, with the mission right there)
+        r"(?:give me |can i get |i want |i'd like )?(?:an? )?(?:update|status update|progress report) (?:on|about|for)|"
+        r"update me on|(?:the )?status (?:of|on)|"
         r"how (?:did|has) (?:it|things) (?:go|gone) with|"
         r"anything (?:new |back )?from|any(?:thing| word| reply| response| answer) (?:back )?from|"
         r"(?:have (?:you|u|we|i) )?heard (?:anything |back )?from|did (?:you|u|we|i) hear (?:anything |back )?from)"
@@ -12113,7 +12120,8 @@ def _opportunity_loose(rest: str) -> str | None:
             return _opportunity(words)
     except Exception:
         return None
-    return None
+    # "Any update on the move plan" names a long mission of his, not an employer (2026-10-12).
+    return _mission_named(words)
 
 
 def _sent_records():
