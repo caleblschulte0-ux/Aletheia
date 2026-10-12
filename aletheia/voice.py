@@ -5453,14 +5453,20 @@ def _interpret(transcript: str) -> dict:
     _part = r"(?: (?P<part>morning|afternoon|evening|night))?"
     # "Remind me to take my meds at 8 tonight" (2026-10-08) kept "at 8" in
     # the words and set it an hour on: the time can come before the day.
+    # "Remind me this evening at 7 to call mom" went to the planner, and "...call
+    # mom this evening at 7" kept "this evening" in the words (2026-10-12): it is
+    # today's evening.
+    # Only with a clock time: "this afternoon" alone already has its own reading.
+    low_d = re.sub(r"\bthis (morning|afternoon|evening)\b(?!')", r"today \1", low) \
+        if re.search(r"\bthis (?:morning|afternoon|evening) at |\bat \S+(?: ?[ap]\.?m\.?)? this (?:morning|afternoon|evening)\b", low) else low
     m = (re.fullmatch(r"remind me (?:to|that) (?P<text>.+?) at (?P<time>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?|noon|midnight),?"
-                      r" (?:on |this )?(?P<day>" + _days + r")" + _part, low)
+                      r" (?:on |this )?(?P<day>" + _days + r")" + _part, low_d)
          or re.fullmatch(r"remind me (?:to|that) (?P<text>.+?),? (?:on |this )?(?P<day>" + _days + r")" + _part
-                      + r"(?: at (?P<time>[\w: ]+?))?", low)
+                      + r"(?: at (?P<time>[\w: ]+?))?", low_d)
          or re.fullmatch(r"remind me (?:on |this )?(?P<day>" + _days + r")" + _part + r"(?: at (?P<time>[\w: ]+?))? "
-                         r"(?:to|that) (?P<text>.+)", low)
+                         r"(?:to|that) (?P<text>.+)", low_d)
          or re.fullmatch(r"remind me at (?P<time>[\w: ]+?) (?:on |this )?(?P<day>" + _days + r")" + _part + r" "
-                         r"(?:to|that) (?P<text>.+)", low))
+                         r"(?:to|that) (?P<text>.+)", low_d))
     if m and re.search(r"\b(?:every|each)\b", m.group("text")):
         # A repeat this cannot read is never set as a one-off.
         return _to_the_planner(text)
@@ -5488,7 +5494,11 @@ def _interpret(transcript: str) -> dict:
             return _to_the_planner(text)
         hour, minute = map(int, hhmm.split(":"))
         if m.group("time") and _is_bare_hour(m.group("time")) and (
-                hour <= EARLIEST_BARE_HOUR or (m.group("day") == "tonight" and hour < 12)):
+                hour <= EARLIEST_BARE_HOUR or (m.group("day") == "tonight" and hour < 12)
+                # "Tomorrow evening at 7" was seven in the MORNING (2026-10-12):
+                # the part of the day he said settles which half.
+                or (m.group("part") in ("afternoon", "evening") and hour < 12)
+                or (m.group("part") == "night" and 5 <= hour < 12)):
             hour += 12                                  # "at 6" on a Sunday is the evening; "at 9" the morning
         if m.group("day") == "tonight" and not m.group("time") and not m.group("part"):
             hour, minute = 21, 0
@@ -5708,8 +5718,10 @@ def _interpret(transcript: str) -> dict:
     # "Remind me about the meeting next Tuesday at noon" was set for
     # TOMORROW at noon, with "next tuesday" left in the words (2026-10-07).
     # The day is the when; "about" keeps his words for the reminder.
-    m = re.fullmatch(r"remind me (?:about|of) (?P<what>.+?),? (?P<day>(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday"
-                     r"|saturday|sunday)(?: (?:morning|afternoon|evening|night))?)(?P<at> at [\w: ]+)?", low) \
+    # "Remind me about the dry cleaning tomorrow at noon" was set for TODAY at
+    # noon, with "tomorrow" left in the words (2026-10-12) - the same sentence.
+    m = re.fullmatch(r"remind me (?:about|of) (?P<what>.+?),? (?P<day>(?:(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday"
+                     r"|saturday|sunday)|tomorrow)(?: (?:morning|afternoon|evening|night))?)(?P<at> at [\w: ]+)?", low) \
         or re.fullmatch(r"remind me (?P<day>(?:next |this |on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
                         r"(?: (?:morning|afternoon|evening|night))?)(?P<at> at [\w: ]+)? (?:about|of) (?P<what>.+)", low)
     if m:
@@ -7260,7 +7272,9 @@ def _interpret(transcript: str) -> dict:
                      r"(?: at [\w: ]+)?|"
                      r"at [\w: ]+|in (?:\d+|an?|half an) (?:minutes?|mins?|hours?))", low)
     if m:
-        when = m.group(2).replace("tonight", "today night").replace("this ", "today ")
+        # "Tonight at 8" said as "today night at 8" was eight in the MORNING,
+        # tomorrow (2026-10-12); "tonight" reads as itself now.
+        when = m.group(2).replace("this ", "today ")
         again = _interpret(f"remind me to {m.group(1)} {when}")
         if (again.get("command") or {}).get("kind") in ("remind_at",):
             again["command"]["text"] = _as_he_said(text, m.group(1).strip())
