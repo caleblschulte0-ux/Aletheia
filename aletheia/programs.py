@@ -1064,6 +1064,81 @@ def spoken_steps(which: str = "") -> str:
     return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
 
 
+#: A task whose results ARE the comparison he asks about: "what cities are you looking at" is
+#: answered from the comparison, not from whichever look finished last.
+_COMPARES = re.compile(r"\b(?:compar\w*|shortlist\w*|short list|rank\w*|cities|places to live)\b", re.I)
+#: A look's own account of how it looked, or of what it could not do, is not what it found.
+_NOT_A_FINDING = re.compile(r"^(?:I read |I couldn't|I could not|I can't|I cannot|I searched for|I'm not sure of this"
+                            r"|I wasn't able|Sources?:|Note:)", re.I)
+
+
+def _finding_sentences(said: str) -> list[str]:
+    from aletheia import speech
+    text = speech.spoken_prose(without_taken_back(str(said or "")))
+    parts = re.split(r"(?<=[.!?])\s+|\s+/\s+|\n+", text)
+    return [p.strip() for p in parts if len(p.strip()) > 3 and not _NOT_A_FINDING.match(p.strip())]
+
+
+def spoken_findings(*, names: list[str] | None = None, about: list[str] | None = None,
+                    most: int = 3) -> str | None:
+    """What her missions FOUND, in his words, for "what cities are you looking at" or "what's the
+    cost of living in Tampa" (2026-10-12: both went to a model that has never read a mission's
+    results, with the comparison written and sitting in the store).
+
+    With `names` (places, things he named), only sentences that name one of them, best first;
+    without, the newest finished comparison. Only a result that came back ok, never a look's
+    account of how it looked or of what it could not do. None when nothing she found settles it,
+    so the question still goes to somebody who can think: this may only ever remove a round trip,
+    never an answer."""
+    try:
+        rows = sorted((p for p in all_programs() if p.get("state") in LIVE),
+                      key=lambda p: p.get("updated_at") or "", reverse=True)
+    except Exception:  # noqa: BLE001 - an unreadable store settles nothing
+        return None
+    found: list[tuple[str, dict, list[str]]] = []
+    for record in rows:
+        for task in record.get("tasks") or []:
+            ok = [r for r in task.get("results") or [] if r.get("outcome") == "ok" and r.get("said")]
+            if ok:
+                found.append((record.get("title") or "your mission", task,
+                              _finding_sentences(ok[-1]["said"])))
+    if names:
+        want = [n.lower() for n in names if n.strip()]
+        extra = {w for w in (about or []) if len(w) > 2}
+        scored = []
+        for _title, task, sentences in found:
+            for n, s in enumerate(sentences):
+                low = s.lower()
+                hits = sum(1 for w in want if re.search(r"\b" + re.escape(w) + r"\b", low))
+                if hits:
+                    more = sum(1 for w in extra if re.search(r"\b" + re.escape(w), low))
+                    scored.append((-hits, -more, n, s))
+        if not scored:
+            return None
+        picked, seen = [], set()
+        for *_rank, s in sorted(scored):
+            if s not in seen:
+                seen.add(s)
+                picked.append(s)
+            if len(picked) == most:
+                break
+        return "From what I've found so far: " + " ".join(p if p.endswith((".", "!", "?")) else p + "."
+                                                       for p in picked)
+    comparing = [(title, task, sentences) for title, task, sentences in found
+                 if _COMPARES.search(str(task.get("title") or "")) and sentences]
+    if comparing:
+        _title, task, sentences = comparing[0]
+        line = " ".join(s if s.endswith((".", "!", "?")) else s + "." for s in sentences[:most])
+        return f"From {task.get('title')}: {line}"
+    unfinished = next(((r, t) for r in rows for t in r.get("tasks") or []
+                       if _COMPARES.search(str(t.get("title") or "")) and t.get("state") != ws.DONE), None)
+    if unfinished is not None:
+        record, task = unfinished
+        return (f"I haven't finished that yet: {task.get('title')} is still to do. "
+                f"Ask me what {record.get('title') or 'the mission'} is waiting on and I'll say why.")
+    return None
+
+
 def _open_waits_line(task: dict) -> str:
     """The task's waits still WAITING: purpose, what it asks or the argument names it lacks, and
     when it next wakes. Her own questions and argument NAMES only, never a value."""
