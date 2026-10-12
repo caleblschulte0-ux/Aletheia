@@ -1873,7 +1873,10 @@ def _one_reminder(which: str):
         hits = [r for n, r in scored if n == best and n > 0]
     if not hits:
         if not rows:
-            return None, "You have no reminders set."
+            # "Cancel the eggs timer" with nothing running is about a timer.
+            return None, ("You don't have a timer running." if re.search(r"\btimers?\b", needle)
+                          else "You have no alarms set." if re.search(r"\balarms?\b|^wake up$", needle)
+                          else "You have no reminders set.")
         # AN EMPTY ANSWER STILL PROVES THE STORE. "No reminder matching
         # 'plumber'." is true, is two sentences jammed together once the
         # caller prefixes "I can't do that:", and leaves him with nothing

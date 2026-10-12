@@ -1250,7 +1250,7 @@ class ANamedTimerByItsName(unittest.TestCase):
         with mock.patch.object(voice, "_running_once", return_value=[(at, "your 25 minute pizza timer is up")]):
             got = voice._interpret("add 5 minutes to the pizza")["command"]
             self.assertEqual(got["kind"], "remind_at")
-            self.assertEqual(got["text"], "your 25 minute pizza timer is up")
+            self.assertEqual(got["text"], "your 30 minute pizza timer is up")
         with mock.patch.object(voice, "_running_once", return_value=[]):
             self.assertNotEqual((voice._interpret("add 10 minutes to my meeting")["command"] or {}).get("kind"),
                                 "remind_at")

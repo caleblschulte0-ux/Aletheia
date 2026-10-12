@@ -2468,7 +2468,11 @@ def _more_on_the_timer(minutes: int, named: str = "") -> dict:
                                         "want and set it again for the new time."}
     at, words = running[0]
     later = (at + dt.timedelta(minutes=minutes)).astimezone(dt.timezone.utc)
-    return {"command": {"kind": "remind_at", "at": later.isoformat(), "text": words, "replaces": words},
+    # A 10-minute timer with 5 more on it is a 15-minute timer: cancelling it
+    # said "Cancelled your 10-minute timer" otherwise.
+    renamed = re.sub(r"\byour (\d+)([- ])minute\b", lambda g: f"your {int(g.group(1)) + minutes}{g.group(2)}minute",
+                     words, count=1)
+    return {"command": {"kind": "remind_at", "at": later.isoformat(), "text": renamed, "replaces": words},
             "say": None}
 
 
@@ -5962,6 +5966,13 @@ def _interpret(transcript: str) -> dict:
         plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", name)
         timer_words = (f"set a timer for {named_first.group('n')} {named_first.group('u')}"
                        + ("" if plain else f" for {name}"))
+    # "Set a 10 minute eggs timer": the length, then the name.
+    length_name = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?P<n>\d+)[- ]?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)"
+                               r" (?P<name>[a-z][a-z ]{1,24}?) timer", low)
+    if length_name and not re.search(r"\b(?:timer|and|or)\b", length_name.group("name")):
+        plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", length_name.group("name"))
+        timer_words = (f"set a timer for {length_name.group('n')} {length_name.group('u')}"
+                       + ("" if plain else f" for {length_name.group('name')}"))
     # "Set a timer for 5 minutes called tea" (2026-10-07: to the planner).
     timer_words = re.sub(r"^((?:set|start) (?:a |an )?timer (?:for |of )?\d+\s*\w+) (?:called|named|labell?ed) "
                          r"(?:the |my )?([a-z][a-z ]{1,24})$", r"\1 for \2", timer_words)
@@ -6963,6 +6974,13 @@ def _interpret(transcript: str) -> dict:
                             r"(?P<unit5>minutes?|mins?) (?:to|on) (?:the |my )?(?P<named>[a-z][a-z ]{1,25}?)", low)
         if bare and any(re.search(r"\b" + re.escape(bare.group("named")) + r"\b", words)
                         for _at, words in _running_once("timer is up")):
+            m = bare
+    if not m:
+        # "Add 5 minutes to it" straight after setting a timer: "it" is the
+        # timer only when the ask before was about one and one is running.
+        bare = re.fullmatch(r"(?:add|put|give) (?P<n5>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?"
+                            r"(?P<unit5>minutes?|mins?|seconds?) (?:to|on) (?:it|that|this)", low)
+        if bare and _running_once("timer is up") and "timer" in (_previous_ask() or "").casefold():
             m = bare
     if m:
         words = {"a": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30}

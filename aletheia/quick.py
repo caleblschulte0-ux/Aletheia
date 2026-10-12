@@ -5294,6 +5294,12 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
         return _next_meeting(until=True)
     if re.fullmatch(r"(?:my )?(?:bedtime|bed time|bed)", " ".join(str(words or "").casefold().split())):
         return _until_bedtime()
+    # "How long until my oven reminder (goes off)" (2026-10-12: to a model,
+    # while "when is my oven reminder" answered).
+    named = re.fullmatch(r"(?!(?:my |the )?(?:next|first|last)\b)(?:my |the )?(?P<what>[a-z][a-z' ]{1,30}?) reminder(?: goes off)?",
+                         " ".join(str(words or "").casefold().split()))
+    if named:
+        return _reminder_until(named.group("what"))
     # "How many days until the end of the month" (2026-10-07: no answer).
     end = re.fullmatch(r"(?:the )?end of (?:the |this )?(month|year)", " ".join(str(words or "").casefold().split()))
     if end:
@@ -11462,6 +11468,32 @@ def _reminder_when(what: str) -> str | None:
         except Exception:  # noqa: BLE001 - the rule alone is still true
             pass
     return f"Your {what} reminder is {when}: {text.rstrip('.')}."
+
+
+def _reminder_until(what: str) -> str | None:
+    """"How long until my oven reminder": the one reminder his words name,
+    said with how long from now. Her "none is about that" and "which one"
+    are facts of her store too, so they are said rather than guessed past."""
+    import datetime as dt
+    from aletheia import speech
+    try:
+        from aletheia import intercom, scheduler
+        found, why = intercom._one_reminder(what)
+        if found is None:
+            return str(why) or None
+        now = dt.datetime.now(dt.timezone.utc)
+        at = scheduler.next_occurrence(found, now)
+        text = intercom._reminder_words(found).partition(" — ")[0]
+    except Exception:
+        return None
+    if at is None:
+        return None
+    left = max(int((at - now).total_seconds() + 30) // 60, 0)
+    h, m = divmod(left, 60)
+    span = (speech.count_phrase(left, "minute") if left < 60
+            else speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(m, 'minute')}" if m else ""))
+    return (f"Your {what} reminder goes off in {span}, {speech.humanize_time(at.isoformat())}: "
+            f"{speech._yours(text.rstrip('.'))}.")
 
 
 def _when_mine(what: str, until: bool = False) -> str | None:
