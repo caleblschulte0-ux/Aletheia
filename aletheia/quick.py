@@ -1406,7 +1406,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Show me my calendar for next week" planned for 73 s and died on a
         # date string; "what meetings do I have tomorrow" paid a model.
         r"|^(?:show me|pull up|open|read me|give me) (?:my |the )?(?:calendar|schedule|agenda)(?: for)? (?P<day8>today|tomorrow|this week|next week)$"
-        r"|^what (?:meetings|appointments|events|calls) (?:do i have|have i got|are there)(?: on)? (?P<day9>today|tomorrow|this week|next week)$"
+        # "What events are there this weekend" and "events this weekend" (2026-10-11: to a model).
+        r"|^what (?:meetings|appointments|events|calls|plans) (?:do i have|have i got|are there|are|is there|have i)(?: on| for)? "
+        r"(?P<day9>today|tonight|tomorrow|this week|next week|this weekend|the weekend|next weekend)\s*\??$"
+        r"|^(?:my )?(?:events|plans|meetings) (?:for )?(?P<day16>today|tonight|tomorrow|this week|next week|this weekend|the weekend|next weekend)\s*\??$"
         # "Any events this weekend" (2026-10-11: to the planner, which
         # could not plan it with the models out).
         r"|^(?:are there |is there |do i have |have i got )?any (?:events|plans)(?: (?:on|planned|scheduled|happening|going on|coming up))?"
@@ -3648,7 +3651,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13", "day14", "day15",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
+                                           "until", "until2", "day8", "day9", "day16", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bwin3", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
