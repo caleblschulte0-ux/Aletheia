@@ -29,8 +29,14 @@ class TheRecordsAnswerCase(unittest.TestCase):
 
     def test_how_many_this_week_counts_by_date(self):
         import datetime as dt
+        from aletheia import localtime
         now = dt.datetime.now(dt.timezone.utc)
-        rows = [{**SENT[0], "submitted_at": (now - dt.timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")},
+        # An hour ago is last week during the first hour of his Monday (Windows CI, 2026-10-12 05:12Z =
+        # 00:12 Central): no earlier than the first second of this week, his time.
+        local = now.astimezone(localtime.operator_tz())
+        week_began = (local - dt.timedelta(days=local.weekday())).replace(hour=0, minute=0, second=1, microsecond=0)
+        sent = max(now - dt.timedelta(hours=1), week_began.astimezone(dt.timezone.utc))
+        rows = [{**SENT[0], "submitted_at": sent.strftime("%Y-%m-%dT%H:%M:%SZ")},
                 {**SENT[1], "submitted_at": "2026-01-05T12:00:00Z"}]
         with mock.patch("aletheia.apply_run.all_runs", return_value=rows):
             said = quick.answer("how many jobs did I apply to this week")
