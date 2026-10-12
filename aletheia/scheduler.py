@@ -63,6 +63,20 @@ def validate(spec: dict) -> None:
         if "anchor" not in spec:
             raise ValueError("interval schedule requires anchor")
         _parse(spec["anchor"])
+        if "hours" in spec:
+            # "Every hour during work hours": only the occurrences inside the
+            # window, in his timezone, on the weekdays named (all when none are).
+            hours = spec["hours"]
+            if not isinstance(hours, list) or len(hours) != 2 or _clock(hours[0]) >= _clock(hours[1]):
+                raise ValueError("interval hours must be [start HH:MM, end HH:MM] with start before end")
+            try:
+                ZoneInfo(spec.get("timezone", ""))
+            except (ZoneInfoNotFoundError, ValueError) as exc:
+                raise ValueError("interval hours require a valid timezone") from exc
+            days = spec.get("weekdays")
+            if days is not None and (not isinstance(days, list) or not days
+                                     or any(type(d) is not int or d not in range(7) for d in days)):
+                raise ValueError("interval weekdays must be a non-empty list of 0..6")
     else:
         try:
             ZoneInfo(spec.get("timezone", ""))
@@ -96,7 +110,8 @@ def load(schedule_id: str) -> dict:
 def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
            every_minutes: int | None = None, anchor: str | None = None,
            timezone: str | None = None, time: str | None = None,
-           weekdays: list[int] | None = None, monthday: int | None = None) -> dict:
+           weekdays: list[int] | None = None, monthday: int | None = None,
+           hours: list[str] | None = None) -> dict:
     if _path(schedule_id).exists():
         raise FileExistsError(f"schedule {schedule_id!r} exists")
     spec = {"version": 1, "id": safe_id(schedule_id, name="schedule id"), "kind": kind,
@@ -115,6 +130,8 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
         spec["weekdays"] = weekdays
     if monthday is not None:
         spec["monthday"] = monthday
+    if hours is not None:
+        spec["hours"] = hours
     return save(spec)
 
 
@@ -128,6 +145,34 @@ def _month_day(year: int, month: int, monthday: int) -> dt.date:
 def _months_from(day: dt.date, offset: int) -> tuple[int, int]:
     index = day.year * 12 + day.month - 1 + offset
     return index // 12, index % 12 + 1
+
+
+def _in_hours(spec: dict, at: dt.datetime) -> bool:
+    """Whether an interval occurrence falls inside its window, if it has one."""
+    if "hours" not in spec:
+        return True
+    local = at.astimezone(ZoneInfo(spec["timezone"]))
+    days = spec.get("weekdays")
+    if days is not None and local.weekday() not in days:
+        return False
+    start, end = _clock(spec["hours"][0]), _clock(spec["hours"][1])
+    return start <= (local.hour, local.minute) <= end
+
+
+def _next_window_start(spec: dict, after: dt.datetime) -> dt.datetime:
+    """The first moment of the window that opens after `after`."""
+    tz = ZoneInfo(spec["timezone"])
+    local = after.astimezone(tz)
+    hour, minute = _clock(spec["hours"][0])
+    days = spec.get("weekdays")
+    for offset in range(0, 8):
+        day = local.date() + dt.timedelta(days=offset)
+        if days is not None and day.weekday() not in days:
+            continue
+        start = dt.datetime.combine(day, dt.time(hour, minute), tzinfo=tz)
+        if start > local:
+            return start.astimezone(dt.timezone.utc)
+    return after + dt.timedelta(days=8)
 
 
 def set_enabled(schedule_id: str, enabled: bool) -> dict:
@@ -153,7 +198,8 @@ def occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
             return None
         seconds = (now - anchor).total_seconds()
         period = spec["every_minutes"] * 60
-        return anchor + dt.timedelta(seconds=(int(seconds) // period) * period)
+        latest = anchor + dt.timedelta(seconds=(int(seconds) // period) * period)
+        return latest if _in_hours(spec, latest) else None
     tz = ZoneInfo(spec["timezone"])
     local_now = now.astimezone(tz)
     hour, minute = _clock(spec["time"])
@@ -220,11 +266,18 @@ def _next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
     if spec["kind"] == "interval":
         anchor = _parse(spec["anchor"])
         period = dt.timedelta(minutes=spec["every_minutes"])
-        if after < anchor:
-            return anchor
-        elapsed = after - anchor
-        periods = int(elapsed.total_seconds() // period.total_seconds()) + 1
-        return anchor + periods * period
+        def following(moment: dt.datetime) -> dt.datetime:
+            if moment < anchor:
+                return anchor
+            periods = int((moment - anchor).total_seconds() // period.total_seconds()) + 1
+            return anchor + periods * period
+        at = following(after)
+        for _ in range(16):
+            if _in_hours(spec, at):
+                return at
+            # Outside the window: the first one once it opens again.
+            at = following(_next_window_start(spec, at) - dt.timedelta(microseconds=1))
+        return None
     tz = ZoneInfo(spec["timezone"])
     local = after.astimezone(tz)
     hour, minute = _clock(spec["time"])
