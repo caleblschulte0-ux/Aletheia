@@ -224,7 +224,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What did you sign me up for" - her own ledger of sign-ups, which only a model was asked
     # about (2026-10-11), and a model has never seen it.
     ("signed_up", re.compile(
-        r"^(?:what|which)(?: events?| things?| lists?)? (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?|put) me (?:up )?(?:for|on)(?: so far| yet)?\s*\??$"
+        r"^(?:what|which)(?: events?| things?| lists?)? (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?|put) me (?:up )?(?:for|on)"
+        # "... this week" (2026-10-12: to a model)
+        r"(?: so far| yet| this week| today| lately| recently| this weekend)?\s*\??$"
         r"|^(?:what|which) (?:events? )?(?:am i|have i been) (?:signed up|registered) for\s*\??$"
         r"|^(?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?) me (?:up )?for anything(?: yet)?\s*\??$"
         r"|^how many (?:events?|things?) (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?) me (?:up )?for(?: this week| so far| yet)?\s*\??$"
@@ -3378,7 +3380,9 @@ def _direct(text: str) -> str:
             return f"{lead} {m.group('rest')}"
     # "Is there anything on my calendar today" (2026-10-08: answered "Yes"
     # with a description of her calendar code, read as "can she").
-    m = re.fullmatch(r"(?:is there |do i have |have i got |have we got |do we have )?anything (?:on|in) (?:my|the|our) (?:calendar|schedule|diary|agenda)"
+    # "Anything new on my calendar" / "what's new on my calendar" (2026-10-12: to a model) - the same.
+    m = re.fullmatch(r"(?:(?:is there |do i have |have i got |have we got |do we have )?anything(?: new)?(?: (?:on|in)| added to| put on)"
+                     r"|what(?:'s| is|s) new (?:on|in)) (?:my|the|our) (?:calendar|schedule|diary|agenda)"
                      r"(?: (?:for )?(?P<day>today|tomorrow|tonight|this week|next week|this weekend|monday|tuesday|wednesday|thursday"
                      r"|friday|saturday|sunday))?\s*\??", text)
     if m:
