@@ -1777,8 +1777,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week)\s*\??$"
         r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week)\s*\??$")),
     ("reminders_on", re.compile(
-        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders|alarms)(?: do i have)? (?:for|on) "
-        r"(?P<reminders_on>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
+        # "What's my reminder on Thursday" (2026-10-12: to a model) - the singular too.
+        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?(?:reminders?|alarms?)(?: do i have)? (?:for|on) "
+        r"(?P<reminders_on>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday"
         r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tonight|tomorrow"
         r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
@@ -3727,6 +3728,10 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
             # name he said is read back to him: "nowhere inc" is not what
             # he said. His capitals, put back from the sentence itself.
             rest = _as_said(rest, question)
+        if name == "reminders_on" and "alarm" in text:
+            # "What's my alarm for tomorrow" was answered as "1 reminder
+            # tomorrow: 6 am, wake up." - he asked about his alarm.
+            name = "alarms_on"
         return name, rest
 
 
@@ -11581,8 +11586,9 @@ def _reminders_between(first, last, now) -> str:
     return f" You do have {speech.count_phrase(len(rows), 'reminder')}: " + "; ".join(said) + more + "."
 
 
-def _reminders_on(day: str) -> str | None:
-    """His reminders and alarms that go off on the day he names."""
+def _reminders_on(day: str, alarms: bool = False) -> str | None:
+    """His reminders and alarms that go off on the day he names - only the
+    alarms when he asked about those."""
     import datetime as dt
     from aletheia import localtime, voice
     # "What reminders do I have tonight" (2026-10-08: to a model): today's
@@ -11602,6 +11608,16 @@ def _reminders_on(day: str) -> str | None:
             and at.astimezone(tz).date().isoformat() == iso and (not tonight or at.astimezone(tz).hour >= 17)]
     if tonight:
         day = "tonight"
+    if alarms:
+        when = day if day in ("today", "tonight", "tomorrow") else "on " + day.capitalize()
+        rows = [(at, text) for at, text in rows if "wake up" in text.casefold()]
+        clock = [at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for at, _ in rows]
+        if not rows:
+            return f"No alarm set for {day}." if day in ("today", "tonight", "tomorrow") else f"No alarm set on {day.capitalize()}."
+        if len(rows) == 1:
+            return f"Your alarm {when} is at {clock[0]}."
+        from aletheia import speech
+        return f"{speech.count_phrase(len(rows), 'alarm')} {when}: {speech.and_list(clock)}."
     if not rows:
         return f"No reminders {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}."
     from aletheia import speech
@@ -19499,6 +19515,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "clock_until": lambda rest: _clock_until(rest),
            "time_zone": lambda rest: _time_zone(),
            "reminders_on": lambda rest: _reminders_on(rest),
+           "alarms_on": lambda rest: _reminders_on(rest, alarms=True),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
