@@ -390,7 +390,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?:have (?:you|u|we|i) )?heard (?:anything |back )?from|did (?:you|u|we|i) hear (?:anything |back )?from)"
         # "anything from anyone" / "did any employers reply" name nobody in
         # particular and stay with the replies shape below
-        r" (?:the |my )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters|jobs|work)\b)"
+        # "...a status update on how applying is going" is a clause, not a name (2026-10-12)
+        r" (?:the |my )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters|jobs|work"
+        r"|how|what|whether|if|where|when|why)\b)"
         r"(?P<what>[a-z0-9][a-z0-9 .&'-]{1,40}?)(?: yet)?\s*\??$"
         r"|^(?:did|has|have) (?:the )?(?!(?:any|anyone|anybody|someone|somebody|they|them|people|employers?|companies|recruiters)\b)"
         r"(?P<what2>[a-z0-9][a-z0-9 .&'-]{1,40}?)"
