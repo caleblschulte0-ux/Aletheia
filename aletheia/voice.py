@@ -1913,6 +1913,17 @@ def _list_just_read(turns: int = 5):
     return None
 
 
+def _she_just_set_a_reminder() -> bool:
+    """Whether her last answer confirmed a one-off reminder."""
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=1) or []
+    except Exception:  # noqa: BLE001
+        return False
+    said = str((turns[-1] if turns else {}).get("she_answered") or "")
+    return bool(re.match(r"(?:I'll remind you|Alarm set for) ", said))
+
+
 def _the_reminder_just_set() -> dict | None:
     """The reminder his last few asks set, as it stands now, or None.
 
@@ -5108,12 +5119,16 @@ def _interpret(transcript: str) -> dict:
     # THE REMINDER HE JUST SET (2026-10-07: all three to the planner):
     # "what time is that reminder", "remind me to text dad too" (the same
     # time), and "change call mom to call grandma" (the same time, new words).
-    just = _the_reminder_just_set() if re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
-                                                 r"|\bset for$|\bgo off$", low) else None
+    # "Remind me to call grandma Sunday at noon", "what time is that" (2026-10-12:
+    # to a model). Bare, "that" is only the reminder when she has just confirmed one.
+    bare_when = re.fullmatch(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
+                             r"|what time did i (?:say|tell you)", low) and _she_just_set_a_reminder()
+    just = _the_reminder_just_set() if bare_when or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
+                                                              r"|\bset for$|\bgo off$", low) else None
     if just:
         at = str(just.get("at") or "")
         words = str((just.get("command") or {}).get("text") or "")
-        if re.fullmatch(r"(?:what time is|when is|when's) (?:that|the|my|this) reminder(?: set)?(?: for)?"
+        if bare_when or re.fullmatch(r"(?:what time is|when is|when's) (?:that|the|my|this) reminder(?: set)?(?: for)?"
                         r"|(?:what time|when) (?:did you set|is) (?:it|that) (?:set )?for|when does (?:it|that) go off", low):
             return {"command": None, "say": f"That's {speech.humanize_time(at)}: {words}."}
         m = re.fullmatch(r"(?:and )?(?:also )?remind me to (?P<what>.+?) (?:too|as well|also)", low)
