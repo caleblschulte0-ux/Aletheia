@@ -3291,8 +3291,10 @@ class HerDayAndHisWeek(unittest.TestCase):
         from aletheia import calendar, localtime, quick
         tz = localtime.operator_tz()
         now = dt.datetime.now(tz)
-        sunday_night = (now + dt.timedelta(days=6 - now.weekday())).replace(hour=23, minute=0, second=0, microsecond=0)
-        soon = min(now + dt.timedelta(seconds=60), sunday_night)
+        # The last instant of this week: at 23:00 the old "Sunday at 23:00" cap was already in the past,
+        # and the test failed for one hour every Sunday night (CI, 2026-10-12 04:26Z).
+        sunday_night = (now + dt.timedelta(days=6 - now.weekday())).replace(hour=23, minute=59, second=59, microsecond=0)
+        soon = min(now + dt.timedelta(seconds=20), sunday_night)
         events = [{"title": "standup", "start": soon.isoformat()},
                   {"title": "far off", "start": (now + dt.timedelta(days=30)).isoformat()},
                   {"title": "gone", "start": soon.isoformat(), "status": "CANCELLED"}]

@@ -7133,6 +7133,11 @@ def _interpret(transcript: str) -> dict:
     # answered "I don't have anything remembered about 'me'"); the fast
     # lane says the whole of what she holds about him.
     if m and m.group(1).strip() not in ("me", "myself", "me then", "yourself", "you"):
+        # "Tell me about the move plan" is the mission, not a note about it (2026-10-12).
+        from aletheia import programs
+        mission = programs.named(re.sub(r"^(?:my|the) ", "", m.group(1).strip()))
+        if mission is not None:
+            return {"command": {"kind": "missions", "which": mission["id"]}, "say": None}
         return {"command": {"kind": "recall", "about": _as_he_said(text, m.group(1).strip())},
                 "say": None}
 
@@ -7582,6 +7587,20 @@ def _interpret(transcript: str) -> dict:
         record = programs.named(m.group(1))
         if record is not None:
             return {"command": {"kind": "missions", "about": "steps", "which": record["id"]}, "say": None}
+    m = re.fullmatch(r"(?:tell me about|what(?:'s| is|s)|how(?:'s| is|s)|remind me about|explain) (?:my |the )?(.{2,40}?)"
+                     r"|what are (?:you|u) (?:working on|doing) (?:for|on|about|with) (?:my |the )?(.{2,40}?)"
+                     r"|(?:is )?(?:anything|something) stuck (?:on|in|with) (?:my |the )?(.{2,40}?)"
+                     r"|why (?:is|has) (?:my |the )?(.{2,40}?) (?:stuck|stalled|stopped|not moving)", low)
+    if m:
+        # "Tell me about the move plan", "how's the reboot", "why is the move plan stuck" (2026-10-12:
+        # a model, or her memory of notes, with the mission right there). Only a subject naming a live
+        # mission: "what's the weather" and "tell me about Dana" are somebody else's.
+        from aletheia import programs
+        record = programs.named(next(g for g in m.groups() if g))
+        if record is not None:
+            stuck = bool(m.group(3) or m.group(4))
+            return {"command": {"kind": "missions", **({"about": "waiting"} if stuck else {}),
+                                "which": record["id"]}, "say": None}
     m = re.fullmatch(r"(pause|hold|stop|resume|unpause|restart|drop|cancel|scrap)"
                      r"(?: (?:working on|work on))? (?:my |the )?(.{2,40}?)(?: for now| again)?", low) \
         or re.fullmatch(r"(?:put )?(?:my |the )?(.{2,40}?) (?:on hold|back on)()", low)
