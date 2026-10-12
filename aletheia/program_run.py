@@ -485,7 +485,10 @@ def _found(record: dict, task: dict, *, answers: bool = True) -> list[str]:
             for r in t.get("results") or []]
     rows.sort(key=lambda r: str(r.get("at") or ""))
     rows += list(task.get("results") or [])
-    found = [str(r.get("said") or "") for r in rows if r.get("outcome") == "ok" and r.get("said")][-5:]
+    gone = pg.taken_back_titles()
+    found = [pg.without_taken_back(str(r.get("said") or ""), gone) for r in rows
+             if r.get("outcome") == "ok" and r.get("said")]
+    found = [f for f in found if f.strip()][-5:]
     # A recurring watch reads what the finished work it is about found, ahead of its own last five:
     # otherwise the shortlist it watches is the oldest line and the first to fall off (2026-10-11).
     watched = [said for t in pg.what_it_watches(record, task) if t.get("key") not in keys
@@ -910,6 +913,28 @@ def _last_empty_recheck(task: dict) -> str:
                 if str(h.get("did") or "").startswith("opened again: its look found nothing")), default="")
 
 
+_LINKED = re.compile(r"([^;/]*?)\s*\(link (https?://[^\s)]+)\)")
+
+
+def _held_event_link(record: dict, task: dict) -> str:
+    """The link a found dated line carries for an event this mission has pencilled in and not taken
+    back; "" when none is plainly that event. The title words decide, as `_found_event` does."""
+    found = " ; ".join(_found(record, task, answers=False))
+    linked = [(line, url) for line, url in _LINKED.findall(found)]
+    if not linked:
+        return ""
+    gone = pg.taken_back_titles()
+    held = [str(r.get("said") or "") for t in record.get("tasks") or [] for r in t.get("results") or []
+            if r.get("outcome") == "ok" and str(r.get("said") or "").startswith("Pencilled in")]
+    held = [pg.without_taken_back(h, gone) for h in held]
+    held_words = [_content_words(h, shortest=4) for h in held if h.strip()]
+    for line, url in linked:
+        words = _content_words(line.split(",")[0], shortest=4)
+        if len(words) >= 2 and any(len(words & h) >= max(2, (len(words) + 1) // 2) for h in held_words):
+            return url
+    return ""
+
+
 def _take_back(args: dict, why: str) -> bool:
     """Release her own tentative hold that a step made with `args`; False when none is left."""
     from aletheia import calendar as _calendar, calendar_reasoning, localtime
@@ -1199,6 +1224,14 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             ours = [f for f in (_found_file(record, task), _answers_file(record)) if f]
             if ours:
                 args["sources"] = ours + [g for g in given if g not in ours]
+        if missing and set(missing) & set(WHERE_ARGS):
+            # The event's own page, carried on the dated line it was found on, for something this
+            # mission already pencilled in: no model needed, and no guess (2026-10-11: the trail walk
+            # was held and its sign-up had no address).
+            link = _held_event_link(record, task)
+            if link:
+                args.update({m: link for m in missing if m in WHERE_ARGS})
+                missing = [m for m in missing if not str(args.get(m) or "").strip()]
         if missing and _writes_holds(tool) and set(missing) & set(WHEN_ARGS):
             # A date and a time the steps before it read, as the page wrote them, need no model.
             args.update(_dated_hold(record, task, tool, args, now))
@@ -1254,6 +1287,15 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
         if missing and set(missing) & set(WHERE_ARGS) and (task.get("needs") or i > 0):
             # An address for something the steps before it were to find: nothing found yet has one,
             # so there is nothing to sign up for YET (2026-10-11: "what should I use for url?").
+            look = _stale_look(task, plan, tools, i)
+            if look is not None:
+                # Its own look ran before looks carried the event links: it looks again now, once per
+                # revision of how pages are read, rather than waiting a day on the old reading.
+                step["args"] = args
+                task.update(cursor=look, relooked=research.REVISION, state=ws.READY, run=None,
+                            reason="", next="look again, reading the events' own links")
+                _commit(pid, task, now)
+                return {"state": ws.READY, "why": "looking again on the current reading"}
             step["args"] = args
             task.update(state=ws.RETRY_LATER, run=None, next="look again for something with an address",
                         reason="nothing found yet has an address to use",

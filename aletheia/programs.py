@@ -975,6 +975,7 @@ _HOW_IT_LOOKED = re.compile(r"^(?:I read |I couldn't read|I searched for|I'm not
 
 
 def _found_line(said: str, limit: int = 300) -> str:
+    said = without_taken_back(said)
     parts = re.split(r"(?<=[.!?])\s+", " ".join(str(said or "").split()))
     how = [p for p in parts if _HOW_IT_LOOKED.match(p)]
     return " ".join(how + [p for p in parts if p not in how])[:limit]
@@ -1091,6 +1092,36 @@ def _engine_line(item: str) -> str:
         return ""
     return (f"engine {held.get('state')} until {held.get('not_before') or '-'} "
             f"(as of {held.get('native_state') or '?'})")
+
+
+def taken_back_titles() -> set[str]:
+    """The titles of her own tentative holds she took back as wrong. Never raises."""
+    try:
+        from aletheia import calendar, calendar_reasoning, stateio
+        out = set()
+        for path in calendar_reasoning.holds_dir().glob("*.json"):
+            record = stateio.read_json(path)
+            last = (record.get("history") or [{}])[-1]
+            if record.get("state") == "RELEASED" and str(last.get("did") or "").startswith("taken back"):
+                title = str(calendar.load(record["id"]).get("title") or "").strip()
+                if title:
+                    out.add(title)
+        return out
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def without_taken_back(said: str, titles: set[str] | None = None) -> str:
+    """A step's answer without the parts that say she pencilled in a hold she has since taken back:
+    "Pencilled in Hold Friday at 10 for the tour" stayed in what a task found after the hold was
+    cancelled, where a check-in could read it out (his PC, 2026-10-11)."""
+    titles = taken_back_titles() if titles is None else titles
+    if not titles or "Pencilled in " not in str(said or ""):
+        return str(said or "")
+    parts = str(said).split(" / ")
+    kept = [p for p in parts
+            if not any(p.strip().startswith(f"Pencilled in {t}") for t in titles)]
+    return " / ".join(kept)
 
 
 def _holds_taken_back(limit: int = 5) -> list[str]:
