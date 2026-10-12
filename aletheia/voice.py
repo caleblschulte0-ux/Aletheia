@@ -1694,7 +1694,15 @@ _BARE_NEW_TIME = re.compile(r"(?:no,? |actually,? |)(?:at (?P<t>\d{1,2}(?::\d{2}
 # "What time is that", asked straight after she set a reminder.
 _BARE_WHEN = re.compile(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
                         r"|what time did i (?:say|tell you)|what time(?: for)?")
-_SHE_SET_IT = re.compile(r"(?:I'll remind you|Alarm set for|That's) ")
+# "How long until that", asked straight after she set a reminder.
+_BARE_HOW_LONG = re.compile(r"how (?:long|much (?:longer|time)|many (?:minutes|hours)) (?:until|till|before|is left (?:on|until)) "
+                            r"(?:that|it)(?: goes off| happens)?|how long (?:is )?left(?: on (?:that|it))?")
+_SHE_SET_IT = re.compile(r"(?:I'll remind you|Alarm set for|That's) |(?:In \d[^,]*|Any moment now), ")
+# Her answer to "what time is that" or "how long until that".
+_SHE_SAID_WHEN = re.compile(r"That's |(?:In \d[^,]*|Any moment now), ")
+# "Every Tuesday at 9 pm I'll remind you: take out the trash." - a repeating
+# one, which says when first.
+_SHE_SET_A_REPEAT = re.compile(r"(?P<when>(?:Every|On the) .+?),? I'll remind you: (?P<what>.+?)\.?")
 
 _IS_FOLLOW_UP = re.compile(
     r"^(?:(?:make|change|move|push|bump|shift) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
@@ -1921,20 +1929,42 @@ def _list_just_read(turns: int = 5):
     return None
 
 
-def _she_just_set_a_reminder() -> bool:
-    """Whether her last answer confirmed a one-off reminder."""
+def _her_last_answer() -> str:
     try:
         from aletheia import converse
         turns = converse.recent(limit=1) or []
     except Exception:  # noqa: BLE001
-        return False
-    said = str((turns[-1] if turns else {}).get("she_answered") or "")
-    return bool(re.match(r"(?:I'll remind you|Alarm set for) ", said))
+        return ""
+    return str((turns[-1] if turns else {}).get("she_answered") or "")
+
+
+def _she_just_set_a_reminder() -> bool:
+    """Whether her last answer confirmed a one-off reminder."""
+    return bool(re.match(r"(?:I'll remind you|Alarm set for) ", _her_last_answer()))
+
+
+def _time_left(at: str) -> str:
+    """"In 20 minutes", "In 2 hours and 5 minutes" - from now until `at`."""
+    try:
+        when = dt.datetime.fromisoformat(str(at).replace("Z", "+00:00"))
+        now = dt.datetime.now(when.tzinfo) if when.tzinfo else dt.datetime.now()
+    except ValueError:
+        return ""
+    minutes = int(round((when - now).total_seconds() / 60))
+    if minutes < 1:
+        return "Any moment now"
+    if minutes >= 48 * 60:
+        days = int(round(minutes / (24 * 60)))
+        return f"In {days} days"
+    hours, mins = divmod(minutes, 60)
+    return "In " + " and ".join(p for p in (f"{hours} hour{'s' if hours != 1 else ''}" if hours else "",
+                                            f"{mins} minute{'s' if mins != 1 else ''}" if mins else "") if p)
 
 
 def _she_just_named_a_reminder() -> bool:
     """Her last answer set a reminder, or said back when the one she had just
-    set goes off ("what time" - "That's tomorrow at 9 am: ...")."""
+    set goes off ("what time" - "That's tomorrow at 9 am: ...", "how long
+    until that" - "In 20 minutes, ...")."""
     if _she_just_set_a_reminder():
         return True
     try:
@@ -1943,7 +1973,7 @@ def _she_just_named_a_reminder() -> bool:
     except Exception:  # noqa: BLE001
         return False
     said = [str(t.get("she_answered") or "") for t in turns]
-    return len(said) == 2 and said[1].startswith("That's ") and bool(re.match(r"(?:I'll remind you|Alarm set for) ", said[0]))
+    return len(said) == 2 and bool(_SHE_SAID_WHEN.match(said[1])) and bool(re.match(r"(?:I'll remind you|Alarm set for) ", said[0]))
 
 
 def _the_reminder_just_set() -> dict | None:
@@ -2015,7 +2045,8 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
             continue
         # "At 5" straight after she set one changed its time - a follow-up too.
         # "What time is that" asked about it, the same way.
-        if at and (_BARE_NEW_TIME.fullmatch(said.casefold().rstrip(".?!")) or _BARE_WHEN.fullmatch(said.casefold().rstrip(".?!"))) \
+        bare = said.casefold().rstrip(".?!")
+        if at and (_BARE_NEW_TIME.fullmatch(bare) or _BARE_WHEN.fullmatch(bare) or _BARE_HOW_LONG.fullmatch(bare)) \
                 and _SHE_SET_IT.match(str(recent[at - 1].get("she_answered") or "")):
             continue
         try:
@@ -5153,6 +5184,16 @@ def _interpret(transcript: str) -> dict:
     # "Remind me to call grandma Sunday at noon", "what time is that" (2026-10-12:
     # to a model). Bare, "that" is only the reminder when she has just confirmed one.
     bare_when = _BARE_WHEN.fullmatch(low) and _she_just_set_a_reminder()
+    # "Remind me in 20 minutes to check the oven", "how long until that"
+    # (2026-10-12: to a model).
+    bare_how_long = _BARE_HOW_LONG.fullmatch(low) and _she_just_set_a_reminder()
+    # "Remind me to take out the trash every Tuesday night", "when is that"
+    # (2026-10-12: to a model): her own confirmation already says when.
+    if _BARE_WHEN.fullmatch(low):
+        repeat = _SHE_SET_A_REPEAT.fullmatch(_her_last_answer())
+        if repeat:
+            when = repeat.group("when")
+            return {"command": None, "say": f"That's {when[:1].lower() + when[1:]}: {repeat.group('what')}."}
     # "Remind me to pick up dry cleaning tomorrow" (9 am), then "at 5" or "5 pm
     # instead" (2026-10-12: to a model): the new time for the reminder she just set.
     m = _BARE_NEW_TIME.fullmatch(low)
@@ -5166,11 +5207,13 @@ def _interpret(transcript: str) -> dict:
             _LOOKING_BACK.bare_time = False
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
             return got
-    just = _the_reminder_just_set() if bare_when or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
+    just = _the_reminder_just_set() if bare_when or bare_how_long or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
                                                               r"|\bset for$|\bgo off$", low) else None
     if just:
         at = str(just.get("at") or "")
         words = str((just.get("command") or {}).get("text") or "")
+        if bare_how_long and at and _time_left(at):
+            return {"command": None, "say": f"{_time_left(at)}, {speech.humanize_time(at)}: {words}."}
         if bare_when or re.fullmatch(r"(?:what time is|when is|when's) (?:that|the|my|this) reminder(?: set)?(?: for)?"
                         r"|(?:what time|when) (?:did you set|is) (?:it|that) (?:set )?for|when does (?:it|that) go off", low):
             return {"command": None, "say": f"That's {speech.humanize_time(at)}: {words}."}
