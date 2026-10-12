@@ -1620,6 +1620,30 @@ def _once_words(once: str) -> str:
     return "on " + said.capitalize() if said.casefold() in _WEEKDAYS else said
 
 
+def _goes_off_on(spec: dict, once: str) -> bool:
+    """Whether a reminder goes off on the day `once` names ("tonight" is from
+    5 pm today)."""
+    from aletheia import localtime, scheduler
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        at = scheduler.next_occurrence(spec, now)
+    except Exception:  # noqa: BLE001
+        return False
+    days = _once_offset(once, at)
+    if days is None:
+        return False
+    day = dt.datetime.now(tz).date() + dt.timedelta(days=days)
+    for _ in range(40):
+        if at is None or at.astimezone(tz).date() > day:
+            return False
+        local = at.astimezone(tz)
+        if local.date() == day and (" ".join(once.casefold().split()) != "tonight" or local.hour >= 17):
+            return True
+        at = scheduler.next_occurrence(spec, at)
+    return False
+
+
 def _skip_once(found: dict, once: str) -> str:
     """"Skip tomorrow's pill reminder" (2026-10-08): that one time, and the
     schedule stays on. A one-off has nothing to skip but itself."""
@@ -1841,11 +1865,13 @@ def _reminder_back_on(which: str) -> str:
     return " ".join(said)
 
 
-def _one_reminder(which: str):
+def _one_reminder(which: str, once: str = ""):
     """(schedule, why-not) — exactly one reminder he could mean.
 
     Same rule as `_one_task`: find it by the words he used, refuse to
-    guess between two, and never silently pick the first.
+    guess between two, and never silently pick the first. `once` (a day he
+    named for skipping: "tonight", "tomorrow", a weekday) tells two apart
+    when only one of them goes off then.
     """
     from aletheia import speech
     needle = " ".join(str(which or "").split()).casefold()
@@ -1948,6 +1974,12 @@ def _one_reminder(which: str):
         # other. This one takes either.
         return None, (f"None of your reminders is about {which}. "
                       + _reminder_list_words(rows))
+    if len(hits) > 1 and once:
+        # "Skip tonight's medicine reminder" with one at 8 am and one at 8 pm
+        # (2026-10-12: "Which one?"). Tonight's is the one going off tonight.
+        on_day = [r for r in hits if _goes_off_on(r, once)]
+        if len(on_day) == 1:
+            return on_day[0], ""
     if len(hits) > 1:
         # Soonest first, the order a person would list them in - and the
         # order "the first one" counts in when he answers.
@@ -4425,7 +4457,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 scheduler.set_enabled(row["id"], False)
             return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), 'reminder')}: "
                     + speech.and_list([_reminder_words(r) for r in rows[:4]]))
-        found, why = _one_reminder(cmd["which"])
+        found, why = _one_reminder(cmd["which"], once=str(cmd.get("once") or ""))
         if found is None:
             raise act.Refused(why)
         if cmd.get("once"):

@@ -1107,6 +1107,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What time is my pill reminder" (2026-10-07: to a model).
     ("reminder_when", re.compile(
         r"^(?:what time|when)(?:'s| is|s| does) (?:my |the )(?P<reminder_when>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)"
+        r"(?: (?:set for|go off|for))?\s*\??$"
+        # "What time are my medicine reminders" (2026-10-12: to a model).
+        r"|^(?:what time|when) (?:are|do) (?:my |the )(?P<reminder_when2>[a-z][a-z' ]{1,30}?) (?:reminders|alarms)"
         r"(?: (?:set for|go off|for))?\s*\??$")),
     ("until_mine", re.compile(
         # "My interview" is the `until` reader's; this is only the ones named by who.
@@ -3725,7 +3728,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
                                            "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
-                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "did_finish",
+                                           "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "reminder_when2", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
@@ -11443,6 +11446,29 @@ def _alarm_left() -> str:
     return f"Your alarm goes off {speech.humanize_time(at.isoformat())} - {span} from now."
 
 
+def _same_reminder_times(what: str) -> str | None:
+    """"Your medicine reminder is every day at 8 am and every day at 8 pm" -
+    when every reminder his words name says the same thing, so only the
+    times tell them apart. None otherwise."""
+    from aletheia import intercom, speech
+    words = [w for w in re.findall(r"[a-z0-9']+", what.casefold()) if w not in ("my", "the", "a", "reminder", "reminders")]
+    if not words:
+        return None
+    rows = [r for r in intercom._reminder_schedules()
+            if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", str((r.get("command") or {}).get("text") or "").casefold())
+                   for w in words)]
+    texts = {" ".join(str((r.get("command") or {}).get("text") or "").casefold().split()) for r in rows}
+    if len(rows) < 2 or len(texts) != 1:
+        return None
+    whens = [intercom._reminder_words(r).partition(" — ")[2]
+             for r in sorted(rows, key=lambda r: intercom._reminder_clock(r) or "")]
+    if not all(whens):
+        return None
+    text = speech._yours(str((rows[0].get("command") or {}).get("text") or "").rstrip("."))
+    return f"You have {speech.count_phrase(len(rows), 'reminder')} to {text}: {speech.and_list(whens[:4])}." \
+        if not text.casefold().startswith(("wake up",)) else None
+
+
 def _reminder_when(what: str) -> str | None:
     """"What time is my pill reminder": the one reminder his words name,
     said with when it goes off. None when none or several match - "when is
@@ -11456,6 +11482,12 @@ def _reminder_when(what: str) -> str | None:
         if found is None:
             stem = re.sub(r"s$", "", what)
             found, why = intercom._one_reminder(stem) if stem != what else (None, why)
+        if found is None and str(why).startswith("Which one"):
+            # "When's my medicine reminder" with one at 8 am and one at 8 pm
+            # (2026-10-12: "Which one?"). Asking when, both are the answer.
+            same = _same_reminder_times(what)
+            if same:
+                return same
         if found is None:
             # Her reminders are all hers, so "none is about that" and "which
             # one" are both facts of her store, already said in a sentence.
