@@ -1820,9 +1820,13 @@ def _last_ask_is_undoable() -> bool:
             command = (interpret(f"thea {said}") or {}).get("command") or {}
         except Exception:
             return False
-        if _only_asked(said, command):
+        # A note is journaled at the read-only tier, so it read as a question here and
+        # "forget that" after one found nothing (2026-10-12). The same rule `undo` uses:
+        # a kind it can reverse was never only asked.
+        kind = str(command.get("kind") or "")
+        if kind not in intercom.UNDOES_HIS_ASK and _only_asked(said, command):
             continue
-        return str(command.get("kind") or "") in intercom.UNDOES_HIS_ASK
+        return kind in intercom.UNDOES_HIS_ASK
     return False
 
 
@@ -9134,6 +9138,11 @@ def _interpret(transcript: str) -> dict:
                                      " ".join(str(turn.get("he_asked") or "").split()).casefold().rstrip(".!"))
             if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and noted:
                 return {"command": {"kind": "forget", "about": noted.group(1)}, "say": None}
+            # "Remember Sam's birthday is June 3" - "forget that" (2026-10-12: "Okay -
+            # nothing was waiting", and the birthday KEPT). Any ask she can take back
+            # is what "that" means, the same way "cancel that" reads it.
+            if dropped_it and re.fullmatch(r"forget (?:it|that)", low) and _last_ask_is_undoable():
+                return {"command": {"kind": "undo"}, "say": None}
             # BOTH things are true and he needs both. A bare "Okay."
             # leaves him believing he just cancelled something, and a bare
             # "Nothing is waiting for approval" answers a question he did
@@ -9472,6 +9481,20 @@ def _interpret(transcript: str) -> dict:
     # "Push it to 6" (2026-10-07: to the planner) is the same move.
     m = re.fullmatch(r"(?:make (?:that|it)|(?:change|move|push|bump|shift|switch|reschedule) (?:that|it) to|actually,? make (?:that|it)|"
                      r"no,? make (?:that|it))\s+(?:at )?(?P<time>[\w: ]+?)(?: instead| please)?", low)
+    # "Put lunch with Sam on my calendar Thursday at noon" - "who is it with"
+    # (2026-10-12: "I can't think just now"). The hold he just made says, in its
+    # own title; one that doesn't name anybody says so rather than guess.
+    if re.fullmatch(r"(?:and )?who(?:'s| is| was| will it be) (?:it|that|this)(?: one)? (?:with|for)"
+                    r"|(?:and )?who(?:'s| is) (?:the )?(?:lunch|dinner|breakfast|coffee|meeting|call|appointment|drinks) with"
+                    r"|(?:and )?who am i (?:meeting|seeing|having (?:lunch|dinner|breakfast|coffee|drinks) with)", low.rstrip("?")):
+        held = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
+        if held and held.get("title"):
+            title = " ".join(str(held["title"]).split())
+            when = speech.humanize_time(str(held.get("start") or ""))
+            who = re.search(r"\bwith (.+)$", title, re.I)
+            if who:
+                return {"command": None, "say": f"It's with {who.group(1)}: {title}, {when}."}
+            return {"command": None, "say": f"It doesn't say - all I have is \"{title}\", {when}."}
     # "It's at Olive Garden" right after a hold (2026-10-08: to the
     # planner): the same hold, with the place.
     place = re.fullmatch(r"(?:it'?s|it is|that'?s|that is|it'?ll be|it will be)(?: going to be)? (?:at|in) (?P<place>(?!\d{1,2}(?::\d\d)?(?: ?[ap]m)?$)"
