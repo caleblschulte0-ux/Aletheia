@@ -568,8 +568,8 @@ KIND_NOTES: dict[str, str] = {
         'Stop a reminder he has set. which is the words he used for it '
         '("the bins", "the gym one"); she finds the one reminder that '
         'matches and asks him which if two do. It is DISABLED, not '
-        'deleted, so it can be put back. once ("today", "tomorrow" or '
-        '"next") skips just that one time of a repeating reminder.'),
+        'deleted, so it can be put back. once ("today", "tomorrow", a '
+        'weekday or "next") skips just that one time of a repeating reminder.'),
     "remind_every": (
         'A reminder that repeats within the day - "every hour to drink '
         'water", "every 30 minutes". minutes is 15 to 720; the first one '
@@ -1594,6 +1594,32 @@ def _until_next_reminder(sort: str = "reminder") -> str:
     return f"Your next {sort}, {what}, is in {gap}."
 
 
+_WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _once_offset(once: str, at: "dt.datetime | None") -> int | None:
+    """Days from today to the day he named for a skip: today, tomorrow, or a
+    weekday - "skip it on Friday" (2026-10-12: to a model) is the coming one,
+    today's only while today's has yet to go off. None for anything else."""
+    from aletheia import localtime
+    said = " ".join(str(once or "").casefold().split())
+    if said in ("today", "tonight", "tomorrow"):
+        return {"today": 0, "tonight": 0, "tomorrow": 1}[said]
+    if said not in _WEEKDAYS:
+        return None
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    days = (_WEEKDAYS.index(said) - today.weekday()) % 7
+    if days == 0 and not (at is not None and at.astimezone(tz).date() == today):
+        days = 7
+    return days
+
+
+def _once_words(once: str) -> str:
+    said = " ".join(str(once or "").split())
+    return "on " + said.capitalize() if said.casefold() in _WEEKDAYS else said
+
+
 def _skip_once(found: dict, once: str) -> str:
     """"Skip tomorrow's pill reminder" (2026-10-08): that one time, and the
     schedule stays on. A one-off has nothing to skip but itself."""
@@ -1604,19 +1630,19 @@ def _skip_once(found: dict, once: str) -> str:
         # "Skip my alarm tomorrow" with a one-off set for tomorrow (2026-10-12:
         # refused, telling him to say "cancel the wake up reminder"). Skipping
         # the only time it goes off is turning it off, on the day he named.
-        want = {"today": 0, "tonight": 0, "tomorrow": 1}.get(" ".join(once.casefold().split()))
+        want = _once_offset(once, None)
         try:
             at = dt.datetime.fromisoformat(str(found.get("at") or "").replace("Z", "+00:00"))
         except ValueError:
             at = None
         if want is not None and (at is None or at.astimezone(tz).date() != dt.datetime.now(tz).date() + dt.timedelta(days=want)):
-            raise act.Refused(f"it doesn't go off {once} - {_reminder_words(found).split(' — ')[-1]}.")
+            raise act.Refused(f"it doesn't go off {_once_words(once)} - {_reminder_words(found).split(' — ')[-1]}.")
         scheduler.set_enabled(found["id"], False)
         words = _reminder_words(found)
         alarm = re.match(r"wake up\s*[—-]\s*(.+)$", words, re.IGNORECASE)
         return f"Alarm off: {alarm.group(1).strip()}." if alarm else f"Stopped reminding you: {speech._yours(words)}."
     at = scheduler.next_occurrence(found, now)
-    want = {"today": 0, "tonight": 0, "tomorrow": 1}.get(" ".join(once.casefold().split()))
+    want = _once_offset(once, at)
     if want is not None:
         day = dt.datetime.now(tz).date() + dt.timedelta(days=want)
         while at is not None and at.astimezone(tz).date() < day:
@@ -1629,7 +1655,7 @@ def _skip_once(found: dict, once: str) -> str:
             if earlier is not None and earlier.astimezone(tz).date() == day and earlier <= now:
                 raise act.Refused(f"it already went off today at {speech.clock_words(earlier.astimezone(tz).strftime('%H:%M'))}"
                                   + (f" - the next one is {speech.humanize_time(at.isoformat())}." if at else "."))
-            raise act.Refused(f"it doesn't go off {once} - {_reminder_words(found).split(' — ')[-1]}.")
+            raise act.Refused(f"it doesn't go off {_once_words(once)} - {_reminder_words(found).split(' — ')[-1]}.")
     if " ".join(once.casefold().split()) == "this week":
         # "Skip the trash reminder this week" said twice skipped NEXT week too
         # (2026-10-12). This week ends Sunday night; one already skipped stays the one.

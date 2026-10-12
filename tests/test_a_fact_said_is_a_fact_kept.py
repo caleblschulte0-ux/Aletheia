@@ -1385,7 +1385,9 @@ class AWeekBeforeTheBirthdayHeJustAskedAboutCase(unittest.TestCase):
         def spy(said):
             seen.append(said)
             return real(said) if len(seen) == 1 else {"command": {"kind": "remind_at"}, "say": None}
-        for before in ("when is dana's birthday", "dana's birthday is march 3"):
+        # "How many days until ..." too (2026-10-12: to a model).
+        for before in ("when is dana's birthday", "dana's birthday is march 3",
+                       "how many days until dana's birthday", "how long until dana's birthday"):
             seen.clear()
             with mock.patch.object(voice, "_previous_ask", return_value=before), \
                     mock.patch.object(voice, "_interpret", side_effect=spy):
