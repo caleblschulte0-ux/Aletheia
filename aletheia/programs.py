@@ -1064,9 +1064,10 @@ def spoken_steps(which: str = "") -> str:
     return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
 
 
-#: A task whose results ARE the comparison he asks about: "what cities are you looking at" is
-#: answered from the comparison, not from whichever look finished last.
-_COMPARES = re.compile(r"\b(?:compar\w*|shortlist\w*|short list|rank\w*|cities|places to live)\b", re.I)
+#: A task whose results ARE the comparison he asks about: "what places are you looking at" is
+#: answered from the comparison, not from whichever look finished last. Words for comparing,
+#: never words for what is compared: the layer names no domain.
+_COMPARES = re.compile(r"\b(?:compar\w*|shortlist\w*|short list|rank\w*)\b", re.I)
 #: A look's own account of how it looked, or of what it could not do, is not what it found.
 _NOT_A_FINDING = re.compile(r"^(?:I read |I couldn't|I could not|I can't|I cannot|I searched for|I'm not sure of this"
                             r"|I wasn't able|Sources?:|Note:)", re.I)
@@ -1081,7 +1082,7 @@ def _finding_sentences(said: str) -> list[str]:
 
 def spoken_findings(*, names: list[str] | None = None, about: list[str] | None = None,
                     most: int = 3) -> str | None:
-    """What her missions FOUND, in his words, for "what cities are you looking at" or "what's the
+    """What her missions FOUND, in his words, for "what places are you looking at" or "what's the
     cost of living in Tampa" (2026-10-12: both went to a model that has never read a mission's
     results, with the comparison written and sitting in the store).
 
