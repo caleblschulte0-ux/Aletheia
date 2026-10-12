@@ -97,10 +97,14 @@ _STATUS = re.compile(
     r"(?: (?:to|for))?(?P<count_total> (?:in total|total|overall|all ?together|altogether|ever|"
     r"so far|to date|all time))?(?: (?:today|now))?(?P<count_window> (?:this week|this month|yesterday|last week|"
     r"tonight|last night|overnight|this evening|this morning))?$"
-    r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|send(?: out)?|submit|get through)"
+    r"|^how many (?:have|did) (?:you|u) (?P<count2>apply to|applied to|apply for|applied for|send(?: out)?|sent(?: out)?|"
+    r"submit|submitted|get through|gotten through)"
     r"(?P<count2_total> (?:in total|total|overall|so far|ever))?"
     r"(?P<count2_window> (?:this week|this month|yesterday|last week|tonight|last night|overnight|this morning|this evening"
     r"|while i (?:was asleep|slept|was sleeping)))?(?: today)?$"
+    # "How many applications this week", no verb at all (2026-10-12: to a model).
+    r"|^how many (?P<count3>applications|apps|jobs applied to)(?: (?:sent|out|went out))?(?: today)?"
+    r"(?P<count3_window> (?:this week|this month|yesterday|last week|tonight|last night|overnight|this morning|this evening))?$"
     # when was the last one
     r"|^when (?:was|did) (?:the |your |my |her )?(?:last|latest|most recent) "
     r"(?P<last_when>application|one|job application|job|submission)"
@@ -11887,11 +11891,11 @@ def status_of(text: str) -> tuple[str, str] | None:
     if not found:
         return None
     groups = {k: v for k, v in found.groupdict().items() if v}
-    if groups.get("count_window") or groups.get("count2_window"):
+    if groups.get("count_window") or groups.get("count2_window") or groups.get("count3_window"):
         # "How many jobs did I apply to this week" waited two minutes on her
         # own model (2026-09-22); the records carry their dates. "How many
         # did you send this week" is the same count (2026-09-23).
-        return "count_window", (groups.get("count_window") or groups["count2_window"]).strip()
+        return "count_window", (groups.get("count_window") or groups.get("count2_window") or groups["count3_window"]).strip()
     for key, value in groups.items():
         if key.startswith("count"):
             total = bool(groups.get("count_total") or groups.get("count2_total"))

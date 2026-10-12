@@ -7564,11 +7564,13 @@ def _interpret(transcript: str) -> dict:
                     r"|what (?:are|is) (?:my |the )?(?:(?:long|big) )?missions? (?:still )?waiting (?:on|for)", low):
         return {"command": {"kind": "missions", "about": "waiting"}, "say": None}
     m = re.fullmatch(r"what(?:'s| is|s) (?:my |the )?(.{2,40}?) (?:still )?waiting (?:on|for)(?: now)?"
-                     r"|what(?:'s| is|s) (?:next|left) (?:on|for|in) (?:my |the )?(.{2,40}?)", low)
+                     r"|what(?:'s| is|s) (?:next|left) (?:on|for|in) (?:my |the )?(.{2,40}?)"
+                     # "What's my next step on the move" (2026-10-12: to a model).
+                     r"|what(?:'s| is|s) (?:my |the |your )?next (?:step|thing|move) (?:on|for|in|with) (?:my |the )?(.{2,40}?)", low)
     if m:
         # "What's the move plan waiting on" names the mission by what it is about (2026-10-11).
         from aletheia import programs
-        record = programs.named(m.group(1) or m.group(2))
+        record = programs.named(m.group(1) or m.group(2) or m.group(3))
         if record is not None:
             return {"command": {"kind": "missions", "about": "waiting", "which": record["id"]}, "say": None}
     m = re.fullmatch(r"what (?:have|did) you (?:done|do|found|find|got|get|learned|learnt|learn)(?: out)?(?: so far)?"
