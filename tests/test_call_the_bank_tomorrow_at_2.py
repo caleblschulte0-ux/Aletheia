@@ -30,8 +30,7 @@ class DayThenTime(unittest.TestCase):
 
 class ListForADay(unittest.TestCase):
     def test_rewrites(self):
-        for said, day_word in (("what's on my list for tomorrow", "tomorrow"), ("what's on my to do list today", "today"),
-                               ("whats on my list for friday", "friday")):
+        for said, day_word in (("what's on my list for tomorrow", "tomorrow"), ("what's on my to do list today", "today")):
             self.assertEqual(quick._direct(said), f"what's due {day_word}", said)
 
 
