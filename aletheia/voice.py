@@ -7623,8 +7623,12 @@ def _interpret(transcript: str) -> dict:
         # "Tell me about the move plan", "how's the reboot", "why is the move plan stuck" (2026-10-12:
         # a model, or her memory of notes, with the mission right there). Only a subject naming a live
         # mission: "what's the weather" and "tell me about Dana" are somebody else's.
-        from aletheia import programs
+        from aletheia import programs, quick
         record = programs.named(next(g for g in m.groups() if g))
+        # "What's on the shortlist", "what's the cost of living in Tampa": what the mission FOUND
+        # answers those, in the fast lane, and its status would not (2026-10-12).
+        if record is not None and (quick.match(low) or ("",))[0] == "mission_found" and quick.answer(low):
+            record = None
         if record is not None:
             stuck = bool(m.group(3) or m.group(4))
             return {"command": {"kind": "missions", **({"about": "waiting"} if stuck else {}),
