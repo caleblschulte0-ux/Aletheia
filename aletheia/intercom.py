@@ -1465,6 +1465,35 @@ def _reminders_answer(which: str = "") -> str:
     from aletheia import speech
     rows = _reminder_schedules()
     noun = "reminder"
+    if which.casefold() == "last today":
+        # "When's my last reminder today" (2026-10-12: to a model): the latest
+        # one still to go off before midnight, and how many come before it.
+        import datetime as _dt
+        from aletheia import scheduler
+        now = _dt.datetime.now(_dt.timezone.utc)
+        tz = localtime.operator_tz()
+        today = []
+        for row in rows:
+            try:
+                at = scheduler.next_occurrence(row, now)
+            except Exception:  # noqa: BLE001
+                continue
+            # Every occurrence left today, for an interval that goes off many times.
+            while at is not None and at.astimezone(tz).date() == now.astimezone(tz).date():
+                today.append((at, row))
+                try:
+                    at = scheduler.next_occurrence(row, at)
+                except Exception:  # noqa: BLE001
+                    break
+        if not today:
+            return "You have nothing else to be reminded of today."
+        at, row = max(today, key=lambda pair: pair[0])
+        words = str((row.get("command") or {}).get("text") or "")
+        before = len(today) - 1
+        return (f"Your last reminder today is at {speech.clock_words(at.astimezone(tz).strftime('%H:%M'))}: "
+                f"{speech._yours(words)}."
+                + (f" There {'is' if before == 1 else 'are'} {speech.count_phrase(before, 'other')} before it."
+                   if before else " It's the only one left today."))
     if which.casefold() == "recurring":
         # "What are my recurring reminders" listed tonight's one-off too (2026-10-08)
         rows = [r for r in rows if r.get("kind") != "once"]

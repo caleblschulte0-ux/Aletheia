@@ -2345,6 +2345,43 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
     return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words, "replaces": words}, "say": None}
 
 
+def _shift_named_reminder(what: str, delta) -> dict | None:
+    """The one-off reminder named by its words ("call mom", "the milk reminder")
+    or by its place in the list she just read ("the first one"), moved by
+    `delta`. None when nothing she holds is named; a sentence when it is
+    ambiguous or would land in the past."""
+    import datetime as dt
+    words = re.sub(r"^(?:the|my) |\s*(?:reminder|one)$", "", what.strip()).strip()
+    ordinal = {"first": 0, "second": 1, "third": 2, "fourth": 3, "fifth": 4, "last": -1}.get(words)
+    found = []
+    if ordinal is not None:
+        _said, answered = _previous_turn()
+        if not re.match(r"\d+ reminders?: ", answered or ""):
+            return None
+        try:
+            from aletheia import intercom
+            rows = intercom._soonest_first(intercom._reminder_schedules())
+            row = rows[ordinal]
+        except (Exception, IndexError):  # noqa: BLE001
+            return None
+        if row.get("kind") != "once":
+            return {"command": None, "say": "That one repeats - say the new time, like \"move it to 5\"."}
+        text = str((row.get("command") or {}).get("text") or "")
+        found = [(at, w) for at, w in _running_once("") if w == text]
+    elif words:
+        need = re.findall(r"[a-z0-9]+", words.casefold())
+        found = [(at, w) for at, w in _running_once("") if need and all(x in w.casefold() for x in need)]
+    if not found:
+        return None
+    if len(found) > 1:
+        return {"command": None, "say": "Which one - " + speech.or_list([w for _, w in found[:4]]) + "?"}
+    was, text = found[0]
+    at = was + delta
+    if at <= dt.datetime.now(dt.timezone.utc):
+        return {"command": None, "say": "That would put it in the past. Say the new time instead."}
+    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": text, "replaces": text}, "say": None}
+
+
 def _running_once(marker: str) -> list:
     """[(when, text)] for the one-off reminders still to fire whose words
     carry `marker` ("timer is up", "wake up"), soonest first. Never raises."""
@@ -3672,6 +3709,18 @@ def _interpret(transcript: str) -> dict:
         # "Delete my reminder" - "You have 2 reminders. Which one: ...?" - "both".
         if re.match(r"You have \d+ reminders\. Which one: ", answered or ""):
             return {"command": {"kind": "reminder_off", "which": "all reminders"}, "say": None}
+        # "What reminders do I have" - "2 reminders: ..." - "cancel all of them"
+        # (2026-10-12: to the planner). Only with a verb, and only when the list
+        # she read was every reminder he has.
+        listed = re.match(r"(\d+) reminders: ", answered or "")
+        if listed and re.match(r"(?:cancel|turn off|delete|remove|stop) ", low):
+            try:
+                from aletheia import intercom as _icr
+                every = len(_icr._reminder_schedules())
+            except Exception:  # noqa: BLE001
+                every = -1
+            if every == int(listed.group(1)):
+                return {"command": {"kind": "reminder_off", "which": "all reminders"}, "say": None}
     _said, answered = _previous_turn()
     # "Delete my reminder" - "Which one: call mom ... or feed the cat ...?" -
     # "feed the cat" / "the cat one" (2026-10-07): the one he named, if it
@@ -4806,6 +4855,8 @@ def _interpret(transcript: str) -> dict:
                     # "When is my next reminder" (2026-09-24, offline: "I can't think just now")
                     r"|(when|what time)(?: is|'s) (my|the) next (?:reminder|alarm|timer)"
                     r"|what(?:'s| is) my next reminder"
+                    # "When's my last reminder today" (2026-10-12: to a model)
+                    r"|(?:(?:when|what time)(?: is|'s)|what(?:'s| is)) (?:my|the) last reminder(?: (?:for )?today| tonight)?"
                     # "When's my next reminder", "what are my reminders" (2026-10-07: to a model)
                     r"|(?:what are|show(?: me)?|read(?: me)?|tell me) (?:all )?(?:my |the )?(?:reminders|alarms|timers)"
                     r"|what reminders (?:have i (?:got|set)|did i set)"
@@ -4823,6 +4874,8 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
         if re.search(r"\b(?:recurring|repeating|regular)\b", low):
             return {"command": {"kind": "reminders", "which": "recurring"}, "say": None}
+        if re.search(r"\blast reminder\b", low):
+            return {"command": {"kind": "reminders", "which": "last today"}, "say": None}
         return {"command": {"kind": "reminders"}, "say": None}
     # "Stop the timer" (2026-10-07: to the planner). A timer is a reminder
     # whose words end "timer is up"; two running are asked about by name.
@@ -8167,6 +8220,28 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
                      r"(?P<dir>back|forward|up|later|earlier) (?:by )?(?P<n>an?|half an|\d{1,3}) "
                      r"(?P<u>hours?|minutes?|mins?)", low)
+    if m and m.group("what") in ("them both", "both", "both of them", "them all", "all of them", "those", "these"):
+        # "Push them both back an hour" after reading two reminders said she
+        # can't move things on his calendar (2026-10-12) - true of neither.
+        return {"command": None,
+                "say": "I move them one at a time - say which, like \"push the first one back an hour\"."}
+    if m and m.group("what") not in ("it", "that", "this", "them", "everything", "all", "reminder", "alarm", "timer"):
+        # "Push call mom back an hour", "push the call mom reminder back an hour",
+        # "push the first one back" after her list (2026-10-12: the calendar
+        # sentence, and the planner). The one-off reminder he named, by that much.
+        import datetime as _dts
+        n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
+        delta = _dts.timedelta(hours=n) if m.group("u").startswith("hour") else _dts.timedelta(minutes=n)
+        if m.group("dir") in ("forward", "up", "earlier"):
+            delta = -delta
+        try:
+            hold, why = _one_of_her_holds(m.group("what"))
+        except Exception:  # noqa: BLE001
+            hold, why = None, ""
+        # A hold of hers wins: its reminder moves with it, below.
+        shifted = None if hold or why else _shift_named_reminder(m.group("what"), delta)
+        if shifted:
+            return shifted
     if m and (m.group("what") in ("it", "that", "this", "them", "everything", "all")
               or "reminder" in m.group("what") or "alarm" in m.group("what") or "timer" in m.group("what")):
         m = None  # her own reminder: moved further down
