@@ -15254,7 +15254,15 @@ def _repeating(which: str = "", about: str = "") -> str | None:
         kind = sp.get("kind")
         if kind == "interval":
             n = int(sp.get("every_minutes") or 0)
-            return f"every {speech.count_phrase(n // 60, 'hour')}" if n % 60 == 0 else f"every {speech.count_phrase(n, 'minute')}"
+            span = f"every {speech.count_phrase(n // 60, 'hour')}" if n % 60 == 0 else f"every {speech.count_phrase(n, 'minute')}"
+            if sp.get("hours"):
+                try:
+                    from aletheia import intercom as _ici
+                    window = _ici._window_words(sp)
+                except Exception:  # noqa: BLE001
+                    window = ""
+                span = f"{span}, {window}" if window else span
+            return span
         if kind == "daily":
             return f"every day at {clock(sp)}"
         if kind == "weekly":

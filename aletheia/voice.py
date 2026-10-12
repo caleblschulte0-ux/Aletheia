@@ -1135,6 +1135,43 @@ def _every_minutes(low: str) -> int | None:
     return n * 60 if m.group("unit").startswith("hour") else n
 
 
+#: The tail of "every hour during work hours" / "between 9 and 5" / "on weekdays".
+_WINDOW = (r"(?P<window>(?:(?:only |just )?(?:during|in|for) (?:my )?(?:work|working|business|office) hours"
+           r"|(?:only |just )?while i'?m at work|(?:only |just )?at work"
+           r"|(?:only |just )?(?:between|from) [\w: ]+? (?:and|to|until|till|-) [\w: ]+?)"
+           r"(?:,? (?:only )?on (?:weekdays|weekends|work ?days|the weekend))?"
+           r"|(?:only |just )?on (?:weekdays|weekends|work ?days|the weekend))")
+
+
+def _window_of(said: str) -> dict | None:
+    """{"between": [...], "days": ...} for "during work hours", "between 9 and 5",
+    "on weekdays"; None when the hours don't read. Work hours are 9 to 5 on
+    weekdays; a bare end hour that would come before the start is the afternoon."""
+    said = " ".join(said.casefold().split())
+    out: dict = {}
+    if re.search(r"\b(?:work|working|business|office) hours\b|\bat work\b", said):
+        out = {"between": ["09:00", "17:00"], "days": "weekdays"}
+    hours = re.search(r"\b(?:between|from) (?P<a>[\w: ]+?) (?:and|to|until|till|-) (?P<b>[\w: ]+?)"
+                      r"(?=,? (?:only )?on |$)", said)
+    if hours:
+        a, b = _spoken_time(hours.group("a")), _spoken_time(hours.group("b"))
+        if not a or not b:
+            return None
+        ah, am = map(int, a.split(":"))
+        bh, bm = map(int, b.split(":"))
+        if _is_bare_hour(hours.group("a")) and ah <= EARLIEST_BARE_HOUR:
+            ah += 12                         # "between 1 and 5" is the afternoon
+        if _is_bare_hour(hours.group("b")) and (bh, bm) <= (ah, am) and bh < 12:
+            bh += 12                         # "9 and 5" ends at five in the afternoon
+        if (ah, am) >= (bh, bm):
+            return None
+        out["between"] = [f"{ah:02d}:{am:02d}", f"{bh:02d}:{bm:02d}"]
+    days = re.search(r"\bon (weekdays|work ?days|weekends|the weekend)\b", said)
+    if days:
+        out["days"] = "weekdays" if days.group(1).startswith("w") and "end" not in days.group(1) else "weekend"
+    return out or None
+
+
 def _a_repeat(low: str, text: str) -> dict | None:
     """A reminder that repeats monthly, every N days or every N weeks."""
     at = r"(?: at (?P<time>[\w: ]+?))?"
@@ -4974,6 +5011,22 @@ def _interpret(transcript: str) -> dict:
         if before.get("text"):
             return {"command": {"kind": "remind_every", "minutes": _every_minutes(m.group("every")),
                                 "text": before["text"], "replaces": before["text"]}, "say": None}
+    # "Remind me to stretch every hour", then "only during work hours" (2026-10-12:
+    # queued for a model). The one he just set, kept to those hours.
+    m = re.fullmatch(r"(?:(?:and|but|actually|no)[, ]+)?(?:make it |keep it |set it )?" + _WINDOW
+                     + r"(?: please)?", low)
+    if m and not getattr(_LOOKING_BACK, "on", False):
+        window = _window_of(m.group("window"))
+        _LOOKING_BACK.on = True
+        try:
+            before = _recent_ask_of("remind_every", "text")
+        finally:
+            _LOOKING_BACK.on = False
+        if before.get("text") and before.get("minutes"):
+            if window is None:
+                return {"command": None, "say": "Which hours? Say it like 'only between 9 and 5'."}
+            return {"command": {"kind": "remind_every", "minutes": before["minutes"], "text": before["text"],
+                                **window, "replaces": before["text"]}, "say": None}
     # reminders — before email so "remind me to email bob" stays a reminder
     #
     # WEEKLY FIRST: "every monday" contains "every", and the daily pattern
@@ -8382,12 +8435,20 @@ def _interpret(transcript: str) -> dict:
     # does). "Remind me to drink water every hour" planned for a hundred
     # seconds on her own model (2026-09-23); the honest answer is a sentence.
     m = (re.fullmatch(r"remind me (?:to |that )?(?P<what>.+?) every (?:(?:\d+|few|couple of|half an?|other) )?"
-                      r"(?:hour|hours|minutes?|mins?|half hour)(?: or so)?", low)
+                      r"(?:hour|hours|minutes?|mins?|half hour)(?: or so)?(?:,? " + _WINDOW + r")?", low)
          or re.fullmatch(r"remind me every (?:(?:\d+|few|couple of|half an?|other) )?(?:hour|hours|minutes?|mins?|half hour)"
-                         r"(?: or so)? (?:to |that )(?P<what>.+)", low))
+                         r"(?: or so)?(?:,? " + _WINDOW + r")? (?:to |that )(?P<what>.+)", low))
     if m and _every_minutes(low):
-        return {"command": {"kind": "remind_every", "minutes": _every_minutes(low),
-                            "text": _as_he_said(transcript, m.group("what").strip())}, "say": None}
+        command = {"kind": "remind_every", "minutes": _every_minutes(low),
+                   "text": _as_he_said(transcript, m.group("what").strip())}
+        if m.group("window"):
+            # "Remind me to stretch every hour during work hours" (2026-10-12:
+            # "only during work hours" went to the planner).
+            window = _window_of(m.group("window"))
+            if window is None:
+                return {"command": None, "say": "Which hours? Say it like 'every hour between 9 and 5'."}
+            command.update(window)
+        return {"command": command, "say": None}
     if m:
         what = _as_he_said(transcript, m.group("what"))
         return {"command": None,

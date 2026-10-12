@@ -293,7 +293,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
     # "Every hour", "every 30 minutes": within the day, from now.
-    "remind_every":    ({"minutes", "text"}, {"replaces"}),
+    "remind_every":    ({"minutes", "text"}, {"replaces", "between", "days"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
     # `weekly` kind since it was written and the GRAMMAR could not say it,
     # so "remind me every monday to take out the trash" compiled to a
@@ -573,7 +573,9 @@ KIND_NOTES: dict[str, str] = {
     "remind_every": (
         'A reminder that repeats within the day - "every hour to drink '
         'water", "every 30 minutes". minutes is 15 to 720; the first one '
-        'is that long from now.'),
+        'is that long from now. between ["09:00", "17:00"] keeps it to those '
+        'hours of his day, and days ("weekdays", or day names) to those days '
+        '- "every hour during work hours" is both.'),
     "remind_monthly": (
         'A reminder that repeats once a month - "on the 1st of every month '
         'to pay rent". day is the day of the month, 1-31 (a short month '
@@ -1412,6 +1414,22 @@ def _reminder_schedules() -> list[dict]:
     return out
 
 
+def _window_words(spec: dict) -> str:
+    """"9 am to 5 pm on weekdays": the hours an interval reminder keeps to."""
+    from aletheia import speech
+    hours = spec.get("hours") or []
+    days = spec.get("weekdays")
+    said = ""
+    if len(hours) == 2 and hours != ["00:00", "23:59"]:
+        said = f"{speech.clock_words(hours[0])} to {speech.clock_words(hours[1])}"
+    if days is not None and sorted(days) != list(range(7)):
+        names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        on = ("weekdays" if sorted(days) == [0, 1, 2, 3, 4] else "weekends" if sorted(days) == [5, 6]
+              else speech.and_list([names[d] for d in sorted(days)]))
+        said = f"{said} on {on}" if said else f"on {on}"
+    return said.strip()
+
+
 def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     """One reminder, as he would say it."""
     from aletheia import speech
@@ -1429,7 +1447,8 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
             hours, mins = divmod(minutes, 60)
             span = ("every hour" if minutes == 60 else f"every {hours} hours" if not mins and hours
                     else "every half hour" if minutes == 30 else f"every {minutes} minutes")
-            return f"{text} — {span}"
+            window = _window_words(spec) if spec.get("hours") else ""
+            return f"{text} — {span}{', ' + window if window else ''}"
         weeks, days = divmod(minutes // 1440, 7)
         span = (f"every {weeks} weeks" if weeks > 1 and not days else "every week" if weeks == 1 and not days
                 else "every other day" if minutes == 2880 else f"every {minutes // 1440} days")
@@ -4184,10 +4203,41 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if old is not None and old.get("kind") == "interval":
                 scheduler.set_enabled(old["id"], False)
         sid = "remind-every-" + _uuid.uuid4().hex[:8]
-        anchor = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
+        now = _dt.datetime.now(_dt.timezone.utc)
+        anchor = (now + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
+        window = {}
+        if cmd.get("between"):
+            # "Every hour during work hours": kept to his hours, counted from
+            # the hour the window opens, so it goes off at 9, 10, 11 - not 9:47.
+            between = cmd["between"]
+            if not isinstance(between, (list, tuple)) or len(between) != 2:
+                raise act.Refused("Tell me the hours as a start and an end, like 9 to 5.")
+            try:
+                start = scheduler._clock(str(between[0]))
+                end = scheduler._clock(str(between[1]))
+            except ValueError as exc:
+                raise act.Refused("Tell me the hours as a start and an end, like 9 to 5.") from exc
+            if start >= end:
+                raise act.Refused("The hours have to start before they end, within one day - like 9 to 5.")
+            tz = localtime.operator_tz()
+            local = now.astimezone(tz)
+            opens = local.replace(hour=start[0], minute=start[1], second=0, microsecond=0)
+            step = _dt.timedelta(minutes=minutes)
+            while opens <= local:
+                opens += step
+            anchor = opens.astimezone(_dt.timezone.utc)
+            window = {"hours": [f"{start[0]:02d}:{start[1]:02d}", f"{end[0]:02d}:{end[1]:02d}"],
+                      "timezone": localtime.operator_timezone()}
+        if cmd.get("days"):
+            window["weekdays"] = sorted(set(_weekday_numbers(cmd["days"])))
+            if "hours" not in window:
+                window.update(hours=["00:00", "23:59"], timezone=localtime.operator_timezone())
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
-                         kind="interval", every_minutes=minutes, anchor=anchor.isoformat())
-        return f"reminder {sid} set every {minutes} minutes from {anchor.isoformat()} — {cmd['text'][:80]!r}"
+                         kind="interval", every_minutes=minutes, anchor=anchor.isoformat(),
+                         hours=window.get("hours"), timezone=window.get("timezone"),
+                         weekdays=window.get("weekdays"))
+        return (f"reminder {sid} set every {minutes} minutes from {anchor.isoformat()} — {cmd['text'][:80]!r}"
+                + (f" ({_window_words(window)})" if window else ""))
     if kind == "remind_monthly":
         from aletheia import scheduler
         import uuid as _uuid
