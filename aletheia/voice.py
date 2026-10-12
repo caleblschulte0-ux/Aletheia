@@ -3446,7 +3446,11 @@ def _with_the_person_named(transcript: str) -> str:
               # "How many days until her birthday" a turn after "my sister's birthday is November 3"
               # (2026-10-12: to a model, while "when is her birthday" answered).
               r"^((?:thea,? )?(?:how (?:many (?:days|weeks|months)|long) (?:until|till|before|to) |when(?:'s| is) ))"
-              r"(?:her|his|their) (?:next )?(birthday|bday|anniversary)(\??)$")
+              r"(?:her|his|their) (?:next )?(birthday|bday|anniversary)(\??)$",
+              # "How old is she turning" a turn after "my sister's birthday is March 3"
+              # (2026-10-12: to a model, while "how old is my sister turning" answered).
+              r"^((?:thea,? )?how old (?:is|will) )(?:she|he)((?: be| turn| be turning| turning| now)?"
+              r"(?: this year| next| on (?:his|her) (?:next )?birthday)?)(\??)$")
     for i, shape in enumerate(shapes):
         m = re.match(shape, low, flags=re.IGNORECASE)
         if not m:
@@ -3454,10 +3458,12 @@ def _with_the_person_named(transcript: str) -> str:
         who = _the_person_just_named()
         if not who:
             return transcript
-        if i == 4:
+        if i in (4, 5):
             # A relative is HIS sister, and is said that way: "my sister's birthday".
             from aletheia import quick
             whose = f"my {who}" if re.fullmatch(quick._KIN, who) else who[:1].upper() + who[1:]
+            if i == 5:
+                return f"{m.group(1)}{whose}{m.group(2)}{m.group(3)}"
             return f"{m.group(1)}{whose}'s {m.group(2)}{m.group(3)}"
         who = who[:1].upper() + who[1:]
         if i == 2:
