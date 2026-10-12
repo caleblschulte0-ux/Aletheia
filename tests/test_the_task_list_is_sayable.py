@@ -90,9 +90,11 @@ class MarkingOneDoneCase(unittest.TestCase):
                 self.assertEqual(got["kind"], "intent", said)
 
     def test_a_pronoun_with_no_referent_is_not_guessed_at(self):
+        # Not guessed at: with nothing open she says so, with several she
+        # asks which (tests/test_marking_that_done.py) - never a task named "it".
         with mock.patch("aletheia.voice._the_only_open_task", return_value=""):
             got = voice.interpret("thea mark it done")["command"]
-        self.assertEqual(got["kind"], "intent")
+        self.assertNotEqual((got or {}).get("which"), "it")
 
     def test_one_word_of_his_finds_it(self):
         with mock.patch("aletheia.tasks.all_tasks", lambda: self.ROWS):
@@ -254,18 +256,24 @@ class MarkThatDone(unittest.TestCase):
         with mock.patch.object(intercom, "_open_tasks", return_value=rows):
             return voice.interpret("mark that done")["command"]
 
+    def _say(self, rows):
+        with mock.patch.object(intercom, "_open_tasks", return_value=rows):
+            return voice.interpret("mark that done")["say"]
+
     def test_one_open_task_is_not_ambiguous(self):
         rows = [{"id": "t1", "description": "email the landlord", "status": "QUEUED"}]
         self.assertEqual(self._said(rows),
                          {"kind": "task_done", "which": "email the landlord"})
 
-    def test_two_open_tasks_still_go_to_the_planner_to_ask(self):
+    def test_two_open_tasks_ask_which_rather_than_guess(self):
         rows = [{"id": "t1", "description": "email the landlord", "status": "QUEUED"},
                 {"id": "t2", "description": "call the plumber", "status": "QUEUED"}]
-        self.assertEqual(self._said(rows)["kind"], "intent")
+        self.assertIsNone(self._said(rows))
+        self.assertEqual(self._say(rows), "Which one — email the landlord or call the plumber?")
 
     def test_nothing_open_is_not_a_task_called_that(self):
-        self.assertEqual(self._said([])["kind"], "intent")
+        self.assertIsNone(self._said([]))
+        self.assertIn("nothing open", self._say([]))
 
     def test_ticking_one_off_is_as_routine_as_setting_its_status(self):
         # `task_status` sets ANY status including COMPLETED and has always

@@ -2427,6 +2427,29 @@ def _to_the_planner(text: str) -> dict:
     return {"command": {"kind": "intent", "text": text}, "say": None}
 
 
+def _open_task_count() -> int | None:
+    """How many tasks are open, or None when the list can't be read (never 0 for unknown)."""
+    try:
+        from aletheia import intercom
+        return len(intercom._open_tasks())
+    except Exception:  # noqa: BLE001 - unknown is not empty
+        return None
+
+
+def _which_open_task(most: int = 5) -> str:
+    """"Which one — A or B?" over his open tasks, or "" when fewer than two or too many to say."""
+    try:
+        from aletheia import intercom, speech
+        rows = intercom._open_tasks()
+    except Exception:  # noqa: BLE001
+        return ""
+    labels = [str(r.get("description") or r.get("id") or "").strip() for r in rows]
+    labels = [label for label in labels if label]
+    if not 2 <= len(labels) <= most:
+        return ""
+    return "Which one — " + speech.or_list(labels) + "?"
+
+
 def _the_only_open_task() -> str:
     """The description of the single open task, or "" if there are 0 or 2+."""
     try:
@@ -3471,7 +3494,14 @@ def _interpret(transcript: str) -> dict:
                     r"|mark (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?"
                     r" (?:as )?(?:done|complete|completed|finished)"
                     r"|(?:check|tick|cross) off (?:everything|all(?: of)?(?: my)?(?: tasks)?|every task)"
-                    r"(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?", low):
+                    r"(?: on (?:my |the )?(?:task list|to[- ]?do list|list))?"
+                    # "Done with all of them", "mark them all done" (2026-10-12: an approval
+                    # to mark a task called "all of them" done, on an empty list).
+                    r"|(?:i'?m )?(?:done with|finished with|finished|did) (?:all of them|them all|all of those|all three|both of them)"
+                    r"|mark (?:them all|all of them|all of those|both of them|both) (?:as )?(?:done|complete|completed|finished)"
+                    r"|(?:(?:they'?re|they are|those are) all|all of them are|both are|both of them are) (?:done|finished|complete|completed)", low):
+        if _open_task_count() == 0:
+            return {"command": None, "say": "There's nothing open on your list to mark done."}
         return {"command": None,
                 "say": "I won't change your whole task list on one sentence. Say \"what's on my list\" and then "
                        "\"mark the first one done\" or \"delete\" and what it says, one at a time."}
@@ -6242,6 +6272,17 @@ def _interpret(transcript: str) -> dict:
         only = _the_only_open_task()
         if which in ("it", "that", "them") and only:
             return {"command": {"kind": "task_done", "which": only}, "say": None}
+        # With NOTHING open it is not ambiguous either (2026-10-12: "mark it done"
+        # on an empty list was queued for a model, "on my list" until one was back).
+        marked = bool(re.match(r"(?:mark|tick|check|cross)\b", low))
+        if marked and which in ("it", "that", "them") and _open_task_count() == 0:
+            return {"command": None, "say": "There's nothing open on your list to mark done."}
+        # And with two or more open it is a question with a short answer, not a plan:
+        # the rules compiled "Mark that as done" for his approval (2026-10-12).
+        if marked and which in ("it", "that"):
+            asked = _which_open_task()
+            if asked:
+                return {"command": None, "say": asked}
 
     # "I'm working on the budget" (2026-10-08: to a model). Kept, so "what was
     # I working on" has an answer after an interruption. "I'm working on it" is a
@@ -12633,6 +12674,10 @@ def _bare_kind(m) -> str:
     return next(k for k in ("remind", "task", "note", "shop") if m.group(k))
 
 
+_MARKS_A_PRONOUN_DONE = re.compile(r"(?:thea,? )?(?:mark|tick|check|cross) (?:off )?(?:it|that)(?: one| task)? (?:as )?(?:done|complete[d]?|finished)"
+                                   r"|(?:thea,? )?(?:tick|check|cross) off (?:it|that)(?: one| task)?")
+
+
 def _answers_which(low: str) -> dict | None:
     """"Cancel my alarm" -> "Which one - 6:30 or 7:15?" -> "the 7:15 one":
     his sentence is the choice she asked for, so it is the same command
@@ -12656,6 +12701,8 @@ def _answers_which(low: str) -> dict | None:
         cmd = (interpret(f"thea {prev}") or {}).get("command") or {}
     except Exception:
         return None
+    if "which" not in cmd and _MARKS_A_PRONOUN_DONE.fullmatch(prev.casefold().strip(" .!")):
+        cmd = {"kind": "task_done", "which": ""}     # "mark that done" -> "Which one — A or B?"
     if "which" not in cmd:
         return None
     from aletheia import speech
