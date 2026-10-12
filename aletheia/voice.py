@@ -8806,7 +8806,8 @@ def _interpret(transcript: str) -> dict:
     # with the two that are.
     m = re.fullmatch(r"(?:skip|cancel just|don'?t remind me about) (?:(?P<d1>tomorrow|today|tonight)'?s? |(?P<d0>the next|my next|the) )?(?:my )?"
                      r"(?P<w>[a-z][a-z' ]{1,30}?) (?P<sort>reminder|alarm)"
-                     r"(?: (?P<d2>tomorrow|today|tonight|this time|once|just once|next time|this week))?", low)
+                     r"(?: (?:on |this )?(?P<d2>tomorrow|today|tonight|this time|once|just once|next time|this week"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
     if m and m.group("w") not in ("next", "the next"):
         once = m.group("d1") or m.group("d2") or "next"
         once = "next" if once in ("this time", "once", "just once", "next time") else once
@@ -8818,7 +8819,8 @@ def _interpret(transcript: str) -> dict:
     # Looking back re-reads his earlier sentences, and this one among them would look
     # back again without end, so a look-back never runs inside another.
     m = re.fullmatch(r"(?:skip|don'?t do|don'?t remind me) (?:it|that|that one|the next one|this one)"
-                     r"(?: (?P<when>this week|this time|once|just once|next time|today|tomorrow|tonight))?(?: please)?", low)
+                     r"(?: (?:on |this )?(?P<when>this week|this time|once|just once|next time|today|tomorrow|tonight"
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?(?: please)?", low)
     if m and not getattr(_LOOKING_BACK, "on", False):
         _LOOKING_BACK.on = True
         try:
@@ -8829,7 +8831,8 @@ def _interpret(transcript: str) -> dict:
             _LOOKING_BACK.on = False
         if just:
             once = m.group("when") or "next"
-            once = once if once in ("today", "tomorrow", "tonight", "this week") else "next"
+            # "Skip it on Friday" (2026-10-12: to a model): the coming Friday.
+            once = once if once in ("today", "tomorrow", "tonight", "this week") or once.endswith("day") else "next"
             return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
     # "Remind me to water the plants every Sunday at 10" - "move it to Saturday"
     # (2026-10-12: queued for a model). The weekly one he just set, on the new day
