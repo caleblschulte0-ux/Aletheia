@@ -1452,6 +1452,20 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
         weeks, days = divmod(minutes // 1440, 7)
         span = (f"every {weeks} weeks" if weeks > 1 and not days else "every week" if weeks == 1 and not days
                 else "every other day" if minutes == 2880 else f"every {minutes // 1440} days")
+        if weeks and not days:
+            # "Every other Tuesday" was listed as "every 2 weeks at 6 pm"
+            # (2026-10-12): the day he set it for is the one thing to say.
+            try:
+                import datetime as _dt
+                from aletheia import localtime
+                start = _dt.datetime.fromisoformat(str(spec.get("anchor") or "").replace("Z", "+00:00"))
+                if start.tzinfo:
+                    start = start.astimezone(localtime.operator_tz())
+                name = start.strftime("%A")
+                span = (f"every other {name}" if weeks == 2 else f"every {name}" if weeks == 1
+                        else f"every {weeks} weeks on {name}")
+            except (ValueError, TypeError):
+                pass
         return f"{text} — {span} at {speech.clock_words(str(spec.get('anchor') or '')[11:16])}"
     when = speech.clock_words(str(spec.get("time") or ""))
     if spec["kind"] == "daily":

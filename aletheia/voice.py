@@ -1127,7 +1127,9 @@ _RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "siste
 _ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
                  "eighth": 8, "ninth": 9, "tenth": 10, "fifteenth": 15, "twentieth": 20, "last": 31}
 _SPAN = (r"(?P<span>(?:every|each) (?:week|month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
-         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|weekly|monthly|fortnightly)")
+         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)"
+         # "Every 3 weeks on Friday" (2026-10-12: to the planner).
+         r"(?: on (?P<nday>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?)?|couple of weeks)|weekly|monthly|fortnightly)")
 _MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
 
 
@@ -1228,7 +1230,7 @@ def _a_repeat(low: str, text: str) -> dict | None:
         return {"command": {"kind": "remind_daily", "time": hhmm, "text": what, "every": n}, "say": None}
     import datetime as dt
     from aletheia import localtime
-    day = m.group("oday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
+    day = m.group("oday") or m.group("nday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
     return {"command": {"kind": "remind_weekly", "days": [day], "time": hhmm, "text": what, "every": n},
             "say": None}
 

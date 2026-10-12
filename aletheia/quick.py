@@ -11471,7 +11471,7 @@ def _reminder_when(what: str) -> str | None:
                 return (f"Your {what} reminder is {speech.humanize_time(at.isoformat())}: "
                         f"{speech._yours(text.rstrip('.'))}. It repeats {when[0].lower() + when[1:]}.")
             if at:
-                when = f"{when}, next {speech.humanize_time(at.isoformat())}"
+                when = f"{when}, the next one {speech.humanize_time(at.isoformat())}"
         except Exception:  # noqa: BLE001 - the rule alone is still true
             pass
     return f"Your {what} reminder is {when}: {text.rstrip('.')}."
