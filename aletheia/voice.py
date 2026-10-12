@@ -4913,6 +4913,10 @@ def _interpret(transcript: str) -> dict:
                         r"|(?:what time|when) (?:did you set|is) (?:it|that) (?:set )?for|when does (?:it|that) go off", low):
             return {"command": None, "say": f"That's {speech.humanize_time(at)}: {words}."}
         m = re.fullmatch(r"(?:and )?(?:also )?remind me to (?P<what>.+?) (?:too|as well|also)", low)
+        # "And text dad too" (2026-10-12: a TEXT to dad saying "too"): a thing to do
+        # said that way straight after a reminder is another reminder at its time.
+        bare = re.fullmatch(r"(?:and )?(?:also )?(?P<what>.+?) (?:too|as well|also)", low)
+        m = m or (bare if bare and _TASK_VERB.match(bare.group("what")) else None)
         if m and at:
             return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group("what"))}, "say": None}
         m = re.fullmatch(r"(?:no,? |actually,? )?(?:change|make) (?:it|that|the reminder )?(?P<old>.+?) (?:to|into) (?P<new>[a-z].+)", low)
@@ -6087,6 +6091,21 @@ def _interpret(transcript: str) -> dict:
     # "Clear the list" names no list; with nothing but the shopping list
     # to mean, it is that one - the same cancel-every-row verb.
     if re.fullmatch(r"(?:clear|empty|wipe) (?:the|my) list", low) and not _other_lists():
+        # With the shopping list already empty and things on his TASK list, "the
+        # list" is that one (2026-10-12: "The shopping list was already empty",
+        # and he believed his tasks were gone). The whole task list is never one
+        # sentence's to undo, so say so.
+        try:
+            from aletheia import intercom as _icl
+            empty = not _icl._shopping_items()
+            open_tasks = len(_icl._open_tasks())
+        except Exception:  # noqa: BLE001 - the shopping list, as before
+            empty, open_tasks = False, 0
+        if empty and open_tasks:
+            return {"command": None,
+                    "say": f"Your shopping list is already empty. Your task list has "
+                           f"{speech.count_phrase(open_tasks, 'thing')} on it, and I won't clear that on one sentence. "
+                           "Say \"what's on my list\" and take them off one at a time."}
         return {"command": {"kind": "shopping_off", "item": "everything"}, "say": None}
 
     # "Mark the passport one done" — by what he CALLS it. This went to the
@@ -8254,6 +8273,23 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+        # "Cancel the one for dad", "cancel the dad one" (2026-10-12: prepared as
+        # cancelling a SUBSCRIPTION called "one for dad"). "One" points at one of
+        # HER things - a reminder, then a task - never a service of his.
+        one = re.fullmatch(r"one (?:for|about|with|to) (?P<x>.+)|(?P<y>.+?) one", m.group(1).strip())
+        if one:
+            words = (one.group("x") or one.group("y")).strip()
+            try:
+                from aletheia import intercom as _ico
+                reminder, _why = _ico._one_reminder(_as_he_said(text, words))
+            except Exception:  # noqa: BLE001
+                reminder = None
+            if reminder is not None:
+                return {"command": {"kind": "reminder_off", "which": words}, "say": None}
+            if _names_one_open_task(words):
+                return {"command": {"kind": "task_change", "which": words, "drop": True}, "say": None}
+            return {"command": None, "say": f"I don't see a reminder or a task about {_as_he_said(text, words)}. "
+                                            "Say \"what reminders do I have\" and I'll read them."}
         return {"command": {"kind": "subscription_cancel",
                             "subscription": m.group(1).strip()}, "say": None}
 
@@ -8823,6 +8859,9 @@ def _interpret(transcript: str) -> dict:
     # or a one-word relation, are the person; the rest is the message.
     m = re.fullmatch(r"(?:send (?:a )?(?:text|message) to|text|message) (?P<rest>.+)", low)
     split = _known_person_first(m.group("rest")) if m else None
+    # "Text dad too" has no message in it: "too" is not something to send.
+    if split and re.fullmatch(r"(?:too|also|as well|again|please|now|later|back|instead)(?: please)?", split[1].strip()):
+        return _interpret(f"text {split[0]}")
     if split:
         return {"command": {"kind": "message_send", "to": split[0],
                             "body": _as_he_said(text, split[1])}, "say": None}
