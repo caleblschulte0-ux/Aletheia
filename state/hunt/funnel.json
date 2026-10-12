@@ -91,16 +91,16 @@
     "2026-10-11": {
       "duplicate": 177,
       "employer_full": 0,
-      "minutes": 173,
+      "minutes": 210,
       "needs_account": 0,
-      "needs_answer": 10,
-      "not_realistic": 75,
-      "offered": 510,
-      "ready": 2,
-      "runs": 13,
-      "unfit_model": 15,
+      "needs_answer": 11,
+      "not_realistic": 81,
+      "offered": 518,
+      "ready": 3,
+      "runs": 14,
+      "unfit_model": 19,
       "unfit_pay": 5,
-      "unfit_sales": 55,
+      "unfit_sales": 57,
       "unjudged": 0,
       "unreachable": 2,
       "unreachable_ApplyError": 2,
@@ -346,21 +346,21 @@
       "sent": 5
     },
     "2026-10-11": {
-      "filled": 22,
-      "found": 30,
+      "filled": 24,
+      "found": 32,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 1
+      "sent": 2
     }
   },
-  "generated_at": "2026-10-11T21:54:39Z",
-  "sent_all_time": 294,
+  "generated_at": "2026-10-12T01:00:07Z",
+  "sent_all_time": 295,
   "sent_by_system": {
     "ashbyhq": 26,
     "employer_site": 10,
     "greenhouse": 239,
-    "lever": 19
+    "lever": 20
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: none": 1,
@@ -445,18 +445,18 @@
     }
   },
   "totals": {
-    "filled": 392,
-    "found": 798,
+    "filled": 394,
+    "found": 800,
     "interviews": 3,
     "rejections": 12,
     "replies": 44,
-    "sent": 294
+    "sent": 295
   },
   "waiting": {
     "asked_about": {
       "address": 1,
       "background_check": 2,
-      "education": 2,
+      "education": 3,
       "on_site": 2,
       "other": 14,
       "pay": 3,
@@ -502,8 +502,8 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 22,
-    "oldest_days": 28,
+    "needs_answer": 23,
+    "oldest_days": 29,
     "to_send": 0
   },
   "window_days": 30
