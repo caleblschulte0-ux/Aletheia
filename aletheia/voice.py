@@ -383,6 +383,17 @@ def _split_deadline(text: str) -> tuple[str, str]:
     if m and not _spoken_day(m.group(2).strip().split(" at ")[0]):
         m = None if re.search(r"[,\s]for\s", text) and not re.search(r"[,\s](?:by|before|due)\s", text) else m
     if not m:
+        # "Call the bank tomorrow at 2" (2026-10-12: the whole of it stayed
+        # the task and nothing was due): the day said last, then a time.
+        clock = re.search(r"^(.+?)\s+at\s+(\d{1,2}(?::\d{2})?\s*(?:[ap]\.?m\.?)?|noon)$", text, re.IGNORECASE)
+        if clock:
+            rest, day = _split_deadline(clock.group(1))
+            hhmm = _spoken_time(clock.group(2)) if day and "T" not in day else None
+            if hhmm:
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(clock.group(2)) and 1 <= hour <= 7:
+                    hhmm = f"{hour + 12:02d}:{minute:02d}"
+                return rest, f"{day}T{hhmm}:00"
         # "Call the plumber tomorrow", "pay the gas bill on friday": a day
         # said last is as much a deadline as "by friday" (2026-10-07).
         # "Call mom this weekend", "pay rent on the 1st" (2026-10-07: the
