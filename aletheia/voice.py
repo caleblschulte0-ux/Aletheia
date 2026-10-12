@@ -7469,7 +7469,10 @@ def _interpret(transcript: str) -> dict:
                      r" before(?: it| that| then)?", low)
     if m:
         before = _previous_ask().casefold()
-        whose = (re.search(r"\b(?:when(?:'s| is)|what day is) (?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday)",
+        # "How many days until my mom's birthday", then "remind me a week before"
+        # (2026-10-12: to a model) - the same birthday.
+        whose = (re.search(r"\b(?:when(?:'s| is)|what day is|how (?:many (?:days|weeks)|long) (?:is it )?(?:until|till|to|before))"
+                           r" (?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday)",
                            before)
                  or re.match(r"(?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday) is ", before))
         if whose:
