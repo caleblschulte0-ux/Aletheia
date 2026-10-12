@@ -2964,7 +2964,7 @@ _OWNED = (r"name|birthday|age|vet|doctor|dentist|food|medicine|meds|number|phone
           r"|size|shoe size|favorite [a-z]+|allergies|allergy|breed|weight|appointment|party|anniversary|plate|license plate")
 
 
-def _event_from_notes(what: str) -> dict | None:
+def _event_from_notes(what: str, day_only: bool = False) -> dict | None:
     """"My flight is at 6 am on Friday" as an event: {"title", "start"}, the
     newest note that names `what` with a day and a time still ahead. For
     "remind me 2 hours before my flight" when the flight is a note and not
@@ -2985,22 +2985,26 @@ def _event_from_notes(what: str) -> dict | None:
             continue
         day = re.search(r"\b(?:on |this |next )?" + days + r"\b", low)
         clock = re.search(r"\bat (\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)?|noon|midnight)", low)
-        if not day or not clock:
+        # "The plumber is coming Wednesday" (2026-10-12) names a day and no
+        # time: enough for "the day before", never for "an hour before".
+        if not day or not (clock or day_only):
             continue
         iso = _spoken_day(day.group(0).replace("on ", "").replace("this ", "").strip())
-        hhmm = _spoken_time(clock.group(1))
+        hhmm = _spoken_time(clock.group(1)) if clock else "00:00"
         if not iso or not hhmm:
             continue
         hour, minute = map(int, hhmm.split(":"))
-        if _is_bare_hour(clock.group(1)) and hour <= EARLIEST_BARE_HOUR:
+        if clock and _is_bare_hour(clock.group(1)) and hour <= EARLIEST_BARE_HOUR:
             hour += 12
         start = dt.datetime.combine(dt.date.fromisoformat(iso), dt.time(hour, minute), tzinfo=tz)
-        if start > now:
+        if start > now or (not clock and start.date() > now.date()):
             bare = re.sub(r"^(?:my|your|the) ", "", " ".join(re.findall(r"[a-z0-9']+", str(what).casefold())))
             # his capitals: "your flight to Paris" (2026-10-08: "to paris")
             his = re.search(re.escape(bare), said, re.I)
-            title = "your " + (said[his.start():his.end()] if his else bare)
-            return {"title": title, "start": start.isoformat()}
+            # "The plumber is coming" is the plumber, not "your plumber" (2026-10-12).
+            the = his and re.search(r"\bthe\s+$", said[:his.start()], re.I)
+            title = ("the " if the else "your ") + (said[his.start():his.end()] if his else bare)
+            return {"title": title, "start": start.isoformat(), **({} if clock else {"all_day": True})}
     return None
 
 
@@ -5896,6 +5900,8 @@ def _interpret(transcript: str) -> dict:
         from aletheia import calendar as cal, localtime, speech as _sp_before
         tz = localtime.operator_tz()
         what = m.group("what").strip()
+        # "A day before the plumber comes" (2026-10-12: looked for an event called "plumber comes").
+        what = re.sub(r" (?:comes|is coming|are coming|gets here|get here|arrives|arrive|shows up|show up)$", "", what)
         generic = what in ("meeting", "appointment", "event", "call", "thing", "one")
         now = dt.datetime.now(tz)
         try:
@@ -5907,7 +5913,7 @@ def _interpret(transcript: str) -> dict:
         if not generic:
             words = [w for w in re.findall(r"[a-z0-9]+", what) if len(w) > 2]
             upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
-            told = None if upcoming else _event_from_notes(what)
+            told = None if upcoming else _event_from_notes(what, day_only=True)
             upcoming = [told] if told else upcoming
         if not upcoming:
             return {"command": None,
@@ -5922,15 +5928,16 @@ def _interpret(transcript: str) -> dict:
             days = 7 if "week" in lead else (_spoken_amount(m.group("n")) if m.group("n") else 1) or 1
             when = (start - dt.timedelta(days=int(days))).replace(hour=19 if lead == "the night" else 9,
                                                                    minute=0, second=0, microsecond=0)
-        if when <= now or when >= start:
+        # A day with no time ("the plumber is coming Wednesday") lasts the day.
+        if when <= now or when >= (start + dt.timedelta(days=1) if event.get("all_day") else start):
             # "dentist appointment is too soon for that" (2026-10-07): a
             # sentence with its capital, and what is still possible.
             title_ = str(event.get('title') or 'That')
             return {"command": None, "say": f"{title_[:1].upper() + title_[1:]} is {_sp_before.humanize_time(start.isoformat())}, "
-                                            f"so that time has already gone. Say \"remind me in an hour about my {re.sub(r'^(?:[Yy]our|[Mm]y) ', '', title_)}\" "
+                                            f"so that time has already gone. Say \"remind me in an hour about {re.sub(r'^(?:[Yy]our|[Mm]y) ', 'my ', title_)}\" "
                                             f"or another time, and I'll set that instead."}
         clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
-        about = f"{event.get('title') or what} {start.strftime('%A')} at {clock}"
+        about = f"{event.get('title') or what} {start.strftime('%A')}" + ("" if event.get("all_day") else f" at {clock}")
         if m.group("task"):
             about = f"{_as_he_said(text, m.group('task'))} - {about}"
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": about}, "say": None}
@@ -7532,6 +7539,12 @@ def _interpret(transcript: str) -> dict:
         if whose:
             return _interpret(f"{m.group(0).removesuffix(' it').removesuffix(' that').removesuffix(' then')} "
                               f"{whose.group('who')}'s birthday")
+        # "Note that the plumber is coming Wednesday" / "when is the plumber
+        # coming", then "remind me the day before" (2026-10-12: to a model).
+        coming = re.search(r"^(?:(?:note|remember) that |when(?:'s| is| are) )?(?P<what>(?:the|my) [a-z]+(?: (?!is |are )[a-z]+)?) "
+                           r"(?:is |are )?(?:coming|arriving|getting here|showing up)\b", before)
+        if coming and not re.search(r"\b(?:in|at) \d", m.group(0)):
+            return _interpret(f"{m.group(0).removesuffix(' it').removesuffix(' that').removesuffix(' then')} {coming.group('what')}")
     # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
     # not a lookup: it answered "I don't have anything remembered about 'the
     # license task tomorrow'" (2026-10-07).
