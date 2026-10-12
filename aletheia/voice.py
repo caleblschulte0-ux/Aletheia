@@ -374,6 +374,12 @@ def _split_deadline(text: str) -> tuple[str, str]:
     # "Call mom for next Wednesday" (2026-10-08) held "call mom for next"
     # due today. "For" a day is as much a deadline as "by" one.
     m = re.search(r"^(.*?)[,\s]+(?:by|before|due(?: on)?|for)\s+(.+)$", text)
+    # "Buy a birthday card for mom due Friday" (2026-10-12: no deadline at all):
+    # the FIRST "for" is part of the thing, and the day follows the last word.
+    last = re.search(r"^(.*)[,\s]+(?:by|before|due(?: on)?|for)\s+(.+)$", text)
+    if m and last and last.start(2) != m.start(2) and not _spoken_day(m.group(2).strip().split(" at ")[0]) \
+            and _spoken_day(last.group(2).strip().split(" at ")[0]):
+        m = last
     if m and not _spoken_day(m.group(2).strip().split(" at ")[0]):
         m = None if re.search(r"[,\s]for\s", text) and not re.search(r"[,\s](?:by|before|due)\s", text) else m
     if not m:
@@ -4349,6 +4355,20 @@ def _interpret(transcript: str) -> dict:
         if not _might_be_several(m.group("item")) or _a_plain_list(m.group("item")):
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
                     "say": None}
+    # "Add buy a birthday card for mom due friday", "add buy stamps by friday"
+    # (2026-10-12: to the planner): a thing to DO may carry "for" or "by" and a
+    # day; the bare rule above stops at any preposition, so it never got here.
+    # Still a task only - another store named, a list, or a clock time is left
+    # to the patterns for those.
+    m = re.fullmatch(r"add (?P<item>[a-z][a-z0-9' ,-]{2,80})", low)
+    if m and _TASK_VERB.match(m.group("item")) \
+            and not re.search(r"\b(?:list|lists|tasks?|reminders?|notes?|contacts?|calendar|alarms?|timers?|events?|"
+                              r"meeting|appointment)\b|\b(?:to|on|into|onto) (?:my|the)\b|\bat (?:\d|noon|midnight)"
+                              r"|\bin (?:an?|\d+) (?:minutes?|hours?)\b|\b(?:every|each|daily|weekly)\b"
+                              # "add call mom to tomorrow" is the day's own rule, further on
+                              r"|\bto (?:today|tomorrow|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b",
+                              m.group("item")):
+        return _new_task(_as_he_said(text, m.group("item")))
 
     # "I want to read more books", "I'm trying to drink more water"
     # (2026-10-08: to the planner). A habit he wants is a goal, kept in the
