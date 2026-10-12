@@ -8410,12 +8410,31 @@ def _interpret(transcript: str) -> dict:
     # with the two that are.
     m = re.fullmatch(r"(?:skip|cancel just|don'?t remind me about) (?:(?P<d1>tomorrow|today|tonight)'?s? |(?P<d0>the next|my next|the) )?(?:my )?"
                      r"(?P<w>[a-z][a-z' ]{1,30}?) (?P<sort>reminder|alarm)"
-                     r"(?: (?P<d2>tomorrow|today|tonight|this time|once|just once|next time))?", low)
+                     r"(?: (?P<d2>tomorrow|today|tonight|this time|once|just once|next time|this week))?", low)
     if m and m.group("w") not in ("next", "the next"):
         once = m.group("d1") or m.group("d2") or "next"
         once = "next" if once in ("this time", "once", "just once", "next time") else once
         which = "wake up" if m.group("sort") == "alarm" and m.group("w") in ("my", "the", "morning") else m.group("w")
         return {"command": {"kind": "reminder_off", "which": which, "once": once}, "say": None}
+    # "Remind me every Friday to take out the trash" - "skip it this week" (2026-10-12:
+    # queued for a model). "It" is the repeating reminder he just set; skipped once,
+    # and the schedule stays on.
+    # Looking back re-reads his earlier sentences, and this one among them would look
+    # back again without end, so a look-back never runs inside another.
+    m = re.fullmatch(r"(?:skip|don'?t do|don'?t remind me) (?:it|that|that one|the next one|this one)"
+                     r"(?: (?P<when>this week|this time|once|just once|next time|today|tomorrow|tonight))?(?: please)?", low)
+    if m and not getattr(_LOOKING_BACK, "on", False):
+        _LOOKING_BACK.on = True
+        try:
+            just = next((ask for ask in (_recent_ask_of(kind, "text")
+                                         for kind in ("remind_weekly", "remind_daily", "remind_monthly"))
+                         if ask.get("text")), {})
+        finally:
+            _LOOKING_BACK.on = False
+        if just:
+            once = m.group("when") or "next"
+            once = once if once in ("today", "tomorrow", "tonight", "this week") else "next"
+            return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
     if re.fullmatch(r"(?:pause|suspend|hold|stop|mute|silence) (?:all )?(?:my |the )?(?:reminders|alarms)"
                     r"(?: for (?:today|tonight|the day|the rest of the day|now|a while|the weekend|this week))?", low):
         return {"command": None,
