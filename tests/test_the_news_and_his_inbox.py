@@ -271,7 +271,7 @@ class MoreTimeAndAMovedAlarm(unittest.TestCase):
         with mock.patch.object(voice, "_running_once", return_value=[(at, "your 10-minute timer is up")]):
             got = voice._interpret("add 5 minutes")["command"]
         self.assertEqual(got, {"kind": "remind_at", "at": "2030-01-01T12:05:00+00:00",
-                               "text": "your 10-minute timer is up", "replaces": "your 10-minute timer is up"})
+                               "text": "your 15-minute timer is up", "replaces": "your 10-minute timer is up"})
         with mock.patch.object(voice, "_running_once", return_value=[]):
             self.assertIn("No timer running", voice._interpret("give me 5 more minutes")["say"])
 
