@@ -5041,6 +5041,11 @@ def _interpret(transcript: str) -> dict:
         alarm = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
                              r"(?:the |my |that |all )?(?:my )?(?P<before>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?"
                              r"(?:(?:weekday|weekend|daily|morning|everyday|work|school|wake ?up) )?alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
+        day = re.search(r" for (tomorrow|today|tonight)$", low) if alarm else None
+        if day and not alarm.group("before"):
+            # "Turn off my alarm for tomorrow" turned a weekday alarm off for
+            # good (2026-10-12): with a day, it is that day's alarm, once.
+            return {"command": {"kind": "reminder_off", "which": "wake up", "once": day.group(1)}, "say": None}
         if alarm:
             # "CANCEL MY 6:30 ALARM" names WHICH alarm; the time travels
             # with the words, and a bare "6" becomes "6:00" so it reads as
@@ -8770,6 +8775,17 @@ def _interpret(transcript: str) -> dict:
                   else "mute")
         return {"command": {"kind": "music", "action": action}, "say": None}
 
+    # "Turn off tomorrow's alarm", "no alarm tomorrow", "turn off my alarm for
+    # tomorrow" (2026-10-12: two to the planner, and the third turned off a
+    # weekday alarm for good). An alarm with a day on it is that day's, once.
+    m = re.fullmatch(r"(?:turn off|cancel|skip|stop|disable|kill) (?:my |the )?(?P<d1>tomorrow|today|tonight)'?s? alarms?"
+                     r"|(?:turn off|cancel|skip|stop|disable|kill) (?:my |the )?alarms? (?:for )?(?P<d2>tomorrow|today|tonight)"
+                     r"(?: morning)?"
+                     r"|(?:no|i don'?t need (?:an|my|the)|i don'?t want (?:an|my|the)) alarms? (?:for )?(?P<d3>tomorrow|today|tonight)"
+                     r"(?: morning)?(?: please)?", low)
+    if m:
+        return {"command": {"kind": "reminder_off", "which": "wake up",
+                            "once": m.group("d1") or m.group("d2") or m.group("d3")}, "say": None}
     # "Skip tomorrow's pill reminder", "pause my reminders for today"
     # (2026-10-07: to the planner). Neither is a door she has; said plainly,
     # with the two that are.
