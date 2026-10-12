@@ -2439,6 +2439,29 @@ def _the_only_open_task() -> str:
     return str(rows[0].get("description") or rows[0].get("id") or "")
 
 
+def _after_its_due(which: str, day: str, *, pushed: bool) -> str:
+    """A bare weekday for a task's new date, read the way he means it. "Push email Dana to Monday",
+    said on a Monday about a task due Friday, came back "due today now" (2026-10-12): pushing is
+    later, so the Monday after Friday. Without a push verb only a weekday that is TODAY is read
+    as next week, and only when the task is due later than today: "today" is how anyone says
+    today. Never raises; anything unreadable leaves the day as it was."""
+    import datetime as dt
+    try:
+        from aletheia import intercom, localtime
+        found, _why = intercom._one_task(which)
+        due = dt.date.fromisoformat(str((found or {}).get("deadline") or "")[:10])
+        new = dt.date.fromisoformat(day)
+        today = localtime.today()
+    except Exception:  # noqa: BLE001
+        return day
+    if pushed:
+        while new <= due:
+            new += dt.timedelta(days=7)
+    elif new == today and due > today:
+        new += dt.timedelta(days=7)
+    return new.isoformat()
+
+
 def _names_one_open_task(words: str) -> bool:
     """Do his words pick out exactly one open task? The gate on reading
     "delete X" or "move X to friday" as being about a task at all: "delete
@@ -5797,6 +5820,8 @@ def _interpret(transcript: str) -> dict:
             if asked:
                 return {"command": None, "say": asked}
         day = _spoken_day("today" if said == "tonight" else said)
+        if day and said in WEEKDAYS:
+            day = _after_its_due(task, day, pushed=bool(re.match(r"(?:no,? )?(?:push|bump)\b", low)))
         if day:
             return {"command": {"kind": "task_change", "which": task, "deadline": day}, "say": None}
     # "Add a task to email Sam", then "actually make that call Sam"
@@ -5838,6 +5863,9 @@ def _interpret(transcript: str) -> dict:
             day = (today + dt.timedelta(days=ahead)).isoformat()
         else:
             day = _spoken_day("today" if said == "tonight" else said)
+            if day and said in WEEKDAYS:
+                day = _after_its_due(which, day, pushed=bool(re.match(
+                    r"(?:push|bump|postpone|delay|defer|put off)\b", low)))
         if day:
             return {"command": {"kind": "task_change", "which": which, "deadline": day}, "say": None}
     elif m and re.search(r"\btask\b|\bon my (?:list|to-?do list)\b", low):
