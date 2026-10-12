@@ -312,6 +312,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what do i need to (?:do|get done)(?: today)?$"
         # "Anything I need to do today" went to the planner (2026-10-11): the day, not only his list.
         r"|^(?:is there |do i have )?anything i (?:need|have|got|should) to (?:do|get done|handle|deal with) today$"
+        # "Anything I'm forgetting" (2026-10-12: to the planner) - the same rundown of the day.
+        r"|^(?:is there )?anything (?:i'?m|i am) forgetting(?: today| about)?$|^am i forgetting (?:anything|something)(?: today)?$"
+        r"|^what am i forgetting(?: today)?$|^(?:did|have) i forg[eo]t(?:ten)? (?:anything|something)(?: today)?$"
         # "Help me prioritize", "what can I do in 30 minutes" (2026-10-07: to the planner).
         r"|^help me (?:prioriti[sz]e|plan my day|figure out what to do)(?: today)?$"
         # "Which of those is most urgent" after his list (2026-10-08: to a model).
@@ -4429,6 +4432,22 @@ _ZONES = {
     "rio": "America/Sao_Paulo", "utc": "UTC", "gmt": "UTC", "eastern time": "America/New_York", "the east coast": "America/New_York",
     "east coast": "America/New_York", "central time": "America/Chicago", "mountain time": "America/Denver",
     "pacific time": "America/Los_Angeles", "the west coast": "America/Los_Angeles", "west coast": "America/Los_Angeles",
+    # The places on his move shortlist, and the warm cities near them (2026-10-12: "what time is it
+    # in tampa" went to a model while Nashville and Austin were answered).
+    "tampa": "America/New_York", "st petersburg": "America/New_York", "orlando": "America/New_York",
+    "jacksonville": "America/New_York", "sarasota": "America/New_York", "fort myers": "America/New_York",
+    "charleston": "America/New_York", "south carolina": "America/New_York", "greenville": "America/New_York",
+    "myrtle beach": "America/New_York", "columbia sc": "America/New_York", "savannah": "America/New_York",
+    "raleigh": "America/New_York", "north carolina": "America/New_York", "knoxville": "America/New_York",
+    "chattanooga": "America/New_York", "louisville": "America/New_York", "virginia": "America/New_York",
+    "baltimore": "America/New_York", "maryland": "America/New_York", "columbus": "America/New_York",
+    "cleveland": "America/New_York", "cincinnati": "America/New_York", "indianapolis": "America/Indiana/Indianapolis",
+    "memphis": "America/Chicago", "san antonio": "America/Chicago", "fort worth": "America/Chicago",
+    "louisiana": "America/Chicago", "alabama": "America/Chicago", "huntsville": "America/Chicago",
+    "mississippi": "America/Chicago", "arkansas": "America/Chicago", "little rock": "America/Chicago",
+    "boise": "America/Boise", "idaho": "America/Boise", "albuquerque": "America/Denver", "new mexico": "America/Denver",
+    "el paso": "America/Denver", "tucson": "America/Phoenix", "scottsdale": "America/Phoenix",
+    "sacramento": "America/Los_Angeles",
 }
 
 
