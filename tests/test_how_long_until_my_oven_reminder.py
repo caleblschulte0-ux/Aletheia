@@ -9,13 +9,13 @@ from unittest import mock
 
 from aletheia import intercom, quick, scheduler
 
-AT = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=20, seconds=5)
-OVEN = {"id": "r1", "kind": "once", "enabled": True, "at": AT.isoformat(),
-        "command": {"kind": "notify", "text": "check the oven"}}
+OVEN = {"id": "r1", "kind": "once", "enabled": True, "command": {"kind": "notify", "text": "check the oven"}}
 
 
 class HowLongUntil(unittest.TestCase):
     def test_named_reminder_says_how_long(self):
+        # Measured from now, not from import: the suite reaches this minutes later.
+        AT = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=20, seconds=5)
         with mock.patch.object(intercom, "_one_reminder", return_value=(OVEN, "")), \
                 mock.patch.object(scheduler, "next_occurrence", return_value=AT), \
                 mock.patch.object(intercom, "_reminder_words", return_value="check the oven — today"):
