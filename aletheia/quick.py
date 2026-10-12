@@ -1648,7 +1648,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # THE NEXT INTERVIEW, from her calendar store (2026-09-24, offline:
     # "I can't think just now").
     ("interview_when", re.compile(
-        r"^(?:what time|when) (?:is|'s) (?:my|the) (?:next )?interview(?: with [a-z0-9 .&'-]{1,40})?\s*\??$"
+        # "When's my interview" (2026-10-12: "when 's" was the only spelling, so it went to a model).
+        r"^(?:what time (?:is|'s)|what(?:'s| is|s) the time of|when(?:'s| is|s)) (?:my|the) (?:next )?"
+        r"(?:[a-z0-9.&'-]{2,30} )?interview(?: with [a-z0-9 .&'-]{1,40})?(?: again)?\s*\??$"
         r"|^how (?:long|many days|many hours) (?:until|till|before) (?:my|the) (?:next )?interview\s*\??$"
         r"|^(?:do i have|is there|have i got) an interview(?: coming up| scheduled| booked)?(?: today| tomorrow| this week| next week)?\s*\??$"
         r"|^when(?:'s| is) my next interview\s*\??$")),
