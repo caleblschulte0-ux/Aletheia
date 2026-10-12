@@ -1127,7 +1127,9 @@ _RELATIONS = {"mom", "mum", "mother", "dad", "father", "wife", "husband", "siste
 _ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "sixth": 6, "seventh": 7,
                  "eighth": 8, "ninth": 9, "tenth": 10, "fifteenth": 15, "twentieth": 20, "last": 31}
 _SPAN = (r"(?P<span>(?:every|each) (?:week|month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
-         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)|couple of weeks)|weekly|monthly|fortnightly)")
+         r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)"
+         # "Every 3 weeks on Friday" (2026-10-12: to the planner).
+         r"(?: on (?P<nday>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?)?|couple of weeks)|weekly|monthly|fortnightly)")
 _MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
 
 
@@ -1228,7 +1230,7 @@ def _a_repeat(low: str, text: str) -> dict | None:
         return {"command": {"kind": "remind_daily", "time": hhmm, "text": what, "every": n}, "say": None}
     import datetime as dt
     from aletheia import localtime
-    day = m.group("oday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
+    day = m.group("oday") or m.group("nday") or WEEKDAYS[dt.datetime.now(localtime.operator_tz()).weekday()]
     return {"command": {"kind": "remind_weekly", "days": [day], "time": hhmm, "text": what, "every": n},
             "say": None}
 
@@ -2092,6 +2094,38 @@ def _moved_repeating(time_words: str) -> dict | None:
             return None
         command["days"] = days
     return {"command": command, "say": None}
+
+
+def _dropped_weekday(day: str, what: str = "") -> dict | None:
+    """The weekly reminder on `day` (and about `what`, when he named it)
+    with that day taken off: the same reminder on its other days. A
+    question when two could be meant; None when none repeats on more days
+    than that one, so the plain cancel still has it."""
+    names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    index = names.index(day)
+    words = [w for w in re.findall(r"[a-z]+", what) if w not in ("the", "my", "one", "reminder", "reminders")]
+    try:
+        from aletheia import intercom
+        rows = [r for r in intercom._reminder_schedules()
+                if r.get("kind") == "weekly" and index in (r.get("weekdays") or [])
+                and all(w in str((r.get("command") or {}).get("text") or "").casefold() for w in words)]
+    except Exception:  # noqa: BLE001
+        return None
+    several = [r for r in rows if len(r.get("weekdays") or []) > 1]
+    if not several or len(rows) != len(several):
+        return None
+    if len(several) > 1:
+        labels = [str((r.get("command") or {}).get("text") or "") for r in several[:4]]
+        from aletheia import speech
+        return {"command": None, "say": f"You have {len(several)} reminders on {day.title()}s: "
+                                        f"{speech.or_list(labels)}. Which one?"}
+    found = several[0]
+    text = str((found.get("command") or {}).get("text") or "")
+    if not text or not found.get("time"):
+        return None
+    left = [names[d] for d in found.get("weekdays") or [] if isinstance(d, int) and 0 <= d < 7 and d != index]
+    return {"command": {"kind": "remind_weekly", "days": left, "time": str(found["time"]), "text": text,
+                        "replaces": text}, "say": None}
 
 
 def _moved_reminder(transcript: str, time_words: str) -> dict | None:
@@ -3757,6 +3791,19 @@ def _interpret(transcript: str) -> dict:
     # THE ANSWER TO HER OWN QUESTION (2026-10-07): "When should I remind
     # you to email Sam?" - "tomorrow at 2" went to the planner, as did "ten
     # minutes" after "For how long?". The question and the answer are one
+    # "Cancel the Friday trash reminder", "stop the Friday one" (2026-10-12):
+    # with trash every Tuesday and Friday, the first stopped BOTH days and the
+    # second went to the planner. A day named of a reminder that repeats on
+    # more days than that is the day dropped from it.
+    day_off = re.fullmatch(r"(?:cancel|stop|turn off|delete|remove|drop|get rid of) (?:the |my )?"
+                           r"(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:'?s)?"
+                           r"(?: (?P<what>[a-z][a-z' ]{0,30}?))?(?: one| reminder| reminders)?", low) \
+        or re.fullmatch(r"(?:take|drop|remove) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s? "
+                        r"(?:off|out of|from) (?:the |my )?(?:(?P<what>[a-z][a-z' ]{0,30}?) )?(?:reminder|one)", low)
+    if day_off:
+        dropped = _dropped_weekday(day_off.group("day"), day_off.group("what") or "")
+        if dropped:
+            return dropped
     # sentence, put back together; kept only if it becomes that command.
     # "Both" / "all of them" to "You have 2 reminders at 5 pm: ... Which one, or
     # all of them?" (2026-10-07: "cancel both" was a subscription called "both").
