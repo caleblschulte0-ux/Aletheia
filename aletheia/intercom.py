@@ -1548,6 +1548,18 @@ def _skip_once(found: dict, once: str) -> str:
             at = scheduler.next_occurrence(found, at)
         if at is None or at.astimezone(tz).date() != day:
             raise act.Refused(f"it doesn't go off {once} - {_reminder_words(found).split(' — ')[-1]}.")
+    if " ".join(once.casefold().split()) == "this week":
+        # "Skip the trash reminder this week" said twice skipped NEXT week too
+        # (2026-10-12). This week ends Sunday night; one already skipped stays the one.
+        today = dt.datetime.now(tz).date()
+        week_ends = today + dt.timedelta(days=6 - today.weekday())
+        first = scheduler._next_occurrence(found, now)
+        if first is None or first.astimezone(tz).date() > week_ends:
+            raise act.Refused("it doesn't go off again this week"
+                              + (f" - next {speech.humanize_time(at.isoformat())}." if at else "."))
+        if at is None or at != first:
+            raise act.Refused(f"it's already skipped this week"
+                              + (f" - it's back {speech.humanize_time(at.isoformat())}." if at else "."))
     if at is None:
         raise act.Refused("it has nothing coming up to skip.")
     scheduler.skip_once(found["id"], at)
