@@ -1688,6 +1688,14 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
 #: A turn that only makes sense against the one before it. Skipped when
 #: looking for "his last ask", so "make that 4" then "cancel it" finds the
 #: reminder and not the move (and never re-reads itself).
+# "At 5", "6 pm instead": a new time, said straight after she set a reminder.
+_BARE_NEW_TIME = re.compile(r"(?:no,? |actually,? |)(?:at (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)"
+                            r"|(?P<t2>\d{1,2}(?::\d{2})? ?[ap]\.?m\.?|noon)(?: instead)?|(?P<t3>\d{1,2}(?::\d{2})?) instead)(?: please)?")
+# "What time is that", asked straight after she set a reminder.
+_BARE_WHEN = re.compile(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
+                        r"|what time did i (?:say|tell you)|what time(?: for)?")
+_SHE_SET_IT = re.compile(r"(?:I'll remind you|Alarm set for|That's) ")
+
 _IS_FOLLOW_UP = re.compile(
     r"^(?:(?:make|change|move|push|bump|shift) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
     r"(?:and|what about|how about|also)\b|(?:read|list|show) (?:me )?(?:them|those)\b)")
@@ -1924,6 +1932,20 @@ def _she_just_set_a_reminder() -> bool:
     return bool(re.match(r"(?:I'll remind you|Alarm set for) ", said))
 
 
+def _she_just_named_a_reminder() -> bool:
+    """Her last answer set a reminder, or said back when the one she had just
+    set goes off ("what time" - "That's tomorrow at 9 am: ...")."""
+    if _she_just_set_a_reminder():
+        return True
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=2) or []
+    except Exception:  # noqa: BLE001
+        return False
+    said = [str(t.get("she_answered") or "") for t in turns]
+    return len(said) == 2 and said[1].startswith("That's ") and bool(re.match(r"(?:I'll remind you|Alarm set for) ", said[0]))
+
+
 def _the_reminder_just_set() -> dict | None:
     """The reminder his last few asks set, as it stands now, or None.
 
@@ -1990,6 +2012,11 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         said = " ".join(str(turn.get("he_asked") or "").split())
         said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
         if not said or _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
+            continue
+        # "At 5" straight after she set one changed its time - a follow-up too.
+        # "What time is that" asked about it, the same way.
+        if at and (_BARE_NEW_TIME.fullmatch(said.casefold().rstrip(".?!")) or _BARE_WHEN.fullmatch(said.casefold().rstrip(".?!"))) \
+                and _SHE_SET_IT.match(str(recent[at - 1].get("she_answered") or "")):
             continue
         try:
             from aletheia import quick
@@ -5121,8 +5148,20 @@ def _interpret(transcript: str) -> dict:
     # time), and "change call mom to call grandma" (the same time, new words).
     # "Remind me to call grandma Sunday at noon", "what time is that" (2026-10-12:
     # to a model). Bare, "that" is only the reminder when she has just confirmed one.
-    bare_when = re.fullmatch(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
-                             r"|what time did i (?:say|tell you)", low) and _she_just_set_a_reminder()
+    bare_when = _BARE_WHEN.fullmatch(low) and _she_just_set_a_reminder()
+    # "Remind me to pick up dry cleaning tomorrow" (9 am), then "at 5" or "5 pm
+    # instead" (2026-10-12: to a model): the new time for the reminder she just set.
+    m = _BARE_NEW_TIME.fullmatch(low)
+    # Read back later, it is stepped over like "make it 5" (`_recent_ask_of`).
+    if m and not getattr(_LOOKING_BACK, "bare_time", False) \
+            and _she_just_named_a_reminder():
+        _LOOKING_BACK.bare_time = True
+        try:
+            got = _interpret(f"make it {m.group('t') or m.group('t2') or m.group('t3')}")
+        finally:
+            _LOOKING_BACK.bare_time = False
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return got
     just = _the_reminder_just_set() if bare_when or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
                                                               r"|\bset for$|\bgo off$", low) else None
     if just:
