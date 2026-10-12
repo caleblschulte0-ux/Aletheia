@@ -5920,6 +5920,16 @@ def _interpret(transcript: str) -> dict:
         if task and task.casefold() != m.group("new").casefold():
             return {"command": {"kind": "task_change", "which": task,
                                 "description": _as_he_said(text, m.group("new"))}, "say": None}
+    # "Add eggs to the shopping list", then "make that a dozen eggs" (2026-10-12:
+    # queued for a model). The thing just put on the list, said again.
+    m = re.fullmatch(r"(?:(?:no|actually|wait|oh|sorry)[, ]+)*(?:make (?:it|that)|change (?:it|that) to) "
+                     r"(?P<new>[a-z0-9][a-z0-9 ,'-]{1,60})", low)
+    if m:
+        _said, answered = _previous_turn()
+        just = re.match(r"Added to the shopping list: ([^,]+?)\.$", answered or "")
+        if just and " and " not in just.group(1) and m.group("new").casefold() != just.group(1).casefold():
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("new")),
+                                "replaces": just.group(1)}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
     m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift|postpone|delay|defer|put off|push back) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
@@ -8481,6 +8491,27 @@ def _interpret(transcript: str) -> dict:
             once = m.group("when") or "next"
             once = once if once in ("today", "tomorrow", "tonight", "this week") else "next"
             return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
+    # "Remind me to water the plants every Sunday at 10" - "move it to Saturday"
+    # (2026-10-12: queued for a model). The weekly one he just set, on the new day
+    # at the time it already had; the old day goes off so he is not reminded twice.
+    m = re.fullmatch(r"(?:move|change|switch|push|shift|make) (?:it|that|this)(?: one)? (?:to )?(?:every |on )?"
+                     r"(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?(?: instead| please)?", low)
+    if m and not getattr(_LOOKING_BACK, "on", False):
+        _LOOKING_BACK.on = True
+        try:
+            just = _recent_ask_of("remind_weekly", "text")
+        finally:
+            _LOOKING_BACK.on = False
+        if just and just.get("every") in (None, 1, "1"):
+            try:
+                from aletheia import intercom as _icw
+                found, _why = _icw._one_reminder(str(just["text"]))
+            except Exception:  # noqa: BLE001
+                found = None
+            if found is not None and found.get("kind") == "weekly" and found.get("time"):
+                text_now = str((found.get("command") or {}).get("text") or just["text"])
+                return {"command": {"kind": "remind_weekly", "days": [m.group("day")], "time": str(found["time"]),
+                                    "text": text_now, "replaces": text_now}, "say": None}
     if re.fullmatch(r"(?:pause|suspend|hold|stop|mute|silence) (?:all )?(?:my |the )?(?:reminders|alarms)"
                     r"(?: for (?:today|tonight|the day|the rest of the day|now|a while|the weekend|this week))?", low):
         return {"command": None,
