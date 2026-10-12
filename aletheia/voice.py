@@ -9737,6 +9737,54 @@ def _interpret(transcript: str) -> dict:
                 hour += 12
             return {"command": {"kind": "remind_daily", "time": f"{hour:02d}:{minute:02d}", "text": said_text,
                                 "replaces": said_text}, "say": None}
+        said_day = re.fullmatch(r"(?:on |every )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+                                r"(?: at (?P<t>[\w: ]+))?", m.group("time"))
+        if found is not None and found.get("kind") in ("weekly", "monthly") and (hhmm or said_day):
+            # "Change the trash reminder to 8" made the weekly one a ONE-OFF at
+            # 8 and switched the weekly one off; "...to Wednesday" went to the
+            # planner (2026-10-12). It still repeats: a new time on its own
+            # days, or a new day at its own time.
+            said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+            t_words = (said_day.group("t") if said_day else m.group("time")) or ""
+            new_time = _spoken_time(t_words) if t_words else None
+            if t_words and not new_time:
+                return {"command": None, "say": "What time should it be?"}
+            try:
+                was_h, was_m = (int(x) for x in str(found.get("time") or "09:00").split(":")[:2])
+            except ValueError:
+                was_h, was_m = 9, 0
+            hour, minute = (map(int, new_time.split(":")) if new_time else (was_h, was_m))
+            if new_time and _is_bare_hour(t_words) and hour < 12 and (was_h >= 12 or hour <= EARLIEST_BARE_HOUR):
+                hour += 12                       # "the trash at 9 pm" moved "to 8" is 8 pm
+            clock = f"{hour:02d}:{minute:02d}"
+            if found.get("kind") == "monthly":
+                if said_day:
+                    return {"command": None, "say": "That one goes off on a day of the month - say the date, like "
+                                                    "\"on the 5th of every month\"."}
+                return {"command": {"kind": "remind_monthly", "day": int(found.get("monthday") or 1), "time": clock,
+                                    "text": said_text, "replaces": said_text}, "say": None}
+            names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+            days = ([said_day.group("day")] if said_day
+                    else [names[d] for d in found.get("weekdays") or [] if isinstance(d, int) and 0 <= d < 7])
+            if days:
+                return {"command": {"kind": "remind_weekly", "days": days, "time": clock, "text": said_text,
+                                    "replaces": said_text}, "say": None}
+        if said_day and not said_day.group("t") and found is not None and found.get("kind") == "once":
+            # "Move the grandma reminder to Saturday": that day, at its own time.
+            import datetime as _dtd
+            from aletheia import localtime as _ltd
+            day_iso = _spoken_day(said_day.group("day"))
+            try:
+                was = _dtd.datetime.fromisoformat(str(found.get("at") or "").replace("Z", "+00:00")).astimezone(_ltd.operator_tz())
+                at = was.replace(year=int(day_iso[:4]), month=int(day_iso[5:7]), day=int(day_iso[8:10]))
+            except (TypeError, ValueError):
+                at = None
+            if at is not None and at <= _dtd.datetime.now(at.tzinfo):
+                at += _dtd.timedelta(days=7)     # that weekday's hour is gone: next week's
+            if at is not None and at > _dtd.datetime.now(at.tzinfo):
+                said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+                return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": said_text, "replaces": said_text},
+                        "say": None}
         if hhmm and found is not None:
             said_text = str((found.get("command") or {}).get("text") or m.group("what"))
             return {"command": {"kind": "remind_at", "at": _on_its_own_day(found, hhmm, m.group("time")),
