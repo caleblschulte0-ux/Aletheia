@@ -243,3 +243,5 @@
 {"ts": "2026-10-11T16:28:48Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-11"}
 {"ts": "2026-10-11T22:04:38Z", "kind": "event", "actor": "aletheia", "subject": "repo:aletheia", "text": "health unknown -> green"}
 {"ts": "2026-10-11T22:04:38Z", "kind": "event", "actor": "aletheia", "subject": "repo:money_machine", "text": "health green -> unknown"}
+{"ts": "2026-10-12T06:07:11Z", "kind": "alert", "actor": "aletheia", "subject": "repo:aletheia", "text": "health green -> red"}
+{"ts": "2026-10-12T06:07:13Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue updated — Aletheia, Shorts-pipeline"}
