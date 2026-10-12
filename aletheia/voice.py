@@ -1402,8 +1402,16 @@ def _birthday_reminder(m) -> dict:
         before = n * (7 if m.group("unit").startswith("week") else 1)
     else:
         before = 1 if m.group("eve") else 0
+    # "My sister's name is Jenna", "Jenna's birthday is March 3", "when is my
+    # sister's birthday", "remind me a week before" (2026-10-12): she answered
+    # the question through the name and then said she didn't know the date.
+    known = {who}
+    try:
+        known |= {x.casefold() for x in (quick._name_for_relation(who), quick._relation_for_name(who)) if x}
+    except Exception:  # noqa: BLE001
+        pass
     for shown, month, day in quick._birthday_notes():
-        if re.sub(r"^your ", "", shown.casefold()) != who:
+        if re.sub(r"^your ", "", shown.casefold()) not in known:
             continue
         tz = localtime.operator_tz()
         now = dt.datetime.now(tz)
