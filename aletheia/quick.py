@@ -323,6 +323,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Which of those is most urgent" after his list (2026-10-08: to a model).
         r"|^(?:which|what) (?:of (?:those|them|these)|one|task)(?: of (?:those|them))? (?:is|should i do|do i do) (?:the )?"
         r"(?:most (?:urgent|important|pressing)|first|top priority|priority)$"
+        # "Which is due first", "what's due soonest" (2026-10-12: to a model) - the same nearest deadline.
+        r"|^(?:which|what)(?: one| task| of (?:those|them|these))? is due (?:first|soonest|next)$"
+        r"|^what(?:'s| is|s) due (?:first|soonest|next)(?: on my list)?$"
         r"|^what can i (?:do|get done|knock out) in (?:the next )?(?:\d{1,3}|half an|an|a few) (?:minutes?|hours?|mins?)$"
         # "Prioritize my tasks", "I have 30 minutes free what should I do"
         # (2026-10-07: to the planner).
@@ -19172,7 +19175,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "applications_waiting": lambda rest: _applications_waiting(),
            "newest_application": lambda rest: _newest_application(),
            "fleet": lambda rest: _fleet(),
-           "focus": lambda rest: _focus(only_first=bool(re.search(r"\b(?:first|start with|tackle|most urgent|most pressing)\b"
+           "focus": lambda rest: _focus(only_first=bool(re.search(r"\b(?:first|start with|tackle|most urgent|most pressing|soonest|due next)\b"
                                                                   r"|^(?:which|what) (?:of|one|task)", rest))),
            "outcomes": _outcomes,
            "until": _until,
