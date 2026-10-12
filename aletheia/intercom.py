@@ -291,7 +291,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # `replaces` is the text of the reminder this one moves ("make that 4").
     "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
-    "remind_monthly":  ({"day", "time", "text"}, {"tz"}),
+    "remind_monthly":  ({"day", "time", "text"}, {"tz", "replaces"}),
     # "Every hour", "every 30 minutes": within the day, from now.
     "remind_every":    ({"minutes", "text"}, {"replaces", "between", "days"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
@@ -4273,6 +4273,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         day = int(cmd["day"])
         if not 1 <= day <= 31:
             raise act.Refused("a day of the month is 1 to 31.")
+        if cmd.get("replaces"):
+            # "Change the rent reminder to 10": the monthly one moves, and the
+            # old time goes off (never deleted) so he is not reminded twice.
+            old, _why = _one_reminder(str(cmd["replaces"]))
+            if old is not None and old.get("kind") == "monthly":
+                scheduler.set_enabled(old["id"], False)
         sid = "remind-monthly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
