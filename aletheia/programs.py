@@ -1081,13 +1081,14 @@ def _finding_sentences(said: str) -> list[str]:
 
 
 def spoken_findings(*, names: list[str] | None = None, about: list[str] | None = None,
-                    most: int = 3) -> str | None:
+                    titled: list[str] | None = None, most: int = 3) -> str | None:
     """What her missions FOUND, in his words, for "what places are you looking at" or "what's the
     cost of living in Tampa" (2026-10-12: both went to a model that has never read a mission's
     results, with the comparison written and sitting in the store).
 
     With `names` (places, things he named), only sentences that name one of them, best first;
-    without, the newest finished comparison. Only a result that came back ok, never a look's
+    without, the newest finished comparison, or with `titled` the newest finished task whose title
+    has one of those words (the caller's words: this layer names no domain). Only a result that came back ok, never a look's
     account of how it looked or of what it could not do. None when nothing she found settles it,
     so the question still goes to somebody who can think: this may only ever remove a round trip,
     never an answer."""
@@ -1125,14 +1126,19 @@ def spoken_findings(*, names: list[str] | None = None, about: list[str] | None =
                 break
         return "From what I've found so far: " + " ".join(p if p.endswith((".", "!", "?")) else p + "."
                                                        for p in picked)
+    which = (re.compile(r"\b(?:" + "|".join(re.escape(w) for w in titled) + r")\w*", re.I)
+             if titled else _COMPARES)
     comparing = [(title, task, sentences) for title, task, sentences in found
-                 if _COMPARES.search(str(task.get("title") or "")) and sentences]
+                 if which.search(str(task.get("title") or "")) and sentences]
+    # The newest finding first: a weekly look's latest round, not its first.
+    comparing.sort(key=lambda row: max((str(r.get("at") or "") for r in row[1].get("results") or []
+                                        if r.get("outcome") == "ok"), default=""), reverse=True)
     if comparing:
         _title, task, sentences = comparing[0]
         line = " ".join(s if s.endswith((".", "!", "?")) else s + "." for s in sentences[:most])
         return f"From {task.get('title')}: {line}"
     unfinished = next(((r, t) for r in rows for t in r.get("tasks") or []
-                       if _COMPARES.search(str(t.get("title") or "")) and t.get("state") != ws.DONE), None)
+                       if which.search(str(t.get("title") or "")) and t.get("state") != ws.DONE), None)
     if unfinished is not None:
         record, task = unfinished
         return (f"I haven't finished that yet: {task.get('title')} is still to do. "

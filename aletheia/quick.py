@@ -242,7 +242,16 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:compare|comparison of|comparing) (?P<mf_a>[a-z][a-z .'-]{1,25}?) (?:and|with|to|vs\.?|versus) (?P<mf_b>[a-z][a-z .'-]{1,25}?)\??$"
         r"|^how (?:does|do|did) (?P<mf_c>[a-z][a-z .'-]{1,25}?) (?:compare|stack up|rank) (?:to|with|against|next to) (?P<mf_d>[a-z][a-z .'-]{1,25}?)\??$"
         r"|^(?:what(?:'s| is|s)|how(?:'s| is|s)|how much is) (?:the )?(?P<mf_what>cost of living|rent|average rent|state (?:income )?tax|income tax|sales tax|housing|housing market|job market)"
-        r" (?:in|like in|for|around) (?P<mf_e>[a-z][a-z .'-]{1,25}?)\??$")),
+        r" (?:in|like in|for|around) (?P<mf_e>[a-z][a-z .'-]{1,25}?)\??$"
+        # "Which city is cheapest", "which city has no income tax", "what's the best city"
+        # (2026-10-12: a model, with the comparison in the store).
+        r"|^(?:which|what) (?:city|cities|place|places|town|area) (?:is|has|was|had|looks|seems|would be|should i (?:move to|pick|choose))"
+        r"(?: the)?(?: (?P<mf_trait>[a-z][a-z ]{2,40}?))?\??$"
+        r"|^what(?:'s| is|s) the (?P<mf_trait2>best|cheapest|warmest|safest|top|number one|winning) (?:city|place|town|pick|option|choice)(?: to (?:move|live))?\??$"
+        r"|^where(?:'s| is) (?:the )?(?:best|cheapest|warmest|safest) (?:place|city) (?:to (?:move|live))?\??$"
+        # "What events did you find" (2026-10-12: a model, with the look's events in the store).
+        r"|^(?:what|which) (?P<mf_kind>events?|meetups?|groups?) (?:did|have) you (?:find|found|turn up|come up with)(?: so far| for me)?\??$"
+        r"|^did you find any (?P<mf_kind2>events?|meetups?|groups?)(?: yet| so far| for me)?\??$")),
     ("signed_up", re.compile(
         r"^(?:what|which)(?: events?| things?| lists?)? (?:did|have) (?:you|u) (?:sign(?:ed)?|register(?:ed)?|put) me (?:up )?(?:for|on)"
         # "... this week" (2026-10-12: to a model)
@@ -11964,6 +11973,19 @@ def _mission_found(text: str) -> str | None:
     if names:
         about = re.findall(r"[a-z]{3,}", g.get("mf_what") or "")
         return programs.spoken_findings(names=names, about=about)
+    kind = g.get("mf_kind") or g.get("mf_kind2")
+    if kind:
+        return programs.spoken_findings(titled=[kind.rstrip("s")])
+    # "Which city has no income tax": the sentences that say so, when she found any; otherwise
+    # (and for "cheapest", "best") the comparison itself, which says what she measured.
+    trait = re.sub(r"\b(?:the|a|an|no|most|least|lowest|highest|best|cheapest|warmest|safest|biggest|"
+                   r"smallest|lower|higher|better|cheaper|good|great|nice|nicest|top|number one|winning|"
+                   r"pick|option|choice)\b", " ", g.get("mf_trait") or g.get("mf_trait2") or "")
+    trait = " ".join(trait.split())
+    if trait:
+        said = programs.spoken_findings(names=[trait])
+        if said:
+            return said
     return programs.spoken_findings()
 
 

@@ -69,3 +69,44 @@ class WhatCitiesSheIsLookingAt(rehearsed.HisMissionRunsWithoutHim):
         self._found(said="I can't give you a sourced comparison from what I was handed.", outcome="failed",
                     state=rehearsed.ws.RETRY_LATER)
         self.assertEqual(voice._interpret("what's the cost of living in tampa")["command"]["kind"], "missions")
+
+
+class WhichCityAndWhatEvents(WhatCitiesSheIsLookingAt):
+    """Talked to her, 2026-10-12, the same morning: "which city is cheapest", "which city has no
+    income tax", "what events did you find" and "how far along is the move plan" all went to a model."""
+
+    def test_a_trait_is_the_sentences_that_say_it_or_the_comparison(self):
+        from aletheia import quick
+        self._found()
+        said = quick.answer("which city has no income tax") or ""
+        self.assertTrue(said.startswith("From what I've found so far:"), said)
+        self.assertIn("no state income tax", said)
+        self.assertNotIn("Nashville", said)
+        for asked in ("which city is cheapest", "what's the best city", "which city should I move to",
+                      "where's the best place to live"):
+            self.assertIn("From Compare a shortlist of warm red-state cities: Tampa", quick.answer(asked) or "", asked)
+        # "Which one is due first" is the task list's, never the comparison's.
+        self.assertNotEqual((quick.match("which one is due first") or ("",))[0], "mission_found")
+
+    def test_what_events_she_found_is_the_newest_look_for_them(self):
+        from aletheia import quick
+        self._found()
+        self.assertIn("haven't finished", quick.answer("what events did you find") or "")
+
+        def change(record):
+            t2 = next(t for t in record["tasks"] if t["key"] == "t2")
+            t2.update(state=rehearsed.ws.DONE, results=[
+                {"at": "2026-10-10T12:00:00Z", "step": 0, "tool": "research", "outcome": "ok", "said": "Old fair."},
+                {"at": "2026-10-11T12:00:00Z", "step": 0, "tool": "research", "outcome": "ok", "said": rehearsed.EVENT}])
+        rehearsed.pg.update(self.pid, change)
+        for asked in ("what events did you find", "did you find any events"):
+            said = quick.answer(asked) or ""
+            self.assertIn("Sioux Falls Fall Job Fair", said, asked)
+            self.assertTrue(said.startswith("From Search for upcoming job fairs"), said)
+
+    def test_how_far_along_is_the_mission(self):
+        from aletheia import voice
+        rehearsed.pg.add_words(self.pid, "also start planning a move somewhere warm", via="operator-voice",
+                               now=rehearsed.NOW)
+        for asked in ("how far along is the move plan", "when will the move plan be done", "is project reboot done yet"):
+            self.assertEqual(voice._interpret(asked)["command"], {"kind": "missions", "which": self.pid}, asked)

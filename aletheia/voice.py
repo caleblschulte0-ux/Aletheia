@@ -7618,7 +7618,11 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:tell me about|what(?:'s| is|s)|how(?:'s| is|s)|remind me about|explain) (?:my |the )?(.{2,40}?)"
                      r"|what are (?:you|u) (?:working on|doing) (?:for|on|about|with) (?:my |the )?(.{2,40}?)"
                      r"|(?:is )?(?:anything|something) stuck (?:on|in|with) (?:my |the )?(.{2,40}?)"
-                     r"|why (?:is|has) (?:my |the )?(.{2,40}?) (?:stuck|stalled|stopped|not moving)", low)
+                     r"|why (?:is|has) (?:my |the )?(.{2,40}?) (?:stuck|stalled|stopped|not moving)"
+                     # "How far along is the move plan", "when will the move plan be done" (2026-10-12).
+                     r"|(?:how far along|how close to done|how near done) (?:is|are) (?:my |the )?(.{2,40}?)"
+                     r"|when (?:will|should) (?:my |the )?(.{2,40}?) be (?:done|finished|complete|over|wrapped up)"
+                     r"|(?:is|are) (?:my |the )?(.{2,40}?) (?:done|finished|complete) yet", low)
     if m:
         # "Tell me about the move plan", "how's the reboot", "why is the move plan stuck" (2026-10-12:
         # a model, or her memory of notes, with the mission right there). Only a subject naming a live
