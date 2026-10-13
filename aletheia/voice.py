@@ -1705,7 +1705,8 @@ _SHE_SAID_WHEN = re.compile(r"That's |(?:In \d[^,]*|Any moment now), ")
 _SHE_SET_A_REPEAT = re.compile(r"(?P<when>(?:Every|On the) .+?),? I'll remind you: (?P<what>.+?)\.?")
 
 _IS_FOLLOW_UP = re.compile(
-    r"^(?:(?:make|change|move|push|bump|shift) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
+    r"^(?:(?:make|change|move|push|bump|shift|pause|suspend|snooze) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
+    r"(?:turn|put|switch) (?:that|it) back(?: on)?$|"
     r"(?:and|what about|how about|also)\b|(?:read|list|show) (?:me )?(?:them|those)\b)")
 
 
@@ -3442,6 +3443,35 @@ _NOT_A_NAME = {"my", "your", "his", "her", "its", "it", "that", "this", "what", 
                "everyone", "nobody", "somebody", "someone", "the", "a", "an"}
 
 
+def _put_it_back(low: str) -> dict | None:
+    """"Put that back", "turn it back on", "undo that": the reminder his last
+    few sentences turned off, or the task they closed. None for neither."""
+    previous = _previous_ask()
+    before = (_interpret(previous).get("command") or {}) if previous else {}
+    if before.get("kind") != "reminder_off":
+        # "Cancel all my reminders", "what reminders do I have", "put
+        # them back" (2026-10-08): a look at the list sits between.
+        try:
+            from aletheia import converse
+            for turn in reversed(converse.recent(limit=4) or []):
+                said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", " ".join(str(turn.get("he_asked") or "").split()),
+                              flags=re.IGNORECASE)
+                got = (_interpret(said).get("command") or {}) if said and said.casefold() != low else {}
+                if got.get("kind") == "reminder_off":
+                    before = got
+                    break
+        except Exception:  # noqa: BLE001
+            pass
+    if before.get("kind") == "reminder_off" and (not before.get("once") or str(before["once"]).startswith("for ")):
+        return {"command": {"kind": "reminder_on", "which": before["which"]}, "say": None}
+    # "Delete laundry", "undo that" (2026-10-08: "nothing to undo"). A
+    # closed task never reopens, so the same task is added again.
+    back = _task_just_closed(previous)
+    if back is not None:
+        return back
+    return None
+
+
 def _the_person_just_named() -> str:
     """The one person his last few sentences named, or "". "My sister's name
     is Jess", "save Jess's number": Jess. Never a guess between two."""
@@ -4167,30 +4197,16 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:actually,? |no,? |wait,? )?(?:put|turn|switch) (?:that|it|them|those)(?: all)? back(?: on)?"
                      r"|bring (?:that|it|them|those)(?: all)? back|(?:actually,? )?turn (?:that|it|them|those) on again"
                      r"|undo that", low)
-    if m:
-        previous = _previous_ask()
-        before = (_interpret(previous).get("command") or {}) if previous else {}
-        if before.get("kind") != "reminder_off":
-            # "Cancel all my reminders", "what reminders do I have", "put
-            # them back" (2026-10-08): a look at the list sits between.
-            try:
-                from aletheia import converse
-                for turn in reversed(converse.recent(limit=4) or []):
-                    said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", " ".join(str(turn.get("he_asked") or "").split()),
-                                  flags=re.IGNORECASE)
-                    got = (_interpret(said).get("command") or {}) if said and said.casefold() != low else {}
-                    if got.get("kind") == "reminder_off":
-                        before = got
-                        break
-            except Exception:  # noqa: BLE001
-                pass
-        if before.get("kind") == "reminder_off" and not before.get("once"):
-            return {"command": {"kind": "reminder_on", "which": before["which"]}, "say": None}
-        # "Delete laundry", "undo that" (2026-10-08: "nothing to undo"). A
-        # closed task never reopens, so the same task is added again.
-        back = _task_just_closed(previous)
-        if back is not None:
-            return back
+    # It re-reads his last few sentences, and one of them may look back in turn
+    # ("pause it for a week"), which would re-read this one without end.
+    if m and not getattr(_LOOKING_BACK, "put_back", False):
+        _LOOKING_BACK.put_back = True
+        try:
+            got = _put_it_back(low)
+        finally:
+            _LOOKING_BACK.put_back = False
+        if got:
+            return got
     m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)", low)
     if m:
         return {"command": {"kind": "reminder_on", "which": m.group("w")}, "say": None}
@@ -8938,6 +8954,29 @@ def _interpret(transcript: str) -> dict:
             # "Skip it on Friday" (2026-10-12: to a model): the coming Friday.
             once = once if once in ("today", "tomorrow", "tonight", "this week") or once.endswith("day") else "next"
             return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
+    # "Remind me every weekday at 7 to take my pills" - "pause it for a week"
+    # (2026-10-12: to a model). Every time it would go off in that span is
+    # skipped, and it comes back on its own; "pause my pill reminder for a
+    # week" names it instead.
+    m = re.fullmatch(r"(?:pause|suspend|hold|mute|silence|snooze|stop) (?:(?P<it>it|that|that one|this one)|(?:my |the )?"
+                     r"(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)) for (?P<n>a|one|two|three|four|five|six|\d{1,2}|a couple of"
+                     r"|a few) (?P<unit>days?|weeks?)(?: please)?", low)
+    if m:
+        n = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "a couple of": 2,
+             "a few": 3}.get(m.group("n")) or int(m.group("n"))
+        days = n * (7 if m.group("unit").startswith("week") else 1)
+        which = m.group("w")
+        if m.group("it") and not getattr(_LOOKING_BACK, "on", False):
+            _LOOKING_BACK.on = True
+            try:
+                just = next((ask for ask in (_recent_ask_of(kind, "text")
+                                             for kind in ("remind_weekly", "remind_daily", "remind_monthly", "remind_every", "remind_at"))
+                             if ask.get("text")), {})
+            finally:
+                _LOOKING_BACK.on = False
+            which = just.get("text")
+        if which:
+            return {"command": {"kind": "reminder_off", "which": which, "once": f"for {days} days"}, "say": None}
     # "Remind me to water the plants every Sunday at 10" - "move it to Saturday"
     # (2026-10-12: queued for a model). The weekly one he just set, on the new day
     # at the time it already had; the old day goes off so he is not reminded twice.
