@@ -368,7 +368,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-13T11:45:06Z",
+  "generated_at": "2026-10-13T13:46:43Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -463,7 +463,7 @@
         "unclear_button/observed": 2
       },
       "questions": {
-        "nothing_to_press_on_form/filled": 3,
+        "nothing_to_press_on_form/filled": 2,
         "nothing_to_press_on_form/observed": 1,
         "nothing_to_press_on_multi_page_wizard/filled": 1
       },
