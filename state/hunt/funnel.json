@@ -123,6 +123,21 @@
       "unreachable": 3,
       "unreachable_ApplyError": 3,
       "weak_shot": 0
+    },
+    "2026-10-13": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 4,
+      "needs_account": 0,
+      "needs_answer": 0,
+      "not_realistic": 1,
+      "offered": 1,
+      "ready": 0,
+      "runs": 1,
+      "unfit_sales": 1,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "closed_recently": {
@@ -368,7 +383,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-13T13:46:43Z",
+  "generated_at": "2026-10-13T14:17:15Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -399,7 +414,7 @@
     "employer_site: apply_not_taken: none": 1,
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: _ | _ _ | next _": 1,
-    "employer_site: no_apply: none": 7
+    "employer_site: no_apply: none": 5
   },
   "stuck_at": {
     "approval_denied": {
@@ -458,8 +473,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 4,
-        "nothing_to_press_on_form+no_apply/filled": 1,
-        "nothing_to_press_on_form+no_apply/observed": 2,
+        "nothing_to_press_on_form+no_apply/observed": 1,
         "unclear_button/observed": 2
       },
       "questions": {
