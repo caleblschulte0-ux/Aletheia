@@ -365,15 +365,12 @@
       "interviews": 0,
       "rejections": 2,
       "replies": 2,
-      "sent": 1
+      "sent": 2
     }
   },
-  "generated_at": "2026-10-13T01:29:32Z",
+  "generated_at": "2026-10-13T02:05:24Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
-    "ashbyhq: text: tell us what about a _ in sales and _ the _": 1,
-    "ashbyhq: text: what _ _ you _ _ that you _ _ _ of": 1,
-    "ashbyhq: text: what _ a _ you _ _ for _ where you _": 1,
     "employer_site: field: _ _": 4,
     "employer_site: field: _ school _ _ the _ would _ _ the _ _": 1,
     "employer_site: field: master _ degree _ the _ would _ _ the _ _": 1,
@@ -391,9 +388,9 @@
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 296,
+  "sent_all_time": 297,
   "sent_by_system": {
-    "ashbyhq": 26,
+    "ashbyhq": 27,
     "employer_site": 11,
     "greenhouse": 215,
     "lever": 20
@@ -486,14 +483,14 @@
     "interviews": 3,
     "rejections": 14,
     "replies": 46,
-    "sent": 272
+    "sent": 273
   },
   "waiting": {
     "asked_about": {
       "background_check": 2,
       "education": 2,
       "on_site": 2,
-      "other": 14,
+      "other": 13,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -536,7 +533,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 21,
+    "needs_answer": 20,
     "oldest_days": 30,
     "to_send": 0
   },
