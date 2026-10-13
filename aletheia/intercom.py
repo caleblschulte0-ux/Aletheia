@@ -569,7 +569,8 @@ KIND_NOTES: dict[str, str] = {
         '("the bins", "the gym one"); she finds the one reminder that '
         'matches and asks him which if two do. It is DISABLED, not '
         'deleted, so it can be put back. once ("today", "tomorrow", a '
-        'weekday or "next") skips just that one time of a repeating reminder.'),
+        'weekday or "next") skips just that one time of a repeating reminder; '
+        '"for 7 days" pauses it for that many days and it comes back on its own.'),
     "remind_every": (
         'A reminder that repeats within the day - "every hour to drink '
         'water", "every 30 minutes". minutes is 15 to 720; the first one '
@@ -1545,9 +1546,34 @@ def _reminders_answer(which: str = "") -> str:
     if not rows:
         return "You have no reminders set."
     rows = _soonest_first(rows)
-    said = speech.and_list([_alarm_words(r, alone=noun == "alarm") for r in rows[:5]])
+    said = speech.and_list([_alarm_words(r, alone=noun == "alarm") + _skipped_words(r) for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
     return f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+
+
+def _skipped_words(spec: dict) -> str:
+    """", but not tomorrow at 7 am" or ", paused until 20 October at 7 am" -
+    a repeating reminder with skips ahead of it. "Pause it for a week", then
+    "what reminders do I have" listed it as if nothing had changed (2026-10-12)."""
+    if spec.get("kind") == "once" or not spec.get("skips"):
+        return ""
+    import datetime as _dt
+    from aletheia import scheduler, speech
+    now = _dt.datetime.now(_dt.timezone.utc)
+    try:
+        plain, real = scheduler._next_occurrence(spec, now), scheduler.next_occurrence(spec, now)
+        missed = 0
+        at = plain
+        while at is not None and real is not None and at < real and missed < 40:
+            missed += 1
+            at = scheduler._next_occurrence(spec, at)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not plain or not real or not missed:
+        return ""
+    if missed == 1:
+        return f", but not {speech.humanize_time(plain.isoformat())}"
+    return f", paused until {speech.humanize_time(real.isoformat())}"
 
 
 def _alarm_words(spec: dict, *, alone: bool = True) -> str:
@@ -1675,6 +1701,9 @@ def _skip_once(found: dict, once: str) -> str:
     from aletheia import localtime, scheduler, speech
     tz = localtime.operator_tz()
     now = dt.datetime.now(dt.timezone.utc)
+    paused = re.fullmatch(r"for (\d{1,2}) days?", " ".join(once.casefold().split()))
+    if paused:
+        return _pause_for(found, int(paused.group(1)), now)
     if found.get("kind") == "once":
         # "Skip my alarm tomorrow" with a one-off set for tomorrow (2026-10-12:
         # refused, telling him to say "cancel the wake up reminder"). Skipping
@@ -1725,6 +1754,35 @@ def _skip_once(found: dict, once: str) -> str:
     return (f"reminder {found['id']} skipped — {speech._yours(words)} won't go off "
             f"{speech.humanize_time(at.isoformat())}"
             + (f"; next {speech.humanize_time(after.isoformat())}" if after else ""))
+
+
+def _pause_for(found: dict, days: int, now: dt.datetime) -> str:
+    """"Pause it for a week" (2026-10-12: to a model): every time it would go
+    off in the next `days` days is skipped, and it comes back on its own after.
+    "Turn it back on" clears the skips, the same as after one skip."""
+    from aletheia import scheduler, speech
+    words = speech._yours(_reminder_words(found).split(" — ")[0])
+    if found.get("kind") == "once":
+        raise act.Refused(f"it only goes off once - {_reminder_words(found).split(' — ')[-1]}. "
+                          "Say \"cancel it\" if you don't want it.")
+    if not 1 <= days <= 31:
+        raise act.Refused("I can pause a reminder for up to a month.")
+    until = now + dt.timedelta(days=days)
+    times, at = [], scheduler._next_occurrence(found, now)
+    while at is not None and at < until and len(times) <= 14:
+        times.append(at)
+        at = scheduler._next_occurrence(found, at)
+    if len(times) > 14:
+        raise act.Refused("it goes off too often to pause that long. Say \"turn it off\", "
+                          "and \"turn it back on\" when you want it again.")
+    if not times:
+        raise act.Refused(f"it doesn't go off in that time anyway - {_reminder_words(found).split(' — ')[-1]}.")
+    for at in times:
+        scheduler.skip_once(found["id"], at)
+    back = scheduler.next_occurrence(scheduler.load(found["id"]), until)
+    span = ("a day" if days == 1 else "a week" if days == 7
+            else f"{speech.count_phrase(days // 7, 'week')}" if days % 7 == 0 else f"{days} days")
+    return (f"Paused for {span}: {words}." + (f" It's back {speech.humanize_time(back.isoformat())}." if back else ""))
 
 
 def _next_reminder_answer(sort: str = "reminder") -> str:
