@@ -3961,6 +3961,19 @@ def _interpret(transcript: str) -> dict:
                 every = -1
             if every == int(listed.group(1)):
                 return {"command": {"kind": "reminder_off", "which": "all reminders"}, "say": None}
+        # "What reminders do I have on Sunday" - "2 reminders on Sunday: ..." -
+        # "cancel both" (2026-10-12: to a model): the ones she just read, that day.
+        day = re.match(r"(?:(?P<n>\d+) reminders|there are (?P<n2>\d+)) (?:on (?P<wd>monday|tuesday|wednesday|thursday"
+                       r"|friday|saturday|sunday)|(?P<d>today|tonight|tomorrow))(?:: |\. say \"cancel all of them\")",
+                       (answered or "").casefold())
+        if day and re.match(r"(?:cancel|turn off|delete|remove|stop) ", low):
+            when = day.group("wd") or day.group("d")
+            if "both" in low and (day.group("n") or day.group("n2")) != "2":
+                # "Both" of three is not a thing he can mean; asked, not guessed.
+                said_when = when if day.group("d") else "on " + when.capitalize()
+                return {"command": None, "say": f"There are {day.group('n') or day.group('n2')} {said_when}. Say \"cancel all of them\", "
+                                                 "or the one you mean."}
+            return {"command": {"kind": "reminder_off", "which": f"all on {when}"}, "say": None}
     _said, answered = _previous_turn()
     # "Delete my reminder" - "Which one: call mom ... or feed the cat ...?" -
     # "feed the cat" / "the cat one" (2026-10-07): the one he named, if it

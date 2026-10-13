@@ -1756,6 +1756,43 @@ def _skip_once(found: dict, once: str) -> str:
             + (f"; next {speech.humanize_time(after.isoformat())}" if after else ""))
 
 
+def _all_on_day(day: str) -> str:
+    """"Cancel both" after she read "2 reminders on Sunday: ..." (2026-10-12):
+    every reminder that goes off that day. A one-off is stopped; a repeating one
+    is skipped that day only and stays on."""
+    from aletheia import scheduler, speech
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(dt.timezone.utc)
+    offset = _once_offset(day, None)
+    date = dt.datetime.now(tz).date() + dt.timedelta(days=offset or 0)
+    start = max(now, dt.datetime.combine(date, dt.time(17 if day == "tonight" else 0), tzinfo=tz).astimezone(dt.timezone.utc))
+    hits = []
+    for spec in _reminder_schedules():
+        try:
+            at = scheduler.next_occurrence(spec, start - dt.timedelta(seconds=1))
+        except Exception:  # noqa: BLE001
+            continue
+        if at is not None and at.astimezone(tz).date() == date:
+            hits.append((spec, at))
+    hits.sort(key=lambda pair: pair[1])
+    words = day if day in ("today", "tonight", "tomorrow") else "on " + day.capitalize()
+    if not hits:
+        raise act.Refused(f"there are no reminders left {words}.")
+    kept = 0
+    for spec, at in hits:
+        if spec.get("kind") == "once":
+            scheduler.set_enabled(spec["id"], False)
+        else:
+            scheduler.skip_once(spec["id"], at)
+            kept += 1
+    texts = [speech._yours(str((s.get("command") or {}).get("text") or "").rstrip(".")) for s, _at in hits]
+    said = f"Cancelled {speech.count_phrase(len(hits), 'reminder')} {words}: {speech.and_list(texts[:6])}."
+    if kept:
+        said += (" The repeating one is only skipped that day." if kept == 1
+                 else " The repeating ones are only skipped that day.")
+    return said
+
+
 def _pause_for(found: dict, days: int, now: dt.datetime) -> str:
     """"Pause it for a week" (2026-10-12: to a model): every time it would go
     off in the next `days` days is skipped, and it comes back on its own after.
@@ -4550,6 +4587,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 scheduler.set_enabled(row["id"], False)
             return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), 'reminder')}: "
                     + speech.and_list([_reminder_words(r) for r in rows[:4]]))
+        on_day = re.fullmatch(r"all on (today|tonight|tomorrow|" + "|".join(_WEEKDAYS) + r")",
+                              " ".join(str(cmd["which"]).casefold().split()))
+        if on_day:
+            return _all_on_day(on_day.group(1))
         found, why = _one_reminder(cmd["which"], once=str(cmd.get("once") or ""))
         if found is None:
             raise act.Refused(why)
