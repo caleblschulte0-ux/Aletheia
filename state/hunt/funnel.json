@@ -377,13 +377,13 @@
     "2026-10-13": {
       "filled": 16,
       "found": 16,
-      "interviews": 1,
+      "interviews": 2,
       "rejections": 0,
-      "replies": 1,
+      "replies": 3,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-13T14:17:15Z",
+  "generated_at": "2026-10-13T14:48:48Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -411,10 +411,9 @@
     "lever": 20
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: none": 1,
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: _ | _ _ | next _": 1,
-    "employer_site: no_apply: none": 5
+    "employer_site: no_apply: none": 4
   },
   "stuck_at": {
     "approval_denied": {
@@ -473,8 +472,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 4,
-        "nothing_to_press_on_form+no_apply/observed": 1,
-        "unclear_button/observed": 2
+        "unclear_button/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 2,
@@ -489,9 +487,9 @@
   "totals": {
     "filled": 324,
     "found": 699,
-    "interviews": 5,
+    "interviews": 6,
     "rejections": 14,
-    "replies": 48,
+    "replies": 50,
     "sent": 232
   },
   "waiting": {
