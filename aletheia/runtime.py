@@ -1058,6 +1058,70 @@ RULINGS_EVERY_S = 600.0
 RULINGS_ACTOR = "aletheia-rulings"
 
 
+CATCH_UP_EVERY_S = 6 * 3600
+CATCH_UP_DAYS = 14
+_CAUGHT_UP = {"at": -1e18}
+_CONFIRM_SUBJECT = re.compile(r"\bconfirm", re.I)
+_MEETING_SUBJECT = re.compile(r"\b(?:interview|call|meeting|chat|conversation|screen)\b", re.I)
+
+
+def _catch_up_confirmed_interviews(*, now_s: float | None = None, transport=None, ledger=None) -> list[dict]:
+    """Interview confirmations from the last two weeks, read again for any
+    she never put on her calendar.
+
+    Live 2026-10-13: Via confirmed 1:00 PM Oct 13 by email on Oct 8, the
+    evening before she learned to read a confirmation (#349), and the mail
+    poll only looks back 48 hours - so the one interview he had was on
+    nobody's calendar. Headers only until a subject says it confirms an
+    interview; then that body, once. Re-reading is harmless: her calendar
+    entry and the notice are both keyed, and the copy to his calendar is
+    made once (`interviews.copy_to_his_calendar`).
+    """
+    clock = time.monotonic() if now_s is None else now_s
+    if clock - _CAUGHT_UP["at"] < CATCH_UP_EVERY_S:
+        return []
+    _CAUGHT_UP["at"] = clock
+    from aletheia import apply_run, interviews, mail
+    if not interviews.status()["on"]:
+        return []
+    if transport is None:
+        if not mail.available()[0]:
+            return []
+        transport = mail.SmtpImapTransport()
+    ledger = (apply_run.already_sent() or {}) if ledger is None else ledger
+    out: list[dict] = []
+    for message in transport.fetch_since(time.time() - CATCH_UP_DAYS * 86400, 200):
+        subject = " ".join(str(message.get("subject") or "").split())
+        if not (_CONFIRM_SUBJECT.search(subject) and _MEETING_SUBJECT.search(subject)):
+            continue
+        mid = str(message.get("message_id") or "").strip()
+        if not mid:
+            continue
+        try:
+            text = str(transport.fetch_body(mid).get("text") or "")
+        except Exception:
+            continue
+        from email.utils import parseaddr
+        sender = parseaddr(str(message.get("from") or ""))[1].strip().casefold()
+        from aletheia import reply_understanding as ru
+        hit = (_match_ledger(subject.casefold(), sender, ledger)
+               or _match_ledger(ru.fresh_text(text).casefold()[:4000], sender, ledger, body=True))
+        if hit is None:
+            continue
+        event = {"id": "mail-catch-up-" + hashlib.sha256(mid.encode()).hexdigest()[:16],
+                 "kind": "mail.received", "summary": subject}
+        done = interviews.record_confirmation(event, hit[1], subject=subject, text=text)
+        if done:
+            out.append({"application": hit[1].get("id"), "state": done.get("state")})
+    return out
+
+
+def _copy_interviews() -> list[dict]:
+    """Confirmed interviews onto his own calendar (`interviews.copy_to_his_calendar`)."""
+    from aletheia import interviews
+    return interviews.copy_to_his_calendar()
+
+
 def _apply_rulings(*, now_s: float | None = None) -> list[dict]:
     """Make his rulings real. Today one: interviews ON by ruling needs the
     interviews standing grant, which until 2026-10-02 only his keyboard
@@ -1471,6 +1535,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # keyboard: the interviews grant is created from his own words when the
     # ruling says ON and no grant is live. Cheap: one grant listing.
     guarded("rulings", _apply_rulings)
+    guarded("interview confirmations caught up", _catch_up_confirmed_interviews)
+    guarded("interviews on his calendar", _copy_interviews)
     # Mission tasks parked under rules that have since changed (a newer gate, a better
     # tool choice) try again; anything that still needs him stays with him. Cheap, and
     # BEFORE the sign-up lists, which may hold a browser for most of the beat's budget.
