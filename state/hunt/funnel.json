@@ -107,15 +107,15 @@
       "weak_shot": 0
     },
     "2026-10-12": {
-      "duplicate": 0,
+      "duplicate": 1,
       "employer_full": 0,
-      "minutes": 23,
+      "minutes": 38,
       "needs_account": 0,
       "needs_answer": 1,
       "not_realistic": 5,
-      "offered": 7,
-      "ready": 1,
-      "runs": 1,
+      "offered": 9,
+      "ready": 2,
+      "runs": 2,
       "unfit_model": 3,
       "unfit_pay": 1,
       "unfit_sales": 1,
@@ -360,15 +360,15 @@
       "sent": 2
     },
     "2026-10-12": {
-      "filled": 19,
-      "found": 19,
+      "filled": 20,
+      "found": 20,
       "interviews": 0,
       "rejections": 2,
       "replies": 2,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-10-13T01:02:21Z",
+  "generated_at": "2026-10-13T01:29:32Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "ashbyhq: text: tell us what about a _ in sales and _ the _": 1,
@@ -386,15 +386,15 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 295,
+  "sent_all_time": 296,
   "sent_by_system": {
     "ashbyhq": 26,
-    "employer_site": 10,
+    "employer_site": 11,
     "greenhouse": 215,
     "lever": 20
   },
@@ -481,12 +481,12 @@
     }
   },
   "totals": {
-    "filled": 368,
-    "found": 763,
+    "filled": 369,
+    "found": 764,
     "interviews": 3,
     "rejections": 14,
     "replies": 46,
-    "sent": 271
+    "sent": 272
   },
   "waiting": {
     "asked_about": {
@@ -538,7 +538,7 @@
     "needs_account": 0,
     "needs_answer": 21,
     "oldest_days": 30,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
