@@ -3525,8 +3525,11 @@ def _onto_the_named_list(low: str) -> dict | None:
             and not re.search(r"\b(?:to|on|at|onto|into|by|tomorrow|today|tonight|monday|tuesday|wednesday|thursday"
                               r"|friday|saturday|sunday|meeting|appointment|reminder|task)\b", m.group("w")):
         return _interpret(f"add {m.group('w')} to my {name} list")
-    m = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(?P<w>[a-z][a-z0-9' -]{1,40}?) off"
-                     r"|(?:remove|cross off|take off|delete) (?:the |my )?(?P<w2>[a-z][a-z0-9' -]{1,40}?)", low)
+    # "Take towels off it", "remove towels from it" (2026-10-12: the first to a
+    # model, the second took off a thing called "towels from it").
+    m = re.fullmatch(r"(?:take|cross|scratch|tick) (?:the |my )?(?P<w>[a-z][a-z0-9' -]{1,40}?) off(?: (?:of )?(?:it|that|this))?"
+                     r"|(?:remove|cross off|take off|delete) (?:the |my )?(?P<w2>[a-z][a-z0-9' -]{1,40}?)"
+                     r"(?: (?:from|off(?: of)?) (?:it|that|this|there))?", low)
     # "Remove the last one" counts down the list she read (2026-10-07: it
     # looked for a thing called "last one"); that is read further on.
     if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
@@ -3955,6 +3958,20 @@ def _interpret(transcript: str) -> dict:
                     "say": None}
         if _shopping_just_said():
             return {"command": {"kind": "shopping_add", "item": _as_he_said(transcript, m.group("w"))}, "say": None}
+    # "Start a packing list", "add towels to it", "take towels off it" (2026-10-12:
+    # the last to a model). The list he was just on, the same way; "the first one"
+    # is the read-back rule's, further down.
+    m = re.fullmatch(r"(?:take|cross|tick|check|knock|scratch) (?P<w>[a-z][a-z0-9' ,-]{1,60}?) off (?:of )?"
+                     r"(?:it|that|this|that list|this list|the list)"
+                     r"|(?:remove|delete|drop) (?P<w2>[a-z][a-z0-9' ,-]{1,60}?) (?:from|off) "
+                     r"(?:it|that|this|that list|this list|the list)", low)
+    if m and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
+        item = _as_he_said(transcript, m.group("w") or m.group("w2"))
+        name, _last = _the_named_list_just_used()
+        if name and not (name == "gift" and low.endswith(" the list")):
+            return {"command": {"kind": "list_off", "list": name, "item": item}, "say": None}
+        if _shopping_just_said():
+            return {"command": {"kind": "shopping_off", "item": item}, "say": None}
     # "Set another one for 10 minutes" / "another timer for the rice"
     # (2026-10-07: to the planner) is a new timer like the first.
     another = re.fullmatch(r"(?:set |start |make )?another (?:one|timer)(?: for| of)? (.+)", low)
