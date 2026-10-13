@@ -113,7 +113,14 @@ FIELDS: dict[str, dict] = {
                                 "course of study"),
                        "means": "what he studied"},
     "graduation_year": {"asks": ("graduation year", "year of graduation",
-                                 "year graduated", "end date of education"),
+                                 "year graduated", "end date of education",
+                                 # "Year degree was received (or the year the
+                                 # degree would be received)" - four held forms
+                                 # on employer sites 2026-10-12, and plain
+                                 # "degree" handed it his B.B.A.
+                                 "year degree", "year your degree",
+                                 "year of degree", "degree year",
+                                 "year of completion", "completion year"),
                         "means": "the year he finished"},
     "education":      {"asks": ("education",), "means": "his education"},
     # "Your authorization to work in the country where you live" (Vercel,
