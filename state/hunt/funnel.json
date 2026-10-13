@@ -109,19 +109,19 @@
     "2026-10-12": {
       "duplicate": 4,
       "employer_full": 0,
-      "minutes": 71,
+      "minutes": 76,
       "needs_account": 0,
       "needs_answer": 2,
-      "not_realistic": 14,
-      "offered": 26,
+      "not_realistic": 15,
+      "offered": 28,
       "ready": 4,
-      "runs": 6,
-      "unfit_model": 8,
+      "runs": 7,
+      "unfit_model": 9,
       "unfit_pay": 2,
       "unfit_sales": 4,
       "unjudged": 0,
-      "unreachable": 2,
-      "unreachable_ApplyError": 2,
+      "unreachable": 3,
+      "unreachable_ApplyError": 3,
       "weak_shot": 0
     }
   },
@@ -369,7 +369,7 @@
       "sent": 4
     }
   },
-  "generated_at": "2026-10-13T03:34:36Z",
+  "generated_at": "2026-10-13T04:05:27Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -384,7 +384,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
