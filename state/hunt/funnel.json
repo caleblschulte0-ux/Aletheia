@@ -109,14 +109,14 @@
     "2026-10-12": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 38,
+      "minutes": 53,
       "needs_account": 0,
       "needs_answer": 1,
-      "not_realistic": 5,
-      "offered": 9,
-      "ready": 2,
-      "runs": 2,
-      "unfit_model": 3,
+      "not_realistic": 6,
+      "offered": 11,
+      "ready": 3,
+      "runs": 3,
+      "unfit_model": 4,
       "unfit_pay": 1,
       "unfit_sales": 1,
       "unjudged": 0,
@@ -360,15 +360,15 @@
       "sent": 2
     },
     "2026-10-12": {
-      "filled": 20,
-      "found": 20,
-      "interviews": 0,
+      "filled": 21,
+      "found": 21,
+      "interviews": 1,
       "rejections": 2,
-      "replies": 2,
-      "sent": 2
+      "replies": 3,
+      "sent": 3
     }
   },
-  "generated_at": "2026-10-13T02:05:24Z",
+  "generated_at": "2026-10-13T02:32:34Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -388,17 +388,17 @@
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 297,
+  "sent_all_time": 298,
   "sent_by_system": {
     "ashbyhq": 27,
     "employer_site": 11,
     "greenhouse": 215,
-    "lever": 20
+    "lever": 21
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: none": 1,
     "employer_site: empty_page: none": 1,
-    "employer_site: no_apply: none": 8
+    "employer_site: no_apply: none": 7
   },
   "stuck_at": {
     "approval_denied": {
@@ -454,15 +454,12 @@
   "stuck_recently": {
     "days": 3,
     "where": {
-      "captcha": {
-        "nothing_to_press_on_captcha/filled": 1
-      },
       "error": {
         "nothing_to_press_on_unread/observed": 2
       },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 4,
+        "nothing_to_press_on_content+no_apply/observed": 3,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 2,
         "unclear_button/observed": 2
@@ -478,12 +475,12 @@
     }
   },
   "totals": {
-    "filled": 369,
-    "found": 764,
-    "interviews": 3,
+    "filled": 370,
+    "found": 765,
+    "interviews": 4,
     "rejections": 14,
-    "replies": 46,
-    "sent": 273
+    "replies": 47,
+    "sent": 274
   },
   "waiting": {
     "asked_about": {
