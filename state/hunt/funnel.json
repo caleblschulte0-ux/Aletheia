@@ -105,6 +105,23 @@
       "unreachable": 2,
       "unreachable_ApplyError": 2,
       "weak_shot": 0
+    },
+    "2026-10-12": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 23,
+      "needs_account": 0,
+      "needs_answer": 1,
+      "not_realistic": 5,
+      "offered": 7,
+      "ready": 1,
+      "runs": 1,
+      "unfit_model": 3,
+      "unfit_pay": 1,
+      "unfit_sales": 1,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "closed_recently": {
@@ -343,21 +360,21 @@
       "sent": 2
     },
     "2026-10-12": {
-      "filled": 17,
-      "found": 17,
+      "filled": 19,
+      "found": 19,
       "interviews": 0,
       "rejections": 2,
       "replies": 2,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-13T00:14:36Z",
+  "generated_at": "2026-10-13T01:02:21Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "ashbyhq: text: tell us what about a _ in sales and _ the _": 1,
     "ashbyhq: text: what _ _ you _ _ that you _ _ _ of": 1,
     "ashbyhq: text: what _ a _ you _ _ for _ where you _": 1,
-    "employer_site: field: _ _": 3,
+    "employer_site: field: _ _": 4,
     "employer_site: field: _ school _ _ the _ would _ _ the _ _": 1,
     "employer_site: field: master _ degree _ the _ would _ _ the _ _": 1,
     "employer_site: field: year degree _ the _ would _ _ the _ _ have": 2,
@@ -369,7 +386,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -464,8 +481,8 @@
     }
   },
   "totals": {
-    "filled": 366,
-    "found": 761,
+    "filled": 368,
+    "found": 763,
     "interviews": 3,
     "rejections": 14,
     "replies": 46,
@@ -476,7 +493,7 @@
       "background_check": 2,
       "education": 2,
       "on_site": 2,
-      "other": 13,
+      "other": 14,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -519,9 +536,9 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 20,
-    "oldest_days": 29,
-    "to_send": 0
+    "needs_answer": 21,
+    "oldest_days": 30,
+    "to_send": 1
   },
   "window_days": 30
 }
