@@ -349,15 +349,13 @@ def put_on_his_calendar(*, title: str, start: str, end: str, spender=None, provi
         if provider is None:
             ok, why = calendar_live.available()
             if not ok:
-                # No live write is configured on this PC, and none is needed
-                # for the Open Range calendar: the booking was made with the
-                # Open Range address, so the page's own confirmation and its
-                # calendar invitation go to that inbox, and Google Calendar
-                # shows an invitation addressed to its own account. Her own
-                # store already holds it; this is the copy his phone shows.
-                return {"state": "by_invitation",
-                        "say": ("the site's invitation goes to the Open Range inbox, which puts it on that "
-                                "calendar")}
+                # NO INVITATION PUTS IT THERE BY ITSELF. This returned
+                # "by_invitation" until 2026-10-13 and said the invitation
+                # would put it on the Open Range calendar. Via's confirmation
+                # (1:00 PM, Oct 13) never reached that calendar, and he found
+                # out the night before. With no live provider configured, she
+                # adds it herself in her own signed-in browser.
+                return by_browser(title=title, start=start, end=end, spender=spender)
             provider = calendar_live.build_provider()
         if spender is None:
             from aletheia import authority
@@ -372,3 +370,83 @@ def put_on_his_calendar(*, title: str, start: str, end: str, spender=None, provi
         return {"state": "refused", "say": f"the live calendar refused the write ({exc})"}
     except Exception as exc:
         return {"state": "failed", "say": f"the live calendar write failed ({type(exc).__name__})"}
+
+
+_SAVE = ("button:has-text('Save')", "[role=button]:has-text('Save')", "#xSaveBu")
+_SIGN_IN = re.compile(r"accounts\.google\.com|ServiceLogin|/signin", re.I)
+
+
+def template_url(*, title: str, start: str, end: str, account: str = "") -> str:
+    """Google Calendar's own new-event page, filled in, on HIS account."""
+    from urllib.parse import urlencode
+
+    def stamp(value: str) -> str:
+        moment = dt.datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=dt.timezone.utc)
+        return moment.astimezone(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+    query = {"action": "TEMPLATE", "text": title, "dates": f"{stamp(start)}/{stamp(end)}"}
+    if account:
+        query["authuser"] = account
+    return "https://calendar.google.com/calendar/render?" + urlencode(query)
+
+
+def _his_account() -> str:
+    try:
+        from aletheia import profile
+        return str(profile.known().get("email") or "").strip()
+    except Exception:
+        return ""
+
+
+def by_browser(*, title: str, start: str, end: str, spender=None, page=None, account: str | None = None) -> dict:
+    """The interview on his Google Calendar through her own browser: Google's
+    new-event page filled in, one press of Save, under the interviews grant.
+    Never raises.
+
+    {"state": written | needs_grant | needs_sign_in | failed, "say"}. Only
+    "written" claims it is on his calendar; everything else says it is NOT.
+    """
+    action_id = f"calendar-{str(start)[:16]}"
+    session = None
+    try:
+        if spender is None:
+            from aletheia import authority
+            spender = authority.satisfy
+        grant = spender("calendar.write", action_id)
+        if not grant:
+            return {"state": "needs_grant",
+                    "say": "it is NOT on your Google Calendar yet: that needs the interviews grant"}
+        url = template_url(title=title, start=start, end=end,
+                           account=_his_account() if account is None else account)
+        if page is None:
+            from aletheia import browse
+            ok, why = browse.available()
+            if not ok:
+                return {"state": "failed", "say": "it is NOT on your Google Calendar yet: her browser is not ready"}
+            session = browse._Session()
+            ctx = session.__enter__()
+            page = ctx.new_page()
+        page.goto(url, wait_until="domcontentloaded")
+        _settle(page, 2500)
+        if _SIGN_IN.search(str(page.url or "")):
+            return {"state": "needs_sign_in",
+                    "say": "it is NOT on your Google Calendar yet: her browser is not signed in to Google"}
+        if not any(_click_first(page, selector) for selector in _SAVE):
+            return {"state": "failed", "say": "it is NOT on your Google Calendar yet: no Save button on the page"}
+        _settle(page, 2500)
+        if "action=TEMPLATE" in str(page.url or "") or "eventedit" in str(page.url or ""):
+            return {"state": "failed", "say": "it is NOT on your Google Calendar yet: Google did not take the save"}
+        journal.append("action", "interviews", f"put {title} on his Google Calendar under grant {grant}",
+                       actor=ACTOR)
+        return {"state": "written", "say": "it is on your Google Calendar"}
+    except Exception as exc:
+        return {"state": "failed",
+                "say": f"it is NOT on your Google Calendar yet ({type(exc).__name__})"}
+    finally:
+        if session is not None:
+            try:
+                session.__exit__(None, None, None)
+            except Exception:
+                pass

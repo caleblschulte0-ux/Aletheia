@@ -408,6 +408,7 @@ def _confirmed(slot: dict, event: dict, entry: dict, *, company: str, window: di
         hold = None
     live = (calendar_writer or calendly.put_on_his_calendar)(title=f"Interview: {company}",
                                                              start=slot["start"], end=slot["end"])
+    _note_copy(eid, live)
     if entry.get("id"):
         try:
             from aletheia import apply_run
@@ -424,6 +425,113 @@ def _confirmed(slot: dict, event: dict, entry: dict, *, company: str, window: di
         related={"application": entry.get("id"), "event": (hold or {}).get("id", "")})
     journal.append("action", "interviews", sentence, actor=ACTOR)
     return {"state": "confirmed", "chosen": slot, "hold": (hold or {}).get("id"), "live": live.get("state")}
+
+
+def _copies_path():
+    from aletheia import stateio
+    return stateio.private_dir("interviews") / "on-his-calendar.json"
+
+
+def _copies() -> dict:
+    from aletheia import stateio
+    try:
+        value = stateio.read_json(_copies_path())
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _note_copy(event_id: str, live: dict, *, now: dt.datetime | None = None) -> None:
+    from aletheia import stateio
+    try:
+        copies = _copies()
+        copies[event_id] = {"state": str((live or {}).get("state") or ""),
+                            "at": (now or dt.datetime.now(dt.timezone.utc)).isoformat()}
+        stateio.write_json_atomic(_copies_path(), copies)
+    except Exception:
+        pass
+
+
+#: A copy that did not land is tried again, at most this often.
+COPY_RETRY_S = 3600
+_DONE = ("written",)
+
+
+def copy_to_his_calendar(*, now: dt.datetime | None = None, events=None, writer=None) -> list[dict]:
+    """Every upcoming confirmed interview on HIS calendar, not only hers.
+
+    His words, 2026-10-13, the night before Via: "it did not add it to the ORI
+    google calendar ... it needs to be doing that on its own im not clicking
+    anything." Her own store had it; his calendar did not, and nothing ever
+    tried again. Each beat, an interview in her store with no copy on his
+    calendar is put there; a failure is retried hourly until it starts.
+    Never raises.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    out: list[dict] = []
+    try:
+        from aletheia import calendar as cal, calendly
+        events = cal.all_events() if events is None else events
+        copies = _copies()
+        for event in events:
+            title = str(event.get("title") or "")
+            # Hers once an employer confirmed it; or one HE asked her to hold
+            # ("hold:caleb"), which is his word that the time is real. Her own
+            # pencil marks for times she only proposed stay off his calendar.
+            if not title.casefold().startswith("interview"):
+                continue
+            if not (event.get("status") == "CONFIRMED"
+                    or (event.get("status") == "TENTATIVE" and event.get("source") == "hold:caleb")):
+                continue
+            try:
+                start = cal.parse_time(event["start"]).astimezone(dt.timezone.utc)
+            except Exception:
+                continue
+            if start <= now:
+                continue
+            done = copies.get(event["id"]) or {}
+            if done.get("state") in _DONE:
+                continue
+            try:
+                tried = dt.datetime.fromisoformat(str(done.get("at")))
+            except (TypeError, ValueError):
+                tried = None
+            if tried and (now - tried).total_seconds() < COPY_RETRY_S:
+                continue
+            live = (writer or calendly.put_on_his_calendar)(title=title, start=event["start"], end=event["end"])
+            _note_copy(event["id"], live, now=now)
+            out.append({"event": event["id"], "state": live.get("state")})
+            if live.get("state") in _DONE:
+                journal.append("action", "interviews", f"{title} is on his calendar now", actor=ACTOR)
+    except Exception:
+        pass
+    return out
+
+
+def record_confirmation(event: dict, entry: dict, *, subject: str, text: str,
+                        now: dt.datetime | None = None, notify=None, calendar_writer=None) -> dict | None:
+    """An OLD email that confirmed a time, put on her calendar now. Only the
+    confirmation path: no link is followed and nothing is booked or drafted,
+    because the time is already settled. None unless it confirms exactly
+    one time still ahead. Never raises."""
+    try:
+        state = status()
+        if not state["on"] or not text or not confirms(subject, text):
+            return None
+        now = now or dt.datetime.now(dt.timezone.utc)
+        window = state["window"]
+        from aletheia import reply_understanding as ru
+        times = ru.extract_times(ru.fresh_text(text), reference=now, timezone=window["timezone"],
+                                 minutes=DURATION_MIN)
+        if len({t["start"] for t in times}) != 1:
+            return None
+        start = dt.datetime.fromisoformat(times[0]["start"].replace("Z", "+00:00"))
+        if start.tzinfo is None or start <= now:
+            return None
+        return _confirmed(times[0], event, entry, company=str(entry.get("company") or "the employer"),
+                          window=window, notify=notify, calendar_writer=calendar_writer)
+    except Exception:
+        return None
 
 
 def consider(event: dict, entry: dict, *, subject: str, text: str = "", now: dt.datetime | None = None,
