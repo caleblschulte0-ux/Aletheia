@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-13T00:47:29Z",
+  "generated_at": "2026-10-13T14:19:40Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "1fbcf79bfe27",
-          "date": "2026-10-13T00:37:17Z",
-          "message": "Merge pull request #434 from caleblschulte0-ux/claude/probe-next38"
-        },
-        {
-          "sha": "ff30801c34df",
-          "date": "2026-10-13T00:30:02Z",
-          "message": "Merge pull request #433 from caleblschulte0-ux/claude/probe-next37"
-        },
-        {
-          "sha": "ebca4fffb005",
-          "date": "2026-10-13T00:14:42Z",
+          "sha": "e5a99d8ad889",
+          "date": "2026-10-13T13:46:50Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "2a5719e7c6c6",
-          "date": "2026-10-12T23:45:50Z",
+          "sha": "d5ebe04a72db",
+          "date": "2026-10-13T11:45:12Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "3d0244b2cab1",
-          "date": "2026-10-12T23:40:48Z",
-          "message": "\"How long until that\" after a reminder, \"when is that\" after a weekly one"
+          "sha": "2a5a82fcdeee",
+          "date": "2026-10-13T09:41:42Z",
+          "message": "core: state checkpoint"
+        },
+        {
+          "sha": "0bb9f78aaf40",
+          "date": "2026-10-13T08:40:39Z",
+          "message": "core: state checkpoint"
+        },
+        {
+          "sha": "44362bed2a68",
+          "date": "2026-10-13T08:10:04Z",
+          "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "1fbcf79bfe27",
-        "date": "2026-10-13T00:37:17Z",
-        "message": "Merge pull request #434 from caleblschulte0-ux/claude/probe-next38"
+        "sha": "e5a99d8ad889",
+        "date": "2026-10-13T13:46:50Z",
+        "message": "core: state checkpoint"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T15:38:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38271656072"
+          "updated_at": "2026-10-13T00:48:05Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38328971257"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T23:56:03Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38322251619"
+          "updated_at": "2026-10-13T02:57:56Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38337119031"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 21247
+          "bytes": 21789
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "6dd8fb5c3345",
-          "date": "2026-10-13T00:31:09Z",
-          "message": "retro: brief + triage for 20261012 [skip ci]"
+          "sha": "872fa42977ec",
+          "date": "2026-10-13T13:48:14Z",
+          "message": "claim: mailbox verdicts 2026-10-13T13:48Z [skip ci]"
         },
         {
-          "sha": "942adc2a7c2a",
-          "date": "2026-10-13T00:26:42Z",
-          "message": "Third: the who-line skips the streamer's own name in underscore logins, and platform names (#636)"
+          "sha": "e62bae4330ae",
+          "date": "2026-10-13T13:47:12Z",
+          "message": "sports: 2026-10-13 posted log + verdicts [skip ci]"
         },
         {
-          "sha": "65202acf06e3",
-          "date": "2026-10-13T00:05:07Z",
-          "message": "exchange: phase A bundle for 20261013 [skip ci]"
+          "sha": "baa90b505d82",
+          "date": "2026-10-13T13:44:54Z",
+          "message": "third: analytics [skip ci]"
         },
         {
-          "sha": "28054780156a",
-          "date": "2026-10-13T00:04:47Z",
-          "message": "explainer: a story says what it is about, and keeps the number it compares (#637)"
+          "sha": "8d10586946c4",
+          "date": "2026-10-13T13:44:43Z",
+          "message": "third: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "48879b2077f2",
-          "date": "2026-10-12T23:47:40Z",
-          "message": "claim: mailbox verdicts 2026-10-12T23:47Z [skip ci]"
+          "sha": "0cf9d6881eee",
+          "date": "2026-10-13T13:31:28Z",
+          "message": "deadman: repaired 2026-10-13 [skip ci]"
         }
       ],
       "commit": {
-        "sha": "6dd8fb5c3345",
-        "date": "2026-10-13T00:31:09Z",
-        "message": "retro: brief + triage for 20261012 [skip ci]"
+        "sha": "872fa42977ec",
+        "date": "2026-10-13T13:48:14Z",
+        "message": "claim: mailbox verdicts 2026-10-13T13:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,11 +108,11 @@
         },
         {
           "label": "explainer posted",
-          "value": 323
+          "value": 324
         },
         {
           "label": "third posted",
-          "value": 944
+          "value": 948
         },
         {
           "label": "curiosity posted",
@@ -123,51 +123,50 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T11:28:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38242331954"
+          "updated_at": "2026-10-13T11:18:59Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38388806505"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T00:27:05Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38327274175"
+          "updated_at": "2026-10-13T10:01:19Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38380439277"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T22:10:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38315127434"
+          "updated_at": "2026-10-13T13:46:18Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38407657457"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T21:05:07Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38295854988"
+          "updated_at": "2026-10-13T12:49:08Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38399791472"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T20:16:01Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38302840971"
+          "updated_at": "2026-10-13T13:45:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38405648323"
         },
         "explainer.yml": {
           "status": "completed",
-          "conclusion": "cancelled",
-          "updated_at": "2026-10-12T23:11:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38313115959",
-          "said": "The run was canceled by @caleblschulte0-ux."
+          "conclusion": "success",
+          "updated_at": "2026-10-13T13:23:51Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38392459402"
         },
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T00:31:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38327621005"
+          "updated_at": "2026-10-13T06:49:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38358888476"
         },
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-12T13:05:57Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38253291494"
+          "updated_at": "2026-10-13T12:40:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38398969488"
         }
       },
       "state_files": {
@@ -177,11 +176,11 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 159804
+          "bytes": 160876
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 537162
+          "bytes": 539351
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -189,14 +188,14 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 4146509
+          "bytes": 4161735
         },
         "config/channel_registry.json": {
           "exists": true,
           "bytes": 20556
         }
       },
-      "health": "red"
+      "health": "green"
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -253,8 +252,8 @@
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-10T01:07:02Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/38011885637"
+          "updated_at": "2026-10-13T02:40:26Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/38337981654"
         }
       },
       "state_files": {
@@ -403,7 +402,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 67,
+        "days_quiet": 68,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -435,42 +434,10 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-13T00:37:17Z",
+        "last_progress_at": "2026-10-13T13:46:50Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
-          {
-            "number": 438,
-            "title": "\"When is that\" after a weekday reminder; \"how long until it\" after a repeating one",
-            "head": "claude/probe-next41",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/438",
-            "created_at": "2026-10-13T00:46:29Z"
-          },
-          {
-            "number": 437,
-            "title": "\"Take towels off it\" on the list he was just on",
-            "head": "claude/probe-next40",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/437",
-            "created_at": "2026-10-13T00:35:51Z"
-          },
-          {
-            "number": 436,
-            "title": "Answer the degree-year question from his graduation year",
-            "head": "claude/held-questions",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/436",
-            "created_at": "2026-10-13T00:20:05Z"
-          },
-          {
-            "number": 435,
-            "title": "\"Pause my pill reminder for a week\"; \"turn it back on\" no longer hangs",
-            "head": "claude/probe-next39",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/435",
-            "created_at": "2026-10-13T00:14:09Z"
-          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
@@ -501,7 +468,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 19,
+        "days_quiet": 20,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -561,17 +528,15 @@
     ],
     "evidence": []
   },
-  "transitions": [],
-  "alerts": [
+  "transitions": [
     {
       "repo": "shorts_pipeline",
       "github": "Shorts-pipeline",
-      "health": "red",
-      "failing": [
-        "explainer.yml"
-      ]
+      "from": "red",
+      "to": "green"
     }
   ],
+  "alerts": [],
   "plans": {
     "open": 6,
     "items": [
