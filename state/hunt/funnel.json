@@ -127,15 +127,15 @@
     "2026-10-13": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 33,
+      "minutes": 47,
       "needs_account": 0,
       "needs_answer": 0,
-      "not_realistic": 6,
-      "offered": 6,
+      "not_realistic": 7,
+      "offered": 7,
       "ready": 0,
-      "runs": 3,
+      "runs": 4,
       "unfit_model": 2,
-      "unfit_sales": 4,
+      "unfit_sales": 5,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -384,7 +384,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-13T20:26:42Z",
+  "generated_at": "2026-10-13T20:57:27Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 1,
