@@ -107,17 +107,17 @@
       "weak_shot": 0
     },
     "2026-10-12": {
-      "duplicate": 1,
+      "duplicate": 4,
       "employer_full": 0,
-      "minutes": 53,
+      "minutes": 60,
       "needs_account": 0,
-      "needs_answer": 1,
-      "not_realistic": 6,
-      "offered": 11,
-      "ready": 3,
-      "runs": 3,
-      "unfit_model": 4,
-      "unfit_pay": 1,
+      "needs_answer": 2,
+      "not_realistic": 9,
+      "offered": 19,
+      "ready": 4,
+      "runs": 4,
+      "unfit_model": 6,
+      "unfit_pay": 2,
       "unfit_sales": 1,
       "unjudged": 0,
       "unreachable": 0,
@@ -360,15 +360,15 @@
       "sent": 2
     },
     "2026-10-12": {
-      "filled": 21,
-      "found": 21,
+      "filled": 23,
+      "found": 23,
       "interviews": 1,
       "rejections": 2,
       "replies": 3,
-      "sent": 3
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-13T02:32:34Z",
+  "generated_at": "2026-10-13T03:03:55Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 4,
@@ -383,17 +383,17 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 298,
+  "sent_all_time": 299,
   "sent_by_system": {
     "ashbyhq": 27,
     "employer_site": 11,
     "greenhouse": 215,
-    "lever": 21
+    "lever": 22
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: none": 1,
@@ -454,9 +454,6 @@
   "stuck_recently": {
     "days": 3,
     "where": {
-      "error": {
-        "nothing_to_press_on_unread/observed": 2
-      },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/observed": 3,
@@ -470,17 +467,17 @@
         "nothing_to_press_on_multi_page_wizard/filled": 1
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 2
+        "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
   "totals": {
-    "filled": 370,
-    "found": 765,
+    "filled": 372,
+    "found": 767,
     "interviews": 4,
     "rejections": 14,
     "replies": 47,
-    "sent": 274
+    "sent": 275
   },
   "waiting": {
     "asked_about": {
@@ -530,7 +527,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 20,
+    "needs_answer": 21,
     "oldest_days": 30,
     "to_send": 0
   },
