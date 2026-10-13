@@ -1702,7 +1702,9 @@ _SHE_SET_IT = re.compile(r"(?:I'll remind you|Alarm set for|That's) |(?:In \d[^,
 _SHE_SAID_WHEN = re.compile(r"That's |(?:In \d[^,]*|Any moment now), ")
 # "Every Tuesday at 9 pm I'll remind you: take out the trash." - a repeating
 # one, which says when first.
-_SHE_SET_A_REPEAT = re.compile(r"(?P<when>(?:Every|On the) .+?),? I'll remind you: (?P<what>.+?)\.?")
+_SHE_SET_A_REPEAT = re.compile(r"(?P<when>(?:Every|On the|Weekdays|Weekends) .+?),? I'll remind you: (?P<what>.+?)\.?")
+# ...and her answer to "when is that" about one.
+_SHE_SAID_A_REPEAT = re.compile(r"That's (?P<when>(?:every|on the|weekdays|weekends) .+?): (?P<what>.+?)\.?")
 
 _IS_FOLLOW_UP = re.compile(
     r"^(?:(?:make|change|move|push|bump|shift|pause|suspend|snooze) (?:that|it)\b|(?:cancel|scrap|drop|undo) (?:that|it)$|undo$|take that back$|"
@@ -1942,6 +1944,25 @@ def _her_last_answer() -> str:
 def _she_just_set_a_reminder() -> bool:
     """Whether her last answer confirmed a one-off reminder."""
     return bool(re.match(r"(?:I'll remind you|Alarm set for) ", _her_last_answer()))
+
+
+def _next_time_of_the_repeat_just_set():
+    """When the repeating reminder his last ask set next goes off, or None."""
+    _LOOKING_BACK.on = True
+    try:
+        just = next((ask for ask in (_recent_ask_of(kind, "text")
+                                     for kind in ("remind_weekly", "remind_daily", "remind_monthly", "remind_every"))
+                     if ask.get("text")), {})
+    finally:
+        _LOOKING_BACK.on = False
+    if not just:
+        return None
+    try:
+        from aletheia import intercom, scheduler
+        found, _why = intercom._one_reminder(str(just["text"]))
+        return scheduler.next_occurrence(found, dt.datetime.now(dt.timezone.utc)) if found else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def _time_left(at: str) -> str:
@@ -5233,6 +5254,14 @@ def _interpret(transcript: str) -> dict:
         if repeat:
             when = repeat.group("when")
             return {"command": None, "say": f"That's {when[:1].lower() + when[1:]}: {repeat.group('what')}."}
+    # "Remind me on the 1st of every month to pay rent", "how long until it"
+    # (2026-10-12: to a model): the next time it goes off.
+    if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
+        repeat = _SHE_SET_A_REPEAT.fullmatch(_her_last_answer()) or _SHE_SAID_A_REPEAT.fullmatch(_her_last_answer())
+        nxt = _next_time_of_the_repeat_just_set() if repeat else None
+        if nxt and _time_left(nxt.isoformat()):
+            return {"command": None, "say": f"{_time_left(nxt.isoformat())}, {speech.humanize_time(nxt.isoformat())}: "
+                                            f"{repeat.group('what')}."}
     # "Remind me to pick up dry cleaning tomorrow" (9 am), then "at 5" or "5 pm
     # instead" (2026-10-12: to a model): the new time for the reminder she just set.
     m = _BARE_NEW_TIME.fullmatch(low)

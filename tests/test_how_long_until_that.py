@@ -1,6 +1,7 @@
 """"Remind me in 20 minutes to check the oven", "how long until that", and
 "remind me to take out the trash every Tuesday night", "when is that"
-(2026-10-12: both went to a model).
+(2026-10-12: both went to a model), and after a weekday or monthly one,
+"how long until it".
 
 Straight after she confirmed a one-off reminder, "how long until that" is the
 time left on it. After a repeating one, "when is that" is the when her own
@@ -55,6 +56,19 @@ class WhenIsThatRepeating(unittest.TestCase):
         for sentence in ("when is that", "what time is it", "when's that again"):
             got = said(sentence, "Every Tuesday at 9 pm I'll remind you: take out the trash.")
             self.assertEqual({"command": None, "say": "That's every Tuesday at 9 pm: take out the trash."}, got)
+
+    def test_weekdays_and_weekends_too(self):
+        got = said("when is that", "Weekdays at 7 am I'll remind you: take your pills.")
+        self.assertEqual("That's weekdays at 7 am: take your pills.", got["say"])
+
+    def test_how_long_until_it_is_the_next_time(self):
+        nxt = dt.datetime.now(dt.timezone.utc) + dt.timedelta(days=20, minutes=1)
+        for last in ("On the 1st of every month at 9 am I'll remind you: pay rent.",
+                     "That's on the 1st of every month at 9 am: pay rent."):
+            with mock.patch.object(voice, "_next_time_of_the_repeat_just_set", return_value=nxt):
+                got = said("how long until that", last)
+            self.assertTrue(got["say"].startswith("In 20 days, "), got["say"])
+            self.assertTrue(got["say"].endswith(": pay rent."), got["say"])
 
     def test_not_after_an_answer_that_set_nothing(self):
         got = said("when is that", "Every Tuesday is trash day, you told me.")
