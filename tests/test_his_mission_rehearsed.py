@@ -1396,6 +1396,8 @@ class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
             t = next(x for x in r["tasks"] if x["key"] == look["key"])
             t.update(state=ws.DONE, cursor=len(t["plan"]["steps"]))
             t.pop("baseline_rechecked", None)
+            # As his PC had it: the look's question named the places, not the comparison.
+            t["plan"]["steps"][i]["args"] = {"question": "cost of living in Tampa, Austin, Nashville and Charleston"}
             t["results"] = [{"at": "2026-09-16T15:00:00Z", "step": i, "tool": "research", "outcome": "ok",
                              "said": "Austin is 31% cheaper than New York.", "revision": revision},
                             # What was written from it after: on his PC that write was the last result.
