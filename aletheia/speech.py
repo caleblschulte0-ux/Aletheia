@@ -81,6 +81,12 @@ def short_id(value: str) -> str:
     return f"ending {tail}" if tail else ""
 
 
+def _on(said: str) -> str:
+    """"I'll remind you 24 February 2027 at 9 am" (2026-10-14): a date that
+    starts with its number takes "on"; "tomorrow at 9" and "Saturday" do not."""
+    return f"on {said}" if said[:1].isdigit() else said
+
+
 def humanize_time(stamp: str, now: dt.datetime | None = None) -> str:
     """An ISO timestamp as a person would say it.
 
@@ -665,11 +671,11 @@ def spoken_receipt(kind: str, detail: str, *,
         if when and what and text.rstrip().endswith("(already set)"):
             if what.group(1).strip() == "wake up":
                 return f"You already have an alarm for {humanize_time(when.group(0), now)}."
-            return f"You already have that reminder {humanize_time(when.group(0), now)}: {_yours(what.group(1))}."
+            return f"You already have that reminder {_on(humanize_time(when.group(0), now))}: {_yours(what.group(1))}."
         if when and what and what.group(1).strip() == "wake up":
             return f"Alarm set for {humanize_time(when.group(0), now)}."
         if when and what:
-            return (f"I'll remind you {humanize_time(when.group(0), now)}: "
+            return (f"I'll remind you {_on(humanize_time(when.group(0), now))}: "
                     f"{_yours(what.group(1))}.")
     if kind in ("remind_daily", "remind_weekly") and re.search(r"\bset every \d+ (?:days|weeks)\b", text):
         # "reminder remind-every-9f2 set every 2 days from 2026-10-08T09:00:00-05:00 — 'run'"

@@ -1082,7 +1082,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:when|what day) (?:do|does) (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)\s*\??$"
         # "When is daylight saving" (2026-10-07: to the planner).
         r"|^when (?:is|does) (?:the )?(?:daylight sav(?:ing|ings)(?: time)?|dst|the time change)(?: start| end| begin| this year)?\s*\??$"
-        r"|^(?:is it|are we (?:on|in)) daylight sav(?:ing|ings)(?: time)?(?: right now| now)?\s*\??$")),
+        r"|^(?:is it|are we (?:on|in)) daylight sav(?:ing|ings)(?: time)?(?: right now| now)?\s*\??$"
+        # "Is daylight saving time this weekend", "do the clocks change this
+        # week" (2026-10-14: to the planner, which could not plan it).
+        r"|^(?:is|does) (?:the )?(?:daylight sav(?:ing|ings)(?: time)?|dst|the time change)(?: (?:start|end|begin|change|happen))?"
+        r" (?P<tz_soon>this weekend|this week|next week|next weekend|tomorrow|this sunday|this month)\s*\??$"
+        r"|^do (?:the )?clocks? (?:change|go back|go forward|spring forward|fall back)"
+        r" (?P<tz_soon2>this weekend|this week|next week|next weekend|tomorrow|this sunday|this month)\s*\??$")),
     # WHAT'S AHEAD (2026-10-07): "what's coming up", "what am I doing
     # tonight", "how many meetings do I have tomorrow" went to the planner.
     # Her calendar and reminders, soonest first.
@@ -2294,6 +2300,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:does|do) (?:anyone|anybody) (?:still )?owe me(?: (?:any )?(?:money|anything))?\s*\??$"
         r"|^(?:do i owe|does) (?:anyone|anybody) (?:any )?(?:money|anything)(?: owe me(?: money)?)?\s*\??$"
         r"|^(?:what|who) do i (?:still )?owe(?: people)?\s*\??$"
+        # "Do I owe anyone" (2026-10-14: no "money" on the end, so it went to
+        # a model and was answered about bank accounts).
+        r"|^do i (?:still )?owe (?:anyone|anybody)(?: (?:any )?(?:money|anything))?(?: still)?\s*\??$"
         r"|^how much (?:do i (?:still )?owe|does) (?P<owe_amt>[a-z][a-z ]{0,25}?)(?: still)?(?: owe me)?(?: now| still)?\s*\??$"
         # "Do I still owe Sam" (2026-10-07: to the planner).
         r"|^(?:do i (?:still )?owe|does(?=.*\bowe me\b)) (?P<owe_who>(?!anyone\b|anybody\b)[a-z][a-z ]{0,25}?)(?: still)?(?: owe me)?(?: (?:any )?money| anything)?\s*\??$")),
@@ -3124,7 +3133,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? |how much is )?(?:half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters"
         r"|double|triple|twice|three times) (?:of )?" + _QTY + r"(?: " + _KITCHEN_UNIT + r")?$"
         r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r" (?:plus|minus|times|divided by|\+|-) " + _QTY
-        + r"(?: " + _KITCHEN_UNIT + r")?$")),
+        + r"(?: " + _KITCHEN_UNIT + r")?$"
+        # "3/4 of a cup doubled", "3/4 cup times 2" (2026-10-14: to a model).
+        r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r"(?: of an?)?(?: " + _KITCHEN_UNIT + r")? (?:doubled|halved|tripled)$"
+        r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r" " + _KITCHEN_UNIT + r" (?:times|divided by) \d+(?:\.\d+)?$")),
     ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
     ("average", re.compile(r"^(?:what(?:'s| is) )?(?:the )?(?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
     # 2026-10-07, each to the planner: "what percent is 30 of 120", "what's
@@ -3714,7 +3726,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -6716,6 +6728,10 @@ def _owed(question: str = "") -> str:
     if by_me and owe:
         return "You owe " + speech.and_list(owe) + "."
     if not owe and not owed:
+        # "I owe Sarah 20", "I paid Sarah back", "do I owe anyone" (2026-10-14)
+        # was answered as though he had never said a word about it.
+        if any(re.search(r"\b(?:owes?|borrowed|lent|loaned)\b.*\d", str(r.get("text") or "").casefold()) for r in _notes()):
+            return "Nobody right now - everything you told me about has been paid back."
         return "Nobody, as far as you've told me. Say \"I owe Sam 20 dollars\" and I'll keep track."
     said = ["You owe " + speech.and_list(owe) + "." if owe else "You don't owe anybody that you've told me about."]
     if owed_line:
@@ -8930,7 +8946,16 @@ def _fractions(text: str) -> str | None:
     """Halve, double or add kitchen quantities; the unit he said is kept."""
     from fractions import Fraction
     low = re.sub(r"^(?:what(?:'s| is|s)? |how much is )", "", " ".join(str(text or "").casefold().split()))
-    if not re.search(r"/|half|quarter|third|double|triple|twice|three times", low):
+    # "3/4 of a cup doubled", "3/4 cup times 2" (2026-10-14: to a model): the
+    # same sums said the other way round.
+    low = re.sub(r"\b(\d+(?: (?:and )?\d+)?/\d+|half|a third|a quarter) of an? ([a-z]{2,12})\b", r"\1 \2", low)
+    turned = re.fullmatch(r"(.+?) (doubled|halved|tripled)", low)
+    if turned:
+        low = {"doubled": "double", "halved": "half", "tripled": "triple"}[turned.group(2)] + " " + turned.group(1)
+    turned = re.fullmatch(r"(.+?) ([a-z]{2,12}) (times|divided by) (\d+(?:\.\d+)?)", low)
+    if turned and _qty(turned.group(1)) is not None:
+        low = f"{turned.group(1)} {turned.group(3)} {turned.group(4)} {turned.group(2)}"
+    if not turned and not re.search(r"/|half|quarter|third|double|triple|twice|three times", low):
         return None                           # whole numbers are the plain sums' job
     unit = ""
     m = re.fullmatch(r"(half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters|double|triple|twice"
@@ -8971,7 +8996,11 @@ def _fractions(text: str) -> str | None:
     if unit and 0 < result < 1:
         said = f"{said} of a {one}"           # "two thirds of a cup"
     elif unit:
-        said = f"{said} {one if result == 1 else unit}"
+        # "1 and a half cup" (2026-10-14): more than one is the plural,
+        # whichever way he said the unit.
+        many = (unit if unit != one or unit in ("tsp", "tbsp", "oz", "lb", "ml", "g", "kg", "l")
+                else one + ("es" if re.search(r"(?:ch|sh|x)$", one) else "s"))
+        said = f"{said} {one if result == 1 else many}"
     return said[:1].upper() + said[1:] + "."
 
 
@@ -11231,8 +11260,11 @@ def _clock_until(said: str) -> str | None:
     return f"{span[:1].upper() + span[1:]} until {name}{day}."
 
 
-def _time_zone() -> str:
-    """His zone, whether it is on daylight time, and when the clocks next change."""
+def _time_zone(question: str = "") -> str:
+    """His zone, whether it is on daylight time, and when the clocks next change.
+
+    Asked about a window ("is daylight saving this weekend"), the answer
+    leads with yes or no for that window."""
     import datetime as dt
     from aletheia import localtime
     tz = localtime.operator_tz()
@@ -11255,6 +11287,28 @@ def _time_zone() -> str:
     if change:
         said += (f" The clocks go {'back' if dst else 'forward'} an hour on "
                  f"{change.strftime('%A')} the {_ordinal(change.day)} of {change.strftime('%B')}.")
+    g = _groups("time_zone", question) if question else {}
+    soon = g.get("tz_soon") or g.get("tz_soon2")
+    if soon and change:
+        today = now.date()
+        monday = today - dt.timedelta(days=today.weekday())
+        if soon == "tomorrow":
+            first = last = today + dt.timedelta(days=1)
+        elif soon == "this month":
+            first, last = today, (today.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        elif soon in ("this week",):
+            first, last = today, monday + dt.timedelta(days=6)
+        elif soon in ("this weekend", "this sunday"):
+            first, last = monday + dt.timedelta(days=5), monday + dt.timedelta(days=6)
+        elif soon == "next week":
+            first, last = monday + dt.timedelta(days=7), monday + dt.timedelta(days=13)
+        else:   # next weekend
+            first, last = monday + dt.timedelta(days=12), monday + dt.timedelta(days=13)
+        when = f"{change.strftime('%A')} the {_ordinal(change.day)} of {change.strftime('%B')}"
+        go = "back" if dst else "forward"
+        if first <= change <= last:
+            return f"Yes - the clocks go {go} an hour on {when}."
+        return f"No - the clocks next go {go} an hour on {when}."
     return said
 
 
@@ -19580,7 +19634,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "meetings_ahead": lambda rest: _coming_up("", calendar_only=True),
            "meetings_week": lambda rest: _meetings_week(rest),
            "clock_until": lambda rest: _clock_until(rest),
-           "time_zone": lambda rest: _time_zone(),
+           "time_zone": lambda rest: _time_zone(rest),
            "reminders_on": lambda rest: _reminders_on(rest),
            "alarms_on": lambda rest: _reminders_on(rest, alarms=True),
            "greeting": lambda rest: _greeting(),
