@@ -107,6 +107,9 @@ class Sandbox(unittest.TestCase):
             mock.patch.object(communications, "MESSAGES_DIR", root / "c" / "messages"),
             mock.patch.object(communications, "EXPECT_DIR", root / "c" / "expect"),
             mock.patch.object(events, "EVENTS_DIR", root / "events"),
+            # His calendar is bound at import: a rehearsal that holds "Thursday 2026-10-15" left it on
+            # the shared one, and on 10-14 "clear my calendar tomorrow" elsewhere read it back.
+            mock.patch("aletheia.calendar.CALENDAR_DIR", root / "calendar" / "events"),
             mock.patch.object(events, "WATCHERS_DIR", root / "watchers"),
             mock.patch.object(scheduler, "SCHEDULE_DIR", root / "schedules" / "definitions"),
             mock.patch.object(scheduler, "RECEIPT_DIR", root / "schedules" / "receipts"),
