@@ -5149,10 +5149,15 @@ class AboutTheMeetingOnADay(unittest.TestCase):
 
     def test_next_tuesday_is_asked_in_his_words(self):
         from aletheia import voice
-        got = voice.interpret("remind me about the meeting next tuesday at noon")
+        # Three days out, never today's weekday: on a Tuesday "next tuesday"
+        # is a week away and rightly not asked.
+        import datetime as _dt
+        from zoneinfo import ZoneInfo
+        day = (_dt.datetime.now(ZoneInfo("America/Chicago")) + _dt.timedelta(days=3)).strftime("%A").lower()
+        got = voice.interpret(f"remind me about the meeting next {day} at noon")
         self.assertIsNone(got["command"])
         self.assertIn("about the meeting", got["say"])
-        self.assertNotIn("next tuesday'", got["say"])
+        self.assertNotIn(f"next {day}'", got["say"])
 
 
 class ErrandsAreTasks(unittest.TestCase):
