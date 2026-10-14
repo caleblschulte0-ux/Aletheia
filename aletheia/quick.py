@@ -11604,7 +11604,10 @@ def _reminder_until(what: str) -> str | None:
     h, m = divmod(left, 60)
     span = (speech.count_phrase(left, "minute") if left < 60
             else speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(m, 'minute')}" if m else ""))
-    return (f"Your {what} reminder goes off in {span}, {speech.humanize_time(at.isoformat())}: "
+    # "Your that reminder goes off in 2 hours" (2026-10-14): a pointing word
+    # is not a name.
+    lead = "That reminder" if what.casefold() in ("that", "this", "it", "the") else f"Your {what} reminder"
+    return (f"{lead} goes off in {span}, {speech.humanize_time(at.isoformat())}: "
             f"{speech._yours(text.rstrip('.'))}.")
 
 

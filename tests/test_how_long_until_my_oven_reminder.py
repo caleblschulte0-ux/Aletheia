@@ -23,6 +23,15 @@ class HowLongUntil(unittest.TestCase):
         self.assertTrue(got.startswith("Your oven reminder goes off in 20 minutes"), got)
         self.assertTrue(got.endswith(": check the oven."), got)
 
+    def test_that_reminder_is_not_a_name(self):
+        # "Your that reminder goes off in 2 hours" (2026-10-14).
+        AT = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=20, seconds=5)
+        with mock.patch.object(intercom, "_one_reminder", return_value=(OVEN, "")), \
+                mock.patch.object(scheduler, "next_occurrence", return_value=AT), \
+                mock.patch.object(intercom, "_reminder_words", return_value="check the oven — today"):
+            got = quick._reminder_until("that")
+        self.assertTrue(got.startswith("That reminder goes off in 20 minutes"), got)
+
     def test_goes_off_is_the_same_question(self):
         with mock.patch.object(quick, "_reminder_until", return_value="x") as asked:
             quick._until("the oven reminder goes off")
