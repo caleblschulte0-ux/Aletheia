@@ -127,15 +127,16 @@
     "2026-10-13": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 47,
+      "minutes": 75,
       "needs_account": 0,
-      "needs_answer": 0,
-      "not_realistic": 7,
-      "offered": 7,
-      "ready": 0,
-      "runs": 4,
+      "needs_answer": 1,
+      "not_realistic": 10,
+      "offered": 13,
+      "ready": 2,
+      "runs": 5,
+      "unfit_language": 1,
       "unfit_model": 2,
-      "unfit_sales": 5,
+      "unfit_sales": 7,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -376,19 +377,21 @@
       "sent": 4
     },
     "2026-10-13": {
-      "filled": 16,
-      "found": 16,
+      "filled": 19,
+      "found": 19,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-14T00:03:34Z",
+  "generated_at": "2026-10-14T00:35:21Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 1,
+    "employer_site: field: _ at _ letter number the _ would _ _ the _": 1,
     "employer_site: field: _ school _ _ the _ would _ _ the _ _": 1,
+    "employer_site: field: company _ _ _ _ to _ _ _ the _ would": 1,
     "employer_site: field: master _ degree _ the _ would _ _ the _ _": 1,
     "employer_site: field: year degree _ the _ would _ _ the _ _ have": 2,
     "lever: field: date": 2,
@@ -413,7 +416,7 @@
   },
   "stop_shapes": {
     "employer_site: no_apply: _ | _ _ | next _": 1,
-    "employer_site: no_apply: none": 4
+    "employer_site: no_apply: none": 1
   },
   "stuck_at": {
     "approval_denied": {
@@ -470,21 +473,17 @@
     "days": 3,
     "where": {
       "no_way_forward": {
-        "nothing_to_press_on_content+no_apply/observed": 4,
-        "unclear_button/observed": 1
+        "nothing_to_press_on_content+no_apply/observed": 2
       },
       "questions": {
         "nothing_to_press_on_form/filled": 3,
         "nothing_to_press_on_multi_page_wizard/filled": 1
-      },
-      "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1
       }
     }
   },
   "totals": {
-    "filled": 323,
-    "found": 699,
+    "filled": 326,
+    "found": 702,
     "interviews": 6,
     "rejections": 15,
     "replies": 51,
@@ -495,7 +494,7 @@
       "background_check": 2,
       "education": 2,
       "on_site": 2,
-      "other": 12,
+      "other": 13,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -537,7 +536,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 19,
+    "needs_answer": 20,
     "oldest_days": 30,
     "to_send": 0
   },
