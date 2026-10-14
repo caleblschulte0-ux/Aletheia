@@ -1435,8 +1435,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("agenda_week", re.compile(r"^(?:how(?:'s| is) my week (?:looking|look)|how does my week look|how(?:'s| is) my week(?: shaping up)?)\s*\??$")),
     ("agenda", re.compile(
         r"^what(?:'s| is|s)? (?:on|in) (?:my |the )?(?:calendar|schedule|agenda|plate)"
-        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
-        r"|^what (?:do i have|have i got|is there|am i doing|are we doing)(?: going on| planned| scheduled| happening| lined up)? (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"(?: for)?(?: on| this)? (?P<day>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|next month|in (?:january|february|march|april|may|june|july|august|september|october|november|december)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"|^what (?:do i have|have i got|is there|am i doing|are we doing)(?: going on| planned| scheduled| happening| lined up)? (?:on )?(?P<day2>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|next month|in (?:january|february|march|april|may|june|july|august|september|october|november|december)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         # "Who am I meeting tomorrow" became a calendar hold called "who am
         # I meeting" (2026-10-07). It is the day's calendar, asked by who.
         r"|^(?:who|where) (?:am i|do i) (?:meeting|meet|seeing|see|having (?:lunch|dinner|coffee|breakfast) with|have (?:lunch|dinner|coffee|breakfast) with|"
@@ -1452,11 +1452,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "Is anything happening Saturday" (2026-10-07: to the planner).
         r"|^(?:what(?:'s| is|s)? (?:on|happening|coming up|going on)|(?:is (?:there )?|(?:do i have|have i got) (?!anything(?: on| planned| scheduled| going on)? (?:today|tomorrow)$))?anything(?: (?:on|happening|coming up|planned|going on))?|what have i got on"
         r"|what(?:'s| is|s)? (?:my|the) (?:week|day) (?:looking like|look like))"
-        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
+        r"(?: for)?(?: on)? (?P<day5>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|next month|in (?:january|february|march|april|may|june|july|august|september|october|november|december)|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$"
         r"|^what(?:'s| is|s| does)? (?:my|the) (?P<day6>week) (?:looking like|look like)$"
         # "What's my schedule this week" paid seven seconds of model for a
         # feed the shapes above already read (2026-09-22).
-        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|the week|the month)"
+        r"|^what(?:'s| is|s)? (?:my |the )?(?:calendar|schedule|agenda) (?:for |like )?(?P<day7>today|tomorrow|this week|next week|this weekend|the weekend|next weekend|this month|next month|in (?:january|february|march|april|may|june|july|august|september|october|november|december)|the week|the month)"
         r"(?: like| looking like)?$"
         # "What's my schedule look like" (2026-10-07: to the planner) - today
         # unless he names a day.
@@ -7387,6 +7387,12 @@ def _agenda(day: str = "today") -> str | None:
             # "What's happening this month" (2026-10-07: to a model).
             first = now.date()
             last = (now.date().replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        elif day == "next month" or day[3:] in _MONTHS and day.startswith("in "):
+            # "What do I have in November" (2026-10-14: to a model).
+            month = now.month % 12 + 1 if day == "next month" else _MONTHS.index(day[3:]) + 1
+            year = now.year + (month < now.month)
+            first = now.date() if (year, month) == (now.year, now.month) else dt.date(year, month, 1)
+            last = dt.date(year + (month == 12), month % 12 + 1, 1) - dt.timedelta(days=1)
         elif day == "next week":
             first = now.date() + dt.timedelta(days=7 - now.weekday())
             last = first + dt.timedelta(days=6)
@@ -7426,9 +7432,12 @@ def _agenda(day: str = "today") -> str | None:
              else "This weekend" if day in ("this weekend", "the weekend")
              else "Next weekend" if day == "next weekend"
              else "This month" if day == "this month"
+             else "Next month" if day == "next month"
+             else "In " + day[3:].title() if day.startswith("in ")
              else "This week" if day == "this week" else "Next week")
     when_said = label.lower() if label in ("Today", "Tomorrow", "This week", "Next week", "This weekend", "Next weekend",
-                                           "This month", "The rest of this weekend") else label
+                                           "This month", "Next month", "The rest of this weekend") \
+        else "in " + label[3:] if label.startswith("In ") else label
     # "We're having people over Friday night" is a note, and "what's
     # happening Friday" said only "Nothing on your calendar Friday"
     # (2026-10-07). His own word for the day, said this past week.
@@ -7438,7 +7447,7 @@ def _agenda(day: str = "today") -> str | None:
             + _reminders_between(first, last, now)
     rows.sort(key=lambda r: r[0])
     many_days = first != last
-    said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month"
+    said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month" or "month" in day or day.startswith("in ")
              else f"{title} {start.strftime('%A')} at " if many_days else f"{title} at ")
             + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
             for start, title in rows[:6]]
@@ -17380,7 +17389,8 @@ def _leave_flight(text: str) -> str | None:
         clock = f"{(h % 12) or 12}{':%02d' % mm if mm else ''} {'am' if h < 12 else 'pm'}"
         day = re.search(r"\b(?:on )?((?:mon|tues|wednes|thurs|fri|satur|sun)day|today|tomorrow|tonight)\b", low)
         when = f" {day.group(1).capitalize() if day and day.group(1).endswith('day') and day.group(1) not in ('today',) else (day.group(1) if day else '')}".rstrip()
-        flight = re.sub(r"(?i)^i\b", "you", said)
+        from aletheia import speech
+        flight = speech.as_she_says_it(said)
         return (f"You told me {flight}. For a flight inside the country, aim to be at the airport about two hours ahead - "
                 f"around {clock}{when} - and leave in time to get there by then. For an international flight, make it three hours.")
     return None
