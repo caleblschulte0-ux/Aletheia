@@ -1447,6 +1447,22 @@ class WhatHisPcDidOnTheThirteenth(HisHoursAndHisCalendar):
         stuck = [t["reason"] for t in pg.load(self.pid)["tasks"] if "overlaps" in str(t.get("reason") or "")]
         self.assertEqual(stuck, [])
 
+    def test_the_steps_view_says_whether_a_hold_reached_his_own_calendar(self):
+        # "it need to be added to the ORI google canalcder" (2026-10-14): the copy had no reader.
+        import datetime as dt
+        from aletheia import interviews
+        self._already_held()
+        early = dt.datetime(2026, 10, 14, tzinfo=dt.timezone.utc)
+        rows = pg._holds_on_his_calendar(now=early)
+        self.assertEqual(len(rows), 1, rows)
+        self.assertIn("Tails on the Trail", rows[0])
+        self.assertIn("not tried yet", rows[0])
+        event_id = next(e["id"] for e in __import__("aletheia.calendar", fromlist=["x"]).all_events())
+        with mock.patch.object(interviews, "_copies",
+                               return_value={event_id: {"state": "written", "at": "2026-10-14T03:00:00+00:00"}}):
+            self.assertIn("written at", pg._holds_on_his_calendar(now=early)[0])
+        self.assertEqual(pg._holds_on_his_calendar(now=dt.datetime(2026, 10, 16, tzinfo=dt.timezone.utc)), [])
+
     def test_a_clashing_time_already_chosen_is_chosen_again(self):
         self._already_held()
         with self._with_event(self.TWO):
