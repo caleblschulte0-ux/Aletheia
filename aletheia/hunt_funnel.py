@@ -510,6 +510,7 @@ def publish(*, now: dt.datetime | None = None, clock=None, path=None) -> dict | 
                                "where": stuck_at(left, now=now, days=RECENT_DAYS)}
     fresh["stop_shapes"] = stop_shapes(left, now=now)
     fresh["question_shapes"] = question_shapes(rows, now=now)
+    fresh["boards"] = boards_by_system()
     target = path or FUNNEL_PATH
     try:
         old = json.loads(target.read_text(encoding="utf-8"))
@@ -758,3 +759,21 @@ def _waiting_words(held) -> list[str]:
     if not parts:
         return []
     return ["- **Waiting:** " + "; ".join(parts) + "."]
+
+
+def boards_by_system() -> dict:
+    """How many employer boards she can read, per system - counts only.
+
+    Live 2026-10-13 she was offered 7 openings all day against 518 two days
+    before, with Greenhouse paused; whether that is the probe finding nothing
+    or every board read dry was not visible from here. No names: the repo is
+    public."""
+    out: dict = {}
+    try:
+        from aletheia import jobs
+        for row in jobs._learned_boards():
+            key = str(row.get("provider") or "?")
+            out[key] = out.get(key, 0) + 1
+    except Exception:
+        return {}
+    return dict(sorted(out.items()))
