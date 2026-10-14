@@ -2366,7 +2366,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # water bill is due on the 15th" kept).
     ("bills_due", re.compile(
         r"^(?:what|which) bills (?:do i (?:need|have) to pay|(?:do i have |have i got |are )?(?:coming up|due|to pay|left to pay))"
-        r"(?: this (?:week|month)| soon| next)?\s*\??$")),
+        r"(?P<bills_w> this (?:week|month)| soon| next)?\s*\??$"
+        # "What bills do I have this week" (2026-10-14: to a model).
+        r"|^(?:what|which|any) bills (?:do i have |have i got |are there |are )?(?P<bills_w2>this (?:week|month)|next week)\s*\??$")),
     # "What do you remind me every morning", "what are my daily reminders"
     # (2026-10-08: to a model and to a memory search).
     ("repeating", re.compile(
@@ -3736,7 +3738,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -15445,10 +15447,80 @@ def _say_mine(said: str) -> str:
     return speech.as_she_says_it(said).rstrip(".")
 
 
-def _bills_due() -> str | None:
+def _bill_day(note: str, today):
+    """The next day a bill note puts it due: "due on the 15th every month"
+    (or just "on the 15th") is the next 15th; "due November 30" is that
+    date. None when the note gives no day."""
+    import datetime as dt
+    low = note.casefold()
+    month_re = "|".join(_MONTHS)
+    m = re.search(rf"\b(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?\b", low) \
+        or re.search(rf"\b(?P<day>\d{{1,2}})(?:st|nd|rd|th)? (?:of )?(?P<mon>{month_re})\b", low)
+    if m:
+        try:
+            when = dt.date(today.year, _MONTHS.index(m.group("mon")) + 1, int(m.group("day")))
+        except ValueError:
+            return None
+        return when if when >= today else when.replace(year=today.year + 1)
+    m = re.search(r"\bdue (?:on )?(?:the )?(?P<day>\d{1,2})(?:st|nd|rd|th)\b", low)
+    if not m or not 1 <= int(m.group("day")) <= 31:
+        return None
+    day, year, month = int(m.group("day")), today.year, today.month
+    for _ in range(3):
+        try:
+            when = dt.date(year, month, day)
+            if when >= today:
+                return when
+        except ValueError:
+            pass
+        month, year = (1, year + 1) if month == 12 else (month + 1, year)
+    return None
+
+
+def _bills_due(question: str = "") -> str | None:
     """Bills he told her are due and reminders to pay one, together. None
-    when neither store has any: his mail may, and a model can read it."""
-    from aletheia import speech
+    when neither store has any: his mail may, and a model can read it.
+
+    Asked about a window ("this week", "this month", "next week"), only the
+    bills whose day falls in it, each with its day (2026-10-14)."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("bills_due", question) if question else {}
+    window = (g.get("bills_w") or g.get("bills_w2") or "").strip()
+    if window in ("this week", "this month", "next week"):
+        today = dt.datetime.now(localtime.operator_tz()).date()
+        monday = today - dt.timedelta(days=today.weekday())
+        first, last = {"this week": (today, monday + dt.timedelta(days=6)),
+                       "next week": (monday + dt.timedelta(days=7), monday + dt.timedelta(days=13)),
+                       "this month": (today, (today.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1))}[window]
+        dated, seen = [], set()
+        for row in _notes():
+            note = " ".join(str(row.get("text") or "").split()).rstrip(".")
+            low = note.casefold()
+            if not (re.search(rf"\b(?:{_BILL_KEYS}|bill|payment)\b", low) and re.search(r"\bdue\b", low)):
+                continue
+            when = _bill_day(note, today)
+            what = re.match(r"(?:my |the |our )?(?P<what>.+?) (?:is|are) due\b", low)
+            if when is None or not what or what.group("what") in seen:
+                continue
+            seen.add(what.group("what"))
+            dated.append((when, what.group("what")))
+        for at, what, store in _coming():
+            local = at.astimezone(localtime.operator_tz()).date()
+            if store == "reminder" and re.search(r"\b(?:pay|bill|rent|mortgage)\b", str(what).casefold()):
+                dated.append((local, f"a reminder to {str(what).rstrip('.')}"))
+        inside = sorted((d, w) for d, w in dated if first <= d <= last)
+        if inside:
+            listed = speech.and_list([f"{'your ' + w if not w.startswith('a reminder') else w} on "
+                                      f"{d.strftime('%A')} the {_ordinal(d.day)}" for d, w in inside[:5]])
+            return f"Due {window}: {listed}."
+        later = sorted((d, w) for d, w in dated if d > last)
+        if later:
+            d, w = later[0]
+            return (f"Nothing due {window} that you've told me about. The next is "
+                    f"{'your ' + w if not w.startswith('a reminder') else w}, {d.strftime('%A')} the {_ordinal(d.day)} of {d.strftime('%B')}.")
+        if dated:
+            return f"Nothing due {window} that you've told me about."
     said, seen = [], set()
     for row in _notes():
         note = " ".join(str(row.get("text") or "").split())
@@ -19946,7 +20018,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "who_said": _who_said,
            "places_liked": lambda rest: _places_liked(),
            "repeating": _repeating,
-           "bills_due": lambda rest: _bills_due(),
+           "bills_due": lambda rest: _bills_due(rest),
            "can_eat": lambda text: _can_eat(*(lambda g: (g.get("can_eat") or g.get("can_eat2") or "", g.get("ce_who") or ""))(
                _groups("can_eat", text))),
            "event_who": lambda rest: _event_who(rest),

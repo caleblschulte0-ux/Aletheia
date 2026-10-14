@@ -8480,6 +8480,17 @@ def _interpret(transcript: str) -> dict:
                     r"|what (?:bills|payments|subscriptions) (?:are|is) (?:due|coming up|renewing)(?: soon| this month| this week)?"
                     r"|(?:what|which) bills do i have|my bills|what do i pay (?:each|every|a) month"
                     r"|how much (?:do i|am i) (?:spend(?:ing)?|pay(?:ing)?) on subscriptions(?: a month| per month| each month)?)", low):
+        # "What bills are due this month" said "No subscriptions are being
+        # tracked" with his car insurance noted as due on the 15th
+        # (2026-10-14). Bills he told her about answer a bills question first.
+        if re.search(r"\bbills?\b|\bpayments?\b", low):
+            try:
+                from aletheia import quick as _quick
+                noted = _quick._bills_due(low)
+            except Exception:  # noqa: BLE001 - the tracker still answers
+                noted = None
+            if noted:
+                return {"command": None, "say": noted}
         return {"command": {"kind": "subscriptions"}, "say": None}
 
     # "What's my BANK balance" and "what do I have IN THE BANK" reached no
