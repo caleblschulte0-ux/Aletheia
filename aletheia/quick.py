@@ -5537,6 +5537,9 @@ def _until_mine(words: str) -> str | None:
             parts = [speech.count_phrase(n, unit) for n, unit in ((hours, "hour"), (mins, "minute")) if n]
         span = " and ".join(parts[:2]) if parts else "less than a minute"
         return f"{span[:1].upper()}{span[1:]} - {speech.humanize_time(at.isoformat())}."
+    if not timer:
+        words_of = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in _STOP_WORDS]
+        return _cancelled_hold([w for w in words_of if w.rstrip("s") not in _WHEN_NOUNS])
     return None
 
 
@@ -11604,8 +11607,40 @@ def _reminder_until(what: str) -> str | None:
     h, m = divmod(left, 60)
     span = (speech.count_phrase(left, "minute") if left < 60
             else speech.count_phrase(h, "hour") + (f" and {speech.count_phrase(m, 'minute')}" if m else ""))
-    return (f"Your {what} reminder goes off in {span}, {speech.humanize_time(at.isoformat())}: "
+    # "Your that reminder goes off in 2 hours" (2026-10-14): a pointing word
+    # is not a name.
+    lead = "That reminder" if what.casefold() in ("that", "this", "it", "the") else f"Your {what} reminder"
+    return (f"{lead} goes off in {span}, {speech.humanize_time(at.isoformat())}: "
             f"{speech._yours(text.rstrip('.'))}.")
+
+
+def _cancelled_hold(words: list[str]) -> str | None:
+    """"Cancel my dentist appointment", then "when is my dentist appointment"
+    (2026-10-14: to a model, which cannot know she took it off). A hold of
+    hers that was cancelled, still ahead, every word in its title, is a fact
+    of her own calendar. Only a word that names the thing counts ("dentist",
+    never "meeting" alone), and only one cancelled in the last fortnight.
+    None when there is none."""
+    import datetime as dt
+    if not words:
+        return None
+    try:
+        from aletheia import calendar as _calendar, calendar_reasoning
+        now = dt.datetime.now(dt.timezone.utc)
+        gone = [e for e in _calendar.all_events()
+                if str(e.get("status")) == "CANCELLED"
+                and all(re.search(rf"\b{re.escape(w.rstrip('s'))}", str(e.get("title") or "").casefold()) for w in words)
+                and _calendar.parse_time(str(e.get("start"))) > now
+                and now - _calendar.parse_time(str(e.get("updated_at") or e.get("start"))) < dt.timedelta(days=14)]
+        if not gone:
+            return None
+        last = max(gone, key=lambda e: str(e.get("updated_at") or e.get("start") or ""))
+        title = str(last.get("title") or "")
+        title = f"your {title}" if title[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", title) else title
+        return (f"You don't have one now - {title} {calendar_reasoning.human(last['start'])} was cancelled, "
+                "and I took it off your calendar.")
+    except Exception:
+        return None
 
 
 def _when_mine(what: str, until: bool = False) -> str | None:
@@ -11663,6 +11698,9 @@ def _when_mine(what: str, until: bool = False) -> str | None:
             # A when, not just a number: "my rent is 1500" answered "when
             # is rent due" (2026-10-07).
             return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
+    gone = _cancelled_hold(named)
+    if gone:
+        return gone
     # Nothing by that name in her stores is not "you have none": it may be
     # in his mail, which a model can read. Only a found answer is quick.
     return None
