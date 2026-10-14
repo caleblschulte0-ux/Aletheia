@@ -2737,6 +2737,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                               r"(?P<went_place>[a-z][a-z' &-]{1,30}?)(?: last)?\s*\??$")),
     # "Am I working Saturday", "what is my shift tomorrow", "what days am I
     # off this week" (2026-10-08: each to a model) after he said so.
+    # "How many hours do I work a week" after "I work 8 to 5 Monday through
+    # Friday" (2026-10-14: "I can't think").
+    ("work_week", re.compile(r"^how many hours (?:do|will) i work (?:a|per|each|every|this|in a) week\s*\??$")),
     ("my_shift", re.compile(r"^(?:am i working|do i (?:have to )?work|do i have work|what(?:'s| is| are) my (?:shift|hours))"
                             r"(?: (?P<shift_day>today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend))?\s*\??$"
                             r"|^what days? am i (?P<shift_off>off)(?: this week| next week)?\s*\??$")),
@@ -13756,7 +13759,7 @@ def _do_i_work(rest) -> str | None:
             on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
         except ValueError:
             continue
-        off = re.search(r"\b(?:day|days|night|weekend) off\b|\b(?:off work|not working|don't work|do not work)\b"
+        off = re.search(r"\b(?:day|days|night|weekend|today|tomorrow|(?:mon|tues|wednes|thurs|fri|satur|sun)day) off\b|\b(?:off work|not working|don't work|do not work)\b"
                         r"|\bi'?m off (?:today|tomorrow|on |this |next |mon|tue|wed|thu|fri|sat|sun)", low)
         if off:
             named = {on: "today", on + dt.timedelta(days=1): "tomorrow"}
@@ -13764,13 +13767,14 @@ def _do_i_work(rest) -> str | None:
                     or _DAYS[d.weekday()] in low or ("weekend" in low and d.weekday() >= 5)]
             if hits:
                 return f"No - you told me {speech.as_she_says_it(said).rstrip('.')[:1].lower()}{speech.as_she_says_it(said).rstrip('.')[1:]}."
-        days = re.search(r"\bi work (?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
+        # "I work 8 to 5 Monday through Friday" (2026-10-14: "but not which days").
+        days = re.search(r"\bi work (?:from )?(?:\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
                          r" (?:to|through|thru|-) (monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low)
         if days and hours is None:
             first, last = _DAYS.index(days.group(1)), _DAYS.index(days.group(2))
             span = {(first + i) % 7 for i in range((last - first) % 7 + 1)}
             hours = all(d.weekday() in span for d in targets), said
-        elif re.search(r"\bi work (?:on )?weekdays\b", low) and hours is None:
+        elif re.search(r"\bi work (?:from )?(?:\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?weekdays\b", low) and hours is None:
             hours = all(d.weekday() < 5 for d in targets), said
     if hours is not None:
         works, said = hours
@@ -18577,7 +18581,64 @@ def _my_shift(text: str) -> str | None:
         day = re.sub(r"^(?:on|this|next) ", "", str(g.get("shift_day") or "")).casefold()
         if day:
             said = [line for line in said if re.search(rf"\b{day}\b", line, re.I)][:2]
+            if not said:
+                # "Am I working tomorrow" is "do I work tomorrow" (2026-10-14:
+                # to the planner). One reader for both.
+                return _do_i_work(day)
     return f"You told me: {speech.and_list(said)}." if said else None
+
+
+_DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _work_schedule():
+    """(weekday numbers, start hour, end hour, his words) from "I work 8 to
+    5 Monday through Friday" - hours None when he named only days. None
+    when he never said."""
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = re.fullmatch(r"i (?:usually |normally )?work(?: from)?(?: (?P<a>\d{1,2})(?::\d\d)? ?(?P<ap>am|pm)? (?:to|until|till|-) (?P<b>\d{1,2})(?::\d\d)? ?(?P<bp>am|pm)?)?"
+                         r"(?: (?:on |every )?(?P<days>.+))?", said.casefold())
+        if not m or not m.group("days") or not (m.group("a") or m.group("days")):
+            continue
+        spoken = m.group("days").replace("-", " through ")
+        names = [d for d in _DAY_NAMES if re.search(rf"\b{d[:3]}(?:{d[3:]})?s?\b", spoken)]
+        if re.search(r"\bweekdays\b", spoken):
+            days = set(range(5))
+        elif re.search(r"\bweekends\b", spoken):
+            days = {5, 6}
+        elif len(names) == 2 and re.search(r"\b(?:through|thru|to|until)\b", spoken):
+            a, b = sorted(_DAY_NAMES.index(n) for n in names) if spoken.index(names[0][:3]) < spoken.index(names[1][:3]) \
+                else (_DAY_NAMES.index(names[0]), _DAY_NAMES.index(names[1]))
+            days = set(range(a, b + 1))
+        elif names:
+            days = {_DAY_NAMES.index(n) for n in names}
+        else:
+            continue
+        start = end = None
+        if m.group("a"):
+            start, end = int(m.group("a")), int(m.group("b"))
+            if m.group("ap") == "pm" and start < 12:
+                start += 12
+            if m.group("bp") == "pm" and end < 12 or not m.group("bp") and end <= start:
+                end += 12
+        return days, start, end, said
+    return None
+
+
+def _clock_word(hour: int) -> str:
+    return "noon" if hour == 12 else f"{hour % 12 or 12} {'am' if hour < 12 or hour == 24 else 'pm'}"
+
+
+def _work_week(text: str = "") -> str | None:
+    """"How many hours do I work a week", from his weekly hours."""
+    from aletheia import speech
+    found = _work_schedule()
+    if not found or found[1] is None:
+        return None
+    days, start, end, said = found
+    total = (end - start) * len(days)
+    return f"About {total} hours - {end - start} a day, {len(days)} days a week. You told me: {speech.as_she_says_it(said)}."
 
 
 _BARE_PAST = {"vacuum": "vacuumed", "mop": "mopped", "dust": "dusted", "sweep": "swept", "clean": "cleaned",
@@ -20114,6 +20175,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "for_event": _for_event,
            "for_meeting": _for_meeting,
            "car_spec": _car_spec,
+           "work_week": _work_week,
            "interval_due": _interval_said,
            "recipe_need": lambda rest: (lambda dish: _recipe_has(dish) if _saved_recipe(dish) else None)(
                _groups("recipe_need", rest).get("recipe_need") or ""),
@@ -20372,7 +20434,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"work_week", "mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
