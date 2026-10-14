@@ -4181,6 +4181,32 @@ def _interpret(transcript: str) -> dict:
             got = _interpret(sentence.replace(f"on the {soon}", f"on the {day}", 1))
             if ((got or {}).get("command") or {}).get("kind") == "calendar_hold":
                 return got
+    # The bare question, asked about a task: "make the passport one due next
+    # Friday" - "Which Friday - the 16th, or the week after on the 23rd?" -
+    # "the 23rd" (2026-10-14: to a model). His sentence again, with the day.
+    bare = re.fullmatch(r"Which (\w+) — the (\d+\w\w), or the week after on the (\d+\w\w)\?", answered or "")
+    if bare and len(low.split()) <= 6 and not getattr(_LOOKING_BACK, "which_day", False):
+        name, soon, later = bare.group(1).casefold(), bare.group(2), bare.group(3)
+        pick = None
+        if re.search(r"\b" + soon[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:first|sooner|earlier|this|coming|this one|that one)\b", low):
+            pick = "soon"
+        if re.search(r"\b" + later[:-2] + r"(?:st|nd|rd|th)?\b", low) or re.search(
+                r"\b(?:second|later|after|following|other)\b", low):
+            pick = "later" if pick is None or "after" in low or "second" in low else pick
+        before = (_previous_ask() or "").casefold()
+        if pick and name in WEEKDAYS and f"next {name}" in before:
+            import datetime as _dt
+            from aletheia import localtime as _lt
+            today = _lt.today()
+            day = today + _dt.timedelta(days=(WEEKDAYS.index(name) - today.weekday()) % 7 + (7 if pick == "later" else 0))
+            _LOOKING_BACK.which_day = True
+            try:
+                got = _interpret(before.replace(f"next {name}", f"{day.strftime('%B').lower()} {day.day}", 1))
+            finally:
+                _LOOKING_BACK.which_day = False
+            if (got.get("command") or {}).get("kind") not in (None, "intent"):
+                return got
     answered = _answering_her(low)
     if answered:
         return answered
@@ -6650,8 +6676,10 @@ def _interpret(transcript: str) -> dict:
                        # "Move renew my license to next week", "to November
                        # 15" (2026-10-08: to the planner).
                        r"|wednesday|thursday|friday|saturday|sunday)|next week|(?:this |the )weekend|" + SPOKEN_DATE + r")", low) \
-        or re.fullmatch(r"(?:make|set) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) "
-                        r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low) \
+        or re.fullmatch(r"(?:make|set) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail + r" (?:due|for) (?:on |by )?"
+                        # "Make the passport one due next Friday" (2026-10-14: to a model).
+                        r"(?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|"
+                        + SPOKEN_DATE + r")", low) \
         or re.fullmatch(r"(?:the |my )?(?P<w>.+?) (?:task )?(?:is|should be) due (?:on |by )?"
                         r"(?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
     which = m.group("w") if m else ""
@@ -7024,6 +7052,21 @@ def _interpret(transcript: str) -> dict:
             if at.tzinfo and now - at < _dt.timedelta(hours=6) and re.search(r"\bgym\b", str(row.get("text") or "").casefold()):
                 return {"command": None, "say": said}
         return {"command": {"kind": "note", "text": "I went to the gym"}, "say": said}
+    # "Log a 3 mile run", "I went on a 3 mile run", "I did a 5k run"
+    # (2026-10-14: a note nothing added up, a model, and a task ticked off):
+    # the same run as "I went for a 3 mile run", kept in the words
+    # `quick._logged` adds up.
+    m = re.fullmatch(r"(?:(?:log|record|track|add)(?: me)?|(?:i )?(?:just )?(?:went on|did)) (?P<rest>(?:a|an) "
+                     r"(?:\d{1,3}(?:\.\d+)?|half hour|half an hour)[- ]?(?:minutes?|mins?|hours?|miles?|k|km)[- ]?"
+                     r"(?:run|walk|jog|bike ride|ride|swim|hike|workout)(?: today| this morning| tonight| just now)?)", low)
+    if m and not getattr(_LOOKING_BACK, "run", False):
+        _LOOKING_BACK.run = True
+        try:
+            got = _interpret(f"i went for {m.group('rest')}")
+        finally:
+            _LOOKING_BACK.run = False
+        if (got.get("command") or {}).get("kind") == "note":
+            return got
     # "Mark everything on my to do list done" is the whole list - refused
     # further on, never a task called "everything on my to do list".
     m = (re.fullmatch(r"(?:mark|tick|check|cross) (?:off )?(?:the )?(?!everything\b|all\b|every task\b)(.+?)"
