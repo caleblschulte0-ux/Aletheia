@@ -127,21 +127,22 @@
     "2026-10-13": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 197,
-      "needs_account": 1,
+      "minutes": 218,
+      "needs_account": 2,
       "needs_answer": 12,
-      "not_realistic": 98,
-      "offered": 122,
+      "not_realistic": 109,
+      "offered": 136,
       "ready": 9,
-      "runs": 13,
+      "runs": 16,
       "unfit_language": 1,
-      "unfit_model": 42,
-      "unfit_pay": 5,
-      "unfit_sales": 49,
+      "unfit_model": 44,
+      "unfit_pay": 7,
+      "unfit_sales": 56,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 0,
-      "weak_shot": 0
+      "unreachable": 1,
+      "unreachable_ApplyError": 1,
+      "weak_shot": 1
     }
   },
   "boards": {
@@ -161,7 +162,7 @@
       "left_going_in_circles": 2,
       "left_no_way_forward": 5,
       "left_questions": 4,
-      "left_sign_in": 1,
+      "left_sign_in": 2,
       "not_realistic": 7
     }
   },
@@ -392,14 +393,14 @@
     },
     "2026-10-13": {
       "filled": 30,
-      "found": 38,
+      "found": 39,
       "interviews": 2,
       "rejections": 1,
       "replies": 5,
       "sent": 6
     }
   },
-  "generated_at": "2026-10-14T04:24:03Z",
+  "generated_at": "2026-10-14T04:54:52Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ ai _ _": 1,
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
@@ -485,7 +486,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 7,
+      "nothing_to_press_on_account_login/observed": 8,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -508,13 +509,13 @@
         "nothing_to_press_on_form/filled": 4
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 1
+        "nothing_to_press_on_account_login/observed": 2
       }
     }
   },
   "totals": {
     "filled": 336,
-    "found": 721,
+    "found": 722,
     "interviews": 6,
     "rejections": 15,
     "replies": 52,
@@ -545,7 +546,7 @@
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 8,
-      "left_sign_in": 9,
+      "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
       "not_a_form_asks_nothing_on_employer_site": 20,
