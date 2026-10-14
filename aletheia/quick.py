@@ -2559,6 +2559,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("usual_spot", re.compile(r"^where do i (?:usually|always|normally) (?:leave|keep|put|hang) my (?P<usual_spot>[a-z][a-z ]{1,25}?)\s*\??$")),
     # "What does my mom's lasagna use", "how long does the chicken cook"
     # (2026-10-08: to a model).
+    # "What do I need to make tacos" after the recipe was saved (2026-10-14:
+    # to the planner). Only a saved recipe answers; anything else hands on.
+    ("recipe_need", re.compile(r"^what (?:do i need|goes in|is in|did i say goes in) (?:to make |to cook |for )?(?:the |my |a )?(?P<recipe_need>[a-z][a-z' ]{1,25}?)(?: recipe)?\s*\??$")),
     ("recipe_has", re.compile(r"^what (?:does|do) (?P<recipe_has>(?:the |my |our )?(?:[a-z]+(?:'s|s) )?[a-z][a-z ]{1,25}?)(?: recipe)? (?:use|call for|need|take|have in it)\s*\??$")),
     ("cook_for", re.compile(r"^how long (?:does|do|should|did) (?:the |my )?(?P<cook_for>[a-z][a-z ]{1,20}?) (?:need to |have to )?(?:cook|bake|roast|simmer|rest|boil|marinate|sit|rise|chill|soak|smoke)(?: for)?\s*\??$")),
     # "What time do I need to leave for my flight" (2026-10-08: to a model).
@@ -3733,7 +3736,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -17194,6 +17197,12 @@ def _still_good(food: str) -> str | None:
     return f"{rule}. Tell me when they went in and I'll keep track."
 
 
+def _saved_recipe(what: str) -> bool:
+    """Whether a "the recipe for ..." note names this dish."""
+    stem = re.escape(re.sub(r"^(?:the|my|our|a) ", "", " ".join(str(what or "").casefold().split()))[:4])
+    return bool(stem) and any(re.match(rf"the recipe for {stem}", " ".join(str(r.get("text") or "").split()), re.I) for r in _notes())
+
+
 def _recipe_has(what: str) -> str | None:
     """What he said a recipe uses."""
     from aletheia import speech
@@ -17206,6 +17215,11 @@ def _recipe_has(what: str) -> str | None:
         said = " ".join(str(row.get("text") or "").split()).rstrip(".")
         low = said.casefold()
         if " recipe " in low and all(re.search(rf"\b{re.escape(w[:4])}", low) for w in words):
+            # "You told me: the recipe for tacos: ground beef, ..." (2026-10-14).
+            kept = re.fullmatch(r"the recipe for (?P<dish>.+?): (?P<items>.+)", said, re.I)
+            if kept:
+                parts = [x.strip() for x in re.split(r",\s*(?:and\s+)?|\s+and\s+", kept.group("items")) if x.strip()]
+                return f"Your {kept.group('dish')} recipe calls for {speech.as_she_says_it(speech.and_list(parts))}."
             return f"You told me: {speech.as_she_says_it(said)}."
     return None
 
@@ -19866,6 +19880,8 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "plus_one": _plus_one,
            "for_event": _for_event,
            "for_meeting": _for_meeting,
+           "recipe_need": lambda rest: (lambda dish: _recipe_has(dish) if _saved_recipe(dish) else None)(
+               _groups("recipe_need", rest).get("recipe_need") or ""),
            "we_use": _we_use,
            "have_left": _have_left,
            "meal_prep": _meal_prep,
@@ -20121,7 +20137,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"mission_found", "for_meeting", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"mission_found", "for_meeting", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 

@@ -5977,6 +5977,34 @@ def _interpret(transcript: str) -> dict:
                      r"|thursday|friday|saturday|sunday))(?:'s)?(?: (?:list|to ?do list|tasks|plan))?", low)
     if m and _TASK_VERB.match(m.group("what")) and not re.search(r"\b(?:to|on) (?:my|the) (?:[a-z]+ )?(?:list|tasks|to ?dos?|to-dos?)\b", m.group("what")):
         return _new_task(_as_he_said(text, f"{m.group('what')} {m.group('day')}"))
+    # "Save a recipe for tacos: ground beef, tortillas, cheese", "my recipe
+    # for chili is beans, beef and tomatoes" (2026-10-14: to the planner). A
+    # note that says "recipe" is what her recipe readers look for.
+    m = re.fullmatch(r"(?:save|add|keep|remember|note)(?: down)? (?:a |my |the |this )?recipe for (?P<dish>[a-z][a-z' ]{1,30}?)(?::| -| is| uses| needs|,) (?P<items>[a-z0-9].{2,200})"
+                     r"|(?:my|the) recipe for (?P<dish2>[a-z][a-z' ]{1,30}?) (?:is|uses|needs|takes|calls for)(?::)? (?P<items2>[a-z0-9].{2,200})", low)
+    if m:
+        dish = _as_he_said(text, (m.group("dish") or m.group("dish2")).strip())
+        items = _as_he_said(text, (m.group("items") or m.group("items2")).strip().rstrip("."))
+        return {"command": {"kind": "note", "text": f"the recipe for {dish}: {items}"}, "say": None}
+    # "Add the taco stuff to my shopping list" put "the taco stuff" on it
+    # (2026-10-14). With a recipe for it noted, its ingredients go on;
+    # without one, she asks what goes in it rather than buy a phrase.
+    m = re.fullmatch(r"(?:add|put) (?:the ingredients for |the stuff for |everything for |what i need for |stuff for |ingredients for |the )?"
+                     r"(?P<dish>[a-z][a-z' ]{1,25}?)(?: (?:stuff|ingredients|things|fixings|groceries))? (?:to|on) (?:my |the )?(?:shopping|grocery) list", low)
+    if m and re.search(r"\b(?:stuff|ingredients|things|fixings|groceries|everything for|what i need for)\b", low):
+        dish = m.group("dish").strip()
+        try:
+            from aletheia import quick as _quick
+            stem = re.escape(dish[:4])
+            noted = next((" ".join(str(r.get("text") or "").split()) for r in _quick._notes()
+                          if re.fullmatch(rf"the recipe for {stem}[a-z' ]*: .+", " ".join(str(r.get("text") or "").split()), re.I)), None)
+        except Exception:  # noqa: BLE001 - nothing read is nothing added
+            noted = None
+        if noted:
+            items = noted.split(": ", 1)[1].rstrip(".")
+            return {"command": {"kind": "shopping_add", "item": items}, "say": None}
+        return {"command": None, "say": f"I don't have a recipe for {dish}. Tell me what goes in it - "
+                                        f"\"the recipe for {dish} is ...\" - and I'll add it, or name the things to buy."}
     # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
     # Only when what follows starts like a thing to do - "I need to know"
