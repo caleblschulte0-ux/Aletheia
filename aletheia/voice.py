@@ -11891,6 +11891,11 @@ def _interpret(transcript: str) -> dict:
     # "Remember Dana's birthday is March 3" kept "remember" inside the note
     # and inside the name (2026-10-07). The verb is not the fact.
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
+    # "My car takes 5w-30 oil" (2026-10-14: to the planner). A spec, so a
+    # digit in it; "my car needs washing" is a chore, not a fact.
+    if re.fullmatch(r"(?:my |our |the )(?:car|truck|van|suv|bike|motorcycle) (?:takes|uses|needs|runs on|gets) [a-z0-9 ./-]{0,30}\d[a-z0-9 ./-]{0,30}"
+                    r"(?:oil|gas|fuel|octane|tires?|psi|batter(?:y|ies)|wipers?|bulbs?|filters?)", fact_low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary"
                      # "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln
                      # Elementary" (2026-10-07: to the planner).
@@ -11941,10 +11946,16 @@ def _interpret(transcript: str) -> dict:
                      # lisinopril 10mg" (2026-10-07: to the planner).
                      r"|emergency contact|prescriptions?|medications?|meds|daily medication"
                      r"|(?:car|truck|van|suv)(?:'s|s)? (?:mileage|milage|odometer)"
+                     # "My car's tire pressure should be 35" (2026-10-14: to
+                     # the planner) - a spec of the car, held to a digit below.
+                     r"|(?P<spec>(?:(?:car|truck|van|suv|bike|motorcycle)(?:'s|s)? )?(?:front |rear |back )?(?:tire|tyre) (?:pressure|size)"
+                     r"|(?:(?:car|truck|van|suv)(?:'s|s)? )?(?:oil (?:type|weight|filter)|battery size|wiper (?:blade )?size|bulb size))"
                      # "My rent is 1500", "my car insurance is 120 a month"
                      # (2026-10-07: to the planner) - held to a number below.
-                     r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)
-    if m and (m.group("bill") or m.group("coded")) and not re.search(r"\d", m.group("value")):
+                     r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are|should be) (?P<value>.{1,80})", fact_low)
+    if m and " should be " in fact_low and not m.group("spec"):
+        m = None
+    if m and (m.group("bill") or m.group("coded") or m.group("spec")) and not re.search(r"\d", m.group("value")):
         m = None
     # "My locker is 42" (2026-10-07: to the planner) - a locker with no
     # number in it is where he left something, not which one is his.
