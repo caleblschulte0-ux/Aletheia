@@ -1467,7 +1467,16 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
                         else f"every {weeks} weeks on {name}")
             except (ValueError, TypeError):
                 pass
-        return f"{text} — {span} at {speech.clock_words(str(spec.get('anchor') or '')[11:16])}"
+        clock = str(spec.get("anchor") or "")[11:16]
+        try:
+            # An anchor written in UTC still goes off at his own clock time.
+            start = dt.datetime.fromisoformat(str(spec.get("anchor") or "").replace("Z", "+00:00"))
+            if start.tzinfo:
+                from aletheia import localtime as _lt
+                clock = start.astimezone(_lt.operator_tz()).strftime("%H:%M")
+        except (TypeError, ValueError):
+            pass
+        return f"{text} — {span} at {speech.clock_words(clock)}"
     when = speech.clock_words(str(spec.get("time") or ""))
     if spec["kind"] == "daily":
         return f"{text} — every day at {when}"
@@ -2690,6 +2699,10 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         if found is None:
             return f"I couldn't find that reminder to switch off: {speech.plainly(str(why))}"
         scheduler.set_enabled(found["id"], False)
+        if text.casefold() == "wake up" and found.get("kind") == "once":
+            # "Wake me up at 6", "cancel it" said "the reminder to wake up is off"
+            # (2026-10-14): it is the alarm, at the time it was for.
+            return f"Your alarm {speech.humanize_time(str(found.get('at') or ''))} is off."
         return f"Undone: the reminder to {text} is off."
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
@@ -3270,6 +3283,27 @@ def _weekday_numbers(days) -> list[int]:
     if not unique:
         raise act.Refused("a weekly reminder needs at least one day")
     return unique
+
+
+def _same_days_new_time(old: dict, hhmm: str, tz: str | None = None) -> str | None:
+    """The next day an every-N-days reminder goes off, at `hhmm` instead, as an
+    anchor: moving its time keeps its days. None when it has no next day."""
+    from zoneinfo import ZoneInfo
+    from aletheia import scheduler
+    now = dt.datetime.now(dt.timezone.utc)
+    try:
+        nxt = scheduler.next_occurrence(old, now)
+        zone = ZoneInfo(tz) if tz else localtime.operator_tz()
+    except Exception:  # noqa: BLE001
+        return None
+    if nxt is None:
+        return None
+    hour, minute = map(int, str(hhmm).split(":")[:2])
+    local = nxt.astimezone(zone)
+    at = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if at <= now:
+        at += dt.timedelta(minutes=int(old["every_minutes"]))
+    return at.isoformat()
 
 
 def _first_at(hhmm: str, tz: str | None = None, *, weekday: int | None = None) -> str:
@@ -4441,6 +4475,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             raise act.Refused("I can repeat a reminder every 2 to 90 days.")
         sid = "remind-every-" + _uuid.uuid4().hex[:8]
         anchor = _first_at(cmd["time"], cmd.get("tz"))
+        if cmd.get("replaces"):
+            # "Remind me to water the plants every other day at 8", "make it 9"
+            # (2026-10-14: to a model, then an approval): the one he just set, on
+            # the days it already had, at the new time - stopped, kept, set again.
+            old, _why = _one_reminder(str(cmd["replaces"]))
+            if old is not None and old.get("kind") == "interval" and int(old.get("every_minutes") or 0) % 1440 == 0:
+                anchor = _same_days_new_time(old, cmd["time"], cmd.get("tz")) or anchor
+                scheduler.set_enabled(old["id"], False)
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="interval", every_minutes=every * 1440, anchor=anchor)
         return f"reminder {sid} set every {every} days from {anchor} — {cmd['text'][:80]!r}"
@@ -4547,8 +4589,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # "Change my alarm to 6:15" with only a weekday alarm set
             # (2026-10-08): the old time goes off (never deleted).
             found, _why = _one_reminder(str(cmd["replaces"]))
-            if found is not None and found.get("kind") == "weekly":
+            # "Every day at 8", "make it weekdays" (2026-10-14): a daily one
+            # becomes weekly, so it goes off too.
+            if found is not None and found.get("kind") in ("weekly", "daily"):
                 scheduler.set_enabled(found["id"], False)
+            # "Remind me Saturday at 6", "make it every Saturday": the one-off is
+            # the first of the new ones, so it goes off - only when it falls on
+            # one of the days at that time.
+            elif found is not None and found.get("kind") == "once":
+                try:
+                    at = dt.datetime.fromisoformat(str(found.get("at")).replace("Z", "+00:00")).astimezone(
+                        localtime.operator_tz())
+                    if at.weekday() in days and at.strftime("%H:%M") == str(cmd["time"])[:5]:
+                        scheduler.set_enabled(found["id"], False)
+                except (TypeError, ValueError):
+                    pass
         sid = "remind-weekly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="weekly",

@@ -250,3 +250,4 @@
 {"ts": "2026-10-13T14:20:13Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
 {"ts": "2026-10-13T14:20:15Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
 {"ts": "2026-10-13T17:53:18Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-13"}
+{"ts": "2026-10-14T15:39:48Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-10-14"}

@@ -1946,6 +1946,78 @@ def _she_just_set_a_reminder() -> bool:
     return bool(re.match(r"(?:I'll remind you|Alarm set for) ", _her_last_answer()))
 
 
+_DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _new_days_for_the_reminder_just_set(low: str) -> dict | None:
+    """"Make it weekdays", "make it every Tuesday", "add Friday too": the days the
+    reminder his last ask set should go off on now, as a command; None when the
+    sentence is not one of these or nothing was just set."""
+    days_re = r"(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?)"
+    m = re.fullmatch(r"(?:actually,? |no,? )?(?:make|change|switch|set) (?:it|that|this)(?: one)?(?: to)? "
+                     r"(?P<to>every day|daily|everyday|weekdays|week days|weekends|every weekday|every weekend"
+                     r"|(?:every |on )?" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)(?: only| instead)?(?: please)?"
+                     r"|(?:and |also )?(?:add|do|plus) (?P<add>" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)"
+                     r"(?: too| as well| also)?(?: please)?", low)
+    if not m or getattr(_LOOKING_BACK, "on", False):
+        return None
+    _LOOKING_BACK.on = True
+    try:
+        kind, ask = next(((k, a) for k, a in ((k, _recent_ask_of(k, "text"))
+                                              for k in ("remind_weekly", "remind_daily", "remind_at")) if a.get("text")),
+                         (None, {}))
+    finally:
+        _LOOKING_BACK.on = False
+    if not kind or ask.get("every") not in (None, 1, "1"):
+        return None
+    try:
+        from aletheia import intercom, localtime
+        found, _why = intercom._one_reminder(str(ask["text"]))
+    except Exception:  # noqa: BLE001
+        return None
+    if found is None or found.get("kind") not in ("once", "daily", "weekly"):
+        return None
+    words = m.group("to") or m.group("add")
+    # "Make it Saturday" after a one-off moves the one-off (another rule); only
+    # "every Saturday", "Saturdays" or "weekdays" makes it repeat.
+    if found["kind"] == "once" and not re.search(r"every|daily|week|days\b|[a-z]days?s\b", words):
+        return None
+    if found["kind"] == "once":
+        try:
+            at = dt.datetime.fromisoformat(str(found.get("at")).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+        except (TypeError, ValueError):
+            return None
+        hhmm, had = at.strftime("%H:%M"), set()
+    else:
+        hhmm = str(found.get("time") or "")[:5]
+        had = set(range(7)) if found["kind"] == "daily" else {d for d in found.get("weekdays") or [] if isinstance(d, int)}
+    if not hhmm:
+        return None
+    named = {i for i, n in enumerate(_DAY_NAMES) if re.search(r"\b" + n + r"s?\b", words)}
+    if m.group("add"):
+        if found["kind"] == "once" or not named:
+            return None
+        days = had | named
+    elif re.search(r"every ?day|daily", words):
+        days = set(range(7))
+    elif re.search(r"week ?days|weekday", words):
+        days = {0, 1, 2, 3, 4}
+    elif "weekend" in words:
+        days = {5, 6}
+    else:
+        days = named
+    if not days or days == had:
+        return None
+    text = str((found.get("command") or {}).get("text") or ask["text"])
+    command = {"time": hhmm, "text": text}
+    # A one-off on one of the new days is the first of them: not reminded twice.
+    if found["kind"] != "once" or at.weekday() in days:
+        command["replaces"] = text
+    if days == set(range(7)):
+        return {"command": {"kind": "remind_daily", **command}, "say": None}
+    return {"command": {"kind": "remind_weekly", "days": [_DAY_NAMES[d] for d in sorted(days)], **command}, "say": None}
+
+
 def _next_time_of_the_repeat_just_set():
     """When the repeating reminder his last ask set next goes off, or None."""
     _LOOKING_BACK.on = True
@@ -2163,21 +2235,26 @@ def _moved_repeating(time_words: str) -> dict | None:
     finally:
         _LOOKING_BACK.on = False
     kind, ask = just
-    if not kind or ask.get("every") not in (None, 1, "1"):
+    every = ask.get("every") not in (None, 1, "1")
+    if not kind or (every and kind != "remind_daily"):
         return None
     try:
         from aletheia import intercom
         found, _why = intercom._one_reminder(str(ask["text"]))
-        was = int(str(found.get("time") or "").split(":")[0]) if found else None
+        was = int(str(ask.get("time") if every else found.get("time") or "").split(":")[0]) if found else None
     except Exception:  # noqa: BLE001
         return None
-    if found is None or was is None or found.get("kind") != kind.removeprefix("remind_"):
+    # "Every other day at 8", "make it 9" (2026-10-14: to a model): the interval
+    # kind, moved on the days it already had.
+    if found is None or was is None or found.get("kind") != ("interval" if every else kind.removeprefix("remind_")):
         return None
     hour, minute = map(int, hhmm.split(":"))
     if _is_bare_hour(time_words) and hour < 12 and (was >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12
     text = str((found.get("command") or {}).get("text") or ask["text"])
     command = {"kind": kind, "time": f"{hour:02d}:{minute:02d}", "text": text, "replaces": text}
+    if every:
+        command["every"] = int(ask["every"])
     if kind == "remind_weekly":
         names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
         days = [names[d] for d in found.get("weekdays") or [] if isinstance(d, int) and 0 <= d < 7]
@@ -3598,7 +3675,8 @@ def _shopping_just_said() -> bool:
 
 def _onto_the_named_list(low: str) -> dict | None:
     if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list"
-                                                       r"|what'?s on the list|read (?:me )?the list", low):
+                                                       r"|what'?s(?: still)? on the list(?: now)?|what else is on the list(?: now)?"
+                                                       r"|read (?:me )?the list(?: again)?", low):
         return None                               # he named a list himself
     name, last = _the_named_list_just_used()
     if not name:
@@ -3623,8 +3701,9 @@ def _onto_the_named_list(low: str) -> dict | None:
     if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
             and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
         return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
-    if re.fullmatch(r"what'?s on (?:it|there|the list)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
-                    r"|read (?:me )?the list|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
+    if re.fullmatch(r"what'?s(?: still)? on (?:it|there|the list)(?: now)?|what else is on (?:it|there|the list)(?: now)?"
+                    r"|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
+                    r"|read (?:me )?the list(?: again)?|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
         return {"command": {"kind": "list_read", "list": name}, "say": None}
     # Emptying it needs it to be the very last thing said.
     if last and re.fullmatch(r"(?:delete|clear|empty|scrap|wipe) (?:it|the list|this list|that list)(?: out)?", low):
@@ -5267,6 +5346,51 @@ def _interpret(transcript: str) -> dict:
         if repeat:
             when = repeat.group("when")
             return {"command": None, "say": f"That's {when[:1].lower() + when[1:]}: {repeat.group('what')}."}
+    # "Remind me tomorrow at 3 to call the bank", "and remind me to email Sarah
+    # at the same time" (2026-10-14: to a model, then an approval): the time of
+    # the one-off she just set, for the new words.
+    m = re.fullmatch(r"(?:and |also |oh and )?remind me (?:to |about )?(?P<w>[a-z0-9][a-z0-9' ,-]{1,80}?) "
+                     r"(?:at the same time|at that time|then|at the same time as that)(?: too| as well| also)?"
+                     r"|(?:and |also )?(?:at the same time|then),? remind me (?:to |about )?(?P<w2>[a-z0-9][a-z0-9' ,-]{1,80}?)"
+                     r"(?: too| as well)?", low)
+    if m:
+        just = _the_reminder_just_set()
+        if just and just.get("at"):
+            words = _as_he_said(transcript, m.group("w") or m.group("w2"))
+            return {"command": {"kind": "remind_at", "at": str(just["at"]), "text": words}, "say": None}
+    # "Remind me to call the vet at 4", "and the pharmacy at 5" (2026-10-14: to
+    # a model, then an approval): the same errand for a new thing, on the same
+    # day as the one she just set, at the new time.
+    m = re.fullmatch(r"(?:and|also|oh and) (?P<w>(?:the|my|a|an|his|her|their|our) [a-z0-9][a-z0-9' -]{1,40}?) "
+                     r"at (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)(?: too| as well)?", low)
+    if m and _she_just_set_a_reminder():
+        just = _the_reminder_just_set()
+        verb = re.match(r"(?P<v>.+?) (?:the|my|a|an|his|her|their|our) ",
+                        str((just or {}).get("command", {}).get("text") or ""))
+        hhmm = _spoken_time(m.group("t"))
+        if just and just.get("at") and verb and hhmm:
+            try:
+                import datetime as _dt
+                from aletheia import localtime
+                was = _dt.datetime.fromisoformat(str(just["at"]).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            except (TypeError, ValueError):
+                was = None
+            if was is not None:
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(m.group("t")) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
+                    hour += 12
+                at = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if at > _dt.datetime.now(at.tzinfo):
+                    words = f"{verb.group('v')} {_as_he_said(transcript, m.group('w'))}"
+                    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words}, "say": None}
+    # "Remind me every day at 8 to stretch", "make it weekdays only"; "remind me
+    # every Monday at 9 to submit my timesheet", "add Friday too"; "remind me
+    # tonight to take out the trash", "make it every Tuesday" (2026-10-14: all to
+    # a model). The reminder just set, on the new days at the time it had. A
+    # one-off made repeating stays as well, so tonight's is not lost.
+    cadence = _new_days_for_the_reminder_just_set(low)
+    if cadence:
+        return cadence
     # "Remind me on the 1st of every month to pay rent", "how long until it"
     # (2026-10-12: to a model): the next time it goes off.
     if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
@@ -8999,7 +9123,11 @@ def _interpret(transcript: str) -> dict:
     # back again without end, so a look-back never runs inside another.
     m = re.fullmatch(r"(?:skip|don'?t do|don'?t remind me) (?:it|that|that one|the next one|this one)"
                      r"(?: (?:on |this )?(?P<when>this week|this time|once|just once|next time|today|tomorrow|tonight"
-                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?(?: please)?", low)
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?(?: please)?", low) \
+        or re.fullmatch(r"(?:skip|don'?t remind me) (?:it )?(?:on |this )?(?P<when>today|tomorrow|tonight"
+                        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: please)?", low)
+    # "Skip tomorrow" (2026-10-14: to a model, then an approval) is "skip it
+    # tomorrow" said short, and only straight after a repeating one was set.
     if m and not getattr(_LOOKING_BACK, "on", False):
         _LOOKING_BACK.on = True
         try:
@@ -9013,6 +9141,19 @@ def _interpret(transcript: str) -> dict:
             # "Skip it on Friday" (2026-10-12: to a model): the coming Friday.
             once = once if once in ("today", "tomorrow", "tonight", "this week") or once.endswith("day") else "next"
             return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
+    # "Wake me up at 6 tomorrow", "turn it off" (2026-10-14: to a model, then an
+    # approval): "turn it off" said about the alarm, reminder or timer she just
+    # named is "cancel it", which already knows which one.
+    if re.fullmatch(r"(?:turn|switch|shut) (?:it|that) off|(?:turn|switch|shut) off (?:it|that)", low) \
+            and re.search(r"\b(?:alarms?|reminders?|remind you|timers?)\b", _her_last_answer(), re.I) \
+            and not getattr(_LOOKING_BACK, "turn_off", False):
+        _LOOKING_BACK.turn_off = True
+        try:
+            got = interpret("thea cancel it")
+        finally:
+            _LOOKING_BACK.turn_off = False
+        if (got or {}).get("command"):
+            return got
     # "Remind me every weekday at 7 to take my pills" - "pause it for a week"
     # (2026-10-12: to a model). Every time it would go off in that span is
     # skipped, and it comes back on its own; "pause my pill reminder for a
@@ -9699,6 +9840,19 @@ def _interpret(transcript: str) -> dict:
             # not the approval queue (bottom rung 2026-09-24: "Nothing is
             # waiting for approval" after setting one). His last ask, if it
             # can be taken back, is what he means.
+            # "Set a timer for 10 minutes", "add 5 minutes", "pause the timer" (she
+            # can't), "cancel it" (2026-10-14: "Nothing is waiting for approval"):
+            # her last answer was about the timer, so the timer is the "it".
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop|stop)\s+(?:that|it)", low) \
+                    and re.search(r"\btimer\b", _her_last_answer(), re.I) \
+                    and not getattr(_LOOKING_BACK, "timer", False):
+                _LOOKING_BACK.timer = True
+                try:
+                    got = interpret("thea cancel the timer")
+                finally:
+                    _LOOKING_BACK.timer = False
+                if (got or {}).get("command") or (got or {}).get("say"):
+                    return got
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}

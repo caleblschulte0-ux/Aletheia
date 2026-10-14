@@ -1530,9 +1530,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^who do i (?:still )?owe (?:a |an )?(?P<tv4>text|call|email|thank you(?: note| card)?)\s*\??$"
         # "What calls do I need to make" (2026-10-07: to a model).
         r"|^what (?P<tv3>calls|emails|errands|returns|payments) do i (?:need|have|still need) to (?:make|send|run|do)\s*\??$")),
-    ("the_list", re.compile(r"^what(?:'s| is|s)? on the list$|^read (?:me )?(?:the|my) list$")),
+    # "What's on the list now", "what else is on the list" (2026-10-14: to a model
+    # after taking something off): the same list, asked again.
+    ("the_list", re.compile(r"^what(?:'s| is|s)?(?: still)? on the list(?: now| right now| so far)?$"
+                            r"|^what else(?:'s| is) on the list(?: now)?$|^read (?:me )?(?:the|my) list(?: now| again)?$")),
     ("shopping", re.compile(
-        r"^what(?:'s| is|s)? on my shopping list$|^what(?:'s| is|s)? on my list$"
+        r"^what(?:'s| is|s)?(?: still)? on my (?:shopping )?list(?: now| right now| so far)?$"
+        r"|^what else(?:'s| is) on my (?:shopping )?list(?: now)?$|^what(?:'s| is|s)? on the shopping list(?: now| right now)?$"
         r"|^(?:my )?shopping list$|^what do (?:i|we) need (?:to buy|from the store)$"
         # "I'm going grocery shopping" (2026-10-07: to a model) is the moment the list is for.
         r"|^(?:i'?m|i am|we'?re|we are) (?:going|heading|off) grocery shopping(?: now)?$"

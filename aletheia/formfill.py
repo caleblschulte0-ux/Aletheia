@@ -978,7 +978,8 @@ def _group_choices(fields: list[dict]) -> tuple[list[dict], list[dict]]:
         held = groups.setdefault(field["group"], {
             "kind": "choice", "type": field["type"], "group": field["group"],
             "label": field.get("question") or field.get("option") or field["group"],
-            "required": False, "options": [], "selector": field["selector"]})
+            "required": False, "options": [], "selector": field["selector"],
+            **({} if field.get("question") else {"questionless": True})})
         held["required"] = held["required"] or bool(field.get("required"))
         if is_anti_bot(field):
             held["anti_bot"] = True          # one option inside a bot check taints the group
@@ -1007,8 +1008,18 @@ def _from_profile(group: dict, known: dict) -> dict | None:
     if group.get("type") != "radio" or is_never_autofill({"label": group["label"]}):
         return None
     key = match_field({"label": group["label"]})
+    if not key and group.get("questionless"):
+        # The question's own words were lost and the label is one of its
+        # options. Live 2026-10-13 a Recruitee form held twice on a radio
+        # group "labelled" United States: a list of countries whose heading
+        # was not read. When his own country is one of the options, every
+        # question such a list can be (where he lives, where he may work)
+        # has the same true answer; anything else still reaches him.
+        key = "country"
     answer = known.get(key) if key else None
     if answer in (None, ""):
+        return None
+    if key == "country" and group.get("questionless") and len(group["options"]) < 3:
         return None
     want = str(answer).strip().casefold()
     for option in group["options"]:
@@ -1016,9 +1027,15 @@ def _from_profile(group: dict, known: dict) -> dict | None:
         if not text:
             continue
         head = text.split()[0].strip(",.:;!?") if text.split() else ""
-        if text == want or head == want:
+        if text == want or head == want or (
+                key == "country" and text in _US and want in _US):
             return {**option, "profile_field": key}
     return None
+
+
+#: The ways a form and his profile spell the one country he lives in.
+_US = frozenset({"us", "u.s.", "usa", "u.s.a.", "united states",
+                 "united states of america"})
 
 
 # Categories he has declared IN HIS OWN WORDS and that may therefore be
