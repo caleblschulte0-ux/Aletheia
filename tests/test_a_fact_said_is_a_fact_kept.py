@@ -191,8 +191,9 @@ class RemindersAreReadSoonestFirst(unittest.TestCase):
 class HowManyRemindersIsTheReminderList(unittest.TestCase):
     def test_counted_from_the_store(self):
         from aletheia import voice
-        for said in ("how many reminders do i have", "how many timers are running"):
-            self.assertEqual(voice._interpret(said)["command"]["kind"], "reminders", said)
+        self.assertEqual(voice._interpret("how many reminders do i have")["command"]["kind"], "reminders")
+        # Timers are counted from the same store, said as timers (2026-10-14).
+        self.assertIn("timer", voice._interpret("how many timers are running")["say"])
 
 
 class HowOldWillIBe(unittest.TestCase):

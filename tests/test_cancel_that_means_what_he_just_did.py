@@ -54,8 +54,10 @@ class CancelThat(unittest.TestCase):
                              {"kind": "reminder_off", "which": "that"})
 
     def test_what_are_my_reminders_is_read_from_the_store(self):
-        for said in ("what are my reminders", "show me my reminders", "read me my timers"):
+        for said in ("what are my reminders", "show me my reminders"):
             self.assertEqual(voice.interpret(f"thea {said}")["command"], {"kind": "reminders"}, said)
+        # Timers are read from the same store, said as timers (2026-10-14).
+        self.assertIn("timer", voice.interpret("thea read me my timers")["say"])
 
     def test_actually_is_still_dropped_only_from_the_front(self):
         self.assertEqual(voice._without_preamble("actually, what time is it"), "what time is it")
