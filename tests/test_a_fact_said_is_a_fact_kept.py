@@ -2423,8 +2423,13 @@ class ADueDayIsKeptAsADate(unittest.TestCase):
         self.assertEqual(voice._interpret("my library books are due tomorrow")["command"]["kind"], "note")
 
     def test_the_question_in_the_plural(self):
+        # Answered from the due-day note. (A "how often" reader sees it first
+        # and hands on when he never said how often.)
         from aletheia import quick
-        self.assertEqual(quick.match("when are my library books due")[0], "task_due")
+        with mock.patch.object(quick, "_notes", return_value=[{"text": "my library books are due Friday 16 October",
+                                                               "ts": "2026-10-14T12:00:00Z"}]):
+            self.assertEqual(quick.answer("when are my library books due"),
+                             "You told me: your library books are due Friday 16 October.")
 
 
 
