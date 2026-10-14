@@ -9122,6 +9122,15 @@ def _interpret(transcript: str) -> dict:
             if new <= dt.datetime.now(tz) and re.fullmatch(r"(?:on )?(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
                                                            day_to.group("day").strip()):
                 new += dt.timedelta(days=7)
+            # "Move my dentist appointment to Wednesday", said on a Wednesday
+            # about next Tuesday's, moved it to that afternoon (2026-10-14). A
+            # bare weekday is the one nearest the day it was on, never gone.
+            if re.fullmatch(r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", day_to.group("day").strip()):
+                now = dt.datetime.now(tz)
+                choices = [new + dt.timedelta(days=7 * k) for k in range(-1, 3)]
+                choices = [c for c in choices if c > now]
+                if choices:
+                    new = min(choices, key=lambda c: (abs((c.date() - was.date()).days), c))
             return {"command": {"kind": "calendar_hold", "title": hold["title"], "start": new.isoformat(),
                                 "minutes": max(5, int((ends - was).total_seconds() // 60)),
                                 "replaces": hold["start"]}, "say": None}
