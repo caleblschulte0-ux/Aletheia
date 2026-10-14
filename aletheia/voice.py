@@ -1448,6 +1448,42 @@ def _birthday_reminder(m) -> dict:
                    "and then I can."}
 
 
+def _before_a_noted_date(asked: str, before: str) -> dict | None:
+    """A reminder some days before the date a note he just said carries
+    ("my registration is due November 30", "my license expires March 3"),
+    at 9 am. None when the sentence before was not such a note."""
+    import datetime as dt
+    from aletheia import localtime, quick
+    said_before = re.sub(r"^(?:note|remember|write down) that ", "", before.strip().rstrip(".")).strip()
+    if not said_before:
+        return None
+    try:
+        noted = quick._noted_dates()
+    except Exception:  # noqa: BLE001
+        return None
+    hit = next(((when, said) for when, said in reversed(noted)
+                if said_before in said.casefold().rstrip(".")), None)
+    if not hit:
+        return None
+    when, said = hit
+    words = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7}
+    n = re.search(r"(a|one|two|three|four|five|six|seven|\d{1,2}) (day|week)s?", asked)
+    if n:
+        days = (words.get(n.group(1)) or int(n.group(1))) * (7 if n.group(2) == "week" else 1)
+    else:
+        days = 1
+    tz = localtime.operator_tz()
+    at = dt.datetime.combine(when - dt.timedelta(days=days), dt.time(9, 0), tzinfo=tz)
+    if at <= dt.datetime.now(tz):
+        return {"command": None, "say": "That day has already gone by. Say a different number of days."}
+    what = re.sub(r"^(?:note|remember|write down) that ", "", said.strip().rstrip("."), flags=re.I)
+    what = re.sub(r"^my\b", "your", what, flags=re.I)
+    what = re.sub(r"\b(" + "|".join(quick._MONTHS) + r")\b(?= \d)", lambda x: x.group(1).capitalize(), what)
+    lead = ("today" if days == 0 else "tomorrow" if days == 1 else "in a week" if days == 7
+            else f"in {days} days")
+    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": f"{what} - {lead}"}, "say": None}
+
+
 #: Past-tense verbs a done thing is said with. Kept to plain chores and
 #: errands: anything with a door of its own (paid a bill to a merchant,
 #: finished a task, took his pills) is matched before this is reached.
@@ -5091,6 +5127,24 @@ def _interpret(transcript: str) -> dict:
         if re.fullmatch(r"\d{1,3}", rest):
             rest += " minutes"
         minutes = DEFAULT_SNOOZE_MINUTES if not rest else _spoken_minutes(rest)
+        if minutes and rest and not _LOOKING_BACK.__dict__.get("snooze"):
+            # "Snooze it 10 minutes" a turn after setting a reminder that
+            # has not gone off (2026-10-14): nothing is there to snooze, and
+            # she told him to say "move it to" instead of pushing it - while
+            # "push it back 30 minutes" already did exactly that.
+            try:
+                from aletheia import notifications
+                fired = notifications.all_notifications(state="UNREAD", limit=1)
+            except Exception:
+                fired = [None]
+            if not fired:
+                _LOOKING_BACK.snooze = True
+                try:
+                    pushed = _interpret(f"push it back {minutes} minutes")
+                finally:
+                    _LOOKING_BACK.snooze = False
+                if (pushed.get("command") or {}).get("kind") not in (None, "intent"):
+                    return pushed
         if minutes:
             return {"command": {"kind": "notify_snooze", "minutes": minutes},
                     "say": None}
@@ -7806,6 +7860,11 @@ def _interpret(transcript: str) -> dict:
                            r"(?:is |are )?(?:coming|arriving|getting here|showing up)\b", before)
         if coming and not re.search(r"\b(?:in|at) \d", m.group(0)):
             return _interpret(f"{m.group(0).removesuffix(' it').removesuffix(' that').removesuffix(' then')} {coming.group('what')}")
+        # "My car insurance renews December 1", then "remind me a week
+        # before" (2026-10-14: to a model) - the date his note just gave.
+        dated = _before_a_noted_date(m.group(0), before)
+        if dated:
+            return dated
     # "REMIND ME ABOUT THE LICENSE TASK TOMORROW" is a reminder with a when,
     # not a lookup: it answered "I don't have anything remembered about 'the
     # license task tomorrow'" (2026-10-07).
