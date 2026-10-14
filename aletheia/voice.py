@@ -1946,6 +1946,78 @@ def _she_just_set_a_reminder() -> bool:
     return bool(re.match(r"(?:I'll remind you|Alarm set for) ", _her_last_answer()))
 
 
+_DAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _new_days_for_the_reminder_just_set(low: str) -> dict | None:
+    """"Make it weekdays", "make it every Tuesday", "add Friday too": the days the
+    reminder his last ask set should go off on now, as a command; None when the
+    sentence is not one of these or nothing was just set."""
+    days_re = r"(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?)"
+    m = re.fullmatch(r"(?:actually,? |no,? )?(?:make|change|switch|set) (?:it|that|this)(?: one)?(?: to)? "
+                     r"(?P<to>every day|daily|everyday|weekdays|week days|weekends|every weekday|every weekend"
+                     r"|(?:every |on )?" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)(?: only| instead)?(?: please)?"
+                     r"|(?:and |also )?(?:add|do|plus) (?P<add>" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)"
+                     r"(?: too| as well| also)?(?: please)?", low)
+    if not m or getattr(_LOOKING_BACK, "on", False):
+        return None
+    _LOOKING_BACK.on = True
+    try:
+        kind, ask = next(((k, a) for k, a in ((k, _recent_ask_of(k, "text"))
+                                              for k in ("remind_weekly", "remind_daily", "remind_at")) if a.get("text")),
+                         (None, {}))
+    finally:
+        _LOOKING_BACK.on = False
+    if not kind or ask.get("every") not in (None, 1, "1"):
+        return None
+    try:
+        from aletheia import intercom, localtime
+        found, _why = intercom._one_reminder(str(ask["text"]))
+    except Exception:  # noqa: BLE001
+        return None
+    if found is None or found.get("kind") not in ("once", "daily", "weekly"):
+        return None
+    words = m.group("to") or m.group("add")
+    # "Make it Saturday" after a one-off moves the one-off (another rule); only
+    # "every Saturday", "Saturdays" or "weekdays" makes it repeat.
+    if found["kind"] == "once" and not re.search(r"every|daily|week|days\b|[a-z]days?s\b", words):
+        return None
+    if found["kind"] == "once":
+        try:
+            at = dt.datetime.fromisoformat(str(found.get("at")).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+        except (TypeError, ValueError):
+            return None
+        hhmm, had = at.strftime("%H:%M"), set()
+    else:
+        hhmm = str(found.get("time") or "")[:5]
+        had = set(range(7)) if found["kind"] == "daily" else {d for d in found.get("weekdays") or [] if isinstance(d, int)}
+    if not hhmm:
+        return None
+    named = {i for i, n in enumerate(_DAY_NAMES) if re.search(r"\b" + n + r"s?\b", words)}
+    if m.group("add"):
+        if found["kind"] == "once" or not named:
+            return None
+        days = had | named
+    elif re.search(r"every ?day|daily", words):
+        days = set(range(7))
+    elif re.search(r"week ?days|weekday", words):
+        days = {0, 1, 2, 3, 4}
+    elif "weekend" in words:
+        days = {5, 6}
+    else:
+        days = named
+    if not days or days == had:
+        return None
+    text = str((found.get("command") or {}).get("text") or ask["text"])
+    command = {"time": hhmm, "text": text}
+    # A one-off on one of the new days is the first of them: not reminded twice.
+    if found["kind"] != "once" or at.weekday() in days:
+        command["replaces"] = text
+    if days == set(range(7)):
+        return {"command": {"kind": "remind_daily", **command}, "say": None}
+    return {"command": {"kind": "remind_weekly", "days": [_DAY_NAMES[d] for d in sorted(days)], **command}, "say": None}
+
+
 def _next_time_of_the_repeat_just_set():
     """When the repeating reminder his last ask set next goes off, or None."""
     _LOOKING_BACK.on = True
@@ -5311,6 +5383,14 @@ def _interpret(transcript: str) -> dict:
                 if at > _dt.datetime.now(at.tzinfo):
                     words = f"{verb.group('v')} {_as_he_said(transcript, m.group('w'))}"
                     return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words}, "say": None}
+    # "Remind me every day at 8 to stretch", "make it weekdays only"; "remind me
+    # every Monday at 9 to submit my timesheet", "add Friday too"; "remind me
+    # tonight to take out the trash", "make it every Tuesday" (2026-10-14: all to
+    # a model). The reminder just set, on the new days at the time it had. A
+    # one-off made repeating stays as well, so tonight's is not lost.
+    cadence = _new_days_for_the_reminder_just_set(low)
+    if cadence:
+        return cadence
     # "Remind me on the 1st of every month to pay rent", "how long until it"
     # (2026-10-12: to a model): the next time it goes off.
     if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
