@@ -6489,7 +6489,10 @@ def _tasks() -> str:
     lead = f"{speech.count_phrase(len(live), 'task')} open"
     if ready and len(ready) != len(live):
         lead += f", {len(ready)} ready to start"
-    names = [str(t.get("description") or t.get("id") or "").strip().rstrip(".")
+    # "Do the second one tomorrow", then "what tasks do I have" left the day
+    # out (2026-10-14): each is said with its deadline, the way the due list does.
+    from aletheia import intercom
+    names = [intercom._task_words(t).strip().rstrip(".")
              for t in [first] + [t for t in live if t is not first]]
     if 1 < len(live) <= 4 and len(ready) == len(live) and all(len(n) <= 70 for n in names):
         # "What tasks do I have" with two on the list named one of them
