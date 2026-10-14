@@ -6390,7 +6390,18 @@ def _interpret(transcript: str) -> dict:
                 told = None if upcoming else _event_from_notes(what)
                 if told and cal.parse_time(told["start"]) > now + lead:
                     upcoming = [told]
+                if not upcoming:
+                    # "Remind me 15 minutes before I need to get the kids", a
+                    # reminder to pick them up at 6 already set (2026-10-14).
+                    from aletheia import quick as _qb
+                    errand = _qb._errand_words(what)
+                    mine = next(((at, said) for at, said, store in _qb._coming()
+                                 if store == "reminder" and errand and at > now + lead and _qb._errand_matches(errand, said)), None)
+                    if mine:
+                        upcoming = [{"start": mine[0].isoformat(), "title": mine[1]}]
+                        what = mine[1]
             if not upcoming:
+                what = re.sub(r"^i (?:need to |have to |will |'ll )?", "", what)
                 return {"command": None,
                         "say": ("Nothing on your calendar coming up" if generic
                                 else f"I don't see {what} on your calendar coming up") + " to remind you before."}

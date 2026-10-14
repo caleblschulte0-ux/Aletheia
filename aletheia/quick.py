@@ -11728,6 +11728,24 @@ def _cancelled_hold(words: list[str]) -> str | None:
         return None
 
 
+#: Words he says for the same errand: "get the kids" is "pick up the kids"
+#: (2026-10-14: "I have nothing about get the kids", a reminder sitting there).
+_SAME_ERRAND = {"get": r"\b(?:get|pick|grab|collect|fetch)", "pick": r"\b(?:pick|get|grab|collect|fetch)",
+                "grab": r"\b(?:grab|get|pick)", "collect": r"\b(?:collect|get|pick)", "fetch": r"\b(?:fetch|get|pick)"}
+
+
+def _errand_words(what: str) -> list:
+    """The words of an errand to look for, "I need to" taken off."""
+    what = re.sub(r"^(?:i |we )?(?:need to |have to |got to |gotta |am going to |'m going to |will |'ll )?", "",
+                  " ".join(str(what or "").casefold().split()))
+    return [w for w in re.findall(r"[a-z0-9]+", what) if w not in _STOP_WORDS and w not in ("s", "with", "at", "for", "up")]
+
+
+def _errand_matches(words: list, text: str) -> bool:
+    low = text.casefold()
+    return all(re.search(_SAME_ERRAND.get(w, rf"\b{re.escape(w.rstrip('s'))}"), low) for w in words)
+
+
 def _when_mine(what: str, until: bool = False) -> str | None:
     """"What time is my dentist appointment": the soonest event or reminder
     naming it, said with when. Every word he named must be in it. With
@@ -11743,9 +11761,11 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     # The appointment before the reminder ABOUT it: "remind me the day
     # before" made "when is my doctors appointment" answer with the
     # reminder's day (2026-10-08).
+    errand = _errand_words(what)
     for at, text, store in sorted(_coming(), key=lambda row: row[2] != "calendar"):
         low = text.casefold()
-        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
+        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words) \
+                or (store == "reminder" and errand and _errand_matches(errand, text)):
             when = speech.humanize_time(at.isoformat())
             if until:
                 left = int((at - dt.datetime.now(dt.timezone.utc)).total_seconds() // 60)
