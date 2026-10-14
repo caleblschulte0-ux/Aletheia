@@ -2254,7 +2254,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^when (?:is|does|was) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<recall3>[a-z0-9][a-z0-9 '-]{1,30}?) (?:up|due|over|expiring|expire|ending|end|starting|start|renewing|renew|coming up)\s*\??$"
         # "Remember that my car is a 2019 Civic" is an instruction, not a
         # question (2026-10-07: answered "I have nothing about that...").
-        r"|^(?!(?:remember|know) (?:that\b|[a-z0-9 '-]*\b(?:is|are|was|were)\b))"
+        # "Remember to bring my ID to the dentist" is one too (2026-10-14:
+        # answered "I have nothing about to bring my id ... on file").
+        r"|^(?!(?:remember|know) (?:that\b|to\b|[a-z0-9 '-]*\b(?:is|are|was|were)\b))"
         r"(?:do (?:you|u) )?(?:remember|know) (?:anything about |what i said about )?(?:the |my )?(?P<recall4>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         r"|^what did i say about (?:the |my )?(?P<recall5>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What notes do I have about Dana" (2026-10-07, to a model).
@@ -2334,6 +2336,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:is|are|did) (?:the|my|our) (?P<broken2>[a-z][a-z' ]{1,25}?) (?:fixed|repaired|still broken|get fixed)(?: yet| now)?\s*\??$")),
     # "What do I need to bring", "who is having the party", "where am I
     # meeting Tom" (2026-10-08: each to a model, one turn after he said it).
+    # "Add a note to the Sarah meeting: bring the budget", then "what do I
+    # need for the Sarah meeting" (2026-10-14: to a model). The note answers.
+    ("for_meeting", re.compile(r"^what (?:do|else do|should) (?:i|we) (?:need|have|bring|remember)(?: to (?:bring|remember|do|prep(?:are)?))?"
+                               r" (?:for|to|at) (?:the |my |our )(?P<fm_what>(?:[a-z][a-z']* ){0,3}(?:meeting|appointment|appt|call|lunch|dinner"
+                               r"|interview|visit|session)(?: with [a-z][a-z' ]{0,25})?)\s*\??$")),
     ("to_bring", re.compile(
         r"^what (?:do|did) i (?:need|have|want|say i(?:'d| would)? need) to (?P<to_bring>bring|take|pack|wear|make|buy|get|refill|return|pick up|renew|mail|order)"
         r"(?: (?:to|for) (?:the |my |our )?[a-z][a-z' ]{1,25})?\s*\??$")),
@@ -3726,7 +3733,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -16852,6 +16859,29 @@ def _for_event(event: str) -> str | None:
     return f"On your list: {speech.and_list(said)}."
 
 
+def _for_meeting(text: str) -> str | None:
+    """What he noted for one meeting, by the words that name it ("sarah"),
+    from a note that names it too. None when no note does, so the calendar
+    or a model may still know."""
+    what = _groups("for_meeting", text).get("fm_what") or ""
+    words = [w for w in re.findall(r"[a-z0-9']+", what.casefold())
+             if w not in _STOP_WORDS and w not in ("with",) and w.rstrip("s") not in _WHEN_NOUNS]
+    if not words:
+        return None
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            continue
+        part = re.fullmatch(r"(?:(?:the|my|our) )?(?P<what>[^:]{2,60}): (?P<need>.+)", said)
+        if part:
+            return f"For the {part.group('what')}, you noted: {speech.as_she_says_it(part.group('need'))}."
+        if re.search(r"\b(?:bring|need|remember|prep|take)\b", low):
+            return f"You told me: {speech.as_she_says_it(said)}."
+    return None
+
+
 def _game_score(text: str) -> str | None:
     """His bowling or golf scores as he told them: the newest, or his best
     (the highest in bowling, the lowest in golf). None when he never said."""
@@ -19801,6 +19831,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "did_rsvp": _did_rsvp,
            "plus_one": _plus_one,
            "for_event": _for_event,
+           "for_meeting": _for_meeting,
            "we_use": _we_use,
            "have_left": _have_left,
            "meal_prep": _meal_prep,
@@ -20056,7 +20087,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"mission_found", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"mission_found", "for_meeting", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 

@@ -5986,7 +5986,9 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:(?:maybe|i think|honestly|ok(?:ay)?),? )?"
                      # "We need to call the plumber" (2026-10-08: to the planner).
                      r"(?:(?:i|we) (?:need|have|got) to|(?:i|we)'ve got to|(?:i|we) gotta|i must|(?:i|we) (?:probably |really )?should(?: really| probably)?|"
-                     r"(?:don'?t|do not) let me forget to|make sure i|remember i (?:need|have) to)"
+                     # "Remember to bring my ID", "don't forget to take out the trash
+                     # tonight" (2026-10-14: a recall question, then the planner).
+                     r"(?:don'?t|do not) let me forget to|make sure i|remember i (?:need|have) to|remember to|(?:don'?t|do not) forget to)"
                      r" (?P<what>.{3,120})", low)
     if m and re.match(r"(?:go to (?:bed|sleep)|call it a (?:night|day)|get (?:some )?sleep|go home)\b", m.group("what")):
         return {"command": None, "say": "Safe trip home." if m.group("what").startswith("go home")
