@@ -2589,6 +2589,11 @@ def _undo_his_last_ask() -> str | None:
         said = " ".join(str(turn.get("he_asked") or "").split())
         if not said:
             continue
+        # A turn that changed nothing is not the one to take back: "add call
+        # the vet" twice, then "undo that", re-said "already on your list"
+        # (2026-10-14). The add before it is the act.
+        if str(turn.get("she_answered") or "").startswith("That's already on your list"):
+            continue
         try:
             read = voice.interpret(f"thea {said}") or {}
         except Exception:
@@ -2697,7 +2702,7 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         for part in (parts if len(parts) > 1 else [desc]):
             match = [t for t in tasks.all_tasks()
                      if str(t.get("description") or "").strip().casefold() == part.casefold()
-                     and t.get("status") not in ("DONE", "CANCELLED")]
+                     and str(t.get("status") or "").upper() in OPEN_TASK_STATES]
             if match:
                 tasks.set_status(match[-1]["id"], "CANCELLED", "undone: you took it back")
                 gone.append(part)
@@ -3697,7 +3702,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         # read "call mom and call mom". The same open task is one task.
         same = [t for t in tasks.all_tasks()
                 if " ".join(str(t.get("description") or "").split()).casefold() == " ".join(str(cmd["description"]).split()).casefold()
-                and t.get("status") not in ("DONE", "CANCELLED")
+                # Done is stored as "COMPLETED": a task he finished, added
+                # again, was "already on your list" (2026-10-14).
+                and str(t.get("status") or "").upper() in OPEN_TASK_STATES
                 and (not cmd.get("deadline") or t.get("deadline") == cmd.get("deadline"))]
         if same:
             return f"task {same[-1]['id']} already open — {_task_words(same[-1])}"

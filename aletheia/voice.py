@@ -1406,6 +1406,22 @@ _TASK_VERB = re.compile(
     r"|pull (?:the )?weeds|cover (?:the|my) (?:plants|tomatoes|garden|flowers|pool))\b")
 
 
+def _a_done_task(which: str) -> str | None:
+    """The description of one task of his marked done that these words
+    name exactly, or None."""
+    from aletheia import tasks as tasks_mod
+    wanted = re.sub(r"^(?:the|my) ", "", " ".join(str(which or "").casefold().split()))
+    if not wanted:
+        return None
+    try:
+        hits = {str(t.get("description") or "") for t in tasks_mod.all_tasks()
+                if str(t.get("status", "")).upper() == "COMPLETED" and tasks_mod.is_his(t)
+                and " ".join(str(t.get("description") or "").casefold().split()) == wanted}
+    except Exception:
+        return None
+    return next(iter(hits)) if len(hits) == 1 else None
+
+
 def _already_gone(when, what: str) -> dict:
     """A time he said for today that has already passed: said, not moved."""
     clock = when.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
@@ -6885,6 +6901,11 @@ def _interpret(transcript: str) -> dict:
                     r"(?:push|bump|postpone|delay|defer|put off)\b", low)))
         if day:
             return {"command": {"kind": "task_change", "which": which, "deadline": day}, "say": None}
+    elif m and _a_done_task(which):
+        # "Move call the vet to tomorrow", a task he had marked done, went to
+        # the planner (2026-10-14). Done is said; putting it back is his.
+        done = _a_done_task(which)
+        return {"command": None, "say": f"You already marked {done} done. Say \"add {done}\" to put it back on your list."}
     elif m and re.search(r"\btask\b|\bon my (?:list|to-?do list)\b", low):
         # "Move my dentist task to friday" with no such task went to the
         # planner (2026-10-07). He said task: the answer is the list's.
