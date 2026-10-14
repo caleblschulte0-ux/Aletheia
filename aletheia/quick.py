@@ -3450,6 +3450,12 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how much (?:does|do) (?:my|the) (?P<n>[a-z][a-z ]{1,30}?) (?:usually|normally|typically|generally) (?:cost|run)\s*\??", text)
     if m:
         return f"how much is my {m.group('n')}"
+    # "How long until I need to water the plants" (2026-10-14: offline, "I
+    # can't think just now", with "every 3 days, water the plants" set) is
+    # when the reminder for it comes next.
+    m = re.fullmatch(r"how (?:long|many days)(?: is it)? (?:until|till|before) i (?:need|have|got) to (?P<x>[a-z][a-z' ]{2,40}?)(?: again)?\s*\??", text)
+    if m:
+        return f"when do i {m.group('x')} next"
     # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
     # model, after he said so) is what he told her about it.
     m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"
@@ -4422,6 +4428,17 @@ def _date_in_notes(words: str, today):
             m = re.search(date_re, said)
             if m:
                 found = _named_date(re.sub(r"(?<=\d)(?:st|nd|rd|th)", "", m.group("d")).replace(" of ", " "), today)
+                # "My passport expires June 3 2028" counted to June 3 of next
+                # year (2026-10-14): the year he said is the year.
+                year = re.match(r",? (20\d\d)\b", said[m.end():])
+                if found and year:
+                    try:
+                        exact = found.replace(year=int(year.group(1)))
+                    except ValueError:
+                        exact = None
+                    if exact and exact >= today:
+                        return exact
+                    continue
                 if found:
                     return found
             found = _relative_in_note(said, row.get("ts"), today)
@@ -5499,6 +5516,8 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
         return found
     days = (when - today).days
     said = when.strftime("%A %d %B").replace(" 0", " ")
+    if days > 365:
+        said += f" {when.year}"           # more than a year off: which year
     if days == 0:
         return f"That's today, {said}."
     if days == 1:
