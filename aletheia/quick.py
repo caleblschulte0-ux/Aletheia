@@ -3133,7 +3133,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s)? |how much is )?(?:half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters"
         r"|double|triple|twice|three times) (?:of )?" + _QTY + r"(?: " + _KITCHEN_UNIT + r")?$"
         r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r" (?:plus|minus|times|divided by|\+|-) " + _QTY
-        + r"(?: " + _KITCHEN_UNIT + r")?$")),
+        + r"(?: " + _KITCHEN_UNIT + r")?$"
+        # "3/4 of a cup doubled", "3/4 cup times 2" (2026-10-14: to a model).
+        r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r"(?: of an?)?(?: " + _KITCHEN_UNIT + r")? (?:doubled|halved|tripled)$"
+        r"|^(?:what(?:'s| is|s)? |how much is )?" + _QTY + r" " + _KITCHEN_UNIT + r" (?:times|divided by) \d+(?:\.\d+)?$")),
     ("prime", re.compile(r"^is (?P<prime>\d{1,12}) (?:a )?prime(?: number)?$")),
     ("average", re.compile(r"^(?:what(?:'s| is) )?(?:the )?(?:average|mean) of (?P<nums>[\d., ]+(?:,? and [\d.]+)?)$")),
     # 2026-10-07, each to the planner: "what percent is 30 of 120", "what's
@@ -8943,7 +8946,16 @@ def _fractions(text: str) -> str | None:
     """Halve, double or add kitchen quantities; the unit he said is kept."""
     from fractions import Fraction
     low = re.sub(r"^(?:what(?:'s| is|s)? |how much is )", "", " ".join(str(text or "").casefold().split()))
-    if not re.search(r"/|half|quarter|third|double|triple|twice|three times", low):
+    # "3/4 of a cup doubled", "3/4 cup times 2" (2026-10-14: to a model): the
+    # same sums said the other way round.
+    low = re.sub(r"\b(\d+(?: (?:and )?\d+)?/\d+|half|a third|a quarter) of an? ([a-z]{2,12})\b", r"\1 \2", low)
+    turned = re.fullmatch(r"(.+?) (doubled|halved|tripled)", low)
+    if turned:
+        low = {"doubled": "double", "halved": "half", "tripled": "triple"}[turned.group(2)] + " " + turned.group(1)
+    turned = re.fullmatch(r"(.+?) ([a-z]{2,12}) (times|divided by) (\d+(?:\.\d+)?)", low)
+    if turned and _qty(turned.group(1)) is not None:
+        low = f"{turned.group(1)} {turned.group(3)} {turned.group(4)} {turned.group(2)}"
+    if not turned and not re.search(r"/|half|quarter|third|double|triple|twice|three times", low):
         return None                           # whole numbers are the plain sums' job
     unit = ""
     m = re.fullmatch(r"(half|a half|a third|one third|a quarter|one quarter|two thirds|three quarters|double|triple|twice"
@@ -8984,7 +8996,11 @@ def _fractions(text: str) -> str | None:
     if unit and 0 < result < 1:
         said = f"{said} of a {one}"           # "two thirds of a cup"
     elif unit:
-        said = f"{said} {one if result == 1 else unit}"
+        # "1 and a half cup" (2026-10-14): more than one is the plural,
+        # whichever way he said the unit.
+        many = (unit if unit != one or unit in ("tsp", "tbsp", "oz", "lb", "ml", "g", "kg", "l")
+                else one + ("es" if re.search(r"(?:ch|sh|x)$", one) else "s"))
+        said = f"{said} {one if result == 1 else many}"
     return said[:1].upper() + said[1:] + "."
 
 
