@@ -143,6 +143,15 @@
       "weak_shot": 0
     }
   },
+  "boards": {
+    "ashby": 86,
+    "bamboohr": 5,
+    "greenhouse": 100,
+    "lever": 47,
+    "recruitee": 4,
+    "smartrecruiters": 26,
+    "workable": 5
+  },
   "closed_recently": {
     "days": 3,
     "why": {
@@ -388,7 +397,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-14T01:05:25Z",
+  "generated_at": "2026-10-14T01:40:06Z",
   "question_shapes": {
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 1,
