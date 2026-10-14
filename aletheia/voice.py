@@ -1406,6 +1406,13 @@ _TASK_VERB = re.compile(
     r"|pull (?:the )?weeds|cover (?:the|my) (?:plants|tomatoes|garden|flowers|pool))\b")
 
 
+def _already_gone(when, what: str) -> dict:
+    """A time he said for today that has already passed: said, not moved."""
+    clock = when.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    return {"command": None,
+            "say": f"It's already past {clock} today. Say \"remind me tomorrow at {clock} to {what}\", or give me a later time."}
+
+
 def _birthday_reminder(m) -> dict:
     """A reminder some days before a birthday his note names, at 9 am."""
     import datetime as dt
@@ -6065,7 +6072,8 @@ def _interpret(transcript: str) -> dict:
         if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b", m.group("what")):
             # A clock time makes it a reminder: "pick up the kids at 3".
             timed = _interpret(f"remind me to {m.group('what')}")
-            if ((timed or {}).get("command") or {}).get("kind") == "remind_at":
+            if ((timed or {}).get("command") or {}).get("kind") == "remind_at" \
+                    or str((timed or {}).get("say") or "").startswith("It's already past "):
                 return timed
         if re.search(r"\bevery (?:\d+ |other |two |three |four )?(?:day|days|morning|night|evening|week|weeks|month"
                      r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday)s?\b", m.group("what")):
@@ -6238,6 +6246,12 @@ def _interpret(transcript: str) -> dict:
                 hour += 12
             tz = localtime.operator_tz()
             when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+            # "Pick up the kids at 3 today", said at 3:15, was set for a time
+            # already gone (2026-10-14).
+            if when <= dt.datetime.now(tz):
+                if m.group("day") == "today":
+                    return _already_gone(when, m.group("text").strip())
+                when += dt.timedelta(days=7)            # "at 9 Monday" said Monday noon is next Monday
             return {"command": {"kind": "remind_at", "at": when.isoformat(),
                                 "text": _as_he_said(text, m.group("text").strip())}, "say": None}
 
@@ -6315,7 +6329,11 @@ def _interpret(transcript: str) -> dict:
         elif when <= dt.datetime.now(tz) and m.group("day") == "tonight":
             # Said at ten at night, "tonight" still means tonight: an hour on.
             when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
-        elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
+        elif when <= dt.datetime.now(tz) and m.group("day") == "today":
+            # "Remind me at 2 today", said at 3, was quietly tomorrow
+            # (2026-10-14): he said today, so say it has gone by.
+            return _already_gone(when, m.group("text").strip())
+        elif when <= dt.datetime.now(tz) and m.group("day") == "":
             when += dt.timedelta(days=1)
         elif when <= dt.datetime.now(tz) and re.fullmatch(
                 r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", m.group("day") or ""):
