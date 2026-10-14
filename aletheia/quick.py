@@ -3531,6 +3531,11 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"how long ago did i (?:last )?(?P<rest>[a-z][a-z' ]{2,50}?)\s*\??", text)
     if m and (match(f"how long since i {m.group('rest')}") or ("", ""))[0] == "did_last":
         return f"how long since i {m.group('rest')}"
+    # "How close am I to my reading goal" (2026-10-14: to the planner) is
+    # the count against the goal.
+    if re.fullmatch(r"(?:how close am i to|how am i doing (?:on|with)|where am i (?:on|with)|how far along am i (?:on|with)) my (?:reading|book) goal\s*\??"
+                    r"|how many (?:more )?books (?:do i have )?(?:left|to go) (?:on|for|in|to reach) my (?:reading )?goal\s*\??", text):
+        return "how many books have i read this year"
     # "What food is expiring" a turn after "the chicken expires Friday", and
     # "what am I trying to do" (2026-10-08: both to a model).
     if re.fullmatch(r"what(?:'s| is| are)? (?:food |foods |stuff |things |groceries |in the fridge )?(?:is |are )?(?:expiring|going bad|going off)(?: soon)?\s*\??"
@@ -13949,6 +13954,11 @@ def _off_lists(text: str) -> str | None:
         if m and m.group("t").casefold() not in seen and not re.match(r"(?:it|that|the book|the movie|the show)$", m.group("t"), re.I):
             seen.add(m.group("t").casefold())
             done.append((m.group("t"), str(row.get("ts") or "")))
+        # "I finished a book" (2026-10-14: counted as nothing) - each one
+        # is one more, untitled.
+        elif want == "read" and re.match(r"i (?:just )?(?:finished|read) (?:a|another|one more) book\.?$",
+                                         " ".join(str(row.get("text") or "").split()), re.I):
+            done.append(("a book", str(row.get("ts") or "")))
     if not done and not any(lists.kind_of(h["name"]) == want for h in lists.all_lists()):
         return None
     done.sort(key=lambda r: r[1], reverse=True)
@@ -13981,6 +13991,13 @@ def _off_lists(text: str) -> str | None:
         return said + "."
     if not done:
         return f"Nothing's come off your {'reading' if want == 'read' else 'watch'} list yet."
+    named = [t for t, _ in done if t != "a book"]
+    if len(named) < len(done):
+        # Untitled ones are counted, not listed as "a book and a book".
+        extra = len(done) - len(named)
+        if not named:
+            return f"You've told me you finished {speech.count_phrase(extra, 'book')}, but not which."
+        return f"You've {verb} {speech.and_list(named[:6])}, and {speech.count_phrase(extra, 'other book')}."
     return f"You've {verb} {speech.and_list([t for t, _ in done[:6]])}" + (f" and {len(done) - 6} more." if len(done) > 6 else ".")
 
 

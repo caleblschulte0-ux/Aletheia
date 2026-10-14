@@ -3653,6 +3653,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                     was = None
                 if was:
                     return f"Nice - that's {was} finished. I've noted it."
+                if re.fullmatch(r"(?:a|another|one more) book", " ".join(str(cmd["which"]).split()), re.I):
+                    return "Nice - another book finished. I've noted it."
                 return "Nice. That wasn't on your task list, so I've noted it."
         if found is None:
             return why
