@@ -144,12 +144,12 @@
     }
   },
   "boards": {
-    "ashby": 86,
+    "ashby": 99,
     "bamboohr": 5,
-    "greenhouse": 100,
-    "lever": 47,
-    "recruitee": 4,
-    "smartrecruiters": 26,
+    "greenhouse": 101,
+    "lever": 50,
+    "recruitee": 5,
+    "smartrecruiters": 28,
     "workable": 5
   },
   "closed_recently": {
@@ -389,16 +389,17 @@
       "sent": 4
     },
     "2026-10-13": {
-      "filled": 21,
-      "found": 24,
+      "filled": 22,
+      "found": 25,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
       "sent": 2
     }
   },
-  "generated_at": "2026-10-14T01:40:06Z",
+  "generated_at": "2026-10-14T02:11:21Z",
   "question_shapes": {
+    "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _ _": 1,
     "employer_site: field: _ at _ letter number the _ would _ _ the _": 1,
@@ -499,8 +500,8 @@
     }
   },
   "totals": {
-    "filled": 327,
-    "found": 707,
+    "filled": 328,
+    "found": 708,
     "interviews": 6,
     "rejections": 15,
     "replies": 51,
@@ -511,7 +512,7 @@
       "background_check": 2,
       "education": 1,
       "on_site": 2,
-      "other": 13,
+      "other": 14,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -553,7 +554,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 19,
+    "needs_answer": 20,
     "oldest_days": 31,
     "to_send": 0
   },
