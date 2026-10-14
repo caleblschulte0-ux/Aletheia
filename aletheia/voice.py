@@ -6135,7 +6135,8 @@ def _interpret(transcript: str) -> dict:
                     r"|(?:do|set) (?:that|it|the timer) again|same timer again|again", low) \
             and (low != "again" or "timer" in _previous_turn()[1].casefold()):
         return _restarted_timer()
-    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause) (?:the |my |that )?timers?", low):
+    # "Pause the bread timer" (2026-10-14: a named timer went to the planner).
+    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause) (?:the |my |that )?(?:[a-z]+ ){0,2}timers?", low):
         return {"command": None, "say": "I can't pause a timer - it goes off at a set time. I can cancel it, "
                                          "or add minutes: say \"add 5 minutes\"."}
     # "Remind me in 10" and "a timer for 20" (2026-10-07: to the planner):
