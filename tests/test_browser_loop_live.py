@@ -35,6 +35,7 @@ from pathlib import Path
 from unittest import mock
 
 from tests.test_campaign import FORM_FIELDS
+from tests.test_browser_loop_torture import LocalSite
 from aletheia import (apply_run, browse, browser_loop, browser_mission as bm, browser_route, campaign,
                       intercom, journal, policy, profile, runtime, verification_mail, webtask)
 
@@ -307,11 +308,9 @@ class BrowserCase(Isolated):
     def setUp(self):
         super().setUp()
         self.state = {"got": {}, "posts": []}
-        probe = http.server.HTTPServer(("127.0.0.1", 0), lambda *a: None)
-        port = probe.server_address[1]
-        probe.server_close()
+        self.server = LocalSite(("127.0.0.1", 0), _site(self.state))
+        port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{port}"
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", port), _site(self.state))
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.server_close)

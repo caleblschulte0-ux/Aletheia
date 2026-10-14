@@ -877,7 +877,15 @@ def answer(question: str, *, think=None, include_thread: bool = True,
                                actor="aletheia-converse")
             except Exception:  # noqa: BLE001
                 pass
-            raise ConverseError(nobody_can_think_words(why)) from None
+            # What her stores can say still gets said (2026-10-14).
+            try:
+                from aletheia import quick
+                offline = quick.when_nobody_can_think(question)
+            except Exception:  # noqa: BLE001
+                offline = None
+            if not offline:
+                raise ConverseError(nobody_can_think_words(why)) from None
+            local = (offline, "")
         said, provider = local
     said = str(said or "").strip()[:MAX_ANSWER_CHARS]
     if not said:

@@ -31,7 +31,7 @@ from unittest import mock
 from aletheia import (apply_run, browse, browser_loop, browser_mission as bm, job_skill,
                       page_state as ps, policy, secret_store, signup, verification_mail)
 from tests.test_browser_loop_accounts import FakeVault
-from tests.test_browser_loop_torture import LoopCase, needs_browser
+from tests.test_browser_loop_torture import LocalSite, LoopCase, needs_browser
 
 
 def t(role, label, **kw):
@@ -265,11 +265,9 @@ class AnywhereCase(LoopCase):
     def setUp(self):
         super().setUp()
         self.site = {"posts": [], "received": [], "code": "ApHIj2MW", "password": "right-one"}
-        probe = http.server.HTTPServer(("127.0.0.1", 0), lambda *a: None)
-        port = probe.server_address[1]
-        probe.server_close()
+        server = LocalSite(("127.0.0.1", 0), _site(self.site))
+        port = server.server_address[1]
         self.host = f"http://127.0.0.1:{port}"
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), _site(self.site))
         server.daemon_threads = True
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
@@ -517,10 +515,8 @@ class WhatTheMatrixFoundOnRealPagesStaysFixed(AnywhereCase):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
-        probe = hs.HTTPServer(("127.0.0.1", 0), lambda *a: None)
-        port = probe.server_address[1]
-        probe.server_close()
-        server = hs.ThreadingHTTPServer(("127.0.0.1", port), H)
+        server = LocalSite(("127.0.0.1", 0), H)
+        port = server.server_address[1]
         server.daemon_threads = True
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)

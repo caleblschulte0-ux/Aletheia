@@ -1067,7 +1067,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # ("What's due Friday" is `due`'s, which was there first.)
         r"|^(?:what(?:'s| is|s) on my (?:list|task list|to ?do list)(?: due)? (?:for|on) "
         r"|what do i have (?:to do|due|on my list) (?:on )?)"
-        r"(?P<due6>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
+        r"(?P<due6>monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+        # "What's on my list for this weekend", "what tasks are due this
+        # weekend" (2026-10-14: offline, "I can't think just now").
+        r"|this weekend|the weekend|this week|next week)\s*\??$"
+        r"|^what tasks are (?:due|on my list) (?P<due7>this weekend|the weekend|next week)\s*\??$")),
     ("weeks_until", re.compile(
         r"^how many (?:weeks|months) (?:until|till|to|before) (?:the )?(?P<weeks>[a-z][a-z0-9' ]{2,30}?)\s*\??$")),
     # "How many days until Christmas" paid a model for arithmetic on a
@@ -1769,6 +1773,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("when_with", re.compile(
         r"^(?:what time|when)(?:'s| is) (?:my |the |our )?(?P<when_with>(?:lunch|dinner|breakfast|brunch|coffee|drinks)"
         r" with [a-z][a-z' ]{1,30}?)(?: (?:today|tomorrow))?\s*\??$")),
+    # "What time is dinner Saturday" (2026-10-14: to a model, a turn after
+    # "dinner with Sam Saturday at 7" was pencilled in).
+    ("meal_when", re.compile(
+        r"^(?:what time|when)(?:'s| is) (?:my |the |our )?(?:lunch|dinner|breakfast|brunch|supper)"
+        r"(?: (?:on )?(?:today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     # "What's my dentist appointment" (2026-10-07: to a model) - only the
     # words that are always an appointment; "what's my flight" may be a number.
     ("when_mine_what", re.compile(
@@ -3768,7 +3777,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -3779,7 +3788,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "weather2", "weather3", "weather4", "weather5", "weather6", "weather7", "weather8", "weather9", "weather10", "weather11",
                                            "day", "day2", "day3", "day4", "day5", "day6", "day7", "day13", "day14", "day15",
                                            "outcome", "outcome2", "outcome3", "outcome4", "outcome5", "outcome6",
-                                           "until", "until2", "day8", "day9", "day16", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "syn", "syn2", "ant",
+                                           "until", "until2", "day8", "day9", "day16", "day10", "day11", "weeks", "due", "due2", "due3", "due4", "due5", "due6", "due7", "syn", "syn2", "ant",
                                            "cal", "cal2", "cal3", "cal4", "cal5", "cal6", "cal7", "cal8", "born_q", "born_q2", "born_q3", "born_q4", "day12", "holiday_on", "holiday_month", "holiday_list", "holiday_list2", "place_w", "place_w2", "place_a", "did_v", "did_o", "did_v2", "did_o2", "did_today", "wkday", "bwin", "bwin2", "bwin3", "bday", "meal", "meal2", "meal3", "woke", "const", "date_of4", "due", "due2", "due3", "workdays", "agenda_on", "since", "since2", "born", "age_of", "took", "took2",
                                            "why_not", "why_not2", "why_not3",
                                            "sent_window", "sent_window2",
@@ -4805,6 +4814,8 @@ def _tasks_due(which: str = "") -> str | None:
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     which = " ".join(str(which or "").split())
+    if which == "the weekend":
+        which = "this weekend"
     end_of = lambda day: dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=tz)
     if which in ("today", "tomorrow", "this week", "next week", "this month", "next month"):
         which = "due " + which
@@ -4844,10 +4855,18 @@ def _tasks_due(which: str = "") -> str | None:
              "due next month": end_of((now.date().replace(day=1) + dt.timedelta(days=63)).replace(day=1)
                                       - dt.timedelta(days=1)),
              "due soon": now + dt.timedelta(days=3)}.get(which, now + dt.timedelta(days=7))
+    # "What's on my list for next week" read out a task due this Saturday
+    # (2026-10-14): next week starts on Monday, next month on the 1st.
+    nxt = now.date() + dt.timedelta(days=7 - now.weekday())
+    first = {"due next week": dt.datetime.combine(nxt, dt.time(0, 0), tzinfo=tz),
+             "due next month": dt.datetime.combine((now.date().replace(day=1) + dt.timedelta(days=32)).replace(day=1),
+                                                   dt.time(0, 0), tzinfo=tz)}.get(which)
     dated = []
     for task in rows:
         when = tasks_mod.parse_deadline(task.get("deadline"))
         if when is None:
+            continue
+        if first is not None and when < first:
             continue
         if (when < now) if overdue_only else (when <= limit):
             dated.append((when, task))
@@ -4884,7 +4903,7 @@ def _tasks_due(which: str = "") -> str | None:
     # "1 thing due: call the bank due tomorrow" said the day twice
     # (2026-10-07). Asked about one day, the day is the head and each task
     # is just what it is.
-    one_day = which in ("due today", "due tomorrow") and not late
+    one_day = which in ("due today", "due tomorrow", "due next week", "due next month") and not late
     said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") if one_day
                             else intercom._task_words(t) for _w, t in dated[:5]])
     more = f", and {len(dated) - 5} more" if len(dated) > 5 else ""
@@ -11728,6 +11747,24 @@ def _cancelled_hold(words: list[str]) -> str | None:
         return None
 
 
+#: Words he says for the same errand: "get the kids" is "pick up the kids"
+#: (2026-10-14: "I have nothing about get the kids", a reminder sitting there).
+_SAME_ERRAND = {"get": r"\b(?:get|pick|grab|collect|fetch)", "pick": r"\b(?:pick|get|grab|collect|fetch)",
+                "grab": r"\b(?:grab|get|pick)", "collect": r"\b(?:collect|get|pick)", "fetch": r"\b(?:fetch|get|pick)"}
+
+
+def _errand_words(what: str) -> list:
+    """The words of an errand to look for, "I need to" taken off."""
+    what = re.sub(r"^(?:i |we )?(?:need to |have to |got to |gotta |am going to |'m going to |will |'ll )?", "",
+                  " ".join(str(what or "").casefold().split()))
+    return [w for w in re.findall(r"[a-z0-9]+", what) if w not in _STOP_WORDS and w not in ("s", "with", "at", "for", "up")]
+
+
+def _errand_matches(words: list, text: str) -> bool:
+    low = text.casefold()
+    return all(re.search(_SAME_ERRAND.get(w, rf"\b{re.escape(w.rstrip('s'))}"), low) for w in words)
+
+
 def _when_mine(what: str, until: bool = False) -> str | None:
     """"What time is my dentist appointment": the soonest event or reminder
     naming it, said with when. Every word he named must be in it. With
@@ -11743,9 +11780,11 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     # The appointment before the reminder ABOUT it: "remind me the day
     # before" made "when is my doctors appointment" answer with the
     # reminder's day (2026-10-08).
+    errand = _errand_words(what)
     for at, text, store in sorted(_coming(), key=lambda row: row[2] != "calendar"):
         low = text.casefold()
-        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words):
+        if all(re.search(rf"\b{re.escape(w.rstrip('s'))}", low) for w in words) \
+                or (store == "reminder" and errand and _errand_matches(errand, text)):
             when = speech.humanize_time(at.isoformat())
             if until:
                 left = int((at - dt.datetime.now(dt.timezone.utc)).total_seconds() // 60)
@@ -12612,7 +12651,9 @@ def _overnight() -> str:
     # him back, read out in the morning as a thing she did.
     rows = [e for e in rows if not re.match(r"refused\s*[—-]\s*(?:nothing|there(?:'s| is) nothing|no |which\b|.*\?\s*$)",
                                             str(recollection._row(e).get("what") or ""), re.IGNORECASE)]
-    lines = [_shortened(str(recollection._row(e).get("what") or "").rstrip(".")) for e in rows[-3:]]
+    # "Overnight: I'll remind you today at 6:21 pm: call the bank" promised
+    # what had already been done (2026-10-14).
+    lines = [_shortened(_as_done(str(recollection._row(e).get("what") or "").rstrip("."))) for e in rows[-3:]]
     lines = [l for l in lines if l]
     if lines:
         parts.append("; ".join(lines) + (f" — and {speech.count_phrase(len(rows) - len(lines), 'other thing')}"
@@ -20087,6 +20128,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "meal_when": lambda text: _meal_when(text),
            "who_coming": lambda rest: _who_coming(rest),
            "opinion": lambda rest: _opinion(rest),
            "did_finish": lambda rest: _did_finish(rest),
@@ -20492,7 +20534,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"work_week", "mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"meal_when", "work_week", "mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
@@ -20539,3 +20581,53 @@ def answer(question: str) -> str | None:
         return str(said).strip() or None
     except Exception:
         return None
+
+
+def when_nobody_can_think(question: str) -> str | None:
+    """The answer her stores CAN give when no model can read the rest.
+
+    "When is my next dentist appointment" with nothing booked hands on to a
+    model on purpose (`_when_mine`): it may be in his mail. With every model
+    out that hand-off came back "I can't think just now" (2026-10-14) - when
+    her own calendar and reminders could at least say they hold nothing by
+    that name. Said as what she checked, never as "you have none"."""
+    try:
+        found = match(question)
+        if not found or found[0] not in ("when_mine", "when_mine2", "meal_when"):
+            return None
+        if found[0] == "meal_when":
+            m = re.search(r"\b(lunch|dinner|breakfast|brunch|supper)\b(?: (?:on )?(\w+))?", str(found[1]).casefold())
+            if not m:
+                return None
+            return (f"Nothing on your calendar mentions {m.group(1)}" + (f" {m.group(2)}" if m.group(2) else "")
+                    + ". It may be in your email, which I can't read until Claude or ChatGPT is back.")
+        what = " ".join(str(found[1] or "").split()).strip(" ?")
+        what = re.sub(r"^(?:my|the|our|next) ", "", what)
+        if not what:
+            return None
+        return (f"Nothing on your calendar or in your reminders mentions your {what}. "
+                "It may be in your email, which I can't read until Claude or ChatGPT is back.")
+    except Exception:
+        return None
+
+
+def _meal_when(text: str) -> str | None:
+    """"What time is dinner Saturday": the meal on that day, from her
+    calendar and reminders. Nothing found hands on, as `_when_mine` does."""
+    from aletheia import speech, voice
+    m = re.search(r"\b(lunch|dinner|breakfast|brunch|supper)\b(?: (?:on )?(\w+))?", str(text or "").casefold())
+    if not m:
+        return None
+    meal, day = m.group(1), (m.group(2) or "").strip("?")
+    iso = voice._spoken_day(day) if day else None
+    if day and not iso:
+        return None
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    for at, said, store in sorted(_coming(), key=lambda row: (row[2] != "calendar", row[0])):
+        if store == "calendar" and re.search(rf"\b{meal}\b", said.casefold()) \
+                and (not iso or at.astimezone(tz).date().isoformat() == iso) \
+                and (day != "tonight" or at.astimezone(tz).hour >= 16):
+            title = said if said[:1].isupper() or re.match(r"(?:my|the|a|an|our) ", said) else f"your {said}"
+            return f"{title[:1].upper() + title[1:]} is {speech.humanize_time(at.isoformat())}."
+    return None

@@ -1406,6 +1406,29 @@ _TASK_VERB = re.compile(
     r"|pull (?:the )?weeds|cover (?:the|my) (?:plants|tomatoes|garden|flowers|pool))\b")
 
 
+def _a_done_task(which: str) -> str | None:
+    """The description of one task of his marked done that these words
+    name exactly, or None."""
+    from aletheia import tasks as tasks_mod
+    wanted = re.sub(r"^(?:the|my) ", "", " ".join(str(which or "").casefold().split()))
+    if not wanted:
+        return None
+    try:
+        hits = {str(t.get("description") or "") for t in tasks_mod.all_tasks()
+                if str(t.get("status", "")).upper() == "COMPLETED" and tasks_mod.is_his(t)
+                and " ".join(str(t.get("description") or "").casefold().split()) == wanted}
+    except Exception:
+        return None
+    return next(iter(hits)) if len(hits) == 1 else None
+
+
+def _already_gone(when, what: str) -> dict:
+    """A time he said for today that has already passed: said, not moved."""
+    clock = when.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
+    return {"command": None,
+            "say": f"It's already past {clock} today. Say \"remind me tomorrow at {clock} to {what}\", or give me a later time."}
+
+
 def _birthday_reminder(m) -> dict:
     """A reminder some days before a birthday his note names, at 9 am."""
     import datetime as dt
@@ -1652,6 +1675,14 @@ def _new_task(raw: str) -> dict:
     # "Add pay the water bill too" (2026-10-14) kept "too" as part of the task.
     raw = re.sub(r"(?:,? (?:too|as well|also))+$", "", raw.strip(), flags=re.I)
     desc, deadline = _split_deadline(raw.strip())
+    # "Add file taxes to my list for next Tuesday" kept "for next tuesday" in
+    # the task and nothing came due (2026-10-14). Which Tuesday is asked, as
+    # a reminder asks; his answer replays the sentence with the date.
+    nxt = re.search(r"\bnext (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", desc, re.I)
+    if not deadline and nxt:
+        ask = _ambiguous_next_weekday(nxt.group(0))
+        if ask:
+            return {"command": None, "say": ask}
     # "I need to renew my passport", then "I need to renew my passport by
     # December" made two of it, and "mark the passport one done" asked
     # "renew my passport or renew my passport?" (2026-10-14). The same task
@@ -6065,7 +6096,8 @@ def _interpret(transcript: str) -> dict:
         if re.search(r"\bat \d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?\b", m.group("what")):
             # A clock time makes it a reminder: "pick up the kids at 3".
             timed = _interpret(f"remind me to {m.group('what')}")
-            if ((timed or {}).get("command") or {}).get("kind") == "remind_at":
+            if ((timed or {}).get("command") or {}).get("kind") == "remind_at" \
+                    or str((timed or {}).get("say") or "").startswith("It's already past "):
                 return timed
         if re.search(r"\bevery (?:\d+ |other |two |three |four )?(?:day|days|morning|night|evening|week|weeks|month"
                      r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekday)s?\b", m.group("what")):
@@ -6238,6 +6270,12 @@ def _interpret(transcript: str) -> dict:
                 hour += 12
             tz = localtime.operator_tz()
             when = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+            # "Pick up the kids at 3 today", said at 3:15, was set for a time
+            # already gone (2026-10-14).
+            if when <= dt.datetime.now(tz):
+                if m.group("day") == "today":
+                    return _already_gone(when, m.group("text").strip())
+                when += dt.timedelta(days=7)            # "at 9 Monday" said Monday noon is next Monday
             return {"command": {"kind": "remind_at", "at": when.isoformat(),
                                 "text": _as_he_said(text, m.group("text").strip())}, "say": None}
 
@@ -6315,7 +6353,11 @@ def _interpret(transcript: str) -> dict:
         elif when <= dt.datetime.now(tz) and m.group("day") == "tonight":
             # Said at ten at night, "tonight" still means tonight: an hour on.
             when = (dt.datetime.now(tz) + dt.timedelta(hours=1)).replace(second=0, microsecond=0)
-        elif when <= dt.datetime.now(tz) and m.group("day") in ("today", ""):
+        elif when <= dt.datetime.now(tz) and m.group("day") == "today":
+            # "Remind me at 2 today", said at 3, was quietly tomorrow
+            # (2026-10-14): he said today, so say it has gone by.
+            return _already_gone(when, m.group("text").strip())
+        elif when <= dt.datetime.now(tz) and m.group("day") == "":
             when += dt.timedelta(days=1)
         elif when <= dt.datetime.now(tz) and re.fullmatch(
                 r"(?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)", m.group("day") or ""):
@@ -6372,7 +6414,18 @@ def _interpret(transcript: str) -> dict:
                 told = None if upcoming else _event_from_notes(what)
                 if told and cal.parse_time(told["start"]) > now + lead:
                     upcoming = [told]
+                if not upcoming:
+                    # "Remind me 15 minutes before I need to get the kids", a
+                    # reminder to pick them up at 6 already set (2026-10-14).
+                    from aletheia import quick as _qb
+                    errand = _qb._errand_words(what)
+                    mine = next(((at, said) for at, said, store in _qb._coming()
+                                 if store == "reminder" and errand and at > now + lead and _qb._errand_matches(errand, said)), None)
+                    if mine:
+                        upcoming = [{"start": mine[0].isoformat(), "title": mine[1]}]
+                        what = mine[1]
             if not upcoming:
+                what = re.sub(r"^i (?:need to |have to |will |'ll )?", "", what)
                 return {"command": None,
                         "say": ("Nothing on your calendar coming up" if generic
                                 else f"I don't see {what} on your calendar coming up") + " to remind you before."}
@@ -6651,15 +6704,24 @@ def _interpret(transcript: str) -> dict:
     # wants to hear at the end.
     # "Set a 10 minute timer for the pasta" (2026-10-07: to the planner) is
     # the same timer with the length said first.
+    # "Set a timer for ten minutes for the pasta" (2026-10-14: to the
+    # planner) - the named forms below read digits, so his number word
+    # becomes one first. Only in a timer sentence, only a whole amount.
+    tl = low
+    if re.match(r"(?:set|start) (?:a |an |me a )?", low) and "timer" in low:
+        tl = re.sub(r"\b([a-z]+(?:-[a-z]+)?) (seconds?|secs?|minutes?|mins?|hours?|hrs?)\b",
+                    lambda w: (f"{int(_spoken_amount(w.group(1)))} {w.group(2)}"
+                               if (_spoken_amount(w.group(1)) or 0) >= 1
+                               and float(_spoken_amount(w.group(1))).is_integer() else w.group(0)), low)
     said_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(\d+)[- ]?(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                              r" timer(?:\s+(to|for|so i can)\s+(.+))?", low)
+                              r" timer(?:\s+(to|for|so i can)\s+(.+))?", tl)
     timer_words = (f"set a timer for {said_first.group(1)} {said_first.group(2)}"
-                   + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else low
+                   + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else tl
     # "Set a pasta timer for 8 minutes", "set a timer for pasta for 8
     # minutes" (2026-10-07: to the planner) - the name said before the length.
     named_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?:timer for (?:the |my )?(?P<a>[a-z][a-z ]{1,24}?) for"
                                r"|(?P<b>[a-z][a-z ]{1,24}?) timer for) (?P<n>\d+) ?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)",
-                               low)
+                               tl)
     if named_first and "timer" not in (named_first.group("a") or named_first.group("b")):
         name = named_first.group("a") or named_first.group("b")
         # "A new timer", "another timer": no name, just a timer.
@@ -6668,7 +6730,7 @@ def _interpret(transcript: str) -> dict:
                        + ("" if plain else f" for {name}"))
     # "Set a 10 minute eggs timer": the length, then the name.
     length_name = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?P<n>\d+)[- ]?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                               r" (?P<name>[a-z][a-z ]{1,24}?) timer", low)
+                               r" (?P<name>[a-z][a-z ]{1,24}?) timer", tl)
     if length_name and not re.search(r"\b(?:timer|and|or)\b", length_name.group("name")):
         plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", length_name.group("name"))
         timer_words = (f"set a timer for {length_name.group('n')} {length_name.group('u')}"
@@ -6856,6 +6918,11 @@ def _interpret(transcript: str) -> dict:
                     r"(?:push|bump|postpone|delay|defer|put off)\b", low)))
         if day:
             return {"command": {"kind": "task_change", "which": which, "deadline": day}, "say": None}
+    elif m and _a_done_task(which):
+        # "Move call the vet to tomorrow", a task he had marked done, went to
+        # the planner (2026-10-14). Done is said; putting it back is his.
+        done = _a_done_task(which)
+        return {"command": None, "say": f"You already marked {done} done. Say \"add {done}\" to put it back on your list."}
     elif m and re.search(r"\btask\b|\bon my (?:list|to-?do list)\b", low):
         # "Move my dentist task to friday" with no such task went to the
         # planner (2026-10-07). He said task: the answer is the list's.
@@ -8432,7 +8499,7 @@ def _interpret(transcript: str) -> dict:
     # planner) - the day goes on the task as its deadline.
     m = re.fullmatch(r"(?:add|put|stick) (?P<what>.+?) (?:on|to) (?:the |my )?(?P<todo>(?:to ?do|to-do|task) )?list"
                      r" (?P<day>(?:for |by |on |due )?(?:today|tonight|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday"
-                     r"|thursday|friday|saturday|sunday)))", low)
+                     r"|thursday|friday|saturday|sunday)|" + SPOKEN_DATE + r"))", low)
     # A chore said as a noun ("add laundry to my list for tomorrow",
     # 2026-10-08: to the planner) is as much a task as a verb is; nothing
     # bought has a day.

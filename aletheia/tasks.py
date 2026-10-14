@@ -212,8 +212,10 @@ def describe(tid: str, description: str) -> dict:
     task["description"] = description
     task["updated_at"] = _now()
     save(task)
+    # "Good morning. Overnight: description corrected — was: clean the
+    # garage" (2026-10-14): every journal line is read back to him.
     journal.append("task", f"task:{tid}",
-                   f"description corrected — was: {before}")
+                   f"Renamed the task {before} to {description}")
     return task
 
 

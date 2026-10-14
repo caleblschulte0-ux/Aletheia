@@ -120,6 +120,19 @@ PIZZA = """<form method="post" action="/pizza/post">
  <p><button>Submit order</button></p></form>"""
 
 
+class LocalSite(http.server.ThreadingHTTPServer):
+    """The test site, bound where it stands and nowhere shared.
+
+    These tests found a free port with a probe, closed it, then bound it
+    again with SO_REUSEADDR - which on Windows lets a second listener share
+    a port already in use, and leaves a gap another socket can take. CI on
+    Windows then timed out on the very first page load ("the page could not
+    be put back (Timeout 20000ms exceeded.)", 2026-10-14, three runs). Port 0
+    and no address reuse leave nothing to race."""
+    allow_reuse_address = False
+    daemon_threads = True
+
+
 def _site(state: dict):
     got = state["got"]
 
@@ -179,11 +192,9 @@ def _site(state: dict):
 class LoopCase(unittest.TestCase):
     def setUp(self):
         self.state = {"got": {}, "hits": {}, "posts": []}
-        probe = http.server.HTTPServer(("127.0.0.1", 0), lambda *a: None)
-        port = probe.server_address[1]
-        probe.server_close()
+        self.server = LocalSite(("127.0.0.1", 0), _site(self.state))
+        port = self.server.server_address[1]
         self.base = f"http://127.0.0.1:{port}"
-        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", port), _site(self.state))
         self.server.daemon_threads = True
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.server_close)
