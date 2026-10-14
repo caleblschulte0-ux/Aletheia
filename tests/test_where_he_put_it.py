@@ -120,7 +120,13 @@ class ClockArithmetic(unittest.TestCase):
         self.assertEqual(quick.match("is it daylight saving time")[0], "time_zone")
 
     def test_clearing_his_calendar_is_said_plainly(self):
-        self.assertIn("can't cancel things on your calendar", voice._interpret("clear my calendar tomorrow")["say"])
+        # With no hold of hers that day. An earlier test in the same run can
+        # leave one behind in the shared private state (live in CI
+        # 2026-10-14: a job fair pencilled in for tomorrow), and then the
+        # answer rightly names it instead.
+        with mock.patch.object(voice, "_her_holds_on", return_value=[]):
+            said = voice._interpret("clear my calendar tomorrow")["say"]
+        self.assertIn("can't cancel things on your calendar", said)
 
 
 class WhatIsAhead(unittest.TestCase):
