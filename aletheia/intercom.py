@@ -2699,6 +2699,10 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         if found is None:
             return f"I couldn't find that reminder to switch off: {speech.plainly(str(why))}"
         scheduler.set_enabled(found["id"], False)
+        if text.casefold() == "wake up" and found.get("kind") == "once":
+            # "Wake me up at 6", "cancel it" said "the reminder to wake up is off"
+            # (2026-10-14): it is the alarm, at the time it was for.
+            return f"Your alarm {speech.humanize_time(str(found.get('at') or ''))} is off."
         return f"Undone: the reminder to {text} is off."
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning

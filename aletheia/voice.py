@@ -5286,6 +5286,31 @@ def _interpret(transcript: str) -> dict:
         if just and just.get("at"):
             words = _as_he_said(transcript, m.group("w") or m.group("w2"))
             return {"command": {"kind": "remind_at", "at": str(just["at"]), "text": words}, "say": None}
+    # "Remind me to call the vet at 4", "and the pharmacy at 5" (2026-10-14: to
+    # a model, then an approval): the same errand for a new thing, on the same
+    # day as the one she just set, at the new time.
+    m = re.fullmatch(r"(?:and|also|oh and) (?P<w>(?:the|my|a|an|his|her|their|our) [a-z0-9][a-z0-9' -]{1,40}?) "
+                     r"at (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)(?: too| as well)?", low)
+    if m and _she_just_set_a_reminder():
+        just = _the_reminder_just_set()
+        verb = re.match(r"(?P<v>.+?) (?:the|my|a|an|his|her|their|our) ",
+                        str((just or {}).get("command", {}).get("text") or ""))
+        hhmm = _spoken_time(m.group("t"))
+        if just and just.get("at") and verb and hhmm:
+            try:
+                import datetime as _dt
+                from aletheia import localtime
+                was = _dt.datetime.fromisoformat(str(just["at"]).replace("Z", "+00:00")).astimezone(localtime.operator_tz())
+            except (TypeError, ValueError):
+                was = None
+            if was is not None:
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(m.group("t")) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
+                    hour += 12
+                at = was.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                if at > _dt.datetime.now(at.tzinfo):
+                    words = f"{verb.group('v')} {_as_he_said(transcript, m.group('w'))}"
+                    return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words}, "say": None}
     # "Remind me on the 1st of every month to pay rent", "how long until it"
     # (2026-10-12: to a model): the next time it goes off.
     if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
@@ -9018,7 +9043,11 @@ def _interpret(transcript: str) -> dict:
     # back again without end, so a look-back never runs inside another.
     m = re.fullmatch(r"(?:skip|don'?t do|don'?t remind me) (?:it|that|that one|the next one|this one)"
                      r"(?: (?:on |this )?(?P<when>this week|this time|once|just once|next time|today|tomorrow|tonight"
-                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?(?: please)?", low)
+                     r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?(?: please)?", low) \
+        or re.fullmatch(r"(?:skip|don'?t remind me) (?:it )?(?:on |this )?(?P<when>today|tomorrow|tonight"
+                        r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: please)?", low)
+    # "Skip tomorrow" (2026-10-14: to a model, then an approval) is "skip it
+    # tomorrow" said short, and only straight after a repeating one was set.
     if m and not getattr(_LOOKING_BACK, "on", False):
         _LOOKING_BACK.on = True
         try:
@@ -9032,6 +9061,19 @@ def _interpret(transcript: str) -> dict:
             # "Skip it on Friday" (2026-10-12: to a model): the coming Friday.
             once = once if once in ("today", "tomorrow", "tonight", "this week") or once.endswith("day") else "next"
             return {"command": {"kind": "reminder_off", "which": just["text"], "once": once}, "say": None}
+    # "Wake me up at 6 tomorrow", "turn it off" (2026-10-14: to a model, then an
+    # approval): "turn it off" said about the alarm, reminder or timer she just
+    # named is "cancel it", which already knows which one.
+    if re.fullmatch(r"(?:turn|switch|shut) (?:it|that) off|(?:turn|switch|shut) off (?:it|that)", low) \
+            and re.search(r"\b(?:alarms?|reminders?|remind you|timers?)\b", _her_last_answer(), re.I) \
+            and not getattr(_LOOKING_BACK, "turn_off", False):
+        _LOOKING_BACK.turn_off = True
+        try:
+            got = interpret("thea cancel it")
+        finally:
+            _LOOKING_BACK.turn_off = False
+        if (got or {}).get("command"):
+            return got
     # "Remind me every weekday at 7 to take my pills" - "pause it for a week"
     # (2026-10-12: to a model). Every time it would go off in that span is
     # skipped, and it comes back on its own; "pause my pill reminder for a
