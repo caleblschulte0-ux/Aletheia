@@ -1397,7 +1397,10 @@ class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
             t.update(state=ws.DONE, cursor=len(t["plan"]["steps"]))
             t.pop("baseline_rechecked", None)
             t["results"] = [{"at": "2026-09-16T15:00:00Z", "step": i, "tool": "research", "outcome": "ok",
-                             "said": "Austin is 31% cheaper than New York.", "revision": revision}]
+                             "said": "Austin is 31% cheaper than New York.", "revision": revision},
+                            # What was written from it after: on his PC that write was the last result.
+                            {"at": "2026-09-16T15:01:00Z", "step": i + 1, "tool": "file_write", "outcome": "ok",
+                             "said": "Wrote the comparison."}]
         # Read on the current reading: it stands.
         pg.update(self.pid, lambda r: as_his_pc_left_it(r, research.REVISION))
         self.assertNotIn(look["key"], [x["task"] for x in program_run.requeue_reclassified(now=NOW)])
