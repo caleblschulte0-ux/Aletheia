@@ -1,0 +1,12 @@
+{
+  "id": "20261014-reboot-steps-1712",
+  "filed": "2026-10-14T17:11:38Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "it need to be added to the ORI google canalcder",
+  "command": {
+    "kind": "missions",
+    "which": "active",
+    "about": "steps"
+  }
+}
