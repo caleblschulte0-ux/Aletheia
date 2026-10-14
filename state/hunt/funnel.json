@@ -143,6 +143,21 @@
       "unreachable": 1,
       "unreachable_ApplyError": 1,
       "weak_shot": 1
+    },
+    "2026-10-14": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 4,
+      "needs_account": 0,
+      "needs_answer": 0,
+      "not_realistic": 0,
+      "offered": 1,
+      "ready": 0,
+      "runs": 1,
+      "unjudged": 0,
+      "unreachable": 1,
+      "unreachable_ApplyError": 1,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -157,24 +172,14 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_workable": 1,
       "left_captcha": 1,
       "left_going_in_circles": 2,
       "left_no_way_forward": 5,
-      "left_questions": 4,
-      "left_sign_in": 2,
-      "not_realistic": 7
+      "left_questions": 3,
+      "left_sign_in": 2
     }
   },
   "days": {
-    "2026-09-14": {
-      "filled": 30,
-      "found": 40,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
-      "sent": 30
-    },
     "2026-09-15": {
       "filled": 1,
       "found": 3,
@@ -392,15 +397,23 @@
       "sent": 4
     },
     "2026-10-13": {
-      "filled": 30,
-      "found": 39,
+      "filled": 11,
+      "found": 20,
       "interviews": 2,
       "rejections": 1,
       "replies": 5,
       "sent": 6
+    },
+    "2026-10-14": {
+      "filled": 19,
+      "found": 19,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-10-14T04:54:52Z",
+  "generated_at": "2026-10-14T05:25:12Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ ai _ _": 1,
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
@@ -418,7 +431,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -427,14 +440,13 @@
   "sent_by_system": {
     "ashbyhq": 30,
     "employer_site": 11,
-    "greenhouse": 174,
+    "greenhouse": 144,
     "lever": 23
   },
   "stop_shapes": {
     "employer_site: no_apply: _ _ _ | home | _": 1,
     "employer_site: no_apply: _ to _ _ | about _ | _ _ | _ | search jobs | learn more": 1,
     "employer_site: no_apply: _ | _ _ | next _": 1,
-    "employer_site: no_apply: none": 1,
     "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1,
     "employer_site: no_apply: search | _ | _ role _ _ | _ to _": 1
   },
@@ -501,7 +513,7 @@
         "nothing_to_press_on_multi_page_wizard/observed": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+no_apply/observed": 4,
+        "nothing_to_press_on_content+no_apply/observed": 3,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 1
       },
@@ -514,12 +526,12 @@
     }
   },
   "totals": {
-    "filled": 336,
-    "found": 722,
+    "filled": 306,
+    "found": 682,
     "interviews": 6,
     "rejections": 15,
     "replies": 52,
-    "sent": 238
+    "sent": 208
   },
   "waiting": {
     "asked_about": {
@@ -549,8 +561,8 @@
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
-      "not_a_form_asks_nothing_on_employer_site": 20,
-      "not_a_form_asks_nothing_on_greenhouse": 22,
+      "not_a_form_asks_nothing_on_employer_site": 19,
+      "not_a_form_asks_nothing_on_greenhouse": 20,
       "not_a_form_asks_nothing_on_lever": 2,
       "not_a_form_asks_nothing_on_myworkdayjobs": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 33,
