@@ -478,10 +478,14 @@ def copy_to_his_calendar(*, now: dt.datetime | None = None, events=None, writer=
             # Hers once an employer confirmed it; or one HE asked her to hold
             # ("hold:caleb"), which is his word that the time is real. Her own
             # pencil marks for times she only proposed stay off his calendar.
-            if not title.casefold().startswith("interview"):
-                continue
-            if not (event.get("status") == "CONFIRMED"
-                    or (event.get("status") == "TENTATIVE" and event.get("source") == "hold:caleb")):
+            his_hold = event.get("status") == "TENTATIVE" and event.get("source") == "hold:caleb"
+            if title.casefold().startswith("interview"):
+                if not (event.get("status") == "CONFIRMED" or his_hold):
+                    continue
+            elif not his_hold:
+                # And the events his missions pencil in, which are held the same way: his words,
+                # 2026-10-14, of the trail walk that sat on her calendar alone, "it need to be
+                # added to the ORI google calendar".
                 continue
             try:
                 start = cal.parse_time(event["start"]).astimezone(dt.timezone.utc)
