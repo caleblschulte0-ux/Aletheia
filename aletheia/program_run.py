@@ -1069,7 +1069,7 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
             # A comparison looked at before looks measured it against where he lives: the move
             # comparison was written against the pages' New York index and stood as done after the
             # fix that measures it against Sioux Falls (his PC, 2026-10-14). Once.
-            why, mark = "it was measured against another city, not where he lives", "baseline_rechecked"
+            why, mark = "it was measured against another place, not where he lives", "baseline_rechecked"
         if not why:
             continue
         key = task["key"]

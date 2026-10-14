@@ -53,7 +53,12 @@ class ARemindersDay(unittest.TestCase):
             self.assertEqual(cmd["text"], "renew my tags")
 
     def test_next_weekday_is_asked_with_the_answer_in_his_words(self):
-        out = voice._interpret("remind me next tuesday to call mom")
+        # On a Tuesday "next tuesday" is a week today and nothing to ask, so the day is held still
+        # (it went red every Tuesday, 2026-10-14).
+        from unittest import mock
+        from aletheia import localtime
+        with mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 15)):
+            out = voice._interpret("remind me next tuesday to call mom")
         self.assertIsNone(out["command"])
         self.assertIn("Which Tuesday", out["say"])
         self.assertIn("to call mom", out["say"])

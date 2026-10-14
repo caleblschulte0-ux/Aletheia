@@ -5148,8 +5148,12 @@ class AboutTheMeetingOnADay(unittest.TestCase):
         self.assertEqual(dt.datetime.fromisoformat(got["at"]).strftime("%A %H:%M"), "Tuesday 12:00")
 
     def test_next_tuesday_is_asked_in_his_words(self):
-        from aletheia import voice
-        got = voice.interpret("remind me about the meeting next tuesday at noon")
+        import datetime as dt
+        from unittest import mock
+        from aletheia import localtime, voice
+        # Held off a Tuesday: then "next tuesday" is a week today and nothing to ask.
+        with mock.patch.object(localtime, "today", return_value=dt.date(2026, 10, 15)):
+            got = voice.interpret("remind me about the meeting next tuesday at noon")
         self.assertIsNone(got["command"])
         self.assertIn("about the meeting", got["say"])
         self.assertNotIn("next tuesday'", got["say"])
