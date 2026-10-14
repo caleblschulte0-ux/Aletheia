@@ -20534,7 +20534,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"work_week", "mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"meal_when", "work_week", "mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
