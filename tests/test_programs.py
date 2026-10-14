@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from aletheia import (communications, events, handoffs, intercom, policy, program_compose, program_run,
+from aletheia import (calendar, communications, events, handoffs, intercom, policy, program_compose, program_run,
                       program_shaping, programs as pg, reasoner, scheduler, tools, waits, work_engine as we,
                       work_requirements as wr, work_states as ws)
 
@@ -107,6 +107,9 @@ class Sandbox(unittest.TestCase):
             mock.patch.object(communications, "MESSAGES_DIR", root / "c" / "messages"),
             mock.patch.object(communications, "EXPECT_DIR", root / "c" / "expect"),
             mock.patch.object(events, "EVENTS_DIR", root / "events"),
+            # Bound at import, so the environment above does not move it: a mission test's hold
+            # (the Fall Job Fair) was left on the run's calendar for every test after it (2026-10-14).
+            mock.patch.object(calendar, "CALENDAR_DIR", root / "calendar" / "events"),
             mock.patch.object(events, "WATCHERS_DIR", root / "watchers"),
             mock.patch.object(scheduler, "SCHEDULE_DIR", root / "schedules" / "definitions"),
             mock.patch.object(scheduler, "RECEIPT_DIR", root / "schedules" / "receipts"),
