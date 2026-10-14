@@ -20,7 +20,7 @@ import urllib.parse
 from unittest import mock
 
 from aletheia import browser_loop, browser_mission as bm, job_skill, policy, secret_store, signup
-from tests.test_browser_loop_torture import LoopCase, needs_browser
+from tests.test_browser_loop_torture import LocalSite, LoopCase, needs_browser
 
 JOB = """<title>Data Analyst</title><h1>Data Analyst</h1><h2>Responsibilities</h2>
 <p>Turn data into decisions.</p><a href="/wd/choose">Apply</a>"""
@@ -121,11 +121,9 @@ class AnAccountWallIsWalkedByTheGeneralLoop(LoopCase):
     def setUp(self):
         super().setUp()
         self.tenant = {"posts": [], "accounts": []}
-        probe = http.server.HTTPServer(("127.0.0.1", 0), lambda *a: None)
-        port = probe.server_address[1]
-        probe.server_close()
+        server = LocalSite(("127.0.0.1", 0), _tenant(self.tenant))
+        port = server.server_address[1]
         self.wd = f"http://127.0.0.1:{port}"
-        server = http.server.ThreadingHTTPServer(("127.0.0.1", port), _tenant(self.tenant))
         server.daemon_threads = True
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
