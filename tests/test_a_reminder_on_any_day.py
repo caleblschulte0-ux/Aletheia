@@ -53,9 +53,12 @@ class ARemindersDay(unittest.TestCase):
             self.assertEqual(cmd["text"], "renew my tags")
 
     def test_next_weekday_is_asked_with_the_answer_in_his_words(self):
-        out = voice._interpret("remind me next tuesday to call mom")
+        # Not today's weekday: "next tuesday" said ON a Tuesday is a week out
+        # and is not asked, so a fixed day failed this test every Tuesday.
+        day = _a_weekday_that_is_not_today()
+        out = voice._interpret(f"remind me next {day.lower()} to call mom")
         self.assertIsNone(out["command"])
-        self.assertIn("Which Tuesday", out["say"])
+        self.assertIn(f"Which {day}", out["say"])
         self.assertIn("to call mom", out["say"])
 
 
@@ -144,3 +147,9 @@ class SmallThingsWithNoModel(unittest.TestCase):
             self.assertIn("haven't told me", quick.answer("where's my car"))
         self.assertEqual(voice._interpret("I parked on level 3")["command"],
                          {"kind": "note", "text": "I parked on level 3"})
+
+
+def _a_weekday_that_is_not_today() -> str:
+    from zoneinfo import ZoneInfo
+    return (dt.datetime.now(ZoneInfo("America/Chicago")) + dt.timedelta(days=3)).strftime("%A")
+
