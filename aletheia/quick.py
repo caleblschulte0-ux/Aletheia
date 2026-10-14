@@ -1773,6 +1773,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("when_with", re.compile(
         r"^(?:what time|when)(?:'s| is) (?:my |the |our )?(?P<when_with>(?:lunch|dinner|breakfast|brunch|coffee|drinks)"
         r" with [a-z][a-z' ]{1,30}?)(?: (?:today|tomorrow))?\s*\??$")),
+    # "What time is dinner Saturday" (2026-10-14: to a model, a turn after
+    # "dinner with Sam Saturday at 7" was pencilled in).
+    ("meal_when", re.compile(
+        r"^(?:what time|when)(?:'s| is) (?:my |the |our )?(?:lunch|dinner|breakfast|brunch|supper)"
+        r"(?: (?:on )?(?:today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$")),
     # "What's my dentist appointment" (2026-10-07: to a model) - only the
     # words that are always an appointment; "what's my flight" may be a number.
     ("when_mine_what", re.compile(
@@ -3772,7 +3777,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -20123,6 +20128,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "when_mine": lambda rest: _when_mine(rest),
            "when_mine_what": lambda rest: _when_mine(rest),
            "when_with": lambda rest: _when_mine(rest),
+           "meal_when": lambda text: _meal_when(text),
            "who_coming": lambda rest: _who_coming(rest),
            "opinion": lambda rest: _opinion(rest),
            "did_finish": lambda rest: _did_finish(rest),
@@ -20587,8 +20593,14 @@ def when_nobody_can_think(question: str) -> str | None:
     that name. Said as what she checked, never as "you have none"."""
     try:
         found = match(question)
-        if not found or found[0] not in ("when_mine", "when_mine2"):
+        if not found or found[0] not in ("when_mine", "when_mine2", "meal_when"):
             return None
+        if found[0] == "meal_when":
+            m = re.search(r"\b(lunch|dinner|breakfast|brunch|supper)\b(?: (?:on )?(\w+))?", str(found[1]).casefold())
+            if not m:
+                return None
+            return (f"Nothing on your calendar mentions {m.group(1)}" + (f" {m.group(2)}" if m.group(2) else "")
+                    + ". It may be in your email, which I can't read until Claude or ChatGPT is back.")
         what = " ".join(str(found[1] or "").split()).strip(" ?")
         what = re.sub(r"^(?:my|the|our|next) ", "", what)
         if not what:
@@ -20597,3 +20609,25 @@ def when_nobody_can_think(question: str) -> str | None:
                 "It may be in your email, which I can't read until Claude or ChatGPT is back.")
     except Exception:
         return None
+
+
+def _meal_when(text: str) -> str | None:
+    """"What time is dinner Saturday": the meal on that day, from her
+    calendar and reminders. Nothing found hands on, as `_when_mine` does."""
+    from aletheia import speech, voice
+    m = re.search(r"\b(lunch|dinner|breakfast|brunch|supper)\b(?: (?:on )?(\w+))?", str(text or "").casefold())
+    if not m:
+        return None
+    meal, day = m.group(1), (m.group(2) or "").strip("?")
+    iso = voice._spoken_day(day) if day else None
+    if day and not iso:
+        return None
+    from aletheia import localtime
+    tz = localtime.operator_tz()
+    for at, said, store in sorted(_coming(), key=lambda row: (row[2] != "calendar", row[0])):
+        if store == "calendar" and re.search(rf"\b{meal}\b", said.casefold()) \
+                and (not iso or at.astimezone(tz).date().isoformat() == iso) \
+                and (day != "tonight" or at.astimezone(tz).hour >= 16):
+            title = said if said[:1].isupper() or re.match(r"(?:my|the|a|an|our) ", said) else f"your {said}"
+            return f"{title[:1].upper() + title[1:]} is {speech.humanize_time(at.isoformat())}."
+    return None
