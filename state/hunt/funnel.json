@@ -147,15 +147,15 @@
     "2026-10-14": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 64,
+      "minutes": 71,
       "needs_account": 0,
       "needs_answer": 1,
-      "not_realistic": 8,
-      "offered": 13,
-      "ready": 0,
-      "runs": 7,
-      "unfit_model": 2,
-      "unfit_sales": 6,
+      "not_realistic": 11,
+      "offered": 18,
+      "ready": 2,
+      "runs": 8,
+      "unfit_model": 3,
+      "unfit_sales": 8,
       "unjudged": 3,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
@@ -399,23 +399,23 @@
       "sent": 4
     },
     "2026-10-13": {
-      "filled": 11,
-      "found": 20,
+      "filled": 9,
+      "found": 18,
       "interviews": 2,
       "rejections": 1,
       "replies": 5,
-      "sent": 6
+      "sent": 8
     },
     "2026-10-14": {
-      "filled": 19,
-      "found": 20,
+      "filled": 23,
+      "found": 24,
       "interviews": 1,
       "rejections": 0,
       "replies": 2,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-14T19:36:31Z",
+  "generated_at": "2026-10-14T19:44:12Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -436,10 +436,10 @@
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 306,
+  "sent_all_time": 308,
   "sent_by_system": {
     "ashbyhq": 31,
-    "employer_site": 11,
+    "employer_site": 13,
     "greenhouse": 144,
     "lever": 23
   },
@@ -528,12 +528,12 @@
     }
   },
   "totals": {
-    "filled": 306,
-    "found": 683,
+    "filled": 308,
+    "found": 685,
     "interviews": 7,
     "rejections": 15,
     "replies": 54,
-    "sent": 209
+    "sent": 211
   },
   "waiting": {
     "asked_about": {
@@ -584,7 +584,7 @@
     "needs_account": 0,
     "needs_answer": 21,
     "oldest_days": 31,
-    "to_send": 2
+    "to_send": 0
   },
   "window_days": 30
 }
