@@ -658,6 +658,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("task_age", re.compile(
         r"^(?:what(?:'s| is|s)|which is) (?:my |the )?(?P<task_age>oldest|newest|latest|most recent|first|last) "
         r"(?:task|thing on my (?:list|to ?do list)|to ?do)(?: on my list)?\s*\??$")),
+    # "Do I have an alarm tomorrow" (2026-10-14: to a model).
+    ("alarm_any", re.compile(r"^(?:do i have|have i got|is there) (?:an |any |my )?alarms? (?:set )?(?:for |on )?"
+                             r"(?P<alarm_any>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     # "Do I have class tomorrow" after "I have class at 9 on Mondays and
     # Wednesdays" (2026-10-08: a FILE search). Placed after the readers for
     # "anything", "plans" and "meetings", which say the whole day.
@@ -3762,7 +3765,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "time_in6", "time_in7", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "alarm_any", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
@@ -11775,6 +11778,14 @@ def _reminders_between(first, last, now) -> str:
     said = [f"{speech.humanize_time(at.isoformat())}, {speech._yours(text.rstrip('.'))}" for at, text in rows[:4]]
     more = f"; and {len(rows) - 4} more" if len(rows) > 4 else ""
     return f" You do have {speech.count_phrase(len(rows), 'reminder')}: " + "; ".join(said) + more + "."
+
+
+def _alarm_any(day: str) -> str | None:
+    """Yes or no first, then the time."""
+    said = _reminders_on(day, alarms=True)
+    if not said or said.startswith("No alarm"):
+        return said
+    return "Yes - " + said[0].lower() + said[1:]
 
 
 def _reminders_on(day: str, alarms: bool = False) -> str | None:
@@ -19881,6 +19892,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "time_zone": lambda rest: _time_zone(rest),
            "reminders_on": lambda rest: _reminders_on(rest),
            "alarms_on": lambda rest: _reminders_on(rest, alarms=True),
+           "alarm_any": lambda rest: _alarm_any(rest),
            "greeting": lambda rest: _greeting(),
            "home": lambda rest: _home(),
            "notes_list": lambda rest: _notes_list(),
