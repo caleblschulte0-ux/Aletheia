@@ -2163,21 +2163,26 @@ def _moved_repeating(time_words: str) -> dict | None:
     finally:
         _LOOKING_BACK.on = False
     kind, ask = just
-    if not kind or ask.get("every") not in (None, 1, "1"):
+    every = ask.get("every") not in (None, 1, "1")
+    if not kind or (every and kind != "remind_daily"):
         return None
     try:
         from aletheia import intercom
         found, _why = intercom._one_reminder(str(ask["text"]))
-        was = int(str(found.get("time") or "").split(":")[0]) if found else None
+        was = int(str(ask.get("time") if every else found.get("time") or "").split(":")[0]) if found else None
     except Exception:  # noqa: BLE001
         return None
-    if found is None or was is None or found.get("kind") != kind.removeprefix("remind_"):
+    # "Every other day at 8", "make it 9" (2026-10-14: to a model): the interval
+    # kind, moved on the days it already had.
+    if found is None or was is None or found.get("kind") != ("interval" if every else kind.removeprefix("remind_")):
         return None
     hour, minute = map(int, hhmm.split(":"))
     if _is_bare_hour(time_words) and hour < 12 and (was >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12
     text = str((found.get("command") or {}).get("text") or ask["text"])
     command = {"kind": kind, "time": f"{hour:02d}:{minute:02d}", "text": text, "replaces": text}
+    if every:
+        command["every"] = int(ask["every"])
     if kind == "remind_weekly":
         names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
         days = [names[d] for d in found.get("weekdays") or [] if isinstance(d, int) and 0 <= d < 7]
@@ -3598,7 +3603,8 @@ def _shopping_just_said() -> bool:
 
 def _onto_the_named_list(low: str) -> dict | None:
     if re.search(r"\blist\b", low) and not re.fullmatch(r"(?:delete|clear|empty|scrap) (?:the|this|that) list"
-                                                       r"|what'?s on the list|read (?:me )?the list", low):
+                                                       r"|what'?s(?: still)? on the list(?: now)?|what else is on the list(?: now)?"
+                                                       r"|read (?:me )?the list(?: again)?", low):
         return None                               # he named a list himself
     name, last = _the_named_list_just_used()
     if not name:
@@ -3623,8 +3629,9 @@ def _onto_the_named_list(low: str) -> dict | None:
     if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
             and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
         return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
-    if re.fullmatch(r"what'?s on (?:it|there|the list)(?: now)?|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
-                    r"|read (?:me )?the list|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
+    if re.fullmatch(r"what'?s(?: still)? on (?:it|there|the list)(?: now)?|what else is on (?:it|there|the list)(?: now)?"
+                    r"|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
+                    r"|read (?:me )?the list(?: again)?|how many (?:things|items)(?: are)? on (?:it|there)(?: now)?", low):
         return {"command": {"kind": "list_read", "list": name}, "say": None}
     # Emptying it needs it to be the very last thing said.
     if last and re.fullmatch(r"(?:delete|clear|empty|scrap|wipe) (?:it|the list|this list|that list)(?: out)?", low):
@@ -5267,6 +5274,18 @@ def _interpret(transcript: str) -> dict:
         if repeat:
             when = repeat.group("when")
             return {"command": None, "say": f"That's {when[:1].lower() + when[1:]}: {repeat.group('what')}."}
+    # "Remind me tomorrow at 3 to call the bank", "and remind me to email Sarah
+    # at the same time" (2026-10-14: to a model, then an approval): the time of
+    # the one-off she just set, for the new words.
+    m = re.fullmatch(r"(?:and |also |oh and )?remind me (?:to |about )?(?P<w>[a-z0-9][a-z0-9' ,-]{1,80}?) "
+                     r"(?:at the same time|at that time|then|at the same time as that)(?: too| as well| also)?"
+                     r"|(?:and |also )?(?:at the same time|then),? remind me (?:to |about )?(?P<w2>[a-z0-9][a-z0-9' ,-]{1,80}?)"
+                     r"(?: too| as well)?", low)
+    if m:
+        just = _the_reminder_just_set()
+        if just and just.get("at"):
+            words = _as_he_said(transcript, m.group("w") or m.group("w2"))
+            return {"command": {"kind": "remind_at", "at": str(just["at"]), "text": words}, "say": None}
     # "Remind me on the 1st of every month to pay rent", "how long until it"
     # (2026-10-12: to a model): the next time it goes off.
     if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
@@ -9699,6 +9718,19 @@ def _interpret(transcript: str) -> dict:
             # not the approval queue (bottom rung 2026-09-24: "Nothing is
             # waiting for approval" after setting one). His last ask, if it
             # can be taken back, is what he means.
+            # "Set a timer for 10 minutes", "add 5 minutes", "pause the timer" (she
+            # can't), "cancel it" (2026-10-14: "Nothing is waiting for approval"):
+            # her last answer was about the timer, so the timer is the "it".
+            if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop|stop)\s+(?:that|it)", low) \
+                    and re.search(r"\btimer\b", _her_last_answer(), re.I) \
+                    and not getattr(_LOOKING_BACK, "timer", False):
+                _LOOKING_BACK.timer = True
+                try:
+                    got = interpret("thea cancel the timer")
+                finally:
+                    _LOOKING_BACK.timer = False
+                if (got or {}).get("command") or (got or {}).get("say"):
+                    return got
             if asked_to_cancel and re.fullmatch(r"(?:cancel|scrap|drop)\s+(?:that|it)", low) \
                     and _last_ask_is_undoable():
                 return {"command": {"kind": "undo"}, "say": None}
