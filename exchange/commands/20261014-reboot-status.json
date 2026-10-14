@@ -1,0 +1,11 @@
+{
+  "id": "20261014-reboot-status",
+  "filed": "2026-10-14T00:12:15Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Fix it also start planning a move for me some where warm with nice red laws",
+  "command": {
+    "kind": "missions",
+    "which": "active"
+  }
+}
