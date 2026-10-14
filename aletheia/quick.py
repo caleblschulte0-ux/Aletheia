@@ -2739,6 +2739,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # off this week" (2026-10-08: each to a model) after he said so.
     # "How many hours do I work a week" after "I work 8 to 5 Monday through
     # Friday" (2026-10-14: "I can't think").
+    # "The milk expires Friday", then "what's expiring this week"
+    # (2026-10-14: "I can't think").
+    ("expiring", re.compile(r"^(?:what(?:'s| is)|is (?:there )?anything|anything|what (?:food |stuff )?(?:is|'s)) (?:expiring|going bad|going off|about to expire)"
+                            r"(?P<exp_w> this week| soon| today| tomorrow| next week)?\s*\??$"
+                            r"|^what (?:expires|goes bad)(?P<exp_w2> this week| soon| today| tomorrow| next week)\s*\??$")),
     ("work_week", re.compile(r"^how many hours (?:do|will) i work (?:a|per|each|every|this|in a) week\s*\??$")),
     ("my_shift", re.compile(r"^(?:am i working|do i (?:have to )?work|do i have work|what(?:'s| is| are) my (?:shift|hours))"
                             r"(?: (?P<shift_day>today|tonight|tomorrow|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)|this weekend))?\s*\??$"
@@ -3758,7 +3763,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -18630,6 +18635,41 @@ def _clock_word(hour: int) -> str:
     return "noon" if hour == 12 else f"{hour % 12 or 12} {'am' if hour < 12 or hour == 24 else 'pm'}"
 
 
+def _expiring(text: str) -> str | None:
+    """What he said expires, inside the window he asked about (a week when
+    he named none), soonest first, newest note per thing."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("expiring", text)
+    window = (g.get("exp_w") or g.get("exp_w2") or " this week").strip()
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    first, last = {"today": (today, today), "tomorrow": (today + dt.timedelta(days=1),) * 2,
+                   "next week": (today + dt.timedelta(days=7 - today.weekday()), today + dt.timedelta(days=13 - today.weekday())),
+                   }.get(window, (today - dt.timedelta(days=2), today + dt.timedelta(days=7)))
+    month_re = "|".join(_MONTHS)
+    seen, rows = set(), []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").casefold().split()).rstrip(".")
+        m = re.fullmatch(r"(?:the |my |our )?(?P<what>[a-z][a-z' ]{1,30}?) (?:expires?|expire|goes bad|go bad|is good until|are good until)(?: on)? (?P<when>.+)", said)
+        if not m or m.group("what") in seen:
+            continue
+        seen.add(m.group("what"))
+        d = re.search(rf"(?:{month_re}) \d{{1,2}}|\d{{1,2}} (?:{month_re})", m.group("when"))
+        on = _named_date(d.group(0), today) if d else _relative_in_note(m.group("when"), row.get("ts"), today)
+        if on and (on - today).days > 300:
+            on = on.replace(year=on.year - 1)
+        if on and first <= on <= last:
+            rows.append((on, m.group("what")))
+    if not rows:
+        return (f"Nothing you told me about expires {window}." if seen
+                else "You haven't told me when anything expires. Say \"the milk expires Friday\" and I'll keep track.")
+    rows.sort()
+    said = [f"the {what} {'expired' if on < today else 'expires'} {'today' if on == today else 'tomorrow' if on == today + dt.timedelta(days=1) else on.strftime('%A')}"
+            for on, what in rows[:6]]
+    out = speech.and_list(said)
+    return out[:1].upper() + out[1:] + "."
+
+
 def _work_week(text: str = "") -> str | None:
     """"How many hours do I work a week", from his weekly hours."""
     from aletheia import speech
@@ -20176,6 +20216,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "for_meeting": _for_meeting,
            "car_spec": _car_spec,
            "work_week": _work_week,
+           "expiring": _expiring,
            "interval_due": _interval_said,
            "recipe_need": lambda rest: (lambda dish: _recipe_has(dish) if _saved_recipe(dish) else None)(
                _groups("recipe_need", rest).get("recipe_need") or ""),
