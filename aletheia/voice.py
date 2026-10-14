@@ -1575,6 +1575,8 @@ def _new_task(raw: str) -> dict:
     """A task from his words: the description, a deadline if he named one,
     and an id that does not collide with a task he already has."""
     from aletheia import tasks
+    # "Add pay the water bill too" (2026-10-14) kept "too" as part of the task.
+    raw = re.sub(r"(?:,? (?:too|as well|also))+$", "", raw.strip(), flags=re.I)
     desc, deadline = _split_deadline(raw.strip())
     slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
     if any(t["id"] == slug for t in tasks.all_tasks()):
@@ -6482,6 +6484,17 @@ def _interpret(transcript: str) -> dict:
         if just and " and " not in just.group(1) and m.group("new").casefold() != just.group(1).casefold():
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("new")),
                                 "replaces": just.group(1)}, "say": None}
+    # "Do the second one tomorrow", "make the first one due Friday" (2026-10-14:
+    # to a model, then an approval), said about the list she just read: the
+    # task in that place, given that day.
+    m = re.fullmatch(r"(?:do|make|set|move|push|put|schedule|bump) (?P<w>the (?:first|second|third|fourth|fifth|last|"
+                     r"1st|2nd|3rd|4th|5th|top|bottom)(?: one| task| thing)?)(?: due| to| for| till| until)?(?: on| by)? "
+                     r"(?P<day>today|tomorrow|tonight|(?:this )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))", low)
+    if m:
+        day = _spoken_day("today" if m.group("day") == "tonight" else m.group("day"))
+        if day:
+            which = re.sub(r"\b(?:top)\b", "first", re.sub(r"\b(?:bottom)\b", "last", m.group("w")))
+            return {"command": {"kind": "task_change", "which": which, "deadline": day}, "say": None}
     _task_tail = r"(?: task| one)?(?: (?:from|on|off) my (?:list|tasks|task list|to-?do list))?"
     m = re.fullmatch(r"(?:move|push|reschedule|bump|change|shift|postpone|delay|defer|put off|push back) (?:the |my )?(?:task )?(?P<w>.+?)" + _task_tail
                      + r" (?:to|till|until|for|back to) (?P<day>today|tomorrow|tonight|(?:this |next )?(?:monday|tuesday"
