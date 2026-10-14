@@ -127,17 +127,17 @@
     "2026-10-13": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 145,
+      "minutes": 153,
       "needs_account": 0,
-      "needs_answer": 7,
-      "not_realistic": 47,
-      "offered": 62,
-      "ready": 6,
-      "runs": 8,
+      "needs_answer": 8,
+      "not_realistic": 52,
+      "offered": 69,
+      "ready": 7,
+      "runs": 9,
       "unfit_language": 1,
       "unfit_model": 13,
-      "unfit_pay": 3,
-      "unfit_sales": 30,
+      "unfit_pay": 4,
+      "unfit_sales": 34,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -158,7 +158,7 @@
       "gone_on_workable": 1,
       "left_captcha": 1,
       "left_going_in_circles": 1,
-      "left_no_way_forward": 3,
+      "left_no_way_forward": 4,
       "left_questions": 4,
       "not_realistic": 7
     }
@@ -389,15 +389,15 @@
       "sent": 4
     },
     "2026-10-13": {
-      "filled": 25,
-      "found": 29,
+      "filled": 26,
+      "found": 31,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
       "sent": 4
     }
   },
-  "generated_at": "2026-10-14T02:41:42Z",
+  "generated_at": "2026-10-14T02:52:56Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -426,6 +426,7 @@
     "lever": 22
   },
   "stop_shapes": {
+    "employer_site: no_apply: _ _ _ | home | _": 1,
     "employer_site: no_apply: _ to _ _ | about _ | _ _ | _ | search jobs | learn more": 1,
     "employer_site: no_apply: _ | _ _ | next _": 1,
     "employer_site: no_apply: none": 1,
@@ -458,7 +459,7 @@
       "nothing_to_press_on_content+empty_page/observed": 1,
       "nothing_to_press_on_content+no_apply/observed": 7,
       "nothing_to_press_on_content/observed": 53,
-      "nothing_to_press_on_form+no_apply/filled": 1,
+      "nothing_to_press_on_form+no_apply/filled": 2,
       "nothing_to_press_on_form+no_apply/observed": 3,
       "nothing_to_press_on_form/observed": 5,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -494,17 +495,17 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/observed": 3,
+        "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 1
       },
       "questions": {
-        "nothing_to_press_on_form/filled": 4,
-        "nothing_to_press_on_multi_page_wizard/filled": 1
+        "nothing_to_press_on_form/filled": 4
       }
     }
   },
   "totals": {
-    "filled": 331,
-    "found": 712,
+    "filled": 332,
+    "found": 714,
     "interviews": 6,
     "rejections": 15,
     "replies": 51,
@@ -531,7 +532,7 @@
       "left_captcha": 19,
       "left_error": 14,
       "left_going_in_circles": 15,
-      "left_no_way_forward": 88,
+      "left_no_way_forward": 89,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 8,
@@ -559,7 +560,7 @@
     "needs_account": 0,
     "needs_answer": 21,
     "oldest_days": 31,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
