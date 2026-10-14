@@ -1886,6 +1886,26 @@ def _forget_note(about: str) -> str:
     return ""
 
 
+def _forget_older_versions(gone: str) -> int:
+    """Tombstone every other note that says the same thing about the same
+    subject as `gone` ("my doctor is ..."), returning how many. Never raises."""
+    m = re.match(r"(?:note that |remember that )?(?P<subject>(?:my|our) [a-z' ]{2,40}?) (?:is|are) ", gone.casefold())
+    if not m:
+        return 0
+    try:
+        from aletheia import journal, quick
+        count = 0
+        for row in quick._notes():
+            text = str(row.get("text") or "")
+            again = re.match(r"(?:note that |remember that )?(?P<subject>(?:my|our) [a-z' ]{2,40}?) (?:is|are) ", text.casefold())
+            if again and again.group("subject") == m.group("subject") and count < 10:
+                journal.append("note", FORGOTTEN_SUBJECT, text[:300], actor="operator")
+                count += 1
+        return count
+    except Exception:
+        return 0
+
+
 def _what_it_is_about(said: str, *, keep_whose: bool = False) -> str:
     """"What I said about Dana" -> "Dana": every lead, in any order. "What you
     know about MY landlord" kept the "my", and "what I said about Dana" was a
@@ -3748,7 +3768,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 bare = re.sub(r"^(?:the|my|that) |\s+(?:note|reminder|thing)s?$", "", about, flags=re.IGNORECASE).strip()
                 gone = _forget_note(bare) if bare and bare != about else ""
             if gone:
-                return f"Forgotten: {speech.as_she_says_it(gone)}."
+                # "My doctor is Dr. Patel", "change my doctor to Dr. Kim",
+                # "forget my doctor" (2026-10-14): only Kim went, and "who's my
+                # doctor" said Patel. The older versions of the same fact go too.
+                older = _forget_older_versions(gone)
+                return (f"Forgotten: {speech.as_she_says_it(gone)}"
+                        + (", and what you'd told me before that." if older else "."))
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.

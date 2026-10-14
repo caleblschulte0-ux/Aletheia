@@ -50,7 +50,9 @@ FILLER = re.compile(
     r"(?:(?:uh+|um+|er+|hmm+|ok|okay|so|well|hey|yo|please|right|"
     # "ACTUALLY cancel that" went to the planner while "cancel that" was
     # instant: the correction words a person leads with carry no request.
-    r"i mean|i meant|like|actually|oh|oops|sorry)\b[,\s]*"
+    r"i mean|i meant|like|actually|oh|oops|sorry"
+    # "No wait, Friday" (2026-10-14: to a model) - "wait" only with its comma.
+    r"|no,? wait|wait(?=,))\b[,\s]*"
     # "Never mind, cancel it" (2026-10-08: to the planner) - only before
     # the words that undo, so "never mind" alone is still its own answer.
     r"|never ?mind[,\s]+(?=(?:cancel|delete|remove|drop|scrap|forget|undo|don'?t|take)\b)"
@@ -1448,6 +1450,40 @@ def _birthday_reminder(m) -> dict:
                    "and then I can."}
 
 
+def _a_dated_day_of_his(before: str):
+    """(date, his words) for "my anniversary is August 12" - just said, or
+    asked about as "how long until our anniversary" - the next one. None
+    when neither names such a note (2026-10-14: to a model)."""
+    import datetime as dt
+    from aletheia import localtime, quick
+    month_re = "|".join(quick._MONTHS)
+    shape = re.compile(rf"^(?:note that |remember that )?(?P<who>(?:my|our) [a-z' ]{{2,30}}?) is (?:on )?"
+                       rf"(?P<mon>{month_re})\.? (?P<day>\d{{1,2}})(?:st|nd|rd|th)?$")
+    asked = re.fullmatch(r"(?:how (?:long|many (?:days|weeks)) (?:is it )?(?:until|till|to|before)|when(?:'s| is)) "
+                         r"(?:my |our |the )?(?P<s>[a-z' ]{2,30}?)\??", before)
+    try:
+        rows = quick._notes()
+    except Exception:  # noqa: BLE001
+        return None
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    for row in reversed(rows):
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = shape.match(said.casefold())
+        if not m or "birthday" in m.group("who"):
+            continue
+        subject = m.group("who").split(" ", 1)[1]
+        if not (before in said.casefold() or (asked and asked.group("s") == subject)):
+            continue
+        try:
+            when = dt.date(today.year, quick._MONTHS.index(m.group("mon")) + 1, int(m.group("day")))
+        except ValueError:
+            return None
+        if when < today:
+            when = when.replace(year=today.year + 1)
+        return when, re.sub(r"^(?:note that |remember that )?our\b", "your", said, flags=re.I)
+    return None
+
+
 def _before_a_noted_date(asked: str, before: str) -> dict | None:
     """A reminder some days before the date a note he just said carries
     ("my registration is due November 30", "my license expires March 3"),
@@ -1463,6 +1499,8 @@ def _before_a_noted_date(asked: str, before: str) -> dict | None:
         return None
     hit = next(((when, said) for when, said in reversed(noted)
                 if said_before in said.casefold().rstrip(".")), None)
+    if not hit:
+        hit = _a_dated_day_of_his(said_before)
     if not hit:
         return None
     when, said = hit
@@ -1727,8 +1765,13 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
 #: looking for "his last ask", so "make that 4" then "cancel it" finds the
 #: reminder and not the move (and never re-reads itself).
 # "At 5", "6 pm instead": a new time, said straight after she set a reminder.
-_BARE_NEW_TIME = re.compile(r"(?:no,? |actually,? |)(?:at (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)"
+_BARE_NEW_TIME = re.compile(r"(?:no,? |actually,? |no wait,? |wait,? |sorry,? |)(?:at (?P<t>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?|noon)"
                             r"|(?P<t2>\d{1,2}(?::\d{2})? ?[ap]\.?m\.?|noon)(?: instead)?|(?P<t3>\d{1,2}(?::\d{2})?) instead)(?: please)?")
+# "No wait, Friday" / "Friday instead", straight after she set a reminder
+# (2026-10-14: to a model) - "make it Friday" already moved it.
+_BARE_NEW_DAY = re.compile(r"(?:(?:no|actually|wait|sorry|oh|oops),? )*(?:on |make it |)"
+                           r"(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|the day after tomorrow)"
+                           r"(?: instead)?(?: please)?")
 # "What time is that", asked straight after she set a reminder.
 _BARE_WHEN = re.compile(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
                         r"|what time did i (?:say|tell you)|what time(?: for)?")
@@ -2178,7 +2221,8 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         # "At 5" straight after she set one changed its time - a follow-up too.
         # "What time is that" asked about it, the same way.
         bare = said.casefold().rstrip(".?!")
-        if at and (_BARE_NEW_TIME.fullmatch(bare) or _BARE_WHEN.fullmatch(bare) or _BARE_HOW_LONG.fullmatch(bare)) \
+        if at and (_BARE_NEW_TIME.fullmatch(bare) or _BARE_NEW_DAY.fullmatch(bare) or _BARE_WHEN.fullmatch(bare)
+                   or _BARE_HOW_LONG.fullmatch(bare)) \
                 and _SHE_SET_IT.match(str(recent[at - 1].get("she_answered") or "")):
             continue
         try:
@@ -5397,7 +5441,9 @@ def _interpret(transcript: str) -> dict:
     bare_how_long = _BARE_HOW_LONG.fullmatch(low) and _she_just_set_a_reminder()
     # "Remind me to take out the trash every Tuesday night", "when is that"
     # (2026-10-12: to a model): her own confirmation already says when.
-    if _BARE_WHEN.fullmatch(low):
+    # "What time is that reminder" after the same (2026-10-14: to a model).
+    if _BARE_WHEN.fullmatch(low) or re.fullmatch(r"(?:what time is|when is|when's) (?:that|the|my|this) reminder(?: set)?(?: for)?"
+                                                 r"|when does (?:it|that) go off", low):
         repeat = _SHE_SET_A_REPEAT.fullmatch(_her_last_answer())
         if repeat:
             when = repeat.group("when")
@@ -5447,6 +5493,32 @@ def _interpret(transcript: str) -> dict:
     cadence = _new_days_for_the_reminder_just_set(low)
     if cadence:
         return cadence
+    # "Water the plants every 3 days", "skip the next one", "when is the next
+    # one" (2026-10-14: to a model): her own answer already said when.
+    if re.fullmatch(r"(?:so )?(?:when(?:'s| is| does)|what day is) the next one(?: go off)?(?: then)?|when does it go off next", low):
+        back = re.fullmatch(r"Skipped .+?: (?P<what>.+?)\. It's back (?P<when>.+?)\.", _her_last_answer())
+        if back:
+            return {"command": None, "say": f"{back.group('when')[:1].upper() + back.group('when')[1:]}: {back.group('what')}."}
+        repeat = _SHE_SET_A_REPEAT.fullmatch(_her_last_answer()) or _SHE_SAID_A_REPEAT.fullmatch(_her_last_answer())
+        nxt = _next_time_of_the_repeat_just_set() if repeat and not getattr(_LOOKING_BACK, "on", False) else None
+        if nxt:
+            when = speech.humanize_time(nxt.isoformat())
+            return {"command": None, "say": f"{when[:1].upper() + when[1:]}: {repeat.group('what')}."}
+    # "Take my pills every day at 9 am", "and also at 9 pm" (2026-10-14: to a
+    # model): the same reminder again, at the second time, the first kept.
+    m = re.fullmatch(r"(?:and |also |plus )+(?:one |another one )?at (?P<t>[\w: .]+?)(?: too| as well)?"
+                     r"|(?:and )?(?:also )?(?:another one|one more|a second one) at (?P<t2>[\w: .]+?)(?: too| as well)?", low)
+    if m and _SHE_SET_A_REPEAT.fullmatch(_her_last_answer()) and not getattr(_LOOKING_BACK, "on", False):
+        _LOOKING_BACK.on = True
+        try:
+            just = next((ask for ask in (_recent_ask_of(kind, "text") for kind in ("remind_daily", "remind_weekly"))
+                         if ask.get("text") and ask.get("time")), {})
+        finally:
+            _LOOKING_BACK.on = False
+        hhmm = _spoken_time(m.group("t") or m.group("t2"))
+        if just and hhmm and hhmm != just.get("time"):
+            again = {k: v for k, v in just.items() if k in ("kind", "days", "text", "every", "start")}
+            return {"command": {**again, "time": hhmm}, "say": None}
     # "Remind me on the 1st of every month to pay rent", "how long until it"
     # (2026-10-12: to a model): the next time it goes off.
     if _BARE_HOW_LONG.fullmatch(low) and not getattr(_LOOKING_BACK, "on", False):
@@ -5464,6 +5536,16 @@ def _interpret(transcript: str) -> dict:
         _LOOKING_BACK.bare_time = True
         try:
             got = _interpret(f"make it {m.group('t') or m.group('t2') or m.group('t3')}")
+        finally:
+            _LOOKING_BACK.bare_time = False
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return got
+    m = _BARE_NEW_DAY.fullmatch(low)
+    if m and not getattr(_LOOKING_BACK, "bare_time", False) \
+            and _she_just_named_a_reminder():
+        _LOOKING_BACK.bare_time = True
+        try:
+            got = _interpret(f"make it {m.group('d')}")
         finally:
             _LOOKING_BACK.bare_time = False
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
@@ -6345,6 +6427,19 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "note", "text": _as_he_said(text, low)},
                 "say": f"I can't see where you are, so tell me \"I'm home\" when you get there and I'll remind you "
                        f"{home.group(1)} {speech._yours(what)}."}
+    # "Remind me to get stamps when I get to the post office" (2026-10-14: to a
+    # model, which offered the shopping list): no place can set off a reminder,
+    # so it goes on his tasks with the place in it, and she says so.
+    errand = re.fullmatch(r"remind me to (?P<what>(?:get|buy|pick up|grab|drop off|return|mail|send|ask|bring|pay|renew|print|ship|check"
+                          r"|fill|refill|deposit|cash|withdraw) .+?) (?:when i(?:'m| am)? (?:at|go to|get to|next go to|stop at|stop by) |"
+                          r"next time i(?:'m| am)? at |next time i go to |next time i stop at )"
+                          r"(?P<place>the [a-z][a-z' ]{1,25}?|[a-z]+'s|target|walmart|costco|home depot|lowe's|walgreens|cvs)", low)
+    if errand and not re.search(r"\b(?:when|if|before|after|every)\b", errand.group("what")):
+        what = _as_he_said(text, f"{errand.group('what').strip()} at {errand.group('place')}")
+        got = _new_task(what)
+        got["say"] = (f"I can't see where you are, so I added it to your tasks instead: {speech._yours(what)}. "
+                      "It's there when you check your list.")
+        return got
     if m:
         return {"command": None,
                 "say": "I can't tell where you are yet, so a place can't set off a reminder. "
@@ -7419,7 +7514,10 @@ def _interpret(transcript: str) -> dict:
         # timer only when the ask before was about one and one is running.
         bare = re.fullmatch(r"(?:add|put|give) (?P<n5>\d{1,3}|a|one|two|three|five|ten|fifteen|twenty|thirty) (?:more )?"
                             r"(?P<unit5>minutes?|mins?|seconds?) (?:to|on) (?:it|that|this)", low)
-        if bare and _running_once("timer is up") and "timer" in (_previous_ask() or "").casefold():
+        # "How much time is left", "add 5 minutes to it" (2026-10-14: to a
+        # model): her answer about the timer counts as much as his ask.
+        if bare and _running_once("timer is up") and ("timer" in (_previous_ask() or "").casefold()
+                                                      or "timer" in _her_last_answer().casefold()):
             m = bare
     if m:
         words = {"a": 1, "one": 1, "two": 2, "three": 3, "five": 5, "ten": 10, "fifteen": 15, "twenty": 20, "thirty": 30}
