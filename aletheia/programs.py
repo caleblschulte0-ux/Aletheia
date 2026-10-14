@@ -1061,6 +1061,12 @@ def spoken_steps(which: str = "") -> str:
         if opened:
             out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")
     out += _holds_taken_back()
+    for d in record.get("decisions") or []:
+        # His open choices in full: "6 decisions for you" with four of them named sent nobody
+        # anywhere he could answer them (2026-10-14, "i dont have that open just ask here").
+        if d.get("state") == "open":
+            out.append(f"decision {d.get('key')} | {d.get('question')} | options: "
+                       + " / ".join(str(o) for o in d.get("options") or []))
     return f"{record.get('title')}: " + ("\n".join(out) if out else "nothing unfinished.")
 
 

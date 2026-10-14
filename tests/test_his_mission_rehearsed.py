@@ -1470,3 +1470,13 @@ class WhatHisPcDidOnTheThirteenth(HisHoursAndHisCalendar):
         t3 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")
         self.assertEqual(t3["state"], ws.RETRY_LATER, t3.get("reason"))
         self.assertNotIn("failed", str(t3.get("reason")))
+
+    def test_the_steps_view_names_every_open_decision_with_its_options(self):
+        # "6 decisions for you" named four of them; he said "just ask here" (2026-10-14).
+        self._run_everything()
+        record = pg.load(self.pid)
+        open_ = [d for d in record["decisions"] if d.get("state") == "open"]
+        self.assertTrue(open_)
+        said = pg.spoken_steps("Project Reboot")
+        for d in open_:
+            self.assertIn(f"decision {d['key']} | {d['question']} | options: " + " / ".join(d["options"]), said)
