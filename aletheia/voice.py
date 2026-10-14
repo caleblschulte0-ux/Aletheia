@@ -5415,6 +5415,14 @@ def _interpret(transcript: str) -> dict:
         # says alarms.
         if re.search(r"\balarms?\b", low) and not re.search(r"\b(?:reminders?|timers?)\b", low):
             return {"command": {"kind": "reminders", "which": "wake up"}, "say": None}
+        # "How many timers do I have" said "2 reminders: your 5-minute timer -
+        # going off ..." (2026-10-14). Asked about timers, it says timers.
+        if re.search(r"\btimers?\b", low) and not re.search(r"\b(?:reminders?|alarms?)\b", low):
+            said = _timer_left()
+            if said.startswith("No timer") or not low.startswith("how many"):
+                return {"command": None, "say": said}
+            n = said.count(" left on ")
+            return {"command": None, "say": f"{n} timers: {said}" if n > 1 else said}
         if re.search(r"\b(?:recurring|repeating|regular)\b", low):
             return {"command": {"kind": "reminders", "which": "recurring"}, "say": None}
         if re.search(r"\blast reminder\b", low):
