@@ -1652,6 +1652,20 @@ def _new_task(raw: str) -> dict:
     # "Add pay the water bill too" (2026-10-14) kept "too" as part of the task.
     raw = re.sub(r"(?:,? (?:too|as well|also))+$", "", raw.strip(), flags=re.I)
     desc, deadline = _split_deadline(raw.strip())
+    # "I need to renew my passport", then "I need to renew my passport by
+    # December" made two of it, and "mark the passport one done" asked
+    # "renew my passport or renew my passport?" (2026-10-14). The same task
+    # said again with a day is that task given the day.
+    try:
+        from aletheia import intercom
+        same = [t for t in intercom._open_tasks()
+                if " ".join(str(t.get("description") or "").casefold().split()) == " ".join(desc.casefold().split())]
+    except Exception:  # noqa: BLE001 - a new task is still a task
+        same = []
+    if same and deadline:
+        return {"command": {"kind": "task_change", "which": desc, "deadline": deadline}, "say": None}
+    if same:
+        return {"command": None, "say": f"That's already on your list: {same[0].get('description')}."}
     slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
     if any(t["id"] == slug for t in tasks.all_tasks()):
         slug = f"{slug}-2"
@@ -11877,6 +11891,34 @@ def _interpret(transcript: str) -> dict:
     # "Remember Dana's birthday is March 3" kept "remember" inside the note
     # and inside the name (2026-10-07). The verb is not the fact.
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
+    # "The furnace filter should be changed every 3 months" (2026-10-14: to
+    # the planner). How often, kept in his words for `quick` to count from.
+    try:
+        from aletheia import quick as _quick
+        if _quick._EVERY.match(fact_low):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        # "Remind me when the furnace filter is due": the day it comes due.
+        due_ask = re.fullmatch(r"remind me (?:when|on the day) (?:the |my )?(?P<thing>[a-z][a-z' ]{2,40}?) (?:is|are|comes?) due(?: next| again)?", low)
+        found = _quick._interval_due(due_ask.group("thing")) if due_ask else None
+        if found:
+            due, doing, _said, _last = found
+            if due is None:
+                return {"command": None, "say": f"I don't know when you last did it. Say \"I {_quick._PAST_DONE_OF.get(doing.split()[0], 'did')} "
+                                                f"{doing.split(' ', 1)[1]} today\" and I'll set it."}
+            import datetime as _dt
+            from aletheia import localtime
+            tz = localtime.operator_tz()
+            at = _dt.datetime.combine(due, _dt.time(9, 0), tzinfo=tz)
+            if at <= _dt.datetime.now(tz):
+                return {"command": None, "say": f"It's already due - time to {doing}."}
+            return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": doing}, "say": None}
+    except Exception:
+        pass
+    # "My car takes 5w-30 oil" (2026-10-14: to the planner). A spec, so a
+    # digit in it; "my car needs washing" is a chore, not a fact.
+    if re.fullmatch(r"(?:my |our |the )(?:car|truck|van|suv|bike|motorcycle) (?:takes|uses|needs|runs on|gets) [a-z0-9 ./-]{0,30}\d[a-z0-9 ./-]{0,30}"
+                    r"(?:oil|gas|fuel|octane|tires?|psi|batter(?:y|ies)|wipers?|bulbs?|filters?)", fact_low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     m = re.fullmatch(r"(?:my |our )?(?P<key>(?:favou?rite|fave) [a-z ]{2,25}|[a-z][a-z' ]{0,30}?(?:'s|s') (?:name|birthday|anniversary"
                      # "Leo's teacher is Mrs. Brown", "Leo's school is Lincoln
                      # Elementary" (2026-10-07: to the planner).
@@ -11927,10 +11969,16 @@ def _interpret(transcript: str) -> dict:
                      # lisinopril 10mg" (2026-10-07: to the planner).
                      r"|emergency contact|prescriptions?|medications?|meds|daily medication"
                      r"|(?:car|truck|van|suv)(?:'s|s)? (?:mileage|milage|odometer)"
+                     # "My car's tire pressure should be 35" (2026-10-14: to
+                     # the planner) - a spec of the car, held to a digit below.
+                     r"|(?P<spec>(?:(?:car|truck|van|suv|bike|motorcycle)(?:'s|s)? )?(?:front |rear |back )?(?:tire|tyre) (?:pressure|size)"
+                     r"|(?:(?:car|truck|van|suv)(?:'s|s)? )?(?:oil (?:type|weight|filter)|battery size|wiper (?:blade )?size|bulb size))"
                      # "My rent is 1500", "my car insurance is 120 a month"
                      # (2026-10-07: to the planner) - held to a number below.
-                     r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are) (?P<value>.{1,80})", fact_low)
-    if m and (m.group("bill") or m.group("coded")) and not re.search(r"\d", m.group("value")):
+                     r"|(?P<bill>" + _BILL_WORDS + r")) (?:is|are|should be) (?P<value>.{1,80})", fact_low)
+    if m and " should be " in fact_low and not m.group("spec"):
+        m = None
+    if m and (m.group("bill") or m.group("coded") or m.group("spec")) and not re.search(r"\d", m.group("value")):
         m = None
     # "My locker is 42" (2026-10-07: to the planner) - a locker with no
     # number in it is where he left something, not which one is his.
