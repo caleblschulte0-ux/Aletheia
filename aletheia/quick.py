@@ -3920,6 +3920,34 @@ def _days_off(text: str) -> str | None:
             f"and you've taken {plain(taken)} since.")
 
 
+def _bed_woke_nights(rows) -> dict:
+    """{the morning's date: hours} from "I went to bed at 11" and "I woke up
+    at 7" told within twenty hours of each other, so a week of those adds up
+    the way "I slept 7 hours" does (2026-10-14: "how much sleep did I get
+    this week" said he had told her nothing)."""
+    import datetime as dt
+    nights, bed = {}, None
+    # Two notes told in the same second still went bed-then-woke.
+    for at, said in sorted(rows, key=lambda r: (r[0], r[1].startswith(("i woke", "i got up")))):
+        m = re.match(r"i (?:went to bed|went to sleep|fell asleep) (?:at |around |about )?(midnight|(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?)", said)
+        if m:
+            if m.group(1) == "midnight":
+                bed = (at, 0, 0)
+            else:
+                h = int(m.group(2)) % 12
+                pm = (m.group(4) or "").startswith("p") or (not m.group(4) and h >= 7)
+                bed = (at, h + (12 if pm else 0), int(m.group(3) or 0))
+            continue
+        m = re.match(r"i (?:woke up|got up) (?:at |around |about )?(\d{1,2})(?::(\d\d))? ?(am|pm|a\.m\.|p\.m\.)?", said)
+        if m and bed and dt.timedelta(0) <= at - bed[0] <= dt.timedelta(hours=20):
+            woke = int(m.group(1)) % 12 + (12 if (m.group(3) or "").startswith("p") else 0)
+            minutes = (woke * 60 + int(m.group(2) or 0) - bed[1] * 60 - bed[2]) % (24 * 60)
+            if 0 < minutes <= 16 * 60:
+                nights.setdefault(at.date(), round(minutes / 60, 2))
+            bed = None
+    return nights
+
+
 def _logged(text: str) -> str | None:
     """What he told her he drank, ran, slept or did, added up from his notes."""
     import datetime as dt
@@ -4072,6 +4100,9 @@ def _logged(text: str) -> str | None:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
             if m and now - at <= dt.timedelta(days=30) and amount(m.group(1)) and at.date() not in nights:
                 nights[at.date()] = amount(m.group(1)) + (0.5 if m.group(2) else 0)
+        for day, hours in _bed_woke_nights(rows).items():
+            if (now.date() - day).days <= 30:
+                nights.setdefault(day, hours)
         if not nights:
             return "You haven't told me how you've slept. Say \"I slept 7 hours\" in the morning and I'll keep the average."
         if len(nights) == 1:
@@ -4085,6 +4116,9 @@ def _logged(text: str) -> str | None:
             m = re.match(r"i slept (?:for )?(\S+)( and a half)? hours?", said)
             if m and at >= monday and amount(m.group(1)) and at.date() not in nights:
                 nights[at.date()] = amount(m.group(1)) + (0.5 if m.group(2) else 0)
+        for day, hours in _bed_woke_nights(rows).items():
+            if day >= monday.date():
+                nights.setdefault(day, hours)
         if not nights:
             return "You haven't told me how you slept this week. Say \"I slept 7 hours\" in the morning and I'll add it up."
         total = sum(nights.values())
