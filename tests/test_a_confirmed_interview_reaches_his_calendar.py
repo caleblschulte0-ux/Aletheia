@@ -110,6 +110,15 @@ class Sweep(unittest.TestCase):
         calls, _ = self.run_sweep([self.event(status="TENTATIVE", source="interviews")])
         self.assertEqual(calls, [])
 
+    def test_an_event_his_mission_pencilled_in_goes_on_his_calendar_too(self):
+        walk = self.event(id="hold-walk", title="WWE South Dakota: Tails on the Trail", status="TENTATIVE",
+                          source="hold:caleb")
+        calls, _ = self.run_sweep([walk])
+        self.assertEqual([c["title"] for c in calls], ["WWE South Dakota: Tails on the Trail"])
+        # A time she only proposed to an employer is still hers alone.
+        calls, _ = self.run_sweep([dict(walk, source="hold:thread-1")])
+        self.assertEqual(calls, [])
+
     def test_past_and_other_events_are_left(self):
         calls, _ = self.run_sweep([self.event(start="2026-10-12T18:00:00+00:00"),
                                    self.event(id="x", title="Dentist")])
