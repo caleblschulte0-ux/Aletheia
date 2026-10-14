@@ -12173,7 +12173,10 @@ class HisShifts(unittest.TestCase):
             self.assertEqual(quick.answer("am I working saturday"), "You told me: you have to work Saturday.")
             self.assertEqual(quick.answer("what days am I off this week"), "You told me: you are off Friday.")
             self.assertEqual(quick.answer("what is my shift tomorrow"), "You told me: your shift is 7 to 3 tomorrow.")
-            self.assertIsNone(quick.answer("am I working sunday"))
+            # Nothing about Sunday is never a guess: she says what would settle it,
+            # as "do I work Sunday" does.
+            self.assertEqual(quick.answer("am I working sunday"), quick.answer("do I work sunday"))
+            self.assertIn("haven't told me which days", quick.answer("am I working sunday"))
 
 
 class ChoresAndTurns(unittest.TestCase):
