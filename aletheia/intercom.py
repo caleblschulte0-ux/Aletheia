@@ -2590,10 +2590,21 @@ def _undo_his_last_ask() -> str | None:
         if not said:
             continue
         try:
-            command = (voice.interpret(f"thea {said}") or {}).get("command") or {}
+            read = voice.interpret(f"thea {said}") or {}
         except Exception:
             return None
+        command = read.get("command") or {}
         kind = str(command.get("kind") or "")
+        # Re-read after the fact, a task he added reads as one already there.
+        there = re.match(r"That's already on your list: (.+?)\.$", str(read.get("say") or ""))
+        if there and not kind:
+            kind, command = "task_new", {"kind": "task_new", "description": there.group(1)}
+        # "Add a task to call the plumber" re-read now that the plumber is on
+        # the list says "that's already on your list" and no command
+        # (2026-10-14). Her answer at the time says what it added.
+        added = re.match(r"Added a task: (.+?)(?:, due [^.]+)?\.$", str(turn.get("she_answered") or "").strip())
+        if added and kind != "task_new":
+            kind, command = "task_new", {"kind": "task_new", "description": added.group(1)}
         if kind == "undo":
             continue                        # his previous undo; look one further back
         # "Mark it done", then "undo that" (2026-10-08: "Nothing to undo").

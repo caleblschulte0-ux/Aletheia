@@ -1652,6 +1652,20 @@ def _new_task(raw: str) -> dict:
     # "Add pay the water bill too" (2026-10-14) kept "too" as part of the task.
     raw = re.sub(r"(?:,? (?:too|as well|also))+$", "", raw.strip(), flags=re.I)
     desc, deadline = _split_deadline(raw.strip())
+    # "I need to renew my passport", then "I need to renew my passport by
+    # December" made two of it, and "mark the passport one done" asked
+    # "renew my passport or renew my passport?" (2026-10-14). The same task
+    # said again with a day is that task given the day.
+    try:
+        from aletheia import intercom
+        same = [t for t in intercom._open_tasks()
+                if " ".join(str(t.get("description") or "").casefold().split()) == " ".join(desc.casefold().split())]
+    except Exception:  # noqa: BLE001 - a new task is still a task
+        same = []
+    if same and deadline:
+        return {"command": {"kind": "task_change", "which": desc, "deadline": deadline}, "say": None}
+    if same:
+        return {"command": None, "say": f"That's already on your list: {same[0].get('description')}."}
     slug = re.sub(r"[^a-z0-9]+", "-", desc.lower()).strip("-")[:40] or "voice-task"
     if any(t["id"] == slug for t in tasks.all_tasks()):
         slug = f"{slug}-2"
