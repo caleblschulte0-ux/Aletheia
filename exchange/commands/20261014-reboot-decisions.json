@@ -1,0 +1,11 @@
+{
+  "id": "20261014-reboot-decisions",
+  "filed": "2026-10-14T01:58:56Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "i dont have that open just ask here",
+  "command": {
+    "kind": "intent",
+    "text": "list every decision you are waiting on me for in Project Reboot, each one with its options"
+  }
+}
