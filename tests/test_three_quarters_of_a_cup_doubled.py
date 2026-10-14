@@ -23,3 +23,13 @@ class KitchenSumsTheOtherWayRound(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ADateTakesOn(unittest.TestCase):
+    """"I'll remind you 24 February 2027 at 9 am" (2026-10-14)."""
+
+    def test_on(self):
+        from aletheia import speech
+        self.assertEqual(speech._on("24 February 2027 at 9 am"), "on 24 February 2027 at 9 am")
+        self.assertEqual(speech._on("Saturday at 9 am"), "Saturday at 9 am")
+        self.assertEqual(speech._on("tomorrow at 9 am"), "tomorrow at 9 am")
