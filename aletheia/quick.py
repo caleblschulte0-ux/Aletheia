@@ -1790,8 +1790,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:when|what time|what day)(?: will| are) you (?:going to )?remind(?:ing)? me (?:to|about|that) (?P<reminder_next>[a-z0-9][a-z0-9' ]{1,50}?)\s*\??$"
         r"|^(?:when|what time|what day)(?:'s| is) (?:my |the )?reminder (?:to|about|for) (?P<reminder_next2>[a-z0-9][a-z0-9' ]{1,50}?)\s*\??$")),
     ("reminders_week", re.compile(
-        r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week)\s*\??$"
-        r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week)\s*\??$")),
+        # "What reminders do I have in June" (2026-10-14: to a model).
+        r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$"
+        r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$")),
     # "What's my alarm for tomorrow" was answered as "1 reminder tomorrow:
     # 6 am, wake up." (2026-10-12) - he asked about his alarm.
     ("alarms_on", re.compile(
@@ -15819,6 +15820,16 @@ def _reminders_week(which: str) -> str:
     today = dt.datetime.now(tz).date()
     start = today if which == "this week" else today + dt.timedelta(days=7 - today.weekday())
     end = today + dt.timedelta(days=6 - today.weekday()) if which == "this week" else start + dt.timedelta(days=6)
+    months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+              "november", "december"]
+    month = today.month if which == "this month" else today.month % 12 + 1 if which == "next month" \
+        else months.index(which[3:]) + 1 if which.startswith("in ") and which[3:] in months else 0
+    if month:
+        year = today.year + (month < today.month)
+        start = today if (year, month) == (today.year, today.month) else dt.date(year, month, 1)
+        end = dt.date(year + (month == 12), month % 12 + 1, 1) - dt.timedelta(days=1)
+        if which.startswith("in "):
+            which = "in " + months[month - 1].title()
     rows = [(at.astimezone(tz), text) for at, text, store in _coming()
             if store == "reminder" and start <= at.astimezone(tz).date() <= end]
     if not rows:
