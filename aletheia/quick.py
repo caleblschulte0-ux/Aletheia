@@ -503,7 +503,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # mileage it is due at, less the last mileage he told her.
     ("miles_until", re.compile(
         r"^how (?:many|much) (?:more )?(?:miles|mi) (?:until|till|before|to|left (?:until|before|till)) (?:my |the |our )?(?:next )?"
-        r"(?P<mu_what>oil change|service|tune-?up|tire rotation|inspection|timing belt)(?: is due)?\s*\??$")),
+        r"(?P<mu_what>oil change|service|tune-?up|tire rotation|inspection|timing belt)(?: is due)?\s*\??$"
+        # "When is my next oil change" after "every 5000 miles" and "I changed
+        # the oil today" (2026-10-14: the interval note read back, no number).
+        r"|^when(?:'s| is| do i need) (?:my |the |our )?next (?P<mu_next>oil change|tire rotation|tune-?up)(?: due)?\s*\??$")),
     # "How many pills do I have left", "when will I run out of my pills"
     # (2026-10-08: to a model). His count, less his daily dose since.
     ("pills_left", re.compile(
@@ -18915,12 +18918,14 @@ def _pills_left(text: str) -> str | None:
 def _miles_until(text: str) -> str | None:
     """The miles between his car's last mileage and the one a service is
     due at, both from his notes. Either missing is said, with how to say it."""
-    what = (_groups("miles_until", text).get("mu_what") or "").casefold()
+    g = _groups("miles_until", text)
+    what = (g.get("mu_what") or g.get("mu_next") or "").casefold()
     if not what:
         return None
     number = r"(?P<n>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)(?P<k>k)?"
     due = odo = None
-    for row in _notes():
+    rows = _notes()
+    for row in rows:
         said = " ".join(str(row.get("text") or "").split()).casefold()
         if due is None and what.split()[0] in said and re.search(r"\bdue\b|\bneeded\b", said):
             m = re.search(r"(?:at|by|around) " + number, said)
@@ -18931,8 +18936,25 @@ def _miles_until(text: str) -> str | None:
             m = re.search(r"(?:has|is at|at|reads|says|is) (?:about |around )?" + number + r" ?(?:miles|mi|km)?\b", said)
             if m:
                 odo = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
+        # "I'm at 42000 miles" (2026-10-14) says the car's mileage too.
+        if odo is None:
+            m = re.match(r"(?:i'?m|i am|we'?re) (?:at|on) (?:about |around )?" + number + r" ?(?:miles|mi)\b", said)
+            if m:
+                odo = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
         if due is not None and odo is not None:
             break
+    if due is None and odo is not None:
+        # "Needs an oil change every 5000 miles" and "I changed the oil today":
+        # the next one is the interval past the mileage when it was done.
+        stem = {"oil change": r"oil", "tire rotation": r"tires?", "tune-up": r"tune", "tuneup": r"tune"}.get(what, re.escape(what.split()[0]))
+        every = next((m for m in (re.search(stem + r"[a-z ]{0,20}every " + number + r" ?(?:miles|mi)\b",
+                                            " ".join(str(r.get("text") or "").split()).casefold()) for r in rows) if m), None)
+        done = any(re.search(r"\b(?:changed|got|had|did|rotated)\b[a-z ]{0,20}" + stem, " ".join(str(r.get("text") or "").split()).casefold())
+                   for r in rows)
+        if every and done:
+            due = odo + float(every.group("n").replace(",", "")) * (1000 if every.group("k") else 1)
+    if due is None and g.get("mu_next"):
+        return None
     if due is None:
         return f"You haven't told me when your {what} is due. Say \"my {what} is due at 45,000 miles\" and I'll keep it."
     if odo is None:
@@ -18941,6 +18963,8 @@ def _miles_until(text: str) -> str | None:
     left = due - odo
     if left <= 0:
         return f"It's due now - your {what} was due at {due:,.0f} miles and you told me the car has {odo:,.0f}."
+    if g.get("mu_next"):
+        return f"At {due:,.0f} miles - about {left:,.0f} more than the {odo:,.0f} you told me the car has."
     return f"About {left:,.0f} miles: it's due at {due:,.0f} and you told me the car has {odo:,.0f}."
 
 
@@ -19942,7 +19966,7 @@ def _follow_up(question: str) -> str | None:
 #: Readers that find nothing and hand the question to the next pattern.
 _HANDS_ON = frozenset({"mission_found", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
-                       "on_the_way", "their_needs", "niece", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
+                       "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 
 
 def _her_holds() -> str | None:
