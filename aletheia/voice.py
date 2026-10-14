@@ -2855,7 +2855,12 @@ def _restarted_timer() -> dict:
     return {"command": command, "say": None}
 
 
-def _moved_alarm(time_words: str, was_words: str = "") -> dict:
+# "On weekends", "every Saturday and Sunday" (2026-10-14: to a model).
+_WEEKEND_WORDS = (r"|on weekends|weekends|on the weekends?|weekend mornings|(?:every|on) saturdays? and sundays?"
+                  r"|saturdays and sundays")
+
+
+def _moved_alarm(time_words: str, was_words: str = "", which: str = "") -> dict:
     """"Change my alarm to 6:30": the one alarm, same day, the new time.
     "Change my 6:30 alarm to 7" names which one when there are several."""
     import datetime as dt
@@ -2864,7 +2869,7 @@ def _moved_alarm(time_words: str, was_words: str = "") -> dict:
     hhmm = _spoken_time(time_words)
     if not hhmm:
         return _to_the_planner(f"change my alarm to {time_words}")
-    if not running and not was_words:
+    if (not running and not was_words) or which:
         # Only a repeating alarm (2026-10-08: "you don't have an alarm set"
         # with one set for weekdays): the one repeating alarm moves, same days.
         try:
@@ -2874,14 +2879,37 @@ def _moved_alarm(time_words: str, was_words: str = "") -> dict:
                          and "wake up" in str((spec.get("command") or {}).get("text") or "").casefold()]
         except Exception:
             repeating = []
+        if which:
+            # "Change my weekday alarm to 6:30" with a weekend one too (2026-10-14:
+            # to a model): the one that goes off on those days.
+            days = {"weekday": {0, 1, 2, 3, 4}, "weekend": {5, 6}, "saturday": {5}, "sunday": {6}}[which]
+            repeating = [spec for spec in repeating if spec.get("kind") == "weekly"
+                         and days & {d for d in spec.get("weekdays") or [] if isinstance(d, int)}]
+            if not repeating:
+                return {"command": None, "say": f"You don't have a {which} alarm. Say \"set an alarm for {time_words} "
+                                                f"every {which}\" and I'll set one."}
         if len(repeating) == 1:
             spec = repeating[0]
+            # Named by its clock too, so with two alarms the right one goes off.
+            old = str(spec.get("time") or "")[:5]
+            replaces = "wake up"
+            if re.fullmatch(r"\d\d:\d\d", old):
+                h, mi = map(int, old.split(":"))
+                replaces = f"wake up at {h % 12 or 12}:{mi:02d} {'pm' if h >= 12 else 'am'}"
             if spec.get("kind") == "daily":
-                return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up", "replaces": "wake up"},
+                return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up", "replaces": replaces},
                         "say": None}
             return {"command": {"kind": "remind_weekly", "days": list(spec.get("weekdays") or []), "time": hhmm,
-                                "text": "wake up", "replaces": "wake up"}, "say": None}
+                                "text": "wake up", "replaces": replaces}, "say": None}
         if len(repeating) > 1:
+            # Weekday and weekend ones are told apart by the word for their days.
+            names = []
+            for spec in repeating:
+                days = {d for d in spec.get("weekdays") or [] if isinstance(d, int)}
+                names.append("weekday" if days == {0, 1, 2, 3, 4} else "weekend" if days == {5, 6} else "")
+            if all(names) and len(set(names)) == len(names):
+                return {"command": None, "say": f"Which one - your weekday alarm or your weekend alarm? Say "
+                                                f"\"change my weekday alarm to {time_words}\" or the weekend one."}
             return {"command": None, "say": f"You have {len(repeating)} repeating alarms - turn off the one you "
                                             f"don't want and set it again for {time_words}."}
     if not running:
@@ -5811,13 +5839,27 @@ def _interpret(transcript: str) -> dict:
         when = m.group("when")
         return {"command": None,
                 "say": f"Remind you of what? Say it whole - like \"remind me {when} to call Sam\"."}
+    # "Alarm set for weekdays at 6 am", then "and 8 on weekends" (2026-10-14:
+    # to a model): another alarm, on those days.
+    m = re.fullmatch(r"(?:and |also |plus )*(?:one )?(?:at |for )?(?P<time>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?) (?P<when>on weekends|weekends"
+                     r"|on the weekends?|every weekend|on weekdays|weekdays|every weekday|on saturdays and sundays)(?: too| as well)?"
+                     r"|(?:and |also |plus )*(?P<when2>on weekends|weekends|on the weekends?|on weekdays|weekdays)"
+                     r" (?:at |for )?(?P<time2>\d{1,2}(?::\d\d)?(?: ?[ap]\.?m\.?)?)(?: too| as well)?", low)
+    if m and _her_last_answer().startswith("Alarm set for") and not getattr(_LOOKING_BACK, "alarm_days", False):
+        _LOOKING_BACK.alarm_days = True
+        try:
+            got = _interpret(f"set an alarm for {m.group('time') or m.group('time2')} {m.group('when') or m.group('when2')}")
+        finally:
+            _LOOKING_BACK.alarm_days = False
+        if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
+            return got
     # "SET AN ALARM FOR 6AM EVERY DAY", "wake me up at 7 every weekday"
     # (2026-10-07: to the planner). The repeating kinds, a wake-up's words.
     m = re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) (?:at )?(?P<time>[\w: ]+?) "
-                     r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|daily|on weekdays|weekdays)", low) \
+                     r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|daily|on weekdays|weekdays" + _WEEKEND_WORDS + r")", low) \
         or re.fullmatch(r"(?:wake me(?: up)?|get me up|set (?:an |my )?alarm(?: for)?) "
-                        r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|on weekdays|weekdays|weekday mornings)"
-                        r" (?:at |for )(?P<time>[\w: ]+?)", low)
+                        r"(?P<when>every (?:day|morning|weekday|weekend)|each (?:day|morning)|on weekdays|weekdays|weekday mornings"
+                        + _WEEKEND_WORDS + r") (?:at |for )(?P<time>[\w: ]+?)", low)
     if m and _spoken_time(m.group("time")):
         hour, minute = map(int, _spoken_time(m.group("time")).split(":"))
         if _is_bare_hour(m.group("time")) and hour == 12:
@@ -5826,7 +5868,7 @@ def _interpret(transcript: str) -> dict:
         if "weekday" in m.group("when"):
             return {"command": {"kind": "remind_weekly", "days": ["weekdays"], "time": hhmm, "text": "wake up"},
                     "say": None}
-        if "weekend" in m.group("when"):
+        if "weekend" in m.group("when") or "saturday" in m.group("when"):
             return {"command": {"kind": "remind_weekly", "days": ["weekend"], "time": hhmm, "text": "wake up"},
                     "say": None}
         return {"command": {"kind": "remind_daily", "time": hhmm, "text": "wake up"}, "say": None}
@@ -7627,10 +7669,17 @@ def _interpret(transcript: str) -> dict:
             return {"command": None, "say": "I can add whole minutes to a timer, not seconds."}
         return _more_on_the_timer(count, named=g.get("named") or "")
     m = re.fullmatch(r"(?:change|move|set|make|push|switch|reset) (?:my |the )?"
-                     r"(?P<was>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?alarm"
+                     r"(?P<was>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?(?:(?P<which>weekday|weekend|saturday|sunday) )?alarm"
                      r"(?: (?:for|at) (?P<was2>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)?))? (?:to|for|until) (?P<time>[\w: ]+?)", low)
     if m:
-        return _moved_alarm(m.group("time"), (m.group("was") or m.group("was2") or "").strip())
+        return _moved_alarm(m.group("time"), (m.group("was") or m.group("was2") or "").strip(), which=m.group("which") or "")
+    # "Which one - your weekday alarm or your weekend alarm?" - "the weekday
+    # one" (2026-10-14: to a model).
+    asked = re.match(r"Which one - your weekday alarm or your weekend alarm\? Say \"change my weekday alarm to (?P<t>.+?)\"",
+                     _her_last_answer())
+    pick = re.fullmatch(r"(?:the |my )?(?P<w>weekday|weekend)s?(?: one| alarm)?(?: please)?", low)
+    if asked and pick:
+        return _moved_alarm(asked.group("t"), which=pick.group("w"))
     # HOW FAST SHE TALKS (2026-10-07: "slower" and "talk slower" went to the
     # planner). Bare "slower"/"faster" are about her voice only when nothing
     # else could be meant; music has its own words.
