@@ -2213,6 +2213,13 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("it_due", re.compile(r"^when(?:'s| is| was) (?:it|that|this)(?: one| task)? due\s*\??$")),
     ("taxes_due", re.compile(r"^when (?:are|is) (?:my |our |the )?(?:taxes|tax day|tax returns?|income taxes|federal taxes) due(?: this year)?\s*\??$"
                              r"|^when (?:is|'s) tax day\s*\??$|^when do i (?:have|need) to file (?:my )?taxes(?: by)?\s*\??$")),
+    # "The furnace filter should be changed every 3 months", "I changed
+    # the furnace filter today", then "when is the furnace filter due"
+    # (2026-10-14: "you changed it today", which is not when it is due).
+    ("interval_due", re.compile(
+        r"^when (?:is|are) (?:the |my )?(?P<iv_thing>[a-z][a-z' ]{2,40}?) (?:due|next due|due next|due again|due to be (?:changed|replaced|cleaned|done))\s*\??$"
+        r"|^when (?:do|should|will) i (?:need to |have to )?(?:next )?(?:change|replace|clean|service|flush|rotate|refill|empty|descale|swap)"
+        r" (?:the |my )?(?P<iv_thing2>[a-z][a-z' ]{2,40}?)(?: next| again)?\s*\??$")),
     ("task_due", re.compile(
         r"^when(?:'s| is) (?:my |the )?(?!(?:it|that|this|they|them)\b)(?P<due>[a-z0-9][a-z0-9 '-]{1,40}?)(?: task)? due\s*\??$"
         r"|^when do i (?:need|have) to (?P<due2>[a-z][a-z0-9 '-]{1,40}?)(?: by)?\s*\??$"
@@ -3748,7 +3755,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -17005,6 +17012,82 @@ def _for_event(event: str) -> str | None:
     return f"On your list: {speech.and_list(said)}."
 
 
+_EVERY = re.compile(r"^(?:the |my |our )?(?P<thing>[a-z][a-z' ]{1,40}?) (?:should|needs to|has to|must|is supposed to) be "
+                    r"(?P<verb>changed|replaced|cleaned|serviced|flushed|rotated|refilled|emptied|descaled|swapped|done) every "
+                    r"(?P<n>\d+|a|an|one|two|three|four|five|six|twelve) (?P<unit>day|week|month|year)s?$")
+_PAST_DONE_OF = {"change": "changed", "replace": "replaced", "clean": "cleaned", "service": "serviced", "flush": "flushed",
+                 "rotate": "rotated", "refill": "refilled", "empty": "emptied", "descale": "descaled", "swap": "swapped"}
+_PAST_DONE = r"(?:changed|replaced|cleaned|serviced|flushed|rotated|refilled|emptied|descaled|swapped|did|put in|got)"
+
+
+def _interval_due(thing: str):
+    """(due date, what to do, his interval note, when he last did it) for a
+    thing he said should be done every so often, or None when he never said
+    how often. The due date is None when he never said he did it."""
+    import datetime as dt
+    from aletheia import localtime
+    words = [w for w in re.findall(r"[a-z0-9]+", str(thing or "").casefold()) if w not in _STOP_WORDS]
+    if not words:
+        return None
+    tz = localtime.operator_tz()
+    every = last = None
+    for row in _notes():                       # newest first
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not all(re.search(rf"\b{re.escape(w)}", low) for w in words):
+            continue
+        m = _EVERY.match(low)
+        if m and every is None:
+            every = (m, said)
+        elif last is None and re.search(rf"^(?:i|we) (?:just )?{_PAST_DONE}\b", low):
+            try:
+                on = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz).date()
+            except ValueError:
+                continue
+            last = on - dt.timedelta(days=1) if re.search(r"\byesterday\b", low) else on
+    if every is None:
+        return None
+    m, said = every
+    n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "twelve": 12}.get(m.group("n")) or int(m.group("n"))
+    verb = {"changed": "change", "replaced": "replace", "cleaned": "clean", "serviced": "service", "flushed": "flush",
+            "rotated": "rotate", "refilled": "refill", "emptied": "empty", "descaled": "descale", "swapped": "swap",
+            "done": "do"}[m.group("verb")]
+    doing = f"{verb} the {m.group('thing')}"
+    if last is None:
+        return None, doing, said, None
+    unit = m.group("unit")
+    if unit in ("day", "week"):
+        due = last + dt.timedelta(days=n * (7 if unit == "week" else 1))
+    else:
+        months = n * (12 if unit == "year" else 1)
+        y, mo = divmod(last.month - 1 + months, 12)
+        year, month = last.year + y, mo + 1
+        import calendar as _cal
+        due = dt.date(year, month, min(last.day, _cal.monthrange(year, month)[1]))
+    return due, doing, said, last
+
+
+def _interval_said(text: str) -> str | None:
+    """"When is the furnace filter due": from how often he said and when he
+    last did it. None when he never said how often."""
+    import datetime as dt
+    from aletheia import localtime, speech
+    g = _groups("interval_due", text)
+    found = _interval_due(g.get("iv_thing") or g.get("iv_thing2") or "")
+    if not found:
+        return None
+    due, doing, said, last = found
+    if due is None:
+        return f"You told me {speech.as_she_says_it(said)}, but not when you last did it. Say \"I changed it today\" and I'll work it out."
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    when = due.strftime("%A, %B ") + str(due.day) + (f", {due.year}" if due.year != today.year else "")
+    if due < today:
+        return f"It was due {when} - you last did it {(today - last).days} days ago. Time to {doing}."
+    if due == today:
+        return f"Today - it's time to {doing}."
+    return f"{when}, {(due - today).days} days from now - you last did it {speech.humanize_time(dt.datetime.combine(last, dt.time(12)).isoformat()).split(' at ')[0]}."
+
+
 def _car_spec(text: str) -> str | None:
     """A spec of his car he told her - the tire pressure, the oil - read
     from the note that names it. None when no note does, so a model may
@@ -20031,6 +20114,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "for_event": _for_event,
            "for_meeting": _for_meeting,
            "car_spec": _car_spec,
+           "interval_due": _interval_said,
            "recipe_need": lambda rest: (lambda dish: _recipe_has(dish) if _saved_recipe(dish) else None)(
                _groups("recipe_need", rest).get("recipe_need") or ""),
            "we_use": _we_use,
@@ -20288,7 +20372,7 @@ def _follow_up(question: str) -> str | None:
 
 
 #: Readers that find nothing and hand the question to the next pattern.
-_HANDS_ON = frozenset({"mission_found", "for_meeting", "car_spec", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
+_HANDS_ON = frozenset({"mission_found", "for_meeting", "car_spec", "interval_due", "recipe_need", "my_day", "trip_fact", "who_owns", "size_of", "started_on", "goal_of", "kin_called", "call_back", "sent_kin", "got_when",
                        "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "where_now", "dropped",
                        "on_the_way", "their_needs", "niece", "miles_until", "next_every", "last_visit", "kid_did", "kid_wants", "sitter", "pay_now", "we_when", "we_amt", "we_use", "have_left", "meal_prep"})
 

@@ -11891,6 +11891,29 @@ def _interpret(transcript: str) -> dict:
     # "Remember Dana's birthday is March 3" kept "remember" inside the note
     # and inside the name (2026-10-07). The verb is not the fact.
     fact_low = re.sub(r"^(?:remember|note|don'?t forget|keep in mind)(?: that)? ", "", low)
+    # "The furnace filter should be changed every 3 months" (2026-10-14: to
+    # the planner). How often, kept in his words for `quick` to count from.
+    try:
+        from aletheia import quick as _quick
+        if _quick._EVERY.match(fact_low):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        # "Remind me when the furnace filter is due": the day it comes due.
+        due_ask = re.fullmatch(r"remind me (?:when|on the day) (?:the |my )?(?P<thing>[a-z][a-z' ]{2,40}?) (?:is|are|comes?) due(?: next| again)?", low)
+        found = _quick._interval_due(due_ask.group("thing")) if due_ask else None
+        if found:
+            due, doing, _said, _last = found
+            if due is None:
+                return {"command": None, "say": f"I don't know when you last did it. Say \"I {_quick._PAST_DONE_OF.get(doing.split()[0], 'did')} "
+                                                f"{doing.split(' ', 1)[1]} today\" and I'll set it."}
+            import datetime as _dt
+            from aletheia import localtime
+            tz = localtime.operator_tz()
+            at = _dt.datetime.combine(due, _dt.time(9, 0), tzinfo=tz)
+            if at <= _dt.datetime.now(tz):
+                return {"command": None, "say": f"It's already due - time to {doing}."}
+            return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": doing}, "say": None}
+    except Exception:
+        pass
     # "My car takes 5w-30 oil" (2026-10-14: to the planner). A spec, so a
     # digit in it; "my car needs washing" is a chore, not a fact.
     if re.fullmatch(r"(?:my |our |the )(?:car|truck|van|suv|bike|motorcycle) (?:takes|uses|needs|runs on|gets) [a-z0-9 ./-]{0,30}\d[a-z0-9 ./-]{0,30}"
