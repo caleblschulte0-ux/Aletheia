@@ -1,0 +1,12 @@
+{
+  "id": "20261014-reboot-questions",
+  "filed": "2026-10-14T02:54:50Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "i dont have that open just ask here",
+  "command": {
+    "kind": "missions",
+    "which": "active",
+    "about": "steps"
+  }
+}
