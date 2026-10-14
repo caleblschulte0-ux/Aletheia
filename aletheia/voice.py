@@ -2039,7 +2039,10 @@ def _new_days_for_the_reminder_just_set(low: str) -> dict | None:
                      r"(?P<to>every day|daily|everyday|weekdays|week days|weekends|every weekday|every weekend"
                      r"|(?:every |on )?" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)(?: only| instead)?(?: please)?"
                      r"|(?:and |also )?(?:add|do|plus) (?P<add>" + days_re + r"(?:(?:,| and|, and) " + days_re + r")*)"
-                     r"(?: too| as well| also)?(?: please)?", low)
+                     r"(?: too| as well| also)?(?: please)?"
+                     # "Weekdays at 7", then "not on Fridays" (2026-10-14: to a model).
+                     r"|(?:but |and )?(?:not|except|skip|never|no|leave off|take off|drop) (?:on )?(?P<drop>" + days_re
+                     + r"(?:(?:,| and|, and| or) " + days_re + r")*)(?: though| please)?", low)
     if not m or getattr(_LOOKING_BACK, "on", False):
         return None
     _LOOKING_BACK.on = True
@@ -2058,7 +2061,7 @@ def _new_days_for_the_reminder_just_set(low: str) -> dict | None:
         return None
     if found is None or found.get("kind") not in ("once", "daily", "weekly"):
         return None
-    words = m.group("to") or m.group("add")
+    words = m.group("to") or m.group("add") or m.group("drop")
     # "Make it Saturday" after a one-off moves the one-off (another rule); only
     # "every Saturday", "Saturdays" or "weekdays" makes it repeat.
     if found["kind"] == "once" and not re.search(r"every|daily|week|days\b|[a-z]days?s\b", words):
@@ -2075,7 +2078,15 @@ def _new_days_for_the_reminder_just_set(low: str) -> dict | None:
     if not hhmm:
         return None
     named = {i for i, n in enumerate(_DAY_NAMES) if re.search(r"\b" + n + r"s?\b", words)}
-    if m.group("add"):
+    if m.group("drop"):
+        # A day off a one-off is a skip (another rule), never a repeat.
+        if found["kind"] == "once" or not named & had:
+            return None
+        # "Skip Friday" is the coming one only; "skip Fridays" is all of them.
+        if re.match(r"(?:but |and )?(?:skip|no|drop) ", low) and not re.search(r"days\b", words):
+            return None
+        days = had - named
+    elif m.group("add"):
         if found["kind"] == "once" or not named:
             return None
         days = had | named
@@ -2216,11 +2227,22 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         turn = recent[at]
         said = " ".join(str(turn.get("he_asked") or "").split())
         said = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", said, flags=re.IGNORECASE)
-        if not said or _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
+        if said and _IS_FOLLOW_UP.match(_without_preamble(said.casefold().rstrip(".?!"))):
+            # "Make it weekdays" changed the repeat; her confirmation says to
+            # what ("make it 8" after it, 2026-10-14: to a model).
+            again = _the_repeat_she_confirmed(turn, kind)
+            if again:
+                return again if again.get("kind") == kind and again.get(needs) else {}
+            continue
+        if not said:
             continue
         # "At 5" straight after she set one changed its time - a follow-up too.
         # "What time is that" asked about it, the same way.
         bare = said.casefold().rstrip(".?!")
+        # "Skip Friday" passed one over and left the reminder as it was, so
+        # "skip Mondays" after it still means that reminder (2026-10-14).
+        if str(turn.get("she_answered") or "").startswith("Skipped "):
+            continue
         if at and (_BARE_NEW_TIME.fullmatch(bare) or _BARE_NEW_DAY.fullmatch(bare) or _BARE_WHEN.fullmatch(bare)
                    or _BARE_HOW_LONG.fullmatch(bare)) \
                 and _SHE_SET_IT.match(str(recent[at - 1].get("she_answered") or "")):
@@ -2239,6 +2261,8 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
             if quick.match(said):
                 continue                          # a question she answered from her stores
             cmd = (interpret(f"thea {said}") or {}).get("command") or {}
+            if cmd.get("kind") != kind:
+                cmd = _the_repeat_she_confirmed(turn, kind) or cmd
         except Exception:
             return {}
         if cmd.get("kind") == kind and cmd.get(needs):
@@ -2255,6 +2279,24 @@ def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
         if cmd.get("kind") not in intercom.READ_ONLY_KINDS:
             return {}
     return {}
+
+
+def _the_repeat_she_confirmed(turn: dict, kind: str) -> dict:
+    """The daily or weekly reminder her answer to that turn says she set
+    ("Weekdays at 7 am I'll remind you: check email."), rebuilt as a command,
+    or {}. "Make it weekdays" and "not on Fridays" mean nothing read alone."""
+    if kind not in ("remind_daily", "remind_weekly"):
+        return {}
+    repeat = _SHE_SET_A_REPEAT.fullmatch(" ".join(str(turn.get("she_answered") or "").split()))
+    if not repeat:
+        return {}
+    what = re.sub(r"\byour\b", "my", repeat.group("what"))
+    when = repeat.group("when")
+    try:
+        again = (interpret(f"thea remind me to {what} {when[:1].lower() + when[1:]}") or {}).get("command") or {}
+    except Exception:  # noqa: BLE001
+        return {}
+    return again if again.get("kind") in ("remind_daily", "remind_weekly") else {}
 
 
 def _relative_length_asked(previous: dict) -> str | None:
@@ -5566,6 +5608,19 @@ def _interpret(transcript: str) -> dict:
             _LOOKING_BACK.bare_time = False
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
             return got
+    # "On the 15th of every month to pay rent", then "make it the 1st"
+    # (2026-10-14: to a model): the monthly one moves to that day.
+    m = re.fullmatch(r"(?:(?:no|actually|wait),? )*(?:make|change|move|switch) (?:it|that)(?: to)? (?:the )?(?P<d>\d{1,2})(?:st|nd|rd|th)"
+                     r"(?: of (?:the|every|each) month)?(?: instead)?", low)
+    if m and not getattr(_LOOKING_BACK, "on", False):
+        _LOOKING_BACK.on = True
+        try:
+            monthly = _recent_ask_of("remind_monthly", "text")
+        finally:
+            _LOOKING_BACK.on = False
+        if monthly and 1 <= int(m.group("d")) <= 31 and int(m.group("d")) != int(monthly.get("day") or 0):
+            return {"command": {"kind": "remind_monthly", "day": int(m.group("d")), "time": monthly.get("time") or "09:00",
+                                "text": monthly["text"], "replaces": monthly["text"]}, "say": None}
     m = _BARE_NEW_DAY.fullmatch(low)
     if m and not getattr(_LOOKING_BACK, "bare_time", False) \
             and _she_just_named_a_reminder():
