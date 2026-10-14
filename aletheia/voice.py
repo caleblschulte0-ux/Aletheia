@@ -2879,6 +2879,7 @@ def _moved_alarm(time_words: str, was_words: str = "", which: str = "") -> dict:
                          and "wake up" in str((spec.get("command") or {}).get("text") or "").casefold()]
         except Exception:
             repeating = []
+        several = len(repeating) > 1
         if which:
             # "Change my weekday alarm to 6:30" with a weekend one too (2026-10-14:
             # to a model): the one that goes off on those days.
@@ -2890,10 +2891,10 @@ def _moved_alarm(time_words: str, was_words: str = "", which: str = "") -> dict:
                                                 f"every {which}\" and I'll set one."}
         if len(repeating) == 1:
             spec = repeating[0]
-            # Named by its clock too, so with two alarms the right one goes off.
+            # Named by its clock too when there are two, so the right one goes off.
             old = str(spec.get("time") or "")[:5]
             replaces = "wake up"
-            if re.fullmatch(r"\d\d:\d\d", old):
+            if several and re.fullmatch(r"\d\d:\d\d", old):
                 h, mi = map(int, old.split(":"))
                 replaces = f"wake up at {h % 12 or 12}:{mi:02d} {'pm' if h >= 12 else 'am'}"
             if spec.get("kind") == "daily":
