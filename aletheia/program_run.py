@@ -1064,9 +1064,12 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
                 r.get("outcome") == "ok" and int(r.get("revision") or 0) < MEASURED_FROM_REVISION
                 # The last time THIS step ran: the write after it is the task's last result, and
                 # looking only at that kept the comparison from ever being redone (2026-10-14).
-                for r in [x for x in task.get("results") or [] if x.get("step") == i][-1:]) and research.baseline_for(
-                    str(args.get("question") or "") or " ".join([str(task.get("title") or "")]
-                                                               + [str(d) for d in task.get("does") or []])):
+                for r in [x for x in task.get("results") or [] if x.get("step") == i][-1:]) and (
+                research.baseline_for(str(args.get("question") or ""))
+                # Its own question may name only the places ("Tampa, Austin, Nashville..."); the task
+                # it serves names the comparison, and that is what the redo is asked (2026-10-14).
+                or research.baseline_for(" ".join([str(task.get("title") or "")]
+                                                  + [str(d) for d in task.get("does") or []]))):
             # A comparison looked at before looks measured it against where he lives: the move
             # comparison was written against the pages' New York index and stood as done after the
             # fix that measures it against Sioux Falls (his PC, 2026-10-14). Once.

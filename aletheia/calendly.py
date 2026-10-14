@@ -337,6 +337,19 @@ def _shot(page, action_id: str) -> None:
 
 # ---- his calendar ------------------------------------------------------------
 
+def action_id_for(prefix: str, start: str) -> str:
+    """A claim's name for one calendar entry. Claims are files named by a safe id (lowercase,
+    no colons), and "calendar-2026-10-24T09:00" is neither: the claim raised, the spend read as
+    no grant, and not one entry ever reached his calendar - the trail walk said "needs the
+    grant" with two grants live that both cover it (his PC, 2026-10-14)."""
+    return re.sub(r"[^a-z0-9._-]", "-", f"{prefix}-{str(start)[:16]}".lower())
+
+
+def authority_satisfy():
+    from aletheia import authority
+    return authority.satisfy
+
+
 def put_on_his_calendar(*, title: str, start: str, end: str, spender=None, provider=None) -> dict:
     """The booked interview on the Open Range Interactive calendar - the live
     one - under the same grant. Her own store already holds it; this is the
@@ -360,7 +373,11 @@ def put_on_his_calendar(*, title: str, start: str, end: str, spender=None, provi
         if spender is None:
             from aletheia import authority
             spender = authority.satisfy
-        grant = spender("calendar.write", f"interview-{start[:16]}")
+        action_id = action_id_for("interview", start)
+        grant = spender("calendar.write", action_id)
+        if not grant and spender is authority_satisfy():
+            from aletheia import authority
+            grant = authority.claimed_for("calendar.write", action_id)
         if not grant:
             return {"state": "needs_grant", "say": "putting it on your live calendar needs the interviews grant"}
         written = provider.create_event({"title": title, "start": start, "end": end})
@@ -408,13 +425,17 @@ def by_browser(*, title: str, start: str, end: str, spender=None, page=None, acc
     {"state": written | needs_grant | needs_sign_in | failed, "say"}. Only
     "written" claims it is on his calendar; everything else says it is NOT.
     """
-    action_id = f"calendar-{str(start)[:16]}"
+    action_id = action_id_for("calendar", start)
     session = None
     try:
         if spender is None:
             from aletheia import authority
             spender = authority.satisfy
         grant = spender("calendar.write", action_id)
+        if not grant and spender is authority_satisfy():
+            # Tried before and it did not land: the claim is already this action's.
+            from aletheia import authority
+            grant = authority.claimed_for("calendar.write", action_id)
         if not grant:
             return {"state": "needs_grant",
                     "say": "it is NOT on your Google Calendar yet: that needs the interviews grant"}

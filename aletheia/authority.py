@@ -234,6 +234,34 @@ def claim(grant_id: str, capability_id: str, action_id: str, *, now: dt.datetime
     return receipt
 
 
+def claimed_for(capability_id: str, action_id: str, *, now: dt.datetime | None = None) -> str | None:
+    """The grant that already authorised THIS action, if one did and still would. Read-only.
+
+    A claim is exclusive so one action cannot be paid for twice; it also meant an action that
+    failed half-way (her browser not ready, a page that did not load) could never be tried
+    again: the retry's claim collided and read as "no grant", every hour, for good. The trail
+    walk sat at "needs the grant" on his PC with both grants live (2026-10-14). The same action
+    tried again is the same action: it spends nothing new, and the grant must still allow it."""
+    try:
+        safe_id(action_id, name="action id")
+    except ValueError:
+        return None
+    for grant in active_grants(now=now):
+        if not (CLAIMS_DIR / safe_id(grant["id"]) / f"{action_id}.json").is_file():
+            continue
+        try:
+            receipt = read_json(CLAIMS_DIR / safe_id(grant["id"]) / f"{action_id}.json")
+        except ValueError:
+            continue
+        if receipt.get("capability_id") != capability_id:
+            continue
+        if grant.get("enabled") and capability_id in grant.get("capability_ids", []) \
+                and _parse(grant["expires"]).astimezone(dt.timezone.utc) > (now or dt.datetime.now(dt.timezone.utc)) \
+                and "scope" not in grant and not requires_scope(capability_id) and delegable(capability_id):
+            return grant["id"]
+    return None
+
+
 def active_grants(*, now: dt.datetime | None = None) -> list[dict]:
     """Every grant that is currently capable of authorizing anything."""
     if not GRANTS_DIR.is_dir():

@@ -201,3 +201,48 @@ class AnOldConfirmation(unittest.TestCase):
             late = interviews.record_confirmation({"id": "e"}, {"company": "Via"}, subject="Confirming your interview",
                                                   text=VIA, now=dt.datetime(2026, 10, 14, tzinfo=dt.timezone.utc))
             self.assertIsNone(late)
+
+
+class ATryThatDidNotLandIsTriedAgain(unittest.TestCase):
+    """His PC, 2026-10-14: the trail walk's first copy did not land, and every hourly retry after
+    it read "needs the grant" with both grants live - the first try had claimed the action."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        from aletheia import authority
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        for name, path in (("GRANTS_DIR", root / "grants"), ("CLAIMS_DIR", root / "claims")):
+            patcher = mock.patch.object(authority, name, path)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        (root / "grants").mkdir()
+        (root / "grants" / "standing-sign-ups.json").write_text(__import__("json").dumps({
+            "id": "standing-sign-ups", "enabled": True, "capability_ids": ["event.register", "calendar.write"],
+            "expires": "2027-01-01T00:00:00+00:00", "max_uses": 60}))
+
+    def test_the_second_try_of_the_same_entry_is_still_covered(self):
+        from aletheia import authority
+        first = calendly.by_browser(title="Walk", start=START, end=END, page=FakePage(landing="about:blank?x"),
+                                    account="", spender=authority.satisfy)
+        self.assertEqual(authority.claimed_for("calendar.write", calendly.action_id_for("calendar", START)), "standing-sign-ups")
+        with mock.patch.object(calendly.journal, "append"):
+            again = calendly.by_browser(title="Walk", start=START, end=END, page=FakePage(), account="")
+        self.assertNotEqual(again["state"], "needs_grant", (first, again))
+        self.assertEqual(again["state"], "written")
+
+    def test_the_first_try_is_covered_by_the_grant_at_all(self):
+        # The claim's name was "calendar-2026-10-13T18:00": not a safe id, so the spend raised
+        # and read as no grant, on every entry, interviews included.
+        from aletheia import authority
+        with mock.patch.object(calendly.journal, "append"):
+            got = calendly.by_browser(title="Walk", start=START, end=END, page=FakePage(), account="")
+        self.assertEqual(got["state"], "written", got)
+        self.assertEqual(calendly.action_id_for("calendar", START), "calendar-2026-10-13t18-00")
+
+    def test_an_entry_never_tried_still_needs_a_grant_that_covers_it(self):
+        from aletheia import authority
+        self.assertIsNone(authority.claimed_for("calendar.write", "calendar-2026-11-01T09:00"))
+        self.assertIsNone(authority.claimed_for("interview.book", calendly.action_id_for("calendar", START)))
