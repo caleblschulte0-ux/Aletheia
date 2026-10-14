@@ -97,7 +97,7 @@ class TestDescription(TaskCase):
         self.assertEqual(out["description"], "create the ChatGPT Project (the last step)")
         self.assertEqual(tasks.load("setup")["description"], out["description"])
         entries = journal.JOURNAL_PATH.read_text(encoding="utf-8")
-        self.assertIn("description corrected", entries)
+        self.assertIn("Renamed the task", entries)
         self.assertIn("merge, token, pages, run the core", entries,
                       "the superseded sentence must survive in the journal")
 

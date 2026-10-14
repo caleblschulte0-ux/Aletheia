@@ -12646,7 +12646,9 @@ def _overnight() -> str:
     # him back, read out in the morning as a thing she did.
     rows = [e for e in rows if not re.match(r"refused\s*[—-]\s*(?:nothing|there(?:'s| is) nothing|no |which\b|.*\?\s*$)",
                                             str(recollection._row(e).get("what") or ""), re.IGNORECASE)]
-    lines = [_shortened(str(recollection._row(e).get("what") or "").rstrip(".")) for e in rows[-3:]]
+    # "Overnight: I'll remind you today at 6:21 pm: call the bank" promised
+    # what had already been done (2026-10-14).
+    lines = [_shortened(_as_done(str(recollection._row(e).get("what") or "").rstrip("."))) for e in rows[-3:]]
     lines = [l for l in lines if l]
     if lines:
         parts.append("; ".join(lines) + (f" — and {speech.count_phrase(len(rows) - len(lines), 'other thing')}"
