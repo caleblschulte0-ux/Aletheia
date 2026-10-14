@@ -6430,10 +6430,11 @@ def _interpret(transcript: str) -> dict:
     # "Remind me to get stamps when I get to the post office" (2026-10-14: to a
     # model, which offered the shopping list): no place can set off a reminder,
     # so it goes on his tasks with the place in it, and she says so.
-    errand = re.fullmatch(r"remind me to (?P<what>.+?) (?:when i(?:'m| am)? (?:at|go to|get to|next go to|stop at|stop by) |"
+    errand = re.fullmatch(r"remind me to (?P<what>(?:get|buy|pick up|grab|drop off|return|mail|send|ask|bring|pay|renew|print|ship|check"
+                          r"|fill|refill|deposit|cash|withdraw) .+?) (?:when i(?:'m| am)? (?:at|go to|get to|next go to|stop at|stop by) |"
                           r"next time i(?:'m| am)? at |next time i go to |next time i stop at )"
                           r"(?P<place>the [a-z][a-z' ]{1,25}?|[a-z]+'s|target|walmart|costco|home depot|lowe's|walgreens|cvs)", low)
-    if errand and not re.search(r"(?:when|if|before|after|every)", errand.group("what")):
+    if errand and not re.search(r"\b(?:when|if|before|after|every)\b", errand.group("what")):
         what = _as_he_said(text, f"{errand.group('what').strip()} at {errand.group('place')}")
         got = _new_task(what)
         got["say"] = (f"I can't see where you are, so I added it to your tasks instead: {speech._yours(what)}. "
