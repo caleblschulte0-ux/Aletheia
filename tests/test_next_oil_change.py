@@ -29,6 +29,11 @@ class TheNextOne(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=[]):
             self.assertIsNone(quick._miles_until("when is my next oil change"))
 
+    def test_a_due_mileage_with_no_odometer_is_the_note_read_back(self):
+        rows = [{"text": "my car is due for an oil change at 50000 miles"}]
+        with mock.patch.object(quick, "_notes", return_value=rows):
+            self.assertIsNone(quick._miles_until("when is my next oil change"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18953,8 +18953,8 @@ def _miles_until(text: str) -> str | None:
                    for r in rows)
         if every and done:
             due = odo + float(every.group("n").replace(",", "")) * (1000 if every.group("k") else 1)
-    if due is None and g.get("mu_next"):
-        return None
+    if g.get("mu_next") and (due is None or odo is None):
+        return None  # "when is my next ..." with no arithmetic to do: the note itself answers it
     if due is None:
         return f"You haven't told me when your {what} is due. Say \"my {what} is due at 45,000 miles\" and I'll keep it."
     if odo is None:
