@@ -240,7 +240,7 @@ def _closed_browser_error(exc: BaseException) -> bool:
     )
 
 
-def native_login(url: str, profile: Path | None = None) -> int:
+def native_login(url: str, profile: Path | None = None, *, wait: bool = True) -> int:
     """Open a normal installed Chrome process for one-time interactive login.
 
     No Playwright connection is made while credentials/Google authentication are
@@ -265,6 +265,10 @@ def native_login(url: str, profile: Path | None = None) -> int:
         url,
     ]
     # proc: visible-by-design — this is the Chrome window he signs in with.
+    if not wait:
+        # Opened for him from the Core: the beat must not stand still while he types.
+        subprocess.Popen(cmd)
+        return 0
     return subprocess.run(cmd, check=False).returncode
 
 

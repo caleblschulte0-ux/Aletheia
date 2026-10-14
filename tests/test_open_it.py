@@ -115,3 +115,26 @@ class TheCardCarriesTheClick(Isolated):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HerOwnGoogleSignIn(Isolated):
+    """2026-10-14: her copy of the trail walk stopped at "not signed in to Google". Signing in
+    in HIS browser would not help: the window must be her own profile, and must not hold the beat."""
+
+    def test_it_opens_in_her_profile_without_waiting(self):
+        from aletheia import browse
+        with mock.patch.object(browse, "native_login") as login, \
+                mock.patch.object(open_it.webbrowser, "open") as his:
+            got = open_it.open_for("her Google sign-in")
+        login.assert_called_once()
+        self.assertFalse(login.call_args.kwargs["wait"])
+        self.assertIn("accounts.google.com", login.call_args.args[0])
+        his.assert_not_called()
+        self.assertIn("Open Range account", got["said"])
+
+    def test_it_goes_through_his_open_page_command(self):
+        from aletheia import browse
+        with mock.patch.object(browse, "native_login") as login:
+            said = intercom.execute_command({"kind": "open_page", "which": "her google sign-in"}, {})
+        login.assert_called_once()
+        self.assertIn("Sign in", said)
