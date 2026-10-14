@@ -1,4 +1,4 @@
-# ☀️ Fleet brief — 2026-10-13
+# ☀️ Fleet brief — 2026-10-14
 
 **All quiet.** No faults anywhere in the fleet.
 
@@ -6,33 +6,30 @@
 Schwab trader: review and merge pull request #16, watchdog: name which of the two likely causes a stall is (https://github.com/caleblschulte0-ux/schwab-trader/pull/16)
 
 ## Job hunt
-- **Yesterday:** 4 sent, 3 heard back, 1 interview(s)
-- **Last 7 days:** 65 sent, 20 heard back, 4 interview(s), 12 said no
-- **Last 30 days:** 232 sent, 51 heard back, 6 interview(s), 15 said no
-- **Waiting:** 20 stopped on a question only you can answer; 2 wait for your own OK (part-time, contract or judged by her own model); 16 failed to send.
+- **Yesterday:** 6 sent, 5 heard back, 2 interview(s)
+- **Last 7 days:** 36 sent, 19 heard back, 4 interview(s), 11 said no
+- **Last 30 days:** 209 sent, 52 heard back, 6 interview(s), 15 said no
+- **Waiting:** 21 stopped on a question only you can answer; 2 wait for your own OK (part-time, contract or judged by her own model); 2 filled and not yet sent; 16 failed to send.
 
 ## Projects
-- **Barkly** — 0/8 steps · last moved 19 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
-- **Holdco platform** — 0/5 steps · last moved 68 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
+- **Barkly** — 0/8 steps · last moved 20 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
+- **Holdco platform** — 0/5 steps · last moved 69 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
 - **Instagram Auto Post Setup** — 0/4 steps · moved today · yours next: Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
 - **Open Range demo films** — 0/4 steps · last moved 20 days ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
-- **Schwab trader** — 0/5 steps · last moved 11 days ago · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
+- **Schwab trader** — 0/5 steps · last moved 12 days ago · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
 
 ## Aletheia — OPERATIONAL
-- last commit `e5a99d8ad889`: core: state checkpoint
+- last commit `4a475db57b68`: core: state checkpoint
 
 ## Shorts-pipeline — OPERATIONAL
-- trending posted 442 · explainer posted 324 (+2) · third posted 948 (+4) · curiosity posted 1
-- last commit `872fa42977ec`: claim: mailbox verdicts 2026-10-13T13:48Z [skip ci]
+- trending posted 445 (+3) · explainer posted 326 (+1) · third posted 948 · curiosity posted 1
+- last commit `8dfb2149029f`: claim: mailbox verdicts 2026-10-14T11:48Z [skip ci]
 
 ## schwab-trader — OPERATIONAL
-- last commit `5c041d137bd8`: bot: daily snapshot [skip ci]
+- last commit `36a1c99e8560`: bot: daily snapshot [skip ci]
 
 ## Money_Machine — NO TELEMETRY
 - last commit `53c6507f6afe`: Initial commit
-
-## Changes since the last pulse
-- `Shorts-pipeline` went red → **green**
 
 ## Plans in motion
 - **Barkly** — 0/8 steps done (`barkly`)
@@ -50,9 +47,5 @@ Schwab trader: review and merge pull request #16, watchdog: name which of the tw
 ## Inbox: 1 ChatGPT suggestion(s) awaiting a ruling
 Rule with `python -m aletheia.suggestions list --state new`.
 
-## Last 24h in the journal
-- `14:20` [recovery] repo:shorts_pipeline: health red -> green
-- `14:20` [recovery] sentinel: fleet recovered — alert issue closed
-
 ---
-pulse `2026-10-13T14:19:40Z` · registry rev 7 · composed by `aletheia.brief`
+pulse `2026-10-14T12:01:30Z` · registry rev 7 · composed by `aletheia.brief`
