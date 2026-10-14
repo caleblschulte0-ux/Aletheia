@@ -1061,9 +1061,10 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
                 for r in (task.get("results") or [])[-1:]):
             why, mark = "its look found nothing to answer with", "empty_rechecked"
         elif tool.read_only and tool.open_world and not task.get("baseline_rechecked") and any(
-                r.get("step") == i and r.get("outcome") == "ok"
-                and int(r.get("revision") or 0) < MEASURED_FROM_REVISION
-                for r in (task.get("results") or [])[-1:]) and research.baseline_for(
+                r.get("outcome") == "ok" and int(r.get("revision") or 0) < MEASURED_FROM_REVISION
+                # The last time THIS step ran: the write after it is the task's last result, and
+                # looking only at that kept the comparison from ever being redone (2026-10-14).
+                for r in [x for x in task.get("results") or [] if x.get("step") == i][-1:]) and research.baseline_for(
                     str(args.get("question") or "") or " ".join([str(task.get("title") or "")]
                                                                + [str(d) for d in task.get("does") or []])):
             # A comparison looked at before looks measured it against where he lives: the move

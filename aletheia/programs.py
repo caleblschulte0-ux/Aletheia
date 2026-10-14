@@ -1061,6 +1061,7 @@ def spoken_steps(which: str = "") -> str:
         if opened:
             out.append(f"{t.get('key')} | {opened[-1].get('did')} | at {opened[-1].get('at')}")
     out += _holds_taken_back()
+    out += _holds_on_his_calendar()
     for d in record.get("decisions") or []:
         # His open choices in full: "6 decisions for you" with four of them named sent nobody
         # anywhere he could answer them (2026-10-14, "i dont have that open just ask here").
@@ -1227,6 +1228,31 @@ def _holds_taken_back(limit: int = 5) -> list[str]:
                              f"{event.get('start')} | now {event.get('status')} | {last.get('did')}"))
         return [r for _at, r in sorted(rows)[-limit:]]
     except Exception:  # noqa: BLE001 - the steps view never fails for want of the holds
+        return []
+
+
+def _holds_on_his_calendar(limit: int = 5, now: dt.datetime | None = None) -> list[str]:
+    """Each upcoming hold of his missions and whether its copy reached his own calendar: he
+    asked for the trail walk on the ORI calendar (2026-10-14), and the copy store had a writer
+    and no reader, so nothing could say whether it got there."""
+    try:
+        from aletheia import calendar, interviews
+        now = now or dt.datetime.now(dt.timezone.utc)
+        copies = interviews._copies()
+        rows = []
+        for event in calendar.all_events():
+            if event.get("source") != "hold:caleb" or event.get("status") != "TENTATIVE":
+                continue
+            try:
+                if calendar.parse_time(event["start"]) <= now:
+                    continue
+            except Exception:  # noqa: BLE001
+                continue
+            copy = copies.get(event.get("id")) or {}
+            rows.append((str(event.get("start")), f"on his calendar | {event.get('title')} at {event.get('start')} | "
+                         + (f"{copy.get('state')} at {copy.get('at')}" if copy else "not tried yet")))
+        return [r for _at, r in sorted(rows)[:limit]]
+    except Exception:  # noqa: BLE001 - the steps view never fails for want of the copies
         return []
 
 

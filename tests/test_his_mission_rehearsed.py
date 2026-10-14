@@ -1397,7 +1397,10 @@ class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
             t.update(state=ws.DONE, cursor=len(t["plan"]["steps"]))
             t.pop("baseline_rechecked", None)
             t["results"] = [{"at": "2026-09-16T15:00:00Z", "step": i, "tool": "research", "outcome": "ok",
-                             "said": "Austin is 31% cheaper than New York.", "revision": revision}]
+                             "said": "Austin is 31% cheaper than New York.", "revision": revision},
+                            # What was written from it after: on his PC that write was the last result.
+                            {"at": "2026-09-16T15:01:00Z", "step": i + 1, "tool": "file_write", "outcome": "ok",
+                             "said": "Wrote the comparison."}]
         # Read on the current reading: it stands.
         pg.update(self.pid, lambda r: as_his_pc_left_it(r, research.REVISION))
         self.assertNotIn(look["key"], [x["task"] for x in program_run.requeue_reclassified(now=NOW)])
@@ -1446,6 +1449,22 @@ class WhatHisPcDidOnTheThirteenth(HisHoursAndHisCalendar):
         self.assertIn("Networking Night", held)
         stuck = [t["reason"] for t in pg.load(self.pid)["tasks"] if "overlaps" in str(t.get("reason") or "")]
         self.assertEqual(stuck, [])
+
+    def test_the_steps_view_says_whether_a_hold_reached_his_own_calendar(self):
+        # "it need to be added to the ORI google canalcder" (2026-10-14): the copy had no reader.
+        import datetime as dt
+        from aletheia import interviews
+        self._already_held()
+        early = dt.datetime(2026, 10, 14, tzinfo=dt.timezone.utc)
+        rows = pg._holds_on_his_calendar(now=early)
+        self.assertEqual(len(rows), 1, rows)
+        self.assertIn("Tails on the Trail", rows[0])
+        self.assertIn("not tried yet", rows[0])
+        event_id = next(e["id"] for e in __import__("aletheia.calendar", fromlist=["x"]).all_events())
+        with mock.patch.object(interviews, "_copies",
+                               return_value={event_id: {"state": "written", "at": "2026-10-14T03:00:00+00:00"}}):
+            self.assertIn("written at", pg._holds_on_his_calendar(now=early)[0])
+        self.assertEqual(pg._holds_on_his_calendar(now=dt.datetime(2026, 10, 16, tzinfo=dt.timezone.utc)), [])
 
     def test_a_clashing_time_already_chosen_is_chosen_again(self):
         self._already_held()
