@@ -3440,6 +3440,16 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "How much is my electric bill usually" (2026-10-14: offline, "I can't
+    # think just now", with "my electric bill was 120 dollars" in his notes):
+    # the same question as without the "usually".
+    m = re.fullmatch(r"(?P<q>how much (?:is|does) (?:my|the) [a-z][a-z ]{1,30}?(?: cost| run)?)"
+                     r",? (?:usually|normally|typically|generally|on average|most months|each month|a month|per month)\s*\??", text)
+    if m:
+        return m.group("q").replace(" does ", " is ").removesuffix(" cost").removesuffix(" run")
+    m = re.fullmatch(r"how much (?:does|do) (?:my|the) (?P<n>[a-z][a-z ]{1,30}?) (?:usually|normally|typically|generally) (?:cost|run)\s*\??", text)
+    if m:
+        return f"how much is my {m.group('n')}"
     # "Am I on call this weekend", "am I on a diet" (2026-10-08: to a
     # model, after he said so) is what he told her about it.
     m = re.fullmatch(r"(?:am i|was i) (?:on|doing) (?:a |an |the )?(?P<state>diet|keto|cleanse|fast|call|antibiotics|medication|meds"
@@ -16134,7 +16144,9 @@ def _time_take(what: str) -> str | None:
         low = str(text).casefold()
         if store == "reminder" and all(re.search(r"\b" + re.escape(w.rstrip("s")), low) for w in words):
             when = speech.humanize_time(at.astimezone(tz).isoformat())
-            return f"Your reminder to {speech._yours(str(text).strip()).rstrip('.')} is next {when}."
+            # "is next tomorrow at 8 am" (2026-10-14): "next" only before a weekday.
+            nxt = "next " if re.match(r"(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", when, re.I) else ""
+            return f"Your reminder to {speech._yours(str(text).strip()).rstrip('.')} is {nxt}{when}."
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split()).rstrip(".")
         low = said.casefold()
