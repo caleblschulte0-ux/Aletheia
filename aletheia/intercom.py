@@ -4589,8 +4589,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # "Change my alarm to 6:15" with only a weekday alarm set
             # (2026-10-08): the old time goes off (never deleted).
             found, _why = _one_reminder(str(cmd["replaces"]))
-            if found is not None and found.get("kind") == "weekly":
+            # "Every day at 8", "make it weekdays" (2026-10-14): a daily one
+            # becomes weekly, so it goes off too.
+            if found is not None and found.get("kind") in ("weekly", "daily"):
                 scheduler.set_enabled(found["id"], False)
+            # "Remind me Saturday at 6", "make it every Saturday": the one-off is
+            # the first of the new ones, so it goes off - only when it falls on
+            # one of the days at that time.
+            elif found is not None and found.get("kind") == "once":
+                try:
+                    at = dt.datetime.fromisoformat(str(found.get("at")).replace("Z", "+00:00")).astimezone(
+                        localtime.operator_tz())
+                    if at.weekday() in days and at.strftime("%H:%M") == str(cmd["time"])[:5]:
+                        scheduler.set_enabled(found["id"], False)
+                except (TypeError, ValueError):
+                    pass
         sid = "remind-weekly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="weekly",
