@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-14T05:00:14Z",
+  "generated_at": "2026-10-14T12:01:30Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "e21af16869fb",
-          "date": "2026-10-14T04:24:09Z",
+          "sha": "4a475db57b68",
+          "date": "2026-10-14T11:34:39Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "800fe3c03978",
-          "date": "2026-10-14T03:53:32Z",
+          "sha": "48dc76cbfdcb",
+          "date": "2026-10-14T11:03:40Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "a9209d9019c3",
-          "date": "2026-10-14T03:23:12Z",
+          "sha": "7e0ef4887a6f",
+          "date": "2026-10-14T10:02:32Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "7d520c305238",
-          "date": "2026-10-14T02:55:23Z",
-          "message": "core: 1 local command receipt(s)"
+          "sha": "e29ee459cae6",
+          "date": "2026-10-14T09:00:23Z",
+          "message": "core: state checkpoint"
         },
         {
-          "sha": "6b5bf4e28adb",
-          "date": "2026-10-14T02:55:14Z",
+          "sha": "30b626d7b56c",
+          "date": "2026-10-14T07:59:25Z",
           "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "e21af16869fb",
-        "date": "2026-10-14T04:24:09Z",
+        "sha": "4a475db57b68",
+        "date": "2026-10-14T11:34:39Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,8 +46,8 @@
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T22:51:35Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38480470928"
+          "updated_at": "2026-10-14T05:00:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38514306236"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 19956
+          "bytes": 19962
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "e32291a3c33f",
-          "date": "2026-10-14T04:48:21Z",
-          "message": "claim: mailbox verdicts 2026-10-14T04:48Z [skip ci]"
+          "sha": "8dfb2149029f",
+          "date": "2026-10-14T11:48:30Z",
+          "message": "claim: mailbox verdicts 2026-10-14T11:48Z [skip ci]"
         },
         {
-          "sha": "0453ab28b6b2",
-          "date": "2026-10-14T03:48:24Z",
-          "message": "claim: mailbox verdicts 2026-10-14T03:48Z [skip ci]"
+          "sha": "25c8d6b5e418",
+          "date": "2026-10-14T11:41:34Z",
+          "message": "explainer: posted airfare-booking-window-trap [skip ci]"
         },
         {
-          "sha": "6cd750ba24ed",
-          "date": "2026-10-14T02:48:35Z",
-          "message": "claim: mailbox verdicts 2026-10-14T02:48Z [skip ci]"
+          "sha": "0c50df9310b5",
+          "date": "2026-10-14T11:41:24Z",
+          "message": "explainer: claim upload slot airfare-booking-window-trap [skip ci]"
         },
         {
-          "sha": "9d9fa322d6ac",
-          "date": "2026-10-14T02:05:45Z",
-          "message": "claim: mailbox verdicts 2026-10-14T02:05Z [skip ci]"
+          "sha": "3669895210e8",
+          "date": "2026-10-14T11:18:34Z",
+          "message": "deadman: repaired 2026-10-14 [skip ci]"
         },
         {
-          "sha": "c4f67d1131b9",
-          "date": "2026-10-14T02:04:15Z",
-          "message": "story forge: new real-data stories [skip ci]"
+          "sha": "d729b2f79a84",
+          "date": "2026-10-14T11:18:12Z",
+          "message": "daily: 2026-10-14 report + state [skip ci]"
         }
       ],
       "commit": {
-        "sha": "e32291a3c33f",
-        "date": "2026-10-14T04:48:21Z",
-        "message": "claim: mailbox verdicts 2026-10-14T04:48Z [skip ci]"
+        "sha": "8dfb2149029f",
+        "date": "2026-10-14T11:48:30Z",
+        "message": "claim: mailbox verdicts 2026-10-14T11:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 325
+          "value": 326
         },
         {
           "label": "third posted",
@@ -123,26 +123,26 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T11:18:59Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38388806505"
+          "updated_at": "2026-10-14T11:18:21Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38555020297"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-14T01:51:35Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38497938329"
+          "updated_at": "2026-10-14T10:12:08Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38547861738"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T20:17:52Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38461651051"
+          "updated_at": "2026-10-14T11:13:06Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38554990777"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-14T02:04:21Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38488710222"
+          "updated_at": "2026-10-14T11:05:52Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38548652139"
         },
         "third.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-13T12:40:13Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38398969488"
+          "updated_at": "2026-10-14T10:07:43Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38547345136"
         }
       },
       "state_files": {
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 161929
+          "bytes": 162997
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -434,7 +434,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-14T04:24:09Z",
+        "last_progress_at": "2026-10-14T11:34:39Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
