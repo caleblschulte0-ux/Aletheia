@@ -147,13 +147,15 @@
     "2026-10-14": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 4,
+      "minutes": 20,
       "needs_account": 0,
       "needs_answer": 0,
-      "not_realistic": 0,
-      "offered": 1,
+      "not_realistic": 2,
+      "offered": 3,
       "ready": 0,
-      "runs": 1,
+      "runs": 2,
+      "unfit_model": 1,
+      "unfit_sales": 1,
       "unjudged": 0,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
@@ -163,8 +165,8 @@
   "boards": {
     "ashby": 134,
     "bamboohr": 5,
-    "greenhouse": 100,
-    "lever": 66,
+    "greenhouse": 101,
+    "lever": 67,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 6
@@ -413,7 +415,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-14T06:26:10Z",
+  "generated_at": "2026-10-14T07:28:31Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ ai _ _": 1,
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
@@ -431,7 +433,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
