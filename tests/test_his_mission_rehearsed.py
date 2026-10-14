@@ -1382,3 +1382,91 @@ class WhatHisPcDidAfterTheTwentySecondFix(HisHoursAndHisCalendar):
         self.assertTrue(t6.get("where_retried"))
         # and once is once
         self.assertNotIn("t6", [r["task"] for r in program_run.requeue_reclassified(now=NOW)])
+
+    def test_a_comparison_read_before_it_was_measured_against_his_town_is_done_once_more(self):
+        # His PC, 2026-10-14: the move comparison still said "measured against New York, not Sioux
+        # Falls" days after looks were measured against where he lives, because it stood as done.
+        self._run_everything()
+        record = pg.load(self.pid)
+        look = next(t for t in record["tasks"] if t["state"] == ws.DONE and "warm red-state" in t["title"]
+                    and any(s.get("tool") == "research" for s in t["plan"]["steps"]))
+        i = next(n for n, s in enumerate(look["plan"]["steps"]) if s["tool"] == "research")
+
+        def as_his_pc_left_it(r, revision):
+            t = next(x for x in r["tasks"] if x["key"] == look["key"])
+            t.update(state=ws.DONE, cursor=len(t["plan"]["steps"]))
+            t.pop("baseline_rechecked", None)
+            t["results"] = [{"at": "2026-09-16T15:00:00Z", "step": i, "tool": "research", "outcome": "ok",
+                             "said": "Austin is 31% cheaper than New York.", "revision": revision}]
+        # Read on the current reading: it stands.
+        pg.update(self.pid, lambda r: as_his_pc_left_it(r, research.REVISION))
+        self.assertNotIn(look["key"], [x["task"] for x in program_run.requeue_reclassified(now=NOW)])
+        pg.update(self.pid, lambda r: as_his_pc_left_it(r, 4))
+        released = [x for x in program_run.requeue_reclassified(now=NOW) if x["task"] == look["key"]]
+        self.assertEqual([x["was"] for x in released], ["done"])
+        self.assertIn("where he lives", released[0]["why"])
+        self.assertEqual(self.task_state(look["key"]), ws.READY)
+        pg.update(self.pid, lambda r: next(x for x in r["tasks"] if x["key"] == look["key"]).update(
+            state=ws.DONE, cursor=len(look["plan"]["steps"])))
+        self.assertNotIn(look["key"], [x["task"] for x in program_run.requeue_reclassified(now=NOW)])  # once
+
+
+class WhatHisPcDidOnTheThirteenth(HisHoursAndHisCalendar):
+    """His PC, 2026-10-13 23:49Z: the weekly sweep found new evenings, chose a time the trail walk
+    already held, and was refused "it overlaps WWE South Dakota: Tails on the Trail" three times, so
+    nothing it found that week reached his calendar."""
+
+    TWO = ("Tails on the Trail - Thursday 2026-10-15 at 18:00, free, Sioux Falls\n"
+           "Networking Night - Saturday 2026-10-17 at 11:00, free, Sioux Falls")
+
+    def setUp(self):
+        super().setUp()
+        from pathlib import Path
+        from aletheia import calendar
+        # His calendar is read for real here, so each test gets its own.
+        patcher = mock.patch.object(calendar, "CALENDAR_DIR", Path(self.tmp.name) / "calendar" / "events")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _already_held(self):
+        from aletheia import calendar_reasoning, localtime
+        import datetime as dt
+        start = dt.datetime(2026, 10, 15, 18, 0, tzinfo=localtime.operator_tz())
+        made = calendar_reasoning.hold("WWE South Dakota: Tails on the Trail", start.isoformat(),
+                                       (start + dt.timedelta(hours=1)).isoformat())
+        self.assertTrue(made["created"], made)
+
+    def test_what_is_already_on_his_calendar_is_skipped_for_the_next_thing_found(self):
+        self._already_held()
+        with self._with_event(self.TWO):
+            self._run_everything()
+        held = [a["title"] for n, a in self.ran if n == "calendar.hold"]
+        self.assertTrue(held, self.ran)
+        self.assertNotIn("Tails on the Trail", held)
+        self.assertIn("Networking Night", held)
+        stuck = [t["reason"] for t in pg.load(self.pid)["tasks"] if "overlaps" in str(t.get("reason") or "")]
+        self.assertEqual(stuck, [])
+
+    def test_a_clashing_time_already_chosen_is_chosen_again(self):
+        self._already_held()
+        with self._with_event(self.TWO):
+            self._run_everything()
+        record = pg.load(self.pid)
+        t3 = next(t for t in record["tasks"] if t["key"] == "t3")
+        tool = self.catalog["calendar.hold"]
+        clash = {"start": "2026-10-15T18:00", "title": "Tails on the Trail"}
+        self.assertIn("already on his calendar", program_run._wrong_hold(record, t3, tool, clash, NOW))
+        # A hold already made is never wrong for clashing with itself or what it was checked against.
+        self.assertNotIn("already on his calendar",
+                         program_run._wrong_hold(record, t3, tool, clash, NOW, made_at=NOW))
+        again = program_run._dated_hold(record, t3, tool, {}, NOW)
+        self.assertEqual(again.get("title"), "Networking Night")
+
+    def test_with_nothing_else_found_it_looks_again_rather_than_failing(self):
+        self._already_held()
+        with self._with_event("Tails on the Trail - Thursday 2026-10-15 at 18:00, free, Sioux Falls"):
+            self._run_everything()
+        self.assertNotIn("calendar.hold", [n for n, _a in self.ran])
+        t3 = next(t for t in pg.load(self.pid)["tasks"] if t["key"] == "t3")
+        self.assertEqual(t3["state"], ws.RETRY_LATER, t3.get("reason"))
+        self.assertNotIn("failed", str(t3.get("reason")))

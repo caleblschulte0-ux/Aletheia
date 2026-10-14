@@ -637,6 +637,11 @@ def _found_event(record: dict, task: dict, title: str, day: dt.date, now: dt.dat
     return None
 
 
+#: The reading of pages from which a look that names a baseline is measured against it (research
+#: REVISION 5): a finished look read before then is done once more.
+MEASURED_FROM_REVISION = 5
+
+
 #: Raised whenever what makes a hold right gets stricter, so holds made under the looser rules are
 #: checked again once (1: time, hours and title; 2: a found event on that day, not its own name).
 HOLD_RULES = 2
@@ -677,7 +682,34 @@ def _wrong_hold(record: dict, task: dict, tool, args: dict, now: dt.datetime, *,
         # Anything free he could go to in his hours counts - he asked for his calendar filled - so
         # what it is about is not narrowed (2026-10-11).
         return "nothing the steps before it read names it on that day"
+    if made_at is None:
+        clash = _clashes_on_calendar(args, start)
+        if clash:
+            return clash
     return ""
+
+
+def _clashes_on_calendar(args: dict, start: dt.datetime) -> str:
+    """Why a hold about to be made at `start` would be refused for what is already on his calendar;
+    "" when nothing is in the way. Asked BEFORE the hold, so a sweep picks the next thing it found
+    rather than failing three times on the one it already pencilled in (2026-10-13: the weekly sweep
+    found new evenings, chose the trail walk again, and was refused "it overlaps" three times)."""
+    from aletheia import calendar_reasoning
+    try:
+        if str(args.get("end") or "").strip():
+            end = dt.datetime.fromisoformat(str(args["end"]).replace("Z", "+00:00"))
+            end = end if end.tzinfo else end.replace(tzinfo=start.tzinfo)
+        else:
+            end = start + dt.timedelta(minutes=int(args.get("minutes") or 60))
+        own = calendar_reasoning.hold_id(" ".join(str(args.get("title") or "").split()), start.isoformat(),
+                                         str(args.get("thread") or ""))
+        clashes = calendar_reasoning.conflicts_for(start.isoformat(), end.isoformat(),
+                                                   location=args.get("location") or None, ignore={own})
+    except Exception:  # noqa: BLE001 - an unreadable calendar is the hold's own refusal to make
+        return ""
+    if not clashes:
+        return ""
+    return f"it clashes with {clashes[0].get('title') or 'something'} already on his calendar"
 
 
 #: The waits a step's CLASSIFICATION put a task in: handed to him, refused, or asked an argument.
@@ -999,6 +1031,7 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
     again at that step: a hold that was wrong when it was made is taken back first (her own
     tentative hold, released with the reason), and a free-time read that looked at his working
     day reads again. Once per task each: what it does the second time stands."""
+    from aletheia import research
     steps = (task.get("plan") or {}).get("steps") or []
     added = _steps_it_never_had(task, steps, tools, now)
     if added:
@@ -1027,6 +1060,16 @@ def _recheck_done(record: dict, task: dict, tools: dict, now: dt.datetime) -> di
                 and str(r.get("at") or "") > _last_empty_recheck(task)
                 for r in (task.get("results") or [])[-1:]):
             why, mark = "its look found nothing to answer with", "empty_rechecked"
+        elif tool.read_only and tool.open_world and not task.get("baseline_rechecked") and any(
+                r.get("step") == i and r.get("outcome") == "ok"
+                and int(r.get("revision") or 0) < MEASURED_FROM_REVISION
+                for r in (task.get("results") or [])[-1:]) and research.baseline_for(
+                    str(args.get("question") or "") or " ".join([str(task.get("title") or "")]
+                                                               + [str(d) for d in task.get("does") or []])):
+            # A comparison looked at before looks measured it against where he lives: the move
+            # comparison was written against the pages' New York index and stood as done after the
+            # fix that measures it against Sioux Falls (his PC, 2026-10-14). Once.
+            why, mark = "it was measured against another city, not where he lives", "baseline_rechecked"
         if not why:
             continue
         key = task["key"]
@@ -1321,6 +1364,13 @@ def run_task(pid: str, key: str, *, now: dt.datetime | None = None, think: Calla
             from aletheia import calendar_reasoning
             args["part"] = calendar_reasoning.after_work_part(hours)
         wrong = _wrong_hold(record, task, tool, args, now)
+        if wrong and _writes_holds(tool):
+            # The time it was given is no good (most often: already on his calendar), but the look may
+            # have found other things: the next one that fits is held instead of waiting a day.
+            bare = {k: v for k, v in args.items() if k not in ("start", "title", "end", "minutes")}
+            again = _dated_hold(record, task, tool, bare, now)
+            if again:
+                args, wrong = dict(bare, **again), ""
         if wrong:
             # A hold at a time that has passed, inside his working day, or titled with nothing the
             # steps before it found is a wrong hold, never a hold: the step looks again tomorrow,
