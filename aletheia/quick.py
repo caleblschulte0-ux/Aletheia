@@ -19210,6 +19210,16 @@ def _miles_until(text: str) -> str | None:
     return f"About {left:,.0f} miles: it's due at {due:,.0f} and you told me the car has {odo:,.0f}."
 
 
+#: A few kinds whose members never say the kind's own word: "Emma likes
+#: lilies" is about flowers. Keyed by the kind's first five letters.
+_KINDS_OF = {
+    "flowe": ("roses?", "tulips?", "lil(?:y|ies)", "dais(?:y|ies)", "sunflowers?", "orchids?", "peon(?:y|ies)",
+              "carnations?", "hydrangeas?", "lavender", "lilacs?", "dahlias?", "irises", "iris"),
+    "color": ("red", "orange", "yellow", "green", "blue", "purple", "pink", "black", "white", "teal", "navy", "gold", "silver"),
+    "colou": ("red", "orange", "yellow", "green", "blue", "purple", "pink", "black", "white", "teal", "navy", "gold", "silver"),
+}
+
+
 def _their_kind(text: str) -> str | None:
     """"What flowers does Anna like": "Anna's favorite flower is tulips",
     or a note saying she likes something of that kind. None without one."""
@@ -19220,12 +19230,24 @@ def _their_kind(text: str) -> str | None:
     if not what or not who:
         return None
     stem = re.escape(what[:max(3, len(what) - 1)])
+    # "What flowers does my sister like" with "my sister's name is Emma" and
+    # "Emma likes lilies" kept (2026-10-14: to a model). The name he gave
+    # counts, as in `_their_likes`, and lilies are flowers.
+    names = [who]
+    if g.get("tk_who", "").startswith(("my ", "our ")) or who in _relation_words():
+        named = _name_for_relation(who)
+        if named:
+            names.append(named.casefold())
+    else:
+        names += [rel for rel in _relation_words() if (_name_for_relation(rel) or "").casefold() == who]
+    people = "(?:" + "|".join(re.escape(n) for n in names) + ")"
+    kind = r"(?:" + stem + r"[a-z]*" + ("|" + "|".join(_KINDS_OF[what[:5]]) if what[:5] in _KINDS_OF else "") + r")"
     found = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        if re.fullmatch(r"(?:my |our )?" + re.escape(who) + r"(?:'s|s') (?:favou?rite|fave) " + stem + r"[a-z]* (?:is|are) .+", said, re.I) \
-                or re.fullmatch(r"(?:my |our )?" + re.escape(who) + r" (?:really |also )?(?:likes|loves|prefers|enjoys|adores) .*\b"
-                                + stem + r"[a-z]*\b.*", said, re.I):
+        if re.fullmatch(r"(?:my |our )?" + people + r"(?:'s|s') (?:favou?rite|fave) " + stem + r"[a-z]* (?:is|are) .+", said, re.I) \
+                or re.fullmatch(r"(?:my |our )?" + people + r" (?:really |also )?(?:likes|loves|prefers|enjoys|adores) .*\b"
+                                + kind + r"\b.*", said, re.I):
             hers = speech.as_she_says_it(said).rstrip(".")
             if hers.casefold() not in (f.casefold() for f in found):
                 found.append(hers)
