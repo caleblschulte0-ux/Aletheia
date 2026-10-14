@@ -2598,7 +2598,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "my budget for groceries is 400 a month".
     ("budget_on", re.compile(r"^(?:am i (?:over|under|within|on) budget (?:on|for) (?P<budget_on>[a-z][a-z ]{1,25}?)"
                              r"|how am i doing on (?:my )?(?P<budget_on2>[a-z][a-z ]{1,25}?) budget"
-                             r"|how much (?:is |do i have )?left (?:in|on) (?:my )?(?P<budget_on3>[a-z][a-z ]{1,25}?) budget)(?: this (?:month|week))?\s*\??$")),
+                             r"|how much (?:is |do i have )?left (?:in|on) (?:my )?(?P<budget_on3>[a-z][a-z ]{1,25}?) budget"
+                             # "How much do I have left for eating out" (2026-10-14: to a model).
+                             r"|how much (?:is |do i have |have i got )?left (?:for|on|in) (?:my )?(?!the |it\b|this\b|that\b)"
+                             r"(?P<budget_on4>[a-z][a-z ]{1,25}?)(?: budget)?)(?: this (?:month|week))?\s*\??$")),
     # "What gift cards do I have" (2026-10-08: "nothing about gift cards").
     ("gift_cards", re.compile(r"^(?:what|which|do i have any|how many) gift cards?(?: do i have| have i got)?(?: left)?\s*\??$")),
     # "How long to cook a 5 pound turkey" (2026-10-08: "I can't think").
@@ -2875,7 +2878,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # timer is a one-off reminder whose words end "timer is up"; the time
     # left is arithmetic on its due time.
     ("timer_left", re.compile(r"^(?:how (?:much (?:time|longer)|long)(?: is)? (?:left|remaining|to go)? ?(?:on|for) (?:my|the) timers?"
-                              r"|how much (?:time is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
+                              r"|how much (?:time is |is )?left on (?:my|the) timers?|(?:is|are) (?:my |the |a )?timers? (?:still )?(?:running|going|on)"
                               r"|how long (?:until|till|before) (?:my|the) timer(?: goes off| is up| ends)?|timer(?: status)?|check (?:my|the) timer"
                               # "How much time is left" (2026-10-07: to the planner) is the timer's.
                               r"|how much (?:time|longer) is (?:left|remaining)|how long is left"
@@ -17405,7 +17408,7 @@ def _budget_on(text: str) -> str | None:
     import datetime as dt
     from aletheia import localtime
     g = _groups("budget_on", text)
-    what = " ".join(str(g.get("budget_on") or g.get("budget_on2") or g.get("budget_on3") or "").casefold().split())
+    what = " ".join(str(g.get("budget_on") or g.get("budget_on2") or g.get("budget_on3") or g.get("budget_on4") or "").casefold().split())
     what = re.sub(r"^(?:my|the) ", "", what)
     if not what:
         return None

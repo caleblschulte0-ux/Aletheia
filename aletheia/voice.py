@@ -12968,6 +12968,23 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i (?:spent|paid) \$?\d[\d,.]*(?: dollars| bucks)? (?:on|for|at) [a-z][a-z' ]{1,40}"
                             r"(?: (?:today|yesterday|this week|last night))?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "I spent 30 eating out" (2026-10-14: to a model, which answered
+    # "journaled"): kept the way "on eating out" is, which the totals read.
+    m = re.fullmatch(r"i (?:spent|paid) (?P<amt>\$?\d[\d,.]*(?: dollars| bucks)?) (?P<on>eating out|going out|dining out|takeout|take out"
+                     r"|getting food|shopping)(?P<when> (?:today|yesterday|this week|last night))?", low)
+    if m:
+        return {"command": {"kind": "note", "text": f"I spent {m.group('amt')} on {m.group('on')}{m.group('when') or ''}"},
+                "say": None}
+    # "$65 this week ... $45 on groceries and $20 on gas", then "how much on
+    # groceries" (2026-10-14: to a model): the same window, that one thing.
+    m = re.fullmatch(r"(?:and |so )?(?:how much|what about) (?:did i spend |was it |)(?:on|for|at) (?P<x>[a-z][a-z' ]{1,30}?)\??", low)
+    window = re.match(r"\$[\d,.]+ (?P<w>today|yesterday|this week|last week|this month|last month), from what you've told me",
+                      _her_last_answer())
+    if m and window:
+        from aletheia import quick
+        told = quick._spent(f"how much did i spend on {m.group('x')} {window.group('w')}")
+        if told:
+            return {"command": None, "say": told}
     # HIS BODY, SAID (2026-10-07: "I'm 6 feet tall", "I want to lose 10
     # pounds" and "I slept badly" each went to the planner). Notes in his
     # words; "how tall am I", "what's my BMI" and "how much weight have I
