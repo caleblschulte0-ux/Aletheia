@@ -1675,6 +1675,14 @@ def _new_task(raw: str) -> dict:
     # "Add pay the water bill too" (2026-10-14) kept "too" as part of the task.
     raw = re.sub(r"(?:,? (?:too|as well|also))+$", "", raw.strip(), flags=re.I)
     desc, deadline = _split_deadline(raw.strip())
+    # "Add file taxes to my list for next Tuesday" kept "for next tuesday" in
+    # the task and nothing came due (2026-10-14). Which Tuesday is asked, as
+    # a reminder asks; his answer replays the sentence with the date.
+    nxt = re.search(r"\bnext (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", desc, re.I)
+    if not deadline and nxt:
+        ask = _ambiguous_next_weekday(nxt.group(0))
+        if ask:
+            return {"command": None, "say": ask}
     # "I need to renew my passport", then "I need to renew my passport by
     # December" made two of it, and "mark the passport one done" asked
     # "renew my passport or renew my passport?" (2026-10-14). The same task
@@ -6696,15 +6704,24 @@ def _interpret(transcript: str) -> dict:
     # wants to hear at the end.
     # "Set a 10 minute timer for the pasta" (2026-10-07: to the planner) is
     # the same timer with the length said first.
+    # "Set a timer for ten minutes for the pasta" (2026-10-14: to the
+    # planner) - the named forms below read digits, so his number word
+    # becomes one first. Only in a timer sentence, only a whole amount.
+    tl = low
+    if re.match(r"(?:set|start) (?:a |an |me a )?", low) and "timer" in low:
+        tl = re.sub(r"\b([a-z]+(?:-[a-z]+)?) (seconds?|secs?|minutes?|mins?|hours?|hrs?)\b",
+                    lambda w: (f"{int(_spoken_amount(w.group(1)))} {w.group(2)}"
+                               if (_spoken_amount(w.group(1)) or 0) >= 1
+                               and float(_spoken_amount(w.group(1))).is_integer() else w.group(0)), low)
     said_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(\d+)[- ]?(seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                              r" timer(?:\s+(to|for|so i can)\s+(.+))?", low)
+                              r" timer(?:\s+(to|for|so i can)\s+(.+))?", tl)
     timer_words = (f"set a timer for {said_first.group(1)} {said_first.group(2)}"
-                   + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else low
+                   + (f" {said_first.group(3)} {said_first.group(4)}" if said_first.group(3) else "")) if said_first else tl
     # "Set a pasta timer for 8 minutes", "set a timer for pasta for 8
     # minutes" (2026-10-07: to the planner) - the name said before the length.
     named_first = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?:timer for (?:the |my )?(?P<a>[a-z][a-z ]{1,24}?) for"
                                r"|(?P<b>[a-z][a-z ]{1,24}?) timer for) (?P<n>\d+) ?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)",
-                               low)
+                               tl)
     if named_first and "timer" not in (named_first.group("a") or named_first.group("b")):
         name = named_first.group("a") or named_first.group("b")
         # "A new timer", "another timer": no name, just a timer.
@@ -6713,7 +6730,7 @@ def _interpret(transcript: str) -> dict:
                        + ("" if plain else f" for {name}"))
     # "Set a 10 minute eggs timer": the length, then the name.
     length_name = re.fullmatch(r"(?:set|start) (?:a |an |me a )?(?P<n>\d+)[- ]?(?P<u>seconds?|secs?|minutes?|mins?|hours?|hrs?)"
-                               r" (?P<name>[a-z][a-z ]{1,24}?) timer", low)
+                               r" (?P<name>[a-z][a-z ]{1,24}?) timer", tl)
     if length_name and not re.search(r"\b(?:timer|and|or)\b", length_name.group("name")):
         plain = re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", length_name.group("name"))
         timer_words = (f"set a timer for {length_name.group('n')} {length_name.group('u')}"
@@ -8482,7 +8499,7 @@ def _interpret(transcript: str) -> dict:
     # planner) - the day goes on the task as its deadline.
     m = re.fullmatch(r"(?:add|put|stick) (?P<what>.+?) (?:on|to) (?:the |my )?(?P<todo>(?:to ?do|to-do|task) )?list"
                      r" (?P<day>(?:for |by |on |due )?(?:today|tonight|tomorrow|(?:this |next )?(?:monday|tuesday|wednesday"
-                     r"|thursday|friday|saturday|sunday)))", low)
+                     r"|thursday|friday|saturday|sunday)|" + SPOKEN_DATE + r"))", low)
     # A chore said as a noun ("add laundry to my list for tomorrow",
     # 2026-10-08: to the planner) is as much a task as a verb is; nothing
     # bought has a day.
