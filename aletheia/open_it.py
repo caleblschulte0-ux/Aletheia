@@ -64,6 +64,15 @@ KNOWN_SITES = {
 }
 
 
+#: Sign-ins that belong in HER browser, not his: the page opens in her own profile, so what he
+#: signs in to there is what she can use. His words, 2026-10-14: "it need to be added to the ORI
+#: google canalcder" - and her copy of the trail walk stopped at "not signed in to Google".
+HER_SIGN_INS = {
+    "her google sign-in": ("https://accounts.google.com/ServiceLogin?continue=https://calendar.google.com/",
+                           "Google, in her browser"),
+}
+
+
 def page_for(which: str) -> tuple[str, str]:
     """(url, what it is) for a site he names, a mission or an application."""
     from aletheia import apply_run, browser_mission
@@ -119,6 +128,23 @@ def _http(url: str, what: str) -> str:
 
 def open_for(which: str, *, opener=None) -> dict:
     """Open the page in his browser and say so. Raises NothingToOpen."""
+    key = " ".join(str(which or "").split()).casefold()
+    if key in HER_SIGN_INS:
+        url, what = HER_SIGN_INS[key]
+        if opener is None:
+            from aletheia import browse
+
+            def opener(u):
+                browse.native_login(u, wait=False)
+                return True
+        try:
+            opener(url)
+        except Exception as exc:
+            raise NothingToOpen(f"I could not open my browser here ({type(exc).__name__}).") from exc
+        journal.append("action", "open_it", "opened the Google sign-in in her own browser", actor=ACTOR)
+        return {"url": url, "what": what,
+                "said": "I opened Google in my own browser. Sign in to your Open Range account there once, "
+                        "then close the window, and I'll put things on that calendar myself."}
     url, what = page_for(which)
     opener = opener or webbrowser.open
     try:
