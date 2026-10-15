@@ -1508,6 +1508,17 @@ def _reminders_answer(which: str = "") -> str:
     from aletheia import speech
     rows = _reminder_schedules()
     noun = "reminder"
+    # "Remind me to call mom when I get home", then "what reminders do I
+    # have" said "You have no reminders set" (2026-10-15): that one waits
+    # on his "I'm home", not a clock, and it is still a reminder he set.
+    home = []
+    if not which:
+        try:
+            from aletheia import quick
+            home = [speech._yours(h) for h in quick._home_reminders()]
+        except Exception:  # noqa: BLE001
+            home = []
+    at_home = (f"when you get home, {speech.and_list(home)}" if home else "")
     if which.casefold() == "last today":
         # "When's my last reminder today" (2026-10-12: to a model): the latest
         # one still to go off before midnight, and how many come before it.
@@ -1553,11 +1564,14 @@ def _reminders_answer(which: str = "") -> str:
                 return f"You have no {noun}s set."
             return f"No reminder matching {which!r}."
     if not rows:
+        if at_home:
+            return f"Just the one for when you get home: {speech.and_list(home)}."
         return "You have no reminders set."
     rows = _soonest_first(rows)
     said = speech.and_list([_alarm_words(r, alone=noun == "alarm") + _skipped_words(r) for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
-    return f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+    return (f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
+            + (f" And {at_home}." if at_home and noun == "reminder" else ""))
 
 
 def _skipped_words(spec: dict) -> str:
@@ -3798,9 +3812,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.
             known = _remembered_matching("", None)
+            # "Forget my wifi password" -> "nothing remembered about my wifi
+            # password" (2026-10-15): his words, said back in hers.
+            yours = speech.as_she_says_it(about)
             if not known:
-                return f"I have nothing remembered about {about}."
-            return (f"I have nothing remembered about {about}. "
+                return f"I have nothing remembered about {yours}."
+            return (f"I have nothing remembered about {yours}. "
                     f"What I do have is "
                     + speech.and_list([k for _d, k, _v in known[:6]])
                     + ("." if len(known) <= 6

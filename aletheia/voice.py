@@ -11491,10 +11491,15 @@ def _interpret(transcript: str) -> dict:
     # WHERE HE PARKED. "I parked on level 3" went to the planner and
     # "where did I park" to a model (2026-10-07). It is a note, in his
     # words, and `quick` reads the newest one back.
+    # "I parked on level 5 actually" (2026-10-15) came back "You parked on
+    # level 5 actually": the correction word is how he said it, not where
+    # the car is.
+    spot = re.sub(r"^(?:(?:actually|no|sorry|oops|wait|oh)[, ]+)+", "", low)
+    spot = re.sub(r"(?:,? (?:actually|instead|now|this time))+$", "", spot)
     m = re.fullmatch(r"(?:i(?:'ve| have)? parked|i'm parked|my car is(?: parked)?|the car is(?: parked)?)"
-                     r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", low)
+                     r" (?:on|at|in|by|near|outside|behind|across from|next to) .+", spot)
     if m:
-        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+        return {"command": {"kind": "note", "text": _as_he_said(text, spot)}, "say": None}
     # A GRADE OR A SCORE (2026-10-08: "I got an A on my test" went to the
     # planner). A note; "how did I do on my test" reads it back.
     if re.fullmatch(r"(?:i |we )?(?:just )?(?:got|scored|made|received)(?: an?)? (?:[a-f][+-]?|\d{1,3}(?:\.\d)?(?:%| percent)?"
