@@ -247,10 +247,22 @@ def _thread() -> list[dict]:
     return _trim(turns) if isinstance(turns, list) else []
 
 
+def _unsecret(text: str) -> str:
+    """The turn as it may be kept. "Remember the password for netflix is
+    hunter22" was refused with "anything that looks like one is blanked out
+    of everything I write down" and then kept, word for word, in this file
+    (2026-10-15)."""
+    try:
+        from aletheia import sensitivity
+        return sensitivity.clean(text)
+    except Exception:                                   # noqa: BLE001
+        return text
+
+
 def _remember_turn(question: str, answer: str,
                    files: list[str] | None = None) -> None:
     """Keep the last few exchanges so 'what about the other one?' resolves."""
-    turn = {"at": stateio.utcnow(), "you": question[:600], "her": answer[:900]}
+    turn = {"at": stateio.utcnow(), "you": _unsecret(question)[:600], "her": _unsecret(answer)[:900]}
     if files:
         # PATHS, never contents: the thread is a small file and a resume in
         # it would be both huge and a copy of his document living somewhere
@@ -288,7 +300,7 @@ def remember_exchange(said: str, reply: str) -> None:
     Deduped against the last turn, so `converse`'s own call and the
     Core's cannot record the same exchange twice.
     """
-    said, reply = str(said or "").strip(), str(reply or "").strip()
+    said, reply = _unsecret(str(said or "").strip()), _unsecret(str(reply or "").strip())
     if not said or not reply:
         return
     try:

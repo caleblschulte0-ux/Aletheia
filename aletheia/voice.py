@@ -6905,6 +6905,11 @@ def _interpret(transcript: str) -> dict:
                     # said out loud, and it was the one that missed.
                     r"(?:read|say|tell) (?:me )?(?:my |the )?tasks?(?: list)?|"
                     r"what(?:'s| is|s)? on my (?:task|todo|to-do|to do) list|(?:my )?to(?:-| )?do list|"
+                    # "What's left on my to do list", "anything else on my to do
+                    # list" (2026-10-15: to a model and the planner).
+                    r"what(?:'s| is|s)?(?: (?:left|still|else|remaining))? (?:is )?(?:left |still |remaining )?on (?:my|the) "
+                    r"(?:task|todo|to-do|to do) list|"
+                    r"(?:is there |do i have )?anything (?:left |else |still )?(?:on|left on) (?:my|the) (?:task|todo|to-do|to do) list|"
                     # "What's my to do list" (2026-10-07: searched memory for
                     # "to do list" and said it had nothing).
                     r"what(?:'s| is|s)? (?:my|the) (?:task|todo|to-do|to do) list|"

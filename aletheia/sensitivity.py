@@ -49,9 +49,13 @@ RULES: tuple[tuple[str, re.Pattern, str], ...] = (
     # TO THE END OF THE LINE. "passphrase: correct horse battery staple"
     # is four words and the first version took one of them, leaving three
     # quarters of it sitting in a public repository.
+    # "The password FOR NETFLIX is hunter22", "the wifi password AT MOM'S is
+    # bluebird22" (2026-10-15: both saved and journaled as said, under a
+    # "Noted."): what it opens may sit between the word and its value.
     ("a password", re.compile(
-        r"\b(pass(?:word|phrase|code)|pwd)\b\s*(?:=|:|is(?!\s+" + WHERE_IT_IS + r"))\s*\S.*", re.I),
-     r"\1 [redacted]"),
+        r"\b(pass(?:word|phrase|code)|pwd)\b((?:\s+(?:for|to|at|on|of|in)\s+[\w'.&-]+(?:\s+[\w'.&-]+){0,2}?)?)"
+        r"\s*(?:=|:|is(?!\s+" + WHERE_IT_IS + r"))\s*\S.*", re.I),
+     r"\1\2 [redacted]"),
     # "log in with password hunter2 and click submit" — no colon, no
     # "is", which is how a person actually says it. Only when the next
     # word LOOKS like a secret (six or more characters with a digit or a
