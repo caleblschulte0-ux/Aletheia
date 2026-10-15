@@ -404,16 +404,26 @@ def _something_she_did(entry: dict) -> bool:
 # identical actions later in the day are two things he did ask for.
 
 
+_HOLD_STORE = re.compile(r"(?:released the hold on |pencilled in (?=.+ \(tentative\b))(.+?)(?: \(tentative\b.*)?$", re.I)
+
+
 def _once_each(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for i, row in enumerate(rows):
         if out and out[-1]["what"] == row["what"] and out[-1]["at"] == row["at"]:
             continue
         # One act, two writers: the hold store's "released the hold on X"
-        # beside the command's "Took X ... off your calendar" (2026-10-08).
-        gone = re.match(r"released the hold on (.+)", str(row["what"]), re.I)
-        if gone and any("off your calendar" in str(r["what"]) and gone.group(1).casefold() in str(r["what"]).casefold()
-                        for r in rows[max(0, i - 2):i + 3]):
+        # beside the command's "Took X ... off your calendar" (2026-10-08),
+        # and its "pencilled in X" beside the command's "Pencilled in X
+        # tomorrow at 2 pm" or "Moved X to 4 pm" - so "block off 2 to 3",
+        # "move it to 4" and "cancel it" came back as six things, the first
+        # of them "Pencilled in Focus time (tentative, her calendar only)"
+        # (2026-10-15). A hold nobody asked for out loud (a mission's) has
+        # no command line beside it and is still said.
+        held = _HOLD_STORE.match(str(row["what"]))
+        if held and any(not _HOLD_STORE.match(str(r["what"])) and "your calendar" in str(r["what"])
+                        and held.group(1).casefold() in str(r["what"]).casefold()
+                        for r in rows[max(0, i - 2):i + 3] if r is not row):
             continue
         out.append(row)
     return out

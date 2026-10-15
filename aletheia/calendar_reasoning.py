@@ -318,7 +318,7 @@ def hold(title: str, start: str, end: str, *, location: str | None = None, threa
     record = {"version": 1, "id": event_id, "thread_id": thread_id, "purpose": purpose, "state": "HELD",
               "created_at": stateio.utcnow(), "updated_at": stateio.utcnow(), "history": []}
     _save_hold(record, f"held {human(event['start'], timezone=timezone, now=now)}")
-    journal.append("action", f"calendar:{event_id}", f"pencilled in {title} (tentative, her calendar only)",
+    journal.append("action", f"calendar:{event_id}", f"pencilled in {title} (tentative, on your calendar here only)",
                    actor=ACTOR)
     return {"event": event, "created": True, "conflicts": [], "record": record}
 
