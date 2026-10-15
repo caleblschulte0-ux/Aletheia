@@ -417,7 +417,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-15T03:12:06Z",
+  "generated_at": "2026-10-15T03:42:48Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -427,9 +427,7 @@
     "employer_site: field: company _ _ _ _ to _ _ _ the _ would": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: radio: _ you referred _ or do you _ _ a _ _": 1,
-    "lever: radio: are you _ _ _ _ to _ _ _ office _": 1,
-    "lever: radio: do you have any _ or _ experience in the _ _": 1,
+    "lever: text: _ _": 1,
     "lever: text: what is _ your gpa": 1,
     "lever: textarea: _ _ please _ _ name _": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
@@ -437,7 +435,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -548,7 +546,6 @@
       "on_site": 2,
       "other": 15,
       "pay": 3,
-      "referral": 1,
       "travel": 1,
       "years_experience": 1
     },
