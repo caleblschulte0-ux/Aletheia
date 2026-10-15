@@ -417,7 +417,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-15T02:18:44Z",
+  "generated_at": "2026-10-15T02:49:39Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -430,7 +430,6 @@
     "lever: radio: _ you referred _ or do you _ _ a _ _": 1,
     "lever: radio: are you _ _ _ _ to _ _ _ office _": 1,
     "lever: radio: do you have any _ or _ experience in the _ _": 1,
-    "lever: radio: do you reside in one of the _ states _ _ _": 1,
     "lever: text: what is _ your gpa": 1,
     "lever: textarea: _ _ please _ _ name _": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
