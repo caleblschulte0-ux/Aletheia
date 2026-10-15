@@ -9633,10 +9633,13 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"(?:skip|cancel just|don'?t remind me about) (?:(?P<d1>tomorrow|today|tonight)'?s? |(?P<d0>the next|my next|the) )?(?:my )?"
                      r"(?P<w>[a-z][a-z' ]{1,30}?) (?P<sort>reminder|alarm)"
                      r"(?: (?:on |this )?(?P<d2>tomorrow|today|tonight|this time|once|just once|next time|this week"
+                     # "Skip the rent reminder this month" (2026-10-15: to the
+                     # planner) - a monthly one's coming turn.
+                     r"|this month|next month|month"
                      r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?", low)
     if m and m.group("w") not in ("next", "the next"):
         once = m.group("d1") or m.group("d2") or "next"
-        once = "next" if once in ("this time", "once", "just once", "next time") else once
+        once = "next" if once in ("this time", "once", "just once", "next time", "this month", "next month", "month") else once
         which = "wake up" if m.group("sort") == "alarm" and m.group("w") in ("my", "the", "morning") else m.group("w")
         return {"command": {"kind": "reminder_off", "which": which, "once": once}, "say": None}
     # "Remind me every Friday to take out the trash" - "skip it this week" (2026-10-12:
