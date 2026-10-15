@@ -3440,6 +3440,15 @@ def _direct(text: str) -> str:
         if pron and wh in ("what", "which"):
             return f"{wh} {pron.group('n')} {m.group('verb')} {pron.group('p')}"
         return f"{wh} {m.group('verb')} {subj}{m.group('tail') or ''}"
+    # "When was Labor Day" (2026-10-15: to a model) - the last one, and how
+    # long ago. Only a day she can name; "when was my last haircut" is not.
+    m = re.fullmatch(r"when was (?:the last )?(?P<d>[a-z][a-z' ]{2,30}?)(?: this year)?\s*\??", text)
+    if m:
+        import datetime as dt
+        today = dt.date.today()
+        if m.group("d") not in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday") \
+                and _named_date(m.group("d"), today) is not None:
+            return f"how many days since {m.group('d')}"
     # "How much is my electric bill usually" (2026-10-14: offline, "I can't
     # think just now", with "my electric bill was 120 dollars" in his notes):
     # the same question as without the "usually".
@@ -8924,11 +8933,22 @@ def _days_since(words: str) -> str | None:
                     "and I'll remember it.")
         return None
     if day > today and not re.search(r"\d{4}", words):
-        # "Since January 1" is the one that has passed.
-        try:
-            day = day.replace(year=day.year - 1)
-        except ValueError:
-            return None
+        # "Since January 1" is the one that has passed. A holiday that moves
+        # is found again inside the last year: "since Labor Day" took next
+        # year's September 6 back a year and said Sunday 6 September
+        # (2026-10-15) - Labor Day was Monday the 7th.
+        w = " ".join(words.casefold().split()).strip(" ?.")
+        if w in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
+            day -= dt.timedelta(days=7)
+        else:
+            again = _a_date(words, today - dt.timedelta(days=364))
+            if again is not None and again <= today:
+                day = again
+            else:
+                try:
+                    day = day.replace(year=day.year - 1)
+                except ValueError:
+                    return None
     days = (today - day).days
     if days < 0:
         return None
