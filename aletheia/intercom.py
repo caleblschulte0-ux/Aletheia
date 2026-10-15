@@ -2879,7 +2879,7 @@ def free_time_answer(cmd: dict) -> str:
                     later.append((local, str(event.get("title") or "something")))
             if not later:
                 return ("Your working hours are over and nothing else is on your calendar today - you're free."
-                        + _nothing_on_it_at_all(cal, day))
+                        + _nothing_on_it_at_all(cal, day) + _reminders_that_day(day))
             first = min(later)
             clock = first[0].strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
             return f"Your working hours are over. Still to come today: {first[1]} at {clock}."
@@ -2898,7 +2898,21 @@ def free_time_answer(cmd: dict) -> str:
     #
     # Only when it is COMPLETELY empty. A quiet week is a fact about his
     # week; nothing at all, ever, is a fact about the connection.
-    return said + _nothing_on_it_at_all(cal, day)
+    return said + _nothing_on_it_at_all(cal, day) + ("" if part else _reminders_that_day(day))
+
+
+def _reminders_that_day(day) -> str:
+    """" You do have 1 reminder: tomorrow at 12:30 pm, eat lunch." "Do I
+    have anything tomorrow" answered "Free tomorrow 9 am to 5 pm" with a
+    reminder set for that afternoon (2026-10-15), while "what's happening
+    monday" named them. A whole-day question gets the day's reminders; a
+    question about one hour or one part of it does not."""
+    import datetime as _dt
+    try:
+        from aletheia import quick
+        return quick._reminders_between(day, day, _dt.datetime.now(localtime.operator_tz()))
+    except Exception:
+        return ""
 
 
 def _free_at(cal, day, hhmm: str, minutes: int, tz: str) -> str:

@@ -4169,6 +4169,12 @@ def _interpret(transcript: str) -> dict:
     # his food budget, said the way the budget readers already read it.
     low = re.sub(r"^(my|our) (?:monthly )?budget for (groceries|grocery|food|gas|fun|shopping|eating out) is ",
                  lambda b: f"{b.group(1)} {'grocery' if b.group(2).startswith('grocer') else b.group(2)} budget is ", low)
+    # "Put milk on the list again" (2026-10-15: to the planner, which was
+    # out) is "put milk on the list"; the list already says if it's there.
+    low = re.sub(r"^((?:add|put|stick|throw) .+? (?:on|to) (?:the |my )?(?:shopping |grocery )?list)"
+                 r" (?:again|too|as well|back)$", r"\1", low)
+    # "Put milk back on the list" put "milk back" on it.
+    low = re.sub(r"^((?:add|put|stick|throw) .+?) back ((?:on|to) (?:the |my )?(?:shopping |grocery )?list)$", r"\1 \2", low)
     # "DELETE ALL MY TASKS", "MARK EVERYTHING DONE" (2026-10-07: to the
     # planner). The same rule: his whole list is not one sentence's to undo.
     # FIRST, before any rule that finds one task by its words: with two
