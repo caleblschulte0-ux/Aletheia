@@ -12682,6 +12682,9 @@ def _overnight() -> str:
                                             str(recollection._row(e).get("what") or ""), re.IGNORECASE)]
     # "Overnight: I'll remind you today at 6:21 pm: call the bank" promised
     # what had already been done (2026-10-14).
+    # "Good morning. Overnight: Noted: you went to bed at 9:16 pm"
+    # (2026-10-15): what HE told her is not news to him in the morning.
+    rows = [e for e in rows if not str(recollection._row(e).get("what") or "").startswith("Noted: ")]
     lines = [_shortened(_as_done(str(recollection._row(e).get("what") or "").rstrip("."))) for e in rows[-3:]]
     lines = [l for l in lines if l]
     if lines:
@@ -19766,13 +19769,18 @@ def _week() -> str:
             rows.extend(_on_day(back))
         except Exception:
             continue
+    # "What I did this week: Noted: you're at the gym; Noted: remind you to
+    # email jen..." (2026-10-15): what he told her is his week, not hers -
+    # counted, never read back to him as her doing.
+    told = [r for r in rows if str(r.get("what") or "").startswith("Noted: ")]
+    rows = [r for r in rows if r not in told]
     if ", but you told me" in done:
         # "I finished the report" is already said in his half; her
         # "Noted: you finished the report" would say it twice (2026-10-08).
-        rows = [r for r in rows if not str(r.get("what") or "").startswith("Noted: ")]
         return f"{done} What I did this week: {_listed(rows, 'this week').split(': ', 1)[1]}" if rows else done
-    mine = (_listed(rows, "this week").replace("This week: ", "What I did this week: ", 1) if rows
-            else "I have nothing in my journal for this week.")
+    heard = f" You told me {speech.count_phrase(len(told), 'thing')} to keep." if told else ""
+    mine = (_listed(rows, "this week").replace("This week: ", "What I did this week: ", 1) + heard if rows
+            else heard.strip() if told else "I have nothing in my journal for this week.")
     yours = done if not done.startswith("Nothing ticked") else "You haven't ticked anything off this week."
     return f"{yours} {mine}"
 
