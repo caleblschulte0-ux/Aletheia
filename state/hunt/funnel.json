@@ -417,7 +417,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-15T03:42:48Z",
+  "generated_at": "2026-10-15T04:46:02Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -427,15 +427,13 @@
     "employer_site: field: company _ _ _ _ to _ _ _ the _ would": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: text: _ _": 1,
     "lever: text: what is _ your gpa": 1,
-    "lever: textarea: _ _ please _ _ name _": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -544,7 +542,7 @@
       "background_check": 3,
       "education": 1,
       "on_site": 2,
-      "other": 15,
+      "other": 14,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -586,7 +584,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 22,
+    "needs_answer": 21,
     "oldest_days": 32,
     "to_send": 0
   },
