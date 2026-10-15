@@ -2745,8 +2745,20 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
     import datetime as dt
     from aletheia import localtime
     hhmm = _spoken_time(time_words)
+    # "Change my dentist reminder to saturday at noon", "move the plumber
+    # reminder to friday" (2026-10-15: to the planner unless it was the one
+    # just set). A day keeps the reminder's own time unless he names one.
+    day_iso, day_time = None, None
     if not hhmm:
-        return None
+        on_day = re.fullmatch(r"(?:on )?(?P<day>[a-z0-9 ]+?)(?: at (?P<t>[\w: ]+))?",
+                              " ".join(str(time_words).split()).lower())
+        if on_day and on_day.group("day") not in ("", "today"):
+            day_iso = _spoken_day(on_day.group("day"))
+            day_time = on_day.group("t")
+            if day_time and not _spoken_time(day_time):
+                return None
+        if not day_iso:
+            return None
     tz = localtime.operator_tz()
     which = which.strip()
     named_at = _spoken_time(which)
@@ -2767,6 +2779,16 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
         from aletheia import speech
         return {"command": None, "say": "Which one - " + speech.or_list([w for _, w in found[:4]]) + "?"}
     was, words = found[0]
+    if day_iso:
+        hour, minute = was.hour, was.minute
+        if day_time:
+            hour, minute = map(int, _spoken_time(day_time).split(":"))
+            if _is_bare_hour(day_time) and 1 <= hour <= EARLIEST_BARE_HOUR:
+                hour += 12
+        at = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+        if at <= dt.datetime.now(tz):
+            return {"command": None, "say": "That time has already gone - say a later one."}
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words, "replaces": words}, "say": None}
     hour, minute = map(int, hhmm.split(":"))
     if _is_bare_hour(time_words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12                       # "move my 3pm reminder to 4" means 4 pm
@@ -9193,7 +9215,7 @@ def _interpret(transcript: str) -> dict:
     # moves by that much, the same length; anything else is said plainly.
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
                      r"(?P<dir>back|forward|up|later|earlier) (?:by )?(?P<n>an?|half an|\d{1,3}) "
-                     r"(?P<u>hours?|minutes?|mins?)", low)
+                     r"(?P<u>hours?|minutes?|mins?|days?|weeks?)", low)
     if m and m.group("what") in ("them both", "both", "both of them", "them all", "all of them", "those", "these"):
         # "Push them both back an hour" after reading two reminders said she
         # can't move things on his calendar (2026-10-12) - true of neither.
@@ -9205,7 +9227,7 @@ def _interpret(transcript: str) -> dict:
         # sentence, and the planner). The one-off reminder he named, by that much.
         import datetime as _dts
         n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
-        delta = _dts.timedelta(hours=n) if m.group("u").startswith("hour") else _dts.timedelta(minutes=n)
+        delta = _dts.timedelta(**{{"h": "hours", "d": "days", "w": "weeks"}.get(m.group("u")[0], "minutes"): n})
         if m.group("dir") in ("forward", "up", "earlier"):
             delta = -delta
         try:
@@ -9222,7 +9244,7 @@ def _interpret(transcript: str) -> dict:
     if m and not _names_one_open_task(m.group("what")):
         import datetime as dt
         n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
-        delta = dt.timedelta(hours=n) if m.group("u").startswith("hour") else dt.timedelta(minutes=n)
+        delta = dt.timedelta(**{{"h": "hours", "d": "days", "w": "weeks"}.get(m.group("u")[0], "minutes"): n})
         if m.group("dir") in ("forward", "up", "earlier"):
             delta = -delta
         hold, why = _one_of_her_holds(m.group("what"))
