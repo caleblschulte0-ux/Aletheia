@@ -11547,6 +11547,27 @@ def _interpret(transcript: str) -> dict:
                     r"|gate code|door code|access code) is [a-z0-9#*][a-z0-9#* -]{0,24}", low) \
             and re.search(r"\d", low) and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Change the gate code to 9876" a turn after "the gate code is 4321"
+    # (2026-10-15: to the planner). A fact he already told her, changed: the
+    # new one is noted in the same words and the old one is let go.
+    m = re.fullmatch(r"(?:change|update|set|switch) (?P<whose>my|the|our) (?P<what>[a-z][a-z' ]{1,30}?) to (?P<val>[a-z0-9#*][\w#*:. -]{0,40})", low)
+    if m and re.search(r"\bpass(?:word|code|phrase)\b", m.group("what")):
+        return {"command": None, "say": _NO_PASSWORDS}
+    if m and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security|reminder|alarm|timer|appointment|meeting"
+                           r"|calendar|volume|brightness|temperature|thermostat|status)\b", m.group("what")):
+        said = f"{m.group('whose')} {m.group('what')} is "
+        try:
+            from aletheia import quick as _q
+            old_note = next((" ".join(str(r.get("text") or "").split()) for r in _q._notes()
+                             if re.match(r"(?:note that |remember that )?" + re.escape(said),
+                                         " ".join(str(r.get("text") or "").split()).casefold())), "")
+        except Exception:  # noqa: BLE001
+            old_note = ""
+        if old_note:
+            new_note = _as_he_said(text, said + m.group("val"))
+            from aletheia import speech as _sp
+            return {"command": {"kind": "note", "text": new_note, "replaces": old_note},
+                    "say": f"Updated: {_sp.as_she_says_it(new_note)}."}
     # "My password for netflix is hunter2" (2026-10-08: to the planner, the
     # one shape of it the fact rule did not know). She does not keep them.
     if re.fullmatch(r"(?:my |the |our )?(?:[a-z]+ )?pass(?:word|code|phrase) (?:for|to|on|at) (?:my |the )?[a-z0-9 .'-]{2,30}? (?:is|=) \S.*", low):
