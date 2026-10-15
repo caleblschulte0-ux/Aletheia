@@ -166,15 +166,15 @@
     "2026-10-15": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 63,
+      "minutes": 86,
       "needs_account": 1,
-      "needs_answer": 1,
-      "not_realistic": 9,
-      "offered": 13,
-      "ready": 1,
-      "runs": 7,
-      "unfit_model": 4,
-      "unfit_sales": 5,
+      "needs_answer": 6,
+      "not_realistic": 12,
+      "offered": 46,
+      "ready": 2,
+      "runs": 9,
+      "unfit_model": 5,
+      "unfit_sales": 7,
       "unjudged": 0,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
@@ -184,7 +184,7 @@
   "boards": {
     "ashby": 134,
     "bamboohr": 5,
-    "greenhouse": 100,
+    "greenhouse": 101,
     "lever": 70,
     "recruitee": 7,
     "smartrecruiters": 36,
@@ -434,7 +434,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-15T12:52:29Z",
+  "generated_at": "2026-10-15T13:22:50Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -453,13 +453,8 @@
     "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 9,
     "workable: radio: have you been convicted of a felony": 2,
-    "workable: text: _ _": 1,
-    "workable: text: _ expectations _": 1,
-    "workable: text: address _": 1,
     "workable: text: please share your _ _ number for _ _": 1,
-    "workable: text: what _ you _ in your _ role _ a _ salary": 3,
-    "workable: textarea: _ _": 1,
-    "workable: textarea: cover letter _": 1
+    "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
   "sent_all_time": 310,
   "sent_by_system": {
@@ -562,9 +557,7 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
       "background_check": 3,
-      "cover_letter": 1,
       "education": 1,
       "on_site": 2,
       "other": 20,
