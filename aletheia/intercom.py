@@ -2975,6 +2975,20 @@ def _named_list(kind: str, cmd: dict) -> str:
             return "You don't have any lists of your own yet. Say \"make a list called packing\" to start one."
         return ("Your lists: " + speech.and_list(
             [f"{h['name']} ({speech.count_phrase(h['open'], 'thing') if h['open'] else 'empty'})" for h in held]) + "." + also)
+    if kind == "list_read" and name == "every list":
+        # "What's on my lists" (2026-10-15): each list and what is on it.
+        said = []
+        shop = [str(r.get("need") or "") for r in _shopping_items()]
+        if shop:
+            said.append(f"your shopping list has {speech.and_list(shop[:6])}"
+                        + (f" and {len(shop) - 6} more" if len(shop) > 6 else ""))
+        for h in lists.all_lists():
+            on = lists.items(h["name"]) or []
+            said.append(f"your {h['name']} list has {speech.and_list(on[:6])}" + (f" and {len(on) - 6} more" if len(on) > 6 else "")
+                        if on else f"your {h['name']} list is empty")
+        if not said:
+            return "You don't have anything on a list yet. Say \"add milk to the list\" to start."
+        return "; ".join(said)[0].upper() + "; ".join(said)[1:] + "."
     if not lists.is_named_list(name):
         raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
                           "each have their own words.")
