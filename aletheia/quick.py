@@ -1909,6 +1909,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:i'?m|im|i am) (?:home|back|here|in)(?: now)?$|^(?:just )?got (?:home|back|in)$"
         # "I'm back from the gym" (2026-10-07: to a model)
         r"|^(?:i'?m|im|i am|just got|i just got) back from (?:the |my |a |work|school)[a-z ]{0,20}$")),
+    # "What's on my list for when I get home" (2026-10-15: to a model, a
+    # turn after "remind me to call mom when I get home").
+    ("home_waiting", re.compile(
+        r"^(?:what(?:'s| is)|whats) (?:on my list |waiting )?for (?:when|once) i (?:get|got|am) (?:home|back)\s*\??$"
+        r"|^what(?:'s| is| are|s)? (?:my )?(?:reminders? )?(?:for |do i have for )(?:when|once) i (?:get|got) (?:home|back)\s*\??$"
+        r"|^what (?:did i ask you to|do you have to|are you going to|will you) remind me(?: of| about)? (?:when|once) i (?:get|got) (?:home|back)\s*\??$")),
     ("farewell", re.compile(
         # "Going to bed" and "I'm leaving for work" were planned as steps
         # ("I will let you know when you're ready to go", 2026-09-23).
@@ -8029,6 +8035,14 @@ def _arrival() -> str:
     if rows:
         return f"Welcome back.{told} {speech.count_phrase(len(rows), 'thing')} waiting on you."
     return f"Welcome back.{told}" + ("" if told else " Nothing's waiting on you.")
+
+
+def _home_waiting() -> str:
+    from aletheia import speech
+    home = [speech._yours(h) for h in _home_reminders()]
+    if not home:
+        return "Nothing's waiting for when you get home. Say \"remind me to ... when I get home\" and I'll keep it."
+    return f"When you get home: {speech.and_list(home)}."
 
 
 def _farewell(text: str) -> str:
@@ -20477,6 +20491,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "replies": lambda rest: _replies(),
            "slow": lambda rest: _slow(),
            "arrival": lambda rest: _arrival(),
+           "home_waiting": lambda rest: _home_waiting(),
            "farewell": _farewell,
            "math": lambda rest: _math(rest) or _reckon(rest),   # a kitchen sum math cannot settle
            "status_of": _status_of}

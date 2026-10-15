@@ -2753,7 +2753,8 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
             # "Wake me up at 6", "cancel it" said "the reminder to wake up is off"
             # (2026-10-14): it is the alarm, at the time it was for.
             return f"Your alarm {speech.humanize_time(str(found.get('at') or ''))} is off."
-        return f"Undone: the reminder to {text} is off."
+        # "Undone: the reminder to renew my license is off" (2026-10-15).
+        return f"Undone: the reminder to {speech.as_she_says_it(text)} is off."
     if kind == "calendar_hold":
         from aletheia import calendar_reasoning
         title, start = str(command.get("title") or ""), str(command.get("start") or "")
