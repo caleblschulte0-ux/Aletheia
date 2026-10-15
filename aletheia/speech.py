@@ -463,6 +463,14 @@ _HIS_PRONOUNS = (
 )
 
 
+# A timer's label minus its length: "10 minute eggs" is the eggs timer, and
+# "1 hour 30 minute" is a length with no name at all - not a timer called
+# "30 minute" ("1 hour and 30 minutes left on the 30 minute timer",
+# 2026-10-15). voice and quick both name timers, so they share it.
+TIMER_CALLED = (r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?"
+                r"(?:[- ](?:and[- ])?\d+[- ](?:minute|second)s?)?[- ](?!\d)(.+)")
+
+
 def as_she_says_it(phrase: str) -> str:
     """Turn HIS phrase into one SHE can say about him.
 
