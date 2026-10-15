@@ -208,7 +208,7 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # be. She never keeps a password; said the same way every time.
     ("no_password", re.compile(
         r"^(?:what(?:'s| is|s| was)|tell me|give me|read me|do you (?:know|have|remember)|remind me(?: of)?) (?:my |the |our )?"
-        r"(?:[a-z0-9][a-z0-9 '-]{0,30} )?(?:password|passcode|passphrase)(?: (?:for|to|on) (?:my |the |our )?[a-z0-9][a-z0-9 '-]{0,30})?\s*\??$")),
+        r"(?:[a-z0-9][a-z0-9 '-]{0,30} )?(?:password|passcode|passphrase)(?: (?:for|to|on|at|in) (?:my |the |our )?[a-z0-9][a-z0-9 '-]{0,30})?\s*\??$")),
     # `down` marks the alternatives that ask whether she is STOPPED, so
     # the answer can agree with the question. Without it "are you
     # running" and "you there" -- the two most natural ways to ask --
