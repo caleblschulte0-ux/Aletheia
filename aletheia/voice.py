@@ -8252,6 +8252,11 @@ def _interpret(transcript: str) -> dict:
         if again.get("command") is None and again.get("say") and m.group(2).startswith("next "):
             # "Which Tuesday" asked back, in his own "about" words.
             return {"command": None, "say": again["say"].replace(f" to {m.group(1)}'", f" about {m.group(1)}'")}
+        if again.get("command") is None and str(again.get("say") or "").startswith("It's already past"):
+            # "About the dry cleaning this evening at 7", said at 7:10, asked
+            # "when should I remind you" of a time he had just given
+            # (2026-10-14): say it has gone by, in his "about" words.
+            return {"command": None, "say": again["say"].replace(f" to {m.group(1)}\"", f" about {m.group(1)}\"")}
     # "Remind me tomorrow at 2 about the dentist" (2026-10-07: to the
     # planner) is "remind me tomorrow at 2 to" the same thing.
     m = re.fullmatch(r"remind me ((?:today|tonight|tomorrow|on |at |in |this |next |every |each )[a-z0-9: ]{1,40}?) about (.+)", low)
