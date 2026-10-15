@@ -147,13 +147,13 @@
     "2026-10-14": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 99,
+      "minutes": 130,
       "needs_account": 0,
       "needs_answer": 1,
       "not_realistic": 11,
-      "offered": 19,
-      "ready": 3,
-      "runs": 9,
+      "offered": 20,
+      "ready": 4,
+      "runs": 10,
       "unfit_model": 3,
       "unfit_sales": 8,
       "unjudged": 3,
@@ -166,7 +166,7 @@
     "ashby": 134,
     "bamboohr": 5,
     "greenhouse": 100,
-    "lever": 67,
+    "lever": 70,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 6
@@ -407,15 +407,15 @@
       "sent": 8
     },
     "2026-10-14": {
-      "filled": 24,
-      "found": 25,
+      "filled": 25,
+      "found": 26,
       "interviews": 1,
       "rejections": 1,
       "replies": 3,
-      "sent": 2
+      "sent": 3
     }
   },
-  "generated_at": "2026-10-15T00:55:17Z",
+  "generated_at": "2026-10-15T01:18:36Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -430,17 +430,17 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 309,
+  "sent_all_time": 310,
   "sent_by_system": {
     "ashbyhq": 31,
     "employer_site": 13,
     "greenhouse": 144,
-    "lever": 24
+    "lever": 25
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 1,
@@ -527,12 +527,12 @@
     }
   },
   "totals": {
-    "filled": 308,
-    "found": 686,
+    "filled": 309,
+    "found": 687,
     "interviews": 7,
     "rejections": 16,
     "replies": 55,
-    "sent": 212
+    "sent": 213
   },
   "waiting": {
     "asked_about": {
