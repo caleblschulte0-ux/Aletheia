@@ -147,16 +147,16 @@
     "2026-10-14": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 147,
+      "minutes": 149,
       "needs_account": 0,
       "needs_answer": 3,
-      "not_realistic": 56,
-      "offered": 67,
+      "not_realistic": 58,
+      "offered": 69,
       "ready": 4,
-      "runs": 12,
+      "runs": 13,
       "unfit_language": 1,
-      "unfit_model": 3,
-      "unfit_sales": 51,
+      "unfit_model": 4,
+      "unfit_sales": 52,
       "unfit_years": 1,
       "unjudged": 3,
       "unreachable": 1,
@@ -167,7 +167,7 @@
   "boards": {
     "ashby": 134,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 100,
     "lever": 70,
     "recruitee": 7,
     "smartrecruiters": 36,
@@ -417,7 +417,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-15T02:49:39Z",
+  "generated_at": "2026-10-15T03:12:06Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
