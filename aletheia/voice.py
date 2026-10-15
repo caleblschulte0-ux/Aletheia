@@ -3391,7 +3391,12 @@ def _texted(said: str) -> str:
     for pattern, word in _TEXTED:
         said = re.sub(pattern, word, said, flags=re.I)
     # "Thea pls remind me": after her name, as well as first.
-    return re.sub(r"^((?:%s)\b[\s,.!?:;]*)?(?:pls|plz|plez|pleez) " % "|".join(WAKE_WORDS), r"\1", said, flags=re.I)
+    said = re.sub(r"^((?:%s)\b[\s,.!?:;]*)?(?:pls|plz|plez|pleez) " % "|".join(WAKE_WORDS), r"\1", said, flags=re.I)
+    # "Add a timer for the pasta for 8 minutes" (2026-10-15: to the planner):
+    # every timer rule says set or start. The whole ask, not "add a task to
+    # make a timer app".
+    return re.sub(r"^((?:%s)\b[\s,.!?:;]*)?(?:add|create|make) (a|an|me a) ((?:[a-z0-9-]+ ){0,3}?)timer"
+                  r"(?=\s+(?:for|of|called|named)\b|\s*$)" % "|".join(WAKE_WORDS), r"\1set \2 \3timer", said, flags=re.I)
 
 
 def _apostrophes(transcript: str) -> str:

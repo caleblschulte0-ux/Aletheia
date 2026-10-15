@@ -2127,6 +2127,17 @@ def _one_reminder(which: str, once: str = ""):
         else:
             kind = {"every day": "daily", "every week": "weekly", "every month": "monthly"}.get(by_when.group("k"), by_when.group("k"))
             hits = [r for r in rows if r.get("kind") == kind]
+    named_timer = re.fullmatch(r"(?:the |my |your )?(?P<name>[a-z][a-z ]*?) timer is up", needle)
+    if not hits and named_timer and rows:
+        # "Cancel the pasta timer" with only a 10-minute one running
+        # cancelled that one (2026-10-15): "timer" is in every timer's
+        # words, so a named timer is matched by its name or not at all.
+        from aletheia import speech
+        names = [re.sub(r"^your ", "", text_of(r)[:-len(" timer is up")]) for r in _soonest_first(rows)
+                 if text_of(r).endswith(" timer is up")]
+        running = ("" if not names else f" The {speech.and_list(names[:4])} "
+                   + ("timer is" if len(names) == 1 else "timers are") + " running.")
+        return None, f"You don't have a {named_timer.group('name')} timer.{running}"
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)
                  if len(w) > 2 and w not in TASK_STOP and w != "reminder"]

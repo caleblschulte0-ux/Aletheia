@@ -219,7 +219,13 @@ class LoopCase(unittest.TestCase):
                 (profile, "path", lambda: d / "answers.json"),
                 (webtask, "runs_dir", lambda: d / "webtasks"),
                 (webtask, "documents", lambda: {"resume": str(self.resume_file)}),
-                (browse, "PROFILE_DIR", d / "browser")):
+                (browse, "PROFILE_DIR", d / "browser"),
+                # A slow hosted Windows runner (2026-10-15: every test ~1.9x
+                # slower) took over 20 s to load these local pages, and the
+                # loop's own "could not be put back" stop failed a different
+                # test on each run. The real limit stays 20 s for him; a test
+                # of what she does with a page is not a test of the runner.
+                (browse, "DEFAULT_TIMEOUT_MS", 60_000)):
             patch = mock.patch.object(target, attr, value)
             patch.start()
             self.addCleanup(patch.stop)
