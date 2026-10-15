@@ -3077,6 +3077,10 @@ def _names_one_open_task(words: str) -> bool:
     return True
 
 
+# The list_read value meaning every list he has, with what is on each.
+EVERY_LIST = "every list"
+
+
 def _named_list_said(low: str, text: str) -> dict | None:
     """One of his named lists, or None. Never raises."""
     from aletheia import lists
@@ -3085,6 +3089,11 @@ def _named_list_said(low: str, text: str) -> dict | None:
                     # "How many lists do I have" (2026-10-07: to a model).
                     r"|how many lists (?:do i have|have i got|are there)|(?:do i have|have i got) any (?:other )?lists", low):
         return {"command": {"kind": "list_read"}, "say": None}
+    # "What's on my lists", "read me all my lists" (2026-10-15: to the
+    # planner) - every list with what is on it, not just their names.
+    if re.fullmatch(r"(?:what(?:'s| is) on|read me|read out|tell me what's on|go through) (?:all (?:of )?|each of |every one of )?my lists"
+                    r"|(?:read me|what's on) (?:everything on|every one of) my lists", low):
+        return {"command": {"kind": "list_read", "list": EVERY_LIST}, "say": None}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
     # "Make a packing list for my trip" made a list called "my trip"
