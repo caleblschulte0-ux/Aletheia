@@ -166,17 +166,18 @@
     "2026-10-15": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 15,
+      "minutes": 18,
       "needs_account": 1,
       "needs_answer": 0,
       "not_realistic": 2,
-      "offered": 3,
+      "offered": 4,
       "ready": 0,
-      "runs": 2,
+      "runs": 3,
       "unfit_model": 1,
       "unfit_sales": 1,
       "unjudged": 0,
-      "unreachable": 0,
+      "unreachable": 1,
+      "unreachable_ApplyError": 1,
       "weak_shot": 0
     }
   },
@@ -417,23 +418,23 @@
       "sent": 8
     },
     "2026-10-14": {
-      "filled": 27,
-      "found": 28,
+      "filled": 9,
+      "found": 10,
       "interviews": 1,
       "rejections": 1,
       "replies": 3,
       "sent": 3
     },
     "2026-10-15": {
-      "filled": 0,
-      "found": 1,
+      "filled": 18,
+      "found": 19,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-15T05:16:17Z",
+  "generated_at": "2026-10-15T05:47:16Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -449,7 +450,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 4,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
