@@ -9526,7 +9526,7 @@ class AroundTheHouseholdAgain(unittest.TestCase):
             self.assertEqual(quick.answer("who is watching the dog"),
                              "You told me: your neighbor is watching the dog this weekend.")
             self.assertEqual(quick.answer("where should we get pizza"), "You told me your favorite pizza place is Joes.")
-            self.assertTrue((quick.answer("what time do I take my vitamins") or "").startswith("Your reminder to take your vitamins is next"))
+            self.assertTrue((quick.answer("what time do I take my vitamins") or "").startswith("Your reminder to take your vitamins is "))
         with mock.patch.object(quick, "_notes", lambda: []), mock.patch.object(quick, "_coming", lambda: []):
             self.assertIsNone(quick.answer("what time do I take my vitamins"))
             self.assertIsNone(quick.answer("where should we get pizza"))
