@@ -3353,12 +3353,32 @@ _ENDS_IN_S = ("James|Charles|Chris|Thomas|Nicholas|Douglas|Lucas|Marcus|Agnes|Fr
               "|Hayes|Reyes|Gladys|Lois|Alexis|Paris|Tess|Bess|Cass|Jules|Niles|Myles|Ellis|Willis|Curtis|Otis|Rhys")
 
 
+# Typed on a phone (2026-10-15, every model off): "pls remind me 2morrow at 8
+# to walk the dog", "wats the time" and "whats on my todo" each went to a
+# model. The shorthand is put back as the word every pattern is written for.
+_TEXTED = (
+    (r"\b(?:2morrow|2moro|tmrw|tmrow|tmr|tmw|tomoro|tomorow|tommorow|tommorrow|tomorrrow)\b", "tomorrow"),
+    (r"\b(?:2nite|2night|tonite)\b", "tonight"),
+    (r"\b(?:wats|wuts|whatz)\b", "what's"),
+    (r" (?:pls|plz)$", ""),
+    (r"\b(my|the) (?:todo|to-do)(?: list)?$", r"\1 to do list"),
+)
+
+
+def _texted(said: str) -> str:
+    for pattern, word in _TEXTED:
+        said = re.sub(pattern, word, said, flags=re.I)
+    # "Thea pls remind me": after her name, as well as first.
+    return re.sub(r"^((?:%s)\b[\s,.!?:;]*)?(?:pls|plz|plez|pleez) " % "|".join(WAKE_WORDS), r"\1", said, flags=re.I)
+
+
 def _apostrophes(transcript: str) -> str:
     """"My dogs name" -> "my dog's name", keeping his capitals. "My bosses
     name" is the boss's, and "Sarah number" - a capitalised name before
     what a person has - is Sarah's (2026-10-08: both to the planner)."""
+    said = _texted(str(transcript or ""))
     said = re.sub(r"\b((?:my|our|the) (?:" + _WHOSE + r"))s (" + _OWNED + r")\b", r"\1's \2",
-                  str(transcript or ""), flags=re.I)
+                  said, flags=re.I)
     said = re.sub(r"\b((?:my|our|the) boss)(?:es|s) (" + _OWNED + r")\b", r"\1's \2", said, flags=re.I)
     # "When is sam birthday" (2026-10-08: to a model) - typed lowercase, so
     # the capitalised-name rule below never saw it.
@@ -3586,10 +3606,24 @@ def two_asks(transcript: str) -> list[str] | None:
                                and ((interpret(right) or {}).get("command") or {}).get("kind") not in (None, "intent")):
                 continue
             if handled(left) and handled(right):
-                return [left, right]
+                return [left, _it_is_the_item(left, right)]
     except Exception:  # noqa: BLE001 - one sentence, as he said it
         return None
     return None
+
+
+def _it_is_the_item(left: str, right: str) -> str:
+    """"Add milk and remind me at 5 to buy it" set a reminder to "buy it"
+    (2026-10-15): the second half's "it" is what the first half added."""
+    try:
+        cmd = (interpret(left) or {}).get("command") or {}
+    except Exception:  # noqa: BLE001
+        return right
+    item = str(cmd.get("item") or "").strip()
+    if cmd.get("kind") not in ("shopping_add", "list_add") or not item:
+        return right
+    return re.sub(r"(\bremind me\b.*?\bto [a-z]+) (?:it|them)\b", lambda m: f"{m.group(1)} {item}", right,
+                  count=1, flags=re.IGNORECASE)
 
 
 # What "can you ..." is asking her to DO, when the rest is a concrete ask.
