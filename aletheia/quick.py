@@ -11975,7 +11975,8 @@ def _timer_left(now=None) -> str | None:
         if length and (at - now).total_seconds() > int(length.group(1)) * (3600 if length.group(2) == "hour" else 60) + 30:
             return "your timer"
         # A named one is "the eggs timer" - the same words voice uses.
-        called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", found.group(1))
+        from aletheia import speech
+        called = re.fullmatch(speech.TIMER_CALLED, found.group(1))
         return f"the {called.group(1)} timer" if called else f"your {found.group(1)} timer"
     lines = [f"{left(at)} left on {name(text, at)}" for at, text in running[:3]]
     return lines[0][0].upper() + "; ".join(lines)[1:] + "."

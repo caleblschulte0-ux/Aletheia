@@ -1325,7 +1325,9 @@ def _timer_left(now=None, named: str = "") -> str:
                   else speech.count_phrase(minutes // 60, "hour") + (f" and {speech.count_phrase(minutes % 60, 'minute')}" if minutes % 60 else ""))
         # "10 minutes left on your 10 minute eggs timer": a named timer is
         # the eggs timer, and its length is already in the amount.
-        called = re.fullmatch(r"\d+(?:[- ]and a half)?[- ](?:minute|hour|second)s?[- ](.+)", m.group(1))
+        # "1 hour 30 minute" is a length, not a timer called "30 minute"
+        # ("1 hour and 30 minutes left on the 30 minute timer", 2026-10-15).
+        called = re.fullmatch(speech.TIMER_CALLED, m.group(1))
         # "15 minutes left on your 10-minute timer" after "add 5 minutes"
         # (2026-10-07): a length it has outgrown is not its name any more.
         length = re.fullmatch(r"(\d+)[- ](minute|hour)s?", m.group(1))
@@ -6189,11 +6191,20 @@ def _interpret(transcript: str) -> dict:
     # A TIMER OF TWO PARTS (2026-10-07): "set a timer for an hour and a
     # half", "1 hour and 20 minutes", "two and a half minutes" all went to
     # the planner - the pattern below reads one number and one unit.
-    m = re.fullmatch(r"(?:(?:set|start) (?:a |me a )?timer(?: for)?|timer(?: for)?|remind me in) "
+    # "Set a timer for 1 hour 15 minutes called roast", "set a roast timer
+    # for an hour and a half" (2026-10-15: to the planner) - the same timer
+    # with his name for it.
+    m = re.fullmatch(r"(?:(?:set|start) (?:a |me a )?timer(?: for)?|timer(?: for)?|remind me in"
+                     r"|(?:set|start) (?:a |an |me a )?(?P<pre>(?!timer\b)[a-z][a-z ]{1,24}?) timer for) "
                      r"(?:(?P<h>an|a|one|\d{1,2}|two|three) (?:hours?|hrs?)(?: and)? "
                      r"(?:(?P<half>a half)|(?P<m>\d{1,2}|five|ten|fifteen|twenty|thirty|forty|forty-five|fifty) (?:minutes?|mins?))"
                      r"|(?P<n>a|one|\d{1,2}|two|three|four|five|ten) and a half (?P<u>minutes?|hours?)"
-                     r"|(?P<n2>a|one|\d{1,2}|two|three|four|five|ten) (?P<u2>minutes?|hours?) and a half)", low)
+                     r"|(?P<n2>a|one|\d{1,2}|two|three|four|five|ten) (?P<u2>minutes?|hours?) and a half)"
+                     r"(?: (?:for|called|named|labell?ed) (?:the |my |some )?(?P<name>(?!timer\b)[a-z][a-z ]{1,24}))?", low)
+    if m and (m.group("pre") or m.group("name")) and low.startswith("remind me"):
+        m = None
+    if m and m.group("pre") and m.group("name"):
+        m = None
     if m:
         import datetime as dt
         words = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10,
@@ -6212,7 +6223,13 @@ def _interpret(transcript: str) -> dict:
         else:
             said = f"{rest:g}-minute" if float(rest).is_integer() else f"{int(rest)} and a half minute"
         at = (dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=minutes)).isoformat()
-        return {"command": {"kind": "remind_at", "at": at, "text": f"your {said} timer is up"}, "say": None}
+        name = (m.group("pre") or m.group("name") or "").strip()
+        if re.fullmatch(r"(?:new|another|quick|second|kitchen|other)", name):
+            name = ""
+        if name:
+            said = said.replace("-", " ")
+        return {"command": {"kind": "remind_at", "at": at,
+                            "text": f"your {said}{' ' + name if name else ''} timer is up"}, "say": None}
     # "Pause the timer": a timer here is a reminder at a set time, so there
     # is nothing to pause - say so, and what she can do instead.
     if re.fullmatch(r"(?:restart|reset|redo|repeat) (?:the |my |that )?timer(?: again)?|start (?:the |my |that )?timer (?:again|over)"
