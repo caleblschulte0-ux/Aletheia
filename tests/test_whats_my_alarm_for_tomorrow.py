@@ -17,12 +17,16 @@ def _at(days: int, hour: int) -> dt.datetime:
     return dt.datetime.combine(day, dt.time(hour, 0), tzinfo=tz)
 
 
-ROWS = [(_at(1, 6), "wake up", "reminder"), (_at(1, 9), "call the dentist", "reminder")]
+def _rows():
+    # Built at ask time, not import time: the suite runs for half an hour and
+    # crossed his midnight on CI (2026-10-15), so "tomorrow" built at import
+    # had become today by the time it was asked about.
+    return [(_at(1, 6), "wake up", "reminder"), (_at(1, 9), "call the dentist", "reminder")]
 
 
 class AlarmForADay(unittest.TestCase):
-    def ask(self, sentence, rows=ROWS):
-        with mock.patch.object(quick, "_coming", return_value=rows):
+    def ask(self, sentence, rows=None):
+        with mock.patch.object(quick, "_coming", return_value=_rows() if rows is None else rows):
             return quick.answer(sentence)
 
     def test_the_alarm_question_names_the_alarm_only(self):
@@ -32,7 +36,7 @@ class AlarmForADay(unittest.TestCase):
         self.assertEqual(self.ask("what are my alarms for tomorrow"), "Your alarm tomorrow is at 6 am.")
 
     def test_no_alarm_is_said_as_no_alarm(self):
-        self.assertEqual(self.ask("what's my alarm for tomorrow", rows=ROWS[1:]), "No alarm set for tomorrow.")
+        self.assertEqual(self.ask("what's my alarm for tomorrow", rows=_rows()[1:]), "No alarm set for tomorrow.")
 
     def test_the_singular_reminder_question_is_answered(self):
         got = self.ask("what's my reminder for tomorrow")
