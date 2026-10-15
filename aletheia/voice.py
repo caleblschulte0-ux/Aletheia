@@ -9812,6 +9812,11 @@ def _interpret(transcript: str) -> dict:
             if phones:
                 name = str(one["display_name"])
                 number = f" {name[:1].upper()}{name[1:]}'s number is {_speech._spoken_number(phones[0])}."
+            # "call dr patel", typed lowercase, offered to "text or email Dr
+            # patel" beside "Dr Patel's number" (2026-10-15): the contact
+            # knows how the name is written.
+            if str(one.get("display_name") or "").casefold() == who.casefold():
+                who = str(one["display_name"])
         except Exception:  # noqa: BLE001 - no contact is the plain answer
             pass
         if not who.startswith(("your ", "the ")):
