@@ -11756,9 +11756,10 @@ def _reminder_when(what: str) -> str | None:
     text, _, when = said.partition(" — ")
     if not when:
         return None
-    if when.startswith(("every", "Every")):
+    if when.startswith(("every", "Every")) or found.get("kind") not in (None, "once"):
         # "When's my next plant reminder" answered "every Monday at 9 am"
-        # (2026-10-08): the rule is not the date he asked for.
+        # (2026-10-08): the rule is not the date he asked for. Nor is "on
+        # the 1st of every month" for his rent reminder (2026-10-15).
         try:
             import datetime as dt
             from aletheia import scheduler, speech

@@ -2114,6 +2114,19 @@ def _one_reminder(which: str, once: str = ""):
             return None, f"You have {speech.count_phrase(len(rows), 'reminder')}. Which one: {speech.or_list(said)}{more}?"
 
     hits = [r for r in rows if needle and needle in text_of(r)]
+    # "Change the sunday reminder to 7pm", "move my weekly reminder to 8pm"
+    # (2026-10-15: "I don't see a reminder for sunday", with one every
+    # Sunday): named by when it repeats, not by its words.
+    by_when = re.fullmatch(r"(?:the |my )?(?:(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:'?s)?"
+                           r"(?: night| morning| evening| afternoon)?|(?P<k>daily|weekly|monthly|every day|every week|every month))",
+                           needle)
+    if not hits and by_when:
+        if by_when.group("d"):
+            day = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday").index(by_when.group("d"))
+            hits = [r for r in rows if r.get("kind") == "weekly" and day in (r.get("weekdays") or [])]
+        else:
+            kind = {"every day": "daily", "every week": "weekly", "every month": "monthly"}.get(by_when.group("k"), by_when.group("k"))
+            hits = [r for r in rows if r.get("kind") == kind]
     if not hits:
         words = [w for w in re.split(r"[^a-z0-9]+", needle)
                  if len(w) > 2 and w not in TASK_STOP and w != "reminder"]
