@@ -1119,7 +1119,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("alarm_left", re.compile(
         r"^how long (?:until|till|before) my (?:next )?alarm(?: goes off)?\s*\??$"
         # "How much sleep will I get" (2026-10-07: to a model) is the same sum.
-        r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$")),
+        r"|^how (?:much sleep|many hours(?: of sleep)?|long) (?:will|can|do|would) i (?:get|sleep)(?: if i (?:go to bed|sleep) now)?(?: tonight)?\s*\??$"
+        # "If I go to bed now how much sleep will I get" (2026-10-15: to
+        # the planner) - the condition first.
+        r"|^if i (?:go to bed|went to bed|go to sleep|went to sleep|sleep) (?:right )?now,? how (?:much sleep|many hours(?: of sleep)?|long)"
+        r" (?:will|would|can|do) i (?:get|sleep)\s*\??$")),
     # "What time is my pill reminder" (2026-10-07: to a model).
     ("reminder_when", re.compile(
         r"^(?:what time|when)(?:'s| is|s| does) (?:my |the )(?P<reminder_when>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)"
@@ -2055,6 +2059,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # blue" kept): his favorites and what he said he loves.
     ("his_likes", re.compile(
         r"^what (?:do i|things do i|stuff do i) (?:like|love|enjoy)(?: doing)?\s*\??$"
+        # "What food do I like" a turn after "I like sushi" (2026-10-15: to
+        # a model).
+        r"|^what (?:kinds? of )?(?:foods?|meals?) (?:do )?i (?:like|love|enjoy)(?: to eat| eating)?\s*\??$"
+        r"|^what do i (?:like|love|enjoy) (?:to eat|eating)\s*\??$"
         r"|^what are (?:my|some of my) (?:favou?rites?|favou?rite things|likes)\s*\??$")),
     # "What's my max bench" after "I benched 185" (2026-10-08: to a model).
     ("lift_max", re.compile(
@@ -11125,6 +11133,12 @@ def _dislikes(text: str) -> str | None:
     if thing:
         if said:
             return f"No - you told me: {said[0]}."
+        # "Do I like sushi" after "I like sushi" (2026-10-15: to a model).
+        for row in _notes():
+            low = " ".join(str(row.get("text") or "").split()).casefold()
+            if re.search(r"\bi (?:really )?(?:like|love|enjoy)\b", low) and not _DISLIKE.search(low) \
+                    and re.search(rf"\b{re.escape(thing.rstrip('s'))}", low):
+                return f"Yes - you told me: {speech.as_she_says_it(str(row.get('text')).strip()).rstrip('.')}."
         return None
     if not said:
         return "You haven't told me anything you don't like. Say \"I don't like mushrooms\" and I'll remember it."
