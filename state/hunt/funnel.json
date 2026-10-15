@@ -184,7 +184,7 @@
   "boards": {
     "ashby": 134,
     "bamboohr": 5,
-    "greenhouse": 100,
+    "greenhouse": 101,
     "lever": 70,
     "recruitee": 7,
     "smartrecruiters": 36,
@@ -434,7 +434,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-15T17:31:03Z",
+  "generated_at": "2026-10-15T18:03:32Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
