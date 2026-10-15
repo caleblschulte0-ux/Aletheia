@@ -3444,9 +3444,12 @@ def _direct(text: str) -> str:
     # think just now", with "my electric bill was 120 dollars" in his notes):
     # the same question as without the "usually".
     m = re.fullmatch(r"(?P<q>how much (?:is|does) (?:my|the) [a-z][a-z ]{1,30}?(?: cost| run)?)"
-                     r",? (?:usually|normally|typically|generally|on average|most months|each month|a month|per month)\s*\??", text)
+                     r",? (?:usually|normally|typically|generally|on average|most months|(?P<mo>each month|a month|per month))\s*\??", text)
     if m:
-        return m.group("q").replace(" does ", " is ").removesuffix(" cost").removesuffix(" run")
+        # "a month" stays: "how much is my gym membership a month" with "300
+        # a year" kept is arithmetic, not a read-back (2026-10-15).
+        return (m.group("q").replace(" does ", " is ").removesuffix(" cost").removesuffix(" run")
+                + (" a month" if m.group("mo") else ""))
     m = re.fullmatch(r"how much (?:does|do) (?:my|the) (?P<n>[a-z][a-z ]{1,30}?) (?:usually|normally|typically|generally) (?:cost|run)\s*\??", text)
     if m:
         return f"how much is my {m.group('n')}"
@@ -14156,7 +14159,9 @@ def _cost_mine(text: str) -> str | None:
                           else amount * 52 / 12 if re.search(r"\bweek(?:ly)?\b", v) else amount)
         if not bills:
             return None
-        listed = f"From what you've told me: your {speech.and_list(bills)}."
+        # "your phone bill is 85 a month and car insurance is 120 a month"
+        # (2026-10-15): every one of them is his.
+        listed = f"From what you've told me: {speech.and_list(['your ' + b for b in bills])}."
         if (g.get("cost_bills2") or subs) and whole:
             return f"About {_money(round(total))} a month. {listed}"
         return listed
@@ -14196,6 +14201,19 @@ def _cost_mine(text: str) -> str | None:
         if re.match(rf"(?:my|our|the) {re.escape(thing)} (?:is|are|was|were|costs?|came to|came out to) .*\d", said.casefold()):
             if g.get("cost_up"):
                 return None
+            told = f"you told me {speech.as_she_says_it(said).rstrip('.')}"
+            # "How much is my car insurance a year" with "my car insurance is
+            # 120 a month" kept (2026-10-15) read back the monthly figure:
+            # the arithmetic is the answer he asked for.
+            n = re.search(r"\$?(\d[\d,]*(?:\.\d+)?)(?!\d|st\b|nd\b|rd\b|th\b)", said)
+            asks_year = re.search(r"\b(?:a|per|each|every) year\b|\bannual(?:ly)?\b|\byearly\b|\bfor the year\b", text)
+            asks_month = re.search(r"\b(?:a|per|each|every) month\b|\bmonthly\b", text)
+            per_month = re.search(r"\b(?:a|per|each|every) month\b|\bmonthly\b|/ ?mo(?:nth)?\b", said.casefold())
+            per_year = re.search(r"\b(?:a|per|each|every) year\b|\bannual(?:ly)?\b|\byearly\b|/ ?y(?:ea)?r\b", said.casefold())
+            if n and asks_year and per_month:
+                return f"About {_money(round(float(n.group(1).replace(',', '')) * 12))} a year - {told}."
+            if n and asks_month and per_year:
+                return f"About {_money(round(float(n.group(1).replace(',', '')) / 12))} a month - {told}."
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     if g.get("cost_up"):
         return None
