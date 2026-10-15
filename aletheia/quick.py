@@ -6082,6 +6082,10 @@ def _as_done(line: str) -> str:
     """A receipt read back as something done. "Today: I'll remind you today
     at 5 pm: call Dana" promised in the future what he asked about in the
     past (2026-10-07)."""
+    # "Pencilled in Focus time tomorrow at 2 pm, tentative, on your
+    # calendar here only" is the confirmation's caveat; as a thing she did
+    # it is three lines of the same tail (2026-10-15).
+    line = re.sub(r",? tentative, on your calendar here only$", "", line)
     m = re.fullmatch(r"I'll remind you (.+?): (.+)", line)
     if m:
         return f"Set a reminder for {m.group(1)}: {m.group(2)}"
