@@ -52,7 +52,7 @@ REQUIRED_KEYS = {"id", "filed", "by", "relayed_from", "operator_quote", "command
 
 # kind -> exactly these argument keys (a set means required; OPTIONAL maps allow omission)
 KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
-    "note":          ({"text"}, set()),
+    "note":          ({"text"}, {"replaces"}),
     "dispatch":      ({"repo", "workflow"}, {"ref"}),
     "issue":         ({"repo", "title"}, {"body"}),
     "rule":          ({"id", "state", "because"}, set()),
@@ -3608,6 +3608,10 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return profile.preferences_words()
     if kind == "note":
         journal.append("note", "operator", cmd["text"], actor=ACTOR)
+        if cmd.get("replaces"):
+            # "Change the gate code to 9876": the old code is let go with the
+            # same tombstone "forget" writes, so only the new one is read back.
+            journal.append("note", FORGOTTEN_SUBJECT, str(cmd["replaces"])[:300], actor="operator")
         return "journaled"
     if kind == "dispatch":
         act.dispatch(fleet, cmd["repo"], cmd["workflow"], cmd.get("ref"), request=request)

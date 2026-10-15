@@ -2745,8 +2745,20 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
     import datetime as dt
     from aletheia import localtime
     hhmm = _spoken_time(time_words)
+    # "Change my dentist reminder to saturday at noon", "move the plumber
+    # reminder to friday" (2026-10-15: to the planner unless it was the one
+    # just set). A day keeps the reminder's own time unless he names one.
+    day_iso, day_time = None, None
     if not hhmm:
-        return None
+        on_day = re.fullmatch(r"(?:on )?(?P<day>[a-z0-9 ]+?)(?: at (?P<t>[\w: ]+))?",
+                              " ".join(str(time_words).split()).lower())
+        if on_day and on_day.group("day") not in ("", "today"):
+            day_iso = _spoken_day(on_day.group("day"))
+            day_time = on_day.group("t")
+            if day_time and not _spoken_time(day_time):
+                return None
+        if not day_iso:
+            return None
     tz = localtime.operator_tz()
     which = which.strip()
     named_at = _spoken_time(which)
@@ -2767,6 +2779,16 @@ def _reminder_moved_to(which: str, time_words: str) -> dict | None:
         from aletheia import speech
         return {"command": None, "say": "Which one - " + speech.or_list([w for _, w in found[:4]]) + "?"}
     was, words = found[0]
+    if day_iso:
+        hour, minute = was.hour, was.minute
+        if day_time:
+            hour, minute = map(int, _spoken_time(day_time).split(":"))
+            if _is_bare_hour(day_time) and 1 <= hour <= EARLIEST_BARE_HOUR:
+                hour += 12
+        at = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
+        if at <= dt.datetime.now(tz):
+            return {"command": None, "say": "That time has already gone - say a later one."}
+        return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": words, "replaces": words}, "say": None}
     hour, minute = map(int, hhmm.split(":"))
     if _is_bare_hour(time_words) and hour < 12 and (was.hour >= 12 or hour <= EARLIEST_BARE_HOUR):
         hour += 12                       # "move my 3pm reminder to 4" means 4 pm
@@ -9198,7 +9220,7 @@ def _interpret(transcript: str) -> dict:
     # moves by that much, the same length; anything else is said plainly.
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "
                      r"(?P<dir>back|forward|up|later|earlier) (?:by )?(?P<n>an?|half an|\d{1,3}) "
-                     r"(?P<u>hours?|minutes?|mins?)", low)
+                     r"(?P<u>hours?|minutes?|mins?|days?|weeks?)", low)
     if m and m.group("what") in ("them both", "both", "both of them", "them all", "all of them", "those", "these"):
         # "Push them both back an hour" after reading two reminders said she
         # can't move things on his calendar (2026-10-12) - true of neither.
@@ -9210,7 +9232,7 @@ def _interpret(transcript: str) -> dict:
         # sentence, and the planner). The one-off reminder he named, by that much.
         import datetime as _dts
         n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
-        delta = _dts.timedelta(hours=n) if m.group("u").startswith("hour") else _dts.timedelta(minutes=n)
+        delta = _dts.timedelta(**{{"h": "hours", "d": "days", "w": "weeks"}.get(m.group("u")[0], "minutes"): n})
         if m.group("dir") in ("forward", "up", "earlier"):
             delta = -delta
         try:
@@ -9227,7 +9249,7 @@ def _interpret(transcript: str) -> dict:
     if m and not _names_one_open_task(m.group("what")):
         import datetime as dt
         n = {"a": 1, "an": 1, "half an": 0.5}.get(m.group("n")) or int(m.group("n"))
-        delta = dt.timedelta(hours=n) if m.group("u").startswith("hour") else dt.timedelta(minutes=n)
+        delta = dt.timedelta(**{{"h": "hours", "d": "days", "w": "weeks"}.get(m.group("u")[0], "minutes"): n})
         if m.group("dir") in ("forward", "up", "earlier"):
             delta = -delta
         hold, why = _one_of_her_holds(m.group("what"))
@@ -11552,6 +11574,27 @@ def _interpret(transcript: str) -> dict:
                     r"|gate code|door code|access code) is [a-z0-9#*][a-z0-9#* -]{0,24}", low) \
             and re.search(r"\d", low) and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security)\b", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # "Change the gate code to 9876" a turn after "the gate code is 4321"
+    # (2026-10-15: to the planner). A fact he already told her, changed: the
+    # new one is noted in the same words and the old one is let go.
+    m = re.fullmatch(r"(?:change|update|set|switch) (?P<whose>my|the|our) (?P<what>[a-z][a-z' ]{1,30}?) to (?P<val>[a-z0-9#*][\w#*:. -]{0,40})", low)
+    if m and re.search(r"\bpass(?:word|code|phrase)\b", m.group("what")):
+        return {"command": None, "say": _NO_PASSWORDS}
+    if m and not re.search(r"\b(?:pass(?:word|code|phrase)|pin|ssn|social security|reminder|alarm|timer|appointment|meeting"
+                           r"|calendar|volume|brightness|temperature|thermostat|status)\b", m.group("what")):
+        said = f"{m.group('whose')} {m.group('what')} is "
+        try:
+            from aletheia import quick as _q
+            old_note = next((" ".join(str(r.get("text") or "").split()) for r in _q._notes()
+                             if re.match(r"(?:note that |remember that )?" + re.escape(said),
+                                         " ".join(str(r.get("text") or "").split()).casefold())), "")
+        except Exception:  # noqa: BLE001
+            old_note = ""
+        if old_note:
+            new_note = _as_he_said(text, said + m.group("val"))
+            from aletheia import speech as _sp
+            return {"command": {"kind": "note", "text": new_note, "replaces": old_note},
+                    "say": f"Updated: {_sp.as_she_says_it(new_note)}."}
     # "My password for netflix is hunter2" (2026-10-08: to the planner, the
     # one shape of it the fact rule did not know). She does not keep them.
     if re.fullmatch(r"(?:my |the |our )?(?:[a-z]+ )?pass(?:word|code|phrase) (?:for|to|on|at) (?:my |the )?[a-z0-9 .'-]{2,30}? (?:is|=) \S.*", low):
