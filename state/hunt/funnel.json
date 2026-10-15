@@ -166,15 +166,15 @@
     "2026-10-15": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 57,
+      "minutes": 63,
       "needs_account": 1,
       "needs_answer": 1,
-      "not_realistic": 4,
-      "offered": 7,
-      "ready": 0,
-      "runs": 6,
-      "unfit_model": 1,
-      "unfit_sales": 3,
+      "not_realistic": 9,
+      "offered": 13,
+      "ready": 1,
+      "runs": 7,
+      "unfit_model": 4,
+      "unfit_sales": 5,
       "unjudged": 0,
       "unreachable": 1,
       "unreachable_ApplyError": 1,
@@ -188,7 +188,7 @@
     "lever": 70,
     "recruitee": 7,
     "smartrecruiters": 36,
-    "workable": 7
+    "workable": 9
   },
   "closed_recently": {
     "days": 3,
@@ -426,15 +426,15 @@
       "sent": 3
     },
     "2026-10-15": {
-      "filled": 19,
-      "found": 20,
+      "filled": 20,
+      "found": 21,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-15T11:48:54Z",
+  "generated_at": "2026-10-15T12:21:08Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -547,8 +547,8 @@
     }
   },
   "totals": {
-    "filled": 311,
-    "found": 688,
+    "filled": 312,
+    "found": 689,
     "interviews": 7,
     "rejections": 16,
     "replies": 55,
@@ -590,9 +590,9 @@
       "not_a_form_signup_list_on_employer_site": 8,
       "not_realistic": 64
     },
-    "failed": 16,
+    "failed": 17,
     "failed_because": {
-      "ApplyError": 10,
+      "ApplyError": 11,
       "TargetClosedError": 3,
       "browser_spending": 2,
       "submit_would_not_click": 1
