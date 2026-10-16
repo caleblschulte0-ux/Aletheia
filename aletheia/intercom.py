@@ -1434,7 +1434,10 @@ def _window_words(spec: dict) -> str:
 def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     """One reminder, as he would say it."""
     from aletheia import speech
-    text = str((spec.get("command") or {}).get("text") or spec["id"])[:70]
+    # His words in her mouth: "submit my timesheet" is "submit your
+    # timesheet" - the list and "when's my next reminder" said "my"
+    # one turn after the confirmation said "your" (2026-10-16).
+    text = speech._yours(str((spec.get("command") or {}).get("text") or spec["id"])[:70])
     if spec["kind"] == "once":
         timer = re.fullmatch(r"(your .+? timer) is up", text)
         if timer and not receipt:
