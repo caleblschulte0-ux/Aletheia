@@ -2256,6 +2256,19 @@ def _hold_as_it_is_now(held: dict) -> dict:
     return {**held, "start": live[0]["start"]}
 
 
+def _she_just_added_a_task() -> bool:
+    """Whether her last answer added a task. Read from what she SAID, not by
+    re-reading his ask: asked again, "add a task to email the landlord" is
+    "that's already on your list", which is no task at all."""
+    try:
+        from aletheia import converse
+        recent = converse.recent(limit=1) or []
+    except Exception:
+        return False
+    said = str((recent[-1] if recent else {}).get("she_answered") or "")
+    return bool(re.match(r"Added (?:a task|\d+ tasks)\b", said))
+
+
 def _recent_ask_of(kind: str, needs: str, turns: int = 4) -> dict:
     """The one-off reminder among his last few asks, newest first, or {}.
 
@@ -4169,6 +4182,11 @@ def _interpret(transcript: str) -> dict:
     # his food budget, said the way the budget readers already read it.
     low = re.sub(r"^(my|our) (?:monthly )?budget for (groceries|grocery|food|gas|fun|shopping|eating out) is ",
                  lambda b: f"{b.group(1)} {'grocery' if b.group(2).startswith('grocer') else b.group(2)} budget is ", low)
+    # "Make it 7pm tomorrow", "make it 7 on friday" (2026-10-16: to a model)
+    # are "make it tomorrow at 7pm", which already moves the reminder.
+    low = re.sub(r"^((?:(?:no|actually|wait|sorry|oh|oops),? )*(?:make it|change it to|change that to|move it to) )"
+                 r"(\d{1,2}(?::\d{2})? ?(?:am|pm)?) (?:on )?(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)$",
+                 r"\1\3 at \2", low)
     # "Put milk on the list again" (2026-10-15: to the planner, which was
     # out) is "put milk on the list"; the list already says if it's there.
     low = re.sub(r"^((?:add|put|stick|throw) .+? (?:on|to) (?:the |my )?(?:shopping |grocery )?list)"
@@ -8594,6 +8612,13 @@ def _interpret(transcript: str) -> dict:
     # list. `add` was optional, so any sentence ENDING in "to the list"
     # was a write — and a question is never an instruction (the same rule
     # the spending door holds).
+    # "Add a task to email the landlord", "and another to fix the sink"
+    # (2026-10-16: to a model, which was out). Only straight after a task:
+    # "another" means another of whatever he just added.
+    m = re.fullmatch(r"(?:and |also |oh and |plus )?(?:add )?another(?: one)?(?: task)?(?: to| for|:)? (?P<what>.+)", low)
+    if m and not re.match(r"(?:\d|one\b|a few|few|half|minute|minutes|hour|hours|day|days|week|weeks|second|seconds)\b",
+                          m.group("what")) and _she_just_added_a_task():
+        return _new_task(_as_he_said(transcript, m.group("what")).strip())
     # "Add call the bank to my to do list" fell to the planner (2026-10-07).
     m = re.fullmatch(r"(?:add|put|stick) (.+?) (?:on|to) (?:the |my )?(?:to ?do|to-do|task) list", low)
     if m:
