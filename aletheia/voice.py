@@ -6647,14 +6647,27 @@ def _interpret(transcript: str) -> dict:
     # planner). The same lookup, a day-sized lead: the day before at nine,
     # the night before at seven, the morning of at eight. A birthday or an
     # anniversary is not on the calendar and has its own branch below.
+    # "Remind me the morning of Christmas Eve to call grandma" is the
+    # morning-before lead, which already means the morning of the day.
+    morning_of = re.sub(r"^remind me (?:on )?the morning of (?!(?:my |the )?(?:birthday|anniversary))", "remind me the morning before ", low)
     m = re.fullmatch(r"remind me (?P<lead>the day|the night|the morning|a day|one day|(?P<n>\d|two|three|four|five) days|a week|one week)"
-                     r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40}?)(?: to (?P<task>[a-z].{2,80}))?", low)
+                     r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40}?)(?: to (?P<task>[a-z].{2,80}))?", morning_of)
+    # "A week before Christmas to mail the cards" (2026-10-16): a named
+    # day is never "Christmas to mail the cards", errand or not.
+    named_day = False
+    if m and m.group("task"):
+        from aletheia import quick as _qn
+        import datetime as _dtn
+        try:
+            named_day = _qn._named_date(m.group("what"), _dtn.date.today()) is not None
+        except Exception:
+            named_day = False
     # "Remind me the day before the wedding to get a card" (2026-10-08: read
     # as an event called "wedding to get a card"). The errand rides along
     # when it is one; "my flight to Paris" is still the flight.
-    if m and m.group("task") and not _an_errand(m.group("task")):
+    if m and m.group("task") and not _an_errand(m.group("task")) and not named_day:
         m = re.fullmatch(r"remind me (?P<lead>the day|the night|the morning|a day|one day|(?P<n>\d|two|three|four|five) days|a week|one week)"
-                         r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40})(?P<task>)", low)
+                         r" before (?:my |the )?(?:next )?(?P<what>[a-z][a-z0-9' ]{2,40})(?P<task>)", morning_of)
     if m and not re.search(r"\b(?:birthday|anniversary|bday)\b", m.group("what")):
         import datetime as dt
         from aletheia import calendar as cal, localtime, speech as _sp_before
@@ -6675,6 +6688,20 @@ def _interpret(transcript: str) -> dict:
             upcoming = [e for e in upcoming if all(w in str(e.get("title") or "").lower() for w in words)]
             told = None if upcoming else _event_from_notes(what, day_only=True)
             upcoming = [told] if told else upcoming
+            if not upcoming:
+                # "Remind me the day before Halloween to buy candy" (2026-10-16):
+                # "I don't see halloween on your calendar", one turn after
+                # she had said which day Halloween is. A named day is a day.
+                from aletheia import quick as _qh
+                try:
+                    named = _qh._named_date(what, now.date())
+                except Exception:
+                    named = None
+                if named is not None and not re.fullmatch(r"(?:mon|tues|wednes|thurs|fri|satur|sun)day", what):
+                    title_ = what[:1].upper() + what[1:] if " " in what or not what.isalpha() else what.capitalize()
+                    title_ = " ".join(w[:1].upper() + w[1:] for w in title_.split())
+                    upcoming = [{"start": dt.datetime.combine(named, dt.time(0, 0), tzinfo=tz).isoformat(),
+                                 "title": title_, "all_day": True, "named_day": True}]
         if not upcoming:
             return {"command": None,
                     "say": ("Nothing on your calendar coming up" if generic
@@ -6698,6 +6725,8 @@ def _interpret(transcript: str) -> dict:
                                             f"or another time, and I'll set that instead."}
         clock = start.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()
         about = f"{event.get('title') or what} {start.strftime('%A')}" + ("" if event.get("all_day") else f" at {clock}")
+        if event.get("named_day"):
+            about = f"{event['title']} is {start.strftime('%A')}"   # "Halloween is Saturday"
         if m.group("task"):
             about = f"{_as_he_said(text, m.group('task'))} - {about}"
         return {"command": {"kind": "remind_at", "at": when.isoformat(), "text": about}, "say": None}
