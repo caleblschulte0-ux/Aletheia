@@ -164,16 +164,16 @@
       "weak_shot": 0
     },
     "2026-10-15": {
-      "duplicate": 0,
+      "duplicate": 1,
       "employer_full": 0,
-      "minutes": 144,
+      "minutes": 178,
       "needs_account": 1,
-      "needs_answer": 7,
-      "not_realistic": 18,
-      "offered": 57,
-      "ready": 4,
-      "runs": 14,
-      "unfit_model": 9,
+      "needs_answer": 8,
+      "not_realistic": 19,
+      "offered": 62,
+      "ready": 6,
+      "runs": 15,
+      "unfit_model": 10,
       "unfit_sales": 9,
       "unjudged": 0,
       "unreachable": 3,
@@ -195,7 +195,7 @@
     "why": {
       "left_captcha": 1,
       "left_going_in_circles": 2,
-      "left_no_way_forward": 6,
+      "left_no_way_forward": 7,
       "left_questions": 4,
       "left_sign_in": 3
     }
@@ -426,15 +426,15 @@
       "sent": 3
     },
     "2026-10-15": {
-      "filled": 26,
-      "found": 28,
+      "filled": 28,
+      "found": 31,
       "interviews": 1,
       "rejections": 2,
       "replies": 4,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-10-16T01:19:26Z",
+  "generated_at": "2026-10-16T01:54:24Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -448,23 +448,24 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 310,
+  "sent_all_time": 311,
   "sent_by_system": {
     "ashbyhq": 31,
     "employer_site": 13,
     "greenhouse": 143,
-    "lever": 25
+    "lever": 26
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 1,
     "employer_site: no_apply: _ _ _ | home | _": 1,
     "employer_site: no_apply: _ to _ _ | about _ | _ _ | _ | search jobs | learn more": 1,
     "employer_site: no_apply: _ | _ _ | next _": 1,
+    "employer_site: no_apply: _ | learn more | _ more": 1,
     "employer_site: no_apply: google _ _ with _ | cookie preferences | accept | reject | cookie settings | search jobs": 1,
     "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1,
     "employer_site: no_apply: search | _ | _ role _ _ | _ to _": 1
@@ -497,7 +498,7 @@
       "nothing_to_press_on_content+no_apply/observed": 8,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form+no_apply/filled": 2,
-      "nothing_to_press_on_form+no_apply/observed": 4,
+      "nothing_to_press_on_form+no_apply/observed": 5,
       "nothing_to_press_on_form/observed": 5,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
       "nothing_to_press_on_success/observed": 1,
@@ -535,7 +536,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/observed": 3,
         "nothing_to_press_on_form+no_apply/filled": 1,
-        "nothing_to_press_on_form+no_apply/observed": 2,
+        "nothing_to_press_on_form+no_apply/observed": 3,
         "unclear_button/observed": 1
       },
       "questions": {
@@ -548,12 +549,12 @@
     }
   },
   "totals": {
-    "filled": 317,
-    "found": 696,
+    "filled": 319,
+    "found": 699,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
-    "sent": 212
+    "sent": 213
   },
   "waiting": {
     "asked_about": {
@@ -576,7 +577,7 @@
       "left_captcha": 19,
       "left_error": 14,
       "left_going_in_circles": 16,
-      "left_no_way_forward": 92,
+      "left_no_way_forward": 93,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 10,
