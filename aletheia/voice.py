@@ -2256,6 +2256,33 @@ def _hold_as_it_is_now(held: dict) -> dict:
     return {**held, "start": live[0]["start"]}
 
 
+def _naming_the_timer(what: str) -> dict | None:
+    """The reminder "remind me in 2 hours" set as a bare timer, now with
+    what it is for: same time, his words, replacing the timer. None unless
+    her last answer set that timer for a "remind me in" ask."""
+    try:
+        from aletheia import converse, intercom
+        recent = converse.recent(limit=1) or []
+    except Exception:
+        return None
+    turn = recent[-1] if recent else {}
+    asked = " ".join(str(turn.get("he_asked") or "").casefold().split())
+    asked = re.sub(r"^(?:thea|aletheia)[,]?\s+", "", asked)
+    if not (what and asked.startswith("remind me in ") and str(turn.get("she_answered") or "").startswith("Timer set for")):
+        return None
+    previous = _recent_reminder_ask()
+    text = str((previous or {}).get("text") or "")
+    if not re.fullmatch(r"your .+ timer is up", text):
+        return None
+    try:
+        found, _why = intercom._one_reminder(text)
+    except Exception:
+        return None
+    if not (found and found.get("kind") == "once" and found.get("at")):
+        return None
+    return {"command": {"kind": "remind_at", "at": found["at"], "text": what, "replaces": text}, "say": None}
+
+
 def _she_just_added_a_task() -> bool:
     """Whether her last answer added a task. Read from what she SAID, not by
     re-reading his ask: asked again, "add a task to email the landlord" is
@@ -4182,6 +4209,12 @@ def _interpret(transcript: str) -> dict:
     # his food budget, said the way the budget readers already read it.
     low = re.sub(r"^(my|our) (?:monthly )?budget for (groceries|grocery|food|gas|fun|shopping|eating out) is ",
                  lambda b: f"{b.group(1)} {'grocery' if b.group(2).startswith('grocer') else b.group(2)} budget is ", low)
+    # "Set a reminder for every weekday at 7am to stretch" asked when;
+    # "set a reminder for tomorrow at 7am to stretch" went to a model
+    # (2026-10-16). Both are "remind me ..." with the when first.
+    low = re.sub(r"^(?:set|make|create|add) (?:a |an |me a )?reminder (?:for )?"
+                 r"(?=(?:every|each|tomorrow|today|tonight|on|next|this|in|monday|tuesday|wednesday|thursday|friday"
+                 r"|saturday|sunday|weekdays?|weekends?)\b.* (?:to|about|that) \S)", "remind me ", low)
     # "Make it 7pm tomorrow", "make it 7 on friday" (2026-10-16: to a model)
     # are "make it tomorrow at 7pm", which already moves the reminder.
     low = re.sub(r"^((?:(?:no|actually|wait|sorry|oh|oops),? )*(?:make it|change it to|change that to|move it to) )"
@@ -8612,6 +8645,13 @@ def _interpret(transcript: str) -> dict:
     # list. `add` was optional, so any sentence ENDING in "to the list"
     # was a write — and a question is never an instruction (the same rule
     # the spending door holds).
+    # "Remind me in 2 hours" set a timer, then "to check the laundry"
+    # (2026-10-16: to a model, which was out) is what the timer was for.
+    m = re.fullmatch(r"(?:oh |and |sorry,? )?(?:to|about|that) (?P<what>.+)", low)
+    if m:
+        named = _naming_the_timer(_as_he_said(transcript, m.group("what")).strip())
+        if named:
+            return named
     # "Add a task to email the landlord", "and another to fix the sink"
     # (2026-10-16: to a model, which was out). Only straight after a task:
     # "another" means another of whatever he just added.
