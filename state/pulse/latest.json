@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T21:29:04Z",
+  "generated_at": "2026-10-16T04:38:59Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "cb1836f42ba2",
-          "date": "2026-10-15T21:05:51Z",
+          "sha": "0f71869072f4",
+          "date": "2026-10-16T04:27:04Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "0bb376e8efd9",
-          "date": "2026-10-15T20:30:14Z",
+          "sha": "99862e74d7c0",
+          "date": "2026-10-16T03:26:03Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "356ec90e0d76",
-          "date": "2026-10-15T20:29:34Z",
-          "message": "Merge pull request #488 from caleblschulte0-ux/claude/probe-next82"
-        },
-        {
-          "sha": "ec1155f3854d",
-          "date": "2026-10-15T19:52:28Z",
+          "sha": "3c73b69c7dc3",
+          "date": "2026-10-16T02:55:47Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "f132f8c49559",
-          "date": "2026-10-15T19:33:01Z",
-          "message": "Blank a password said with words between, everywhere she writes"
+          "sha": "d0e9a8fc99a6",
+          "date": "2026-10-16T01:54:31Z",
+          "message": "core: state checkpoint"
+        },
+        {
+          "sha": "c9537165477d",
+          "date": "2026-10-16T01:20:34Z",
+          "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "cb1836f42ba2",
-        "date": "2026-10-15T21:05:51Z",
+        "sha": "0f71869072f4",
+        "date": "2026-10-16T04:27:04Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,20 +46,20 @@
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T17:08:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38774638756"
+          "updated_at": "2026-10-15T21:29:47Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38810190583"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T20:59:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38802380457"
+          "updated_at": "2026-10-16T01:49:00Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/38834520980"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20788
+          "bytes": 20275
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "4421c311cd6e",
-          "date": "2026-10-15T20:48:33Z",
-          "message": "claim: mailbox verdicts 2026-10-15T20:48Z [skip ci]"
+          "sha": "2c0dafae08cf",
+          "date": "2026-10-16T04:22:34Z",
+          "message": "third: story backtest 38352788239 passed a story [skip ci]"
         },
         {
-          "sha": "47f0827c70ef",
-          "date": "2026-10-15T20:32:04Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "6350bf932372",
+          "date": "2026-10-16T04:21:31Z",
+          "message": "Third: a story a backtest passes goes to the channel, judged again (#653)"
         },
         {
-          "sha": "b29df473b35c",
-          "date": "2026-10-15T19:48:13Z",
-          "message": "claim: mailbox verdicts 2026-10-15T19:48Z [skip ci]"
+          "sha": "40dfab85ba3a",
+          "date": "2026-10-16T04:09:13Z",
+          "message": "Third: a story says whose stream it cuts to (#654)"
         },
         {
-          "sha": "876e5a062e9b",
-          "date": "2026-10-15T19:17:54Z",
-          "message": "story forge: new real-data stories [skip ci]"
+          "sha": "7309fd736406",
+          "date": "2026-10-16T03:48:06Z",
+          "message": "claim: mailbox verdicts 2026-10-16T03:48Z [skip ci]"
         },
         {
-          "sha": "7fbcde6c1bfb",
-          "date": "2026-10-15T19:06:06Z",
-          "message": "watchdog: chatgpt task verdicts 20261015 [skip ci]"
+          "sha": "8d0a120c706f",
+          "date": "2026-10-16T03:36:03Z",
+          "message": "The hook is the threat, never beat one said twice (#655)"
         }
       ],
       "commit": {
-        "sha": "4421c311cd6e",
-        "date": "2026-10-15T20:48:33Z",
-        "message": "claim: mailbox verdicts 2026-10-15T20:48Z [skip ci]"
+        "sha": "2c0dafae08cf",
+        "date": "2026-10-16T04:22:34Z",
+        "message": "third: story backtest 38352788239 passed a story [skip ci]"
       },
       "vitals": [
         {
@@ -130,8 +130,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T14:23:46Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38750952085"
+          "updated_at": "2026-10-16T04:21:52Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38850210732"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -142,8 +142,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T19:18:00Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38780083404"
+          "updated_at": "2026-10-15T21:36:39Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38801479938"
         },
         "third.yml": {
           "status": "completed",
@@ -160,8 +160,8 @@
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T04:44:19Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38683015707"
+          "updated_at": "2026-10-16T04:35:46Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/38851421462"
         },
         "doctor.yml": {
           "status": "completed",
@@ -205,6 +205,11 @@
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
         {
+          "sha": "c13016a2f60c",
+          "date": "2026-10-15T23:17:36Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
+        {
           "sha": "8214ebe0d28c",
           "date": "2026-10-15T20:33:32Z",
           "message": "bot: daily snapshot [skip ci]"
@@ -223,16 +228,11 @@
           "sha": "3ff802552ed9",
           "date": "2026-10-14T17:59:52Z",
           "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "36a1c99e8560",
-          "date": "2026-10-13T23:43:56Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "8214ebe0d28c",
-        "date": "2026-10-15T20:33:32Z",
+        "sha": "c13016a2f60c",
+        "date": "2026-10-15T23:17:36Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -253,8 +253,8 @@
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-15T00:01:04Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/38657529965"
+          "updated_at": "2026-10-15T23:45:08Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/38825414399"
         }
       },
       "state_files": {
@@ -403,7 +403,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 70,
+        "days_quiet": 71,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -435,10 +435,18 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-15T21:05:51Z",
+        "last_progress_at": "2026-10-16T04:27:04Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
+          {
+            "number": 491,
+            "title": "Understand \"and another to...\", \"make it 7pm tomorrow\" and \"what's open\"",
+            "head": "claude/probe-next85",
+            "draft": false,
+            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/491",
+            "created_at": "2026-10-16T04:32:36Z"
+          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
@@ -513,7 +521,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": "2026-10-01T23:46:23Z",
-        "days_quiet": 13,
+        "days_quiet": 14,
         "commits_7d": 0,
         "open_prs": [
           {
