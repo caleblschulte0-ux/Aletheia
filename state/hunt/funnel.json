@@ -434,7 +434,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-16T02:55:41Z",
+  "generated_at": "2026-10-16T03:25:56Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
@@ -464,7 +464,6 @@
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 1,
     "employer_site: no_apply: _ _ _ | home | _": 1,
     "employer_site: no_apply: _ to _ _ | about _ | _ _ | _ | search jobs | learn more": 1,
-    "employer_site: no_apply: _ | _ _ | next _": 1,
     "employer_site: no_apply: _ | learn more | _ more": 1,
     "employer_site: no_apply: google _ _ with _ | cookie preferences | accept | reject | cookie settings | search jobs": 1,
     "employer_site: no_apply: search _ _ | _ _ _ | _ account settings | _ _ _ _ | _ _ up _ _": 1,
@@ -534,7 +533,7 @@
         "nothing_to_press_on_multi_page_wizard/observed": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+no_apply/observed": 3,
+        "nothing_to_press_on_content+no_apply/observed": 2,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 3,
         "unclear_button/observed": 1
