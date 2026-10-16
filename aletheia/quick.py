@@ -734,6 +734,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What's on my calendar tomorrow morning" (2026-10-07: to a model).
     ("agenda_part", re.compile(
         r"^(?:what(?:'s| is)(?: on)?(?: my (?:calendar|schedule))?|what do i have(?: on)?|what have i got(?: on)?|anything(?: on)?"
+        # "What's happening tonight" (2026-10-16: to a model, which was out).
+        r"|what(?:'s| is) (?:happening|going on)|anything (?:happening|going on)"
         r"|do i have anything|is there anything(?: on my calendar)?)"
         r"(?: (?:for|on))? (?:(?P<ap_day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday) (?P<ap_part>morning|afternoon|evening|night)"
         r"|this (?P<ap_part2>morning|afternoon|evening)|(?P<ap_part3>tonight))\s*\??$"
@@ -2945,7 +2947,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                        # "What tasks are due sunday" (2026-10-15: to a model, which was out).
                        r"|wednesday|thursday|friday|saturday|sunday)|(?P<what5>overdue))(?: on my (?:list|tasks))?$"
                        r"|^(?:show me|list|read me|what are|tell me) (?:my |the )?(?P<what6>overdue) (?:tasks|things|items)$"
-                       r"|^(?:any|what are my|do i have any) deadlines(?: (?P<what7>today|tomorrow|this week|soon))?$")),
+                       r"|^(?:any|what are my|do i have any) deadlines(?: (?P<what7>today|tomorrow|this week|soon))?$"
+                       # "What's due before sunday", "what's due by monday", "what's due in the
+                       # next 3 days" (2026-10-16: to a model, which was out).
+                       r"|^(?:what(?:'s| is|s)?|what do i have|anything|is anything|what tasks are|which tasks are) due "
+                       r"(?P<due_by>(?:by|before|until|till) (?:tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                       r"|(?:in )?the next (?:\d{1,2}|two|three|four|five|six|seven|ten|fourteen) days)(?: on my (?:list|tasks))?$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
     ("week_of_year", re.compile(r"^(?:what|which) week (?:is it|of the year is it|number is it|are we in)(?: today)?$"
                                 r"|^what(?:'s| is|s)? (?:the |today's )?week number$")),
@@ -3846,7 +3853,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
-                                           "applied_on", "applied_on2", "applied_on3", "what3", "what7", "lastday", "lastday2", "lastday3",
+                                           "applied_on", "applied_on2", "applied_on3", "what3", "what7", "due_by", "lastday", "lastday2", "lastday3",
                                            "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "reminder_when2", "did_finish",
                                            "who_coming")
@@ -7631,12 +7638,32 @@ def _agenda_part(text: str) -> str | None:
     free_asked = ask in ("free", "available")
     if not rows:
         lead = ("Yes - n" if free_asked else "No - n") if ask else "N"
-        return f"{lead}othing on your calendar {label}."
+        return f"{lead}othing on your calendar {label}." + _reminders_in_part(when, lo, hi, now)
     rows.sort()
     said = [f"{t} at " + s.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for s, t in rows[:6]]
     if ask:
         return f"{'No' if free_asked else 'Yes'} - {label}: {speech.and_list(said)}."
     return f"{label[:1].upper() + label[1:]}: {speech.and_list(said)}."
+
+
+def _reminders_in_part(day, lo: int, hi: int, now) -> str:
+    """" You do have 1 reminder: 2 pm, grab lunch." for an empty part of a
+    day: "what's on for this afternoon" said "Nothing on your calendar this
+    afternoon" with a reminder set for 2 pm (2026-10-16). Empty when none."""
+    from aletheia import localtime, speech
+    tz = localtime.operator_tz()
+    try:
+        rows = sorted((at.astimezone(tz), text) for at, text, store in _coming()
+                      if store == "reminder" and at.astimezone(tz).date() == day
+                      and lo <= at.astimezone(tz).hour < hi and at.astimezone(tz) >= now)
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    said = [at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() + ", " + speech._yours(text.rstrip("."))
+            for at, text in rows[:4]]
+    more = f"; and {len(rows) - 4} more" if len(rows) > 4 else ""
+    return f" You do have {speech.count_phrase(len(rows), 'reminder')}: " + "; ".join(said) + more + "."
 
 
 def _event_detail(text: str) -> str | None:
@@ -12112,6 +12139,34 @@ def _due(when: str = "", now=None) -> str | None:
     local = now.astimezone(localtime.operator_tz())
     end_of_today = local.replace(hour=23, minute=59, second=59)
     day = None
+    through = None
+    by = re.fullmatch(r"(?:by|before|until|till) (?P<d>\w+)|(?:in )?the next (?P<n>\w+) days", when or "")
+    if by:
+        # "Before Sunday" is through the day before it; "by Monday" includes Monday.
+        from aletheia import voice
+        if by.group("d"):
+            through = dt.date.fromisoformat(voice._spoken_day(by.group("d")))
+            if when.startswith("before"):
+                through -= dt.timedelta(days=1)
+            label = re.sub(r"\w+$", lambda d: d.group(0).capitalize() if d.group(0) != "tomorrow" else d.group(0), when)
+        else:
+            from aletheia import voice
+            n = int(by.group("n")) if by.group("n").isdigit() else (voice._spoken_amount(by.group("n")) or 1)
+            through = local.date() + dt.timedelta(days=max(int(n or 1), 1))
+            label = f"in the next {n} days"
+        hours = max((dt.datetime.combine(through, dt.time(23, 59, 59), tzinfo=local.tzinfo) - now).total_seconds() / 3600, 0)
+        try:
+            rows = [r for r in tasks.due(now=now, within_hours=hours) if tasks.is_his(r["task"])]
+        except Exception:
+            return None
+        if not rows:
+            return f"Nothing due {label}."
+        def said(row) -> str:
+            what = str(row["task"].get("description") or row["task"].get("id")).strip().rstrip(".")
+            if row["overdue"]:
+                return f"{what} (overdue)"
+            return f"{what}, {row['when'].astimezone(local.tzinfo).strftime('%A')}"
+        return f"{speech.count_phrase(len(rows), 'task')} due {label}: " + "; ".join(said(r) for r in rows[:5]) + "."
     if when in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"):
         # "What's due Friday" (2026-10-07: to the planner). The coming one.
         from aletheia import voice
