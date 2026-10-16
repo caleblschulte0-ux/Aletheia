@@ -4862,7 +4862,7 @@ class ARemindersTimeAskedByName(unittest.TestCase):
         from aletheia import intercom, quick
         with mock.patch.object(intercom, "_one_reminder", return_value=(self.DAILY, "")):
             self.assertEqual(quick.answer("what time is my pill reminder"),
-                             "Your pill reminder is every day at 8 am: take my pills.")
+                             "Your pill reminder is every day at 8 am: take your pills.")
 
     def test_none_by_that_name_is_her_own_sentence(self):
         from aletheia import intercom, quick

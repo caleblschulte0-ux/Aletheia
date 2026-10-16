@@ -5568,6 +5568,12 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
         return f"That's today, {said}."
     if days == 1:
         return f"Tomorrow, {said}."
+    bare_day = re.fullmatch(r"(?:this |on )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
+                            " ".join(str(words or "").casefold().split()))
+    if days == 7 and bare_day and not which_day:
+        # "How long until Friday", asked on a Friday, said "7 days, Friday
+        # 23 October" (2026-10-16) as if he had lost track of the week.
+        return f"It's {bare_day.group(1).capitalize()} today. The next one is 7 days away, {said}."
     if which_day:
         return f"{said}, {days} days from now."
     return f"{days} days, {said}."
@@ -12802,6 +12808,37 @@ def _sent_sentence(hits: list, window: str) -> str:
             + (f": {speech.and_list(names)}" + (", and more" if len(hits) > 5 else "") if names else "") + ".")
 
 
+def _this_conversation_began(now) -> str:
+    """When the conversation he is in now started, as a journal-comparable
+    UTC stamp: the first of the turns that follow each other with less
+    than twenty minutes between, the last of them within twenty minutes
+    of now. "" when he has not been talking to her."""
+    import datetime as dt
+    try:
+        from aletheia import converse
+        turns = converse.recent(limit=40)
+    except Exception:
+        return ""
+    gap = dt.timedelta(minutes=20)
+    began, after = None, now
+    for turn in reversed(turns):
+        try:
+            at = dt.datetime.fromisoformat(str(turn.get("at") or "").replace("Z", "+00:00"))
+        except ValueError:
+            break
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=dt.timezone.utc)
+        if after - at > gap:
+            break
+        began, after = at, at
+    if began is None:
+        return ""
+    # A turn is recorded after its answer, so the act it asked for is
+    # journaled a moment before the turn's own stamp.
+    began -= dt.timedelta(minutes=2)
+    return began.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _overnight() -> str:
     """What happened since ten last night: applications sent, and what she
     did, from the records - the first thing he asks in the morning."""
@@ -12841,12 +12878,23 @@ def _overnight() -> str:
     # "Good morning. Overnight: Noted: you went to bed at 9:16 pm"
     # (2026-10-15): what HE told her is not news to him in the morning.
     rows = [e for e in rows if not str(recollection._row(e).get("what") or "").startswith("Noted: ")]
+    # "Good morning. Overnight: Marked done: call the bank; Set a reminder
+    # ... stretch" (2026-10-16) read back what he had asked for two
+    # minutes earlier. What happened while they are talking is his own.
+    began = _this_conversation_began(now)
+    talked = 0
+    if began:
+        talked = len(rows)
+        rows = [e for e in rows if str(e.get("ts", "")) < began]
+        talked -= len(rows)
     lines = [_shortened(_as_done(str(recollection._row(e).get("what") or "").rstrip("."))) for e in rows[-3:]]
     lines = [l for l in lines if l]
     if lines:
         parts.append("; ".join(lines) + (f" — and {speech.count_phrase(len(rows) - len(lines), 'other thing')}"
                                          if len(rows) > len(lines) else ""))
     if not parts:
+        if talked:
+            return "A quiet night: nothing sent, and nothing done since ten last night but what you've just asked me."
         return "A quiet night: nothing sent and nothing recorded since ten last night."
     return "Overnight: " + ". ".join(parts) + "."
 
