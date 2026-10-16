@@ -183,14 +183,15 @@
     "2026-10-16": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 4,
+      "minutes": 20,
       "needs_account": 0,
       "needs_answer": 1,
-      "not_realistic": 1,
-      "offered": 2,
+      "not_realistic": 2,
+      "offered": 3,
       "ready": 0,
-      "runs": 1,
+      "runs": 2,
       "unfit_model": 1,
+      "unfit_years": 1,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -447,7 +448,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-16T12:10:55Z",
+  "generated_at": "2026-10-16T12:40:57Z",
   "question_shapes": {
     "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
