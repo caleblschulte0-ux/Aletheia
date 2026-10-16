@@ -1406,7 +1406,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What errands do I have" read a note about errands (2026-10-07):
         # an errand is a task, and his list is where they are.
         r"|^what errands (?:do i have|have i got|do i (?:need|have) to run)(?: to run)?\s*\??$|^what are my errands$"
-        r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$")),
+        r"|^what(?:'s| is|s)? my next task$|^what(?:'s| is|s)? next$"
+        # "What's open on my task list" (2026-10-16: to a model, which was out).
+        r"|^what(?:'s| is|s)? (?:still )?(?:open|outstanding) on my (?:task |to.?do )?list$"
+        r"|^what tasks (?:are|r) (?:still )?(?:open|left|outstanding|undone)$")),
     ("approvals", re.compile(
         r"^how many approvals are pending$|^what needs approving$"
         r"|^what(?:'s| is|s)? pending(?: approval)?$"
