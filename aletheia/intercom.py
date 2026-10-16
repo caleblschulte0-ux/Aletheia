@@ -2910,7 +2910,7 @@ def _reminders_that_day(day) -> str:
     import datetime as _dt
     try:
         from aletheia import quick
-        return quick._reminders_between(day, day, _dt.datetime.now(localtime.operator_tz()))
+        return quick._reminders_and_tasks_between(day, day, _dt.datetime.now(localtime.operator_tz()))
     except Exception:
         return ""
 
