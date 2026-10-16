@@ -4497,12 +4497,20 @@ def _relative_in_note(said: str, ts, today):
         when = base + dt.timedelta(days=1)
     elif m.group("nth"):
         n = int(m.group("nth"))
+        # "My car insurance is due on the 15th" is due every month: said on
+        # the 7th, it was "never" from the 16th on (2026-10-16). A bill
+        # counts from today; anything else from the day he said it.
+        if re.search(r"\bdue\b", said) and today > base:
+            base = today
         try:
             when = base.replace(day=n)
         except ValueError:
             return None
         if when < base:
-            when = (when.replace(day=1) + dt.timedelta(days=32)).replace(day=n)
+            try:
+                when = (when.replace(day=1) + dt.timedelta(days=32)).replace(day=n)
+            except ValueError:
+                return None
     elif m.group("n"):
         n = {"a": 1, "two": 2, "three": 3, "four": 4}.get(m.group("n")) or int(m.group("n"))
         when = base + dt.timedelta(days=n * (7 if m.group("unit").startswith("week") else 1))
