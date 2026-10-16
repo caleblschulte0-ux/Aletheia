@@ -2938,7 +2938,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
                        r"|thursday|friday|saturday|sunday))?)(?: on my (?:list|tasks))?$"
                        r"|^what(?:'s| is|s)? (?P<what3>overdue)(?: on my (?:list|tasks))?$"
                        # "What tasks are due this week", "show me my overdue tasks" (2026-10-07).
-                       r"|^(?:what|which) (?:tasks|things) (?:are|r) (?:due (?P<what4>today|tomorrow|this week|soon)|(?P<what5>overdue))$"
+                       r"|^(?:what|which) (?:tasks|things) (?:are|r) (?:due (?:on )?(?P<what4>today|tomorrow|this week|soon|monday|tuesday"
+                       # "What tasks are due sunday" (2026-10-15: to a model, which was out).
+                       r"|wednesday|thursday|friday|saturday|sunday)|(?P<what5>overdue))(?: on my (?:list|tasks))?$"
                        r"|^(?:show me|list|read me|what are|tell me) (?:my |the )?(?P<what6>overdue) (?:tasks|things|items)$"
                        r"|^(?:any|what are my|do i have any) deadlines(?: (?P<what7>today|tomorrow|this week|soon))?$")),
     # THE CALENDAR ITSELF: "what week is it", "is it a leap year".
@@ -7542,7 +7544,7 @@ def _agenda(day: str = "today") -> str | None:
     told = _plans_told(day)
     if not rows:
         return f"Nothing on your calendar {when_said}." + (f" But you told me: {told}." if told else "") \
-            + _reminders_between(first, last, now)
+            + _reminders_and_tasks_between(first, last, now)
     rows.sort(key=lambda r: r[0])
     many_days = first != last
     said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month" or "month" in day or day.startswith("in ")
@@ -11913,6 +11915,37 @@ def _when_mine(what: str, until: bool = False) -> str | None:
     # Nothing by that name in her stores is not "you have none": it may be
     # in his mail, which a model can read. Only a found answer is quick.
     return None
+
+
+def _tasks_between(first, last, now) -> str:
+    """" And 1 task due: clean the garage, Sunday." for an empty calendar:
+    "what do I have this weekend" said "Nothing on your calendar this
+    weekend" with a task due Sunday (2026-10-15). Empty when none."""
+    import datetime as dt
+    from aletheia import localtime, speech, tasks
+    tz = localtime.operator_tz()
+    try:
+        utc = now.astimezone(dt.timezone.utc)
+        end = dt.datetime.combine(last, dt.time(23, 59, 59), tzinfo=tz)
+        hours = max((end - utc).total_seconds() / 3600, 0)
+        rows = [r for r in tasks.due(now=utc, within_hours=hours)
+                if tasks.is_his(r["task"]) and not r["overdue"]
+                and first <= r["when"].astimezone(tz).date() <= last]
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    many_days = first != last
+    said = [str(r["task"].get("description") or r["task"].get("id")).strip().rstrip(".")
+            + (f", {r['when'].astimezone(tz).strftime('%A')}" if many_days else "") for r in rows[:4]]
+    more = f"; and {len(rows) - 4} more" if len(rows) > 4 else ""
+    return f" You do have {speech.count_phrase(len(rows), 'task')} due: " + "; ".join(said) + more + "."
+
+
+def _reminders_and_tasks_between(first, last, now) -> str:
+    """Both, the second one joined with "And" rather than a second "You do have"."""
+    reminders, due = _reminders_between(first, last, now), _tasks_between(first, last, now)
+    return reminders + (due.replace(" You do have ", " And ", 1) if reminders else due)
 
 
 def _reminders_between(first, last, now) -> str:
