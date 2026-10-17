@@ -218,7 +218,7 @@
     "ashby": 135,
     "bamboohr": 5,
     "greenhouse": 102,
-    "lever": 72,
+    "lever": 73,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 9
@@ -466,7 +466,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-17T20:24:09Z",
+  "generated_at": "2026-10-17T20:54:51Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
