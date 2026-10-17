@@ -199,15 +199,15 @@
     "2026-10-17": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 65,
+      "minutes": 69,
       "needs_account": 1,
       "needs_answer": 4,
-      "not_realistic": 8,
-      "offered": 22,
+      "not_realistic": 10,
+      "offered": 24,
       "ready": 4,
-      "runs": 5,
-      "unfit_model": 7,
-      "unfit_sales": 1,
+      "runs": 6,
+      "unfit_model": 8,
+      "unfit_sales": 2,
       "unjudged": 1,
       "unreachable": 2,
       "unreachable_ApplyError": 2,
@@ -466,7 +466,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-17T17:03:45Z",
+  "generated_at": "2026-10-17T17:20:10Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
