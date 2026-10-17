@@ -4752,7 +4752,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             for row in rows:
                 scheduler.set_enabled(row["id"], False)
             return (f"reminder {len(rows)} off — {speech.count_phrase(len(rows), cmd['which'][4:].rstrip('s'))}: "
-                    + speech.and_list([_reminder_words(r) for r in rows[:4]]))
+                    + speech.and_list([_reminder_words(r) for r in rows[:4]])
+                    + (f", and {len(rows) - 4} more" if len(rows) > 4 else ""))
         # "All of them" to "2 reminders are at 5 pm ... Which one, or all of
         # them?": every reminder at that time, each disabled.
         at = re.fullmatch(r"all at (\d{2}:\d{2})", " ".join(str(cmd["which"]).split()))
