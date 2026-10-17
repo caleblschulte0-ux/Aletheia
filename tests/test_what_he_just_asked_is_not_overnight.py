@@ -26,7 +26,9 @@ class WhatHeJustAsked(unittest.TestCase):
             return quick._overnight()
 
     def test_this_conversation_is_left_out(self):
-        rows = [{"ts": _stamp(300), "what": "Sent the weekly summary"},
+        # An hour ago is always after ten last night: the window starts two
+        # to twenty-six hours back. Five hours was before it just after midnight.
+        rows = [{"ts": _stamp(60), "what": "Sent the weekly summary"},
                 {"ts": _stamp(3), "what": "Marked done: call the bank"}]
         turns = [{"at": _stamp(2.5), "he_asked": "i called the bank", "she_answered": "Done: call the bank."}]
         said = self._overnight(rows, turns)
