@@ -210,7 +210,7 @@
     "days": 3,
     "why": {
       "left_no_way_forward": 3,
-      "left_questions": 1,
+      "left_questions": 2,
       "left_sign_in": 1
     }
   },
@@ -416,7 +416,7 @@
       "sent": 8
     },
     "2026-10-14": {
-      "filled": 9,
+      "filled": 8,
       "found": 10,
       "interviews": 1,
       "rejections": 1,
@@ -432,28 +432,26 @@
       "sent": 1
     },
     "2026-10-16": {
-      "filled": 19,
-      "found": 20,
+      "filled": 0,
+      "found": 1,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-10-17": {
-      "filled": 5,
-      "found": 5,
+      "filled": 24,
+      "found": 24,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-10-17T13:56:23Z",
+  "generated_at": "2026-10-17T14:26:28Z",
   "question_shapes": {
-    "ashbyhq: radio: _ _ _ background _ _ _ of _ _ _ _": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
-    "employer_site: field: _ none of _ _ is _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: text: what is _ your gpa": 1,
@@ -462,13 +460,15 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
+    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 311,
+  "sent_all_time": 312,
   "sent_by_system": {
-    "ashbyhq": 31,
+    "ashbyhq": 32,
     "employer_site": 12,
     "greenhouse": 126,
     "lever": 26
@@ -522,7 +522,7 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 9,
+      "nothing_to_press_on_form/filled": 10,
       "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
@@ -540,7 +540,7 @@
       },
       "questions": {
         "nothing_to_press_on_account_signup/filled": 1,
-        "nothing_to_press_on_form/filled": 1
+        "nothing_to_press_on_form/filled": 2
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1
@@ -548,19 +548,19 @@
     }
   },
   "totals": {
-    "filled": 298,
+    "filled": 297,
     "found": 663,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
-    "sent": 195
+    "sent": 196
   },
   "waiting": {
     "asked_about": {
-      "background_check": 3,
+      "background_check": 2,
       "education": 1,
       "on_site": 2,
-      "other": 19,
+      "other": 18,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -579,7 +579,7 @@
       "left_no_way_forward": 94,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
-      "left_questions": 10,
+      "left_questions": 11,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 5,
       "not_a_form_asks_nothing_on_bamboohr": 8,
@@ -602,7 +602,7 @@
       "judged-locally": 2
     },
     "needs_account": 0,
-    "needs_answer": 26,
+    "needs_answer": 24,
     "oldest_days": 34,
     "to_send": 0
   },
