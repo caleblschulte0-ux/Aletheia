@@ -195,6 +195,21 @@
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
+    },
+    "2026-10-17": {
+      "duplicate": 2,
+      "employer_full": 0,
+      "minutes": 44,
+      "needs_account": 1,
+      "needs_answer": 2,
+      "not_realistic": 3,
+      "offered": 12,
+      "ready": 3,
+      "runs": 2,
+      "unfit_model": 3,
+      "unjudged": 1,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -440,18 +455,19 @@
       "sent": 0
     },
     "2026-10-17": {
-      "filled": 24,
-      "found": 24,
+      "filled": 30,
+      "found": 30,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 1
+      "sent": 2
     }
   },
-  "generated_at": "2026-10-17T14:56:28Z",
+  "generated_at": "2026-10-17T15:30:03Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
+    "ashbyhq: text: how _ you hear about us": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: text: what is _ your gpa": 1,
@@ -465,12 +481,12 @@
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 312,
+  "sent_all_time": 313,
   "sent_by_system": {
     "ashbyhq": 32,
     "employer_site": 12,
     "greenhouse": 126,
-    "lever": 26
+    "lever": 27
   },
   "stop_shapes": {
     "employer_site: no_apply: _ | learn more | _ more": 1,
@@ -547,12 +563,12 @@
     }
   },
   "totals": {
-    "filled": 297,
-    "found": 663,
+    "filled": 303,
+    "found": 669,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
-    "sent": 196
+    "sent": 197
   },
   "waiting": {
     "asked_about": {
@@ -561,6 +577,7 @@
       "on_site": 2,
       "other": 18,
       "pay": 3,
+      "referral": 1,
       "travel": 1,
       "years_experience": 1
     },
@@ -598,12 +615,13 @@
       "submit_would_not_click": 1
     },
     "his_ok": {
-      "judged-locally": 2
+      "judged-locally": 2,
+      "part-time": 1
     },
-    "needs_account": 0,
-    "needs_answer": 24,
+    "needs_account": 1,
+    "needs_answer": 25,
     "oldest_days": 34,
-    "to_send": 0
+    "to_send": 1
   },
   "window_days": 30
 }
