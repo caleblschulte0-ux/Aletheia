@@ -2554,6 +2554,12 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
     # "Actually make it Thursday" (2026-10-07: to the planner): the same
     # reminder on that day, at its own time unless he names another.
     said = " ".join(str(time_words).split()).lower()
+    # "Move that to Sunday night" (2026-10-17: to the planner, which was
+    # out): a day and a part of it, the part at the hour it always starts.
+    day_part = re.fullmatch(r"(?:on )?(?P<day>[a-z0-9 ]+?) (?:in the )?(?P<part>morning|afternoon|evening|night)", said)
+    if day_part and _spoken_day(day_part.group("day")):
+        said = f"{day_part.group('day')} at " + {"morning": "9:00 am", "afternoon": "2:00 pm",
+                                                  "evening": "6:00 pm", "night": "9:00 pm"}[day_part.group("part")]
     on_day = re.fullmatch(r"(?:on )?(?P<day>[a-z0-9 ]+?)(?: at (?P<t>[\w: ]+))?", said)
     day_iso = None
     if on_day and on_day.group("day") not in ("", "today") and not _spoken_time(on_day.group("day")):
