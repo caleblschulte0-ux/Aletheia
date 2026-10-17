@@ -747,7 +747,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??$"
         # "Am I busy Friday night", "am I free tonight" (2026-10-08: to the planner).
         r"|^(?:am i|will i be) (?P<ap_ask>free|busy|available|booked) (?:(?:on )?(?P<ap_day6>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
-        r" (?P<ap_part6>morning|afternoon|evening|night)|this (?P<ap_part7>morning|afternoon|evening)|(?P<ap_part8>tonight))\s*\??$")),
+        r" (?P<ap_part6>morning|afternoon|evening|night)|this (?P<ap_part7>morning|afternoon|evening)|(?P<ap_part8>tonight))\s*\??$"
+        # "What's tonight look like", "how's my evening looking" (2026-10-16: to a model, which was out).
+        r"|^(?:what(?:'s| is| does)|how(?:'s| is| does)) (?:my )?(?P<ap_part9>tonight|night|evening)(?: look(?:s)? like| looking(?: like)?)\s*\??$")),
     ("worked", re.compile(
         r"^(?:how long|how many hours|how much) (?:did i|have i) (?:work|worked|been working)(?P<worked> today| yesterday| this week)?\s*\??$"
         r"|^how long (?:was i|have i been) at work(?P<worked2> today| yesterday)?\s*\??$")),
@@ -7615,7 +7617,7 @@ def _agenda_part(text: str) -> str | None:
     g = _groups("agenda_part", text)
     day = g.get("ap_day") or g.get("ap_day4") or g.get("ap_day5") or g.get("ap_day6") or "today"
     part = (g.get("ap_part") or g.get("ap_part2") or g.get("ap_part3") or g.get("ap_part4") or g.get("ap_part5")
-            or g.get("ap_part6") or g.get("ap_part7") or g.get("ap_part8") or "")
+            or g.get("ap_part6") or g.get("ap_part7") or g.get("ap_part8") or g.get("ap_part9") or "")
     lo, hi = _PART_HOURS.get(part, (0, 24))
     try:
         tz = localtime.operator_tz()
