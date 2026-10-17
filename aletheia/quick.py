@@ -3680,6 +3680,10 @@ def _direct(text: str) -> str:
                      r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what do i have to do {m.group('day')}"
+    # "What's the plan for this weekend" (2026-10-16: to a model, which was out).
+    m = re.fullmatch(r"what(?:'s| is| are) (?:the|my|our) (?:plans?|schedule|agenda|game plan)(?: for)? (?P<wk>this weekend|the weekend|next week|this week)\s*\??", text)
+    if m:
+        return f"what am i doing {m.group('wk').replace('the weekend', 'this weekend')}"
     # "What expires soon" (2026-10-08: to a model, with "my license expires
     # on November 5" kept): the dates he told her, the way "what's due next
     # month" already reads them.
@@ -4161,7 +4165,11 @@ def _logged(text: str) -> str | None:
             ("r", r"ran|run|runs|running"), ("wa", r"walk|walked|walks|walking"), ("j", r"jog|jogged|jogging"),
             ("b", r"bike|biked|biking|bike ride|cycled|cycling|cycle"), ("c", r"bike|biked|biking|cycled|cycling|cycle"),
             ("s", r"swim|swam|swum|swimming"), ("h", r"hike|hiked|hiking"),
-            ("e", r"exercise|exercised|exercising|worked out|workout|working out"),
+            # "How much did I exercise this week" said "45 minutes" after a run,
+            # a workout and a walk (2026-10-16): exercise is all of them.
+            ("e", r"exercise|exercised|exercising|worked out|workout|working out|ran|run|runs|running|jog|jogged|jogging"
+                  r"|walk|walked|walking|bike|biked|biking|bike ride|cycled|cycling|swim|swam|swum|swimming|hike|hiked|hiking"
+                  r"|yoga|pilates|lifted|lifting|weights|gym|spin class|cardio"),
             ("wo", r"worked out|work out|workout|working out|exercised")) if first.startswith(k)), None)
         if not words:
             return None
@@ -4192,7 +4200,8 @@ def _logged(text: str) -> str | None:
                                                   speech.count_phrase(mm, "minute") if mm else "") if x))
         if miles:
             bits.append(f"{_plain(round(miles, 2))} mile{'s' if round(miles, 2) != 1 else ''}")
-        said = " and ".join(bits)
+        # "1 hour and 15 minutes and 2 miles" ran the two together.
+        said = ", plus ".join(bits) if len(bits) > 1 and " and " in bits[0] else " and ".join(bits)
         return f"{said[:1].upper() + said[1:]} {when}."
     if re.search(r"\b(?:average|usually|normally)\b", text.casefold()) and "sleep" in text.casefold():
         nights = {}
