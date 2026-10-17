@@ -6621,7 +6621,9 @@ def _interpret(transcript: str) -> dict:
     # "Remind me the day before my flight to Paris" (2026-10-08: "I'll remind
     # you 8 October 2027: Paris") - Paris is where the flight goes.
     if late and _an_errand(late.group("task")):
-        return _interpret(f"remind me to {_as_he_said(text, late.group('task'))} {late.group('when')}")
+        # His capitals for the day too: "Kelsey's birthday" came back
+        # "kelsey's birthday is in 7 days" (2026-10-17).
+        return _interpret(f"remind me to {_as_he_said(text, late.group('task'))} {_as_he_said(text, late.group('when'))}")
     m = re.fullmatch(r"remind me (?:to (?P<task>.+?) )?(?P<lead>the day|the night|the morning|a day|one day"
                      r"|(?P<n>\d|two|three|four|five|six|seven|ten) days|a week|one week|two weeks) before (?:my |our |the )?"
                      r"(?P<what>(?:wedding )?anniversary|vacation|trip|holiday|cruise|honeymoon|flight"
@@ -6661,7 +6663,8 @@ def _interpret(transcript: str) -> dict:
         if not re.match(r"[a-z]+(?:'s|s') ", said) or re.split(r"'s?\b", said)[0] in _q._relation_words():
             said = "your " + said
         said = _as_he_said(text, said) if not said.startswith("your ") else said
-        when = ("today" if days == 0 else "tomorrow" if days == 1 else f"in {int(days)} days, on {day.strftime('%A')}")
+        when = ("today" if days == 0 else "tomorrow" if days == 1
+                else f"in {'a week' if days == 7 else 'two weeks' if days == 14 else f'{int(days)} days'}, on {day.strftime('%A')}")
         # A bill "is due"; a document says what he said of it: "expires",
         # "ends", "is up" - and "is due" when he said nothing.
         verb = re.sub(r"^(?:is|are) ", "", (m.group("due") or "").strip())
@@ -8403,6 +8406,12 @@ def _interpret(transcript: str) -> dict:
             command.update(from_day=day_iso, to_day=day_iso)
         return {"command": command, "say": None}
 
+    # "Add Kelsey's birthday to my calendar" (2026-10-17: to the planner,
+    # which was out). She keeps no yearly calendar entries, so it is the
+    # reminder on the day, and the receipt says exactly that.
+    m = re.fullmatch(r"(?:add|put) (?:my )?(?P<who>[a-z][a-z ]{0,30}?)(?:'s|s') (?:birthday|bday) (?:to|on|in|into) (?:my |the )?calendar", low)
+    if m:
+        low = f"remind me on {m.group('who')}'s birthday"
     # "Remind me a day before Mom's birthday" (2026-10-07: to the planner)
     # - the day is in his note, so the reminder is arithmetic.
     m = re.fullmatch(r"remind me (?:(?P<n>a|one|two|three|four|five|six|seven|\d{1,2}) (?P<unit>days?|weeks?) before"
