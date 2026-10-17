@@ -213,9 +213,9 @@
     }
   },
   "boards": {
-    "ashby": 134,
+    "ashby": 135,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 100,
     "lever": 72,
     "recruitee": 7,
     "smartrecruiters": 36,
@@ -463,11 +463,10 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-10-17T15:30:03Z",
+  "generated_at": "2026-10-17T16:00:50Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
-    "ashbyhq: text: how _ you hear about us": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: text: what is _ your gpa": 1,
@@ -476,7 +475,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -577,7 +576,6 @@
       "on_site": 2,
       "other": 18,
       "pay": 3,
-      "referral": 1,
       "travel": 1,
       "years_experience": 1
     },
@@ -616,12 +614,12 @@
     },
     "his_ok": {
       "judged-locally": 2,
-      "part-time": 1
+      "part-time": 2
     },
-    "needs_account": 1,
-    "needs_answer": 25,
+    "needs_account": 0,
+    "needs_answer": 24,
     "oldest_days": 34,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
