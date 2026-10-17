@@ -199,16 +199,18 @@
     "2026-10-17": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 44,
+      "minutes": 57,
       "needs_account": 1,
-      "needs_answer": 2,
-      "not_realistic": 3,
-      "offered": 12,
+      "needs_answer": 3,
+      "not_realistic": 4,
+      "offered": 16,
       "ready": 3,
-      "runs": 2,
+      "runs": 4,
       "unfit_model": 3,
+      "unfit_sales": 1,
       "unjudged": 1,
-      "unreachable": 0,
+      "unreachable": 2,
+      "unreachable_ApplyError": 2,
       "weak_shot": 0
     }
   },
@@ -216,7 +218,7 @@
     "ashby": 135,
     "bamboohr": 5,
     "greenhouse": 100,
-    "lever": 72,
+    "lever": 73,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 9
@@ -224,9 +226,10 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "left_no_way_forward": 3,
+      "left_no_way_forward": 4,
       "left_questions": 2,
-      "left_sign_in": 1
+      "left_sign_in": 1,
+      "not_a_form_asks_nothing_on_ashbyhq": 2
     }
   },
   "days": {
@@ -456,14 +459,14 @@
     },
     "2026-10-17": {
       "filled": 30,
-      "found": 30,
+      "found": 33,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     }
   },
-  "generated_at": "2026-10-17T16:00:50Z",
+  "generated_at": "2026-10-17T16:31:53Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -489,6 +492,7 @@
   },
   "stop_shapes": {
     "employer_site: no_apply: _ | learn more | _ more": 1,
+    "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: google _ _ with _ | cookie preferences | accept | reject | cookie settings | search jobs": 1,
     "employer_site: no_apply: search jobs | login | _ _ _ _ _ | _ to _ _ | _ _ in _ _ | _ _ _ in _": 1
   },
@@ -517,6 +521,7 @@
     "no_way_forward": {
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 1,
+      "nothing_to_press_on_content+no_apply/filled": 1,
       "nothing_to_press_on_content+no_apply/observed": 9,
       "nothing_to_press_on_content/observed": 53,
       "nothing_to_press_on_form+no_apply/filled": 2,
@@ -549,6 +554,7 @@
     "days": 3,
     "where": {
       "no_way_forward": {
+        "nothing_to_press_on_content+no_apply/filled": 1,
         "nothing_to_press_on_content+no_apply/observed": 1,
         "nothing_to_press_on_form+no_apply/observed": 2
       },
@@ -563,7 +569,7 @@
   },
   "totals": {
     "filled": 303,
-    "found": 669,
+    "found": 672,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
@@ -590,12 +596,12 @@
       "left_captcha": 19,
       "left_error": 14,
       "left_going_in_circles": 16,
-      "left_no_way_forward": 94,
+      "left_no_way_forward": 95,
       "left_out_of_steps": 4,
       "left_posting_closed": 6,
       "left_questions": 11,
       "left_sign_in": 11,
-      "not_a_form_asks_nothing_on_ashbyhq": 5,
+      "not_a_form_asks_nothing_on_ashbyhq": 7,
       "not_a_form_asks_nothing_on_bamboohr": 8,
       "not_a_form_asks_nothing_on_employer_site": 17,
       "not_a_form_asks_nothing_on_greenhouse": 13,
