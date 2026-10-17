@@ -777,7 +777,15 @@ def spoken_receipt(kind: str, detail: str, *,
         # call mom — today at 9 am" (2026-10-07). A count leads it.
         several = body and re.match(r"(\d+ (?:reminder|alarm|timer)s?): (.+)$", body.group(1))
         if several:
-            return f"Cancelled {several.group(1)}: {several.group(2)}."
+            # "Cancel all my reminders" took his monthly rent reminder with
+            # it and said nothing of the way back (2026-10-16). They are
+            # switched off, not deleted, so one sentence undoes it.
+            back = "" if several.group(1).startswith("1 ") else ' Say "put them back" if you didn\'t mean that.'
+            listed = several.group(2)
+            if "alarm" in several.group(1):
+                # Every alarm says "wake up"; the time is the alarm.
+                listed = re.sub(r"\bwake up\s*[—-]\s*", "", listed, flags=re.IGNORECASE)
+            return f"Cancelled {several.group(1)}: {listed}.{back}"
         # A timer is "your 10-minute timer is up"; "stopped reminding you:
         # your timer is up" read a cancelled timer as one that went off
         # (2026-10-07).
