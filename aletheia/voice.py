@@ -1263,6 +1263,10 @@ def _his_capitals(transcript: str, decided: dict) -> dict:
         value = command.get(field)
         if isinstance(value, str) and value:
             command[field] = _as_he_said(transcript, value)
+    # "I need paper towels too" put "paper towels too" on the list
+    # (2026-10-17): the "too" is about the sentence, not the thing.
+    if command.get("kind") == "shopping_add" and isinstance(command.get("item"), str):
+        command["item"] = re.sub(r"(?<=\w) (?:too|as well|also)$", "", command["item"].rstrip(" .!")) or command["item"]
     return decided
 
 
@@ -1820,7 +1824,10 @@ _BARE_NEW_DAY = re.compile(r"(?:(?:no|actually|wait|sorry|oh|oops),? )*(?:on |ma
                            r"(?P<d>monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|today|the day after tomorrow)"
                            r"(?: instead)?(?: please)?")
 # "What time is that", asked straight after she set a reminder.
-_BARE_WHEN = re.compile(r"(?:what time|what day|when) is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
+# "What time is it" and "what day is it" are the clock and the calendar,
+# never the reminder just set (2026-10-17: "That's today at 4:47 pm: check
+# the oven" when he asked the time).
+_BARE_WHEN = re.compile(r"(?:what time|what day) is that(?: again)?|when is (?:that|it)(?: again)?|when'?s (?:that|it)(?: again)?"
                         r"|what time did i (?:say|tell you)|what time(?: for)?")
 # "How long until that", asked straight after she set a reminder.
 _BARE_HOW_LONG = re.compile(r"how (?:long|much (?:longer|time)|many (?:minutes|hours)) (?:until|till|before|is left (?:on|until)) "

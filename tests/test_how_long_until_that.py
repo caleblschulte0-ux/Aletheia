@@ -53,7 +53,7 @@ class HowLongUntilThat(unittest.TestCase):
 
 class WhenIsThatRepeating(unittest.TestCase):
     def test_it_says_back_her_own_when(self):
-        for sentence in ("when is that", "what time is it", "when's that again"):
+        for sentence in ("when is that", "when is it", "when's that again"):
             got = said(sentence, "Every Tuesday at 9 pm I'll remind you: take out the trash.")
             self.assertEqual({"command": None, "say": "That's every Tuesday at 9 pm: take out the trash."}, got)
 
