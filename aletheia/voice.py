@@ -2575,6 +2575,10 @@ def _moved_reminder(transcript: str, time_words: str) -> dict | None:
             at = dt.datetime.combine(dt.date.fromisoformat(day_iso), dt.time(hour, minute), tzinfo=tz)
         except (ValueError, TypeError):
             return None
+        if at <= dt.datetime.now(tz) and re.sub(r"^this ", "", on_day.group("day")) in WEEKDAYS:
+            # "Make it Friday at 7" said on a Friday at half past seven
+            # (2026-10-16: to a model) is next Friday; today's has gone.
+            at += dt.timedelta(days=7)
         if at <= dt.datetime.now(tz):
             return None
         return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": previous["text"],
@@ -5356,6 +5360,23 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"i take (?:\d|one|two|three|four) (?:pills?|tablets?|capsules?|doses?)?(?: of (?:it|them|my [a-z ]{2,30}))? ?(?:a|per|each|every) day", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
 
+    # "I need to buy milk, eggs and coffee" became a TASK called that
+    # (2026-10-16), and "what do I need from the store" then said the
+    # list was empty: the item pattern stops at a comma. A list of
+    # things is the shopping list when every one of them is a thing.
+    listed = re.fullmatch(r"(?:we|i) (?:need|have) to (?:buy|get|grab|pick up) (?:some |more )?(?P<items>[a-z][a-z '-]{1,30}(?:, ?[a-z][a-z '-]{1,30})+)"
+                          r"|(?:we(?:'re| are)|i(?:'m| am)) (?:all )?out of (?P<out>[a-z][a-z '-]{1,30}(?:, ?[a-z][a-z '-]{1,30})+)", low)
+    if listed:
+        items = listed.group("items") or listed.group("out")
+        parts = [re.sub(r"^(?:and |or |some |more |a |an |the )+", "", p.strip()) for p in re.split(r",|\band\b", items)]
+        parts = [p for p in parts if p]
+        # "Pick up the kids, the dry cleaning and milk" is errands: a
+        # pick-up list goes on the shopping list only when it is groceries.
+        loose = " pick up " not in f" {low} "
+        if parts and all(re.fullmatch(_GROCERY, p) or (loose and len(p.split()) <= 3 and not _TASK_VERB.match(p)
+                                                      and not re.search(r"\b(?:then|today|tomorrow|tonight|at|by|on)\b", p))
+                         for p in parts):
+            return {"command": {"kind": "shopping_add", "item": _as_he_said(text, items.strip())}, "say": None}
     # "WE'RE OUT OF COFFEE", "we need paper towels", "I need to buy
     # batteries": a thing to buy, said as a need (2026-10-07: the planner,
     # and the last one refused as SPENDING). It goes on the list; buying
