@@ -593,7 +593,10 @@ def _degraded_line(detail: str) -> str:
     """
     text = " ".join(str(detail or "").split())
     low = text.lower()
-    if "unavailable" in low and "local" in low and ("subscription" in low or "frontier" in low):
+    # "neither Claude nor the ChatGPT browser could answer just now; local
+    # reasoning is unavailable too" (2026-10-17) names neither word below,
+    # and reached the room whole.
+    if "unavailable" in low and "local" in low and ("subscription" in low or "frontier" in low or "claude" in low):
         off = "switched off for this run" in low
         return ("the frontier models are switched off for this run, and my own model could not answer either"
                 if off else "nothing could think just now - neither the stronger models nor my own")
