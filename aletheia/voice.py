@@ -3678,6 +3678,26 @@ def two_asks(transcript: str) -> list[str] | None:
         if all(handled(a) for a in asks):
             return asks
 
+    # "Remind me in 30 minutes to stretch and in an hour to drink water"
+    # (2026-10-18: one reminder saying "stretch and in an hour to drink
+    # water"). The same split, with a wait instead of a clock.
+    span = r"(?:a|an|one|two|three|four|five|ten|fifteen|twenty|thirty|forty five|\d{1,3})(?: and a half)?[ -](?:minutes?|mins?|hours?|hrs?)|half an hour"
+    waits = re.fullmatch(rf"remind me in (?P<d1>{span}) (?P<to1>to|about) (?P<a>.+?),? and (?:then )?in (?P<d2>{span}) (?P<to2>to|about) (?P<b>.+)",
+                         said, re.IGNORECASE)
+    if waits:
+        asks = [f"remind me in {waits.group('d1')} {waits.group('to1')} {waits.group('a').strip()}",
+                f"remind me in {waits.group('d2')} {waits.group('to2')} {waits.group('b').strip()}"]
+        if all(handled(a) for a in asks):
+            return asks
+    # "Remind me tomorrow to call mom and on Friday to pay rent": two days.
+    days = re.fullmatch(rf"remind me (?:on )?(?P<d1>{day}) (?P<to1>to|about) (?P<a>.+?),? and (?:then )?(?:on )?(?P<d2>{day}) "
+                        rf"(?P<to2>to|about) (?P<b>.+)", said, re.IGNORECASE)
+    if days:
+        asks = [f"remind me {days.group('d1')} {days.group('to1')} {days.group('a').strip()}",
+                f"remind me {days.group('d2')} {days.group('to2')} {days.group('b').strip()}"]
+        if all(handled(a) for a in asks):
+            return asks
+
     # "Set a timer for pasta for 10 minutes and one for the oven for 20"
     # (2026-10-07: to the planner): "one" is another timer, and a bare 20
     # takes the first timer's unit.
