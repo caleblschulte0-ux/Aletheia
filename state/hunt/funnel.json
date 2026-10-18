@@ -217,8 +217,8 @@
   "boards": {
     "ashby": 135,
     "bamboohr": 5,
-    "greenhouse": 102,
-    "lever": 72,
+    "greenhouse": 101,
+    "lever": 73,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 9
@@ -461,15 +461,15 @@
       "sent": 0
     },
     "2026-10-17": {
-      "filled": 34,
-      "found": 42,
+      "filled": 35,
+      "found": 43,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-18T00:57:25Z",
+  "generated_at": "2026-10-18T01:23:58Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -478,6 +478,9 @@
     "lever: field: name": 2,
     "lever: text: what is _ your gpa": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
+    "lever: textarea: _ you are _ a _ _ _ please share the link": 1,
+    "lever: textarea: what is the _ _ customer _ _ you _ _ or": 1,
+    "lever: textarea: what is the _ _ of _ you have _ in _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
@@ -586,8 +589,8 @@
     }
   },
   "totals": {
-    "filled": 307,
-    "found": 681,
+    "filled": 308,
+    "found": 682,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
@@ -598,9 +601,10 @@
       "background_check": 2,
       "education": 1,
       "on_site": 2,
-      "other": 19,
+      "other": 20,
       "pay": 3,
       "travel": 1,
+      "why_this_job": 1,
       "years_experience": 1
     },
     "closed": {
@@ -641,7 +645,7 @@
       "part-time": 2
     },
     "needs_account": 0,
-    "needs_answer": 25,
+    "needs_answer": 26,
     "oldest_days": 35,
     "to_send": 1
   },
