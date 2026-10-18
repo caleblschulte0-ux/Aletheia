@@ -199,13 +199,13 @@
     "2026-10-17": {
       "duplicate": 3,
       "employer_full": 0,
-      "minutes": 99,
+      "minutes": 117,
       "needs_account": 1,
-      "needs_answer": 8,
+      "needs_answer": 9,
       "not_realistic": 13,
-      "offered": 34,
+      "offered": 35,
       "ready": 6,
-      "runs": 8,
+      "runs": 9,
       "unfit_model": 11,
       "unfit_sales": 2,
       "unjudged": 1,
@@ -229,6 +229,7 @@
       "left_captcha": 1,
       "left_error": 1,
       "left_no_way_forward": 6,
+      "left_posting_closed": 1,
       "left_questions": 2,
       "left_sign_in": 1,
       "not_a_form_asks_nothing_on_ashbyhq": 2
@@ -461,14 +462,14 @@
     },
     "2026-10-17": {
       "filled": 34,
-      "found": 41,
+      "found": 42,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-18T00:27:23Z",
+  "generated_at": "2026-10-18T00:57:25Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -481,7 +482,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
@@ -544,7 +545,7 @@
       "nothing_to_press_on_unread/observed": 6
     },
     "posting_closed": {
-      "nothing_to_press_on_content/observed": 6
+      "nothing_to_press_on_content/observed": 7
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
@@ -572,9 +573,12 @@
         "nothing_to_press_on_form+no_apply/observed": 2,
         "nothing_to_press_on_success+no_apply/observed": 1
       },
+      "posting_closed": {
+        "nothing_to_press_on_content/observed": 1
+      },
       "questions": {
         "nothing_to_press_on_account_signup/filled": 1,
-        "nothing_to_press_on_form/filled": 2
+        "nothing_to_press_on_form/filled": 1
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1
@@ -583,7 +587,7 @@
   },
   "totals": {
     "filled": 307,
-    "found": 680,
+    "found": 681,
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
@@ -612,7 +616,7 @@
       "left_going_in_circles": 16,
       "left_no_way_forward": 97,
       "left_out_of_steps": 4,
-      "left_posting_closed": 6,
+      "left_posting_closed": 7,
       "left_questions": 11,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 7,
@@ -638,7 +642,7 @@
     },
     "needs_account": 0,
     "needs_answer": 25,
-    "oldest_days": 34,
+    "oldest_days": 35,
     "to_send": 1
   },
   "window_days": 30
