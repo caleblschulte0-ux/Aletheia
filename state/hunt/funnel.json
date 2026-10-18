@@ -218,8 +218,8 @@
   "boards": {
     "ashby": 135,
     "bamboohr": 5,
-    "greenhouse": 101,
-    "lever": 73,
+    "greenhouse": 102,
+    "lever": 74,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 9
@@ -453,24 +453,25 @@
       "sent": 0
     },
     "2026-10-17": {
-      "filled": 12,
-      "found": 20,
+      "filled": 11,
+      "found": 19,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 4
     },
     "2026-10-18": {
-      "filled": 23,
-      "found": 23,
+      "filled": 24,
+      "found": 24,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-18T06:53:38Z",
+  "generated_at": "2026-10-18T07:24:07Z",
   "question_shapes": {
+    "ashbyhq: field: resume": 1,
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: country the _ would _ _ the _ _ have": 1,
@@ -595,7 +596,7 @@
       "background_check": 2,
       "education": 1,
       "on_site": 2,
-      "other": 19,
+      "other": 20,
       "pay": 3,
       "travel": 1,
       "years_experience": 1
@@ -634,10 +635,10 @@
     },
     "his_ok": {
       "judged-locally": 2,
-      "part-time": 2
+      "part-time": 1
     },
     "needs_account": 0,
-    "needs_answer": 25,
+    "needs_answer": 26,
     "oldest_days": 35,
     "to_send": 1
   },
