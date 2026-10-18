@@ -2105,6 +2105,12 @@ def _one_reminder(which: str, once: str = ""):
                              r"|that reminder|this reminder|the last reminder)", needle):
         return max(rows, key=lambda r: str(r.get("created_at") or "")), ""
 
+    # "CANCEL MY NEXT REMINDER" (2026-10-18: "None of your reminders is
+    # about next", right after "what's my next reminder" named it). Next is
+    # the one going off soonest, and the receipt names it.
+    if rows and re.fullmatch(r"(?:the |my )?(?:next|upcoming|soonest)(?: one| reminder)?", needle):
+        return _soonest_first(rows)[0], ""
+
     # "DELETE MY REMINDER" (2026-10-07: searched for a reminder about "my").
     # With one set, that is the one; with several, she asks which.
     if needle in ("my", "the", "my reminder", "a reminder", "one"):

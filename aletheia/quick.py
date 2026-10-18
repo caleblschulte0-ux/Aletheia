@@ -2431,7 +2431,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # (2026-10-08: to a model and to a memory search).
     ("repeating", re.compile(
         r"^what (?:do|will) (?:you|u) remind me (?:about |of |to do )?every (?P<repeating>morning|day|night|evening|week|month)\s*\??$"
-        r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|recurring|repeating|regular|morning|nightly) reminders?\s*\??$")),
+        r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|recurring|repeating|regular|morning|nightly) reminders?\s*\??$"
+        r"|^(?:which|what) (?:of my )?reminders (?:do i have that |have i got that |i have that )?(?:repeat|recur|come back|keep coming back|go off every (?:day|week)|are (?:recurring|repeating))\s*\??$"
+        r"|^(?:do i have|have i got|are there) any (?:recurring|repeating|regular) reminders(?: set)?\s*\??$")),
     # "What restaurants do I like" (2026-10-08: to a model, with his
     # favorite and "I tried Nobu and loved it" kept).
     ("places_liked", re.compile(
