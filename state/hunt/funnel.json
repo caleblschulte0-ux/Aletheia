@@ -219,7 +219,7 @@
     "ashby": 135,
     "bamboohr": 5,
     "greenhouse": 102,
-    "lever": 73,
+    "lever": 74,
     "recruitee": 7,
     "smartrecruiters": 36,
     "workable": 9
@@ -469,7 +469,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-18T15:28:05Z",
+  "generated_at": "2026-10-18T15:58:53Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -482,7 +482,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
