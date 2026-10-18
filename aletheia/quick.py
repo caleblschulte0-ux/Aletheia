@@ -1826,7 +1826,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"(?P<alarms_on>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$")),
     ("reminders_on", re.compile(
         # "What's my reminder on Thursday" (2026-10-12: to a model) - the singular too.
-        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?reminders?(?: do i have)? (?:for|on) "
+        # "What are my reminders tomorrow" (2026-10-18: to a model) - no "for".
+        r"^(?:what are |what(?:'s| is) |read me |list )?(?:my |the )?reminders?(?: do i have)? (?:(?:for|on) )?"
         r"(?P<reminders_on>today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??$"
         r"|^what reminders do i have (?:for |on )?(?P<reminders_on2>today|tonight|tomorrow|monday|tuesday|wednesday|thursday"
         r"|friday|saturday|sunday)\s*\??$|^(?:do i have |are there |have i got )?any reminders (?:for |on )?(?P<reminders_on3>today|tonight|tomorrow"
