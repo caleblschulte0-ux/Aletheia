@@ -199,13 +199,13 @@
     "2026-10-17": {
       "duplicate": 3,
       "employer_full": 0,
-      "minutes": 117,
+      "minutes": 132,
       "needs_account": 1,
-      "needs_answer": 9,
+      "needs_answer": 10,
       "not_realistic": 13,
-      "offered": 35,
+      "offered": 36,
       "ready": 6,
-      "runs": 9,
+      "runs": 10,
       "unfit_model": 11,
       "unfit_sales": 2,
       "unjudged": 1,
@@ -466,10 +466,10 @@
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 3
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-18T01:23:58Z",
+  "generated_at": "2026-10-18T01:54:50Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -478,24 +478,21 @@
     "lever: field: name": 2,
     "lever: text: what is _ your gpa": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
-    "lever: textarea: _ you are _ a _ _ _ please share the link": 1,
-    "lever: textarea: what is the _ _ customer _ _ you _ _ or": 1,
-    "lever: textarea: what is the _ _ of _ you have _ in _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 10,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 3
   },
-  "sent_all_time": 314,
+  "sent_all_time": 315,
   "sent_by_system": {
     "ashbyhq": 32,
     "employer_site": 13,
     "greenhouse": 126,
-    "lever": 27
+    "lever": 28
   },
   "stop_shapes": {
     "employer_site: no_apply: _ to _ _ | privacy | _": 1,
@@ -594,17 +591,16 @@
     "interviews": 8,
     "rejections": 18,
     "replies": 59,
-    "sent": 198
+    "sent": 199
   },
   "waiting": {
     "asked_about": {
       "background_check": 2,
       "education": 1,
       "on_site": 2,
-      "other": 20,
+      "other": 19,
       "pay": 3,
       "travel": 1,
-      "why_this_job": 1,
       "years_experience": 1
     },
     "closed": {
@@ -645,7 +641,7 @@
       "part-time": 2
     },
     "needs_account": 0,
-    "needs_answer": 26,
+    "needs_answer": 25,
     "oldest_days": 35,
     "to_send": 1
   },
