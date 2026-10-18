@@ -1575,6 +1575,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # store" as an item and went to the planner (2026-10-07).
         r"|^do (?:i|we) need (?:anything|something|stuff) (?:from|at) the (?:store|shop|grocery store|supermarket|grocer'?s)\s*\??$"
         r"|^what do (?:i|we) need to (?:get|pick up|grab) (?:from|at) the (?:store|shop|grocery store|supermarket)\s*\??$"
+        # "What should I get at the store" read as a gift for somebody called
+        # "at the store" (2026-10-18: to a model, which was out).
+        r"|^what (?:should|do|can) (?:i|we) (?:get|buy|pick up|grab)(?: (?:from|at|in))? the (?:store|shop|grocery store|supermarket|grocer'?s)\s*\??$"
+        r"|^what do (?:i|we) need (?:at|in) the (?:store|shop|grocery store|supermarket)\s*\??$"
         r"|^what(?:'s| is|s)? on (?:my|the) grocery list\s*\??$|^(?:my |the )?grocery list$"
         # "I'm at the store" (2026-10-07: to a model) is the moment the list is for.
         r"|^(?:i'?m|i am|we'?re|we are) (?:at|in) (?:the )?(?P<shop_at>grocery store|store|supermarket|shops?|market|costco|target"
