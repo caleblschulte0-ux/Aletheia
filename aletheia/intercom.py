@@ -5149,6 +5149,19 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                     f"{speech.and_list([str(r.get('need', '')) for r in rows[:6]])}"
                     + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + ".")
         found, why = _one_shopping_item(cmd["item"])
+        parts = [p for p in re.split(r",? and |, ", str(cmd["item"]).strip()) if p.strip()]
+        if len(parts) > 1 and not (found and " ".join(str(found.get("need", "")).split()).casefold()
+                                   == " ".join(str(cmd["item"]).split()).casefold()):
+            # "Remove eggs and cheese" (2026-10-18: "Which one — cheese or
+            # eggs?"). Two things named are both meant; each must be on the
+            # list on its own, or nothing comes off.
+            each = [_one_shopping_item(p) for p in parts]
+            if all(row for row, _why in each):
+                rows = list({row["id"]: row for row, _why in each}.values())
+                for row in rows:
+                    shopping.cancel(row["id"])
+                return (f"Took {speech.count_phrase(len(rows), 'thing')} off the shopping list: "
+                        f"{speech.and_list([str(r.get('need', '')) for r in rows])}.")
         if found is None:
             raise act.Refused(why)
         shopping.cancel(found["id"])
