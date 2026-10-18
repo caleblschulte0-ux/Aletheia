@@ -4944,7 +4944,9 @@ def _tasks_due(which: str = "") -> str | None:
         return f"{speech.count_phrase(len(on), 'thing')} due this weekend: {said}."
     overdue_only = which in ("overdue", "late", "past due", "")
     limit = {"due today": end_of(now.date()), "due tomorrow": end_of(now.date() + dt.timedelta(days=1)),
-             "due this week": end_of(now.date() + dt.timedelta(days=6 - now.weekday())),
+             # On a Sunday "this week" is the one starting tomorrow (2026-10-18:
+             # "Nothing's due this week" on Sunday, with a task due Friday).
+             "due this week": end_of(now.date() + dt.timedelta(days=(6 - now.weekday()) or 7)),
              # "What's due this month" (2026-10-07: to a model).
              "due next week": end_of(now.date() + dt.timedelta(days=13 - now.weekday())),
              "due this month": end_of((now.date().replace(day=1) + dt.timedelta(days=32)).replace(day=1)

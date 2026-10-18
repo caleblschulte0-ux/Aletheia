@@ -3663,6 +3663,21 @@ def two_asks(transcript: str) -> list[str] | None:
         if all(handled(a) for a in asks):
             return asks
 
+    # "Remind me at 5 to call mom and at 6 to feed the dog" (2026-10-18:
+    # ONE reminder at 5 saying "call mom and at 6 to feed the dog"). Each
+    # time has its own thing; a day said once is both times'.
+    pair = re.fullmatch(rf"remind me (?:(?P<w0>{day}) )?at (?P<t1>{clock})(?: (?:on )?(?P<w1>{day}))? (?P<to1>to|about) (?P<a>.+?)"
+                        rf",? and (?:then )?(?:(?P<w2a>{day}) )?at (?P<t2>{clock})(?: (?:on )?(?P<w2>{day}))? (?P<to2>to|about) (?P<b>.+)",
+                        said, re.IGNORECASE)
+    if pair and not re.search(r"\bat \d", pair.group("a")):
+        w1 = pair.group("w0") or pair.group("w1") or ""
+        w2 = pair.group("w2a") or pair.group("w2") or w1
+        asks = [" ".join(f"remind me at {t} {w} {to} {what.strip()}".split())
+                for t, w, to, what in ((pair.group("t1"), w1, pair.group("to1"), pair.group("a")),
+                                       (pair.group("t2"), w2, pair.group("to2"), pair.group("b")))]
+        if all(handled(a) for a in asks):
+            return asks
+
     # "Set a timer for pasta for 10 minutes and one for the oven for 20"
     # (2026-10-07: to the planner): "one" is another timer, and a bare 20
     # takes the first timer's unit.
