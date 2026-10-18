@@ -5876,7 +5876,7 @@ def _interpret(transcript: str) -> dict:
             _LOOKING_BACK.bare_time = False
         if str(((got or {}).get("command") or {}).get("kind", "")).startswith("remind_"):
             return got
-    just = _the_reminder_just_set() if bare_when or bare_how_long or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:no,? |actually,? )?(?:change|make) "
+    just = _the_reminder_just_set() if bare_when or bare_how_long or re.search(r"\breminder\b|\b(?:too|as well|also)$|^(?:and|also|oh and|and also) to [a-z]|^(?:no,? |actually,? )?(?:change|make) "
                                                               r"|\bset for$|\bgo off$", low) else None
     if just:
         at = str(just.get("at") or "")
@@ -5891,6 +5891,9 @@ def _interpret(transcript: str) -> dict:
         # said that way straight after a reminder is another reminder at its time.
         bare = re.fullmatch(r"(?:and )?(?:also )?(?P<what>.+?) (?:too|as well|also)", low)
         m = m or (bare if bare and _TASK_VERB.match(bare.group("what")) else None)
+        # "Remind me tomorrow to call the vet", "and to pick up the dog food"
+        # (2026-10-18: to the planner): the same time, the new words.
+        m = m or re.fullmatch(r"(?:and|also|oh and|and also) to (?P<what>[a-z].{1,80}?)(?: too| as well| also)?", low)
         if m and at:
             return {"command": {"kind": "remind_at", "at": at, "text": _as_he_said(text, m.group("what"))}, "say": None}
         m = re.fullmatch(r"(?:no,? |actually,? )?(?:change|make) (?:it|that|the reminder )?(?P<old>.+?) (?:to|into) (?P<new>[a-z].+)", low)
