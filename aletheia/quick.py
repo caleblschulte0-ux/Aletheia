@@ -502,7 +502,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "How many miles until my oil change" (2026-10-08: to a model): the
     # mileage it is due at, less the last mileage he told her.
     ("miles_until", re.compile(
-        r"^how (?:many|much) (?:more )?(?:miles|mi) (?:until|till|before|to|left (?:until|before|till)) (?:my |the |our )?(?:next )?"
+        # "How far until my oil change" (2026-10-18: to a model) is the same question.
+        r"^(?:how (?:many|much) (?:more )?(?:miles|mi)|how (?:much )?(?:far|farther|further)(?: (?:do i have|can i go))?) (?:until|till|before|to|left (?:until|before|till)) (?:my |the |our )?(?:next )?"
         r"(?P<mu_what>oil change|service|tune-?up|tire rotation|inspection|timing belt)(?: is due)?\s*\??$"
         # "When is my next oil change" after "every 5000 miles" and "I changed
         # the oil today" (2026-10-14: the interval note read back, no number).
@@ -1817,7 +1818,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:when|what time|what day)(?:'s| is) (?:my |the )?reminder (?:to|about|for) (?P<reminder_next2>[a-z0-9][a-z0-9' ]{1,50}?)\s*\??$")),
     ("reminders_week", re.compile(
         # "What reminders do I have in June" (2026-10-14: to a model).
-        r"^(?:what|which) reminders (?:do i have|have i got|are there|are set)(?P<reminders_week> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$"
+        # "How many reminders do I have this week", "my reminders this week"
+        # (2026-10-18: to a model).
+        r"^(?:(?:what|which|how many) reminders (?:do i have|have i got|are there|are set)|(?:what are |list |read me )?(?:my|the) reminders(?: for)?)(?P<reminders_week> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$"
         r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$")),
     # "What's my alarm for tomorrow" was answered as "1 reminder tomorrow:
     # 6 am, wake up." (2026-10-12) - he asked about his alarm.
