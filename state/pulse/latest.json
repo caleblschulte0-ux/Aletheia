@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-18T20:51:22Z",
+  "generated_at": "2026-10-19T04:50:00Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,6 +11,21 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
+          "sha": "7fa0e7a091f0",
+          "date": "2026-10-18T21:17:54Z",
+          "message": "Merge pull request #509 from caleblschulte0-ux/claude/probe-next101"
+        },
+        {
+          "sha": "302ade343784",
+          "date": "2026-10-18T20:51:48Z",
+          "message": "pulse: 2026-10-18T20:51Z"
+        },
+        {
+          "sha": "aa87a8a7a789",
+          "date": "2026-10-18T20:28:42Z",
+          "message": "Two reminders in one sentence, by wait or by day"
+        },
+        {
           "sha": "251349e29e3f",
           "date": "2026-10-18T17:20:29Z",
           "message": "Merge pull request #508 from caleblschulte0-ux/claude/probe-next100"
@@ -19,47 +34,32 @@
           "sha": "37e784e37b20",
           "date": "2026-10-18T16:31:43Z",
           "message": "Two reminders in one sentence, two things off the list, \"this week\" on a Sunday"
-        },
-        {
-          "sha": "145618956ddd",
-          "date": "2026-10-18T16:30:04Z",
-          "message": "core: state checkpoint"
-        },
-        {
-          "sha": "022f3616e640",
-          "date": "2026-10-18T15:59:04Z",
-          "message": "core: state checkpoint"
-        },
-        {
-          "sha": "989060be9803",
-          "date": "2026-10-18T15:56:38Z",
-          "message": "pulse: 2026-10-18T15:56Z"
         }
       ],
       "commit": {
-        "sha": "251349e29e3f",
-        "date": "2026-10-18T17:20:29Z",
-        "message": "Merge pull request #508 from caleblschulte0-ux/claude/probe-next100"
+        "sha": "7fa0e7a091f0",
+        "date": "2026-10-18T21:17:54Z",
+        "message": "Merge pull request #509 from caleblschulte0-ux/claude/probe-next101"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-18T15:56:43Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39142697199"
+          "updated_at": "2026-10-18T20:51:53Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39165203753"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-18T17:49:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39149132052"
+          "updated_at": "2026-10-18T21:46:13Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39167210837"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 19999
+          "bytes": 20414
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "96310efe89cb",
-          "date": "2026-10-18T20:48:23Z",
-          "message": "claim: mailbox verdicts 2026-10-18T20:48Z [skip ci]"
+          "sha": "2c4ed2753dc2",
+          "date": "2026-10-19T04:48:08Z",
+          "message": "claim: mailbox verdicts 2026-10-19T04:48Z [skip ci]"
         },
         {
-          "sha": "7e7584974282",
-          "date": "2026-10-18T20:42:57Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "b645ba5237ef",
+          "date": "2026-10-19T03:48:16Z",
+          "message": "claim: mailbox verdicts 2026-10-19T03:48Z [skip ci]"
         },
         {
-          "sha": "27f07e474850",
-          "date": "2026-10-18T20:13:27Z",
-          "message": "story forge: new real-data stories [skip ci]"
+          "sha": "8db6cba9c3e1",
+          "date": "2026-10-19T02:48:21Z",
+          "message": "claim: mailbox verdicts 2026-10-19T02:48Z [skip ci]"
         },
         {
-          "sha": "f2ccba1abcad",
-          "date": "2026-10-18T19:48:15Z",
-          "message": "claim: mailbox verdicts 2026-10-18T19:48Z [skip ci]"
+          "sha": "5b2b37e9b9e3",
+          "date": "2026-10-19T01:48:17Z",
+          "message": "claim: mailbox verdicts 2026-10-19T01:48Z [skip ci]"
         },
         {
-          "sha": "3029edde72b1",
-          "date": "2026-10-18T19:22:02Z",
-          "message": "explainer: long-form log [skip ci]"
+          "sha": "b8f581bff11d",
+          "date": "2026-10-19T00:48:04Z",
+          "message": "claim: mailbox verdicts 2026-10-19T00:48Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "96310efe89cb",
-        "date": "2026-10-18T20:48:23Z",
-        "message": "claim: mailbox verdicts 2026-10-18T20:48Z [skip ci]"
+        "sha": "2c4ed2753dc2",
+        "date": "2026-10-19T04:48:08Z",
+        "message": "claim: mailbox verdicts 2026-10-19T04:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -108,7 +108,7 @@
         },
         {
           "label": "explainer posted",
-          "value": 344
+          "value": 345
         },
         {
           "label": "third posted",
@@ -153,14 +153,14 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-18T20:43:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39149935801"
+          "updated_at": "2026-10-18T22:28:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39158626600"
         },
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-18T04:38:25Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39097780279"
+          "updated_at": "2026-10-19T04:45:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39201031563"
         },
         "doctor.yml": {
           "status": "completed",
@@ -176,7 +176,7 @@
         },
         "state/explainer_posted_log.json": {
           "exists": true,
-          "bytes": 183500
+          "bytes": 184550
         },
         "state/third_posted_log.json": {
           "exists": true,
@@ -188,7 +188,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 4433763
+          "bytes": 4437740
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -402,7 +402,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 73,
+        "days_quiet": 74,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -434,18 +434,10 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-18T17:20:29Z",
+        "last_progress_at": "2026-10-18T21:17:54Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
-          {
-            "number": 509,
-            "title": "Two reminders in one sentence, by wait or by day",
-            "head": "claude/probe-next101",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/509",
-            "created_at": "2026-10-18T20:28:48Z"
-          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
@@ -520,7 +512,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": "2026-10-01T23:46:23Z",
-        "days_quiet": 16,
+        "days_quiet": 17,
         "commits_7d": 0,
         "open_prs": [
           {
