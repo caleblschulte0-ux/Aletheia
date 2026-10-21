@@ -3991,6 +3991,11 @@ _HOLIDAY_NAMES = ("New Year's Day", "MLK Day", "Presidents' Day", "Valentine's D
                   "St Patrick's Day")
 
 
+#: Days with a name and no day off; "is tomorrow a holiday" looks past them.
+_OBSERVANCES = frozenset({"Valentine's Day", "St Patrick's Day", "Halloween", "Christmas Eve", "New Year's Eve",
+                          "Mother's Day", "Father's Day"})
+
+
 _COUNT_WORDS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
                 "eight": 8, "nine": 9, "ten": 10, "half a": 0.5}
 
@@ -4356,10 +4361,18 @@ def _holiday_next(which: str = "") -> str | None:
             day = today + dt.timedelta(days=1 if which == "tomorrow" else 0)
         on = [name for d, name in dated if d == day]
         said = "today" if day == today else "tomorrow" if day == today + dt.timedelta(days=1) else which.capitalize()
-        if on:
+        # "Is tomorrow a holiday" asks about a day off: "No. The next one is
+        # Halloween" (2026-10-21) named a day nobody gets off.
+        if on and on[0] not in _OBSERVANCES:
             return f"Yes - {said} is {on[0]}."
-        when, name = next((d, n) for d, n in dated if d > day)
-        return f"No. The next one is {name}, {when.strftime('%A')} {when.day} {when.strftime('%B')}."
+        if on:
+            lead = f"{said[:1].upper() + said[1:]} is {on[0]}, but it isn't a day off. "
+        else:
+            lead = "No. "
+        when, name = next((d, n) for d, n in dated if d > day and n not in _OBSERVANCES)
+        before = [(d, n) for d, n in dated if day < d < when and n in _OBSERVANCES][:1]
+        aside = f" {before[0][1]} is {before[0][0].strftime('%A')} the {_ordinal(before[0][0].day)}, but that isn't a day off." if before else ""
+        return f"{lead}The next holiday is {name}, {when.strftime('%A')} {when.day} {when.strftime('%B')}.{aside}"
     if which == "list":
         from aletheia import speech
         said = [f"{name} on {d.strftime('%A')} {d.day} {d.strftime('%B')}" for d, name in dated[:3]]
