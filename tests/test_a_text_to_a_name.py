@@ -117,7 +117,7 @@ class TheNextHoliday(unittest.TestCase):
         from aletheia import quick
         said = quick.answer("what holiday is next")
         self.assertTrue(any(said.startswith(n) for n in quick._HOLIDAY_NAMES), said)
-        self.assertRegex(quick.answer("is today a holiday"), r"^(Yes - today is|No\. The next one is) ")
+        self.assertRegex(quick.answer("is today a holiday"), r"^(Yes - today is|No\. The next holiday is|Today is .+, but it isn.t a day off\. The next holiday is) ")
 
 
 class WhatToWear(unittest.TestCase):
