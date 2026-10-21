@@ -3050,7 +3050,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:should|could|can) (?:i|we) (?P<pick_read>read)(?: next)?\s*\??$"
         # "Recommend a book" (2026-10-07: to the planner) - off his reading list.
         r"|^(?:recommend|suggest|pick) (?:me )?(?:a |something to )?(?P<pick_read2>book|read|novel)(?: to read)?(?: next)?\s*\??$"
-        r"|^where (?:should|could|can|shall) (?:i|we) (?P<pick_eat>eat|go (?:to eat|for dinner|for lunch|out))(?: tonight| today| for dinner| for lunch)?\s*\??$")),
+        r"|^where (?:should|could|can|shall) (?:i|we) (?P<pick_eat>eat|go (?:to eat|for dinner|for lunch|out))(?: tonight| today| for dinner| for lunch)?\s*\??$"
+        # "What should I do tonight" (2026-10-21: to a model): his plans, or
+        # a pick off his own list when there are none.
+        r"|^(?:what (?:should|could|can|shall) (?:i|we) do|(?:is there )?anything (?:fun )?(?:for me |for us )?to do|what(?:'s| is) there to do)"
+        r" (?P<pick_free>tonight|this evening|this weekend)\s*\??$")),
     # "What temperature do I cook chicken to", "how long do I boil an egg"
     # (2026-10-07: "I can't think just now"). The safe temperatures are the
     # USDA's published minimums, the same every time - a table, not a guess.
@@ -8487,6 +8491,18 @@ def _pick_for_me(text: str) -> str | None:
             if m:
                 return f"How about {m.group(1).strip()}? You told me it's your favorite."
         return None
+    if g.get("pick_free"):
+        when = "tonight" if g["pick_free"] == "this evening" else g["pick_free"]
+        try:
+            plans = answer(f"what am i doing {when}") or ""
+        except Exception:
+            plans = ""
+        if plans and not plans.startswith("Nothing"):
+            return plans
+        pick = _pick_for_me("what should i watch tonight")
+        if not pick:
+            return None
+        return f"Nothing's planned {when}. {pick}"
     want = "read" if g.get("pick_read") or g.get("pick_read2") else "watch"
     try:
         rows = [t for h in lists.all_lists() if lists.kind_of(h["name"]) == want for t in (lists.items(h["name"]) or [])]
