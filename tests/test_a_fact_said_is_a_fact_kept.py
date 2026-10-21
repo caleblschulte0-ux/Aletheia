@@ -3597,8 +3597,11 @@ class ServicesMealPlansAndPicks(unittest.TestCase):
             self.assertEqual(quick.answer("what am I having for dinner monday"), "Chicken on Monday.")
             self.assertEqual(quick.answer("what's for dinner friday"), "Nothing on your meal plan on Friday.")
             self.assertEqual(quick.answer("what's on the meal plan"), "Your meal plan: Monday: chicken; Tuesday: pasta.")
-        with mock.patch("aletheia.lists.items", return_value=None):
-            self.assertIsNone(quick.answer("what am I having for dinner tomorrow"))
+        # No plan kept is a fact too: it says nothing is planned, from her
+        # stores, rather than guessing (it went to a model until 2026-10-21).
+        with mock.patch("aletheia.lists.items", return_value=None), \
+                mock.patch("aletheia.calendar.all_events", return_value=[]):
+            self.assertIn("Nothing's planned for dinner tomorrow", quick.answer("what am I having for dinner tomorrow"))
 
     def test_picked_off_his_own_lists(self):
         from aletheia import quick
