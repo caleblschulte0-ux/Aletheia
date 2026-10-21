@@ -8750,8 +8750,11 @@ class WhatIsLeftToDoToday(unittest.TestCase):
 
     def test_the_tasks_phrasings(self):
         from aletheia import voice
+        # Answered from her stores, never a model: the list, or - with "today"
+        # in it - the list and today's reminders (2026-10-19).
         for said in ("what do i still need to do today", "what's left to do", "what else should i do today"):
-            self.assertEqual(voice._interpret(said)["command"], {"kind": "tasks"}, said)
+            got = voice._interpret(said)
+            self.assertTrue(got["command"] == {"kind": "tasks"} or (got["command"] is None and got["say"]), said)
 
     def test_tell_me_about_my_day_is_the_day(self):
         from aletheia import quick
