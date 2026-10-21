@@ -5080,6 +5080,14 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"what (?:else |still )?do i (?:still )?(?:need|have|got) to (?:do|get done)(?: still)? (?:today|tonight|this morning|this afternoon)"
                     r"|what(?:'s| is|s)? (?:left|still left|remaining|left over) (?:for me )?to (?:do|get done)(?: today| tonight)?"
                     r"|what else (?:do i (?:need|have) to|should i) do(?: today| tonight)?", low):
+        if re.search(r" (?:today|tonight)$", low):
+            # "What do I need to do today" read the list and left out tonight's
+            # reminder (2026-10-19). The day is the list and what goes off in it.
+            try:
+                from aletheia import quick
+                return {"command": None, "say": quick._focus()}
+            except Exception:  # noqa: BLE001
+                pass
         return {"command": {"kind": "tasks"}, "say": None}
     # "I'm at the store", then "what do I need" (2026-10-08: to a model).
     # Bare, it is whichever list the last turns were about.
@@ -11282,6 +11290,9 @@ def _interpret(transcript: str) -> dict:
         dish = None
     if dish and not re.search(r"\b(?:with|at|reservations?|out|party|meeting|date)\b", dish.group("w") or dish.group("w2") or ""):
         what = dish.group("w") or f"{dish.group('w2')} night"
+        # "Plan tacos for dinner Tuesday" put "Plan tacos" on the meal plan
+        # (2026-10-19): the verb is the ask, the dish is the rest.
+        what = re.sub(r"^(?:let'?s |we'?ll |i'?ll )?(?:plan|planning|have|make|do|cook|put down|pencil in|schedule) (?=[a-z])", "", what)
         return _interpret(f"we are having {what} {dish.group('d') or dish.group('d2')}")
     held_by = [re.fullmatch(r"(?:put|add|pencil in|pencil|schedule|book) (?P<title>.+?) (?:on|in|to|into|onto) my calendar"
                       r"(?: for| on| this)? ?(?P<day>" + _cal_days + r")?(?: (?P<part>morning|afternoon|evening|night))?"

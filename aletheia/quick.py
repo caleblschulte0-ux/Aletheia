@@ -5991,6 +5991,13 @@ def _focus(only_first: bool = False) -> str:
     day = _agenda("today")
     if day and not day.lower().startswith("nothing"):
         parts.append(day.rstrip("."))
+    if not re.search(r"\breminders?\b", day or ""):
+        # "What do I need to do today" left out tonight's reminder (2026-10-19).
+        rem = _reminders_on("today") or ""
+        if rem and not rem.startswith("No reminders"):
+            parts.append(rem.rstrip("."))
+    elif " You do have " in day and day.lower().startswith("nothing"):
+        parts.append(day.split(" You do have ", 1)[1].rstrip("."))
     if not parts:
         return "Nothing is waiting on you, nothing is due and your calendar is clear - the day is yours."
     return ". ".join(parts) + "."
