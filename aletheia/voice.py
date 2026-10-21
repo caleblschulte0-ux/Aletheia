@@ -3201,6 +3201,10 @@ def _named_list_said(low: str, text: str) -> dict | None:
     if m and lists.is_named_list(m.group("name")):
         return {"command": {"kind": "list_add", "list": _as_he_said(text, m.group("name")),
                             "item": _as_he_said(text, m.group("item"))}, "say": None}
+    # "Clear the meal plan" (2026-10-21: to the planner) says no "list";
+    # "clear the meal plan list" already emptied it.
+    if re.fullmatch(r"(?:clear|empty|wipe|reset|delete everything on|start over on) (?:out )?(?:my |the |our )?meal plan(?: out)?", low):
+        return {"command": {"kind": "list_off", "list": "meal plan", "item": "everything"}, "say": None}
     m = (re.fullmatch(r"(?:take|remove|delete|cross|scratch|tick) (?:off )?(?P<item>.+?) (?:off|from) (?:of )?(?:my |the )"
                       + name_ + r" list", low)
          # "Delete the packing list" (2026-10-07: to the planner) empties it;

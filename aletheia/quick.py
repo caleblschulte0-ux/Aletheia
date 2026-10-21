@@ -8346,6 +8346,39 @@ def _food_said(text: str) -> list | None:
     return parts if parts and all(re.fullmatch(rf"(?:{_FOOD})", p) for p in parts) else None
 
 
+def _meal_event(day: str, meal: str = "dinner") -> str | None:
+    """A calendar event on that day named for the meal ("dinner with Sam at 7 pm")."""
+    import datetime as dt
+    from aletheia import calendar, localtime
+    tz = localtime.operator_tz()
+    today = dt.datetime.now(tz).date()
+    names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+    if day in ("today", "tonight"):
+        when = today
+    elif day == "tomorrow":
+        when = today + dt.timedelta(days=1)
+    elif day in names:
+        when = today + dt.timedelta(days=(names.index(day) - today.weekday()) % 7)
+    else:
+        return None
+    words = ("lunch",) if meal == "lunch" else ("dinner", "supper")
+    try:
+        for event in calendar.all_events():
+            title = str(event.get("title") or "")
+            if event.get("status") == "CANCELLED" or not any(w in title.casefold() for w in words):
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if start.date() == when:
+                at = start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
+                return f"{title[:80]} at {at}"
+    except Exception:
+        return None
+    return None
+
+
 def _planned_for(day: str) -> str | None:
     """The meal plan's line for one day ("Monday: chicken"), or None."""
     import datetime as dt
@@ -8434,13 +8467,24 @@ def _meal_plan(text: str) -> str | None:
         rows = lists.items("meal plan")
     except Exception:
         return None
-    if rows is None:
-        # no plan kept: "what am I having for dinner tomorrow" is not ours
-        return None if day else "You don't have a meal plan yet. Say \"add chicken to my meal plan for Monday\"."
+    if rows is None and not day:
+        return "You don't have a meal plan yet. Say \"add chicken to my meal plan for Monday\"."
     if day and day != "this week":
-        planned = _planned_for(day)
+        planned = _planned_for(day) if rows is not None else None
         said = {"today": "today", "tonight": "tonight", "tomorrow": "tomorrow", "weekend": "this weekend"}.get(day, f"on {day.capitalize()}")
-        return f"{planned[:1].upper() + planned[1:]} {said}." if planned else f"Nothing on your meal plan {said}."
+        if planned:
+            return f"{planned[:1].upper() + planned[1:]} {said}."
+        # "What's for dinner tomorrow" with no plan kept went to a model
+        # (2026-10-21), which knows no more than this: the calendar's
+        # dinner, if there is one, and otherwise that nothing is planned.
+        meal = "lunch" if "lunch" in text.casefold() else "dinner"
+        event = _meal_event(day, meal)
+        if event:
+            return f"{said[:1].upper() + said[1:]} you have {event}."
+        if rows is None:
+            return (f"Nothing's planned for {meal} {said} - you don't have a meal plan yet. "
+                    f"Say \"add tacos to my meal plan for {said.removeprefix('on ')}\" and I'll put it on.")
+        return f"Nothing on your meal plan {said}."
     if not rows:
         return "Your meal plan is empty."
     return f"Your meal plan: {'; '.join(rows[:7])}" + (f"; and {len(rows) - 7} more." if len(rows) > 7 else ".")
