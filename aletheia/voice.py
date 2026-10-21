@@ -8085,7 +8085,9 @@ def _interpret(transcript: str) -> dict:
         return {"command": {"kind": "music", "action": "volume_up"}, "say": None}
 
     # HIS STOPWATCH (2026-10-07: "start a stopwatch" went to the planner).
-    if re.fullmatch(r"(?:start|begin|set|run) (?:a |the |my )?stopwatch(?: now| for me)?|stopwatch(?: start| go)", low):
+    # "Start a workout timer" with no length is a stopwatch (2026-10-21: to the planner).
+    if re.fullmatch(r"(?:start|begin|set|run) (?:a |the |my )?stopwatch(?: now| for me)?|stopwatch(?: start| go)"
+                    r"|(?:start|begin) (?:a |the |my )?(?:workout|exercise|run|running|gym|training) timer(?: now| for me)?", low):
         return {"command": {"kind": "stopwatch", "action": "start"}, "say": None}
     if re.fullmatch(r"(?:stop|pause|end|halt) (?:the |my )?stopwatch(?: now)?|stopwatch stop", low):
         return {"command": {"kind": "stopwatch", "action": "stop"}, "say": None}

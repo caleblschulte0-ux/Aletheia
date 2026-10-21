@@ -3750,6 +3750,14 @@ def _direct(text: str) -> str:
         except Exception:
             planned = None
         return f"what am i making for {m.group('meal')}" if planned else f"what should i make for {m.group('meal')}"
+    # "How many runs this week", "how many workouts" (2026-10-21: to a model)
+    # are the count "how many times did I run" already reads.
+    m = re.fullmatch(r"how many (?P<what>runs|workouts|gym (?:trips|visits|sessions)|swims|bike rides|walks|hikes)"
+                     r"(?: have i (?:done|had|gone on|been on))?(?: did i (?:do|have|go on))?(?P<when> (?:this|last) (?:week|month)| today| this year)?\s*\??", text)
+    if m:
+        verb = {"runs": "run", "workouts": "work out", "swims": "swim", "bike rides": "bike", "walks": "go for a walk",
+                "hikes": "go on a hike"}.get(m.group("what"), "go to the gym")
+        return f"how many times did i {verb}{m.group('when') or ' this week'}"
     # "How often do you remind me to stretch" (2026-10-08: to the planner).
     m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
     if m:
@@ -5064,12 +5072,7 @@ def _birthday_on_file():
     year = int(m.group(3)) if m.group(3) else None
     if year is None:
         # "I was born in 1995" said on its own, beside a birthday with no year.
-        try:
-            from aletheia import memory
-            told = re.fullmatch(r"\s*((?:19|20)\d\d)\s*", str(memory.recall("identity", "birth_year") or ""))
-            year = int(told.group(1)) if told else None
-        except Exception:
-            year = None
+        year = _birth_year_said()
     return month, int(day), year
 
 
@@ -5359,12 +5362,31 @@ def _relation_words() -> set:
     return set(voice._RELATIONS)
 
 
+def _birth_year_said() -> int | None:
+    """The year he said he was born ("I was born in 1999"), with no date."""
+    try:
+        from aletheia import memory
+        told = re.fullmatch(r"\s*((?:19|20)\d\d)\s*", str(memory.recall("identity", "birth_year") or ""))
+        return int(told.group(1)) if told else None
+    except Exception:
+        return None
+
+
 def _age_in(year: str = "", years: str = "") -> str:
     """How old he will be in a year he names, from the birthday he told her."""
     import datetime as dt
     from aletheia import localtime
     held = _birthday_on_file()
     if not held or not held[2]:
+        # "I was born in 1999" and no date (2026-10-21: "I don't know the
+        # year you were born" a turn after he said it).
+        born = _birth_year_said()
+        if born and not held and (year or years):
+            target = int(year) if year else dt.datetime.now(localtime.operator_tz()).year + int(years)
+            if target < born:
+                return f"You weren't born yet in {target}."
+            return (f"{target - born - 1} or {target - born} in {target}, depending on whether your birthday has "
+                    "passed. Tell me the date and I'll know which.")
         return ("I don't know the year you were born. Say \"my birthday is March 3rd, 1995\" "
                 "and I'll remember it.")
     month, day, born = held
@@ -5393,6 +5415,15 @@ def _birthday(text: str = "") -> str:
     from aletheia import localtime
     held = _birthday_on_file()
     if not held:
+        born = _birth_year_said()
+        if born:
+            if re.search(r"\bborn\b|\bbirth year\b", _tidy(text)):
+                return f"{born}, you told me - but not the date. Say \"my birthday is\" and the date and I'll remember it."
+            if re.search(r"\bold\b|\bage\b", _tidy(text)):
+                now = dt.datetime.now(localtime.operator_tz()).year
+                return (f"{now - born - 1} or {now - born} - you were born in {born}, and I don't have the date to say "
+                        "which. Say \"my birthday is\" and the date.")
+            return f"You told me you were born in {born}, but not the date. Say \"my birthday is\" and the date and I'll remember it."
         return "I don't have your birthday. Say \"my birthday is March 3rd, 1995\" and I'll remember it."
     month, day, year = held
     # "What year was I born" is the year, first (2026-10-08)
