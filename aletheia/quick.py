@@ -19872,15 +19872,25 @@ def _miles_until(text: str) -> str | None:
                 odo = float(m.group("n").replace(",", "")) * (1000 if m.group("k") else 1)
         if due is not None and odo is not None:
             break
-    if due is None and odo is not None:
+    if due is None:
         # "Needs an oil change every 5000 miles" and "I changed the oil today":
-        # the next one is the interval past the mileage when it was done.
+        # the next one is the interval past the mileage when it was done -
+        # the mileage he said it was done at ("I got an oil change at 42000
+        # miles", 2026-10-21), or else the car's mileage he told her.
         stem = {"oil change": r"oil", "tire rotation": r"tires?", "tune-up": r"tune", "tuneup": r"tune"}.get(what, re.escape(what.split()[0]))
-        every = next((m for m in (re.search(stem + r"[a-z ]{0,20}every " + number + r" ?(?:miles|mi)\b",
-                                            " ".join(str(r.get("text") or "").split()).casefold()) for r in rows) if m), None)
-        done = any(re.search(r"\b(?:changed|got|had|did|rotated)\b[a-z ]{0,20}" + stem, " ".join(str(r.get("text") or "").split()).casefold())
-                   for r in rows)
-        if every and done:
+        texts = [" ".join(str(r.get("text") or "").split()).casefold() for r in rows]
+        every = next((m for m in (re.search(stem + r"[a-z ]{0,20}every " + number + r" ?(?:miles|mi)\b", t) for t in texts) if m), None)
+        done = [t for t in texts if re.search(r"\b(?:changed|got|had|did|rotated)\b[a-z ]{0,20}" + stem, t)]
+        at = re.search(r"\bat " + number + r" ?(?:miles|mi)\b", done[0]) if done else None
+        if every and at:
+            last = float(at.group("n").replace(",", "")) * (1000 if at.group("k") else 1)
+            due = last + float(every.group("n").replace(",", "")) * (1000 if every.group("k") else 1)
+            if odo is None:
+                if g.get("mu_next"):
+                    return f"At {due:,.0f} miles - your last {what} was at {last:,.0f}, and you said every {due - last:,.0f}."
+                return (f"It's due at {due:,.0f} miles - your last was at {last:,.0f}. Tell me the car's mileage, "
+                        "\"my car has 44,000 miles\", and I'll say how far that is.")
+        elif every and done and odo is not None:
             due = odo + float(every.group("n").replace(",", "")) * (1000 if every.group("k") else 1)
     if g.get("mu_next") and (due is None or odo is None):
         return None  # "when is my next ..." with no arithmetic to do: the note itself answers it
