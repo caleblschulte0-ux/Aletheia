@@ -24,7 +24,15 @@ def slug_of(name: str) -> str:
 
 
 def _path(name: str):
-    return private_dir("lists") / f"{slug_of(name)}.json"
+    # "Errand list" and "errands list" are one list (2026-10-22: two files).
+    # The one he already has wins; a new list keeps the name he said.
+    slug = slug_of(name)
+    other = slug[:-1] if slug.endswith("s") and len(slug) > 3 else slug + "s"
+    for each in (slug, other):
+        path = private_dir("lists") / f"{each}.json"
+        if path.is_file():
+            return path
+    return private_dir("lists") / f"{slug}.json"
 
 
 def _load(name: str, *, deleted: bool = True) -> dict | None:
