@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-22T17:16:19Z",
+  "generated_at": "2026-10-22T21:42:04Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,52 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "1d23d66f1497",
-          "date": "2026-10-22T15:45:41Z",
-          "message": "brief: 2026-10-22"
+          "sha": "47ab9783ba28",
+          "date": "2026-10-22T21:20:47Z",
+          "message": "Merge pull request #524 from caleblschulte0-ux/claude/probe-next113"
         },
         {
-          "sha": "b149ede3bee0",
-          "date": "2026-10-22T15:06:38Z",
-          "message": "core: state checkpoint"
+          "sha": "9a688e999a65",
+          "date": "2026-10-22T20:35:02Z",
+          "message": "\"Remind me Friday after work\"; \"set a reminder for the 1st to pay rent\""
         },
         {
-          "sha": "d528a74e89fb",
-          "date": "2026-10-22T14:36:35Z",
-          "message": "core: state checkpoint"
+          "sha": "40ea0e4dbb02",
+          "date": "2026-10-22T17:17:58Z",
+          "message": "Merge pull request #523 from caleblschulte0-ux/claude/probe-next112"
         },
         {
-          "sha": "9cdb9921a9d9",
-          "date": "2026-10-22T14:06:41Z",
-          "message": "core: state checkpoint"
+          "sha": "446951596bed",
+          "date": "2026-10-22T17:16:47Z",
+          "message": "pulse: 2026-10-22T17:16Z"
         },
         {
-          "sha": "fcf94e5b51e8",
-          "date": "2026-10-22T13:43:01Z",
-          "message": "Merge pull request #522 from caleblschulte0-ux/claude/probe-next111"
+          "sha": "751d40062bbd",
+          "date": "2026-10-22T16:30:39Z",
+          "message": "Errands are a list: \"what errands do I have\", \"add get gas to my errands\""
         }
       ],
       "commit": {
-        "sha": "1d23d66f1497",
-        "date": "2026-10-22T15:45:41Z",
-        "message": "brief: 2026-10-22"
+        "sha": "47ab9783ba28",
+        "date": "2026-10-22T21:20:47Z",
+        "message": "Merge pull request #524 from caleblschulte0-ux/claude/probe-next113"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-22T12:01:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39774964349"
+          "updated_at": "2026-10-22T17:16:51Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39821145797"
         },
         "ci.yml": {
-          "error": "never run"
+          "status": "completed",
+          "conclusion": "success",
+          "updated_at": "2026-10-22T17:47:04Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/39821409946"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20692
+          "bytes": 20639
         }
       },
       "health": "green"
@@ -68,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "613a681cd5e6",
-          "date": "2026-10-22T17:13:47Z",
-          "message": "Sports: a clip is a clip, stories start fast, the receiver is the subject (#694)"
+          "sha": "f29898e56ef7",
+          "date": "2026-10-22T20:12:34Z",
+          "message": "story forge: new real-data stories [skip ci]"
         },
         {
-          "sha": "fa879f765113",
-          "date": "2026-10-22T17:07:45Z",
+          "sha": "5940d339a3ee",
+          "date": "2026-10-22T19:24:56Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
+        },
+        {
+          "sha": "05505a3e7e67",
+          "date": "2026-10-22T19:12:03Z",
           "message": "watchdog: chatgpt task verdicts 20261022 [skip ci]"
         },
         {
-          "sha": "4cbf993d64ff",
-          "date": "2026-10-22T16:52:52Z",
-          "message": "claim: mailbox verdicts 2026-10-22T16:52Z [skip ci]"
+          "sha": "68d09a595394",
+          "date": "2026-10-22T18:53:46Z",
+          "message": "Trimming a slow start never leaves the clip a few seconds long (#695)"
         },
         {
-          "sha": "f3e3a1ed42b9",
-          "date": "2026-10-22T16:43:46Z",
-          "message": "explainer: posted pickleball-fastest-growing-sport [skip ci]"
-        },
-        {
-          "sha": "865129ebe75a",
-          "date": "2026-10-22T16:43:37Z",
-          "message": "explainer: claim upload slot pickleball-fastest-growing-sport [skip ci]"
+          "sha": "a0c9bec992d7",
+          "date": "2026-10-22T18:42:41Z",
+          "message": "claim: mailbox verdicts 2026-10-22T18:42Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "613a681cd5e6",
-        "date": "2026-10-22T17:13:47Z",
-        "message": "Sports: a clip is a clip, stories start fast, the receiver is the subject (#694)"
+        "sha": "f29898e56ef7",
+        "date": "2026-10-22T20:12:34Z",
+        "message": "story forge: new real-data stories [skip ci]"
       },
       "vitals": [
         {
@@ -127,20 +130,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-22T17:14:22Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39820818898"
+          "updated_at": "2026-10-22T18:54:14Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39835389268"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-22T14:58:00Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39798569819"
+          "updated_at": "2026-10-22T18:40:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39833387377"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-22T11:49:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39762021546"
+          "updated_at": "2026-10-22T20:12:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39834500671"
         },
         "third.yml": {
           "status": "completed",
@@ -150,10 +153,9 @@
         },
         "explainer.yml": {
           "status": "completed",
-          "conclusion": "cancelled",
-          "updated_at": "2026-10-22T14:02:06Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39773156482",
-          "said": "Canceling since a higher priority waiting request for explainer-stories exists"
+          "conclusion": "success",
+          "updated_at": "2026-10-22T19:25:06Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39792057705"
         },
         "retro.yml": {
           "status": "completed",
@@ -187,7 +189,7 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 4566911
+          "bytes": 4589543
         },
         "config/channel_registry.json": {
           "exists": true,
@@ -203,6 +205,16 @@
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
         {
+          "sha": "b017121f6572",
+          "date": "2026-10-22T21:31:15Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
+        {
+          "sha": "6fd83bf9abc1",
+          "date": "2026-10-22T17:58:38Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
+        {
           "sha": "98637f46c181",
           "date": "2026-10-21T21:37:15Z",
           "message": "bot: daily snapshot [skip ci]"
@@ -216,21 +228,11 @@
           "sha": "a70b463755af",
           "date": "2026-10-20T21:34:37Z",
           "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "2cf55d755794",
-          "date": "2026-10-20T17:58:53Z",
-          "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "b92d7b4f9824",
-          "date": "2026-10-19T23:05:10Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "98637f46c181",
-        "date": "2026-10-21T21:37:15Z",
+        "sha": "b017121f6572",
+        "date": "2026-10-22T21:31:15Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -258,19 +260,19 @@
       "state_files": {
         "signals/holdings.json": {
           "exists": true,
-          "bytes": 2329
+          "bytes": 2770
         },
         "signals/sim_account.json": {
           "exists": true,
-          "bytes": 9109
+          "bytes": 10057
         },
         "signals/performance.json": {
           "exists": true,
-          "bytes": 2876
+          "bytes": 3197
         },
         "reports/track_record.md": {
           "exists": true,
-          "bytes": 3051
+          "bytes": 3207
         }
       },
       "health": "green"
@@ -433,18 +435,10 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-22T15:45:41Z",
+        "last_progress_at": "2026-10-22T21:20:47Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
-          {
-            "number": 523,
-            "title": "Errands are a list: \"what errands do I have\", \"add get gas to my errands\"",
-            "head": "claude/probe-next112",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/523",
-            "created_at": "2026-10-22T16:30:45Z"
-          },
           {
             "number": 351,
             "title": "Calendar times said either way, how long since, family visits, pets and more",
@@ -519,7 +513,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 16,
+        "days_quiet": 15,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
@@ -543,8 +537,7 @@
       "github": "Shorts-pipeline",
       "health": "red",
       "failing": [
-        "daily.yml",
-        "explainer.yml"
+        "daily.yml"
       ]
     }
   ],
