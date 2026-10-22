@@ -3762,6 +3762,15 @@ def _direct(text: str) -> str:
         verb = {"runs": "run", "workouts": "work out", "swims": "swim", "bike rides": "bike", "walks": "go for a walk",
                 "hikes": "go on a hike"}.get(m.group("what"), "go to the gym")
         return f"how many times did i {verb}{m.group('when') or ' this week'}"
+    # "What are you reminding me about tomorrow" (2026-10-21: to a model).
+    m = re.fullmatch(r"what (?:are you|will you be|r u) remind(?:ing)? me (?:about|of|to do)?\s*(?P<when>today|tonight|tomorrow|this week|on [a-z]+day)?\s*\??", text)
+    if m and m.group("when"):
+        return f"what reminders do i have {m.group('when')}"
+    # "What do I need to bring tomorrow" (2026-10-21: to a model, beside a
+    # task "bring my laptop charger" due tomorrow) is that day's list.
+    m = re.fullmatch(r"what (?:do i|should i|did i say i'?d?) (?:need to |have to |want to )?(?:bring|take|pack|grab) (?P<when>today|tonight|tomorrow|this week|on [a-z]+day)\s*\??", text)
+    if m:
+        return f"what's due {m.group('when').removeprefix('on ')}"
     # "How often do you remind me to stretch" (2026-10-08: to the planner).
     m = re.fullmatch(r"how often (?:do|will|are) (?:you|u) (?:remind(?:ing)?|going to remind) me (?:to |about )?(?P<what>.+?)\s*\??", text)
     if m:
@@ -5094,6 +5103,14 @@ def _birthday_on_file():
 
 
 
+def _yours_med(what: str) -> str:
+    """"your " before a kind of pill ("your allergy pill", 2026-10-21: "you
+    took allergy pill"), nothing before a medicine by name ("ibuprofen")."""
+    low = str(what or "").casefold()
+    named = re.fullmatch(_DRUGS, low) and not re.fullmatch(r"insulin|antihistamines?|antacids?|cough syrup|allergy pills?|painkillers?", low)
+    return "" if named else "your "
+
+
 def _took_today(what: str) -> str:
     """Whether he told her he took it today, and when - from his notes."""
     import datetime as dt
@@ -5117,10 +5134,10 @@ def _took_today(what: str) -> str:
         if told_at:
             clock = told_at.group(1)
         if at.date() == today:
-            return f"Yes - you told me you took {'' if (re.fullmatch(_DRUGS, what.casefold()) and what != 'insulin') else 'your '}{what} at {clock} today."
+            return f"Yes - you told me you took {_yours_med(what)}{what} at {clock} today."
         return (f"Not that you've told me today. The last time was {speech.humanize_time(at.isoformat())}." )
     # A medicine by name is not "your ibuprofen".
-    yours = "" if re.fullmatch(_DRUGS, str(what or "").casefold()) and what not in ("insulin",) else "your "
+    yours = _yours_med(what)
     mine = "" if not yours else "my "
     return f"You haven't told me you took {yours}{what} today. Say \"I took {mine}{what}\" when you do and I'll keep track."
 
