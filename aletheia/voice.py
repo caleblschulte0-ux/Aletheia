@@ -4286,6 +4286,18 @@ def _interpret(transcript: str) -> dict:
     low = re.sub(r"^(?:set|make|create|add) (?:a |an |me a )?reminder (?:for )?"
                  r"(?=(?:every|each|tomorrow|today|tonight|on|next|this|in|monday|tuesday|wednesday|thursday|friday"
                  r"|saturday|sunday|weekdays?|weekends?)\b.* (?:to|about|that) \S)", "remind me ", low)
+    # "Set a reminder for the 1st to pay rent" asked when to remind him
+    # about "the 1st to pay rent" (2026-10-22); the date is the when.
+    low = re.sub(r"^(?:set|make|create|add) (?:a |an |me a )?reminder (?:for|on) (the \d{1,2}(?:st|nd|rd|th)?)"
+                 r"(?= (?:to|about|that) \S)", r"remind me on \1", low)
+    # "Remind me Friday after work to change the oil" (2026-10-22: to the
+    # planner) - "after work" alone already meant 5:30 pm.
+    m_day = re.match(r"^(remind me (?:on )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                     r"|the \d{1,2}(?:st|nd|rd|th)?)) (after work|before work|after lunch|after dinner|after school)\b", low)
+    if m_day:
+        hh, mm = (int(x) for x in _LOOSE_TIMES[m_day.group(2)].split(":"))
+        clock = f"{(hh - 1) % 12 + 1}{':%02d' % mm if mm else ''} {'am' if hh < 12 else 'pm'}"
+        low = f"{m_day.group(1)} at {clock}" + low[m_day.end():]
     # "Make it 7pm tomorrow", "make it 7 on friday" (2026-10-16: to a model)
     # are "make it tomorrow at 7pm", which already moves the reminder.
     low = re.sub(r"^((?:(?:no|actually|wait|sorry|oh|oops),? )*(?:make it|change it to|change that to|move it to) )"
