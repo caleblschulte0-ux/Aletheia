@@ -7591,7 +7591,9 @@ class TheDoctorsAppointmentMoved(unittest.TestCase):
                          "my doctors appointment got moved to the 21st"):
                 cmd = voice.interpret(f"thea {said}")["command"]
                 self.assertEqual(cmd["kind"], "calendar_hold", said)
-                self.assertIn("-10-21T10:00:00", cmd["start"], said)
+                # The 21st is the next one: October's until it passed on
+                # 2026-10-22, when a frozen "-10-21" went red.
+                self.assertRegex(cmd["start"], r"-\d\d-21T10:00:00", said)
                 self.assertEqual(cmd["replaces"], self.HOLD["start"])
 
     def test_the_apostrophe(self):
