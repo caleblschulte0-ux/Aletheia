@@ -1517,11 +1517,15 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What did I have yesterday" (2026-10-07: to a model).
         r"|what (?:was|did i have) on (?:my |the )?(?:calendar|schedule|agenda)|what did i have(?: on)?|what meetings did i have"
         r"|did i have anything(?: on)?|was i busy"
+        # "What's happening on Halloween" (2026-10-22: to a model).
+        r"|what(?:'s| is|s)? (?:happening|going on)|what do i have going on"
         # "What's on the 15th" (2026-10-07: to a model) - "on" said once.
         r"|what(?:'s| is|s)?(?= on ))"
         r" (?:on |for )?(?P<agenda_on>yesterday|the \d{1,2}(?:st|nd|rd|th)?(?: of (?:january|february|march|april|may|june|july|august"
         r"|september|october|november|december))?|(?:january|february|march|april|may|june|july|august|september|october"
-        r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?)\s*\??$")),
+        r"|november|december) (?:the )?\d{1,2}(?:st|nd|rd|th)?"
+        r"|halloween|christmas(?: eve| day)?|new year'?s(?: eve| day)?|thanksgiving|valentine'?s day|the fourth of july"
+        r"|independence day|labor day|memorial day|easter|st\.? patrick'?s day)\s*\??$")),
     # "When am I done today", "when's my last meeting" (2026-10-07: to the planner).
     ("last_meeting", re.compile(
         r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow))?\s*\??$"
@@ -7588,11 +7592,26 @@ def _agenda_on(words: str) -> str | None:
         if not rows:
             return "Nothing was on your calendar yesterday."
         label = "Yesterday"
+    # "What's happening on Halloween" with a reminder set for it (2026-10-22):
+    # the reminders that day are what he has on it too.
+    clock = lambda at: at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
+    reminders = []
+    if when >= today:
+        try:
+            start = max(dt.datetime.now(dt.timezone.utc), dt.datetime.combine(when, dt.time(0, 0), tzinfo=tz))
+            reminders = sorted((at.astimezone(tz), text) for at, text, store in _coming(start)
+                               if store == "reminder" and at.astimezone(tz).date() == when)
+        except Exception:
+            reminders = []
+    also = ""
+    if reminders:
+        also = (f" You do have {speech.count_phrase(len(reminders), 'reminder')}: "
+                + speech.and_list([f"{clock(at)}, {text}" for at, text in reminders[:4]]) + ".")
     if not rows:
-        return f"Nothing on your calendar on {label}."
+        return f"Nothing on your calendar on {label}." + also
     rows.sort()
-    said = [f"{title} at " + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower() for start, title in rows[:6]]
-    return f"{label}: " + speech.and_list(said) + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
+    said = [f"{title} at " + clock(start) for start, title in rows[:6]]
+    return f"{label}: " + speech.and_list(said) + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "." + also
 
 
 def _agenda(day: str = "today") -> str | None:
