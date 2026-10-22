@@ -440,7 +440,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-22T14:36:23Z",
+  "generated_at": "2026-10-22T15:06:28Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -451,9 +451,14 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _": 10,
+    "workable: field: _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ the _ _": 2,
+    "workable: field: _ _ _ company _ _ _ _ _": 2,
+    "workable: field: open to all": 2,
     "workable: field: resume _": 12,
+    "workable: field: us": 2,
     "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1
   },
