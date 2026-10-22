@@ -3760,6 +3760,11 @@ def _direct(text: str) -> str:
         except Exception:
             planned = None
         return f"what am i making for {m.group('meal')}" if planned else f"what should i make for {m.group('meal')}"
+    # "What's on tap for Friday", "what's on deck tomorrow" (2026-10-22: to a
+    # model) are "what's on my calendar".
+    m = re.fullmatch(r"what(?:'s| is|s) on (?:tap|deck|the docket|the books|the cards)(?: for)?(?P<when> .+?)?\s*\??", text)
+    if m:
+        return f"what's on my calendar{m.group('when') or ' today'}"
     # "How many runs this week", "how many workouts" (2026-10-21: to a model)
     # are the count "how many times did I run" already reads.
     m = re.fullmatch(r"how many (?P<what>runs|workouts|gym (?:trips|visits|sessions)|swims|bike rides|walks|hikes)"
