@@ -885,7 +885,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "clear my completed tasks" all went to the planner. The task store
     # holds the answer to every one.
     ("tasks_done", re.compile(
-        r"^what (?:have i|did i) (?:done|do|get done|got done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off|accomplish(?:ed)?|achieve(?:d)?)"
+        # "What have I gotten done this week" (2026-10-22: to a model).
+        r"^what (?:have i|did i|all have i|all did i) (?:done|do|get done|got done|gotten done|finish(?:ed)?|complete(?:d)?|knock(?:ed)? off"
+        r"|cross(?:ed)? off|check(?:ed)? off|tick(?:ed)? off|accomplish(?:ed)?|achieve(?:d)?)"
         r"(?P<what> today| yesterday| this week| last week| last weekend| this weekend| over the weekend"
         r"| (?:on )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$"
         r"|^what (?:tasks|things) (?:have i|did i) (?:finish(?:ed)?|complete(?:d)?|do|done|get done|tick(?:ed)? off)"
