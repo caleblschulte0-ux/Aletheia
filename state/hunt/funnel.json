@@ -226,7 +226,9 @@
   },
   "closed_recently": {
     "days": 3,
-    "why": {}
+    "why": {
+      "left_questions": 1
+    }
   },
   "days": {
     "2026-09-23": {
@@ -414,7 +416,7 @@
       "sent": 0
     },
     "2026-10-17": {
-      "filled": 11,
+      "filled": 10,
       "found": 19,
       "interviews": 0,
       "rejections": 0,
@@ -422,31 +424,35 @@
       "sent": 4
     },
     "2026-10-18": {
-      "filled": 19,
-      "found": 19,
+      "filled": 12,
+      "found": 12,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     },
     "2026-10-22": {
-      "filled": 5,
-      "found": 5,
+      "filled": 12,
+      "found": 12,
       "interviews": 1,
       "rejections": 0,
       "replies": 1,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-22T11:45:00Z",
+  "generated_at": "2026-10-22T12:15:19Z",
   "question_shapes": {
-    "lever: field: date": 1,
-    "lever: field: name": 1,
+    "lever: field: date": 2,
+    "lever: field: name": 2,
+    "lever: textarea: _ _ when would you be able to _ at _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: resume _": 1,
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 4,
+    "workable: radio: have you been convicted of a felony": 2,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1
   },
   "sent_all_time": 315,
@@ -504,7 +510,7 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 10,
+      "nothing_to_press_on_form/filled": 11,
       "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
@@ -515,10 +521,14 @@
   },
   "stuck_recently": {
     "days": 3,
-    "where": {}
+    "where": {
+      "questions": {
+        "nothing_to_press_on_form/filled": 1
+      }
+    }
   },
   "totals": {
-    "filled": 264,
+    "filled": 263,
     "found": 527,
     "interviews": 9,
     "rejections": 18,
@@ -531,7 +541,7 @@
       "education": 1,
       "on_site": 2,
       "other": 19,
-      "pay": 3,
+      "pay": 2,
       "travel": 1,
       "years_experience": 1
     },
@@ -549,7 +559,7 @@
       "left_no_way_forward": 97,
       "left_out_of_steps": 4,
       "left_posting_closed": 7,
-      "left_questions": 11,
+      "left_questions": 12,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
       "not_a_form_asks_nothing_on_bamboohr": 8,
@@ -572,7 +582,7 @@
       "part-time": 2
     },
     "needs_account": 0,
-    "needs_answer": 25,
+    "needs_answer": 24,
     "oldest_days": 39,
     "to_send": 1
   },
