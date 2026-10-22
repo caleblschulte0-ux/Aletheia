@@ -3206,6 +3206,16 @@ def _named_list_said(low: str, text: str) -> dict | None:
     m = re.fullmatch(r"(?:i need to |remember to |don'?t forget to )?pack (?P<item>[a-z0-9][a-z0-9 ,'&-]{1,50}?) for (?:my |the |our )?(?:trip|vacation|flight|travels?|holiday|weekend away)", low)
     if m and not re.fullmatch(r"(?:my |the |our )?(?:bags?|suitcases?|stuff|things|everything)", m.group("item")):
         return {"command": {"kind": "list_add", "list": "packing", "item": _as_he_said(text, m.group("item"))}, "say": None}
+    # "Add get gas to my errands" (2026-10-22: to the planner with no
+    # errands list yet) and "what errands do I have" (his task list, which
+    # held none of them) are the errands list.
+    m = re.fullmatch(r"(?:add|put|stick|throw) (?P<item>.+?) (?:to|on|onto) (?:my |the )?errands?", low)
+    if m:
+        return {"command": {"kind": "list_add", "list": "errands", "item": _as_he_said(text, m.group("item"))}, "say": None}
+    if re.fullmatch(r"(?:what errands (?:do i have|have i got|are (?:left|there)|do i (?:need|have) to (?:run|do))"
+                    r"|what are my errands|(?:do i have|have i got|are there) any errands"
+                    r"|what(?:'s| is|s) on my errands)(?: (?:today|this week|left))?", low):
+        return {"command": {"kind": "list_read", "list": "errands"}, "say": None}
     # "Clear the meal plan" (2026-10-21: to the planner) says no "list";
     # "clear the meal plan list" already emptied it.
     if re.fullmatch(r"(?:clear|empty|wipe|reset|delete everything on|start over on) (?:out )?(?:my |the |our )?meal plan(?: out)?", low):

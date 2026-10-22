@@ -3073,7 +3073,7 @@ def _named_list(kind: str, cmd: dict) -> str:
     if rows is None:
         # "add ... to my packing list" starts one by itself (2026-10-08: the
         # sentence offered was a step he does not need).
-        return f"Nothing's on a {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
+        return f"Nothing's on {'an' if name[:1].lower() in 'aeiou' else 'a'} {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
     if not rows:
         return f"Your {name} list is empty."
     # "Sunscreen and my charger" read his own words back as hers (2026-10-08).
