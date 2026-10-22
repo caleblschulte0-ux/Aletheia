@@ -188,8 +188,18 @@ def in_part(slots: list[tuple[str, str]], part: str) -> list[tuple[str, str]]:
     if not window:
         return list(slots)
     low, high = window
-    return [s for s in slots
-            if low <= dt.datetime.fromisoformat(s[0]).hour < high]
+    # A slot must also END inside it. "Am I free Saturday morning" said
+    # "9 am to 12:15 pm" (2026-10-22): the 11:45 half hour started in the
+    # morning and ran into the afternoon, and merged it moved noon.
+    kept = []
+    for start, end in slots:
+        a, b = dt.datetime.fromisoformat(start), dt.datetime.fromisoformat(end)
+        if not low <= a.hour < high:
+            continue
+        if b.date() == a.date() and (b.hour, b.minute, b.second) > (high, 0, 0):
+            continue
+        kept.append((start, end))
+    return kept
 
 
 def merge_slots(slots: list[tuple[str, str]]) -> list[tuple[str, str]]:
