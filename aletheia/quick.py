@@ -8997,15 +8997,32 @@ def _just_added(turns: int = 8, text: str = "") -> str | None:
             if you and not re.match(r"what did i just\b", you, re.I):
                 return f"You said \"{you}\", and I answered: {her}"
         return None
+    # "Add eggs", "actually take that off", "what did I just add" said
+    # "You just added eggs" (2026-10-23): what came off after it is not
+    # what he has just added.
+    taken: set[str] = set()
+    undone = ""
     for turn in reversed(thread):
         her = " ".join(str(turn.get("her") or "").split())
+        off = re.match(r"(?:Undone: took (.+?) back off|Took it off) (?:the|your) [a-z' ]+?(?: list)?(?:: (.+?))?\.?$", her)
+        if off:
+            taken.add((off.group(1) or off.group(2) or "").casefold())
+            continue
         m = re.match(r"Added (to (?:the|your) [a-z' ]+?): (.+?)\.?$", her)
         if m:
-            return f"You just added {m.group(2)} {m.group(1).replace('to the ', 'to your ', 1)}."
+            where = m.group(1).replace('to the ', 'to your ', 1)
+            if m.group(2).casefold() in taken:
+                undone = undone or f"You added {m.group(2)} {where} and then took it back off."
+                continue
+            if undone:
+                return f"{undone} Before that, {m.group(2)}."
+            return f"You just added {m.group(2)} {where}."
         m = re.match(r"Added a task: (.+?)\.?$", her)
         if m:
+            if undone:
+                return f"{undone} Before that, a task: {m.group(1)}."
             return f"You just added a task: {m.group(1)}."
-    return None
+    return undone or None
 
 
 def _on_days(text: str) -> str | None:
