@@ -11372,14 +11372,19 @@ def _interpret(transcript: str) -> dict:
                         # "My son has a soccer game Saturday at 10" (2026-10-08: to the planner).
                         r"|game|match|meet|tryouts?|scrimmage|swim meet|track meet"
                         # "I have a one on one with Linda tomorrow at 10" (2026-10-08: to the planner).
-                        r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up)(?: (?:with|at) [a-z' ]+?)?)"
+                        r"|one on one|one-on-one|1 on 1|1:1|standup|stand-up|sync|check-in|catch up|catch-up"
+                        # "Add coffee with Jo Saturday at 8", "add gym tomorrow at 6",
+                        # "add church sunday at 10" (2026-10-23: to the planner).
+                        r"|coffee|drinks|brunch|happy hour|date night|game night|movie night|gym|workout|yoga|pilates"
+                        r"|spin class|church|mass|bible study|book club|volunteering)(?: (?:with|at) [a-z' ]+?)?)"
                         r"(?: on| this| for| next)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                         r"(?: at (?P<time>[\w: ]+?))?", low)
     # ...and "I have tickets to the Packers game on Sunday" is not his game
     # to hold at nine: a game is a hold only with the time it starts.
-    # "The game is tomorrow at 7" is one he watches (kept as a note).
+    # "The game is tomorrow at 7" is one he watches (kept as a note);
+    # "add the game sunday at noon" is one he asked to hold (2026-10-23).
     if told and re.search(r"\b(?:game|match|meet|scrimmage)$", told.group("title").strip()) and (
-            not told.group("time") or re.fullmatch(r"(?:the |a )?(?:game|match|meet|scrimmage)", told.group("title").strip())):
+            not told.group("time") or not re.match(r"(?:add|schedule|put|pencil in) ", told.group("lead") or "") and re.fullmatch(r"(?:the |a )?(?:game|match|meet|scrimmage)", told.group("title").strip())):
         told = None
     # ...but "call tomorrow" alone is not a diary entry called Call.
     if told and not told.group("lead") and " " not in told.group("title").strip() \
@@ -11414,6 +11419,18 @@ def _interpret(transcript: str) -> dict:
     # (2026-10-08). What already happened is news, not a diary entry.
     if told and not told.group("lead") and re.search(r"\b(?:had|went|was|were|did|got|finished|missed|skipped|cancell?ed)\b",
                                                      told.group("title")):
+        told = None
+    # ...and the everyday ones need asking for or a time: "I'm hosting game
+    # night on the 20th" is news to keep, not a 9 am hold (2026-10-23).
+    if told and not told.group("lead") and re.search(
+            r"\b(?:coffee|drinks|brunch|happy hour|date night|game night|movie night|gym|workout|yoga|pilates"
+            r"|spin class|church|mass|bible study|book club|volunteering)(?: (?:with|at) [a-z' ]+)?$", told.group("title").strip()) \
+            and (not told.group("time") or re.match(r"(?:i|we|i'?m|we'?re|im|i am|we are|my|our)\b", low)):
+        told = None
+    # "I want coffee tomorrow at 8" is a wish, not a hold called "i want
+    # coffee" (2026-10-23).
+    if told and not told.group("lead") and re.match(
+            r"(?:i|we) (?:want|wanna|need|could use|would like|'d like|d like|feel like|crave)\b|(?:i'?d|we'?d|id) (?:like|love)\b", low):
         told = None
     m = m or told
     # "I HAVE A MEETING WITH DANA AT 2" names no day (2026-10-07: to the
