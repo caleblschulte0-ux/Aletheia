@@ -3773,6 +3773,13 @@ def _direct(text: str) -> str:
     m = re.fullmatch(r"what(?:'s| is|s) on (?:tap|deck|the docket|the books|the cards)(?: for)?(?P<when> .+?)?\s*\??", text)
     if m:
         return f"what's on my calendar{m.group('when') or ' today'}"
+    # "How many things do I have this weekend" (2026-10-23: to a model) is
+    # the agenda; the list it reads out is the count.
+    m = re.fullmatch(r"how many (?:things|events|plans) (?:do i have|have i got|are (?:there|on my calendar))"
+                     r"(?: on| planned| scheduled)?(?P<when> today| tomorrow| this week| next week| this weekend| next weekend"
+                     r"| (?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day)\s*\??", text)
+    if m:
+        return f"what do i have {m.group('when').strip().removeprefix('on ')}"
     # "How many runs this week", "how many workouts" (2026-10-21: to a model)
     # are the count "how many times did I run" already reads.
     m = re.fullmatch(r"how many (?P<what>runs|workouts|gym (?:trips|visits|sessions)|swims|bike rides|walks|hikes)"
@@ -15731,10 +15738,28 @@ def _when_note(text: str) -> str | None:
     """The newest note naming the thing with a day or a time in it."""
     from aletheia import speech
     thing = " ".join(str(_groups("when_note", text).get("when_note") or "").casefold().split())
+    # "What time is church Sunday" (2026-10-23: to a model): the day he
+    # names is when he thinks it is, not part of what it is called.
+    # Only that day's, and only off the calendar: "what time is dinner
+    # Monday" is not Saturday's dinner.
+    asked_day = re.search(r"(?<=[a-z]) (?:on |this |next )?((?:mon|tues|wednes|thurs|fri|satur|sun)day)$", thing)
+    if asked_day:
+        thing = thing[:asked_day.start()]
     words = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in _STOP_WORDS and w not in ("s",)]
     if not words:
         return None
     stems = [w[:-1] if len(w) > 4 and w.endswith("s") else w for w in words]
+    if asked_day:
+        for at, what, store in _coming():
+            low = str(what or "").casefold()
+            if store == "calendar" and at.strftime("%A").casefold() == asked_day.group(1) \
+                    and all(re.search(rf"\b{re.escape(w)}", low) for w in stems):
+                name = str(what).strip().rstrip(".")
+                if name[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", name):
+                    name = "your " + name
+                return f"{name[:1].upper() + name[1:]} is {_calendar_when(at, what) or speech.humanize_time(at.isoformat())}."
+        # Nothing on the calendar that day: a note that names the day too.
+        stems.append(asked_day.group(1))
     # "What time does the wedding start" after "I have a wedding on
     # Saturday" and "the wedding starts at 4" (2026-10-08: read back the
     # day). A question about the time wants the note with the time.
