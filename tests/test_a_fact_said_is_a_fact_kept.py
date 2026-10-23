@@ -12784,11 +12784,16 @@ class TheSameTaskTwice(unittest.TestCase):
 class TheNextHaircut(unittest.TestCase):
     def test_how_often_and_the_last_one_give_the_next(self):
         self.assertEqual(voice.interpret("I go to the barber every 3 weeks")["command"]["kind"], "note")
-        rows = [{"text": "I got a haircut", "ts": "2026-10-01T15:00:00+00:00"}, {"text": "I go to the barber every 3 weeks"}]
+        # The last one a week ago, so the next is two weeks out whatever the
+        # date (a frozen "2026-10-01" went red on 2026-10-23, once it was due).
+        import datetime as _dt
+        last = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=7)).replace(hour=15, minute=0, second=0, microsecond=0)
+        due = last + _dt.timedelta(weeks=3)
+        rows = [{"text": "I got a haircut", "ts": last.isoformat()}, {"text": "I go to the barber every 3 weeks"}]
         with mock.patch.object(quick, "_notes", return_value=rows):
             said = quick.answer("when should I get my next haircut")
             self.assertIn("every 3 weeks", said)
-            self.assertIn("October 22", said)
+            self.assertIn(f"{due.strftime('%B')} {due.day}", said)
         with mock.patch.object(quick, "_notes", return_value=rows[1:]):
             self.assertIn("haven't told me when your last haircut was", quick.answer("when should I get my next haircut"))
         with mock.patch.object(quick, "_notes", return_value=[]):
