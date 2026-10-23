@@ -213,6 +213,22 @@
       "unreachable": 2,
       "unreachable_ApplyError": 2,
       "weak_shot": 0
+    },
+    "2026-10-22": {
+      "duplicate": 4,
+      "employer_full": 0,
+      "minutes": 30,
+      "needs_account": 0,
+      "needs_answer": 7,
+      "not_realistic": 17,
+      "offered": 32,
+      "ready": 4,
+      "runs": 1,
+      "unfit_pay": 3,
+      "unfit_sales": 14,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -231,14 +247,6 @@
     }
   },
   "days": {
-    "2026-09-23": {
-      "filled": 28,
-      "found": 60,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 7,
-      "sent": 26
-    },
     "2026-09-24": {
       "filled": 4,
       "found": 16,
@@ -432,15 +440,23 @@
       "sent": 0
     },
     "2026-10-22": {
-      "filled": 34,
-      "found": 34,
+      "filled": 33,
+      "found": 33,
       "interviews": 3,
       "rejections": 0,
       "replies": 3,
       "sent": 4
+    },
+    "2026-10-23": {
+      "filled": 2,
+      "found": 2,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-10-22T15:37:05Z",
+  "generated_at": "2026-10-23T14:53:17Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -467,30 +483,26 @@
   },
   "sent_all_time": 320,
   "sent_by_system": {
-    "ashbyhq": 34,
-    "employer_site": 9,
-    "greenhouse": 93,
-    "lever": 27
+    "ashbyhq": 17,
+    "employer_site": 7,
+    "greenhouse": 87,
+    "lever": 26
   },
   "stop_shapes": {},
   "stuck_at": {
-    "approval_denied": {
-      "nothing_to_press_on_unread/review_reached": 16
-    },
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 21,
+      "nothing_to_press_on_captcha/filled": 16,
       "nothing_to_press_on_captcha/observed": 3
     },
     "error": {
-      "nothing_to_press_on_unread/filled": 8,
+      "nothing_to_press_on_unread/filled": 5,
       "nothing_to_press_on_unread/nothing": 1,
       "nothing_to_press_on_unread/observed": 7,
       "nothing_to_press_on_unread/submit_clicked": 1
     },
     "going_in_circles": {
       "nothing_to_press_on_account_login/observed": 1,
-      "nothing_to_press_on_content/observed": 4,
-      "nothing_to_press_on_form/filled": 8,
+      "nothing_to_press_on_form/filled": 7,
       "nothing_to_press_on_form/observed": 2,
       "nothing_to_press_on_form/review_reached": 1,
       "nothing_to_press_on_multi_page_wizard/filled": 2,
@@ -501,7 +513,7 @@
       "nothing_to_press_on_content+empty_page/observed": 1,
       "nothing_to_press_on_content+no_apply/filled": 1,
       "nothing_to_press_on_content+no_apply/observed": 10,
-      "nothing_to_press_on_content/observed": 53,
+      "nothing_to_press_on_content/observed": 29,
       "nothing_to_press_on_form+no_apply/filled": 2,
       "nothing_to_press_on_form+no_apply/observed": 5,
       "nothing_to_press_on_form/observed": 5,
@@ -509,18 +521,17 @@
       "nothing_to_press_on_success+no_apply/observed": 1,
       "nothing_to_press_on_success/observed": 1,
       "nothing_to_press_on_success/receipt_verified": 1,
-      "unclear_button/observed": 20,
-      "unreadable_page/observed": 1
+      "unclear_button/observed": 16
     },
     "out_of_steps": {
-      "nothing_to_press_on_unread/observed": 6
+      "nothing_to_press_on_unread/observed": 3
     },
     "posting_closed": {
-      "nothing_to_press_on_content/observed": 7
+      "nothing_to_press_on_content/observed": 4
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 11,
+      "nothing_to_press_on_form/filled": 8,
       "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
@@ -538,12 +549,12 @@
     }
   },
   "totals": {
-    "filled": 273,
-    "found": 537,
+    "filled": 246,
+    "found": 478,
     "interviews": 11,
     "rejections": 18,
-    "replies": 58,
-    "sent": 163
+    "replies": 51,
+    "sent": 137
   },
   "waiting": {
     "asked_about": {
@@ -556,28 +567,23 @@
       "years_experience": 1
     },
     "closed": {
-      "gone_on_ashbyhq": 21,
-      "gone_on_employer_site": 1,
+      "gone_on_ashbyhq": 19,
       "gone_on_greenhouse": 12,
-      "gone_on_lever": 2,
+      "gone_on_lever": 1,
       "gone_on_smartrecruiters": 3,
       "gone_on_workable": 1,
-      "left_approval_denied": 16,
-      "left_captcha": 20,
-      "left_error": 15,
-      "left_going_in_circles": 16,
-      "left_no_way_forward": 97,
-      "left_out_of_steps": 4,
-      "left_posting_closed": 7,
-      "left_questions": 12,
-      "left_sign_in": 11,
+      "left_captcha": 15,
+      "left_error": 14,
+      "left_going_in_circles": 12,
+      "left_no_way_forward": 72,
+      "left_out_of_steps": 3,
+      "left_posting_closed": 4,
+      "left_questions": 11,
+      "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
       "not_a_form_asks_nothing_on_bamboohr": 8,
-      "not_a_form_asks_nothing_on_employer_site": 7,
-      "not_a_form_asks_nothing_on_greenhouse": 1,
-      "not_a_form_asks_nothing_on_lever": 1,
-      "not_a_form_asks_nothing_on_smartrecruiters": 26,
-      "not_a_form_signup_list_on_employer_site": 8,
+      "not_a_form_asks_nothing_on_employer_site": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 20,
       "not_realistic": 26
     },
     "failed": 17,
@@ -592,8 +598,8 @@
       "part-time": 2
     },
     "needs_account": 0,
-    "needs_answer": 29,
-    "oldest_days": 39,
+    "needs_answer": 30,
+    "oldest_days": 40,
     "to_send": 0
   },
   "window_days": 30
