@@ -9467,6 +9467,45 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": hold["start"], "was_title": hold["title"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+    # "Make dinner with mom an hour later", "make church 2 hours", "how long
+    # is dinner with mom" (2026-10-23: to the planner and a model). Her own
+    # hold: moved by that much, given that length, or its length read back.
+    m = re.fullmatch(r"(?:make|have|start) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) (?P<n>an?|half an|\d{1,3}) "
+                     r"(?P<u>hours?|minutes?|mins?) (?P<dir>later|earlier|sooner)", low)
+    if m and m.group("what") not in ("it", "that", "this") and _one_of_her_holds(m.group("what"))[0]:
+        return _interpret(f"push {m.group('what')} {'back' if m.group('dir') == 'later' else 'forward'} "
+                          f"{m.group('n')} {m.group('u')}")
+    m = re.fullmatch(r"(?:make|change|set) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) (?:to )?(?:last )?(?P<n>an?|half an|\d{1,3}) "
+                     r"(?P<u>hours?|minutes?|mins?)(?P<half> and a half)?(?: long)?", low)
+    if m and m.group("what") not in ("it", "that", "this", "the timer", "a timer", "timer"):
+        hold, why = _one_of_her_holds(m.group("what"))
+        if hold:
+            n = m.group("n")
+            count = {"a": 1, "an": 1, "half an": 0.5}.get(n) or int(n)
+            if m.groupdict().get("half"):
+                count += 0.5
+            minutes = int(count * (60 if m.group("u").startswith("h") else 1))
+            from aletheia import calendar as _cal_len
+            return {"command": {"kind": "calendar_hold", "title": hold["title"],
+                                "start": _cal_len.parse_time(hold["start"]).isoformat(),
+                                "minutes": max(5, minutes), "replaces": hold["start"]}, "say": None}
+        if why:
+            return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
+    m = re.fullmatch(r"how long (?:is|will) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?)(?: be| last| take)?\s*\??", low)
+    if m and m.group("what") not in ("it", "that", "this"):
+        hold, _why = _one_of_her_holds(m.group("what"))
+        if hold:
+            import datetime as dt
+            from aletheia import calendar as _cal_how, localtime as _lt_how, speech as _sp_how
+            tz = _lt_how.operator_tz()
+            was = _cal_how.parse_time(hold["start"]).astimezone(tz)
+            ends = _cal_how.parse_time(hold["end"]).astimezone(tz) if hold.get("end") else was + dt.timedelta(hours=1)
+            length = int((ends - was).total_seconds() // 60)
+            said = ("an hour" if length == 60 else "an hour and a half" if length == 90 else
+                    _sp_how.count_phrase(length // 60, "hour") if length % 60 == 0 else _sp_how.count_phrase(length, "minute"))
+            clock = lambda d: d.strftime("%I:%M %p").lstrip("0").replace(":00 ", " ").lower()  # noqa: E731
+            name = hold["title"]
+            return {"command": None, "say": f"{name[:1].upper() + name[1:]} is {said}, {clock(was)} to {clock(ends)}."}
     # "Push my 2pm back an hour" (2026-10-07: to the planner). Her own hold
     # moves by that much, the same length; anything else is said plainly.
     m = re.fullmatch(r"(?:push|move|bump|shift|slide) (?:my |the )?(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?) "

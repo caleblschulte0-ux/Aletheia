@@ -1536,9 +1536,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|independence day|labor day|memorial day|easter|st\.? patrick'?s day)\s*\??$")),
     # "When am I done today", "when's my last meeting" (2026-10-07: to the planner).
     ("last_meeting", re.compile(
-        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow))?\s*\??$"
-        r"|^(?:when|what time) (?:am i|will i be) (?:done|finished|free)(?: for the day)?(?: (?P<lastday2>today|tomorrow))?\s*\??$"
-        r"|^what time do i (?:finish|get done|wrap up)(?: (?P<lastday3>today|tomorrow))?\s*\??$")),
+        # "What's my last thing Sunday" (2026-10-23: a memory search for
+        # "last thing sunday"): any day of the week, not only two.
+        r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my last (?:meeting|appointment|event|call|thing)(?: (?P<lastday>today|tomorrow|(?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day))?\s*\??$"
+        r"|^(?:when|what time) (?:am i|will i be) (?:done|finished|free)(?: for the day)?(?: (?P<lastday2>today|tomorrow|(?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day))?\s*\??$"
+        r"|^what time do i (?:finish|get done|wrap up)(?: (?P<lastday3>today|tomorrow|(?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day))?\s*\??$")),
     ("first_meeting", re.compile(
         r"^(?:what(?:'s| is|s)?|when(?:'s| is)?|what time(?:'s| is)) my first (?:meeting|appointment|event|call|thing)(?:(?: on)? (?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?$")),
     ("repo_wrong", re.compile(
@@ -7593,8 +7595,15 @@ def _last_meeting(day: str = "today") -> str | None:
     import datetime as dt
     from aletheia import calendar, localtime, speech
     tz = localtime.operator_tz()
-    tomorrow = str(day).strip() == "tomorrow"
-    when = dt.datetime.now(tz).date() + dt.timedelta(days=1 if tomorrow else 0)
+    day = str(day).strip().removeprefix("on ")
+    tomorrow = day == "tomorrow"
+    today = dt.datetime.now(tz).date()
+    when = today + dt.timedelta(days=1 if tomorrow else 0)
+    label = "tomorrow" if tomorrow else "today"
+    if day in _WEEKDAYS:
+        ahead = (_WEEKDAYS.index(day) - today.weekday()) % 7
+        when = today + dt.timedelta(days=ahead)
+        label = "today" if ahead == 0 else "tomorrow" if ahead == 1 else when.strftime("%A")
     try:
         rows = []
         for event in calendar.all_events():
@@ -7610,7 +7619,6 @@ def _last_meeting(day: str = "today") -> str | None:
                 rows.append((end, start, str(event.get("title") or "something")[:60]))
     except Exception:
         return None
-    label = "tomorrow" if tomorrow else "today"
     if not rows:
         return f"Nothing on your calendar {label}."
     end, _start, title = max(rows)
