@@ -4302,6 +4302,14 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             ends = calendar_reasoning.human(held["event"].get("end") or end.isoformat())
             until = f" until {ends.split(' at ', 1)[1]}" if " at " in ends else ""
         when = calendar_reasoning.human(held['event']['start'])
+        # A trip from the 3rd to the 5th is days, not "at 12 am" (2026-10-23).
+        if (end - start) >= _dt.timedelta(days=1) and start.astimezone(localtime.operator_tz()).time() == _dt.time(0, 0):
+            local = lambda d: d.astimezone(localtime.operator_tz())  # noqa: E731
+            last = local(end) - _dt.timedelta(days=1)
+            day = lambda d: f"{d.strftime('%A')} {d.day} {d.strftime('%B')}"  # noqa: E731
+            when = (f"all day {day(local(start))}" if last.date() == local(start).date()
+                    else f"from {day(local(start))} to {day(last)}")
+            until = ""
         if until and " at " in when:
             when = when.replace(" at ", " from ", 1)
         if old and cmd.get("was_title") and str(old.get("start")) == str(held["event"].get("start")):

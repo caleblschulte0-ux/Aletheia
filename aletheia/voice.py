@@ -11424,6 +11424,37 @@ def _interpret(transcript: str) -> dict:
     m = m or re.fullmatch(r"book (?:a |an )?(?P<title>(?:meeting|call|catch-up|catch up) with [a-z' ]+?)"
                           r"(?: on| this| for)? (?P<day>" + _cal_days + r")(?: (?P<part>morning|afternoon|evening|night))?"
                           r"(?: at (?P<time>[\w: ]+?))?", low)
+    # "Add a work trip to Denver from November 3 to 5", "put my vacation on
+    # the calendar from December 20 to 27" (2026-10-23: to the planner).
+    # Days, not hours: one hold from the first morning to the last night.
+    if not m:
+        sp = re.fullmatch(r"(?:add|put|schedule|block(?: off| out)?|pencil in|mark) (?:a |an |my |the )?(?P<title>[a-z][a-z' ]{1,50}?)"
+                          r"(?: (?:on|to|in) (?:my |the )?calendar)? from (?P<d1>" + SPOKEN_DATE + r")"
+                          r" (?:to|through|thru|until|till|-) (?P<d2>" + SPOKEN_DATE + r"|" + _NTH + r")", low)
+        if sp:
+            first, last = _spoken_day(sp.group("d1")), None
+            if first:
+                d2 = sp.group("d2")
+                if re.fullmatch(_NTH, d2) and not re.search(_MONTH, d2):
+                    d1_month = re.search(_MONTH, sp.group("d1"))
+                    d2 = f"{d1_month.group(0)} {d2}" if d1_month else f"the {d2}"
+                last = _spoken_day(d2)
+            if first and last:
+                import datetime as _dt
+                a, z = _dt.date.fromisoformat(first), _dt.date.fromisoformat(last)
+                if z < a:
+                    try:
+                        z = z.replace(year=z.year + 1)
+                    except ValueError:
+                        z = None
+                if z and a <= z and (z - a).days <= 60:
+                    from aletheia import localtime as _localtime
+                    tz = _localtime.operator_tz()
+                    start = _dt.datetime.combine(a, _dt.time(0, 0), tzinfo=tz)
+                    end = _dt.datetime.combine(z + _dt.timedelta(days=1), _dt.time(0, 0), tzinfo=tz)
+                    title = _as_he_said(text, sp.group("title").strip())
+                    return {"command": {"kind": "calendar_hold", "title": title,
+                                        "start": start.isoformat(), "end": end.isoformat()}, "say": None}
     # "BLOCK OFF FRIDAY AFTERNOON" (2026-10-07: to the planner): a hold
     # called Busy for that part of that day, the same reversible hold.
     if not m:
