@@ -1160,6 +1160,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("bake_time", re.compile(
         r"^how long (?:do i|should i|do you|to|does it take to|should you) (?:bake|roast|cook) (?:a |an |the |some |my )?"
         r"(?P<bake>[a-z][a-z -]{1,30}?)(?: in the oven)?(?: (?:at|on) (?P<bake_t>\d{3})(?: degrees| f| fahrenheit)?)?(?: for)?\s*\??$")),
+    # "What's after my haircut", "do I have time for lunch before my
+    # haircut" (2026-10-23: to a model, and the second answered about TODAY
+    # while the haircut was Saturday). The day of the thing he named.
+    ("around_event", re.compile(
+        r"^(?:what(?:'s| is| do i have| have i got)|(?:do i have|have i got|is there) anything) (?P<ae_side>after|before) (?:my |the )"
+        r"(?P<ae_what>[a-z][a-z' ]{1,30}?)\s*\??$"
+        r"|^(?:do i have|have i got|is there|will i have) (?:enough )?time (?:for|to) (?P<ae_for>[a-z][a-z' ]{1,30}?) (?P<ae_side2>before|after) (?:my |the )"
+        r"(?P<ae_what2>[a-z][a-z' ]{1,30}?)\s*\??$")),
     ("until", re.compile(
         r"^how (?:many days|many hours|many minutes|long) (?:until|till|to|before) (?:the )?(?!(?:you|u|i|we|she|it|they|he) |(?:soft |hard |medium )?boil\b)"
         r"(?P<until>[a-z][a-z' ]{2,30}?)(?: is it)?$")),
@@ -3882,7 +3890,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -5748,6 +5756,85 @@ def _holiday_year(text: str) -> str | None:
     return f"{when.strftime('%A %d %B %Y').replace(' 0', ' ')}."
 
 
+def _around_event(text: str) -> str | None:
+    """"What's after my haircut", "what's before it", "do I have time for
+    lunch before my haircut": the day of the event he named, around it.
+    None when no event on the calendar is called that."""
+    import datetime as dt
+    from aletheia import calendar, localtime
+    g = _groups("around_event", text)
+    side = g.get("ae_side") or g.get("ae_side2") or ""
+    what = (g.get("ae_what") or g.get("ae_what2") or "").strip()
+    words = [w for w in re.findall(r"[a-z0-9]+", what) if w not in _STOP_WORDS]
+    if not side or not words:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    try:
+        events = []
+        for event in calendar.all_events():
+            if event.get("status") == "CANCELLED":
+                continue
+            try:
+                start = calendar.parse_time(event["start"]).astimezone(tz)
+                end = calendar.parse_time(event.get("end") or event["start"]).astimezone(tz)
+            except (KeyError, ValueError, TypeError):
+                continue
+            events.append((start, max(end, start), str(event.get("title") or "something").strip()))
+    except Exception:
+        return None
+    events.sort()
+    it = next((e for e in events if e[1] > now and _whole_days({"start": e[0].isoformat(), "end": e[1].isoformat()}, tz) is None
+               and all(re.search(rf"\b{re.escape(w.rstrip('s'))}", e[2].casefold()) for w in words)), None)
+    if it is None:
+        return None
+    clock = lambda at: at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()  # noqa: E731
+    day = it[0].date()
+    day_said = ("today" if day == now.date() else "tomorrow" if day == now.date() + dt.timedelta(days=1)
+                else f"{day.strftime('%A')}")
+    name = it[2] if not it[2][:1].islower() or re.match(r"(?:my|the|a|an|our) ", it[2]) else f"your {it[2]}"
+    same_day = [e for e in events if e is not it and e[0].date() == day
+                and _whole_days({"start": e[0].isoformat(), "end": e[1].isoformat()}, tz) is None]
+    if side == "after":
+        later = [e for e in same_day if e[0] >= it[1]]
+        if g.get("ae_for"):
+            if not later:
+                return f"Yes - {name} ends at {clock(it[1])} {day_said} and nothing comes after it on your calendar."
+            gap = int((later[0][0] - it[1]).total_seconds() // 60)
+            return (f"{name[:1].upper() + name[1:]} ends at {clock(it[1])} {day_said}, and {later[0][2]} is at {clock(later[0][0])} - "
+                    f"{_minutes_said(gap)} free between them.")
+        if not later:
+            return f"Nothing after {name} {day_said} - it ends at {clock(it[1])} and the rest of the day is clear."
+        from aletheia import speech
+        return f"After {name} {day_said}: " + speech.and_list([f"{t} at {clock(a)}" for a, _b, t in later[:4]]) + "."
+    earlier = [e for e in same_day if e[1] <= it[0] and e[1] > (now if day == now.date() else e[1] - dt.timedelta(seconds=1))]
+    if g.get("ae_for"):
+        if not earlier:
+            return f"Yes - {name} is {day_said} at {clock(it[0])}, and nothing is before it on your calendar that day."
+        gap = int((it[0] - earlier[-1][1]).total_seconds() // 60)
+        return (f"{earlier[-1][2][:1].upper() + earlier[-1][2][1:]} ends at {clock(earlier[-1][1])} and {name} is at {clock(it[0])} {day_said} - "
+                f"{_minutes_said(gap)} free between them.")
+    if not earlier:
+        return f"Nothing before {name} {day_said} - it's the first thing on your calendar that day, at {clock(it[0])}."
+    from aletheia import speech
+    return f"Before {name} {day_said}: " + speech.and_list([f"{t} at {clock(a)}" for a, _b, t in earlier[-4:]]) + "."
+
+
+def _minutes_said(minutes: int) -> str:
+    """90 -> "an hour and a half", 45 -> "45 minutes", 120 -> "2 hours"."""
+    from aletheia import speech
+    if minutes <= 0:
+        return "no time"
+    hours, mins = divmod(minutes, 60)
+    if hours and mins == 30:
+        return "an hour and a half" if hours == 1 else f"{hours} and a half hours"
+    if hours and not mins:
+        return "an hour" if hours == 1 else f"{hours} hours"
+    if hours:
+        return f"{speech.count_phrase(hours, 'hour')} and {speech.count_phrase(mins, 'minute')}"
+    return speech.count_phrase(mins, "minute")
+
+
 def _until_mine(words: str) -> str | None:
     """"How long until my dentist appointment", "... until my timer goes
     off", "... until the weekend" (2026-10-07: all to a model, with the hold,
@@ -5814,6 +5901,10 @@ def _until_mine(words: str) -> str | None:
         else:
             parts = [speech.count_phrase(n, unit) for n, unit in ((hours, "hour"), (mins, "minute")) if n]
         span = " and ".join(parts[:2]) if parts else "less than a minute"
+        # "58 days - 20 December at 12 am" for a vacation held as days (2026-10-23).
+        if store == "calendar" and _calendar_when(at, text):
+            local = at.astimezone(localtime.operator_tz())
+            return f"{span[:1].upper()}{span[1:]} - it starts {local.strftime('%A')} {local.day} {local.strftime('%B')}."
         return f"{span[:1].upper()}{span[1:]} - {speech.humanize_time(at.isoformat())}."
     if not timer:
         words_of = [w for w in re.findall(r"[a-z0-9]+", thing) if w not in _STOP_WORDS]
@@ -13885,7 +13976,9 @@ def _life_when(text: str) -> str | None:
     # "When is my next oil change (due)" with only a task about it reads
     # the task (2026-10-08), as it did before the note was read.
     nxt = re.match(r"when(?:'s| is) (?:my|the) (next [a-z' -]+?)(?: due)?\s*\??$", text.casefold())
-    return found or (_task_due(nxt.group(1)) if nxt else None)
+    # "When is my vacation" with the vacation on the calendar and no note
+    # (2026-10-23: to a model).
+    return found or (_task_due(nxt.group(1)) if nxt else None) or (_when_mine(asked) if g.get("lw3") else None)
 
 
 def _told_when(pattern: str) -> str | None:
@@ -20432,6 +20525,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
                                                                   r"|^(?:which|what) (?:of|one|task)", rest))),
            "outcomes": _outcomes,
            "until": _until,
+           "around_event": lambda rest: _around_event(rest),
            "race": lambda rest: _race(rest),
            "age_in": lambda rest: _age_in(_groups("age_in", rest).get("age_year", ""),
                                           _groups("age_in", rest).get("age_n", "")),

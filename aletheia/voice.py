@@ -8257,6 +8257,10 @@ def _interpret(transcript: str) -> dict:
                      r"|when can i (?:fit in|squeeze in|fit) (?:a |an )?[a-z' ]{2,30}?|do i have time for (?:a |an )?[a-z' ]{2,30}?)"
                      r"(?: (?:on |this )?(?P<when>today|tomorrow|tonight|(?:tomorrow |this )?(?:morning|afternoon|evening)"
                      r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??", low)
+    # "Do I have time for lunch before my haircut" (2026-10-23) is the
+    # haircut's day, not today's free time: quick reads it around the event.
+    if m and re.search(r" (?:before|after) (?:my|the) ", low):
+        m = None
     if m:
         day, part = _spoken_when(m.group("when") or "today")
         if day:
