@@ -7556,6 +7556,44 @@ def _double_booked() -> str | None:
     return "Yes: " + speech.and_list(clashes[:3]) + (f", and {len(clashes) - 3} more" if len(clashes) > 3 else "") + "."
 
 
+def _whole_days(event: dict, tz):
+    """(first day, last day) of an event held as whole days - "a work trip
+    from November 3 to 5" runs midnight to midnight (2026-10-23) - or None
+    for an event with hours."""
+    import datetime as dt
+    from aletheia import calendar
+    try:
+        start = calendar.parse_time(event["start"]).astimezone(tz)
+        end = calendar.parse_time(event["end"]).astimezone(tz)
+    except (KeyError, ValueError, TypeError):
+        return None
+    if start.time() != dt.time(0, 0) or end.time() != dt.time(0, 0) or end - start < dt.timedelta(days=1):
+        return None
+    return start.date(), end.date() - dt.timedelta(days=1)
+
+
+def _calendar_when(at, title: str) -> str:
+    """"from Tuesday 3 November to Thursday 5 November" for the calendar
+    event starting `at` with this title when it is held as whole days;
+    "" otherwise. A trip is never "at 12 am" (2026-10-23)."""
+    try:
+        from aletheia import calendar, localtime
+        for event in calendar.all_events():
+            if event.get("status") != "CANCELLED" and str(event.get("title") or "").strip() == str(title).strip() \
+                    and calendar.parse_time(event["start"]) == at:
+                days = _whole_days(event, localtime.operator_tz())
+                return _days_said(*days) if days else ""
+    except Exception:
+        return ""
+    return ""
+
+
+def _days_said(first, last) -> str:
+    """"all day Tuesday 3 November" or "from Tuesday 3 November to Thursday 5 November"."""
+    day = lambda d: f"{d.strftime('%A')} {d.day} {d.strftime('%B')}"  # noqa: E731
+    return f"all day {day(first)}" if first == last else f"from {day(first)} to {day(last)}"
+
+
 def _agenda_on(words: str) -> str | None:
     """His calendar on a date he names: "the 15th", "October 15"."""
     import datetime as dt
@@ -7588,8 +7626,11 @@ def _agenda_on(words: str) -> str | None:
                 start = calendar.parse_time(event["start"]).astimezone(tz)
             except (KeyError, ValueError, TypeError):
                 continue
-            if start.date() == when:
-                rows.append((start, str(event.get("title") or "something")[:80]))
+            days = _whole_days(event, tz)
+            if days and days[0] <= when <= days[1]:
+                rows.append((start, str(event.get("title") or "something")[:80], ", all day"))
+            elif not days and start.date() == when:
+                rows.append((start, str(event.get("title") or "something")[:80], None))
     except Exception:
         return None
     label = f"{when.strftime('%A')} {when.day} {when.strftime('%B')}"
@@ -7615,7 +7656,7 @@ def _agenda_on(words: str) -> str | None:
     if not rows:
         return f"Nothing on your calendar on {label}." + also
     rows.sort()
-    said = [f"{title} at " + clock(start) for start, title in rows[:6]]
+    said = [title + (whole if whole else " at " + clock(start)) for start, title, whole in rows[:6]]
     return f"{label}: " + speech.and_list(said) + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "." + also
 
 
@@ -7666,8 +7707,11 @@ def _agenda(day: str = "today") -> str | None:
                 start = calendar.parse_time(event["start"]).astimezone(tz)
             except (KeyError, ValueError, TypeError):
                 continue
-            if first <= start.date() <= last:
-                rows.append((start, str(event.get("title") or "something")[:80]))
+            days = _whole_days(event, tz)
+            if days and days[0] <= last and days[1] >= first:
+                rows.append((start, str(event.get("title") or "something")[:80], " " + _days_said(*days)))
+            elif not days and first <= start.date() <= last:
+                rows.append((start, str(event.get("title") or "something")[:80], None))
     except Exception:
         return None                  # no calendar mirror: the model may know more
     label = (first.strftime("%A") if day in _WEEKDAYS      # he said Friday; say Friday
@@ -7695,10 +7739,11 @@ def _agenda(day: str = "today") -> str | None:
             + _reminders_and_tasks_between(first, last, now)
     rows.sort(key=lambda r: r[0])
     many_days = first != last
-    said = [(f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month" or "month" in day or day.startswith("in ")
+    said = [title + whole if whole else
+            (f"{title} {start.strftime('%A')} the {_ordinal(start.day)} at " if day == "this month" or "month" in day or day.startswith("in ")
              else f"{title} {start.strftime('%A')} at " if many_days else f"{title} at ")
             + start.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()
-            for start, title in rows[:6]]
+            for start, title, whole in rows[:6]]
     return (f"{label}: " + speech.and_list(said)
             + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "."
             + (f" And you told me: {told}." if told else ""))
@@ -12128,7 +12173,7 @@ def _when_mine(what: str, until: bool = False) -> str | None:
                 # "Your haircut is Saturday", not "Haircut is Saturday"
                 # (2026-10-08); a title he gave capitals keeps them.
                 said = f"your {text}" if text[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", text) else text
-                return f"{said[:1].upper() + said[1:]} is {when}."
+                return f"{said[:1].upper() + said[1:]} is {_calendar_when(at, text) or when}."
             return f"You have a reminder {when}: {text.rstrip('.')}."
     # A note he told her: "the dentist is the 15th at 10" before there was a
     # calendar hold for it (2026-10-07: to the planner, with the note held).
@@ -15654,7 +15699,7 @@ def _when_note(text: str) -> str | None:
             name = str(what).strip().rstrip(".")
             if name[:1].islower() and not re.match(r"(?:my|the|a|an|our) ", name):
                 name = "your " + name
-            return f"{name[:1].upper() + name[1:]} is {speech.humanize_time(at.isoformat())}."
+            return f"{name[:1].upper() + name[1:]} is {_calendar_when(at, what) or speech.humanize_time(at.isoformat())}."
     # "When is our anniversary" with nothing told (2026-10-08: "I can't
     # think") - a date only he knows, so the answer is how to tell her.
     whose = re.match(r"when (?:is|'s) (?P<whose>my|our) ", _tidy(text))
