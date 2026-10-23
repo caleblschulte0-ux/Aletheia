@@ -9286,6 +9286,26 @@ def _interpret(transcript: str) -> dict:
         r"|today|tonight|tomorrow|this (?:morning|afternoon|evening)|monday|tuesday|wednesday"
         r"|thursday|friday|saturday|sunday|weekend|lunch|dinner|breakfast|call|plans)\b", re.IGNORECASE)
 
+    # "Cancel gym tomorrow", "skip date night" (2026-10-23: to the planner).
+    # A day after the name, or skip for cancel: only when the words name one
+    # of her own holds, so "skip this song" is still the music's.
+    m = re.fullmatch(r"(?:cancel|skip|scratch|i'?m skipping|i'?ll skip|i'?m not going to|i'?m not doing|no) (?:my |the |our )?"
+                     r"(?P<w>[a-z][a-z' ]{1,40}?)(?: (?P<d>today|tonight|tomorrow|(?:on |this )?(?:mon|tues|wednes|thurs|fri|satur|sun)day))?"
+                     r"(?: this week)?", low)
+    if m and not re.fullmatch(r"(?:that|it|this|them|those|these|everything|all|both|the rest|reminders?|alarms?|timers?|tasks?)",
+                              m.group("w")):
+        hold, why = _one_of_her_holds(f"{m.group('w')} {m.group('d') or ''}".strip())
+        if hold and m.group("d") in ("today", "tonight", "tomorrow"):
+            import datetime as _dt
+            from aletheia import calendar as _cal, localtime as _lt
+            tz = _lt.operator_tz()
+            want = _dt.datetime.now(tz).date() + _dt.timedelta(days=1 if m.group("d") == "tomorrow" else 0)
+            if _cal.parse_time(hold["start"]).astimezone(tz).date() != want:
+                from aletheia import calendar_reasoning as _cr
+                return {"command": None, "say": f"Your {hold['title']} is {_cr.human(hold['start'])}, not {m.group('d')}, "
+                                                f"so I've left it. Say cancel {hold['title']} if you want it gone."}
+        if hold:
+            return {"command": {"kind": "hold_release", "title": hold["title"], "start": hold["start"]}, "say": None}
     # "Take that hold off my calendar" (2026-10-11: to the planner, which had nothing to plan it
     # with). Her own holds are hers to take off: the one his words name, or the only one there is;
     # with several and nothing to tell them apart, she asks which.
