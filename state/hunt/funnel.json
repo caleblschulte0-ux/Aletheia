@@ -444,23 +444,23 @@
       "sent": 0
     },
     "2026-10-22": {
-      "filled": 19,
-      "found": 24,
+      "filled": 7,
+      "found": 12,
       "interviews": 3,
       "rejections": 0,
       "replies": 3,
       "sent": 4
     },
     "2026-10-23": {
-      "filled": 11,
-      "found": 11,
+      "filled": 23,
+      "found": 23,
       "interviews": 0,
       "rejections": 2,
       "replies": 3,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-23T17:00:54Z",
+  "generated_at": "2026-10-23T17:31:18Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -472,14 +472,9 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
-    "workable: field: _": 6,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _": 2,
     "workable: field: _ _ _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ the _ _": 1,
-    "workable: field: _ _ _ company _ _ _ _ _": 1,
-    "workable: field: open to all": 1,
     "workable: field: resume _": 12,
-    "workable: field: us": 1,
     "workable: radio: are you willing to _ a background check _ _": 1,
     "workable: radio: have you been convicted of a felony": 3,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1
