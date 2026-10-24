@@ -4280,6 +4280,28 @@ def _interpret(transcript: str) -> dict:
     # his food budget, said the way the budget readers already read it.
     low = re.sub(r"^(my|our) (?:monthly )?budget for (groceries|grocery|food|gas|fun|shopping|eating out) is ",
                  lambda b: f"{b.group(1)} {'grocery' if b.group(2).startswith('grocer') else b.group(2)} budget is ", low)
+    # "Set a budget of 200 for groceries", "set my grocery budget to 200"
+    # (2026-10-24: to the planner, and lost with nobody to think). The same
+    # note, in the words the budget readers read.
+    _bk = r"groceries|grocery|food|gas|fun|shopping|eating out|(?!budget\b|of\b|to\b|at\b)[a-z]{3,15}"
+    m = re.fullmatch(r"(?:set|make|give me|put me on|start) (?:a |my |me a |an? )?(?P<per>monthly |weekly )?budget of \$?(?P<amt>\d[\d,]*(?:\.\d+)?)"
+                     r"(?: dollars| bucks)?(?: (?:a|per|each|every) (?P<per2>week|month))?(?: for (?P<kind>" + _bk + r"))?"
+                     r"(?: (?:a|per|each|every) (?P<per3>week|month))?"
+                     r"|(?:set|make|change|update) (?:my |our |the )?(?P<per6>monthly |weekly )?(?:(?P<kind2>" + _bk + r") )?(?P<per4>monthly |weekly )?budget"
+                     r"(?: for (?P<kind3>" + _bk + r"))? (?:to |at )?\$?(?P<amt2>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)?"
+                     r"(?: (?:a|per|each|every) (?P<per5>week|month))?", low)
+    if m:
+        kind = m.group("kind") or m.group("kind2") or m.group("kind3") or ""
+        kind = "grocery" if kind.startswith("grocer") else kind
+        per = (m.group("per2") or m.group("per3") or m.group("per5")
+               or ("week" if "weekly" in (m.group("per") or m.group("per4") or m.group("per6") or "") else "month"))
+        low = f"my {kind + ' ' if kind else ''}budget is {m.group('amt') or m.group('amt2')} a {per}"
+        text = low
+    # "My clothes budget is 300 a month" (2026-10-24: to the planner). Any
+    # one-word category with a number; "am I over budget on clothes" reads it.
+    if re.fullmatch(r"(?:my|our) (?!monthly |weekly |car |new car )[a-z]{3,15} budget is (?:about |around )?\$?\d[\d,]*(?:\.\d+)?"
+                    r"(?: dollars| bucks)?(?: (?:a|per|each|every) (?:week|month))?", low):
+        return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # "Set a reminder for every weekday at 7am to stretch" asked when;
     # "set a reminder for tomorrow at 7am to stretch" went to a model
     # (2026-10-16). Both are "remind me ..." with the when first.
