@@ -167,6 +167,8 @@ class WaitingApplicationsAreRefilledCase(unittest.TestCase):
     def setUp(self):
         apply_forever._LAST_REFILL.clear()
         self.addCleanup(apply_forever._LAST_REFILL.clear)
+        apply_forever._BATCHES_SINCE_REFILL[:] = [0]
+        self.addCleanup(apply_forever._BATCHES_SINCE_REFILL.__setitem__, 0, 0)
         for target, name, kw in ((apply_forever.campaign, "running", {"return_value": None}),
                                  (apply_forever.policy, "ensure_not_halted", {}),
                                  (apply_forever, "_claude_rests_until", {"return_value": None}),
@@ -202,6 +204,17 @@ class WaitingApplicationsAreRefilledCase(unittest.TestCase):
         self.assertEqual((len(self.refills), len(self.batches)), (1, 2))
         self.turn(10_000.0 + apply_forever.REFILL_EVERY_S, waiting=3)
         self.assertEqual(len(self.refills), 2, "an hour on, the waiting ones are read again")
+
+    def test_a_refill_that_outlasts_the_hour_is_followed_by_batches(self):
+        # Live 2026-10-22/23: one batch a day. A refill that ran past the
+        # hour made the very next turn another refill.
+        self.turn(10_000.0, waiting=40)
+        self.turn(10_000.0 + apply_forever.REFILL_EVERY_S + 60, waiting=40)
+        self.assertEqual((len(self.refills), len(self.batches)), (1, 1))
+        self.turn(10_000.0 + apply_forever.REFILL_EVERY_S + 120, waiting=40)
+        self.assertEqual((len(self.refills), len(self.batches)), (1, 2))
+        self.turn(10_000.0 + apply_forever.REFILL_EVERY_S + 180, waiting=40)
+        self.assertEqual(len(self.refills), 2, "two batches in, the waiting ones are read again")
 
     def test_nothing_waiting_is_a_batch_as_before(self):
         self.turn(10_000.0, waiting=0)
