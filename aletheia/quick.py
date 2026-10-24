@@ -13696,28 +13696,34 @@ _FOOD_WORDS = ("food", "grocer", "eating out", "takeout", "take out", "restauran
                "brunch", "coffee", "pizza", "snack", "doordash", "uber eats", "fast food", "burger", "tacos", "sushi")
 
 
-_BUDGET_NOTE = re.compile(r"^(?:my |our )?(?P<kind>monthly |weekly |grocery |food |eating out |gas |fun |shopping )?budget is "
+_BUDGET_NOTE = re.compile(r"^(?:my |our )?(?P<kind>monthly |weekly |grocery |food |eating out |gas |fun |shopping |(?!car |new )[a-z]{3,15} )?budget is "
                           r"(?:about |around )?\$?(?P<amt>\d[\d,]*(?:\.\d+)?)(?: dollars| bucks)?"
                           r"(?: (?:a|per|each|every) (?P<per>week|month))?")
 
 
 def _budget(question: str) -> str | None:
     """"Am I over budget", "how much is left in my grocery budget": his
-    budget note against what he told her he spent. None when he never gave
-    a budget, so the question goes where it went before."""
+    budget note against what he told her he spent, or that he has given
+    none - there is no other place a budget lives."""
     import datetime as dt
     from aletheia import localtime
     low = _tidy(question or "")
-    asked = re.search(r"\b(grocery|food|eating out|gas|fun|shopping)\b", low)
+    asked = re.search(r"\b(grocery|food|eating out|gas|fun|shopping)\b", low) \
+        or re.search(r"\b(?:my|the|our) (?!monthly\b|weekly\b|whole\b|overall\b|total\b)([a-z]{3,15}) budget\b"
+                     r"|\bbudget (?:on|for) (?!the\b|this\b|it\b)([a-z]{3,15})\b", low)
     budgets = []
     for row in _notes():
         m = _BUDGET_NOTE.match(" ".join(str(row.get("text") or "").split()).casefold())
         if m:
             budgets.append(((m.group("kind") or "").strip(), float(m.group("amt").replace(",", "")),
                             m.group("per") or ("week" if (m.group("kind") or "").strip() == "weekly" else "month")))
+    want = next((w for w in asked.groups() if w), "") if asked else ""
+    want = "grocery" if want.startswith("grocer") else want
     if not budgets:
-        return None
-    want = asked.group(1) if asked else ""
+        # No budget anywhere is a fact on disk (2026-10-24: "how much is left
+        # in my grocery budget" went to a model, which had nothing either).
+        return (f"You haven't given me a {want + ' ' if want else ''}budget yet. "
+                f"Say \"my {want + ' ' if want else ''}budget is 400 a month\" and I'll keep track against what you tell me you spend.")
     pick = next((b for b in budgets if b[0] == want), None) if want else \
         next((b for b in budgets if b[0] in ("", "monthly", "weekly")), budgets[0])
     if not pick:
@@ -18511,7 +18517,14 @@ def _budget_on(text: str) -> str | None:
             budget, weekly = float(m.group(1).replace(",", "")), m.group(2) == "week"
             break
     if budget is None:
-        return None
+        # Asked about a BUDGET by name with none given (2026-10-24: "am I
+        # over budget on gas" went to a model): the general reader says so.
+        # "How much is left on my gift card" is not a budget question.
+        if not re.search(r"\bbudget\b", _tidy(text)):
+            return None
+        what = "grocery" if what.startswith("grocer") else what
+        return (f"You haven't given me a {what} budget yet. "
+                f"Say \"my {what} budget is 400 a month\" and I'll keep track against what you tell me you spend.")
     tz = localtime.operator_tz()
     now = dt.datetime.now(tz)
     midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)

@@ -3894,7 +3894,7 @@ class HisBudgetAndPayAreKept(unittest.TestCase):
             self.assertIn("No - you've spent $150", voice._interpret("am i over my grocery budget")["say"])
             self.assertIn("haven't told me a gas budget", voice._interpret("am i over my gas budget")["say"])
         with self._notes():
-            self.assertIsNone(voice._interpret("am i over budget")["say"])
+            self.assertTrue(voice._interpret("am i over budget")["say"].startswith("You haven't given me a budget yet."))
 
     def test_pay_is_kept_in_his_words(self):
         from aletheia import voice
@@ -11240,8 +11240,10 @@ class BillsBudgetsAndDebts(unittest.TestCase):
         with mock.patch.object(quick, "_notes", lambda: notes):
             self.assertEqual(quick.answer("am I over budget on groceries"),
                              "Yes - $450 on groceries this month, $50 over your $400 budget, from what you've told me.")
+        # No budget at all is a fact she says (2026-10-24), not a question
+        # for a model that has nothing either.
         with mock.patch.object(quick, "_notes", lambda: []):
-            self.assertIsNone(quick.answer("am I over budget on groceries"))
+            self.assertTrue(quick.answer("am I over budget on groceries").startswith("You haven't given me a grocery budget yet."))
 
     def test_a_gift_card(self):
         said = "I got a 50 dollar gift card to Target"
