@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T04:44:29Z",
+  "generated_at": "2026-10-24T11:12:03Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,55 +11,55 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "8bb70ba82cbf",
-          "date": "2026-10-24T01:35:26Z",
-          "message": "Merge pull request #532 from caleblschulte0-ux/claude/probe-next120"
+          "sha": "872f24b55569",
+          "date": "2026-10-24T09:23:12Z",
+          "message": "Merge pull request #534 from caleblschulte0-ux/claude/probe-next122"
         },
         {
-          "sha": "270b7d71a48a",
-          "date": "2026-10-24T00:46:06Z",
-          "message": "voice: a bare add follows the list just used; packing is crossed off and read"
+          "sha": "e6fada024a4c",
+          "date": "2026-10-24T08:34:49Z",
+          "message": "Keep \"Dana's kids are Max and Lily\"; forget everything about someone"
         },
         {
-          "sha": "c65df32b8e5b",
-          "date": "2026-10-23T21:29:16Z",
-          "message": "pulse: 2026-10-23T21:29Z"
+          "sha": "32767c9504db",
+          "date": "2026-10-24T05:19:35Z",
+          "message": "Merge pull request #533 from caleblschulte0-ux/claude/probe-next121"
         },
         {
-          "sha": "3dcf680804bb",
-          "date": "2026-10-23T21:21:36Z",
-          "message": "Merge pull request #530 from caleblschulte0-ux/claude/probe-next119"
+          "sha": "1659d927d068",
+          "date": "2026-10-24T04:44:59Z",
+          "message": "pulse: 2026-10-24T04:44Z"
         },
         {
-          "sha": "aa3fc55df7c9",
-          "date": "2026-10-23T20:33:17Z",
-          "message": "voice, quick: change a hold's time and length by name, and read them back"
+          "sha": "f18fc38b65bb",
+          "date": "2026-10-24T04:31:28Z",
+          "message": "voice: an alarm turned off for a named day is off that day only"
         }
       ],
       "commit": {
-        "sha": "8bb70ba82cbf",
-        "date": "2026-10-24T01:35:26Z",
-        "message": "Merge pull request #532 from caleblschulte0-ux/claude/probe-next120"
+        "sha": "872f24b55569",
+        "date": "2026-10-24T09:23:12Z",
+        "message": "Merge pull request #534 from caleblschulte0-ux/claude/probe-next122"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-23T21:29:20Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/40027049841"
+          "updated_at": "2026-10-24T04:45:03Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/40063527820"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-24T02:03:51Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/40050488326"
+          "updated_at": "2026-10-24T09:48:41Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/40081745886"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20363
+          "bytes": 21025
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "1068600cd8cc",
-          "date": "2026-10-24T04:19:48Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "75f394f25623",
+          "date": "2026-10-24T11:08:18Z",
+          "message": "story forge: new real-data stories [skip ci]"
         },
         {
-          "sha": "a282ebb57e0c",
-          "date": "2026-10-24T04:19:28Z",
-          "message": "explainer: posted hearing-aids-otc-price-drop [skip ci]"
+          "sha": "c25d83cbe16a",
+          "date": "2026-10-24T10:47:52Z",
+          "message": "claim: mailbox verdicts 2026-10-24T10:47Z [skip ci]"
         },
         {
-          "sha": "6cd4730e40f5",
-          "date": "2026-10-24T04:19:18Z",
-          "message": "explainer: claim upload slot hearing-aids-otc-price-drop [skip ci]"
+          "sha": "ae8e264a3edd",
+          "date": "2026-10-24T10:16:00Z",
+          "message": "watchdog: phase A readiness 20261024 [skip ci]"
         },
         {
-          "sha": "b00d3f6f3945",
-          "date": "2026-10-24T03:54:35Z",
-          "message": "explainer: posted red-hair-recessive-gene [skip ci]"
+          "sha": "e5342d0e5fa8",
+          "date": "2026-10-24T09:52:49Z",
+          "message": "exchange: phase A bundle for 20261024 [skip ci]"
         },
         {
-          "sha": "ad51b34a056f",
-          "date": "2026-10-24T03:54:25Z",
-          "message": "explainer: claim upload slot red-hair-recessive-gene [skip ci]"
+          "sha": "da4bb9566eac",
+          "date": "2026-10-24T09:52:30Z",
+          "message": "explainer: author 4 new data stories for 2026-10-24 (#700)"
         }
       ],
       "commit": {
-        "sha": "1068600cd8cc",
-        "date": "2026-10-24T04:19:48Z",
-        "message": "explainer: update posted log + analytics [skip ci]"
+        "sha": "75f394f25623",
+        "date": "2026-10-24T11:08:18Z",
+        "message": "story forge: new real-data stories [skip ci]"
       },
       "vitals": [
         {
@@ -129,8 +129,8 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-23T23:01:12Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/40037173824"
+          "updated_at": "2026-10-24T09:52:54Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/40083688201"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
@@ -141,8 +141,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-23T21:58:00Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/40019690473"
+          "updated_at": "2026-10-24T11:08:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/40082635185"
         },
         "third.yml": {
           "status": "completed",
@@ -165,8 +165,8 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-10-23T09:59:54Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/39935878492"
+          "updated_at": "2026-10-24T09:28:40Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/40082087654"
         }
       },
       "state_files": {
@@ -434,18 +434,10 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-10-24T01:35:26Z",
+        "last_progress_at": "2026-10-24T09:23:12Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
-          {
-            "number": 533,
-            "title": "An alarm turned off for a named day is off that day only",
-            "head": "claude/probe-next121",
-            "draft": false,
-            "url": "https://github.com/caleblschulte0-ux/Aletheia/pull/533",
-            "created_at": "2026-10-24T04:31:33Z"
-          },
           {
             "number": 531,
             "title": "Job hunt: new batches run between refills",
@@ -545,14 +537,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [],
   "plans": {
     "open": 6,
