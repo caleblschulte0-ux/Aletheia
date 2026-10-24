@@ -13759,6 +13759,17 @@ def _interpret(transcript: str) -> dict:
         if all(w[:1].isupper() for w in name.split()) and (not whose or whose[:1].isupper()) \
                 and name.split()[0].casefold() not in ("in", "on", "at", "a", "an", "the", "not", "very", "so", "my", "i"):
             return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # MORE THAN ONE OF THEM (2026-10-24: "Dana's kids are Max and Lily" went
+    # to the planner, and with nobody to think it was lost). Every name must
+    # carry his capital - "my kids are sick and tired" is how they are.
+    m = re.fullmatch(r"(?:(?:my|our) |(?P<mine>(?:my|our) )?(?P<whose>[a-z]{2,15})'s )(?:two |three |four |)(?P<rel>kids|children|sons|daughters|boys|girls|grandkids"
+                     r"|grandchildren|parents|brothers|sisters|siblings|roommates|cousins|nephews|nieces|dogs|cats|pets) (?:are|'re) (?:called |named )?"
+                     r"(?P<names>[a-z][a-z'-]{1,20}(?:, [a-z][a-z'-]{1,20}){0,4},? and [a-z][a-z'-]{1,20})", low)
+    if m:
+        names = re.split(r",? and |, ", _as_he_said(text, m.group("names")))
+        whose = _as_he_said(text, m.group("whose") or "")
+        if all(n[:1].isupper() for n in names) and (not whose or m.group("mine") or whose[:1].isupper()):
+            return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # A GIFT IDEA FOR SOMEBODY (2026-10-07: "add a gift idea for my sister:
     # a scarf" went to the planner). A line on his gift list naming who it
     # is for; "what gift ideas do I have for my sister" reads it back.

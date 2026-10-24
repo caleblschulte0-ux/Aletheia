@@ -1903,6 +1903,24 @@ def _forget_note(about: str) -> str:
     return ""
 
 
+def _forget_every_note(about: str) -> list[str]:
+    """Tombstone every note naming `about` as whole words; return their texts,
+    newest first. Never raises."""
+    try:
+        from aletheia import journal, quick
+        words = [w for w in re.findall(r"[a-z0-9']+", str(about or "").casefold())
+                 if w not in ("my", "the", "a", "an")]
+        if not words:
+            return []
+        rows = [str(r.get("text") or "") for r in quick._notes()]
+        hits = [t for t in rows if all(re.search(rf"\b{re.escape(w)}\b", t.casefold()) for w in words)][:50]
+        for text in hits:
+            journal.append("note", FORGOTTEN_SUBJECT, text[:300], actor="operator")
+        return [" ".join(t.split())[:160] for t in hits]
+    except Exception:
+        return []
+
+
 def _forget_older_versions(gone: str) -> int:
     """Tombstone every other note that says the same thing about the same
     subject as `gone` ("my doctor is ..."), returning how many. Never raises."""
@@ -3853,7 +3871,35 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         about = " ".join(str(cmd.get("about") or "").split())
         # "Forget that my boss is Karen" (2026-10-08): "that" introduces it.
         about = re.sub(r"^that (?=(?:my|our|the|i|i'm|we)\b)", "", about, flags=re.IGNORECASE)
+        # "Forget everything about Dana" (2026-10-24) forgot ONE note, said
+        # "Forgotten: Dana moved to Denver", and "what do you know about
+        # Dana" still read out her birthday and what she likes. Everything
+        # means every note naming them.
+        everything = re.match(r"(?:everything|all(?: of)? (?:the |my )?(?:notes?|things?|stuff)?)\s*"
+                              r"(?:(?:you know|you have|you've got|i(?:'ve)? told you|i said|you remember(?:ed)?) )?(?:about|on) ",
+                              about, flags=re.IGNORECASE)
         about = _what_it_is_about(about, keep_whose=True)
+        if everything:
+            about = re.sub(r"^(?:all|everything)\s+(?:(?:the|my) )?(?:notes?|things?|stuff)?\s*(?:about|on) ", "", about,
+                           flags=re.IGNORECASE).strip()
+            gone = _forget_every_note(about)
+            for domain, key, value in _remembered_matching(about, cmd.get("domain"))[:20]:
+                memory.forget(domain, key, via=f"operator via intercom: {quote[:80]}")
+                gone.append(f"{key} - {value}")
+            if gone:
+                said = speech.and_list([speech.as_she_says_it(g) for g in gone[:5]])
+                more = f", and {len(gone) - 5} more" if len(gone) > 5 else ""
+                left = ""
+                try:
+                    from aletheia import contacts
+                    person = contacts.resolve(about, contacts.all_contacts())
+                except Exception:
+                    person = None
+                if person:
+                    left = (f" {person.get('name') or about} is still in your contacts;"
+                            f" say remove {person.get('name') or about} from my contacts if you want that gone too.")
+                return (f"Forgotten {speech.count_phrase(len(gone), 'thing')} about "
+                        f"{speech.as_she_says_it(about)}: {said}{more}.{left}")
         hits = _remembered_matching(about, cmd.get("domain"))
         if not hits:
             # A NOTE IS FORGETTABLE TOO. "Remember that my sister's name is
