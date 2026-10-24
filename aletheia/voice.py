@@ -5777,13 +5777,23 @@ def _interpret(transcript: str) -> dict:
         # untouched and still reaches the thing that really cancels.
         m = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove) "
                          r"(?:the |my |that )?(.+?) reminders?\s*", low)
+    # "No alarm Friday", "don't wake me up tomorrow", "I'm sleeping in on
+    # Saturday" (2026-10-23: to the planner) - that day's alarm, once.
+    sleep_in = re.fullmatch(r"(?:(?:i )?(?:don'?t|do not) (?:need|want) (?:an |my |the )?alarm|no alarm|(?:please )?(?:don'?t|do not) wake me(?: up)?"
+                            r"|i'?m (?:going to )?sleep(?:ing)? in|i am sleeping in|let me sleep in)"
+                            r"(?: on| this)? (?P<d>tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: morning)?", low)
+    if not m and sleep_in:
+        return {"command": {"kind": "reminder_off", "which": "wake up", "once": sleep_in.group("d")}, "say": None}
     if not m:
         # "CANCEL MY ALARM": an alarm is a reminder that says "wake up", and
         # setting one was instant while cancelling it reached the planner.
         alarm = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
                              r"(?:the |my |that |all )?(?:my )?(?P<before>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?"
                              r"(?:(?:weekday|weekend|daily|morning|everyday|work|school|wake ?up) )?alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
-        day = re.search(r" for (tomorrow|today|tonight)$", low) if alarm else None
+        # "Turn off my alarm for Friday" turned the weekday alarm off for good
+        # (2026-10-23), the same as "for tomorrow" did before: any day he names.
+        day = re.search(r" (?:for|on) (tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                        r"(?: morning)?$", low) if alarm else None
         if day and not alarm.group("before"):
             # "Turn off my alarm for tomorrow" turned a weekday alarm off for
             # good (2026-10-12): with a day, it is that day's alarm, once.
