@@ -2289,7 +2289,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # model a turn after "Jen's kid's name is Mia", "Bob's wife is Linda").
     ("their_person", re.compile(
         r"^what(?:'s| is) (?P<tp_who>(?!my\b|your\b|the\b)[a-z]{2,15})'s (?P<tp_rel>[a-z][a-z -]{1,20}?)'s name\s*\??$"
-        r"|^who(?:'s| is) (?P<tp_who2>(?!my\b|your\b|the\b|it\b|that\b|he\b|she\b)[a-z]{2,15}) married to\s*\??$")),
+        r"|^who(?:'s| is) (?P<tp_who2>(?!my\b|your\b|the\b|it\b|that\b|he\b|she\b)[a-z]{2,15}) married to\s*\??$"
+        # "What are Dana's kids' names", "who are my sister's kids" (2026-10-24:
+        # both to a model, a turn after "Dana's kids are Max and Lily").
+        r"|^what(?: are|'re) (?:the )?(?P<tp_who3>(?:(?:my|our) )?(?!my\b|your\b|the\b|their\b)[a-z]{2,15})'s (?P<tp_rel3>[a-z]{2,15}?(?:s|ren))'?(?:s)? names\s*\??$"
+        r"|^who(?: are|'re) (?P<tp_who4>(?:(?:my|our) )?(?!my\b|your\b|the\b|their\b)[a-z]{2,15})'s (?P<tp_rel4>[a-z]{2,15}?(?:s|ren))\s*\??$")),
     # HABITS HE KEEPS COUNT OF (2026-10-08: all to a model): "how many days
     # in a row have I meditated", "how many drinks did I have this week",
     # "am I on track with my workouts".
@@ -15700,13 +15704,19 @@ def _their_person(text: str) -> str | None:
     wife is Linda", "Bob is married to Linda". None when no note says."""
     from aletheia import speech
     g = _groups("their_person", text)
-    who = (g.get("tp_who") or g.get("tp_who2") or "").casefold()
-    rel = (g.get("tp_rel") or "").casefold().strip()
+    who = (g.get("tp_who") or g.get("tp_who2") or g.get("tp_who3") or g.get("tp_who4") or "").casefold()
+    rel = (g.get("tp_rel") or g.get("tp_rel3") or g.get("tp_rel4") or "").casefold().strip()
+    # "Kids" asked, "kids" or "kid" told: the plural is matched either way.
+    rel = re.sub(r"(?<=[a-z]{2})(?:ren|s)$", "", rel) if g.get("tp_rel3") or g.get("tp_rel4") else rel
     rels = [rel] if rel else ["wife", "husband", "partner", "spouse", "fiancee", "fiance"]
+    # "Kids" and "children" are one question.
+    for same in (("kid", "child"), ("grandkid", "grandchild")):
+        if rel in same:
+            rels = list(same)
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
         low = said.casefold()
-        if any(re.match(rf"{re.escape(who)}'s {re.escape(r)}s?(?:'s name)? (?:is|are) ", low) for r in rels) \
+        if any(re.match(rf"{re.escape(who)}'s {re.escape(r)}(?:s|ren)?(?:'s name)? (?:is|are) ", low) for r in rels) \
                 or (not rel and re.match(rf"{re.escape(who)} is married to ", low)):
             return f"You told me: {speech.as_she_says_it(said).rstrip('.')}."
     return None
