@@ -5791,7 +5791,9 @@ class WhatSomeoneLikes(unittest.TestCase):
         with mock.patch.object(quick, "_notes", return_value=rows):
             self.assertEqual(quick.answer("what does my mom like"), "You told me: your mom loves tulips.")
             self.assertEqual(quick.answer("what does my mom hate"), "You told me: your mom hates cilantro.")
-            self.assertIsNone(quick._their_likes("what does jess like"))
+            # Nothing anywhere about Jess is a fact on disk, said plainly
+            # (2026-10-24) rather than handed to a model that knows less.
+            self.assertTrue(quick._their_likes("what does jess like").startswith("You haven't told me what Jess likes"))
 
     def test_proud_gets_a_word_back(self):
         out = voice._interpret("I'm proud of myself")

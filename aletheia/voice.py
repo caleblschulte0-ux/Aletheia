@@ -12458,8 +12458,17 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:my |our )?(?P<who2>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:was|were) born (?:on |in )?"
                      r"(?:" + _MONTH + r"\.? \d{1,2}(?:st|nd|rd|th)?|\d{1,2}(?:st|nd|rd|th)? (?:of )?" + _MONTH + r")(?:,? (?:19|20)\d\d)?"
                      # "My mom was born in 1965" (2026-10-07: to the planner).
-                     r"|(?:my |our )?(?P<who3>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:was|were) born in (?:19|20)\d\d", low)
-    if m and (m.group("who") or m.group("who2") or m.group("who3")).split()[0] not in (
+                     r"|(?:my |our )?(?P<who3>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:was|were) born in (?:19|20)\d\d"
+                     # "Jo is vegan" (2026-10-24: to the planner, and lost with
+                     # nobody to think). A person's diet: a name he capitalised
+                     # or "my ...", so "the soup is vegan" is never about anyone.
+                     r"|(?P<mine4>(?:my |our ))?(?P<who4>[a-z][a-z']{1,20}(?: [a-z][a-z']{1,20})?) (?:is|are) (?:a |strictly |now |also )?"
+                     r"(?:vegan|vegetarian|pescatarian|gluten[- ]free|lactose intolerant|celiac|coeliac|diabetic|dairy[- ]free"
+                     r"|kosher|halal|keto|sober|allergic to (?:nuts|peanuts|shellfish|gluten|dairy))", low)
+    if m and m.group("who4") and not m.group("mine4") \
+            and not all(w[:1].isupper() for w in _as_he_said(text, m.group("who4")).split()):
+        m = None
+    if m and (m.group("who") or m.group("who2") or m.group("who3") or m.group("who4")).split()[0] not in (
             "i", "he", "she", "it", "they", "who", "what", "which", "that", "this", "everyone", "everybody", "nobody", "someone",
             "you", "we"):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
