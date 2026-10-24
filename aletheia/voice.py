@@ -11878,7 +11878,12 @@ def _interpret(transcript: str) -> dict:
     # BEING ILL (2026-10-08): "I have a cold" got "rest up" and was gone, so
     # "how long have I had this cold" had nothing to count from.
     m = re.fullmatch(r"i(?:'ve| have)(?: got| had)? (?:a |an |the )?(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough)"
-                     r"(?: (?:since (?:this morning|last night|yesterday|lunch|[a-z]+day)|all (?:day|morning|week)|again|today|right now|now))?", low)
+                     r"(?: (?:since (?:this morning|last night|yesterday|lunch|[a-z]+day)|all (?:day|morning|week)|again|today|right now|now))?"
+                     # "I had a migraine yesterday" (2026-10-24: to the planner).
+                     r"|i (?:had|got) (?:a |an |another |the )?(?:bad |terrible |awful |little |mild )?(?:headache|migraine|cold|fever|flu|sore throat|stomach ?ache"
+                     r"|nosebleed|panic attack|anxiety attack|asthma attack|allergy attack|seizure|dizzy spell)"
+                     r"(?: (?:yesterday|last night|this morning|this afternoon|earlier|earlier today|today|again|on (?:monday|tuesday|wednesday"
+                     r"|thursday|friday|saturday|sunday)))?", low)
     if m:
         try:
             say = _quick.answer(text)

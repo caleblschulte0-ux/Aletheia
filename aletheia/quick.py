@@ -179,6 +179,10 @@ _SERVICES = (r"(?:a |an |my |the )?(?:haircut|hair cut|trim|oil change|flu shot|
              r"|filling|root canal|crown|tooth pulled|wisdom teeth (?:out|pulled|removed)|teeth whitened|x-?rays?"
              r"|new prescription|prescription refill|refill|new glasses|glasses|contacts|new contacts|hearing test|allergy test)")
 
+# Things he FEELS and tells her about, as "when did I last have a ..." names them.
+_FELT = (r"headache|migraine|cold|fever|flu|sore throat|stomach ?ache|cough|nosebleed|panic attack|anxiety attack|asthma attack"
+         r"|allergy attack|seizure|dizzy spell|toothache|backache")
+
 PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # FIRST, before anything else can claim the sentence: a person in
     # crisis must never be filed as a work item "for when the big models
@@ -2595,6 +2599,14 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # every 6 months" and "my last dentist visit was in April", and "when
     # was my last dentist visit" (2026-10-08: to a model).
     ("next_every", re.compile(r"^when(?:'s| is) my next (?P<next_every>[a-z][a-z ]{2,30}?)\s*\??$")),
+    # "When did I last have a headache", "how many migraines this month"
+    # (2026-10-24: to a model, with "I have a headache" in his journal).
+    ("symptom_when", re.compile(
+        r"^(?:when (?:did i last (?:have|get)|was the last time i (?:had|got)|did i (?:have|get)) (?:a |an |my )?"
+        r"|when was my (?:last|most recent) )(?P<sy_what>" + _FELT + r")s?(?: last)?\s*\??$"
+        r"|^how (?:many|often) (?:have i had|did i have|do i get|have i gotten|have i got)(?: a| an)? (?P<sy_many>" + _FELT + r")s?"
+        r"(?P<sy_span> this (?:week|month|year)| lately| recently| in the last (?:week|month))?\s*\??$"
+        r"|^how many (?P<sy_many2>" + _FELT + r")s? (?:have i had|did i have)(?P<sy_span2> this (?:week|month|year)| lately| recently)?\s*\??$")),
     ("last_visit", re.compile(r"^when (?:was|did i have) my last (?P<last_visit>[a-z][a-z ]{2,30}?)\s*\??$")),
     # "How did my daughter do on her test", "what does my daughter want for
     # her birthday", "who is babysitting tonight" (2026-10-08: to a model).
@@ -3912,7 +3924,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "their_diet", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
-                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
+                    "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "symptom_when", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
             return name, text
         rest = next((captured[k] for k in ("what", "what2", "what3", "what4", "what5", "what6", "mine",
                                            "free", "free2", "free3",
@@ -16600,6 +16612,54 @@ _SYMPTOM = re.compile(r"\b(?:headache|migraine|cold|fever|flu|sore throat|stomac
                       r"|(?:hurts|is hurting|is sore|aches|is aching|is killing me|been hurting))\b")
 
 
+def _symptom_when(text: str) -> str | None:
+    """"When did I last have a headache", "how many migraines this month":
+    his journal lines naming it, with their days. The pattern names only
+    things felt, so "when was my last dentist visit" never reaches here."""
+    import datetime as dt
+    from aletheia import localtime
+    g = _groups("symptom_when", text)
+    what = " ".join(str(g.get("sy_what") or g.get("sy_many") or g.get("sy_many2") or "").casefold().split())
+    if not what:
+        return None
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    days = []
+    for row in _notes():
+        said = re.sub(r"^journal: ", "", " ".join(str(row.get("text") or "").split()).casefold())
+        if not re.search(rf"\b{re.escape(what)}s?\b", said) or not re.match(r"i\b", said):
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00")).astimezone(tz)
+        except ValueError:
+            continue
+        if re.search(r"\b(?:yesterday|last night)\b", said):
+            at -= dt.timedelta(days=1)
+        wd = re.search(r"\bon (monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", said)
+        if wd:
+            back = (at.weekday() - ("monday tuesday wednesday thursday friday saturday sunday".split().index(wd.group(1)))) % 7
+            at -= dt.timedelta(days=back)
+        days.append(at.date())
+    article = "an" if what[0] in "aeiou" else "a"
+    if g.get("sy_what"):
+        if not days:
+            return f"You haven't told me about {article} {what}."
+        last = max(days)
+        ago = (now.date() - last).days
+        when = "today" if ago == 0 else "yesterday" if ago == 1 else \
+            f"{last.strftime('%A')}, {ago} days ago" if ago < 7 else f"{last.strftime('%B')} {last.day}, {ago} days ago"
+        return f"The last {what} you told me about was {when}."
+    span = (g.get("sy_span") or g.get("sy_span2") or "").strip()
+    start = {"this week": now.date() - dt.timedelta(days=now.weekday()), "this month": now.date().replace(day=1),
+             "this year": now.date().replace(month=1, day=1)}.get(span, now.date() - dt.timedelta(days=30))
+    count = len({d for d in days if d >= start})
+    label = span if span in ("this week", "this month", "this year") else "in the last 30 days"
+    plural = what + "s"
+    if not count:
+        return f"None you've told me about {label}."
+    return f"{'One' if count == 1 else count} {what if count == 1 else plural} {label}, from what you've told me."
+
+
 def _symptoms(text: str) -> str | None:
     """What he told her about how he has been, in his words, with the day."""
     import datetime as dt
@@ -21047,6 +21107,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "undated_tasks": _undated_tasks,
            "together": _together,
            "symptoms": _symptoms,
+           "symptom_when": _symptom_when,
            "day_of_year": _day_of_year,
            "which_mine": _which_mine,
            "reminder_next": _reminder_next,
