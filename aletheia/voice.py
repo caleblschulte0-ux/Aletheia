@@ -5210,6 +5210,22 @@ def _interpret(transcript: str) -> dict:
                      r"(?: of)? [a-z][a-z' -]{1,30})", low)
     if m and not re.search(r"\b(?:to|on|for|from|into|task|reminder|note|calendar)\b", m.group("item")):
         return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item"))}, "say": None}
+    # "I packed the charger", "what's left to pack" (2026-10-23: to the
+    # planner and a model) with a packing list on file: crossed off, read.
+    m = re.fullmatch(r"i (?:just |already |have |'ve )?(?:packed|put in|threw in|have packed) (?:the |my |a |an |some )?"
+                     r"(?P<item>[a-z][a-z' -]{1,30}?)(?: (?:already|too|in my bag|in the bag|in the suitcase))?", low)
+    if m:
+        from aletheia import lists as _lists_packed
+        try:
+            packing = _lists_packed.items("packing") or []
+        except Exception:
+            packing = []
+        item = m.group("item").strip()
+        if any(item in str(row).casefold() or str(row).casefold() in item for row in packing):
+            return {"command": {"kind": "list_off", "list": "packing", "item": item}, "say": None}
+    if re.fullmatch(r"what(?:'s| is|s)? (?:left|still left|else) to pack|what (?:else )?(?:do i|else do i) (?:still )?(?:need|have) to pack"
+                    r"|what (?:haven't|have not|havent) i packed(?: yet)?|what (?:still )?needs (?:packing|to be packed)", low):
+        return {"command": {"kind": "list_read", "list": "packing"}, "say": None}
     # A BARE "ADD MILK" (2026-10-07: to the planner) - the list is the only
     # place a bare thing goes. A verb is a task; anything naming another
     # store, or with a preposition in it, is left to the patterns for those.
@@ -5219,6 +5235,20 @@ def _interpret(transcript: str) -> dict:
                            r"appointment|calendar|alarm|timer|that|it|this|them|everything|all|too|also|well)\b", m.group("item")):
         if _TASK_VERB.match(m.group("item")):
             return _new_task(_as_he_said(text, m.group("item")))
+        # "Make a list of gift ideas for mom", then "add a scarf" put the
+        # scarf on the SHOPPING list (2026-10-23): the list he just started or
+        # added to is where a bare thing goes next.
+        # Read from what she SAID, not by re-reading his words: re-reading
+        # "add a scarf" would land here again.
+        try:
+            from aletheia import converse as _conv_list
+            last = " ".join(str(((_conv_list.recent(limit=1) or [{}])[-1]).get("she_answered") or "").split())
+        except Exception:
+            last = ""
+        just = re.match(r"(?:Started your|Added to your) (?P<l>[a-z0-9][a-z0-9' -]{0,40}?) list\b", last)
+        if just and just.group("l").casefold() not in ("shopping", "grocery", "groceries"):
+            return {"command": {"kind": "list_add", "list": just.group("l"), "item": _as_he_said(text, m.group("item").strip())},
+                    "say": None}
         # "Add eggs and butter" (2026-10-07: to the planner) is a plain list.
         if not _might_be_several(m.group("item")) or _a_plain_list(m.group("item")):
             return {"command": {"kind": "shopping_add", "item": _as_he_said(text, m.group("item").strip())},
