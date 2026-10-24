@@ -494,6 +494,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("their_likes", re.compile(
         r"^what (?:does|do) (?P<tl_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they)\b)[a-z][a-z']{1,20}) (?P<tl_verb>like|love|hate|enjoy|collect|not like)"
         r"(?: (?:to (?:eat|drink|do))| best| most)?\s*\??$")),
+    # "Is Jo vegan", "is Dana allergic to peanuts" (2026-10-24: to a model,
+    # a turn after he said so).
+    ("their_diet", re.compile(
+        r"^(?:is|are) (?P<td_who>(?:my |our )?(?!(?:i|we|you|he|she|it|they|this|that|there|the)\b)[a-z][a-z']{1,20})"
+        r" (?:a |still )?(?P<td_what>vegan|vegetarian|pescatarian|gluten[- ]free|lactose intolerant|celiac|coeliac|diabetic|dairy[- ]free"
+        r"|kosher|halal|keto|sober|allergic to [a-z][a-z ]{1,30}?|allergic to anything)\s*\??$")),
     # "What flowers does Anna like" (2026-10-08: to a model): her favorite
     # flower, or what he said she likes, when he told her.
     ("their_kind", re.compile(
@@ -3903,7 +3909,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
                     "weather_in"):
             return name, text
-        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
+        if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "their_diet", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
         if name in ("until_weeks", "days_left", "age_in", "race", "logged", "rps", "arith_more", "fractions", "did_last", "tip", "currency", "date_after", "next_detail", "day_span", "on_the_last",
                     "time_convert", "pct_of", "fraction_dec", "roman", "height_cm", "asked_last", "how_many_has", "symptoms", "distress", "met_when", "registered_at", "insurer", "gift_got", "who_news", "who_chore", "picked_count", "plant_when", "coupons", "baby_coming", "step_goal", "quit_since", "left_at", "got_back", "code_at", "car_running", "their_dish", "kitchen_tip", "have_food", "debt_said", "race_when", "friend_said", "homework_of", "house_fact", "car_shop", "whose_turn", "did_bare", "my_shift", "went_place", "weight_of", "calories_in", "invited", "bake_time", "wfh_days", "who_owns", "free_part", "year_ago", "work_said", "their_week", "media_said", "felt_about", "recipe_qty", "save_goal", "need_signed", "ungrounded", "charged", "trip_fact", "who_brings", "coming_count", "dinner_at", "allergic_who", "thaw_when", "wears", "provider", "budget_on", "turkey_time", "shopping", "their_needs", "kid_missed", "kid_scored", "who_minding", "niece", "game_score", "big_fish", "race_time", "outage", "baby_name", "leave_flight", "they_said_are", "we_when", "to_ask", "can_eat", "last_done_to", "minutes_did", "at_hour", "still_have", "who_pickup", "mission_found"):
@@ -12073,7 +12079,9 @@ def _who_named(name: str) -> str | None:
     if person:
         from aletheia import intercom
         said.append(f"In your contacts: {intercom._contact_words(person)}.")
-    words = [w for w in name.casefold().split() if len(w) > 2]
+    # "Jo" is a name too (2026-10-24: "who is Jo" read no note, two letters
+    # being too short to count).
+    words = [w for w in name.casefold().split() if len(w) > 1 and w not in ("my", "our", "the", "of", "an")]
     notes = [str(r.get("text") or "").strip().rstrip(".") for r in _notes()
              if words and all(re.search(rf"\b{re.escape(w)}\b", str(r.get("text") or "").casefold()) for w in words)]
     if notes:
@@ -20194,6 +20202,36 @@ def _their_kind(text: str) -> str | None:
     return "You told me " + speech.and_list(found[:3]) + "."
 
 
+def _their_diet(text: str) -> str | None:
+    """"Is Jo vegan": yes when his note says so, and what the note DOES say
+    when it says something else about them. None when no note speaks to it."""
+    from aletheia import speech
+    g = _groups("their_diet", text)
+    who = " ".join(str(g.get("td_who") or "").casefold().split())
+    what = " ".join(str(g.get("td_what") or "").casefold().split())
+    if not who or not what:
+        return None
+    base = re.sub(r"^(?:my|our) ", "", who)
+    allergy = what.startswith("allergic")
+    said_of = re.compile(r"(?:(?:my|our) )?" + re.escape(base) + r" (?:is|are) (?:very |severely |really |a |strictly |now |also )?"
+                         + (r"(?P<pred>allergic to .+)" if allergy else
+                            r"(?P<pred>vegan|vegetarian|pescatarian|gluten[- ]free|lactose intolerant|celiac|coeliac|diabetic"
+                            r"|dairy[- ]free|kosher|halal|keto|sober)"), re.IGNORECASE)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        m = said_of.fullmatch(said)
+        if not m:
+            continue
+        pred = m.group("pred").casefold()
+        hers = speech.as_she_says_it(said)
+        if what == "allergic to anything" or what == pred or (allergy and what[len("allergic to "):] in pred):
+            return f"Yes - you told me {hers}."
+        if allergy:
+            return f"You told me {hers}; nothing about {what[len('allergic to '):]}."
+        return f"You told me {hers}."
+    return None
+
+
 def _their_likes(text: str) -> str | None:
     """"What does Sam like": his notes saying what someone likes or
     doesn't. None when there are none - a model may know them better."""
@@ -20223,7 +20261,25 @@ def _their_likes(text: str) -> str | None:
             if hers.casefold() not in (f.casefold() for f in found):
                 found.append(hers)
     if not found:
-        return None
+        # NOTHING ABOUT THEM AT ALL is a fact on disk (2026-10-24: "what
+        # does Jo like" with no note went to a model, and with none there
+        # it was "I can't think just now"). A note that names them in some
+        # other way is left to a model, which may read something into it.
+        if any(re.search(r"\b(?:" + "|".join(re.escape(n) for n in names) + r")\b", str(r.get("text") or ""), re.IGNORECASE)
+               for r in _notes()):
+            return None
+        # Nor anything in her remembered facts that names them.
+        try:
+            from aletheia import intercom
+            if intercom._remembered_matching(base):
+                return None
+        except Exception:
+            return None
+        # His capitals: "jo" is how the tidied question has it.
+        his = who if who.startswith(("my ", "our ")) or base in _relation_words() else who.title()
+        them = speech.as_she_says_it(his)
+        return (f"You haven't told me what {them} {'can' + chr(39) + 't stand' if hate else 'likes'}. "
+                f"Say \"{his} {'hates' if hate else 'likes'} ...\" and I'll keep it.")
     return "You told me: " + speech.and_list(found[:4]) + "."
 
 
@@ -20731,6 +20787,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "days_off": lambda text: _days_off(text),
            "job_since": lambda text: _job_since(text),
            "their_likes": lambda text: _their_likes(text),
+           "their_diet": lambda text: _their_diet(text),
            "told_last": lambda text: _told_last(text),
            "uptime": lambda rest: _uptime(),
            "version": lambda rest: _version(),

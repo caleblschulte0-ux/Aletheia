@@ -55,7 +55,9 @@ class ThePause(unittest.TestCase):
         self.assertTrue(said_.startswith("Paused for a week: take your pills. It's back "), said_)
         back = scheduler.next_occurrence(scheduler.load("pills"), now)
         self.assertGreaterEqual(back - now, dt.timedelta(days=6, hours=23))
-        self.assertLess(back - now, dt.timedelta(days=8))
+        # A week that crosses the end of daylight saving is an hour longer
+        # (2026-10-24: failed every morning after 07:00 for that reason alone).
+        self.assertLess(back - now, dt.timedelta(days=8, hours=1))
         listed = intercom._reminders_answer()
         self.assertIn(", paused until ", listed)
         back_on = intercom._reminder_back_on("take my pills")
