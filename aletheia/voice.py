@@ -4319,7 +4319,7 @@ def _note_with_new_day(text: str, low: str) -> dict | None:
     raw = re.sub(r"^(?:hey |ok |okay )?(?:thea|aletheia)[,]?\s+", "", " ".join(text.lower().split()).rstrip(".?!"))
     m = _NEW_DAY_FOR_NOTE.fullmatch(raw)
     if not m:
-        return None
+        return _note_with_new_value(text, raw)
     was = str(_recent_ask_of("note", "text").get("text") or "")
     old = re.search(r"\b(?:on )?(?:" + _NOTE_DAY + r")\b", was, re.IGNORECASE)
     if not old:
@@ -4333,6 +4333,39 @@ def _note_with_new_day(text: str, low: str) -> dict | None:
     except Exception:  # noqa: BLE001 - the plain "Noted." is still true
         return {"command": {"kind": "note", "text": now}, "say": None}
     return {"command": {"kind": "note", "text": now}, "say": f"Changed it: {told}."}
+
+
+_CORRECTING = r"(?:(?:actually|no|nope|sorry|wait|oops|oh|never ?mind|nevermind|correction|my bad|scratch that)[,]? )+"
+_CLOCK = r"\d{1,2}:\d{2}(?: ?[ap]\.?m\.?)?|\d{1,2} ?[ap]\.?m\.?|noon|midnight"
+_NEW_TIME_FOR_NOTE = re.compile(_CORRECTING + r"(?:(?:it'?s|it is|it was|make (?:it|that)|change (?:it|that) to|at) )?(?:at )?"
+                                r"(?P<t>" + _CLOCK + r")(?: instead)?")
+_NEW_PHONE = re.compile(_CORRECTING + r"(?:(?:it'?s|it is|the number is|his number is|her number is|their number is|make (?:it|that)) )?"
+                        r"(?P<p>\+?1?[ -.]?\(?\d{3}\)?[ -.]?\d{3}[ -.]?\d{4})(?: instead)?")
+
+
+def _note_with_new_value(text: str, raw: str) -> dict | None:
+    """"Actually 8:15" after "my kids' school starts at 8:10", and "actually
+    it's 605 555 4321" after "Joe's number is 605 555 1234" (2026-10-25: both
+    to the planner, and the old value kept answering). The time in the note
+    he just made, or the number of the contact he just saved, changed."""
+    m = _NEW_TIME_FOR_NOTE.fullmatch(raw)
+    if m:
+        was = str(_recent_ask_of("note", "text").get("text") or "")
+        old = re.search(r"\b(?:" + _CLOCK + r")(?![\w:])", was, re.IGNORECASE)
+        if not old:
+            return None
+        now = was[:old.start()] + _as_he_said(text, m.group("t")) + was[old.end():]
+        try:
+            from aletheia import speech
+            return {"command": {"kind": "note", "text": now}, "say": f"Changed it: {speech.as_she_says_it(now)}."}
+        except Exception:  # noqa: BLE001 - the plain "Noted." is still true
+            return {"command": {"kind": "note", "text": now}, "say": None}
+    m = _NEW_PHONE.fullmatch(raw)
+    if m:
+        saved = _recent_ask_of("contact_add", "phone")
+        if saved.get("name"):
+            return {"command": dict(saved, phone=m.group("p")), "say": None}
+    return None
 
 
 def _interpret(transcript: str) -> dict:
