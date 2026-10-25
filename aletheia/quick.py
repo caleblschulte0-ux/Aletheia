@@ -14191,14 +14191,36 @@ def _deliveries() -> str:
     """What he told her is on its way, newest first, in his words."""
     from aletheia import speech
     said, seen = [], set()
+    # Newest first, so a "the package came" is met before what it settles
+    # (2026-10-24: "I'm expecting a package from Amazon" was not on the
+    # list, and "the package arrived" was read back as still coming).
+    came_from, came_any, settled = set(), 0, 0
     for row in _notes():
         note = " ".join(str(row.get("text") or "").split())
         low = note.casefold()
-        if re.search(r"\b(?:order|package|delivery|parcel|shipment|box)e?s?\b", low) \
-                and re.search(r"\b(?:arriv\w*|coming|deliver\w*|here|showing up|out for delivery|should come)\b", low) \
+        if not re.search(r"\b(?:order|package|delivery|parcel|shipment|box)e?s?\b", low):
+            continue
+        if re.search(r"\b(?:came|arrived|got here|showed up|is here|was delivered|has been delivered|has arrived|finally came)\b"
+                     r"|^(?:journal: )?i (?:got|received|picked up) (?:my|the|a)\b", low):
+            names = set(re.findall(r"\bfrom ([a-z][a-z0-9']+)", low)) | set(re.findall(r"\b([a-z][a-z0-9']+) (?:package|order|box)\b", low)) - {"the", "my", "a"}
+            if names:
+                came_from |= names
+            else:
+                came_any += 1
+            continue
+        if re.search(r"\b(?:arriv\w*|coming|deliver\w*|here|showing up|out for delivery|should come|expect\w*|on (?:its|the) way|shipped|ships)\b", low) \
                 and low not in seen:
             seen.add(low)
+            if any(re.search(rf"\b{re.escape(n)}\b", low) for n in came_from):
+                settled += 1
+                continue
+            if came_any:
+                came_any -= 1
+                settled += 1
+                continue
             said.append(speech.as_she_says_it(note).rstrip("."))
+    if not said and settled:
+        return "Nothing's still on its way - everything you told me about has come."
     if not said:
         return ("You haven't told me about anything on its way. Say \"my package is arriving Thursday\" "
                 "and I'll keep it.")

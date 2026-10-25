@@ -12321,12 +12321,18 @@ def _interpret(transcript: str) -> dict:
                     r"(?:(?:that )?i(?:'d| would| will|'ll) |to |i'd )[a-z][a-z ,'-]{3,80}", low) \
             and re.match(r"i promised", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
-    if re.fullmatch(r"(?:i have|i've got|i got|there's|there is) (?:a |an |my )?(?:package|parcel|delivery|order) (?:coming|arriving|due)"
+    # "My order from Target is arriving Thursday" (2026-10-24) was refused at
+    # the money door as an order to buy: who it is from is part of the note.
+    _from = r"(?: from [a-z][a-z0-9'&.-]{1,20}(?: [a-z][a-z0-9'&.-]{1,20})?)?"
+    if re.fullmatch(r"(?:i have|i've got|i got|there's|there is) (?:a |an |my )?(?:package|parcel|delivery|order)" + _from + r" (?:coming|arriving|due)"
                     r"(?: (?:on |this |next )?[a-z0-9 ]{3,25})?"
-                    r"|(?:i'?m|i am|we'?re) expecting (?:a |an )?(?:package|parcel|delivery)(?: (?:on |this |next )?[a-z0-9 ]{3,25})?"
-                    r"|(?:my|the|a) (?:[a-z]+ )?(?:package|parcel|delivery|order) (?:is coming|arrives|is arriving|comes|is due|should arrive|will arrive"
+                    r"|(?:i'?m|i am|we'?re) expecting (?:a |an )?(?:package|parcel|delivery)" + _from + r"(?: (?:on |this |next )?[a-z0-9 ]{3,25})?"
+                    r"|(?:my|the|a) (?:[a-z]+ )?(?:package|parcel|delivery|order)" + _from + r" (?:is coming|arrives|is arriving|comes|is due|should arrive|will arrive"
                     r"|is supposed to (?:come|arrive|be here|get here)|should (?:come|be here|get here)|will (?:come|be here|get here))"
-                    r" (?:on |this |next )?[a-z0-9 ]{3,25}", low):
+                    r" (?:on |this |next )?[a-z0-9 ]{3,25}"
+                    # "My order shipped", "my package is out for delivery".
+                    r"|(?:my|the) (?:[a-z]+ )?(?:package|parcel|delivery|order)" + _from +
+                    r" (?:shipped|has shipped|just shipped|is out for delivery|is on (?:its|the) way)(?: today| this morning| yesterday)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     if re.fullmatch(r"(?:i|we) (?:just )?(?:got|bought) (?:a |an |my )?new (?:phone|car|truck|laptop|computer|tv|television|bike|watch"
                     r"|tablet|ipad|iphone|couch|bed|mattress|fridge|washer|dryer|dishwasher|puppy|dog|cat|kitten|house|apartment)", low):
