@@ -6393,6 +6393,30 @@ def _interpret(transcript: str) -> dict:
             return {"command": {"kind": "shopping_add", "item": items}, "say": None}
         return {"command": None, "say": f"I don't have a recipe for {dish}. Tell me what goes in it - "
                                         f"\"the recipe for {dish} is ...\" - and I'll add it, or name the things to buy."}
+    # HOW OFTEN A THING IS DONE (2026-10-25: "I need to change my furnace
+    # filter every 3 months" became a task with no due date, and "when do I
+    # need to change the furnace filter" could only say it had none). It is
+    # kept in the shape `quick._interval_due` reads, so "I changed it today"
+    # makes the next one a date.
+    _often = r"(?: out)? every (?:(?P<n>\d+|a|an|one|two|three|four|five|six|twelve) )?(?P<unit>day|week|month|year)s?"
+    m = re.fullmatch(r"(?:(?:i|we) (?:need|have|got) to|(?:i|we) gotta|(?:i|we) should|(?:i'?m|we'?re|i am|we are) supposed to"
+                     r"|you'?re supposed to|you (?:need|have) to|you should)"
+                     r" (?P<verb>change|replace|clean|service|flush|rotate|refill|empty|descale|swap)"
+                     r" (?:the |my |our )?(?P<thing>[a-z][a-z' ]{1,40}?)" + _often, low) \
+        or re.fullmatch(r"(?:the |my |our )?(?P<thing>[a-z][a-z' ]{1,40}?) (?:needs|need|has|have) (?:to be )?"
+                        r"(?P<verb>changed|changing|replaced|replacing|cleaned|cleaning|serviced|servicing|flushed|flushing"
+                        r"|rotated|rotating|refilled|refilling|emptied|emptying|descaled|descaling|swapped|swapping)" + _often, low)
+    if m and not re.match(r"(?:it|that|this|they|them|what|who|which|i|we|you)\b", m.group("thing")):
+        verb = m.group("verb")
+        stem = re.sub(r"(?:ing|ed)$", "", verb)
+        past = {"chang": "changed", "replac": "replaced", "clean": "cleaned", "servic": "serviced", "flush": "flushed",
+                "rotat": "rotated", "refill": "refilled", "empti": "emptied", "empty": "emptied", "descal": "descaled",
+                "swapp": "swapped", "swap": "swapped", "change": "changed", "replace": "replaced", "service": "serviced",
+                "rotate": "rotated", "descale": "descaled"}[stem]
+        thing, n, unit = m.group("thing"), m.group("n"), m.group("unit")
+        often = f"{unit}" if not n else f"{n} {unit}" + ("" if n in ("a", "an", "one", "1") else "s")
+        return {"command": {"kind": "note", "text": f"the {_as_he_said(transcript, thing)} should be {past} every {often}"},
+                "say": None}
     # A TASK SAID AS A NEED (2026-10-07): "I need to call the bank
     # tomorrow" and "don't let me forget to pay rent" went to the planner.
     # Only when what follows starts like a thing to do - "I need to know"
