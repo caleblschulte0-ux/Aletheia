@@ -12690,6 +12690,8 @@ def _interpret(transcript: str) -> dict:
     # day in it, so "my flight is delayed" stays news.
     m = re.fullmatch(r"(?:my|our) (?:(?:return|outbound|connecting|early|late|next) )?(?P<trip>flight|plane|train|bus|ferry|cruise"
                      r"|shuttle|ride|uber|lyft|pickup|pick-up|check-in|checkout|check-out)"
+                     # "My flight to Denver is at 6am Friday" (2026-10-25: to the planner).
+                     r"(?: (?:to|back to|home to|from) [a-z][a-z .'-]{1,30}?)?"
                      r" (?:is|leaves|departs|takes off|lands|arrives|gets in|boards|comes)(?: back)? (?P<when>.{2,60})", fact_low)
     if m and re.search(r"\d|\b(?:today|tonight|tomorrow|noon|midnight|monday|tuesday|wednesday|thursday|friday|saturday"
                        r"|sunday|morning|afternoon|evening|next week)\b", m.group("when")) \
@@ -13860,6 +13862,17 @@ def _interpret(transcript: str) -> dict:
         what = _as_he_said(text, m.group("what") or m.group("what2") or m.group("what3"))
         who = _as_he_said(text, m.group("who") or m.group("who2") or m.group("who3") or m.group("who4") or m.group("who5"))
         return {"command": {"kind": "list_add", "list": "gift", "item": f"{what} for {who}"}, "say": None}
+    # OFF A GIFT LIST BY WHOSE IT IS (2026-10-25: "take socks off Dana's gift
+    # list" went to the planner, which with no model meant it never happened).
+    # The line was saved as "socks for Dana", so that is what comes off.
+    m = re.fullmatch(r"(?:(?:take|cross|tick|check|knock|scratch) (?P<w>[a-z0-9][a-z0-9 '-]{1,40}?) off (?:of )?"
+                     r"|(?:remove|delete|drop) (?P<w2>[a-z0-9][a-z0-9 '-]{1,40}?) (?:from|off) )"
+                     r"(?:(?P<who>(?:my )?[a-z][a-z ]{1,25}?)'s gift (?:list|ideas)"
+                     r"|(?:the |my )?gift (?:list|ideas)(?: list)? for (?P<who2>(?:my )?[a-z][a-z' ]{1,25}?))", low)
+    if m and not re.match(r"(?:it|that|this|what)\b", m.group("w") or m.group("w2")):
+        what = _as_he_said(text, m.group("w") or m.group("w2"))
+        who = _as_he_said(text, m.group("who") or m.group("who2"))
+        return {"command": {"kind": "list_off", "list": "gift", "item": f"{what} for {who}"}, "say": None}
     # HIS MEAL PLAN (2026-10-07: "add chicken to my meal plan for monday"
     # went to the planner). A line "Monday: chicken" on the list called
     # meal plan; "what am I having for dinner monday" reads the day back.
@@ -14481,11 +14494,31 @@ def _interpret(transcript: str) -> dict:
     # "when is my flight" and "where am I staying" answer.
     m = re.fullmatch(r"i (?:have|'ve got|got) (?:a|my) flight(?P<to> (?:to|back to|home to|from) [a-z][a-z .'-]{1,30}?)? "
                      # a date that stays true when the note is read next week - not "tomorrow"
-                     r"(?:on )?(?P<when>(?:" + _MONTH + r")\.? \d{1,2}(?:st|nd|rd|th)?(?:,? (?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)?)?)", low)
+                     r"(?:on )?(?P<when>(?:" + _MONTH + r")\.? \d{1,2}(?:st|nd|rd|th)?(?:,? (?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)?)?"
+                     # "I have a flight to Denver friday at 6am" (2026-10-25: to the
+                     # planner). A weekday is kept as said, as "my flight is at 6am
+                     # friday" always was.
+                     r"|(?:this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?: (?:morning|afternoon|evening|night))?"
+                     r"(?:,? (?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)?)?"
+                     r"|(?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)? (?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+                     # "I have a flight tomorrow at 7" (2026-10-25: to the planner) is
+                     # written down with tomorrow's date, which stays true.
+                     r"|(?P<rel>today|tonight|tomorrow)(?: (?:morning|afternoon|evening|night))?(?:,? (?:at|@) [0-9: ]{1,5}(?: ?[ap]\.?m\.?)?)?)", low)
     if m:
         to = _as_he_said(text, m.group("to").strip()) if m.group("to") else ""
+        when = _as_he_said(text, m.group("when"))
+        if m.group("rel"):
+            import datetime as _dt
+            day = _dt.date.fromisoformat(_spoken_day(m.group("rel")))
+            rest = when[len(m.group("rel")):]
+            part = re.match(r" (morning|afternoon|evening|night)", rest)
+            if part:
+                rest = rest[part.end():] or f" in the {part.group(1)}"
+            elif m.group("rel") == "tonight" and not rest:
+                rest = " in the evening"
+            when = f"{day.strftime('%B')} {day.day}{rest}"
         return {"command": {"kind": "note",
-                            "text": f"my flight{' ' + to if to else ''} is {_as_he_said(text, m.group('when'))}"},
+                            "text": f"my flight{' ' + to if to else ''} is {when}"},
                 "say": None}
     m = re.fullmatch(r"(?:i'?m|i am|we'?re|we are) (?:staying|booked) (?:at|in) (?P<at>(?:the |an? )?[a-z0-9][a-z0-9 &'.-]{1,40}?"
                      r"(?:hotel|inn|suites|resort|lodge|motel|hostel|airbnb|hilton|marriott|hyatt|westin|sheraton|holiday inn|hampton|"
