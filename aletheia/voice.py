@@ -3541,7 +3541,40 @@ def interpret(transcript: str) -> dict:
     return _his_capitals(strip_wake_word(transcript),
                          _no_password_in_a_note(_no_reminder_about_a_pronoun(
                              _a_question_is_never_kept(transcript,
-                                                       _the_day_before(transcript, _interpret(transcript))))))
+                                                       _the_day_before(transcript, _done_is_done(transcript, _interpret(transcript)))))))
+
+
+_ALREADY_DONE = r"paid|bought|booked|ordered|sent|mailed|renewed|signed up for|picked up|returned|scheduled|cancelled|canceled|got"
+
+
+def _done_is_done(transcript: str, said: dict) -> dict:
+    """"I already paid rent" and "my wife bought tickets to the game" went to
+    the planner while "I paid rent" was a note (2026-10-24), and with nobody
+    to think they were lost. Something already done, by him or by someone
+    he names, is kept the way the plain "I paid ..." is: the same sentence
+    is asked again without the "already" or with "I" for the doer, and only
+    a NOTE that comes back is kept, in his own words. An instruction is
+    never in the past tense, so nothing here reaches the money door's work.
+    """
+    cmd = (said or {}).get("command") or {}
+    if cmd.get("kind") != "intent":
+        return said
+    original = strip_wake_word(str(transcript or "")).strip().rstrip(".!")
+    low = " ".join(original.casefold().split())
+    m = re.fullmatch(r"(?P<who>i|we) (?:have |'ve )?already (?P<rest>(?:" + _ALREADY_DONE + r") .+)", low) \
+        or re.fullmatch(r"(?P<who>i|we)'ve already (?P<rest>(?:" + _ALREADY_DONE + r") .+)", low) \
+        or re.fullmatch(r"(?P<who>my (?!own\b)[a-z]+(?: [a-z]+)?|our [a-z]+|(?!i\b|it\b|he\b|she\b|they\b|you\b|who\b|what\b|that\b|this\b)[a-z]{2,15}"
+                        r"(?: and (?:i|me))?) (?:just |already )?(?P<rest>(?:" + _ALREADY_DONE.replace("|got", "") + r") (?!me\b|you\b|us\b).+)", low)
+    if not m:
+        return said
+    if not m.group("who") in ("i", "we") and not m.group("who").startswith(("my ", "our ")):
+        # A name must be one he said with a capital: "pizza got cold" is not someone.
+        if not original[:1].isupper():
+            return said
+    again = _interpret("i " + m.group("rest"))
+    if ((again or {}).get("command") or {}).get("kind") == "note":
+        return {"command": {"kind": "note", "text": original}, "say": None}
+    return said
 
 
 #: What a question must never become. "Who is bringing dessert" was kept as
