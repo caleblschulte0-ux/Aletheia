@@ -17808,7 +17808,7 @@ def _for_event(event: str) -> str | None:
 
 _EVERY = re.compile(r"^(?:the |my |our )?(?P<thing>[a-z][a-z' ]{1,40}?) (?:should|needs to|has to|must|is supposed to) be "
                     r"(?P<verb>changed|replaced|cleaned|serviced|flushed|rotated|refilled|emptied|descaled|swapped|done) every "
-                    r"(?P<n>\d+|a|an|one|two|three|four|five|six|twelve) (?P<unit>day|week|month|year)s?$")
+                    r"(?:(?P<n>\d+|a|an|one|two|three|four|five|six|twelve) )?(?P<unit>day|week|month|year)s?$")
 _PAST_DONE_OF = {"change": "changed", "replace": "replaced", "clean": "cleaned", "service": "serviced", "flush": "flushed",
                  "rotate": "rotated", "refill": "refilled", "empty": "emptied", "descale": "descaled", "swap": "swapped"}
 _PAST_DONE = r"(?:changed|replaced|cleaned|serviced|flushed|rotated|refilled|emptied|descaled|swapped|did|put in|got)"
@@ -17842,7 +17842,7 @@ def _interval_due(thing: str):
     if every is None:
         return None
     m, said = every
-    n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "twelve": 12}.get(m.group("n")) or int(m.group("n"))
+    n = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "twelve": 12}.get(m.group("n")) or int(m.group("n") or 1)
     verb = {"changed": "change", "replaced": "replace", "cleaned": "clean", "serviced": "service", "flushed": "flush",
             "rotated": "rotate", "refilled": "refill", "emptied": "empty", "descaled": "descale", "swapped": "swap",
             "done": "do"}[m.group("verb")]
