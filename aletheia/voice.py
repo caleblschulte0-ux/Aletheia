@@ -4292,6 +4292,49 @@ def _emergency(low: str) -> str | None:
     return None
 
 
+_NOTE_DAY = (r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|(?:the )?day after tomorrow|tomorrow|today|tonight"
+             r"|next week|this weekend|next weekend")
+_NEW_DAY_FOR_NOTE = re.compile(
+    r"(?:(?:actually|no|nope|sorry|wait|oops|oh|never ?mind|nevermind|correction|my bad|scratch that)[,]? )+"
+    r"(?:(?:he|she|they|it|that|we|i)(?:'s|'re| is| are| will be|'ll be|'m| am) (?:now |actually )?(?:coming |going |visiting |due |happening )?"
+    r"|(?:make|change) (?:it|that) (?:to )?|(?:it|that) (?:was|should be|should've been|is) )?(?:on )?"
+    r"(?P<d>" + _NOTE_DAY + r")(?: now| instead)?"
+    r"|(?:he|she|they)(?:'s|'re| is| are) (?:now )?(?:coming|visiting|going) (?:on )?(?P<d2>" + _NOTE_DAY + r")(?: now| instead)?")
+
+
+def _note_with_new_day(text: str, low: str) -> dict | None:
+    """The note he just made, with its day changed - or None. Only when his
+    last write WAS a note naming a day, so "no, thursday" after a reminder
+    stays the reminder's. "The plumber is coming thursday instead" is the
+    plain note: the newest one is what the readers read."""
+    m = re.fullmatch(r"(?P<rest>.{3,80}?) (?:on )?(?P<d>" + _NOTE_DAY + r") (?:now|instead)", low)
+    if m and not re.match(r"(?:actually|no|nope|sorry|wait|oops|oh|never ?mind|remind|set|add|move|make|change"
+                          r"|what|when|where|who|why|how|is|are|do|does|did|can)\b", low):
+        got = _interpret(f"{m.group('rest')} {m.group('d')}")
+        if ((got or {}).get("command") or {}).get("kind") == "note":
+            return got
+        return None
+    # The "actually" is the whole sign it is a correction, and the preamble
+    # strip takes it off `low`, so this reads what he said.
+    raw = re.sub(r"^(?:hey |ok |okay )?(?:thea|aletheia)[,]?\s+", "", " ".join(text.lower().split()).rstrip(".?!"))
+    m = _NEW_DAY_FOR_NOTE.fullmatch(raw)
+    if not m:
+        return None
+    was = str(_recent_ask_of("note", "text").get("text") or "")
+    old = re.search(r"\b(?:on )?(?:" + _NOTE_DAY + r")\b", was, re.IGNORECASE)
+    if not old:
+        return None
+    day = _as_he_said(text, m.group("d") or m.group("d2"))
+    lead = "on " if old.group(0).lower().startswith("on ") and day.lower() in WEEKDAYS else ""
+    now = was[:old.start()] + lead + day + was[old.end():]
+    try:
+        from aletheia import speech
+        told = speech.as_she_says_it(now)
+    except Exception:  # noqa: BLE001 - the plain "Noted." is still true
+        return {"command": {"kind": "note", "text": now}, "say": None}
+    return {"command": {"kind": "note", "text": now}, "say": f"Changed it: {told}."}
+
+
 def _interpret(transcript: str) -> dict:
     text = strip_wake_word(transcript)
     low = _without_preamble(text.lower().strip().rstrip(".?!"))
@@ -4305,6 +4348,13 @@ def _interpret(transcript: str) -> dict:
     sos = _emergency(low)
     if sos:
         return {"command": {"kind": "note", "text": "Journal: " + _as_he_said(text, low)}, "say": sos}
+    # A NEW DAY FOR WHAT HE JUST TOLD HER (2026-10-25: "note that the plumber
+    # is coming wednesday", then "never mind, he's coming thursday" went to
+    # the planner, and "actually it's thursday" was kept as a note of its
+    # own - so "when is the plumber coming" still said Wednesday).
+    fixed = _note_with_new_day(text, low)
+    if fixed:
+        return fixed
     # "I need to remember to bring snacks Saturday" (2026-10-08: to the
     # planner) is "I need to bring snacks Saturday": remembering is her job.
     low = re.sub(r"^(i (?:need|have|got|gotta|must|should)(?: to)? |i've got to )(?:remember to |not forget to )", r"\1", low)
