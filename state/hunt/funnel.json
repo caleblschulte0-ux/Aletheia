@@ -271,7 +271,7 @@
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 100,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -282,22 +282,12 @@
     "why": {
       "gone_on_lever": 1,
       "gone_on_workable": 16,
-      "left_captcha": 10,
-      "left_error": 1,
-      "left_going_in_circles": 1,
-      "left_no_way_forward": 6,
+      "left_captcha": 7,
+      "left_no_way_forward": 1,
       "left_questions": 2
     }
   },
   "days": {
-    "2026-09-26": {
-      "filled": 5,
-      "found": 20,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
-      "sent": 5
-    },
     "2026-09-27": {
       "filled": 12,
       "found": 22,
@@ -483,15 +473,23 @@
       "sent": 1
     },
     "2026-10-25": {
-      "filled": 14,
-      "found": 39,
+      "filled": 10,
+      "found": 35,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
+    },
+    "2026-10-26": {
+      "filled": 4,
+      "found": 4,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-26T04:57:25Z",
+  "generated_at": "2026-10-26T05:27:38Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -525,7 +523,7 @@
   "sent_by_system": {
     "ashbyhq": 17,
     "employer_site": 6,
-    "greenhouse": 80,
+    "greenhouse": 75,
     "lever": 26
   },
   "stop_shapes": {
@@ -613,12 +611,12 @@
     }
   },
   "totals": {
-    "filled": 225,
-    "found": 480,
+    "filled": 220,
+    "found": 460,
     "interviews": 11,
     "rejections": 20,
     "replies": 50,
-    "sent": 129
+    "sent": 124
   },
   "waiting": {
     "asked_about": {
@@ -630,24 +628,24 @@
       "years_experience": 1
     },
     "closed": {
-      "gone_on_ashbyhq": 19,
+      "gone_on_ashbyhq": 18,
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "gone_on_workable": 17,
-      "left_captcha": 25,
+      "left_captcha": 24,
       "left_error": 15,
-      "left_going_in_circles": 12,
-      "left_no_way_forward": 69,
+      "left_going_in_circles": 11,
+      "left_no_way_forward": 64,
       "left_out_of_steps": 2,
-      "left_posting_closed": 3,
+      "left_posting_closed": 2,
       "left_questions": 13,
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
-      "not_a_form_asks_nothing_on_bamboohr": 8,
+      "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 26
+      "not_realistic": 25
     },
     "failed": 17,
     "failed_because": {
