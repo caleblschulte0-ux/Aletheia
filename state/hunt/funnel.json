@@ -270,18 +270,18 @@
     "2026-10-26": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 25,
+      "minutes": 36,
       "needs_account": 0,
       "needs_answer": 1,
-      "not_realistic": 3,
-      "offered": 228,
+      "not_realistic": 4,
+      "offered": 318,
       "ready": 0,
-      "runs": 4,
-      "unfit_sales": 3,
+      "runs": 5,
+      "unfit_sales": 4,
       "unjudged": 0,
-      "unreachable": 8,
-      "unreachable_TimeoutError": 1,
-      "unreachable_no_form": 7,
+      "unreachable": 13,
+      "unreachable_TimeoutError": 2,
+      "unreachable_no_form": 11,
       "weak_shot": 0
     }
   },
@@ -289,7 +289,7 @@
     "ashby": 139,
     "bamboohr": 5,
     "greenhouse": 100,
-    "lever": 77,
+    "lever": 78,
     "recruitee": 8,
     "smartrecruiters": 37,
     "workable": 9
@@ -298,11 +298,11 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 24,
+      "gone_on_workable": 28,
       "left_captcha": 7,
       "left_no_way_forward": 1,
       "left_questions": 2,
-      "not_realistic": 3
+      "not_realistic": 4
     }
   },
   "days": {
@@ -500,14 +500,14 @@
     },
     "2026-10-26": {
       "filled": 9,
-      "found": 20,
+      "found": 25,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-26T13:36:32Z",
+  "generated_at": "2026-10-26T14:06:56Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -628,7 +628,7 @@
   },
   "totals": {
     "filled": 220,
-    "found": 471,
+    "found": 476,
     "interviews": 11,
     "rejections": 20,
     "replies": 50,
@@ -647,7 +647,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 25,
+      "gone_on_workable": 29,
       "left_captcha": 24,
       "left_error": 15,
       "left_going_in_circles": 11,
@@ -660,7 +660,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 28
+      "not_realistic": 29
     },
     "failed": 17,
     "failed_because": {
