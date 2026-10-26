@@ -270,23 +270,23 @@
     "2026-10-26": {
       "duplicate": 53,
       "employer_full": 0,
-      "minutes": 337,
+      "minutes": 366,
       "needs_account": 0,
-      "needs_answer": 24,
-      "not_realistic": 106,
-      "offered": 2437,
+      "needs_answer": 25,
+      "not_realistic": 114,
+      "offered": 2500,
       "ready": 3,
-      "runs": 48,
-      "unfit_model": 8,
-      "unfit_pay": 50,
-      "unfit_sales": 47,
+      "runs": 50,
+      "unfit_model": 9,
+      "unfit_pay": 56,
+      "unfit_sales": 48,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 76,
+      "unreachable": 79,
       "unreachable_ApplyError": 2,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 11,
-      "unreachable_no_form": 61,
+      "unreachable_left_till_tomorrow": 12,
+      "unreachable_no_form": 63,
       "weak_shot": 0
     }
   },
@@ -303,12 +303,12 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 98,
-      "left_captcha": 7,
+      "gone_on_workable": 100,
+      "left_captcha": 8,
       "left_error": 1,
       "left_no_way_forward": 2,
       "left_questions": 2,
-      "not_realistic": 44
+      "not_realistic": 45
     }
   },
   "days": {
@@ -506,14 +506,14 @@
     },
     "2026-10-26": {
       "filled": 13,
-      "found": 141,
+      "found": 145,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-26T22:19:14Z",
+  "generated_at": "2026-10-26T22:49:53Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -555,7 +555,7 @@
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 21,
+      "nothing_to_press_on_captcha/filled": 22,
       "nothing_to_press_on_captcha/observed": 3
     },
     "error": {
@@ -609,7 +609,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 7
+        "nothing_to_press_on_captcha/filled": 8
       },
       "error": {
         "nothing_to_press_on_error/observed": 1
@@ -626,7 +626,7 @@
   },
   "totals": {
     "filled": 224,
-    "found": 592,
+    "found": 596,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -645,8 +645,8 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 99,
-      "left_captcha": 24,
+      "gone_on_workable": 101,
+      "left_captcha": 25,
       "left_error": 16,
       "left_going_in_circles": 11,
       "left_no_way_forward": 65,
@@ -658,7 +658,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 69
+      "not_realistic": 70
     },
     "failed": 17,
     "failed_because": {
