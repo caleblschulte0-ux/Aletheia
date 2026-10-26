@@ -270,26 +270,26 @@
     "2026-10-26": {
       "duplicate": 28,
       "employer_full": 0,
-      "minutes": 145,
+      "minutes": 155,
       "needs_account": 0,
       "needs_answer": 9,
-      "not_realistic": 13,
-      "offered": 835,
+      "not_realistic": 16,
+      "offered": 1015,
       "ready": 1,
-      "runs": 15,
+      "runs": 17,
       "unfit_model": 1,
-      "unfit_sales": 12,
+      "unfit_sales": 15,
       "unjudged": 0,
-      "unreachable": 26,
+      "unreachable": 29,
       "unreachable_TimeoutError": 2,
-      "unreachable_no_form": 24,
+      "unreachable_no_form": 27,
       "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -299,11 +299,11 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 45,
+      "gone_on_workable": 51,
       "left_captcha": 7,
       "left_no_way_forward": 1,
       "left_questions": 2,
-      "not_realistic": 12
+      "not_realistic": 15
     }
   },
   "days": {
@@ -500,16 +500,18 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 14,
-      "found": 55,
+      "filled": 13,
+      "found": 63,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-26T17:09:59Z",
+  "generated_at": "2026-10-26T17:40:32Z",
   "question_shapes": {
+    "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
+    "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _": 4,
     "employer_site: field: _ _": 2,
     "employer_site: field: _ _ _": 2,
@@ -534,12 +536,9 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: resume _": 1,
-    "workable: text: please share your _ _ number for _ _": 1,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1,
-    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1,
-    "workable: textarea: have you worked with _ _ and _ _ which do you": 1,
-    "workable: textarea: how do you _ _ _ with _ in your _": 1,
-    "workable: textarea: what _ your _ _ quota for _ _ and how _": 1
+    "workable: textarea: _ you share your linkedin profile": 1,
+    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1
   },
   "sent_all_time": 322,
   "sent_by_system": {
@@ -625,8 +624,8 @@
     }
   },
   "totals": {
-    "filled": 225,
-    "found": 506,
+    "filled": 224,
+    "found": 514,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -635,8 +634,9 @@
   "waiting": {
     "asked_about": {
       "address": 1,
+      "links": 1,
       "on_site": 2,
-      "other": 18,
+      "other": 16,
       "pay": 1,
       "travel": 1,
       "years_experience": 1
@@ -646,7 +646,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 46,
+      "gone_on_workable": 52,
       "left_captcha": 24,
       "left_error": 15,
       "left_going_in_circles": 11,
@@ -659,7 +659,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 37
+      "not_realistic": 40
     },
     "failed": 17,
     "failed_because": {
@@ -673,7 +673,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 17,
     "oldest_days": 43,
     "to_send": 0
   },
