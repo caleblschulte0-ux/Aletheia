@@ -270,26 +270,26 @@
     "2026-10-26": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 65,
+      "minutes": 87,
       "needs_account": 0,
-      "needs_answer": 3,
-      "not_realistic": 8,
-      "offered": 516,
+      "needs_answer": 5,
+      "not_realistic": 10,
+      "offered": 623,
       "ready": 0,
-      "runs": 8,
+      "runs": 10,
       "unfit_model": 1,
-      "unfit_sales": 7,
+      "unfit_sales": 9,
       "unjudged": 0,
-      "unreachable": 20,
+      "unreachable": 22,
       "unreachable_TimeoutError": 2,
-      "unreachable_no_form": 18,
+      "unreachable_no_form": 20,
       "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 100,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -299,11 +299,11 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 37,
+      "gone_on_workable": 40,
       "left_captcha": 7,
       "left_no_way_forward": 1,
       "left_questions": 2,
-      "not_realistic": 7
+      "not_realistic": 9
     }
   },
   "days": {
@@ -500,15 +500,15 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 9,
-      "found": 37,
+      "filled": 10,
+      "found": 43,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-26T14:37:12Z",
+  "generated_at": "2026-10-26T15:08:03Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -534,7 +534,8 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
-    "recruitee: text: what is your _ _ for this role": 1
+    "recruitee: text: what is your _ _ for this role": 1,
+    "workable: field: resume _": 1
   },
   "sent_all_time": 321,
   "sent_by_system": {
@@ -544,7 +545,6 @@
     "lever": 26
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: search | _ _ | _ _ _ | _ | apply now": 1,
     "employer_site: no_apply: _ _ _ the _ | _ _ | _ | _ to _ _ | our _": 1,
     "employer_site: no_apply: _ menu | _ to _ _ | _ _ for _ | _ _ | privacy _ | _ _ _ _": 1,
     "employer_site: no_apply: _ menu | _ to _ _ | register _ | learn more about _ _ | _ _ _ _ _ | next _ _ _ in": 1,
@@ -606,18 +606,11 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 10
-      },
-      "error": {
-        "nothing_to_press_on_unread/observed": 1
-      },
-      "going_in_circles": {
-        "nothing_to_press_on_content/observed": 1
+        "nothing_to_press_on_captcha/filled": 8
       },
       "no_way_forward": {
         "nothing_to_press_on_content+no_apply/filled": 1,
         "nothing_to_press_on_content+no_apply/observed": 2,
-        "nothing_to_press_on_form+apply_not_taken/observed": 1,
         "nothing_to_press_on_form+no_apply/filled": 1,
         "nothing_to_press_on_form+no_apply/observed": 1
       },
@@ -628,8 +621,8 @@
     }
   },
   "totals": {
-    "filled": 220,
-    "found": 488,
+    "filled": 221,
+    "found": 494,
     "interviews": 11,
     "rejections": 20,
     "replies": 50,
@@ -639,7 +632,7 @@
     "asked_about": {
       "address": 1,
       "on_site": 2,
-      "other": 14,
+      "other": 15,
       "travel": 1,
       "years_experience": 1
     },
@@ -648,7 +641,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 38,
+      "gone_on_workable": 41,
       "left_captcha": 24,
       "left_error": 15,
       "left_going_in_circles": 11,
@@ -661,7 +654,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 32
+      "not_realistic": 34
     },
     "failed": 17,
     "failed_because": {
@@ -675,7 +668,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 14,
+    "needs_answer": 15,
     "oldest_days": 43,
     "to_send": 0
   },
