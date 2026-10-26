@@ -268,21 +268,21 @@
       "weak_shot": 0
     },
     "2026-10-26": {
-      "duplicate": 0,
+      "duplicate": 12,
       "employer_full": 0,
-      "minutes": 127,
+      "minutes": 139,
       "needs_account": 0,
-      "needs_answer": 7,
-      "not_realistic": 11,
-      "offered": 728,
+      "needs_answer": 8,
+      "not_realistic": 13,
+      "offered": 818,
       "ready": 1,
-      "runs": 13,
+      "runs": 14,
       "unfit_model": 1,
-      "unfit_sales": 10,
+      "unfit_sales": 12,
       "unjudged": 0,
-      "unreachable": 25,
+      "unreachable": 26,
       "unreachable_TimeoutError": 2,
-      "unreachable_no_form": 23,
+      "unreachable_no_form": 24,
       "weak_shot": 0
     }
   },
@@ -299,11 +299,11 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 43,
+      "gone_on_workable": 45,
       "left_captcha": 7,
       "left_no_way_forward": 1,
       "left_questions": 2,
-      "not_realistic": 10
+      "not_realistic": 12
     }
   },
   "days": {
@@ -500,16 +500,18 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 14,
-      "found": 51,
-      "interviews": 0,
+      "filled": 13,
+      "found": 54,
+      "interviews": 1,
       "rejections": 0,
-      "replies": 0,
+      "replies": 1,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-26T16:08:54Z",
+  "generated_at": "2026-10-26T16:39:39Z",
   "question_shapes": {
+    "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
+    "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _": 4,
     "employer_site: field: _ _": 2,
     "employer_site: field: _ _ _": 2,
@@ -520,8 +522,11 @@
     "employer_site: field: state _ the _ would _ _ the _ _ have": 1,
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
     "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 2,
+    "lever: checkbox: _": 1,
+    "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: text: other": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
     "recruitee: radio: _ _ _ that this is a _ _ and _ _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
@@ -530,16 +535,10 @@
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: checkbox: what _ of company do you _ to work for": 1,
     "workable: field: resume _": 1,
     "workable: text: please share your _ _ number for _ _": 1,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1,
-    "workable: textarea: cover letter _": 1,
-    "workable: textarea: do you have _ on experience _ _ _ _ and _": 1,
-    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1,
-    "workable: textarea: have you worked with _ _ and _ _ which do you": 1,
-    "workable: textarea: how do you _ _ _ with _ in your _": 1,
-    "workable: textarea: what _ your _ _ quota for _ _ and how _": 1
+    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1
   },
   "sent_all_time": 322,
   "sent_by_system": {
@@ -625,19 +624,18 @@
     }
   },
   "totals": {
-    "filled": 225,
-    "found": 502,
-    "interviews": 11,
+    "filled": 224,
+    "found": 505,
+    "interviews": 12,
     "rejections": 20,
-    "replies": 50,
+    "replies": 51,
     "sent": 125
   },
   "waiting": {
     "asked_about": {
       "address": 1,
-      "cover_letter": 1,
       "on_site": 2,
-      "other": 18,
+      "other": 17,
       "pay": 1,
       "travel": 1,
       "years_experience": 1
@@ -647,7 +645,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 44,
+      "gone_on_workable": 46,
       "left_captcha": 24,
       "left_error": 15,
       "left_going_in_circles": 11,
@@ -660,7 +658,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 35
+      "not_realistic": 37
     },
     "failed": 17,
     "failed_because": {
@@ -674,7 +672,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 17,
     "oldest_days": 43,
     "to_send": 0
   },
