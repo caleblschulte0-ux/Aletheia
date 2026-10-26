@@ -270,23 +270,23 @@
     "2026-10-26": {
       "duplicate": 53,
       "employer_full": 0,
-      "minutes": 366,
+      "minutes": 398,
       "needs_account": 0,
       "needs_answer": 25,
-      "not_realistic": 114,
-      "offered": 2500,
+      "not_realistic": 133,
+      "offered": 2526,
       "ready": 3,
-      "runs": 50,
-      "unfit_model": 9,
-      "unfit_pay": 56,
+      "runs": 55,
+      "unfit_model": 13,
+      "unfit_pay": 71,
       "unfit_sales": 48,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 79,
-      "unreachable_ApplyError": 2,
+      "unreachable": 86,
+      "unreachable_ApplyError": 3,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 12,
-      "unreachable_no_form": 63,
+      "unreachable_left_till_tomorrow": 17,
+      "unreachable_no_form": 64,
       "weak_shot": 0
     }
   },
@@ -303,7 +303,7 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 100,
+      "gone_on_workable": 102,
       "left_captcha": 8,
       "left_error": 1,
       "left_no_way_forward": 2,
@@ -505,15 +505,15 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 13,
-      "found": 145,
+      "filled": 12,
+      "found": 146,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-26T22:49:53Z",
+  "generated_at": "2026-10-26T23:20:41Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -539,8 +539,7 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
-    "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: resume _": 1
+    "recruitee: text: what is your _ _ for this role": 1
   },
   "sent_all_time": 324,
   "sent_by_system": {
@@ -625,8 +624,8 @@
     }
   },
   "totals": {
-    "filled": 224,
-    "found": 596,
+    "filled": 223,
+    "found": 597,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -636,7 +635,7 @@
     "asked_about": {
       "address": 1,
       "on_site": 2,
-      "other": 15,
+      "other": 14,
       "travel": 1,
       "years_experience": 1
     },
@@ -645,7 +644,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 101,
+      "gone_on_workable": 103,
       "left_captcha": 25,
       "left_error": 16,
       "left_going_in_circles": 11,
@@ -672,7 +671,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 15,
+    "needs_answer": 14,
     "oldest_days": 43,
     "to_send": 0
   },
