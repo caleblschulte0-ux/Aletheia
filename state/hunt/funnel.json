@@ -489,7 +489,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-26T05:58:17Z",
+  "generated_at": "2026-10-26T10:02:42Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -504,7 +504,6 @@
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
     "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 2,
     "lever: checkbox: _": 1,
-    "lever: checkbox: _ _": 1,
     "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
