@@ -270,21 +270,21 @@
     "2026-10-26": {
       "duplicate": 42,
       "employer_full": 0,
-      "minutes": 196,
+      "minutes": 209,
       "needs_account": 0,
       "needs_answer": 13,
-      "not_realistic": 30,
-      "offered": 1562,
+      "not_realistic": 36,
+      "offered": 1805,
       "ready": 1,
-      "runs": 25,
+      "runs": 28,
       "unfit_model": 1,
-      "unfit_pay": 2,
-      "unfit_sales": 26,
+      "unfit_pay": 4,
+      "unfit_sales": 30,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 38,
+      "unreachable": 44,
       "unreachable_TimeoutError": 2,
-      "unreachable_no_form": 36,
+      "unreachable_no_form": 42,
       "weak_shot": 0
     }
   },
@@ -292,7 +292,7 @@
     "ashby": 139,
     "bamboohr": 5,
     "greenhouse": 101,
-    "lever": 78,
+    "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
     "workable": 9
@@ -301,11 +301,11 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 61,
+      "gone_on_workable": 71,
       "left_captcha": 7,
-      "left_no_way_forward": 1,
+      "left_no_way_forward": 2,
       "left_questions": 2,
-      "not_realistic": 26
+      "not_realistic": 29
     }
   },
   "days": {
@@ -502,15 +502,15 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 14,
-      "found": 85,
+      "filled": 12,
+      "found": 97,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 1
     }
   },
-  "generated_at": "2026-10-26T19:13:25Z",
+  "generated_at": "2026-10-26T19:43:51Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -537,10 +537,7 @@
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: resume _": 2,
-    "workable: textarea: how _ _ _ do you _ _ per _": 1,
-    "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
-    "workable: textarea: which _ and _ _ have you _ _": 1
+    "workable: field: resume _": 2
   },
   "sent_all_time": 322,
   "sent_by_system": {
@@ -550,7 +547,8 @@
     "lever": 26
   },
   "stop_shapes": {
-    "employer_site: no_apply: _ | privacy": 1
+    "employer_site: no_apply: _ | privacy": 1,
+    "employer_site: no_apply: open contact details": 1
   },
   "stuck_at": {
     "captcha": {
@@ -575,7 +573,7 @@
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 1,
       "nothing_to_press_on_content+no_apply/filled": 2,
-      "nothing_to_press_on_content+no_apply/observed": 12,
+      "nothing_to_press_on_content+no_apply/observed": 13,
       "nothing_to_press_on_content/observed": 21,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
@@ -610,7 +608,8 @@
         "nothing_to_press_on_captcha/filled": 7
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+no_apply/filled": 1
+        "nothing_to_press_on_content+no_apply/filled": 1,
+        "nothing_to_press_on_content+no_apply/observed": 1
       },
       "questions": {
         "nothing_to_press_on_form/filled": 1,
@@ -619,8 +618,8 @@
     }
   },
   "totals": {
-    "filled": 225,
-    "found": 536,
+    "filled": 223,
+    "found": 548,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -629,9 +628,8 @@
   "waiting": {
     "asked_about": {
       "address": 1,
-      "contact": 1,
       "on_site": 2,
-      "other": 17,
+      "other": 16,
       "travel": 1,
       "years_experience": 1
     },
@@ -640,11 +638,11 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 62,
+      "gone_on_workable": 72,
       "left_captcha": 24,
       "left_error": 15,
       "left_going_in_circles": 11,
-      "left_no_way_forward": 64,
+      "left_no_way_forward": 65,
       "left_out_of_steps": 2,
       "left_posting_closed": 2,
       "left_questions": 13,
@@ -653,7 +651,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 51
+      "not_realistic": 54
     },
     "failed": 17,
     "failed_because": {
@@ -667,7 +665,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 18,
+    "needs_answer": 16,
     "oldest_days": 43,
     "to_send": 0
   },
