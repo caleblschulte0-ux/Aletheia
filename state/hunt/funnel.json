@@ -270,23 +270,23 @@
     "2026-10-26": {
       "duplicate": 53,
       "employer_full": 0,
-      "minutes": 398,
+      "minutes": 426,
       "needs_account": 0,
       "needs_answer": 25,
-      "not_realistic": 133,
-      "offered": 2526,
+      "not_realistic": 160,
+      "offered": 2677,
       "ready": 3,
-      "runs": 55,
-      "unfit_model": 13,
-      "unfit_pay": 71,
-      "unfit_sales": 48,
+      "runs": 61,
+      "unfit_model": 16,
+      "unfit_pay": 89,
+      "unfit_sales": 54,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 86,
-      "unreachable_ApplyError": 3,
+      "unreachable": 106,
+      "unreachable_ApplyError": 6,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 17,
-      "unreachable_no_form": 64,
+      "unreachable_left_till_tomorrow": 26,
+      "unreachable_no_form": 72,
       "weak_shot": 0
     }
   },
@@ -303,12 +303,12 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "gone_on_workable": 102,
+      "gone_on_workable": 110,
       "left_captcha": 8,
       "left_error": 1,
       "left_no_way_forward": 2,
       "left_questions": 2,
-      "not_realistic": 45
+      "not_realistic": 46
     }
   },
   "days": {
@@ -506,14 +506,14 @@
     },
     "2026-10-26": {
       "filled": 12,
-      "found": 146,
+      "found": 155,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-26T23:20:41Z",
+  "generated_at": "2026-10-26T23:51:50Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -625,7 +625,7 @@
   },
   "totals": {
     "filled": 223,
-    "found": 597,
+    "found": 606,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -644,7 +644,7 @@
       "gone_on_greenhouse": 12,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
-      "gone_on_workable": 103,
+      "gone_on_workable": 111,
       "left_captcha": 25,
       "left_error": 16,
       "left_going_in_circles": 11,
@@ -657,7 +657,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 70
+      "not_realistic": 71
     },
     "failed": 17,
     "failed_because": {
