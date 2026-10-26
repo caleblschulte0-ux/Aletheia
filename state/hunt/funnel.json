@@ -489,7 +489,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-26T10:02:42Z",
+  "generated_at": "2026-10-26T12:05:38Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -509,7 +509,6 @@
     "lever: field: name": 2,
     "lever: text: other": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
-    "lever: textarea: _ yes what is the _ of your _ work authorization and": 1,
     "recruitee: radio: _ _ _ that this is a _ _ and _ _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
@@ -623,7 +622,6 @@
       "on_site": 2,
       "other": 14,
       "travel": 1,
-      "work_authorization": 1,
       "years_experience": 1
     },
     "closed": {
