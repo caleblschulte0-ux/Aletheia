@@ -288,12 +288,29 @@
       "unreachable_left_till_tomorrow": 97,
       "unreachable_no_form": 77,
       "weak_shot": 0
+    },
+    "2026-10-27": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 34,
+      "needs_account": 0,
+      "needs_answer": 2,
+      "not_realistic": 27,
+      "offered": 125,
+      "ready": 0,
+      "runs": 3,
+      "unfit_model": 3,
+      "unfit_pay": 9,
+      "unfit_sales": 15,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -306,21 +323,13 @@
       "gone_on_workable": 115,
       "left_captcha": 11,
       "left_error": 2,
-      "left_no_way_forward": 7,
+      "left_no_way_forward": 9,
       "left_questions": 2,
       "left_sign_in": 2,
-      "not_realistic": 49
+      "not_realistic": 58
     }
   },
   "days": {
-    "2026-09-27": {
-      "filled": 12,
-      "found": 22,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 1,
-      "sent": 7
-    },
     "2026-09-28": {
       "filled": 13,
       "found": 25,
@@ -512,9 +521,17 @@
       "rejections": 0,
       "replies": 3,
       "sent": 3
+    },
+    "2026-10-27": {
+      "filled": 0,
+      "found": 11,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-10-27T04:58:24Z",
+  "generated_at": "2026-10-27T05:29:25Z",
   "question_shapes": {
     "employer_site: field: _": 18,
     "employer_site: field: _ _": 12,
@@ -549,15 +566,16 @@
   },
   "sent_all_time": 324,
   "sent_by_system": {
-    "ashbyhq": 20,
+    "ashbyhq": 19,
     "employer_site": 6,
-    "greenhouse": 75,
-    "lever": 26
+    "greenhouse": 70,
+    "lever": 25
   },
   "stop_shapes": {
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: _ this _ | _ _ | _ | privacy": 2,
     "employer_site: no_apply: _ | about": 1,
+    "employer_site: no_apply: _ | about | careers": 2,
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: open contact details": 1,
     "employer_site: no_apply: search | _ | _ _ _ | _ _ | careers": 1
@@ -589,7 +607,7 @@
       "nothing_to_press_on_content+no_apply/observed": 16,
       "nothing_to_press_on_content/observed": 16,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
-      "nothing_to_press_on_form+no_apply/filled": 3,
+      "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
       "nothing_to_press_on_form/observed": 4,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -628,6 +646,7 @@
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/filled": 1,
         "nothing_to_press_on_content+no_apply/observed": 4,
+        "nothing_to_press_on_form+no_apply/filled": 2,
         "nothing_to_press_on_form+no_apply/observed": 1
       },
       "questions": {
@@ -640,12 +659,12 @@
     }
   },
   "totals": {
-    "filled": 236,
-    "found": 638,
+    "filled": 224,
+    "found": 627,
     "interviews": 13,
     "rejections": 20,
-    "replies": 53,
-    "sent": 127
+    "replies": 52,
+    "sent": 120
   },
   "waiting": {
     "asked_about": {
@@ -658,24 +677,24 @@
       "years_experience": 1
     },
     "closed": {
-      "gone_on_ashbyhq": 18,
-      "gone_on_greenhouse": 12,
+      "gone_on_ashbyhq": 16,
+      "gone_on_greenhouse": 11,
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "gone_on_workable": 116,
       "left_captcha": 28,
-      "left_error": 17,
-      "left_going_in_circles": 11,
+      "left_error": 16,
+      "left_going_in_circles": 9,
       "left_no_way_forward": 70,
       "left_out_of_steps": 2,
       "left_posting_closed": 2,
       "left_questions": 13,
-      "left_sign_in": 12,
+      "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
-      "not_a_form_asks_nothing_on_bamboohr": 3,
+      "not_a_form_asks_nothing_on_bamboohr": 2,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 74
+      "not_realistic": 83
     },
     "failed": 17,
     "failed_because": {
