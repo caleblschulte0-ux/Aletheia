@@ -270,22 +270,22 @@
     "2026-10-26": {
       "duplicate": 55,
       "employer_full": 0,
-      "minutes": 588,
+      "minutes": 621,
       "needs_account": 2,
       "needs_answer": 42,
-      "not_realistic": 259,
-      "offered": 2965,
+      "not_realistic": 266,
+      "offered": 2977,
       "ready": 4,
-      "runs": 85,
+      "runs": 87,
       "unfit_model": 18,
-      "unfit_pay": 161,
-      "unfit_sales": 79,
+      "unfit_pay": 167,
+      "unfit_sales": 80,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 174,
+      "unreachable": 179,
       "unreachable_ApplyError": 6,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 89,
+      "unreachable_left_till_tomorrow": 94,
       "unreachable_no_form": 77,
       "weak_shot": 0
     }
@@ -514,7 +514,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-27T03:26:50Z",
+  "generated_at": "2026-10-27T03:57:29Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -583,7 +583,7 @@
       "nothing_to_press_on_content+empty_page/observed": 2,
       "nothing_to_press_on_content+no_apply/filled": 2,
       "nothing_to_press_on_content+no_apply/observed": 16,
-      "nothing_to_press_on_content/observed": 17,
+      "nothing_to_press_on_content/observed": 16,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 3,
       "nothing_to_press_on_form+no_apply/observed": 7,
