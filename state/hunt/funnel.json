@@ -270,16 +270,16 @@
     "2026-10-26": {
       "duplicate": 55,
       "employer_full": 0,
-      "minutes": 637,
+      "minutes": 661,
       "needs_account": 2,
-      "needs_answer": 42,
-      "not_realistic": 270,
-      "offered": 2984,
+      "needs_answer": 46,
+      "not_realistic": 278,
+      "offered": 3040,
       "ready": 4,
-      "runs": 88,
-      "unfit_model": 18,
-      "unfit_pay": 170,
-      "unfit_sales": 81,
+      "runs": 89,
+      "unfit_model": 19,
+      "unfit_pay": 173,
+      "unfit_sales": 85,
       "unfit_years": 1,
       "unjudged": 0,
       "unreachable": 182,
@@ -309,7 +309,7 @@
       "left_no_way_forward": 7,
       "left_questions": 2,
       "left_sign_in": 2,
-      "not_realistic": 47
+      "not_realistic": 49
     }
   },
   "days": {
@@ -506,18 +506,16 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 21,
-      "found": 181,
+      "filled": 25,
+      "found": 187,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-27T04:27:45Z",
+  "generated_at": "2026-10-27T04:58:24Z",
   "question_shapes": {
-    "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
-    "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
     "employer_site: field: _": 18,
     "employer_site: field: _ _": 12,
     "employer_site: field: _ _ _": 4,
@@ -529,11 +527,9 @@
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
     "employer_site: field: work _": 4,
     "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 6,
-    "lever: checkbox: _": 1,
     "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: text: other": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
     "recruitee: radio: _ _ _ that this is a _ _ and _ _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
@@ -541,7 +537,15 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
-    "recruitee: text: what is your _ _ for this role": 1
+    "recruitee: text: what is your _ _ for this role": 1,
+    "workable: checkbox: what _ do you have of email _ _ _": 1,
+    "workable: field: resume _": 1,
+    "workable: text: the salary range is _ for this role are you comfortable with": 1,
+    "workable: text: what _ you _ in your _ role _ a _ salary": 1,
+    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1,
+    "workable: textarea: how _ _ _ do you _ _ per _": 1,
+    "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
+    "workable: textarea: which _ and _ _ have you _ _": 1
   },
   "sent_all_time": 324,
   "sent_by_system": {
@@ -636,8 +640,8 @@
     }
   },
   "totals": {
-    "filled": 232,
-    "found": 632,
+    "filled": 236,
+    "found": 638,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -646,8 +650,10 @@
   "waiting": {
     "asked_about": {
       "address": 1,
+      "contact": 2,
       "on_site": 2,
-      "other": 22,
+      "other": 25,
+      "pay": 2,
       "travel": 1,
       "years_experience": 1
     },
@@ -669,7 +675,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 3,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 72
+      "not_realistic": 74
     },
     "failed": 17,
     "failed_because": {
@@ -683,7 +689,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 22,
+    "needs_answer": 26,
     "oldest_days": 44,
     "to_send": 0
   },
