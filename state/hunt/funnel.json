@@ -270,22 +270,22 @@
     "2026-10-26": {
       "duplicate": 53,
       "employer_full": 0,
-      "minutes": 426,
+      "minutes": 435,
       "needs_account": 0,
       "needs_answer": 25,
-      "not_realistic": 160,
-      "offered": 2677,
+      "not_realistic": 168,
+      "offered": 2691,
       "ready": 3,
-      "runs": 61,
+      "runs": 63,
       "unfit_model": 16,
-      "unfit_pay": 89,
-      "unfit_sales": 54,
+      "unfit_pay": 95,
+      "unfit_sales": 56,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 106,
+      "unreachable": 112,
       "unreachable_ApplyError": 6,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 26,
+      "unreachable_left_till_tomorrow": 32,
       "unreachable_no_form": 72,
       "weak_shot": 0
     }
@@ -293,7 +293,7 @@
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -513,7 +513,7 @@
       "sent": 3
     }
   },
-  "generated_at": "2026-10-26T23:51:50Z",
+  "generated_at": "2026-10-27T00:22:07Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
