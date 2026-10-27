@@ -270,22 +270,22 @@
     "2026-10-26": {
       "duplicate": 55,
       "employer_full": 0,
-      "minutes": 454,
+      "minutes": 493,
       "needs_account": 2,
-      "needs_answer": 29,
-      "not_realistic": 172,
-      "offered": 2707,
+      "needs_answer": 41,
+      "not_realistic": 188,
+      "offered": 2760,
       "ready": 4,
-      "runs": 64,
+      "runs": 68,
       "unfit_model": 16,
-      "unfit_pay": 98,
-      "unfit_sales": 57,
+      "unfit_pay": 110,
+      "unfit_sales": 61,
       "unfit_years": 1,
       "unjudged": 0,
-      "unreachable": 115,
+      "unreachable": 127,
       "unreachable_ApplyError": 6,
       "unreachable_TimeoutError": 2,
-      "unreachable_left_till_tomorrow": 35,
+      "unreachable_left_till_tomorrow": 47,
       "unreachable_no_form": 72,
       "weak_shot": 0
     }
@@ -293,7 +293,7 @@
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -305,7 +305,7 @@
       "gone_on_lever": 1,
       "gone_on_workable": 110,
       "left_captcha": 11,
-      "left_error": 1,
+      "left_error": 2,
       "left_no_way_forward": 6,
       "left_questions": 2,
       "left_sign_in": 2,
@@ -507,14 +507,14 @@
     },
     "2026-10-26": {
       "filled": 21,
-      "found": 173,
+      "found": 174,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-10-27T00:52:53Z",
+  "generated_at": "2026-10-27T01:24:16Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 1,
@@ -564,7 +564,7 @@
     },
     "error": {
       "nothing_to_press_on_error/observed": 1,
-      "nothing_to_press_on_unread/filled": 5,
+      "nothing_to_press_on_unread/filled": 6,
       "nothing_to_press_on_unread/nothing": 1,
       "nothing_to_press_on_unread/observed": 8,
       "nothing_to_press_on_unread/submit_clicked": 1
@@ -616,7 +616,8 @@
         "nothing_to_press_on_captcha/filled": 11
       },
       "error": {
-        "nothing_to_press_on_error/observed": 1
+        "nothing_to_press_on_error/observed": 1,
+        "nothing_to_press_on_unread/filled": 1
       },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
@@ -635,7 +636,7 @@
   },
   "totals": {
     "filled": 232,
-    "found": 624,
+    "found": 625,
     "interviews": 13,
     "rejections": 20,
     "replies": 53,
@@ -656,7 +657,7 @@
       "gone_on_smartrecruiters": 3,
       "gone_on_workable": 111,
       "left_captcha": 28,
-      "left_error": 16,
+      "left_error": 17,
       "left_going_in_circles": 11,
       "left_no_way_forward": 69,
       "left_out_of_steps": 2,
