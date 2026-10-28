@@ -2801,6 +2801,29 @@ def _undo_his_last_ask() -> str | None:
         # removal while milk is on the list, and now it isn't.
         if re.match(r"Took (?:it|\S+ things?) off (?:your|the) shopping list:", str(turn.get("she_answered") or "")):
             return _put_back_on_the_list(str(turn.get("she_answered") or ""))
+        # "Take towels off my packing list" / "delete my packing list", then
+        # "undo that" (2026-10-28: "Nothing to undo"). Both were kept for this.
+        answer = str(turn.get("she_answered") or "").strip()
+        named = re.match(r"Took it off your (?P<n>[a-z0-9][a-z0-9' -]{0,40}?) list: (?P<w>.+)$", answer, re.I) \
+            or re.match(r"Cleared your (?P<n>[a-z0-9][a-z0-9' -]{0,40}?) list - ", answer, re.I)
+        if named:
+            from aletheia import lists as _lists, speech
+            name = named.group("n")
+            if answer.startswith("Cleared"):
+                held = _lists._load(name, deleted=False) or {"items": []}
+                answer = " ".join(i["text"] for i in held["items"] if i.get("done"))
+            back = _lists.put_back(name, answer)
+            if back:
+                return f"Undone - back on your {name} list: {speech.and_list(back)}."
+            return f"I couldn't find what came off your {name} list to put back."
+        gone = re.match(r"Deleted your (?P<n>[a-z0-9][a-z0-9' -]{0,40}?) list\b", answer, re.I)
+        if gone:
+            from aletheia import lists as _lists, speech
+            n = _lists.undelete(gone.group("n"))
+            if n is None:
+                return f"I couldn't bring your {gone.group('n')} list back - it isn't there to restore."
+            return (f"Undone: your {gone.group('n')} list is back"
+                    + (f", with {speech.count_phrase(n, 'thing')} on it." if n else ". It's empty."))
         if kind not in UNDOES_HIS_ASK and str(turn.get("she_answered") or "").strip() == "Noted.":
             # "No, it's 24" was a note only in the light of the turn before
             # it, and reads as nothing on its own now. "Noted." is said for
