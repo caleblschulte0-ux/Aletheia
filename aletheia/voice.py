@@ -1187,6 +1187,49 @@ def _window_of(said: str) -> dict | None:
     return out or None
 
 
+_NTH_OF = {"first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3, "fourth": 4, "4th": 4, "last": -1}
+_WEEKDAY_NAMES = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+
+
+def _a_nth_weekday(low: str, text: str) -> dict | None:
+    """"Remind me on the last Friday of every month to pay the sitter", "the
+    first Monday of each month" (2026-10-28: to the planner). Said with
+    "the month" and no "every", it is this month's - or next month's once
+    this month's has gone by."""
+    day = (r"the (?P<nth>first|1st|second|2nd|third|3rd|fourth|4th|last) "
+           r"(?P<wd>monday|tuesday|wednesday|thursday|friday|saturday|sunday)")
+    span = r"(?P<span>of (?:every|each) month|every month|each month|of the month|monthly)"
+    at = r"(?: at (?P<time>[\w: ]+?))?"
+    m = (re.fullmatch(r"remind me (?:on )?" + day + r" " + span + at + r",? (?:to|that|about) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:every|each) month on " + day + at + r",? (?:to|that|about) (?P<text>.+)", low)
+         or re.fullmatch(r"remind me (?:to|that|about) (?P<text>.+?),? (?:on )?" + day + r" " + span + at, low))
+    if not m:
+        return None
+    hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+    if not hhmm:
+        return None
+    hour, minute = map(int, hhmm.split(":"))
+    if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+        hour += 12
+    nth, weekday = _NTH_OF[m.group("nth")], _WEEKDAY_NAMES.index(m.group("wd"))
+    what = _as_he_said(text, m.group("text").strip())
+    span = m.groupdict().get("span") or "every month"
+    if span != "of the month":
+        return {"command": {"kind": "remind_monthly", "nth": nth, "weekday": m.group("wd"),
+                            "time": f"{hour:02d}:{minute:02d}", "text": what}, "say": None}
+    import datetime as dt
+    from aletheia import localtime, scheduler
+    tz = localtime.operator_tz()
+    now = dt.datetime.now(tz)
+    for offset in (0, 1):
+        year, month = scheduler._months_from(now.date(), offset)
+        at = dt.datetime.combine(scheduler._day_in_month({"nth": nth, "weekday": weekday}, year, month),
+                                 dt.time(hour, minute), tzinfo=tz)
+        if at > now:
+            return {"command": {"kind": "remind_at", "at": at.isoformat(), "text": what}, "say": None}
+    return None
+
+
 _YEARLY = r"(?:(?:every|each|once a) year|yearly|annually)"
 #: "March 3rd", "the 15th of April", or a day of his she has a note of.
 _YEAR_DAY = (r"(?:" + _MONTH + r" (?:the )?" + _NTH + r"|(?:the )?" + _NTH + r" of " + _MONTH
@@ -6434,7 +6477,7 @@ def _interpret(transcript: str) -> dict:
     # the first of every month to pay rent" was refused as SPENDING, the
     # rest went to the planner). Either word order; nine o'clock when he
     # names no time, as for the weekly ones, and the receipt says it back.
-    repeat = _a_yearly(low, text) or _a_repeat(low, text)
+    repeat = _a_yearly(low, text) or _a_nth_weekday(low, text) or _a_repeat(low, text)
     if repeat:
         return repeat
     # "SET A REMINDER FOR 3 TO CALL BOB" and "remind me to check the oven
@@ -11483,7 +11526,9 @@ def _interpret(transcript: str) -> dict:
                 if said_day:
                     return {"command": None, "say": "That one goes off on a day of the month - say the date, like "
                                                     "\"on the 5th of every month\"."}
-                return {"command": {"kind": "remind_monthly", "day": int(found.get("monthday") or 1), "time": clock,
+                which = ({"nth": found["nth"], "weekday": found.get("weekday")} if "nth" in found
+                         else {"day": int(found.get("monthday") or 1)})
+                return {"command": {"kind": "remind_monthly", **which, "time": clock,
                                     "text": said_text, "replaces": said_text}, "say": None}
             names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
             days = ([said_day.group("day")] if said_day

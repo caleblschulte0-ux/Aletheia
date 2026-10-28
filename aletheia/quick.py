@@ -16415,6 +16415,9 @@ def _repeating(which: str = "", about: str = "") -> str | None:
             return f"every day at {clock(sp)}"
         if kind == "weekly":
             return f"every {speech.and_list([days[d] for d in sp.get('weekdays') or []])} at {clock(sp)}"
+        if kind == "monthly" and "nth" in sp:
+            from aletheia import intercom as _icn
+            return f"on the {_icn._nth_weekday_words(sp['nth'], sp['weekday'])} of every month at {clock(sp)}"
         if kind == "monthly":
             return f"on the {_ordinal(int(sp.get('monthday') or 1))} of every month at {clock(sp)}"
         if kind == "yearly":
