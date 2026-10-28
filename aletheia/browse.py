@@ -311,8 +311,8 @@ def native_login(url: str, profile: Path | None = None, *, wait: bool = True) ->
     if not chrome or not Path(chrome).is_file():
         raise RuntimeError(
             "no Chrome and no Chromium of her own found "
-            f"({_CHROMIUM_MISS.get('why') or 'none on disk'}); "
-            "install Chrome or set ALETHEIA_CHROME_PATH"
+            f"({_CHROMIUM_MISS.get('why') or 'none on disk'}; "
+            f"{_kick_install()}); install Chrome or set ALETHEIA_CHROME_PATH"
         )
     profile_path = Path(profile or PROFILE_DIR)
     profile_path.mkdir(parents=True, exist_ok=True)
@@ -964,7 +964,7 @@ def ensure_installed(*, now: float | None = None, spawner=None, importable=None)
         return out
     try:
         from aletheia import stateio
-        stateio.write_json_atomic(_install_state_path(), {"started_at": wall, "pid": pid})
+        stateio.write_json_atomic(_install_state_path(), {"started_at": wall, "pid": pid, "result": ""})
     except Exception:  # noqa: BLE001
         pass
     journal.append("action", "browser", "installing my browser, which was not on this machine",
@@ -988,19 +988,66 @@ def _browser_on_disk() -> bool:
 
 
 def install() -> int:
-    """What `ensure_installed` runs in its own process: the repo's own list, then Chromium."""
-    steps = [[sys.executable, "-m", "pip", "install", "--quiet", "--only-binary=:all:",
-              "-r", str(REPO_ROOT / "requirements-optional.txt")],
-             [sys.executable, "-m", "playwright", "install", "chromium"]]
-    for cmd in steps:
-        done = proc.run(cmd, capture_output=True, text=True, timeout=1800)
-        if done.returncode != 0:
-            journal.append("action", "browser",
-                           f"could not install my browser: {_without_paths((done.stderr or done.stdout or '').strip()[-200:])}",
+    """What `ensure_installed` runs in its own process: Playwright, Chromium, then the rest.
+
+    Playwright goes alone first: one optional package that will not install
+    must not cost her the browser. How it went is written down where the
+    next refusal can say it.
+    """
+    steps = [("playwright", [sys.executable, "-m", "pip", "install", "--quiet", "playwright>=1.40"]),
+             ("chromium", [sys.executable, "-m", "playwright", "install", "chromium"])]
+    for what, cmd in steps:
+        try:
+            done = proc.run(cmd, capture_output=True, text=True, timeout=1800)
+            code, err = done.returncode, (done.stderr or done.stdout or "").strip()
+        except Exception as exc:  # noqa: BLE001
+            code, err = 1, f"{type(exc).__name__}: {exc}"
+        if code != 0:
+            why = f"installing {what} failed: {_without_paths(err.splitlines()[-1] if err else 'no output')}"
+            _note_install(result=why)
+            journal.append("action", "browser", f"could not install my browser ({why})",
                            actor="aletheia-browser")
-            return done.returncode
+            return code or 1
+    _note_install(result="installed")
     journal.append("action", "browser", "installed my browser", actor="aletheia-browser")
+    try:  # the rest of what the repo lists; best effort, the browser is already there
+        proc.run([sys.executable, "-m", "pip", "install", "--quiet", "--only-binary=:all:",
+                  "-r", str(REPO_ROOT / "requirements-optional.txt")],
+                 capture_output=True, text=True, timeout=1800)
+    except Exception:  # noqa: BLE001
+        pass
     return 0
+
+
+def _note_install(**changes) -> None:
+    try:
+        from aletheia import stateio
+        path = _install_state_path()
+        state = stateio.read_json(path) if path.is_file() else {}
+        state.update(changes, at=time.time())
+        stateio.write_json_atomic(path, state)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _kick_install() -> str:
+    """Asked for a browser she does not have: start getting it now, not on the next beat."""
+    started = ensure_installed().get("started")
+    return "installing it now" if started else install_news()
+
+
+def install_news() -> str:
+    """One clause on how installing her browser went, for a refusal to carry."""
+    try:
+        from aletheia import stateio
+        state = stateio.read_json(_install_state_path())
+    except Exception:  # noqa: BLE001
+        return "no install tried yet"
+    if state.get("result"):
+        return str(state["result"])
+    if state.get("started_at"):
+        return f"install started {int((time.time() - float(state['started_at'])) // 60)} min ago, not finished"
+    return "no install tried yet"
 
 
 def main(argv: list[str] | None = None) -> int:

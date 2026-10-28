@@ -52,6 +52,24 @@ class HerBrowserInstallsItself(unittest.TestCase):
                 browse.ensure_installed(spawner=spawner, importable=False)
         spawner.assert_not_called()
 
+    def test_a_failed_install_is_what_the_next_refusal_says(self):
+        failed = mock.Mock(returncode=1, stdout="", stderr="ERROR: No matching distribution found for playwright>=1.40 in C:\\Users\\him\n")
+        with mock.patch.object(browse.proc, "run", return_value=failed):
+            self.assertEqual(browse.install(), 1)
+        news = browse.install_news()
+        self.assertIn("installing playwright failed", news)
+        self.assertIn("No matching distribution", news)
+        self.assertNotIn("him", news)
+
+    def test_playwright_goes_first_and_alone(self):
+        ok = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch.object(browse.proc, "run", return_value=ok) as run:
+            self.assertEqual(browse.install(), 0)
+        first = run.call_args_list[0].args[0]
+        self.assertIn("playwright>=1.40", first)
+        self.assertNotIn("-r", first)
+        self.assertEqual(browse.install_news(), "installed")
+
     def test_the_beat_asks(self):
         from aletheia import runtime
         with mock.patch.object(browse, "ensure_installed", return_value={"ok": True}) as ensure:
