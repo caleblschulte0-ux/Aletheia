@@ -1865,8 +1865,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What reminders do I have in June" (2026-10-14: to a model).
         # "How many reminders do I have this week", "my reminders this week"
         # (2026-10-18: to a model).
-        r"^(?:(?:what|which|how many) reminders (?:do i have|have i got|are there|are set)|(?:what are |list |read me )?(?:my|the) reminders(?: for)?)(?P<reminders_week> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$"
-        r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$")),
+        r"^(?:(?:what|which|how many) reminders (?:do i have|have i got|are there|are set)|(?:what are |list |read me )?(?:my|the) reminders(?: for)?)(?P<reminders_week> this week| next week| this weekend| next weekend| over the weekend| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$"
+        r"|^(?:do i have |are there |have i got )?any reminders(?P<reminders_week3> this week| next week| this weekend| next weekend| over the weekend)\s*\??$"
+        r"|^what am i (?:being|getting) reminded (?:about|of)(?P<reminders_week2> this week| next week| this weekend| next weekend| over the weekend| this month| next month| in (?:january|february|march|april|may|june|july|august|september|october|november|december))\s*\??$")),
     # "What's my alarm for tomorrow" was answered as "1 reminder tomorrow:
     # 6 am, wake up." (2026-10-12) - he asked about his alarm.
     ("alarms_on", re.compile(
@@ -3966,7 +3967,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "due_by", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "asked_on6", "asked_on7", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "reminders_week3", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "asked_on6", "asked_on7", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "reminder_when2", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -16767,6 +16768,14 @@ def _reminders_week(which: str) -> str:
     today = dt.datetime.now(tz).date()
     start = today if which == "this week" else today + dt.timedelta(days=7 - today.weekday())
     end = today + dt.timedelta(days=6 - today.weekday()) if which == "this week" else start + dt.timedelta(days=6)
+    # "What reminders do I have this weekend" (2026-10-28: to a model).
+    # Saturday and Sunday; on a Sunday "this weekend" is what is left of it.
+    if which in ("this weekend", "over the weekend", "next weekend"):
+        saturday = today + dt.timedelta(days=5 - today.weekday()) if today.weekday() < 6 else today - dt.timedelta(days=1)
+        if which == "next weekend":
+            saturday += dt.timedelta(days=7)
+        which = "this weekend" if which == "over the weekend" else which
+        start, end = max(today, saturday), saturday + dt.timedelta(days=1)
     months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
               "november", "december"]
     month = today.month if which == "this month" else today.month % 12 + 1 if which == "next month" \
