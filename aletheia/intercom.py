@@ -1845,9 +1845,9 @@ def _skip_once(found: dict, once: str) -> str:
             midnight = dt.datetime.combine(day, dt.time(0), tzinfo=tz).astimezone(dt.timezone.utc)
             earlier = scheduler.next_occurrence(found, midnight - dt.timedelta(seconds=1)) if want == 0 else None
             if earlier is not None and earlier.astimezone(tz).date() == day and earlier <= now:
-                raise act.Refused(f"it already went off today at {speech.clock_words(earlier.astimezone(tz).strftime('%H:%M'))}"
-                                  + (f" - the next one is {speech.humanize_time(at.isoformat())}." if at else "."))
-            raise act.Refused(f"it doesn't go off {_once_words(once)} - {_reminder_words(found).split(' — ')[-1]}.")
+                raise act.Refused(f"Nothing to skip: it already went off today at {speech.clock_words(earlier.astimezone(tz).strftime('%H:%M'))}"
+                                  + (f". The next one is {speech.humanize_time(at.isoformat())}." if at else "."))
+            raise act.Refused(f"Nothing to skip: it doesn't go off {_once_words(once)}. It's {_reminder_words(found).split(' — ')[-1]}.")
     if " ".join(once.casefold().split()) == "this week":
         # "Skip the trash reminder this week" said twice skipped NEXT week too
         # (2026-10-12). This week ends Sunday night; one already skipped stays the one.
@@ -1855,11 +1855,13 @@ def _skip_once(found: dict, once: str) -> str:
         week_ends = today + dt.timedelta(days=6 - today.weekday())
         first = scheduler._next_occurrence(found, now)
         if first is None or first.astimezone(tz).date() > week_ends:
-            raise act.Refused("it doesn't go off again this week"
-                              + (f" - next {speech.humanize_time(at.isoformat())}." if at else "."))
+            # "I can't do that: it doesn't go off again this week" (2026-10-28)
+            # read as a refusal; there was simply nothing left to skip.
+            raise act.Refused("Nothing to skip: it doesn't go off again this week"
+                              + (f". The next one is {speech.humanize_time(at.isoformat())}." if at else "."))
         if at is None or at != first:
-            raise act.Refused(f"it's already skipped this week"
-                              + (f" - it's back {speech.humanize_time(at.isoformat())}." if at else "."))
+            raise act.Refused(f"It's already skipped this week"
+                              + (f". It's back {speech.humanize_time(at.isoformat())}." if at else "."))
     if at is None:
         raise act.Refused("it has nothing coming up to skip.")
     scheduler.skip_once(found["id"], at)
