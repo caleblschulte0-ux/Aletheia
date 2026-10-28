@@ -223,9 +223,15 @@ def _next_window_start(spec: dict, after: dt.datetime) -> dt.datetime:
     return after + dt.timedelta(days=8)
 
 
-def set_enabled(schedule_id: str, enabled: bool) -> dict:
+def set_enabled(schedule_id: str, enabled: bool, *, moved: bool = False) -> dict:
+    """On or off. `moved` marks one turned off because a new time replaced
+    it, so it is not read back as a reminder he stopped."""
     spec = load(schedule_id)
     spec["enabled"] = bool(enabled)
+    if moved and not enabled:
+        spec["moved"] = True
+    else:
+        spec.pop("moved", None)
     spec["updated_at"] = utcnow()
     return save(spec)
 

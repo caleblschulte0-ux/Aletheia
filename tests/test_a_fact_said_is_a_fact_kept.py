@@ -4856,7 +4856,7 @@ class ADailyReminderMovedStaysDaily(unittest.TestCase):
                 mock.patch.object(scheduler, "create") as made:
             said = intercom.execute_command({"kind": "remind_daily", "time": "09:00", "text": "take my pills",
                                              "replaces": "take my pills"}, {}, quote="test")
-        off.assert_called_once_with("old", False)
+        off.assert_called_once_with("old", False, moved=True)
         self.assertEqual(made.call_args.kwargs["time"], "09:00")
         self.assertIn("moved", str(said))
 

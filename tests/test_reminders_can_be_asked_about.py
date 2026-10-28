@@ -70,7 +70,7 @@ class TheWholeConversationWorks(unittest.TestCase):
             made.append({"id": sid, "command": command, "enabled": True, **kw})
             return made[-1]
 
-        def set_enabled(sid, enabled):
+        def set_enabled(sid, enabled, **_kw):
             for spec in made:
                 if spec["id"] == sid:
                     spec["enabled"] = enabled
