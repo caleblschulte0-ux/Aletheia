@@ -4557,7 +4557,7 @@ class RemindMeTheDayBefore(unittest.TestCase):
             self.assertEqual(at.hour, 19)
             r = voice._interpret("remind me the day before my haircut")
             self.assertIsNone(r["command"])
-            self.assertIn("don't see haircut", r["say"])
+            self.assertIn("don't see your haircut", r["say"])
         self.assertNotEqual((voice._interpret("remind me a day before mom's birthday") or {}).get("say", "")[:12],
                             "I don't see m")
 
