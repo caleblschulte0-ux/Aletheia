@@ -316,6 +316,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "notify_snooze":   ({"minutes"}, {"which", "quiet"}),
     "reminder_off":    ({"which"}, {"once"}),
     "reminder_on":     ({"which"}, set()),
+    "reminder_reword": ({"which", "text"}, set()),
     "watch_email_from": ({"who"}, set()),
     "notify_operator": ({"text"}, {"priority"}),
     "notify_check":    (set(), set()),
@@ -570,6 +571,10 @@ KIND_NOTES: dict[str, str] = {
         'Put back a reminder he stopped. which is the words he used for '
         'it, or "all reminders" for every one stopped in the last day; a '
         'one-off whose time has gone by stays off and says so.'),
+    "reminder_reword": (
+        'Change what a reminder says, keeping when it goes off. which is the '
+        'words he used for it ("the email sarah one"), text is what it says '
+        'now ("call sarah"). A new time is a move, not this.'),
     "reminder_off": (
         'Stop a reminder he has set. which is the words he used for it '
         '("the bins", "the gym one"); she finds the one reminder that '
@@ -871,7 +876,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
                "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_yearly", "remind_every",
-               "reminders", "reminder_off", "reminder_on", "notify_snooze",
+               "reminders", "reminder_off", "reminder_on", "reminder_reword", "notify_snooze",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
                "intent", "screen_ask",
@@ -988,6 +993,9 @@ ROUTINE_KINDS = frozenset({
     # the whole test for this tier — the schedule is disabled, never
     # deleted, so "actually put that back" is one command.
     "reminder_off", "reminder_on", "shopping_off", "notify_snooze", "notify_operator",
+    # Rewording one: the old words are said back, and saying them again
+    # puts them back.
+    "reminder_reword",
     # His own named lists: the same act on the same kind of store.
     "list_new", "list_add", "list_off",
     # His stopwatch: one small record of his own, reset by one word.
@@ -4999,6 +5007,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         return _reminders_answer(cmd.get("which", ""))
     if kind == "reminder_on":
         return _reminder_back_on(str(cmd["which"]))
+    if kind == "reminder_reword":
+        # "Change the email sarah one to call sarah" (2026-10-28: to the
+        # planner, and with the models out, nowhere). Same schedule, new words.
+        from aletheia import scheduler
+        found, why = _one_reminder(str(cmd["which"]))
+        if found is None:
+            raise act.Refused(why)
+        new = " ".join(str(cmd["text"]).split()).strip(" .")
+        if not new:
+            raise act.Refused("say what it should say instead.")
+        was = str((found.get("command") or {}).get("text") or "")
+        scheduler.retext(found["id"], new)
+        when = _reminder_words({**found, "command": {**(found.get("command") or {}), "text": new}})
+        return (f"Changed it to {speech._yours(new)}" + (f" - {when.split(' — ', 1)[1]}" if " — " in when else "")
+                + f". It used to say {speech._yours(was)}.")
     if kind == "reminder_off":
         from aletheia import scheduler
         # "TURN OFF ALL MY ALARMS" - every one of that sort, each disabled

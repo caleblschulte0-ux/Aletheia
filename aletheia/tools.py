@@ -88,7 +88,7 @@ DESTRUCTIVE_KINDS = frozenset({
 IDEMPOTENT_KINDS = frozenset({
     "task_status", "task_done", "task_change", "plan_step", "plan_set", "announce_set",
     "mic_off", "mic_on", "chatgpt_off", "eyes_off", "halt", "resume", "close",
-    "open", "reminder_off", "reminder_on", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
+    "open", "reminder_off", "reminder_on", "reminder_reword", "shopping_off", "notify_clear", "rule", "approve", "list_new", "list_off", "stopwatch", "speaking_pace",
     "contact_remove", "hold_release", "draft_discard",
     "deny", "remember", "apply_outcome", "file_write", "apply_pause", "restart", "update_now",
     "preference_set",
@@ -133,7 +133,7 @@ STORE_OF = {
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
-    "remind_weekly": "schedules", "remind_monthly": "schedules", "remind_yearly": "schedules", "reminder_off": "schedules", "reminder_on": "schedules",
+    "remind_weekly": "schedules", "remind_monthly": "schedules", "remind_yearly": "schedules", "reminder_off": "schedules", "reminder_on": "schedules", "reminder_reword": "schedules",
     "remind_every": "schedules",
     "contacts": "contacts", "contact_add": "contacts", "contact_remove": "contacts",
     "place_add": "places", "travel_time": "places",
@@ -706,7 +706,7 @@ def for_model(visible_to: str = "local", *, tools: dict[str, Tool] | None = None
 SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "your tasks and reminders": ("task_new", "tasks", "task_done", "task_change",
                                  "task_status", "remind_at", "remind_daily",
-                                 "remind_weekly", "remind_monthly", "remind_yearly", "remind_every", "reminders", "reminder_off", "reminder_on",
+                                 "remind_weekly", "remind_monthly", "remind_yearly", "remind_every", "reminders", "reminder_off", "reminder_on", "reminder_reword",
                                  "stopwatch", "stopwatch_read", "do_task"),
     "your lists": ("shopping_add", "shopping_list", "shopping_off", "list_new", "list_add", "list_read", "list_off"),
     # Third on purpose: dict order is spoken order, only the first six
