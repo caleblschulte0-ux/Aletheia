@@ -704,6 +704,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("do_i_work", re.compile(
         r"^(?:do|will) i (?:have to |need to |got to |gotta )?work (?P<do_i_work>today|tomorrow|tonight|this weekend"
         r"|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
+    # "When do I work" a turn after "I work 9 to 5 Monday through Friday"
+    # (2026-10-28: to a model, which said nothing could think).
+    ("work_sched", re.compile(
+        r"^(?:when|what days|which days|what hours|what times?) do i (?:usually |normally )?work(?: during the week| each week| every week)?\s*\??$"
+        r"|^what(?: is|'s| are) my (?:usual |normal )?(?:work|working|job) (?:schedule|hours|days|week)\s*\??$")),
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow| tonight)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
@@ -3929,7 +3934,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
-                    "weather_in"):
+                    "weather_in", "work_sched"):
             return name, text
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "their_diet", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
@@ -7945,6 +7950,13 @@ def _plans_told(day: str) -> str:
     import datetime as dt
     from aletheia import speech
     word = {"this weekend": "weekend", "the weekend": "weekend"}.get(day, day)
+    # Today and tomorrow are weekdays for what he does every week, and only
+    # for that: "tomorrow" said last week is not this tomorrow.
+    weekly_only = word in ("today", "tomorrow")
+    if weekly_only:
+        from aletheia import localtime
+        on = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=1 if word == "tomorrow" else 0)
+        word = on.strftime("%A").lower()
     if word not in _WEEKDAYS and word != "weekend":
         return ""
     pattern = (r"\b(?:weekend|saturday|sunday)\b" if word == "weekend" else rf"\b{word}\b")
@@ -7956,7 +7968,13 @@ def _plans_told(day: str) -> str:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
         except ValueError:
             continue
-        if at >= cut and re.search(pattern, said.casefold()) and not re.search(r"\bnext\b|\blast\b|\bevery\b", said.casefold()):
+        low = said.casefold()
+        if not weekly_only and at >= cut and re.search(pattern, low) and not re.search(r"\bnext\b|\blast\b|\bevery\b", low):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        # "I have yoga every Tuesday at 6" holds every week, however long
+        # ago he said it (2026-10-28: "what's on Tuesday" said nothing).
+        elif re.search(r"\bevery (?:single )?" + pattern[2:] + r"|" + pattern[:-2] + r"s\b", low) \
+                and not re.search(r"\bevery other\b|\bused to\b|\bno longer\b|\banymore\b|\bstopp?(?:ed)?\b", low):
             found.append(speech.as_she_says_it(said).rstrip("."))
         if len(found) >= 3:
             break
@@ -14503,6 +14521,20 @@ def _task_age(rest) -> str:
     what = str(task.get("description") or task["id"]).strip().rstrip(".")
     return (f"{what[:1].upper()}{what[1:]} - you added it {speech.humanize_time(str(task.get('created_at') or ''))}."
             + ("" if len(live) > 1 else " It's the only one open."))
+
+
+def _work_sched(text) -> str | None:
+    """"When do I work": the note where he said his days or hours, in his
+    words. None when he said neither, so a model can still try."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.search(r"\bi work (?:from )?(?:\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?"
+                     r"(?:weekdays|weekends|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b)", low) or _START_NOTE.match(low):
+            told = speech.as_she_says_it(said).rstrip(".")
+            return f"You told me {told[:1].lower()}{told[1:]}."
+    return None
 
 
 def _do_i_work(rest) -> str | None:
@@ -21284,6 +21316,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "deliveries": lambda rest: _deliveries(),
            "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
+           "work_sched": _work_sched,
            "last_ate": lambda rest: _last_ate(),
            "how_did_i_do": _how_did_i_do,
            "how_long_out": _how_long_out,

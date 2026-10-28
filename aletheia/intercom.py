@@ -3166,7 +3166,12 @@ def _named_list(kind: str, cmd: dict) -> str:
     if rows is None:
         # "add ... to my packing list" starts one by itself (2026-10-08: the
         # sentence offered was a step he does not need).
-        return f"Nothing's on {'an' if name[:1].lower() in 'aeiou' else 'a'} {name} list yet. Say \"add\" and what goes on it \"to my {name} list\", and I'll start one."
+        # "Read me the beach list" when the beach things went on the packing
+        # list (2026-10-28): the lists he does have are the likely answer.
+        others = [l["name"] for l in lists.all_lists() if l.get("open")]
+        return (f"Nothing's on {'an' if name[:1].lower() in 'aeiou' else 'a'} {name} list yet. "
+                + (f"You do have {('an ' if others[0][:1].lower() in 'aeiou' else 'a ') if len(others) == 1 else 'your '}{speech.and_list(others[:5])} list{'s' if len(others) > 1 else ''}. " if others else "")
+                + f"Say \"add\" and what goes on it \"to my {name} list\", and I'll start one.")
     if not rows:
         return f"Your {name} list is empty."
     # "Sunscreen and my charger" read his own words back as hers (2026-10-08).
@@ -3530,9 +3535,16 @@ def _clash_words(clashes: list) -> str:
     beside what it clashes with; empty when nothing does."""
     if not clashes:
         return ""
-    from aletheia import calendar_reasoning
+    from aletheia import calendar_reasoning, quick
     said = []
     for c in clashes[:3]:
+        days = quick._whole_days(c, localtime.operator_tz())
+        if days:
+            # A trip held as whole days is not "at 12 am" (2026-10-28).
+            day = lambda d: f"{d.strftime('%A')} {d.day} {d.strftime('%B')}"  # noqa: E731
+            said.append(f"{c.get('title')} " + (f"all day {day(days[0])}" if days[0] == days[1]
+                                                else f"from {day(days[0])} to {day(days[1])}"))
+            continue
         when = calendar_reasoning.human(c["start"])
         at = when.split(" at ", 1)[1] if " at " in when else when
         said.append(f"{c.get('title')} at {at}" if c.get("kind") == "overlap"

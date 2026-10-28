@@ -11983,9 +11983,17 @@ def _interpret(transcript: str) -> dict:
     # the calendar from December 20 to 27" (2026-10-23: to the planner).
     # Days, not hours: one hold from the first morning to the last night.
     if not m:
+        span = (r" (?:from )?(?P<d1>" + SPOKEN_DATE + r") (?:to|through|thru|until|till|-) (?P<d2>" + SPOKEN_DATE + r"|" + _NTH + r")")
         sp = re.fullmatch(r"(?:add|put|schedule|block(?: off| out)?|pencil in|mark) (?:a |an |my |the )?(?P<title>[a-z][a-z' ]{1,50}?)"
                           r"(?: (?:on|to|in) (?:my |the )?calendar)? from (?P<d1>" + SPOKEN_DATE + r")"
-                          r" (?:to|through|thru|until|till|-) (?P<d2>" + SPOKEN_DATE + r"|" + _NTH + r")", low)
+                          r" (?:to|through|thru|until|till|-) (?P<d2>" + SPOKEN_DATE + r"|" + _NTH + r")", low) \
+            or re.fullmatch(r"(?:i (?:have|'ve got|got)|i'?ve got|there(?:'s| is)) (?:a |an |my |the )?(?P<title>[a-z][a-z' ]{1,50}?)" + span, low) \
+            or re.fullmatch(r"(?:i'?m|i am|i'?ll be|i will be) (?:on |at )?(?:a |an |my )?(?P<title>vacation|holiday|leave|pto|a conference|a retreat|jury duty|"
+                            r"(?:work|business|ski|camping|road|fishing|hunting|family) trip)" + span, low) \
+            or re.fullmatch(r"(?:i'?m|i am|we'?re|we are|i'?ll be|we'?ll be) (?:going|heading|flying|driving|traveling|travelling|off|away)"
+                            r"(?: to| in)? (?P<place>[a-z][a-z' ]{1,30}?)" + span, low)
+        # "I have a work trip from November 3 to 5", "I'm going to Denver
+        # November 3 to 5" (2026-10-28: to the planner) - the same days.
         if sp:
             first, last = _spoken_day(sp.group("d1")), None
             if first:
@@ -12007,9 +12015,11 @@ def _interpret(transcript: str) -> dict:
                     tz = _localtime.operator_tz()
                     start = _dt.datetime.combine(a, _dt.time(0, 0), tzinfo=tz)
                     end = _dt.datetime.combine(z + _dt.timedelta(days=1), _dt.time(0, 0), tzinfo=tz)
-                    title = _as_he_said(text, sp.group("title").strip())
+                    place = sp.groupdict().get("place")
+                    title = (f"Trip to {_as_he_said(text, place.strip()).title()}" if place
+                             else _as_he_said(text, sp.group("title").strip()))
                     return {"command": {"kind": "calendar_hold", "title": title,
-                                        "start": start.isoformat(), "end": end.isoformat()}, "say": None}
+                                        "start": start.isoformat(), "end": end.isoformat(), "anyway": True}, "say": None}
     # "BLOCK OFF FRIDAY AFTERNOON" (2026-10-07: to the planner): a hold
     # called Busy for that part of that day, the same reversible hold.
     if not m:
@@ -12882,9 +12892,13 @@ def _interpret(transcript: str) -> dict:
                          r"(?:(?:,| and|, and) (?:mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays))*", low)
          # "My daughter has practice every Tuesday and Thursday at 5"
          # (2026-10-08: to the planner): the days first, then the time.
-         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to) "
+         # "We do pizza night on Fridays", "I play basketball every Thursday
+         # night" (2026-10-28: to the planner) - the same kind of routine.
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to|do|does|play|plays"
+                         r"|take|takes|attend|attends|go|goes) "
                          r"(?P<thing11>[a-z][a-z ]{1,20}?) (?:on |every )(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends|weekdays)"
                          r"(?:(?:,| and|, and) (?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?))*"
+                         r"(?: (?:morning|afternoon|evening|night)s?)?"
                          r"(?: at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?", low)
          # "The kids have soccer at 5 on Saturday": no article, and the time
          # before the day (2026-10-08: to the planner).
@@ -12893,7 +12907,7 @@ def _interpret(transcript: str) -> dict:
                          r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low))
     if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6") or m.groupdict().get("thing10")
                or m.groupdict().get("thing11"))
-              and low.startswith(("i have ", "we have ", "i go to "))
+              and low.startswith(("i ", "we "))
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
