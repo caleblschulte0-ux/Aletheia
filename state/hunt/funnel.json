@@ -309,10 +309,10 @@
     }
   },
   "boards": {
-    "ashby": 139,
+    "ashby": 140,
     "bamboohr": 5,
     "greenhouse": 101,
-    "lever": 77,
+    "lever": 80,
     "recruitee": 8,
     "smartrecruiters": 37,
     "workable": 10
@@ -532,7 +532,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-10-28T01:41:40Z",
+  "generated_at": "2026-10-28T01:49:03Z",
   "question_shapes": {
     "employer_site: field: _": 18,
     "employer_site: field: _ _": 12,
