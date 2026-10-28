@@ -138,3 +138,9 @@ class HerOwnGoogleSignIn(Isolated):
             said = intercom.execute_command({"kind": "open_page", "which": "her google sign-in"}, {})
         login.assert_called_once()
         self.assertIn("Sign in", said)
+
+
+class ItRunsOnHisPC(unittest.TestCase):
+    def test_open_page_is_executed_by_the_core_not_the_cloud_runner(self):
+        # 2026-10-28: eight sign-in windows "refused" on the Actions runner, read as his PC's fault.
+        self.assertIn("open_page", intercom.LOCAL_KINDS)

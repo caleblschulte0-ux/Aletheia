@@ -805,6 +805,9 @@ KIND_NOTES: dict[str, str] = {
 # no receipt is honestly PENDING: the PC hasn't picked it up (Core off or
 # offline), and ChatGPT should say exactly that, not invent an outcome.
 LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email_read", "email_draft",
+               # a page opened on HIS screen: on the Actions runner it opened nothing, eight
+               # times on 2026-10-25/28, each refusal read as a fault in his PC
+               "open_page",
                # her browser profile, signed in to Google Voice, is on the PC
                "texts_read",
                # the job hunt's pause marker lives in the PC's private state
