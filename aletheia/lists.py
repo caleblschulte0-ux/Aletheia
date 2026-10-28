@@ -88,6 +88,31 @@ def create(name: str) -> tuple[dict, bool]:
     return value, True
 
 
+def rename(old: str, new: str) -> dict | None:
+    """Give a list a new name, lines and all; None when there is no such
+    list. The old file is marked deleted, never removed. Refused when the
+    new name is a list that already has lines - that would merge two."""
+    held = _load(old, deleted=False)
+    if held is None:
+        return None
+    if not is_named_list(new):
+        raise ValueError(f"{new!r} is not a list of its own")
+    if slug_of(old) == slug_of(new):
+        return held
+    there = _load(new, deleted=False)
+    if there is not None and any(not i.get("done") for i in there["items"]):
+        raise FileExistsError(f"you already have a {new} list")
+    value = {**held, "name": " ".join(str(new).split()), "updated_at": utcnow(),
+             "renamed_from": held.get("name")}
+    value.pop("deleted", None)
+    target = _path(new)
+    held["deleted"] = True
+    held["updated_at"] = utcnow()
+    write_json_atomic(_path(old), held)
+    write_json_atomic(target, value)
+    return value
+
+
 def add(name: str, items: list[str]) -> list[str]:
     """Add lines; returns the lines added (a line already open is not doubled)."""
     held, _new = create(name)
