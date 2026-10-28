@@ -373,7 +373,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "shopping_off":    ({"item"}, set()),
     # HIS OWN NAMED LISTS - packing, gift ideas, movies to watch. The
     # shopping list stays its own store (buying is its own path).
-    "list_new":        ({"list"}, set()),
+    # `from` renames: "call the gift ideas list Christmas" starts Christmas with its lines.
+    "list_new":        ({"list"}, {"from"}),
     # `moved_from` is the list it comes off ("move chicken to the shopping
     # list"): "shopping" or one of his named lists.
     "list_add":        ({"list", "item"}, {"moved_from"}),
@@ -534,7 +535,9 @@ KIND_NOTES: dict[str, str] = {
         '"what do I need from the shop" as well — it is the same list.'),
     "list_new": (
         'Start one of his own named lists - "make a list called packing". '
-        'Not for shopping, tasks or reminders: those have their own verbs.'),
+        'Not for shopping, tasks or reminders: those have their own verbs. '
+        'With from, it renames that list to this name, lines and all - '
+        '"rename the gift ideas list to Christmas".'),
     "list_add": (
         'Put lines on one of his named lists, starting it if it is new - '
         '"add socks to my packing list". item may name several things.'),
@@ -3078,6 +3081,19 @@ def _named_list(kind: str, cmd: dict) -> str:
     if not lists.is_named_list(name):
         raise act.Refused(f"{name or 'That'} isn't a list of its own - the shopping list, tasks and reminders "
                           "each have their own words.")
+    if kind == "list_new" and cmd.get("from"):
+        # "Rename the gift ideas list to Christmas gifts" (2026-10-28: to the planner).
+        old = " ".join(str(cmd["from"]).split())
+        try:
+            moved = lists.rename(old, name)
+        except FileExistsError:
+            raise act.Refused(f"you already have a {name} list. Say \"move\" what you want from "
+                              f"one to the other, one at a time.") from None
+        if moved is None:
+            return f"You don't have a {old} list."
+        n = sum(1 for i in moved["items"] if not i.get("done"))
+        return (f"Renamed your {old} list to {name}"
+                + (f" - {speech.count_phrase(n, 'thing')} on it." if n else ". It's empty."))
     if kind == "list_new":
         _held, new = lists.create(name)
         return (f"Started your {name} list." if new else f"You already have a {name} list.") + \

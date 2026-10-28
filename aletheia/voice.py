@@ -3353,6 +3353,16 @@ def _named_list_said(low: str, text: str) -> dict | None:
     if re.fullmatch(r"(?:what(?:'s| is) on|read me|read out|tell me what's on|go through) (?:all (?:of )?|each of |every one of )?my lists"
                     r"|(?:read me|what's on) (?:everything on|every one of) my lists", low):
         return {"command": {"kind": "list_read", "list": EVERY_LIST}, "say": None}
+    # "Rename the gift ideas list to Christmas gifts", "call my gift ideas list
+    # Christmas" (2026-10-28: to the planner). Only a list he has.
+    m = (re.fullmatch(r"(?:rename|change the name of|retitle) (?:my |the )?(?P<old>[a-z][a-z' -]{1,30}?)(?: list)? (?:to|as) "
+                      r"(?:my |the )?(?P<new>[a-z][a-z' -]{1,30}?)(?: list)?(?: instead)?", low)
+         or re.fullmatch(r"(?:call|name) (?:my |the )(?P<old>[a-z][a-z' -]{1,30}?) list (?:the )?(?P<new>[a-z][a-z' -]{1,30}?)(?: list)?(?: instead)?", low))
+    if m and lists.exists(m.group("old")) and lists.is_named_list(m.group("new")):
+        return {"command": {"kind": "list_new", "list": _as_he_said(text, m.group("new")),
+                            "from": m.group("old")}, "say": None}
+    if m and " list" in low and lists.is_named_list(m.group("old")):
+        return {"command": None, "say": f"You don't have a {m.group('old')} list."}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
     # "Make a packing list for my trip" made a list called "my trip"
@@ -7667,14 +7677,23 @@ def _interpret(transcript: str) -> dict:
     # list to my packing list" (2026-10-08: to the planner). Only when the
     # line is on exactly one other list, or on the list he named.
     mv = re.fullmatch(r"(?:move|put|switch|transfer) (?:the |some )?(?P<w>[a-z][a-z' ]{1,30}?)"
-                      r"(?: from (?:my |the )?(?P<src>[a-z][a-z' ]{1,25}?) list)? (?:to|onto|over to) (?:my |the )?(?P<dst>[a-z][a-z' ]{1,25}?) list", low)
+                      r"(?: from (?:my |the )?(?P<src>[a-z][a-z' ]{1,25}?)(?: list)?)? (?:to|onto|over to) (?:my |the )?(?P<dst>[a-z][a-z' ]{1,25}?) list", low)
     if mv and mv.group("w") not in ("it", "that", "them", "this", "everything"):
         bare = lambda x: re.sub(r"^(?:a|an|the|some|my) ", "", " ".join(str(x).casefold().split()))
         dst = "shopping" if mv.group("dst") in ("shopping", "grocery", "groceries") else mv.group("dst")
+        whole = None
         try:
             from aletheia import lists as _lists
             holds = [held["name"] for held in _lists.all_lists()
                      if any(bare(line) == bare(mv.group("w")) for line in (_lists.items(held["name"]) or []))]
+            if not holds:
+                # "Move the scarf" when the line is "a scarf for mom" (2026-10-28:
+                # to the planner): the one line anywhere that has those words.
+                said = re.compile(r"\b" + re.escape(bare(mv.group("w"))) + r"\b")
+                found = [(held["name"], line) for held in _lists.all_lists()
+                         for line in (_lists.items(held["name"]) or []) if said.search(line.casefold())]
+                if len(found) == 1:
+                    holds, whole = [found[0][0]], found[0][1]
         except Exception:  # noqa: BLE001
             holds = []
         if _on_the_shopping_list(mv.group("w")):
@@ -7685,7 +7704,7 @@ def _interpret(transcript: str) -> dict:
             holds = [h for h in holds if h.casefold() == src]
         holds = [h for h in holds if h.casefold() != dst.casefold()]
         if len(holds) == 1:
-            item = _as_he_said(text, mv.group("w").strip())
+            item = whole if whole and holds[0] != "shopping" else _as_he_said(text, mv.group("w").strip())
             if dst == "shopping":
                 return {"command": {"kind": "shopping_add", "item": item, "moved_from": holds[0]}, "say": None}
             return {"command": {"kind": "list_add", "list": dst, "item": item, "moved_from": holds[0]}, "say": None}
