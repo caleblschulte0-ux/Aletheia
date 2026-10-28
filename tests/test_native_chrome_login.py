@@ -39,6 +39,19 @@ class NativeChromeLoginCase(unittest.TestCase):
             self.assertFalse(any("automation" in arg.lower() for arg in argv))
             self.assertTrue(profile.is_dir())
 
+    def test_with_no_chrome_installed_it_opens_her_own_chromium(self):
+        # His PC, 2026-10-25: no Chrome, so the sign-in window refused "could not open my browser".
+        with tempfile.TemporaryDirectory() as td:
+            chromium = Path(td) / "chrome-win" / "chrome.exe"
+            chromium.parent.mkdir()
+            chromium.write_bytes(b"")
+            with mock.patch.object(browse, "_system_chrome_path", return_value=None), \
+                 mock.patch.object(browse, "_playwright_chromium_exe", return_value=str(chromium)), \
+                 mock.patch.object(browse.subprocess, "Popen") as popen:
+                self.assertEqual(browse.native_login("https://accounts.google.com/", profile=Path(td) / "p",
+                                                     wait=False), 0)
+            self.assertEqual(popen.call_args.args[0][0], str(chromium))
+
     def test_user_closing_browser_is_benign_cleanup(self):
         class TargetClosedError(Exception):
             pass

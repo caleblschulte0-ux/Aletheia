@@ -66,6 +66,17 @@ def _chromium_path() -> str | None:
     return None
 
 
+def _playwright_chromium_exe() -> str | None:
+    """The Chromium binary Playwright installed: the browser she drives when there is no Chrome."""
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as pw:
+            path = pw.chromium.executable_path
+        return path if path and Path(path).is_file() else None
+    except Exception:
+        return None
+
+
 def _system_chrome_path() -> str | None:
     """Return an installed/pinned Google Chrome executable when available.
 
@@ -247,7 +258,9 @@ def native_login(url: str, profile: Path | None = None, *, wait: bool = True) ->
     entered. Chrome writes its authenticated session directly into the same
     dedicated profile Aletheia later opens with Playwright.
     """
-    chrome = _system_chrome_path()
+    # No Chrome on his PC (2026-10-25: "I could not open my browser here", three days unseen):
+    # the Chromium she already drives opens the same profile just as well.
+    chrome = _system_chrome_path() or _playwright_chromium_exe()
     if not chrome or not Path(chrome).is_file():
         raise RuntimeError(
             "Google Chrome is required for the normal sign-in flow on Windows; "
