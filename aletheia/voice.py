@@ -2773,6 +2773,37 @@ def _moved_hold(time_words: str) -> dict | None:
     return {"command": command, "say": None}
 
 
+def _shifted_hold(amount: str, unit: str, direction: str) -> dict | None:
+    """"Push it back an hour" after "I have a meeting with Sarah at 2 tomorrow"
+    (2026-10-28: to the planner, though "push it to 3" moved it). The hold he
+    just made, moved by that much from where it is now, the same length. None
+    unless his last ask was a hold."""
+    import datetime as dt
+    previous = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
+    if not previous:
+        return None
+    try:
+        was = dt.datetime.fromisoformat(str(previous["start"]).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    words = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "ten": 10, "fifteen": 15,
+             "twenty": 20, "thirty": 30, "forty-five": 45}
+    n = 0.5 if amount.startswith("half") else (int(amount) if amount.isdigit() else words.get(amount))
+    if not n:
+        return None
+    sign = -1 if direction in ("forward", "earlier", "up", "sooner") else 1
+    new = was + dt.timedelta(minutes=sign * n * (60 if unit.startswith("hour") else 1))
+    if new <= dt.datetime.now(dt.timezone.utc):
+        return {"command": None, "say": "That would put it in the past. Say the new time instead."}
+    command = {"kind": "calendar_hold", "title": previous["title"], "start": new.isoformat(),
+               "replaces": previous["start"]}
+    if previous.get("minutes"):
+        command["minutes"] = previous["minutes"]
+    if previous.get("location"):
+        command["location"] = previous["location"]
+    return {"command": command, "say": None}
+
+
 def _on_its_own_day(found: dict, hhmm: str, time_words: str) -> str:
     """A one-off reminder's new time, on the day it was already on. "Change the rent
     reminder to 2pm", said on Monday about Tuesday's, moved it to Monday (2026-10-12):
@@ -11397,8 +11428,8 @@ def _interpret(transcript: str) -> dict:
                      r"|(?:push|move|bump|shift|put) (?:it|that|the reminder)(?: by)? (?P<n2>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?"
                      r"(?P<unit2>hours?|minutes?|mins?) (?P<dir2>later|earlier|back|forward|sooner)", low)
     if m:
-        shifted = _shifted_reminder(m.group("n") or m.group("n2"), m.group("unit") or m.group("unit2"),
-                                    m.group("dir") or m.group("dir2"))
+        how = (m.group("n") or m.group("n2"), m.group("unit") or m.group("unit2"), m.group("dir") or m.group("dir2"))
+        shifted = _shifted_reminder(*how) or _shifted_hold(*how)
         if shifted:
             return shifted
     # "Sorry, I meant 4pm" (2026-10-07: to the planner) - a correction
