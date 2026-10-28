@@ -341,7 +341,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^(?:summari[sz]e|recap|sum up) (?:today|my day|the day|things)(?: for me)?\s*\??$"
         r"|^how (?:was|did) (?:your|the|my) day(?: go)?\s*\??$")),
     ("focus", re.compile(
-        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)(?: today| first| right now| this morning| now| next)?$"
+        # "What should I do first today", "...this afternoon" (2026-10-28: to a model).
+        r"^what should i (?:focus on|do|work on|prioriti[sz]e|tackle|start with)"
+        r"(?: today| first| right now| this morning| this afternoon| this evening| tonight| now| next){0,2}$"
         r"|^(?:plan|organi[sz]e|map out|lay out) my day$|^what(?:'s| is) (?:the )?(?:most important|top priority|priority)"
         r"(?: thing)?(?: today| right now)?$|^what(?:'s| is) on (?:my|the) plate(?: today)?$"
         r"|^what do i need to (?:do|get done)(?: today)?$"
@@ -1532,7 +1534,9 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("double_booked", re.compile(
         r"^(?:am i|are we) (?:double[- ]?booked|overbooked)(?: (?:this week|today|tomorrow))?\s*\??$"
         r"|^(?:do i have|are there|any) (?:any )?(?:calendar )?(?:conflicts|clashes|overlaps|overlapping (?:meetings|events))"
-        r"(?: (?:on my calendar|this week|today|tomorrow))?\s*\??$")),
+        # "Do I have any conflicts Friday" (2026-10-28: to the planner): the
+        # week's answer names the day of each clash.
+        r"(?: (?:on my calendar|this week|today|tomorrow|(?:on )?(?:mon|tues|wednes|thurs|fri|satur|sun)day))?\s*\??$")),
     # A DAY BY ITS DATE (2026-10-07: "what's on my calendar on the 15th"
     # and "what do I have on October 15" went to the planner).
     ("agenda_on", re.compile(

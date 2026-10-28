@@ -243,7 +243,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "thread_followup": ({"thread"}, set()),
     # His calendar as agency (IV.16, aletheia.calendar_reasoning).
     "calendar_find_free": ({"when"}, {"minutes", "location", "purpose", "part"}),
-    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces", "was_title"}),
+    "calendar_hold": ({"title", "start"}, {"end", "minutes", "location", "thread", "replaces", "was_title", "anyway"}),
     "hold_release":  ({"title", "start"}, set()),
     "calendar_propose": ({"thread"}, {"when", "minutes", "location"}),
     # Word and Excel. The suffix picks the format; `content` is blocks
@@ -783,7 +783,8 @@ KIND_NOTES: dict[str, str] = {
         'timezone; end or minutes; location; thread links it to a conversation; replaces is the start of '
         'his own hold with the same title that this one moves ("make it 8"); was_title is that hold\'s old '
         'title when this renames it ("rename my Thursday meeting to standup"). It refuses when it '
-        'clashes and says with what.'),
+        'clashes and says with what - unless anyway is true, for a thing he SAID is happening ("I '
+        'have lunch with Sam at 1:30"): then it is held anyway and the clash is said back.'),
     "place_add": (
         'Remember where one of his places is: "my work address is 5 Market St", "the gym is at 20 Oak '
         'Ave". name is what he calls it, address what he said. Saying it again updates it.'),
@@ -3465,6 +3466,21 @@ def _first_at(hhmm: str, tz: str | None = None, *, weekday: int | None = None) -
     return at.isoformat()
 
 
+def _clash_words(clashes: list) -> str:
+    """" Heads up: it overlaps dentist appointment at 2 pm." for a hold made
+    beside what it clashes with; empty when nothing does."""
+    if not clashes:
+        return ""
+    from aletheia import calendar_reasoning
+    said = []
+    for c in clashes[:3]:
+        when = calendar_reasoning.human(c["start"])
+        at = when.split(" at ", 1)[1] if " at " in when else when
+        said.append(f"{c.get('title')} at {at}" if c.get("kind") == "overlap"
+                    else f"{c.get('title')}, with only {c.get('gap_minutes')} minutes to get between them")
+    return f" Heads up: it runs into {speech.and_list(said)}."
+
+
 def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
@@ -4373,7 +4389,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             except Exception:  # noqa: BLE001
                 old = None
         held = calendar_reasoning.hold(cmd["title"], start.isoformat(), end.isoformat(),
-                                       location=cmd.get("location") or None, thread_id=cmd.get("thread") or "")
+                                       location=cmd.get("location") or None, thread_id=cmd.get("thread") or "",
+                                       anyway=cmd.get("anyway") is True)
         if not held.get("event"):
             if old:
                 calendar_reasoning.hold(cmd.get("was_title") or cmd["title"], str(old["start"]), str(old["end"]),
@@ -4426,7 +4443,8 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 f"{'to ' if old else ''}{when}{until}, "
                 "tentative, on your calendar here only."
                 + (" Your reminder moved with it." if carried == 1 else
-                   f" Your {carried} reminders moved with it." if carried else ""))
+                   f" Your {carried} reminders moved with it." if carried else "")
+                + _clash_words(held.get("conflicts") or []))
     if kind == "calendar_propose":
         from aletheia import conversations
         try:

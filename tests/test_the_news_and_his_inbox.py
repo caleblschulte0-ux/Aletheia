@@ -118,14 +118,30 @@ class AWhenWithNoWhat(unittest.TestCase):
 
 
 class MovingACalendarEvent(unittest.TestCase):
+    # His own events, on his live calendar: she cannot move those.
+    LIVE = [{"id": "e1", "title": "Dentist appointment", "start": "2099-01-01T15:00:00Z", "end": "2099-01-01T16:00:00Z",
+             "status": "CONFIRMED", "source": "google"},
+            {"id": "e2", "title": "Meeting with Dana", "start": "2099-01-02T15:00:00Z", "end": "2099-01-02T16:00:00Z",
+             "status": "CONFIRMED", "source": "google"}]
+
     def test_said_plainly(self):
-        with mock.patch.object(voice, "_names_one_open_task", return_value=False):
+        from aletheia import calendar
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False), \
+                mock.patch.object(calendar, "all_events", return_value=self.LIVE):
             for said in ("move my dentist appointment to friday", "move my 3pm to 4",
                          "reschedule my meeting with dana to monday"):
                 with self.subTest(said=said):
                     got = voice._interpret(said)
                     self.assertIsNone(got["command"])
                     self.assertIn("can't move things on your calendar", got["say"])
+
+    def test_a_thing_on_no_calendar_of_his_is_said_to_be_missing(self):
+        from aletheia import calendar
+        with mock.patch.object(voice, "_names_one_open_task", return_value=False), \
+                mock.patch.object(calendar, "all_events", return_value=self.LIVE):
+            got = voice._interpret("move lunch with bob to 12")
+        self.assertIsNone(got["command"])
+        self.assertIn("I don't see lunch with bob on your calendar", got["say"])
 
     def test_a_task_of_his_by_that_name_is_still_the_task(self):
         with mock.patch.object(voice, "_names_one_open_task", return_value=True):
