@@ -58,6 +58,46 @@ def drop(name: str) -> int | None:
     return sum(1 for i in held["items"] if not i.get("done"))
 
 
+def undelete(name: str) -> int | None:
+    """Undo `drop`: the list comes back as it was. Returns how many lines
+    it has open, or None when there is no deleted list by that name."""
+    held = _load(name)
+    if held is None or not held.get("deleted"):
+        return None
+    held.pop("deleted", None)
+    held["updated_at"] = utcnow()
+    write_json_atomic(_path(name), held)
+    return sum(1 for i in held["items"] if not i.get("done"))
+
+
+def put_back(name: str, said: str) -> list[str]:
+    """Undo `take_off`: the lines ticked off most recently whose words are
+    in `said` (the sentence that named them) are open again."""
+    held = _load(name, deleted=False)
+    if held is None:
+        return []
+    low = " ".join(str(said or "").casefold().split())
+    done = sorted((i for i in held["items"] if i.get("done")), key=lambda i: str(i.get("done_at") or ""), reverse=True)
+    if not done:
+        return []
+    newest = str(done[0].get("done_at") or "")
+    back = []
+    open_now = {i["text"].casefold() for i in held["items"] if not i.get("done")}
+    for item in done:
+        # One removal ticks its lines off together; an older tick is not this one.
+        if str(item.get("done_at") or "")[:16] != newest[:16]:
+            break
+        if item["text"].casefold() in low and item["text"].casefold() not in open_now:
+            item.pop("done", None)
+            item.pop("done_at", None)
+            open_now.add(item["text"].casefold())
+            back.append(item["text"])
+    if back:
+        held["updated_at"] = utcnow()
+        write_json_atomic(_path(name), held)
+    return back
+
+
 def is_named_list(name: str) -> bool:
     words = " ".join(str(name or "").casefold().split())
     return bool(slug_of(words)) and words not in NOT_NAMED
