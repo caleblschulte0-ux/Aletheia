@@ -1131,7 +1131,9 @@ _ORDINAL_DAYS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5, "
 _SPAN = (r"(?P<span>(?:every|each) (?:week|month|other day|other week|other (?P<oday>monday|tuesday|wednesday|thursday|friday|"
          r"saturday|sunday)|(?P<n>\d+|two|three|four|five|six) (?P<unit>days|weeks)"
          # "Every 3 weeks on Friday" (2026-10-12: to the planner).
-         r"(?: on (?P<nday>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?)?|couple of weeks)|weekly|monthly|fortnightly)")
+         r"(?: on (?P<nday>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?)?|couple of weeks"
+         # "Every 3 months", "every quarter" (2026-10-28: to the planner).
+         r"|(?P<mn>\d+|two|three|four|six) months|(?P<mn2>other) month|quarter)|weekly|monthly|fortnightly|quarterly|twice a year)")
 _MDAY = r"(?:on )?the (?P<mday>\d{1,2}(?:st|nd|rd|th)?|first|second|third|fourth|fifth|tenth|fifteenth|twentieth|last)(?: day)?(?: of)?"
 
 
@@ -1304,7 +1306,11 @@ def _a_repeat(low: str, text: str) -> dict | None:
     hhmm = f"{hour:02d}:{minute:02d}"
     what = _as_he_said(text, m.group("text").strip())
     span = m.group("span")
-    if "month" in span:
+    months = ({"two": 2, "three": 3, "four": 4, "six": 6}.get(m.group("mn")) or int(m.group("mn"))
+              if m.group("mn") else 2 if m.group("mn2") else 3 if "quarter" in span else 6 if span == "twice a year" else 1)
+    if not 1 <= months <= 12:
+        return None
+    if "month" in span or months > 1:
         said = m.group("mday") or m.group("mday2")
         if said:
             day = _ORDINAL_DAYS.get(said) or int(re.match(r"\d+", said).group(0))
@@ -1312,7 +1318,8 @@ def _a_repeat(low: str, text: str) -> dict | None:
             import datetime as dt
             from aletheia import localtime
             day = dt.datetime.now(localtime.operator_tz()).day      # today's date, each month
-        return {"command": {"kind": "remind_monthly", "day": day, "time": hhmm, "text": what}, "say": None}
+        return {"command": {"kind": "remind_monthly", "day": day, "time": hhmm, "text": what,
+                            **({"every": months} if months > 1 else {})}, "say": None}
     words = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6}
     if span == "fortnightly" or "couple of weeks" in span:
         n, unit = 2, "weeks"
@@ -11554,6 +11561,9 @@ def _interpret(transcript: str) -> dict:
                                                     "\"on the 5th of every month\"."}
                 which = ({"nth": found["nth"], "weekday": found.get("weekday")} if "nth" in found
                          else {"day": int(found.get("monthday") or 1)})
+                if found.get("every_months"):
+                    # Every 3 months keeps its months when its time moves.
+                    which.update(every=found["every_months"], start=found.get("start_month"))
                 return {"command": {"kind": "remind_monthly", **which, "time": clock,
                                     "text": said_text, "replaces": said_text}, "say": None}
             names = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")

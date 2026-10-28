@@ -717,11 +717,17 @@ def spoken_receipt(kind: str, detail: str, *,
             return (f"On the {when.group(1)} of every month at {clock_words(when.group(2))} I'll remind you: "
                     f"{_yours(what.group(1))}.")
         # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
-        when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
+        when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b(?: every (\d{1,2}) months from (\d{4})-(\d{2}))?", text)
         what = _reminder_quote(text)
         if when and what:
             n = int(when.group(1))
             nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+            if when.group(3):
+                # "every 3 months from 2027-01": said with the first one, so
+                # he can hear which months it lands in.
+                import calendar
+                return (f"Every {when.group(3)} months on the {nth} at {clock_words(when.group(2))} I'll remind you: "
+                        f"{_yours(what.group(1))}. The first is {calendar.month_name[int(when.group(5))]} {nth}.")
             return (f"On the {nth} of every month at {clock_words(when.group(2))} I'll remind you: "
                     f"{_yours(what.group(1))}.")
     if kind == "remind_yearly":
