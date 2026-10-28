@@ -4981,7 +4981,10 @@ def _date_of(words: str) -> str | None:
         later = when + dt.timedelta(days=7)
         late_day = later.day
         late_suffix = "th" if 11 <= late_day <= 13 else {1: "st", 2: "nd", 3: "rd"}.get(late_day % 10, "th")
-        return f"{said} - or the {late_day}{late_suffix}, if you mean the week after."
+        # Across a month end "the 6th" alone is a riddle (2026-10-28: "Friday
+        # the 30th of October - or the 6th"), so the month comes along.
+        late_month = f" of {later.strftime('%B')}" if later.month != when.month else ""
+        return f"{said} - or the {late_day}{late_suffix}{late_month}, if you mean the week after."
     return said + "."
 
 
@@ -5753,7 +5756,8 @@ def _until(words: str, *, which_day: bool = False) -> str | None:
         first = "Tomorrow" if ahead == 1 else f"{ahead} days"
         if ahead == 7:
             return f"7 days, {name} the {_ordinal(soon.day)}."
-        return (f"{first}, {name} the {_ordinal(soon.day)} - or {ahead + 7} days, the {_ordinal(later.day)}, "
+        late_month = f" of {later.strftime('%B')}" if later.month != soon.month else ""
+        return (f"{first}, {name} the {_ordinal(soon.day)} - or {ahead + 7} days, the {_ordinal(later.day)}{late_month}, "
                 f"if you mean the week after.")
     when = _named_date(words, today) or _his_date(words, today)
     if when is None:
