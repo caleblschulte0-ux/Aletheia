@@ -19,7 +19,7 @@ CHI = ZoneInfo("America/Chicago")
 def spec(monthday, time="09:00"):
     return {"version": 1, "id": "remind-monthly-x", "kind": "monthly",
             "command": {"kind": "notify_operator", "text": "pay rent"},
-            "enabled": True, "created_at": "2026-10-01T00:00:00Z",
+            "enabled": True, "created_at": "2026-08-01T00:00:00Z",
             "updated_at": "2026-10-01T00:00:00Z", "timezone": "America/Chicago",
             "time": time, "monthday": monthday}
 
