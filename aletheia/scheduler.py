@@ -15,7 +15,7 @@ from aletheia.stateio import create_json_exclusive, private_dir, read_json, safe
 
 SCHEDULE_DIR = private_dir("schedules") / "definitions"
 RECEIPT_DIR = private_dir("schedules") / "receipts"
-KINDS = {"once", "interval", "daily", "weekly", "monthly"}
+KINDS = {"once", "interval", "daily", "weekly", "monthly", "yearly"}
 
 
 def _path(schedule_id: str) -> Path:
@@ -83,10 +83,15 @@ def validate(spec: dict) -> None:
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError("daily/weekly schedule requires valid timezone") from exc
         _clock(spec.get("time", ""))
-        if kind == "monthly":
+        if kind in ("monthly", "yearly"):
             day = spec.get("monthday")
             if type(day) is not int or not 1 <= day <= 31:
-                raise ValueError("monthly monthday must be 1..31")
+                raise ValueError(f"{kind} monthday must be 1..31")
+        if kind == "yearly":
+            # "Every year on our anniversary" (2026-10-28): one day of one month.
+            month = spec.get("month")
+            if type(month) is not int or not 1 <= month <= 12:
+                raise ValueError("yearly month must be 1..12")
         if kind == "weekly":
             days = spec.get("weekdays")
             if not isinstance(days, list) or not days or any(type(d) is not int or d not in range(7) for d in days):
@@ -111,7 +116,7 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
            every_minutes: int | None = None, anchor: str | None = None,
            timezone: str | None = None, time: str | None = None,
            weekdays: list[int] | None = None, monthday: int | None = None,
-           hours: list[str] | None = None) -> dict:
+           hours: list[str] | None = None, month: int | None = None) -> dict:
     if _path(schedule_id).exists():
         raise FileExistsError(f"schedule {schedule_id!r} exists")
     spec = {"version": 1, "id": safe_id(schedule_id, name="schedule id"), "kind": kind,
@@ -130,6 +135,8 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
         spec["weekdays"] = weekdays
     if monthday is not None:
         spec["monthday"] = monthday
+    if month is not None:
+        spec["month"] = month
     if hours is not None:
         spec["hours"] = hours
     return save(spec)
@@ -203,6 +210,13 @@ def occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
     tz = ZoneInfo(spec["timezone"])
     local_now = now.astimezone(tz)
     hour, minute = _clock(spec["time"])
+    if kind == "yearly":
+        for year in (local_now.year, local_now.year - 1):
+            candidate = dt.datetime.combine(_month_day(year, spec["month"], spec["monthday"]),
+                                            dt.time(hour, minute), tzinfo=tz)
+            if candidate <= local_now:
+                return candidate.astimezone(dt.timezone.utc)
+        return None
     if kind == "monthly":
         for offset in range(0, -3, -1):
             year, month = _months_from(local_now.date(), offset)
@@ -281,6 +295,13 @@ def _next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
     tz = ZoneInfo(spec["timezone"])
     local = after.astimezone(tz)
     hour, minute = _clock(spec["time"])
+    if spec["kind"] == "yearly":
+        for year in (local.year, local.year + 1):
+            candidate = dt.datetime.combine(_month_day(year, spec["month"], spec["monthday"]),
+                                            dt.time(hour, minute), tzinfo=tz)
+            if candidate > local:
+                return candidate.astimezone(dt.timezone.utc)
+        return None
     if spec["kind"] == "monthly":
         for offset in range(0, 3):
             year, month = _months_from(local.date(), offset)

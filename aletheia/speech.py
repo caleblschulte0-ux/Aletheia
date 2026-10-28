@@ -718,6 +718,16 @@ def spoken_receipt(kind: str, detail: str, *,
             nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
             return (f"On the {nth} of every month at {clock_words(when.group(2))} I'll remind you: "
                     f"{_yours(what.group(1))}.")
+    if kind == "remind_yearly":
+        # "yearly reminder remind-yearly-9f2 set for 3/3 at 09:00 — 'our anniversary'"
+        when = re.search(r"set for (\d{1,2})/(\d{1,2}) at (\d{1,2}:\d{2})\b", text)
+        what = _reminder_quote(text)
+        if when and 1 <= int(when.group(1)) <= 12 and what:
+            import calendar
+            n = int(when.group(2))
+            nth = f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+            return (f"Every year on {calendar.month_name[int(when.group(1))]} {nth} at "
+                    f"{clock_words(when.group(3))} I'll remind you: {_yours(what.group(1))}.")
     if kind == "remind_daily":
         when = re.search(r"\b(\d{1,2}:\d{2})\b", text)
         what = _reminder_quote(text)

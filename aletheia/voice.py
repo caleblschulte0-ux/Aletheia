@@ -1187,6 +1187,62 @@ def _window_of(said: str) -> dict | None:
     return out or None
 
 
+_YEARLY = r"(?:(?:every|each|once a) year|yearly|annually)"
+#: "March 3rd", "the 15th of April", or a day of his she has a note of.
+_YEAR_DAY = (r"(?:" + _MONTH + r" (?:the )?" + _NTH + r"|(?:the )?" + _NTH + r" of " + _MONTH
+             + r"|(?:my|our|[a-z]+'s) (?:wedding )?(?:anniversary|birthday|bday))")
+
+
+def _a_yearly(low: str, text: str) -> dict | None:
+    """A reminder that comes round once a year: "remind me every year on
+    March 3rd to buy flowers", "remind me to renew my registration every
+    year on the 15th of April", "remind me every year on my anniversary"
+    (2026-10-28: the last set a one-off reminder whose text was "every
+    year", and the others went to the planner)."""
+    on = lambda g: r"(?:on (?P<" + g + r">" + _YEAR_DAY + r"))"   # noqa: E731
+    at = r"(?: at (?P<time>[\w: ]+?))?"
+    m = (re.fullmatch(r"remind me (?:" + on("d1") + r",? )?" + _YEARLY + r"(?: " + on("d2") + r")?" + at
+                      + r"(?:,? (?:to|that|about) (?P<text>.+))?", low)
+         or re.fullmatch(r"remind me (?:to|that|about) (?P<text>.+?),? (?:" + on("d1") + r" )?" + _YEARLY
+                         + r"(?: " + on("d2") + r")?" + at, low))
+    if m and not (m.group("d1") or m.group("d2")):
+        return {"command": None, "say": "Which day of the year? Say it like \"every year on March 3rd\"."}
+    if not m or (m.group("d1") and m.group("d2")):
+        return None
+    said = m.group("d1") or m.group("d2")
+    import datetime as dt
+    date = re.fullmatch(r"(?P<mon>" + _MONTH + r") (?:the )?(?P<d>\d{1,2})(?:st|nd|rd|th)?"
+                        r"|(?:the )?(?P<d2>\d{1,2})(?:st|nd|rd|th)? of (?P<mon2>" + _MONTH + r")", said)
+    if date:
+        mon = date.group("mon") or date.group("mon2")
+        month = next(i for i, name in enumerate(MONTHS, 1) if name.startswith(mon[:3]))
+        day = int(date.group("d") or date.group("d2"))
+    else:
+        from aletheia import localtime, quick
+        try:
+            found = quick._his_date(said, dt.datetime.now(localtime.operator_tz()).date())
+        except Exception:  # noqa: BLE001
+            found = None
+        whose = re.sub(r"^(?:my|our) ", "your ", said)
+        if found is None:
+            return {"command": None, "say": f"I don't know when {whose} is. Tell me the date once and I'll remember it."}
+        month, day = found.month, found.day
+    try:
+        dt.date(2024, month, day)                       # a leap year, so February 29 is a day
+    except ValueError:
+        return {"command": None, "say": "That isn't a day of the year. Say the month and the day."}
+    hhmm = _spoken_time(m.group("time")) if m.group("time") else DEFAULT_REMINDER_TIME
+    if not hhmm:
+        return None
+    hour, minute = map(int, hhmm.split(":"))
+    if m.group("time") and _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+        hour += 12
+    what = (_as_he_said(text, m.group("text").strip()) if m.group("text")
+            else re.sub(r"^(?:my|our) ", "your ", said))
+    return {"command": {"kind": "remind_yearly", "month": month, "day": day, "time": f"{hour:02d}:{minute:02d}",
+                        "text": what}, "say": None}
+
+
 def _a_repeat(low: str, text: str) -> dict | None:
     """A reminder that repeats monthly, every N days or every N weeks."""
     at = r"(?: at (?P<time>[\w: ]+?))?"
@@ -2169,7 +2225,7 @@ def _next_time_of_the_repeat_just_set():
     _LOOKING_BACK.on = True
     try:
         just = next((ask for ask in (_recent_ask_of(kind, "text")
-                                     for kind in ("remind_weekly", "remind_daily", "remind_monthly", "remind_every"))
+                                     for kind in ("remind_weekly", "remind_daily", "remind_monthly", "remind_yearly", "remind_every"))
                      if ask.get("text")), {})
     finally:
         _LOOKING_BACK.on = False
@@ -3663,7 +3719,7 @@ def _done_is_done(transcript: str, said: dict) -> dict:
 #: "who is at 20 Oak Ave" saved a place called "who" (2026-10-08) - each a
 #: statement pattern a question happened to fit.
 _WRITES = frozenset({"note", "list_add", "task_new", "calendar_hold", "shopping_add", "place_add", "contact_add",
-                     "remember", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"})
+                     "remember", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_yearly", "remind_every"})
 _QUESTION = re.compile(r"(?:who|what|which|whose)(?:'s| is| are| was| were| has| have| had| owes| did| does| do| said| says| called| texted"
                        r"| got| gets| wants| needs| took| lent| brought| will| can| should| would)\b"
                        r"|(?:when|where|why|how)(?:'s| is| are| was| were| do| does| did| can| should| will| has| have| would)\b")
@@ -3882,7 +3938,7 @@ def _it_is_the_item(left: str, right: str) -> str:
 # A question about ability ("can you text people", "can you buy things")
 # compiles to nothing here and is still answered as one.
 _POLITE_DOING = frozenset({
-    "remind_at", "remind_daily", "remind_every", "remind_weekly", "remind_monthly", "remind_weekdays",
+    "remind_at", "remind_daily", "remind_every", "remind_weekly", "remind_monthly", "remind_yearly", "remind_weekdays",
     "shopping_add", "shopping_off", "shopping_list", "task_new", "task_done", "task_change", "tasks",
     "reminders", "reminder_off", "note", "email_check", "stopwatch", "stopwatch_read", "music",
     "travel_time", "free_time", "notify_snooze", "list_add", "list_read", "list_off", "brief", "contacts",
@@ -6354,7 +6410,7 @@ def _interpret(transcript: str) -> dict:
     # the first of every month to pay rent" was refused as SPENDING, the
     # rest went to the planner). Either word order; nine o'clock when he
     # names no time, as for the weekly ones, and the receipt says it back.
-    repeat = _a_repeat(low, text)
+    repeat = _a_yearly(low, text) or _a_repeat(low, text)
     if repeat:
         return repeat
     # "SET A REMINDER FOR 3 TO CALL BOB" and "remind me to check the oven
@@ -11370,6 +11426,21 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": said_text}, "say": None}
         said_day = re.fullmatch(r"(?:on |every )?(?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?"
                                 r"(?: at (?P<t>[\w: ]+))?", m.group("time"))
+        if found is not None and found.get("kind") == "yearly":
+            # "Change the flowers reminder to 8" or "...to March 5": still
+            # once a year, at the new time or on the new day (2026-10-28).
+            said_text = str((found.get("command") or {}).get("text") or m.group("what"))
+            again = _a_yearly(f"remind me every year on {m.group('time')} to x", "x")
+            if again and again.get("command"):
+                return {"command": {**again["command"], "time": str(found.get("time") or DEFAULT_REMINDER_TIME),
+                                    "text": said_text, "replaces": said_text}, "say": None}
+            if hhmm:
+                hour, minute = map(int, hhmm.split(":"))
+                if _is_bare_hour(m.group("time")) and hour <= EARLIEST_BARE_HOUR:
+                    hour += 12
+                return {"command": {"kind": "remind_yearly", "month": int(found.get("month") or 1),
+                                    "day": int(found.get("monthday") or 1), "time": f"{hour:02d}:{minute:02d}",
+                                    "text": said_text, "replaces": said_text}, "say": None}
         if found is not None and found.get("kind") in ("weekly", "monthly") and (hhmm or said_day):
             # "Change the trash reminder to 8" made the weekly one a ONE-OFF at
             # 8 and switched the weekly one off; "...to Wednesday" went to the
