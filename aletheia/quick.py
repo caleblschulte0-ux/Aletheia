@@ -18315,7 +18315,7 @@ def _days_from(said: str, ts) -> str:
     from aletheia import localtime
     m = re.search(r"\bin (\d{1,2})(?: (?:to|or) (\d{1,2}))? (business )?days\b", str(said or "").casefold())
     if not m:
-        return ""
+        return _relative_from(said, ts)
     try:
         told = dt.datetime.fromisoformat(str(ts or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz()).date()
     except ValueError:
@@ -18335,6 +18335,39 @@ def _days_from(said: str, ts) -> str:
     if m.group(2):
         return f" - so between {say(first)} and {say(after(int(m.group(2))))}"
     return f" - so around {say(first)}"
+
+
+def _relative_from(said: str, ts) -> str:
+    """" - the week of November 2" for a note saying "next week", counted
+    from the day he said it (2026-10-28: "when am I on vacation" read back
+    "next week" as said, which stops being true a week later). Tomorrow,
+    this or next weekend, next week, in N weeks and next month; "" otherwise."""
+    import datetime as dt
+    from aletheia import localtime
+    low = str(said or "").casefold()
+    m = re.search(r"\b(tomorrow|this weekend|next weekend|next week|next month|in (two|three|four|\d) weeks)\b", low)
+    if not m:
+        return ""
+    try:
+        told = dt.datetime.fromisoformat(str(ts or "").replace("Z", "+00:00")).astimezone(localtime.operator_tz()).date()
+    except ValueError:
+        return ""
+    say = lambda d: f"{d.strftime('%B')} {d.day}"  # noqa: E731
+    word = m.group(1)
+    monday = told - dt.timedelta(days=told.weekday())
+    if word == "tomorrow":
+        day = told + dt.timedelta(days=1)
+        return f" - so {day.strftime('%A')}, {say(day)}"
+    if word in ("this weekend", "next weekend"):
+        saturday = monday + dt.timedelta(days=5 + (7 if word == "next weekend" else 0))
+        return f" - the weekend of {say(saturday)}"
+    if word == "next week":
+        return f" - the week of {say(monday + dt.timedelta(days=7))}"
+    if word == "next month":
+        first = (told.replace(day=1) + dt.timedelta(days=32)).replace(day=1)
+        return f" - so in {first.strftime('%B')}"
+    n = {"two": 2, "three": 3, "four": 4}.get(m.group(2)) or int(m.group(2))
+    return f" - so around {say(told + dt.timedelta(weeks=n))}"
 
 
 def _who_with(what: str) -> str | None:
