@@ -7,6 +7,12 @@ from aletheia import intercom, quick
 
 
 class AReminderForHome(unittest.TestCase):
+    def setUp(self):
+        # Nothing stopped: the store in a full run holds other tests' rows.
+        p = mock.patch.object(intercom, "_stopped_reminders", return_value=[])
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_alone_it_is_still_listed(self):
         with mock.patch.object(intercom, "_reminder_schedules", return_value=[]), \
                 mock.patch.object(quick, "_home_reminders", return_value=["call my mom"]):

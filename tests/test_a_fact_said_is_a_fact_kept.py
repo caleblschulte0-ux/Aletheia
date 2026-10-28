@@ -920,7 +920,9 @@ class PutThatBack(unittest.TestCase):
     def test_paused_then_all_back(self):
         self.say("remind me every morning to drink water")
         self.say("pause my reminders")
-        self.assertEqual(self.say("what reminders do i have"), "You have no reminders set.")
+        # None are on, and the paused one is still named (2026-10-28).
+        said = self.say("what reminders do i have")
+        self.assertTrue(said.startswith("None are on right now.") and "drink water" in said, said)
         self.assertTrue(self.say("turn my reminders back on").startswith("Back on:"))
 
 
@@ -6562,10 +6564,12 @@ class RepeatingAndMonthEndReminders(unittest.TestCase):
         self.assertEqual(voice._interpret("what are my recurring reminders")["command"], {"kind": "reminders", "which": "recurring"})
         rows = [{"kind": "once", "command": {"text": "check the oven"}}, {"kind": "weekly", "command": {"text": "take my vitamins"}}]
         with mock.patch.object(intercom, "_reminder_schedules", return_value=rows), \
+                mock.patch.object(intercom, "_stopped_reminders", return_value=[]), \
                 mock.patch.object(intercom, "_soonest_first", side_effect=lambda r: r), \
                 mock.patch.object(intercom, "_reminder_words", side_effect=lambda r, **k: r["command"]["text"]):
             self.assertEqual(intercom._reminders_answer("recurring"), "1 reminder: take your vitamins.")
-        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows[:1]):
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=rows[:1]), \
+                mock.patch.object(intercom, "_stopped_reminders", return_value=[]):
             self.assertEqual(intercom._reminders_answer("recurring"), "You have no repeating reminders set.")
 
     def test_the_last_day_of_the_month(self):
