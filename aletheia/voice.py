@@ -12185,9 +12185,14 @@ def _interpret(transcript: str) -> dict:
     # the record; `quick` reads today's back.
     m = re.fullmatch(r"(?:i )?(?:just |already )?(?:took|had|taken|have taken|'ve taken) (?:my )?(?:morning |evening |night |daily )?"
                      r"(?P<what>medicine|meds|medication|pills?|vitamins?|insulin|inhaler|antibiotics?|[a-z]+ pills?)"
-                     r"(?: today| this morning| tonight| just now| already)?", low)
+                     r"(?: today| this morning| tonight| just now| already)?"
+                     # "I took my meds at 8" (2026-10-28: to the planner) - the
+                     # time he said is the time `quick` reads back.
+                     r"(?: (?:at|around|about) (?P<at>\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon|lunch|breakfast|dinner|bedtime))?"
+                     r"(?: today| this morning| tonight)?", low)
     if m:
-        return {"command": {"kind": "note", "text": f"took my {m.group('what')}"}, "say": None}
+        at = f" at {m.group('at')}" if m.group("at") else ""
+        return {"command": {"kind": "note", "text": f"took my {m.group('what')}{at}"}, "say": None}
     # "I took ibuprofen at 2" (2026-10-07: to the planner) - a medicine by
     # name, in his words with the time he said.
     from aletheia import quick as _quick
@@ -14014,12 +14019,15 @@ def _interpret(transcript: str) -> dict:
     # June 2027" each went to the planner). Last before the planner, so
     # every verb with its own door keeps it: said as a fact, it is a note in
     # his words, and "when did I last change the oil" reads it back.
+    # "I fed the dog at 6" (2026-10-28: to the planner) - the time he said
+    # goes in the note, where "when did I last" reads it.
+    clock = r"(?: (?:at|around|about) \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?"
     out = re.fullmatch(r"i (?:just )?took (?P<what>(?:the |our |my )?(?:trash|garbage|recycling|rubbish|bins?|compost|dog|cat)) out"
-                       r"(?P<when> (?:today|yesterday|this morning|tonight|last night|earlier))?", low)
+                       r"(?P<when>" + clock + r"(?: (?:today|yesterday|this morning|tonight|last night|earlier))?" + clock + r")", low)
     if out:
         return {"command": {"kind": "note", "text": f"I took out {out.group('what')}{out.group('when') or ''}"}, "say": None}
-    if re.fullmatch(r"i (?:just )?(?:" + _DONE_VERBS + r") (?:the |my |our |his |her |a |an |some )?[a-z][a-z' ]{1,50}"
-                    r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?", low) \
+    if re.fullmatch(r"i (?:just )?(?:" + _DONE_VERBS + r") (?:the |my |our |his |her |a |an |some )?[a-z][a-z' ]{1,50}?" + clock
+                    + r"(?: (?:today|yesterday|this morning|this afternoon|this evening|tonight|last night|earlier))?" + clock, low) \
             or re.fullmatch(r"(?:my|our|the) [a-z][a-z' ]{1,30}? (?:expires?|runs? out|(?:is|are) due|renews?|ends?) (?:on |in )?"
                             r"(?:" + SPOKEN_DATE + r"|" + _MONTH + r"(?: \d{4})?|\d{4})(?:,? \d{4})?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
