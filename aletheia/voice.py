@@ -11485,6 +11485,22 @@ def _interpret(transcript: str) -> dict:
         moved = _moved_reminder(text, m.group("time")) or _moved_hold(m.group("time"))
         if moved:
             return moved
+    # "Move it to friday", "push it to friday at 3", "make it friday" after a
+    # hold (2026-10-28: to the planner, though "move the doctor's appointment
+    # to friday" moved it). The hold he just made, by its own title.
+    to_day = re.fullmatch(r"(?:make (?:that|it)|(?:change|move|push|bump|shift|switch|reschedule) (?:that|it) to|"
+                          r"(?:actually|no),? make (?:that|it))\s+(?:on )?(?P<when>(?:monday|tuesday|wednesday|thursday|friday"
+                          r"|saturday|sunday|tomorrow|next [a-z]+|the \d{1,2}(?:st|nd|rd|th)?|(?:january|february|march|april|may"
+                          r"|june|july|august|september|october|november|december) \d{1,2}(?:st|nd|rd|th)?)(?: (?:at )?[\w: ]+?)?)"
+                          r"(?: instead| please)?", low)
+    if to_day:
+        held = _hold_as_it_is_now(_recent_ask_of("calendar_hold", "start"))
+        if held and held.get("title"):
+            title = " ".join(str(held["title"]).casefold().split())
+            if re.fullmatch(r"[a-z0-9][a-z0-9' ]{1,40}", title):
+                again = _interpret(f"move {title} to {to_day.group('when')}")
+                if ((again or {}).get("command") or {}).get("kind") == "calendar_hold":
+                    return again
     # "Push it back an hour", "move it 30 minutes earlier" (2026-10-07: to
     # the planner): the reminder he just set, shifted from where it IS.
     m = re.fullmatch(r"(?:push|move|bump|shift|put) (?:it|that|the reminder) (?P<dir>back|later|forward|earlier|up|off)"
