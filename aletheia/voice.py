@@ -1907,8 +1907,11 @@ def _calendar_hold(transcript: str, title: str, day: str, part: str | None, time
     # whose hour has passed today is the next one.
     elif str(day).strip().casefold() in WEEKDAYS and start < dt.datetime.now(localtime.operator_tz()):
         start += dt.timedelta(days=7)
+    # "I have lunch with Sam at 1:30" beside a dentist at 2 was refused
+    # (2026-10-28): it is happening whether or not it clashes, so it is
+    # held anyway and the clash is said back to him.
     return {"command": {"kind": "calendar_hold", "title": _as_he_said(transcript, title.strip()),
-                        "start": start.isoformat(), "minutes": 60}, "say": None}
+                        "start": start.isoformat(), "minutes": 60, "anyway": True}, "say": None}
 
 
 #: A turn that only makes sense against the one before it. Skipped when
@@ -2785,6 +2788,27 @@ def _her_upcoming_holds() -> list:
         return sorted(rows, key=lambda r: r[0])
     except Exception:
         return []
+
+
+def _cant_move(words: str) -> str:
+    """Why one of his calendar things was not moved: it is on his live
+    calendar, where she only adds holds - or it is not on any calendar of
+    his at all (2026-10-28: "move lunch with Bob to 12", with no lunch with
+    Bob anywhere, was told she cannot move calendar events)."""
+    said = re.sub(r"^(?:my|the|our|that|this) ", "", " ".join(str(words or "").casefold().split()))
+    try:
+        import datetime as dt
+        from aletheia import calendar
+        now = dt.datetime.now(dt.timezone.utc)
+        seen = any(said in str(e.get("title") or "").casefold()
+                   for e in calendar.all_events()
+                   if e.get("status") != "CANCELLED" and calendar.parse_time(e["end"]) > now)
+    except Exception:  # noqa: BLE001
+        seen = True
+    if not seen and said and not re.fullmatch(r"\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)", said):
+        return f"I don't see {said} on your calendar. Say \"what's on my calendar this week\" and I'll read you what's there."
+    return ("I can't move things on your calendar yet - I can only add holds to it. "
+            "Move it in your calendar, and if you want a hold at the new time, tell me when.")
 
 
 def _one_of_her_holds(words: str):
@@ -9967,9 +9991,7 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
-        return {"command": None,
-                "say": "I can't move things on your calendar yet - I can only add holds to it. "
-                       "Move it in your calendar, and if you want a hold at the new time, tell me when."}
+        return {"command": None, "say": _cant_move(m.group("what"))}
     # "I can't make it to my 3pm" (2026-10-07: to the planner).
     m = re.fullmatch(r"i (?:can't|cannot|can not|won't|will not) make (?:it to )?(?:my |the )"
                      r"(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?)(?: (?:today|tomorrow|tonight))?", low)
@@ -10063,9 +10085,7 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
-        return {"command": None,
-                "say": "I can't move things on your calendar yet - I can only add holds to it. "
-                       "Move it in your calendar, and if you want a hold at the new time, tell me when."}
+        return {"command": None, "say": _cant_move(m.group("what"))}
     # "CANCEL THE BANK ONE" after reading his reminders was prepared as a
     # cancellation of a SUBSCRIPTION called "bank one" (2026-10-07). A
     # reminder or a task of his that the words name is the thing; only

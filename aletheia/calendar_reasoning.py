@@ -286,10 +286,12 @@ def hold_id(title: str, start: str, thread_id: str = "") -> str:
 
 def hold(title: str, start: str, end: str, *, location: str | None = None, thread_id: str = "",
          purpose: str = "", events: list[dict] | None = None, estimator: Estimator | None = None,
-         timezone: str | None = None, now: dt.datetime | None = None) -> dict:
+         timezone: str | None = None, now: dt.datetime | None = None, anyway: bool = False) -> dict:
     """Pencil something in: a TENTATIVE event in her own calendar. Local and
     reversible, so it asks nobody. Refused (with the clashes named) when it
-    would overlap or leave no time to travel. Idempotent per thread/title/time."""
+    would overlap or leave no time to travel - unless `anyway`, for a thing
+    HE said is happening: then it is held beside what it clashes with, and
+    the clashes come back so they can be said. Idempotent per thread/title/time."""
     title = " ".join(str(title or "").split())
     if not title:
         raise ValueError("a hold needs a title")
@@ -302,7 +304,7 @@ def hold(title: str, start: str, end: str, *, location: str | None = None, threa
         pass
     clashes = conflicts_for(start, end, location=location, events=events, estimator=estimator,
                             ignore={event_id})
-    if clashes:
+    if clashes and not anyway:
         return {"event": None, "created": False, "conflicts": clashes,
                 "why": "; ".join(c["why"] for c in clashes)}
     try:
@@ -320,7 +322,7 @@ def hold(title: str, start: str, end: str, *, location: str | None = None, threa
     _save_hold(record, f"held {human(event['start'], timezone=timezone, now=now)}")
     journal.append("action", f"calendar:{event_id}", f"pencilled in {title} (tentative, on your calendar here only)",
                    actor=ACTOR)
-    return {"event": event, "created": True, "conflicts": [], "record": record}
+    return {"event": event, "created": True, "conflicts": clashes, "record": record}
 
 
 def load_hold(event_id: str) -> dict | None:
