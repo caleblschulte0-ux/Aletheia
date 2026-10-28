@@ -17,6 +17,10 @@ class SchedulerCase(unittest.TestCase):
         for attr, path in (("SCHEDULE_DIR", root / "defs"), ("RECEIPT_DIR", root / "receipts")):
             patcher = mock.patch.object(scheduler, attr, path)
             patcher.start(); self.addCleanup(patcher.stop)
+        # The fixtures ask about August 2026; a schedule owes nothing from
+        # before it was made, so these are made before then.
+        born = mock.patch.object(scheduler, "utcnow", return_value="2026-08-01T00:00:00Z")
+        born.start(); self.addCleanup(born.stop)
 
 
 class TestScheduler(SchedulerCase):
@@ -51,6 +55,18 @@ class TestScheduler(SchedulerCase):
         scheduler.create("x", {"kind": "note"}, kind="once", at="2026-08-26T12:00:00+00:00")
         spec = scheduler.set_enabled("x", False)
         self.assertIsNone(scheduler.claim_due(spec, now=dt.datetime(2026, 8, 27, tzinfo=UTC)))
+
+    def test_a_repeating_one_owes_nothing_from_before_it_was_made(self):
+        # "Every day at 8", said at 10 pm, went off at once (2026-10-28).
+        with mock.patch.object(scheduler, "utcnow", return_value="2026-08-26T22:00:00Z"):
+            daily = scheduler.create("vitamins", {"kind": "note"}, kind="daily", timezone="UTC", time="08:00")
+            monthly = scheduler.create("rent", {"kind": "note"}, kind="monthly", timezone="UTC", time="09:00", monthday=1)
+        self.assertIsNone(scheduler.claim_due(daily, now=dt.datetime(2026, 8, 26, 22, 1, tzinfo=UTC)))
+        self.assertIsNone(scheduler.claim_due(monthly, now=dt.datetime(2026, 8, 26, 22, 1, tzinfo=UTC)))
+        nxt = scheduler.claim_due(daily, now=dt.datetime(2026, 8, 27, 8, 1, tzinfo=UTC))
+        self.assertEqual(nxt["occurrence"], "2026-08-27T08:00:00+00:00")
+        self.assertEqual(scheduler.claim_due(monthly, now=dt.datetime(2026, 9, 1, 9, 1, tzinfo=UTC))["occurrence"],
+                         "2026-09-01T09:00:00+00:00")
 
     def test_next_occurrence(self):
         spec = scheduler.create("x", {"kind": "note"}, kind="interval", every_minutes=30,

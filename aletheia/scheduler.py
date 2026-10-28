@@ -183,6 +183,22 @@ def set_enabled(schedule_id: str, enabled: bool) -> dict:
 
 
 def occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
+    """The latest occurrence due by `now`. A repeating schedule never owes one
+    from before it existed: "remind me every day at 8 to take my vitamins",
+    said at 10 pm, went off at once for the 8 am that had already passed
+    (2026-10-28), and a monthly one made on the 28th went off for the 1st."""
+    at = _occurrence_at_or_before(spec, now)
+    # A one-off has its own time, and an interval its own anchor to start from.
+    if at is None or spec["kind"] in ("once", "interval"):
+        return at
+    try:
+        born = _parse(str(spec.get("created_at") or ""))
+    except ValueError:
+        return at
+    return None if at < born else at
+
+
+def _occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
     validate(spec)
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
