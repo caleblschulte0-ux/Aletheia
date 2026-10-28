@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import re
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -94,6 +95,12 @@ def validate(spec: dict) -> None:
             day = spec.get("monthday")
             if type(day) is not int or not 1 <= day <= 31:
                 raise ValueError(f"{kind} monthday must be 1..31")
+        if kind == "monthly" and "every_months" in spec:
+            # "Every 3 months" (2026-10-28): the months counted from start_month.
+            if type(spec.get("every_months")) is not int or not 2 <= spec["every_months"] <= 12:
+                raise ValueError("monthly every_months must be 2..12")
+            if not re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", str(spec.get("start_month") or "")):
+                raise ValueError("monthly every_months requires start_month YYYY-MM")
         if kind == "yearly":
             # "Every year on our anniversary" (2026-10-28): one day of one month.
             month = spec.get("month")
@@ -124,7 +131,8 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
            timezone: str | None = None, time: str | None = None,
            weekdays: list[int] | None = None, monthday: int | None = None,
            hours: list[str] | None = None, month: int | None = None,
-           nth: int | None = None, weekday: int | None = None) -> dict:
+           nth: int | None = None, weekday: int | None = None,
+           every_months: int | None = None, start_month: str | None = None) -> dict:
     if _path(schedule_id).exists():
         raise FileExistsError(f"schedule {schedule_id!r} exists")
     spec = {"version": 1, "id": safe_id(schedule_id, name="schedule id"), "kind": kind,
@@ -149,7 +157,19 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
         spec["nth"], spec["weekday"] = nth, weekday
     if hours is not None:
         spec["hours"] = hours
+    if every_months is not None:
+        spec["every_months"], spec["start_month"] = every_months, start_month
     return save(spec)
+
+
+def _month_counts(spec: dict, year: int, month: int) -> bool:
+    """Whether a monthly reminder goes off in this month: every month, or
+    every Nth one counted from its start_month."""
+    n = spec.get("every_months")
+    if not n:
+        return True
+    start_year, start_month = map(int, str(spec["start_month"]).split("-"))
+    return ((year - start_year) * 12 + (month - start_month)) % n == 0
 
 
 def _month_day(year: int, month: int, monthday: int) -> dt.date:
@@ -255,8 +275,10 @@ def _occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None
                 return candidate.astimezone(dt.timezone.utc)
         return None
     if kind == "monthly":
-        for offset in range(0, -3, -1):
+        for offset in range(0, -26, -1):
             year, month = _months_from(local_now.date(), offset)
+            if not _month_counts(spec, year, month):
+                continue
             candidate = dt.datetime.combine(_day_in_month(spec, year, month),
                                             dt.time(hour, minute), tzinfo=tz)
             if candidate <= local_now:
@@ -340,8 +362,10 @@ def _next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
                 return candidate.astimezone(dt.timezone.utc)
         return None
     if spec["kind"] == "monthly":
-        for offset in range(0, 3):
+        for offset in range(0, 26):
             year, month = _months_from(local.date(), offset)
+            if not _month_counts(spec, year, month):
+                continue
             candidate = dt.datetime.combine(_day_in_month(spec, year, month),
                                             dt.time(hour, minute), tzinfo=tz)
             if candidate > local:

@@ -292,7 +292,7 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     # day is a date of the month; or nth (1-4, or -1 for the last) of weekday.
-    "remind_monthly":  ({"time", "text"}, {"day", "nth", "weekday", "tz", "replaces"}),
+    "remind_monthly":  ({"time", "text"}, {"day", "nth", "weekday", "every", "start", "tz", "replaces"}),
     # "Every year on our anniversary": one day of one month, 1-12 and 1-31.
     "remind_yearly":   ({"month", "day", "time", "text"}, {"tz", "replaces"}),
     # "Every hour", "every 30 minutes": within the day, from now.
@@ -588,7 +588,10 @@ KIND_NOTES: dict[str, str] = {
         'to pay rent". day is the day of the month, 1-31 (a short month '
         'uses its last day), time is 24-hour HH:MM in his timezone. For '
         '"the last Friday of every month" or "the first Monday", give nth '
-        '(1-4, or -1 for the last) and weekday (the day name) instead of day.'),
+        '(1-4, or -1 for the last) and weekday (the day name) instead of day. '
+        'every (2-12) makes it every that many months - "every 3 months", '
+        '"every quarter" is 3 - with day the day of the month; start '
+        '(YYYY-MM) is only for moving one that already exists.'),
     "remind_yearly": (
         'A reminder that repeats once a year - "every year on March 3rd '
         'for our anniversary", "every year on Mom\'s birthday, June 12". '
@@ -1448,8 +1451,14 @@ def _stopped_reminders() -> list[dict]:
     from aletheia import scheduler
     now = _dt.datetime.now(_dt.timezone.utc)
     out = []
-    for spec in scheduler.all_schedules():
+    specs = scheduler.all_schedules()
+    # A reminder moved to a new time leaves its old one off: that is the
+    # same reminder, not one he stopped (2026-10-28).
+    on = {str((r.get("command") or {}).get("text") or "").casefold() for r in specs if r.get("enabled", True)}
+    for spec in specs:
         if spec.get("enabled", True) or spec.get("kind") not in REMINDER_KINDS:
+            continue
+        if str((spec.get("command") or {}).get("text") or "").casefold() in on:
             continue
         if str((spec.get("command") or {}).get("kind")) != "notify_operator":
             continue
@@ -1536,6 +1545,8 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
         return f"{text} — every day at {when}"
     if spec["kind"] == "monthly" and "nth" in spec:
         return f"{text} — on the {_nth_weekday_words(spec['nth'], spec['weekday'])} of every month at {when}"
+    if spec["kind"] == "monthly" and spec.get("every_months"):
+        return f"{text} — every {spec['every_months']} months on the {_ordinal(int(spec.get('monthday') or 1))} at {when}"
     if spec["kind"] == "monthly":
         return f"{text} — on the {_ordinal(int(spec.get('monthday') or 1))} of every month at {when}"
     if spec["kind"] == "yearly":
@@ -4868,6 +4879,9 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 raise act.Refused("say which day of the month, like the 1st.") from None
             if not 1 <= day <= 31:
                 raise act.Refused("a day of the month is 1 to 31.")
+        every = cmd.get("every")
+        if every is not None and (type(every) is not int or not 2 <= every <= 12 or nth is not None):
+            raise act.Refused("every few months is 2 to 12 months, on a day of the month like the 1st.")
         if cmd.get("replaces"):
             # "Change the rent reminder to 10": the monthly one moves, and the
             # old time goes off (never deleted) so he is not reminded twice.
@@ -4881,9 +4895,25 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                              time=cmd["time"], nth=nth, weekday=weekday[0])
             return (f"monthly reminder {sid} set for the {_nth_weekday_words(nth, weekday[0])} at {cmd['time']}"
                     f" — {cmd['text'][:80]!r}")
+        start = None
+        if every:
+            # The first is the next of that day still ahead - except today's
+            # date gone by, which is "every 3 months" said today: the first
+            # is that many months on, not next month.
+            tz = localtime.operator_tz() if not cmd.get("tz") else __import__("zoneinfo").ZoneInfo(cmd["tz"])
+            now = dt.datetime.now(tz)
+            hour, minute = map(int, str(cmd["time"]).split(":"))
+            this = dt.datetime.combine(scheduler._month_day(now.year, now.month, day), dt.time(hour, minute), tzinfo=tz)
+            year, month = scheduler._months_from(now.date(), 0 if this > now else every if day == now.day else 1)
+            start = f"{year:04d}-{month:02d}"
+            if re.fullmatch(r"\d{4}-(?:0[1-9]|1[0-2])", str(cmd.get("start") or "")):
+                start = cmd["start"]                 # a moved one keeps its months
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
-                         time=cmd["time"], monthday=day)
+                         time=cmd["time"], monthday=day, every_months=every, start_month=start)
+        if every:
+            return (f"monthly reminder {sid} set for day {day} at {cmd['time']} every {every} months from {start}"
+                    f" — {cmd['text'][:80]!r}")
         return f"monthly reminder {sid} set for day {day} at {cmd['time']} — {cmd['text'][:80]!r}"
     if kind == "remind_yearly":
         from aletheia import scheduler
