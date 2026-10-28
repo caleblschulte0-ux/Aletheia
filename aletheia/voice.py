@@ -11706,9 +11706,11 @@ def _interpret(transcript: str) -> dict:
                     return again
     # "Push it back an hour", "move it 30 minutes earlier" (2026-10-07: to
     # the planner): the reminder he just set, shifted from where it IS.
-    m = re.fullmatch(r"(?:push|move|bump|shift|put) (?:it|that|the reminder) (?P<dir>back|later|forward|earlier|up|off)"
+    # "Actually make it 5 minutes later" (2026-10-28: to the planner, a turn
+    # after "push it back 10 minutes" moved it) is the same shift.
+    m = re.fullmatch(r"(?:(?:actually|no|sorry|oh|wait),? )?(?:push|move|bump|shift|put|make|set) (?:it|that|the reminder) (?P<dir>back|later|forward|earlier|up|off)"
                      r"(?: by)? (?P<n>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?(?P<unit>hours?|minutes?|mins?)"
-                     r"|(?:push|move|bump|shift|put) (?:it|that|the reminder)(?: by)? (?P<n2>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?"
+                     r"|(?:(?:actually|no|sorry|oh|wait),? )?(?:push|move|bump|shift|put|make|set) (?:it|that|the reminder)(?: by)? (?P<n2>an?|one|half an?|\d{1,3}|two|three|four|five|ten|fifteen|twenty|thirty|forty-five) ?"
                      r"(?P<unit2>hours?|minutes?|mins?) (?P<dir2>later|earlier|back|forward|sooner)", low)
     if m:
         how = (m.group("n") or m.group("n2"), m.group("unit") or m.group("unit2"), m.group("dir") or m.group("dir2"))
