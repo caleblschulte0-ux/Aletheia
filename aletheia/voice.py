@@ -11762,6 +11762,23 @@ def _interpret(transcript: str) -> dict:
         shifted = _shifted_reminder(*how) or _shifted_hold(*how)
         if shifted:
             return shifted
+    # "Remind me to call mom in 2 hours", then "actually make that 3 hours"
+    # (2026-10-28: to the planner). The same reminder, at the new wait from
+    # now - asked again in his words with the wait swapped.
+    wait = (r"(?:(?:an?|one|half an?|\d{1,3}|two|three|four|five|six|ten|fifteen|twenty|thirty|forty[- ]five)(?: and a half)?"
+            r" ?(?:hours?|hrs?|minutes?|mins?)|half an hour)")
+    m = re.fullmatch(rf"(?:(?:actually|no|sorry|oh|wait),? )?(?:make (?:it|that)|change (?:it|that) to)(?: in)? (?P<wait>{wait})"
+                     r"(?: from now)?(?: instead)?", low)
+    if m:
+        said, _answered = _previous_turn()
+        before = strip_wake_word(said).lower().strip(" .!?")
+        again = re.sub(rf"\bin {wait}\b", f"in {m.group('wait')}", before, count=1)
+        if again != before and again.startswith("remind me"):
+            out = _interpret(again) or {}
+            cmd = out.get("command") or {}
+            if cmd.get("kind") == "remind_at" and cmd.get("text"):
+                cmd["replaces"] = cmd["text"]
+                return out
     # "Sorry, I meant 4pm" (2026-10-07: to the planner) - a correction
     # that is nothing but the new time. Only when he led with one, so a
     # bare "4" is never a move.
