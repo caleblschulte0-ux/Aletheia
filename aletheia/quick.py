@@ -7950,6 +7950,13 @@ def _plans_told(day: str) -> str:
     import datetime as dt
     from aletheia import speech
     word = {"this weekend": "weekend", "the weekend": "weekend"}.get(day, day)
+    # Today and tomorrow are weekdays for what he does every week, and only
+    # for that: "tomorrow" said last week is not this tomorrow.
+    weekly_only = word in ("today", "tomorrow")
+    if weekly_only:
+        from aletheia import localtime
+        on = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=1 if word == "tomorrow" else 0)
+        word = on.strftime("%A").lower()
     if word not in _WEEKDAYS and word != "weekend":
         return ""
     pattern = (r"\b(?:weekend|saturday|sunday)\b" if word == "weekend" else rf"\b{word}\b")
@@ -7961,7 +7968,13 @@ def _plans_told(day: str) -> str:
             at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
         except ValueError:
             continue
-        if at >= cut and re.search(pattern, said.casefold()) and not re.search(r"\bnext\b|\blast\b|\bevery\b", said.casefold()):
+        low = said.casefold()
+        if not weekly_only and at >= cut and re.search(pattern, low) and not re.search(r"\bnext\b|\blast\b|\bevery\b", low):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        # "I have yoga every Tuesday at 6" holds every week, however long
+        # ago he said it (2026-10-28: "what's on Tuesday" said nothing).
+        elif re.search(r"\bevery (?:single )?" + pattern[2:] + r"|" + pattern[:-2] + r"s\b", low) \
+                and not re.search(r"\bevery other\b|\bused to\b|\bno longer\b|\banymore\b|\bstopp?(?:ed)?\b", low):
             found.append(speech.as_she_says_it(said).rstrip("."))
         if len(found) >= 3:
             break

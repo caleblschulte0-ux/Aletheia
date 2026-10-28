@@ -12885,9 +12885,13 @@ def _interpret(transcript: str) -> dict:
                          r"(?:(?:,| and|, and) (?:mondays|tuesdays|wednesdays|thursdays|fridays|saturdays|sundays))*", low)
          # "My daughter has practice every Tuesday and Thursday at 5"
          # (2026-10-08: to the planner): the days first, then the time.
-         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to) "
+         # "We do pizza night on Fridays", "I play basketball every Thursday
+         # night" (2026-10-28: to the planner) - the same kind of routine.
+         or re.fullmatch(r"(?:the kids|my kids|our kids|my son|my daughter|we|i|[a-z]{2,15}) (?:have|has|go to|goes to|do|does|play|plays"
+                         r"|take|takes|attend|attends|go|goes) "
                          r"(?P<thing11>[a-z][a-z ]{1,20}?) (?:on |every )(?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?|weekends|weekdays)"
                          r"(?:(?:,| and|, and) (?:mondays?|tuesdays?|wednesdays?|thursdays?|fridays?|saturdays?|sundays?))*"
+                         r"(?: (?:morning|afternoon|evening|night)s?)?"
                          r"(?: at \d{1,2}(?::\d\d)?(?: ?(?:am|pm))?)?", low)
          # "The kids have soccer at 5 on Saturday": no article, and the time
          # before the day (2026-10-08: to the planner).
@@ -12896,7 +12900,7 @@ def _interpret(transcript: str) -> dict:
                          r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low))
     if m and ((m.groupdict().get("thing5") or m.groupdict().get("thing6") or m.groupdict().get("thing10")
                or m.groupdict().get("thing11"))
-              and low.startswith(("i have ", "we have ", "i go to "))
+              and low.startswith(("i ", "we "))
               or not re.match(r"(?:it|this|that|he|she|they|who|what|i|you)\b", low)):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
     # SOMEBODY ELSE'S ALLERGY, AND WHEN SOMEBODY WAS BORN (2026-10-07: "my
