@@ -2168,7 +2168,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:have|did) i (?:been asking|asked) (?:you|u) (?:for )?(?P<asked_on3>today|yesterday)\s*\??$"
         # "what did we talk about earlier" is the same store (bottom rung, 2026-09-24).
         r"|^what (?:did|have) we (?:talk|talked|chat|chatted) about (?P<asked_on4>earlier|today|yesterday|this morning|last night|so far today)\s*\??$"
-        r"|^what (?:did|have) we (?:discuss|discussed|cover|covered) (?P<asked_on5>earlier|today|yesterday|this morning|last night)\s*\??$")),
+        r"|^what (?:did|have) we (?:discuss|discussed|cover|covered) (?P<asked_on5>earlier|today|yesterday|this morning|last night)\s*\??$"
+        # "Remind me what I asked you yesterday", "what have I asked you to
+        # do" (2026-10-28: to the planner, and to a model).
+        r"|^(?:can you |could you )?(?:remind me|tell me) what i (?:asked|told|said to) (?:you|u)(?: to do| for| about)?"
+        r" (?P<asked_on6>yesterday|today|this morning|last night|earlier|earlier today|so far today)\s*\??$"
+        r"|^what (?:have|did) i (?:ask|asked) (?:you|u) to (?P<asked_on7>do)(?: so far)?(?: today)?\s*\??$")),
     # HER OWN MACHINE. "How much memory do you have free" is a number she
     # can read in a millisecond, and it says which of her own models fits.
     ("memory_free", re.compile(
@@ -3959,7 +3964,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
                                            "draft_to", "draft_to2", "draft_to3",
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "due_by", "lastday", "lastday2", "lastday3",
-                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "day_part", "day_part2",
+                                           "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "asked_on6", "asked_on7", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "reminder_when2", "did_finish",
                                            "who_coming")
                      if captured.get(k)), "")
@@ -13506,7 +13511,7 @@ def _about_the_talk(asked: str) -> bool:
     low = " ".join(re.sub(r"^(?:thea|aletheia),? ", "", str(asked or ""), flags=re.IGNORECASE).casefold().split()).rstrip(" ?.!")
     if not low:
         return True
-    if _REPEAT_ASK.fullmatch(low) or any(n in ("talked_about", "asked_last", "repeat") and p.match(_tidy(low))
+    if _REPEAT_ASK.fullmatch(low) or any(n in ("talked_about", "asked_last", "repeat", "asked_on") and p.match(_tidy(low))
                                          for n, p in PATTERNS):
         return True
     return bool(re.fullmatch(r"(?:thanks?(?: you)?(?: (?:so|very) much)?|thank u|ty|cheers|ok(?:ay)?|cool|got it|nice|great|"
