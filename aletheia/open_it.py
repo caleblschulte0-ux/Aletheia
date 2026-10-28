@@ -140,7 +140,9 @@ def open_for(which: str, *, opener=None) -> dict:
         try:
             opener(url)
         except Exception as exc:
-            raise NothingToOpen(f"I could not open my browser here ({type(exc).__name__}).") from exc
+            # The reason rides along: "(RuntimeError)" alone hid twice which browser was missing.
+            raise NothingToOpen(f"I could not open my browser here "
+                                f"({type(exc).__name__}: {str(exc)[:200]}).") from exc
         journal.append("action", "open_it", "opened the Google sign-in in her own browser", actor=ACTOR)
         return {"url": url, "what": what,
                 "said": "I opened Google in my own browser. Sign in to your Open Range account there once, "

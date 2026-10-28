@@ -52,6 +52,24 @@ class NativeChromeLoginCase(unittest.TestCase):
                                                      wait=False), 0)
             self.assertEqual(popen.call_args.args[0][0], str(chromium))
 
+    def test_her_chromium_is_found_on_disk_without_starting_playwright(self):
+        with tempfile.TemporaryDirectory() as td:
+            exe = Path(td) / "chromium-1200" / ("chrome-win/chrome.exe" if os.name == "nt" else "chrome-linux/chrome")
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"")
+            with mock.patch.dict(os.environ, {"PLAYWRIGHT_BROWSERS_PATH": td}):
+                self.assertEqual(browse._playwright_chromium_exe(), str(exe))
+
+    def test_a_pinned_chrome_that_is_gone_still_opens_her_chromium(self):
+        with tempfile.TemporaryDirectory() as td:
+            chromium = Path(td) / "chrome.exe"
+            chromium.write_bytes(b"")
+            with mock.patch.object(browse, "_system_chrome_path", return_value=str(Path(td) / "gone.exe")), \
+                 mock.patch.object(browse, "_playwright_chromium_exe", return_value=str(chromium)), \
+                 mock.patch.object(browse.subprocess, "Popen") as popen:
+                browse.native_login("https://accounts.google.com/", profile=Path(td) / "p", wait=False)
+            self.assertEqual(popen.call_args.args[0][0], str(chromium))
+
     def test_user_closing_browser_is_benign_cleanup(self):
         class TargetClosedError(Exception):
             pass

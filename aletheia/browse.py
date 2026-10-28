@@ -67,7 +67,25 @@ def _chromium_path() -> str | None:
 
 
 def _playwright_chromium_exe() -> str | None:
-    """The Chromium binary Playwright installed: the browser she drives when there is no Chrome."""
+    """The Chromium binary Playwright installed: the browser she drives when there is no Chrome.
+
+    Looked for on disk first: starting Playwright just to ask raises inside any
+    thread already running an event loop, and the fallback then hid the browser
+    that was sitting right there.
+    """
+    roots = [os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or ""]
+    if os.name == "nt":
+        roots.append(str(Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+                         / "ms-playwright"))
+    else:
+        roots += [str(Path.home() / ".cache" / "ms-playwright"), "/opt/pw-browsers"]
+    names = ("chrome-win/chrome.exe", "chrome-win64/chrome.exe", "chrome-linux/chrome",
+             "chrome-linux64/chrome", "chrome-mac/Chromium.app/Contents/MacOS/Chromium")
+    for root in filter(None, roots):
+        for folder in sorted(Path(root).glob("chromium-*"), reverse=True):
+            for name in names:
+                if (folder / name).is_file():
+                    return str(folder / name)
     try:
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
@@ -260,7 +278,9 @@ def native_login(url: str, profile: Path | None = None, *, wait: bool = True) ->
     """
     # No Chrome on his PC (2026-10-25: "I could not open my browser here", three days unseen):
     # the Chromium she already drives opens the same profile just as well.
-    chrome = _system_chrome_path() or _playwright_chromium_exe()
+    chrome = _system_chrome_path()
+    if not chrome or not Path(chrome).is_file():
+        chrome = _playwright_chromium_exe() or chrome
     if not chrome or not Path(chrome).is_file():
         raise RuntimeError(
             "Google Chrome is required for the normal sign-in flow on Windows; "
