@@ -133,7 +133,7 @@ STORE_OF = {
     "instagram_post": "instagram", "instagram_posts": "instagram",
     "interview_window_set": "interviews", "interview_status": "interviews",
     "reminders": "schedules", "remind_at": "schedules", "remind_daily": "schedules",
-    "remind_weekly": "schedules", "remind_monthly": "schedules", "reminder_off": "schedules", "reminder_on": "schedules",
+    "remind_weekly": "schedules", "remind_monthly": "schedules", "remind_yearly": "schedules", "reminder_off": "schedules", "reminder_on": "schedules",
     "remind_every": "schedules",
     "contacts": "contacts", "contact_add": "contacts", "contact_remove": "contacts",
     "place_add": "places", "travel_time": "places",
@@ -706,7 +706,7 @@ def for_model(visible_to: str = "local", *, tools: dict[str, Tool] | None = None
 SPOKEN_GROUPS_BY_NAME: dict[str, tuple[str, ...]] = {
     "your tasks and reminders": ("task_new", "tasks", "task_done", "task_change",
                                  "task_status", "remind_at", "remind_daily",
-                                 "remind_weekly", "remind_monthly", "remind_every", "reminders", "reminder_off", "reminder_on",
+                                 "remind_weekly", "remind_monthly", "remind_yearly", "remind_every", "reminders", "reminder_off", "reminder_on",
                                  "stopwatch", "stopwatch_read", "do_task"),
     "your lists": ("shopping_add", "shopping_list", "shopping_off", "list_new", "list_add", "list_read", "list_off"),
     # Third on purpose: dict order is spoken order, only the first six

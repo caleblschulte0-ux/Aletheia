@@ -2466,8 +2466,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # "What do you remind me every morning", "what are my daily reminders"
     # (2026-10-08: to a model and to a memory search).
     ("repeating", re.compile(
-        r"^what (?:do|will) (?:you|u) remind me (?:about |of |to do )?every (?P<repeating>morning|day|night|evening|week|month)\s*\??$"
-        r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|recurring|repeating|regular|morning|nightly) reminders?\s*\??$"
+        r"^what (?:do|will) (?:you|u) remind me (?:about |of |to do )?every (?P<repeating>morning|day|night|evening|week|month|year)\s*\??$"
+        r"|^what(?: are|'s|s)? my (?P<repeating2>daily|weekly|monthly|yearly|annual|recurring|repeating|regular|morning|nightly) reminders?\s*\??$"
         r"|^(?:which|what) (?:of my )?reminders (?:do i have that |have i got that |i have that )?(?:repeat|recur|come back|keep coming back|go off every (?:day|week)|are (?:recurring|repeating))\s*\??$"
         r"|^(?:do i have|have i got|are there) any (?:recurring|repeating|regular) reminders(?: set)?\s*\??$")),
     # "What restaurants do I like" (2026-10-08: to a model, with his
@@ -16413,6 +16413,10 @@ def _repeating(which: str = "", about: str = "") -> str | None:
             return f"every {speech.and_list([days[d] for d in sp.get('weekdays') or []])} at {clock(sp)}"
         if kind == "monthly":
             return f"on the {_ordinal(int(sp.get('monthday') or 1))} of every month at {clock(sp)}"
+        if kind == "yearly":
+            import calendar
+            return (f"every year on {calendar.month_name[int(sp.get('month') or 1)]} "
+                    f"{_ordinal(int(sp.get('monthday') or 1))} at {clock(sp)}")
         return ""
     which = (which or "").strip()
     keep = {"morning": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("am"),
@@ -16421,7 +16425,9 @@ def _repeating(which: str = "", about: str = "") -> str | None:
             "nightly": lambda sp: sp.get("kind") == "daily" and clock(sp).endswith("pm"),
             "day": lambda sp: sp.get("kind") == "daily", "daily": lambda sp: sp.get("kind") == "daily",
             "week": lambda sp: sp.get("kind") == "weekly", "weekly": lambda sp: sp.get("kind") == "weekly",
-            "month": lambda sp: sp.get("kind") == "monthly", "monthly": lambda sp: sp.get("kind") == "monthly"}.get(which)
+            "month": lambda sp: sp.get("kind") == "monthly", "monthly": lambda sp: sp.get("kind") == "monthly",
+            "year": lambda sp: sp.get("kind") == "yearly", "yearly": lambda sp: sp.get("kind") == "yearly",
+            "annual": lambda sp: sp.get("kind") == "yearly"}.get(which)
     rows = [sp for sp in specs if keep is None or keep(sp)]
     if about:
         rows = [sp for sp in rows if str(sp["command"]["text"]).strip().rstrip(".") == about]
@@ -16429,8 +16435,10 @@ def _repeating(which: str = "", about: str = "") -> str | None:
             return None
         return f"{how(rows[0])[:1].upper() + how(rows[0])[1:]} - that's when I remind you to {speech.as_she_says_it(about)}."
     if not rows:
-        every = {"daily": "day", "weekly": "week", "monthly": "month", "nightly": "night"}.get(which, which)
-        every = every if every in ("morning", "day", "night", "evening", "week", "month") else "day"
+        every = {"daily": "day", "weekly": "week", "monthly": "month", "yearly": "year", "annual": "year", "nightly": "night"}.get(which, which)
+        every = every if every in ("morning", "day", "night", "evening", "week", "month", "year") else "day"
+        if every == "year":
+            return "No reminders like that are set. Say \"remind me every year on\" a date and what, and I'll set one."
         return f"No reminders like that are set. Say \"remind me every {every} to\" and what, and I'll set one."
     said = [f"{speech._yours(str(sp['command']['text']).strip().rstrip('.'))}, {how(sp)}" for sp in rows[:6]]
     return f"{speech.count_phrase(len(rows), 'repeating reminder')}: " + "; ".join(said) + "."
@@ -21323,6 +21331,7 @@ _STORE_QUESTION = {
     "reminders": "what reminders do I have", "remind_at": "what reminders do I have",
     "remind_daily": "what reminders do I have", "remind_weekly": "what reminders do I have",
     "remind_monthly": "what reminders do I have",
+    "remind_yearly": "what reminders do I have",
     "remind_every": "what reminders do I have",
     "shopping_list": "what's on the shopping list", "shopping_add": "what's on the shopping list",
     "list_new": "what's on my packing list", "list_add": "what's on my packing list",
