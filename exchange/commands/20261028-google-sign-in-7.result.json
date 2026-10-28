@@ -1,0 +1,6 @@
+{
+  "id": "20261028-google-sign-in-7",
+  "executed_at": "2026-10-28T04:58:37Z",
+  "outcome": "refused",
+  "detail": "I could not open my browser here (RuntimeError: no Chrome and no Chromium of her own found (ModuleNotFoundError: No module named 'playwright'; installing it now); install Chrome or set ALETHEIA_CHROME_PATH)."
+}
