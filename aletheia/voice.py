@@ -3879,6 +3879,16 @@ _HOLIDAYS = (r"thanksgiving|christmas(?: eve)?|new year'?s(?: eve| day)?|easter|
              r"|labor day|memorial day|hanukkah|passover|mother'?s day|father'?s day|valentine'?s(?: day)?")
 
 
+def _as_he_named(low: str, what: str) -> str:
+    """"Remind me 10 minutes before my 2pm meeting" answered "I don't see
+    2pm meeting on your calendar" (2026-10-28): the pattern ate his "my".
+    Give the thing back with the word he used for it."""
+    m = re.search(rf"\b(my|the|our) (?:next )?{re.escape(what)}\b", low)
+    if not m:
+        return what
+    return {"my": "your", "our": "your"}.get(m.group(1), m.group(1)) + " " + what
+
+
 def two_asks(transcript: str) -> list[str] | None:
     """"Add milk to the list and remind me at 5 to go shopping" is two asks.
 
@@ -7125,6 +7135,8 @@ def _interpret(transcript: str) -> dict:
         if amount:
             lead = dt.timedelta(hours=amount) if m.group("unit").startswith("hour") else dt.timedelta(minutes=amount)
             what = m.group("what").strip()
+            # "An hour before the plumber comes" looked for an event called "plumber comes".
+            what = re.sub(r" (?:comes|is coming|are coming|gets here|get here|arrives|arrive|shows up|show up)$", "", what)
             generic = what in ("meeting", "appointment", "event", "call", "thing", "one")
             now = dt.datetime.now(dt.timezone.utc)
             try:
@@ -7152,7 +7164,7 @@ def _interpret(transcript: str) -> dict:
                 what = re.sub(r"^i (?:need to |have to |will |'ll )?", "", what)
                 return {"command": None,
                         "say": ("Nothing on your calendar coming up" if generic
-                                else f"I don't see {what} on your calendar coming up") + " to remind you before."}
+                                else f"I don't see {_as_he_said(text, _as_he_named(low, what))} on your calendar coming up") + " to remind you before."}
             event = upcoming[0]
             at = (cal.parse_time(event["start"]) - lead).astimezone(dt.timezone.utc).isoformat()
             said = f"{int(amount) if float(amount).is_integer() else amount} {m.group('unit').rstrip('s')}"
@@ -7288,7 +7300,7 @@ def _interpret(transcript: str) -> dict:
         if not upcoming:
             return {"command": None,
                     "say": ("Nothing on your calendar coming up" if generic
-                            else f"I don't see {what} on your calendar coming up") + " to remind you before."}
+                            else f"I don't see {_as_he_said(text, _as_he_named(low, what))} on your calendar coming up") + " to remind you before."}
         event = upcoming[0]
         start = cal.parse_time(event["start"]).astimezone(tz)
         lead = m.group("lead")
