@@ -291,7 +291,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     # `replaces` is the text of the reminder this one moves ("make that 4").
     "remind_at":       ({"at", "text"}, {"replaces"}),
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
-    "remind_monthly":  ({"day", "time", "text"}, {"tz", "replaces"}),
+    # day is a date of the month; or nth (1-4, or -1 for the last) of weekday.
+    "remind_monthly":  ({"time", "text"}, {"day", "nth", "weekday", "tz", "replaces"}),
     # "Every hour", "every 30 minutes": within the day, from now.
     "remind_every":    ({"minutes", "text"}, {"replaces", "between", "days"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
@@ -580,7 +581,9 @@ KIND_NOTES: dict[str, str] = {
     "remind_monthly": (
         'A reminder that repeats once a month - "on the 1st of every month '
         'to pay rent". day is the day of the month, 1-31 (a short month '
-        'uses its last day), time is 24-hour HH:MM in his timezone.'),
+        'uses its last day), time is 24-hour HH:MM in his timezone. For '
+        '"the last Friday of every month" or "the first Monday", give nth '
+        '(1-4, or -1 for the last) and weekday (the day name) instead of day.'),
     "remind_weekly": (
         'A reminder that repeats on named days — "every Monday", "every '
         'weekday at 7", "Tuesdays and Thursdays". days is a list of day '
@@ -1486,6 +1489,8 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
     when = speech.clock_words(str(spec.get("time") or ""))
     if spec["kind"] == "daily":
         return f"{text} — every day at {when}"
+    if spec["kind"] == "monthly" and "nth" in spec:
+        return f"{text} — on the {_nth_weekday_words(spec['nth'], spec['weekday'])} of every month at {when}"
     if spec["kind"] == "monthly":
         return f"{text} — on the {_ordinal(int(spec.get('monthday') or 1))} of every month at {when}"
     days = _weekday_words(sorted(spec.get("weekdays") or []))
@@ -3457,6 +3462,12 @@ def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
+def _nth_weekday_words(nth: int, weekday: int) -> str:
+    """(-1, 4) -> "last Friday", (1, 0) -> "first Monday"."""
+    which = {1: "first", 2: "second", 3: "third", 4: "fourth", -1: "last"}[nth]
+    return f"{which} {('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')[weekday]}"
+
+
 def _weekday_words(days: list[int]) -> str:
     """[0, 2] -> "Monday and Wednesday". Said out loud, so it is a phrase."""
     from aletheia import speech
@@ -4739,9 +4750,22 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
     if kind == "remind_monthly":
         from aletheia import scheduler
         import uuid as _uuid
-        day = int(cmd["day"])
-        if not 1 <= day <= 31:
-            raise act.Refused("a day of the month is 1 to 31.")
+        nth = cmd.get("nth")
+        if nth is not None:
+            # "The last Friday of every month" (2026-10-28: to the planner).
+            if type(nth) is not int or nth not in (1, 2, 3, 4, -1):
+                raise act.Refused("which one of the month is the first to the fourth, or the last.")
+            weekday = _weekday_numbers(cmd.get("weekday"))
+            if len(weekday) != 1:
+                raise act.Refused("say one day of the week, like Friday.")
+            day = None
+        else:
+            try:
+                day = int(cmd.get("day"))
+            except (TypeError, ValueError):
+                raise act.Refused("say which day of the month, like the 1st.") from None
+            if not 1 <= day <= 31:
+                raise act.Refused("a day of the month is 1 to 31.")
         if cmd.get("replaces"):
             # "Change the rent reminder to 10": the monthly one moves, and the
             # old time goes off (never deleted) so he is not reminded twice.
@@ -4749,6 +4773,12 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             if old is not None and old.get("kind") == "monthly":
                 scheduler.set_enabled(old["id"], False)
         sid = "remind-monthly-" + _uuid.uuid4().hex[:8]
+        if day is None:
+            scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                             kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
+                             time=cmd["time"], nth=nth, weekday=weekday[0])
+            return (f"monthly reminder {sid} set for the {_nth_weekday_words(nth, weekday[0])} at {cmd['time']}"
+                    f" — {cmd['text'][:80]!r}")
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"], monthday=day)

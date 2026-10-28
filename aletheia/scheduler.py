@@ -83,7 +83,14 @@ def validate(spec: dict) -> None:
         except (ZoneInfoNotFoundError, ValueError) as exc:
             raise ValueError("daily/weekly schedule requires valid timezone") from exc
         _clock(spec.get("time", ""))
-        if kind == "monthly":
+        if kind == "monthly" and "nth" in spec:
+            # "The last Friday of every month" (2026-10-28): which one of
+            # that weekday, 1 to 4 or -1 for the last.
+            if spec.get("nth") not in (1, 2, 3, 4, -1) or type(spec.get("nth")) is not int:
+                raise ValueError("monthly nth must be 1..4 or -1")
+            if type(spec.get("weekday")) is not int or spec.get("weekday") not in range(7):
+                raise ValueError("monthly weekday must be 0..6")
+        elif kind == "monthly":
             day = spec.get("monthday")
             if type(day) is not int or not 1 <= day <= 31:
                 raise ValueError("monthly monthday must be 1..31")
@@ -111,7 +118,7 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
            every_minutes: int | None = None, anchor: str | None = None,
            timezone: str | None = None, time: str | None = None,
            weekdays: list[int] | None = None, monthday: int | None = None,
-           hours: list[str] | None = None) -> dict:
+           hours: list[str] | None = None, nth: int | None = None, weekday: int | None = None) -> dict:
     if _path(schedule_id).exists():
         raise FileExistsError(f"schedule {schedule_id!r} exists")
     spec = {"version": 1, "id": safe_id(schedule_id, name="schedule id"), "kind": kind,
@@ -130,6 +137,8 @@ def create(schedule_id: str, command: dict, *, kind: str, at: str | None = None,
         spec["weekdays"] = weekdays
     if monthday is not None:
         spec["monthday"] = monthday
+    if nth is not None:
+        spec["nth"], spec["weekday"] = nth, weekday
     if hours is not None:
         spec["hours"] = hours
     return save(spec)
@@ -140,6 +149,17 @@ def _month_day(year: int, month: int, monthday: int) -> dt.date:
     "the 31st of every month" is the 30th in April, never skipped."""
     import calendar
     return dt.date(year, month, min(monthday, calendar.monthrange(year, month)[1]))
+
+
+def _day_in_month(spec: dict, year: int, month: int) -> dt.date:
+    """The day a monthly schedule falls on in that month: its date, or
+    the nth (or last) of its weekday."""
+    if "nth" not in spec:
+        return _month_day(year, month, spec["monthday"])
+    import calendar
+    days = [d for d in range(1, calendar.monthrange(year, month)[1] + 1)
+            if dt.date(year, month, d).weekday() == spec["weekday"]]
+    return dt.date(year, month, days[-1] if spec["nth"] == -1 else days[spec["nth"] - 1])
 
 
 def _months_from(day: dt.date, offset: int) -> tuple[int, int]:
@@ -222,7 +242,7 @@ def _occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None
     if kind == "monthly":
         for offset in range(0, -3, -1):
             year, month = _months_from(local_now.date(), offset)
-            candidate = dt.datetime.combine(_month_day(year, month, spec["monthday"]),
+            candidate = dt.datetime.combine(_day_in_month(spec, year, month),
                                             dt.time(hour, minute), tzinfo=tz)
             if candidate <= local_now:
                 return candidate.astimezone(dt.timezone.utc)
@@ -300,7 +320,7 @@ def _next_occurrence(spec: dict, after: dt.datetime) -> dt.datetime | None:
     if spec["kind"] == "monthly":
         for offset in range(0, 3):
             year, month = _months_from(local.date(), offset)
-            candidate = dt.datetime.combine(_month_day(year, month, spec["monthday"]),
+            candidate = dt.datetime.combine(_day_in_month(spec, year, month),
                                             dt.time(hour, minute), tzinfo=tz)
             if candidate > local:
                 return candidate.astimezone(dt.timezone.utc)

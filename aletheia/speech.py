@@ -710,6 +710,12 @@ def spoken_receipt(kind: str, detail: str, *,
                 return f"{lead}, {window.group(1)}, I'll remind you: {_yours(what.group(1))}."
             return f"{lead} from now I'll remind you: {_yours(what.group(1))}."
     if kind == "remind_monthly":
+        # "monthly reminder remind-monthly-9f2 set for the last Friday at 09:00 — 'pay the sitter'"
+        when = re.search(r"set for the ((?:first|second|third|fourth|last) [A-Z][a-z]+day) at (\d{1,2}:\d{2})\b", text)
+        what = _reminder_quote(text)
+        if when and what:
+            return (f"On the {when.group(1)} of every month at {clock_words(when.group(2))} I'll remind you: "
+                    f"{_yours(what.group(1))}.")
         # "monthly reminder remind-monthly-9f2 set for day 1 at 09:00 — 'pay rent'"
         when = re.search(r"set for day (\d{1,2}) at (\d{1,2}:\d{2})\b", text)
         what = _reminder_quote(text)
