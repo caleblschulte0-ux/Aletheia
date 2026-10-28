@@ -1456,7 +1456,7 @@ def _stopped_reminders() -> list[dict]:
     # same reminder, not one he stopped (2026-10-28).
     on = {str((r.get("command") or {}).get("text") or "").casefold() for r in specs if r.get("enabled", True)}
     for spec in specs:
-        if spec.get("enabled", True) or spec.get("kind") not in REMINDER_KINDS:
+        if spec.get("enabled", True) or spec.get("kind") not in REMINDER_KINDS or spec.get("moved"):
             continue
         if str((spec.get("command") or {}).get("text") or "").casefold() in on:
             continue
@@ -1472,7 +1472,15 @@ def _stopped_reminders() -> list[dict]:
             continue
         if now - changed <= _dt.timedelta(days=7):
             out.append(spec)
-    return sorted(out, key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+    # Moved twice and then cancelled is one reminder he stopped, not three
+    # (2026-10-28): the newest stop of each says when it was last set for.
+    seen, once = set(), []
+    for spec in sorted(out, key=lambda r: str(r.get("updated_at") or ""), reverse=True):
+        said = str((spec.get("command") or {}).get("text") or "").casefold()
+        if said not in seen:
+            seen.add(said)
+            once.append(spec)
+    return once
 
 
 def _window_words(spec: dict) -> str:
@@ -4778,7 +4786,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # the new one is set, so he is not reminded twice.
             found, _why = _one_reminder(str(cmd["replaces"]))
             if found is not None:
-                scheduler.set_enabled(found["id"], False)
+                scheduler.set_enabled(found["id"], False, moved=True)
                 moved = " (moved)"
         else:
             # "Set an alarm for 6" twice made two 6 am alarms, and "cancel my
@@ -4813,7 +4821,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             old, _why = _one_reminder(str(cmd["replaces"]))
             if old is not None and old.get("kind") == "interval" and int(old.get("every_minutes") or 0) % 1440 == 0:
                 anchor = _same_days_new_time(old, cmd["time"], cmd.get("tz")) or anchor
-                scheduler.set_enabled(old["id"], False)
+                scheduler.set_enabled(old["id"], False, moved=True)
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="interval", every_minutes=every * 1440, anchor=anchor)
         return f"reminder {sid} set every {every} days from {anchor} — {cmd['text'][:80]!r}"
@@ -4828,7 +4836,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # stopped (kept, so it can be put back) and set again.
             old, _why = _one_reminder(str(cmd["replaces"]))
             if old is not None and old.get("kind") == "interval":
-                scheduler.set_enabled(old["id"], False)
+                scheduler.set_enabled(old["id"], False, moved=True)
         sid = "remind-every-" + _uuid.uuid4().hex[:8]
         now = _dt.datetime.now(_dt.timezone.utc)
         anchor = (now + _dt.timedelta(minutes=minutes)).replace(microsecond=0)
@@ -4892,7 +4900,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # old time goes off (never deleted) so he is not reminded twice.
             old, _why = _one_reminder(str(cmd["replaces"]))
             if old is not None and old.get("kind") == "monthly":
-                scheduler.set_enabled(old["id"], False)
+                scheduler.set_enabled(old["id"], False, moved=True)
         sid = "remind-monthly-" + _uuid.uuid4().hex[:8]
         if day is None:
             scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
@@ -4929,7 +4937,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
         if cmd.get("replaces"):
             old, _why = _one_reminder(str(cmd["replaces"]))
             if old is not None and old.get("kind") == "yearly":
-                scheduler.set_enabled(old["id"], False)
+                scheduler.set_enabled(old["id"], False, moved=True)
         sid = "remind-yearly-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
                          kind="yearly", timezone=cmd.get("tz") or localtime.operator_timezone(),
@@ -4944,7 +4952,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # old time goes off (never deleted) so he is not reminded twice.
             found, _why = _one_reminder(str(cmd["replaces"]))
             if found is not None:
-                scheduler.set_enabled(found["id"], False)
+                scheduler.set_enabled(found["id"], False, moved=True)
                 moved = " (moved)"
         sid = "remind-daily-" + _uuid.uuid4().hex[:8]
         scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
@@ -4976,7 +4984,7 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
             # "Every day at 8", "make it weekdays" (2026-10-14): a daily one
             # becomes weekly, so it goes off too.
             if found is not None and found.get("kind") in ("weekly", "daily"):
-                scheduler.set_enabled(found["id"], False)
+                scheduler.set_enabled(found["id"], False, moved=True)
             # "Remind me Saturday at 6", "make it every Saturday": the one-off is
             # the first of the new ones, so it goes off - only when it falls on
             # one of the days at that time.
