@@ -28,9 +28,14 @@ class ATimerOfTwoParts(unittest.TestCase):
         self.assertIn("1 hour and 30 minutes", said)
 
     def test_a_pause_says_what_she_can_do(self):
-        got = voice._interpret("pause the timer")
-        self.assertIsNone(got["command"])
-        self.assertIn("add 5 minutes", got["say"])
+        # She can pause one since 2026-10-28; the pause says how to resume it.
+        import datetime as dt
+        from unittest import mock
+        soon = dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=4)
+        with mock.patch.object(voice, "_running_once", return_value=[(soon, "your 5-minute timer is up")]):
+            got = voice._interpret("pause the timer")
+        self.assertEqual(got["command"]["kind"], "reminder_off")
+        self.assertIn("resume the timer", got["say"])
 
 
 class AnAllergySaidAsAFact(unittest.TestCase):
