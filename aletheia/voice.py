@@ -4302,7 +4302,9 @@ def _with_the_person_named(transcript: str) -> str:
     return transcript
 
 
-_PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing"}
+_PRONOUN_ONLY = {"this", "that", "it", "these", "those", "something", "stuff", "that thing", "this thing",
+                 # "Remind me about it again in an hour" kept "it again" (2026-10-28).
+                 "it again", "that again", "this again", "it later", "that later"}
 
 
 def _the_named_list_just_used(turns: int = 3) -> tuple[str, bool]:
@@ -6020,7 +6022,9 @@ def _interpret(transcript: str) -> dict:
 
     # "Remind me again in 10 minutes" after a reminder fires is a snooze
     # said the way a person says it (2026-10-07: to the planner).
-    m = re.fullmatch(r"remind me (?:again|later|of (?:that|it) (?:again|later))(?: in (.+))?", low)
+    # "Remind me about it again in an hour" (2026-10-28) set a reminder saying "it again".
+    # "About this later" names nothing and asks; "again" is a reminder that went off.
+    m = re.fullmatch(r"remind me (?:again|later|of (?:that|it) (?:again|later)|about (?:that|it|this) again)(?: in (.+))?", low)
     if m:
         minutes = DEFAULT_SNOOZE_MINUTES if not m.group(1) else _spoken_minutes(m.group(1))
         if minutes:
