@@ -1845,6 +1845,16 @@ def _skip_once(found: dict, once: str) -> str:
             midnight = dt.datetime.combine(day, dt.time(0), tzinfo=tz).astimezone(dt.timezone.utc)
             earlier = scheduler.next_occurrence(found, midnight - dt.timedelta(seconds=1)) if want == 0 else None
             if earlier is not None and earlier.astimezone(tz).date() == day and earlier <= now:
+                # "Set an alarm for weekdays at 7", then at 5 pm "turn off my
+                # alarm for today" (2026-10-28): "it already went off today at
+                # 7 am" - an alarm that did not exist at 7.
+                try:
+                    made = dt.datetime.fromisoformat(str(found.get("created_at") or ""))
+                except ValueError:
+                    made = None
+                if made is not None and made.tzinfo and made > earlier:
+                    raise act.Refused("Nothing to skip today: it was set after today's time"
+                                      + (f", so it starts {speech.humanize_time(at.isoformat())}." if at else "."))
                 raise act.Refused(f"it already went off today at {speech.clock_words(earlier.astimezone(tz).strftime('%H:%M'))}"
                                   + (f" - the next one is {speech.humanize_time(at.isoformat())}." if at else "."))
             raise act.Refused(f"it doesn't go off {_once_words(once)} - {_reminder_words(found).split(' — ')[-1]}.")
