@@ -292,17 +292,17 @@
     "2026-10-27": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 46,
-      "needs_account": 0,
-      "needs_answer": 2,
-      "not_realistic": 95,
-      "offered": 193,
-      "ready": 0,
-      "runs": 5,
-      "unfit_language": 50,
-      "unfit_model": 5,
-      "unfit_pay": 14,
-      "unfit_sales": 26,
+      "minutes": 92,
+      "needs_account": 2,
+      "needs_answer": 14,
+      "not_realistic": 137,
+      "offered": 253,
+      "ready": 4,
+      "runs": 6,
+      "unfit_language": 76,
+      "unfit_model": 7,
+      "unfit_pay": 18,
+      "unfit_sales": 36,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -322,12 +322,12 @@
     "why": {
       "gone_on_lever": 1,
       "gone_on_workable": 115,
-      "left_captcha": 11,
+      "left_captcha": 14,
       "left_error": 2,
-      "left_no_way_forward": 9,
+      "left_no_way_forward": 10,
       "left_questions": 2,
-      "left_sign_in": 2,
-      "not_realistic": 58
+      "left_sign_in": 3,
+      "not_realistic": 59
     }
   },
   "days": {
@@ -524,53 +524,53 @@
       "sent": 3
     },
     "2026-10-27": {
-      "filled": 16,
-      "found": 27,
+      "filled": 26,
+      "found": 43,
       "interviews": 1,
       "rejections": 0,
       "replies": 1,
-      "sent": 0
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-28T01:57:08Z",
+  "generated_at": "2026-10-28T02:27:38Z",
   "question_shapes": {
-    "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
-    "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
     "ashbyhq: radio: are you comfortable _ _ _ _ _ or _ _ _": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 2,
-    "ashbyhq: text: what is the _ _ of your address _ _": 1,
     "ashbyhq: text: what is the first _ of your address": 1,
     "employer_site: field: _": 18,
-    "employer_site: field: _ _": 12,
+    "employer_site: field: _ _": 16,
     "employer_site: field: _ _ _": 4,
     "employer_site: field: _ or select _ _ _": 6,
+    "employer_site: field: address _": 2,
     "employer_site: field: work _": 4,
     "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 6,
+    "lever: checkbox: _": 3,
+    "lever: checkbox: _ _": 2,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: textarea: _ _ when would you be able to _ at _": 1,
+    "lever: radio: _ you _ yes to the _ _ are you willing to": 1,
+    "lever: radio: do you have any _ _ _ _ with your _ _": 1,
+    "lever: text: what is your desired _ compensation": 1,
+    "lever: textarea: _ you _ yes to _ a _ _ employed at _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: resume _": 1,
-    "workable: radio: experience in _ _": 1,
-    "workable: radio: the _ will _ _ _ _ for the role in _": 1,
-    "workable: text: _ _": 1,
-    "workable: text: address _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 2,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
     "workable: textarea: how _ _ _ do you _ _ per _": 1,
     "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
     "workable: textarea: which _ and _ _ have you _ _": 1
   },
-  "sent_all_time": 324,
+  "sent_all_time": 328,
   "sent_by_system": {
-    "ashbyhq": 19,
+    "ashbyhq": 21,
     "employer_site": 6,
     "greenhouse": 70,
-    "lever": 25
+    "lever": 27
   },
   "stop_shapes": {
     "employer_site: empty_page: none": 1,
@@ -579,11 +579,12 @@
     "employer_site: no_apply: _ | about | careers": 2,
     "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: open contact details": 1,
-    "employer_site: no_apply: search | _ | _ _ _ | _ _ | careers": 1
+    "employer_site: no_apply: search | _ | _ _ _ | _ _ | careers": 1,
+    "myworkdayjobs: no_apply: sign in | search for jobs | _ _ | _ to _ _": 1
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 25,
+      "nothing_to_press_on_captcha/filled": 28,
       "nothing_to_press_on_captcha/observed": 3
     },
     "error": {
@@ -605,7 +606,7 @@
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 2,
       "nothing_to_press_on_content+no_apply/filled": 2,
-      "nothing_to_press_on_content+no_apply/observed": 16,
+      "nothing_to_press_on_content+no_apply/observed": 17,
       "nothing_to_press_on_content/observed": 15,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 5,
@@ -629,7 +630,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 9,
+      "nothing_to_press_on_account_login/observed": 10,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -637,7 +638,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 11
+        "nothing_to_press_on_captcha/filled": 14
       },
       "error": {
         "nothing_to_press_on_error/observed": 1,
@@ -646,7 +647,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 4,
+        "nothing_to_press_on_content+no_apply/observed": 5,
         "nothing_to_press_on_form+no_apply/filled": 2,
         "nothing_to_press_on_form+no_apply/observed": 1
       },
@@ -655,27 +656,30 @@
         "nothing_to_press_on_form/observed": 1
       },
       "sign_in": {
-        "nothing_to_press_on_account_login/observed": 2
+        "nothing_to_press_on_account_login/observed": 3
       }
     }
   },
   "totals": {
-    "filled": 227,
-    "found": 630,
+    "filled": 237,
+    "found": 646,
     "interviews": 14,
     "rejections": 20,
     "replies": 53,
-    "sent": 120
+    "sent": 124
   },
   "waiting": {
     "asked_about": {
       "address": 3,
+      "agreements": 1,
       "contact": 1,
+      "links": 2,
       "on_site": 3,
-      "other": 27,
-      "pay": 2,
-      "travel": 1,
-      "years_experience": 1
+      "other": 33,
+      "pay": 3,
+      "referral": 1,
+      "travel": 2,
+      "years_experience": 2
     },
     "closed": {
       "gone_on_ashbyhq": 16,
@@ -683,19 +687,19 @@
       "gone_on_lever": 2,
       "gone_on_smartrecruiters": 3,
       "gone_on_workable": 116,
-      "left_captcha": 28,
+      "left_captcha": 31,
       "left_error": 16,
       "left_going_in_circles": 9,
-      "left_no_way_forward": 70,
+      "left_no_way_forward": 71,
       "left_out_of_steps": 2,
       "left_posting_closed": 2,
       "left_questions": 13,
-      "left_sign_in": 11,
+      "left_sign_in": 12,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
       "not_a_form_asks_nothing_on_bamboohr": 2,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 18,
-      "not_realistic": 83
+      "not_realistic": 84
     },
     "failed": 17,
     "failed_because": {
@@ -709,9 +713,9 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 28,
+    "needs_answer": 34,
     "oldest_days": 45,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
