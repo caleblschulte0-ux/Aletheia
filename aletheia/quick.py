@@ -704,6 +704,11 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("do_i_work", re.compile(
         r"^(?:do|will) i (?:have to |need to |got to |gotta )?work (?P<do_i_work>today|tomorrow|tonight|this weekend"
         r"|(?:on |this |next )?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\s*\??$")),
+    # "When do I work" a turn after "I work 9 to 5 Monday through Friday"
+    # (2026-10-28: to a model, which said nothing could think).
+    ("work_sched", re.compile(
+        r"^(?:when|what days|which days|what hours|what times?) do i (?:usually |normally )?work(?: during the week| each week| every week)?\s*\??$"
+        r"|^what(?: is|'s| are) my (?:usual |normal )?(?:work|working|job) (?:schedule|hours|days|week)\s*\??$")),
     ("work_hours", re.compile(
         r"^(?:what time|when) do i (?P<work_hours>start|begin|get off|finish|clock in|clock out)(?: work)?(?: today| tomorrow| tonight)?\s*\??$"
         r"|^(?:what time|when) does my (?:shift|work ?day) (?P<work_hours2>start|begin|end|finish)(?: today| tomorrow)?\s*\??$"
@@ -3929,7 +3934,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
         if name in ("math", "farewell", "power", "fact_q", "note_search", "sun", "moon", "discount", "split",
                     "area", "year_left", "weekday_of", "days_between", "time_diff", "feeling", "about_her", "arith",
                     "prime", "average", "round_to", "time_units", "fraction_pct", "weather_more", "free_at", "reckon",
-                    "weather_in"):
+                    "weather_in", "work_sched"):
             return name, text
         if name in ("owed", "fact_any", "counted", "ate", "dur_convert", "how_to", "life_news", "lent", "liked_how", "went", "did_count", "cost_mine", "work_hours", "off_lists", "body", "meds", "took_today", "their_fact", "when_note", "around_event", "plural", "kept", "gift_for", "meal_plan", "pick_for_me", "worked", "sums_more", "life_when", "agenda_part", "event_detail", "missed_reminders", "parked", "saved", "next_due", "holiday_year", "dislikes", "married", "next_meeting", "promised", "capital", "bedtime_calc", "cook_temp", "shop_added", "opinion", "woke_usual", "reading", "awake_for", "no_password", "arrived", "the_list", "tasks_verb", "role_said", "loan_left", "job_since", "their_likes", "their_diet", "told_last", "date_what", "where_was_i", "on_days", "until_leave", "just_added", "their_kind", "miles_until", "pills_left", "time_where", "trip_length", "starts_when", "it_due", "their_person", "birthday", "habit", "days_off", "focus", "time_zone", "for_meeting", "recipe_need", "bills_due", "car_spec", "interval_due", "expiring", "meal_when"):
             return name, text
@@ -14483,6 +14488,20 @@ def _task_age(rest) -> str:
             + ("" if len(live) > 1 else " It's the only one open."))
 
 
+def _work_sched(text) -> str | None:
+    """"When do I work": the note where he said his days or hours, in his
+    words. None when he said neither, so a model can still try."""
+    from aletheia import speech
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        low = said.casefold()
+        if re.search(r"\bi work (?:from )?(?:\d{1,2}(?::\d\d)? ?(?:am|pm)? (?:to|until|till|-) \d{1,2}(?::\d\d)? ?(?:am|pm)? )?(?:on )?"
+                     r"(?:weekdays|weekends|(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)s?\b)", low) or _START_NOTE.match(low):
+            told = speech.as_she_says_it(said).rstrip(".")
+            return f"You told me {told[:1].lower()}{told[1:]}."
+    return None
+
+
 def _do_i_work(rest) -> str | None:
     """Whether he works on a day, from what he told her: a day off named for
     it, then the days he said he works. None when he said neither."""
@@ -21262,6 +21281,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "deliveries": lambda rest: _deliveries(),
            "shop_qty": _shop_qty,
            "do_i_work": _do_i_work,
+           "work_sched": _work_sched,
            "last_ate": lambda rest: _last_ate(),
            "how_did_i_do": _how_did_i_do,
            "how_long_out": _how_long_out,
