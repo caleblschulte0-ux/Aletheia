@@ -12525,6 +12525,18 @@ def _interpret(transcript: str) -> dict:
     if re.fullmatch(r"(?:my|our) (?:" + _WHOSE + r"|son|daughter|kids?|grandson|granddaughter|stepson|stepdaughter)"
                     r"(?: [a-z]+)? (?:is|just turned|turned|will be) \d{1,3}(?: years old| yrs old)?", low):
         return {"command": {"kind": "note", "text": _as_he_said(text, low)}, "say": None}
+    # HIS PEOPLE'S NAMES (2026-10-28: "my mom's name is linda", typed on his
+    # phone, was kept and read back lower case, while a pet's got its
+    # capital). Only a name typed all lower case is touched.
+    m = re.fullmatch(r"(?:my|our) (?P<who>wife|husband|son|daughter|mom|mum|mother|dad|father|sister|brother|boss|manager|friend"
+                     r"|best friend|kid|baby|neighbor|neighbour|landlord|girlfriend|boyfriend|partner|fiance|fiancee|grandma|grandpa"
+                     r"|grandmother|grandfather|aunt|uncle|niece|nephew|cousin|stepmom|stepdad|coworker|doctor|dentist|teacher)"
+                     r"(?:'s)? (?:name is|is named|is called|goes by) (?P<name>[a-z][a-z'-]{1,20}(?: [a-z][a-z'-]{1,20})?)", low)
+    if m and m.group("name") not in ("not", "the", "a", "an", "my", "his", "her"):
+        name = _as_he_said(text, m.group("name"))
+        if name.islower():
+            name = " ".join(w[:1].upper() + w[1:] for w in name.split())
+        return {"command": {"kind": "note", "text": f"my {m.group('who')}'s name is {name}"}, "say": None}
     # HIS PETS (2026-10-08, every one to the planner): "my cat is named
     # Luna" is kept the way "my cat's name is Luna" already was; "Luna is
     # 4" is an age when Luna is a name he said with its capital; "the dog
