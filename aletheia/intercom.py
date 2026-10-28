@@ -2017,6 +2017,22 @@ def _forget_every_note(about: str) -> list[str]:
 def _forget_older_versions(gone: str) -> int:
     """Tombstone every other note that says the same thing about the same
     subject as `gone` ("my doctor is ..."), returning how many. Never raises."""
+    # "I parked on level 3", "I moved the car to level 5", "forget where I
+    # parked" (2026-10-28): level 5 went, and "where did I park" said level
+    # 3. Every note of where the car is says the same thing about it.
+    parked = r"\b(?:parked|my car is|the car is)\b"
+    if re.search(parked, gone, re.IGNORECASE):
+        try:
+            from aletheia import journal, quick
+            count = 0
+            for row in quick._notes():
+                text = str(row.get("text") or "")
+                if re.search(parked, text, re.IGNORECASE) and count < 10:
+                    journal.append("note", FORGOTTEN_SUBJECT, text[:300], actor="operator")
+                    count += 1
+            return count
+        except Exception:
+            return 0
     m = re.match(r"(?:note that |remember that )?(?P<subject>(?:my|our) [a-z' ]{2,40}?) (?:is|are) ", gone.casefold())
     if not m:
         return 0
