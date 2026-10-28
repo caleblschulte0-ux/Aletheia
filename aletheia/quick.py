@@ -2915,6 +2915,12 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     ("day_of_year", re.compile(r"^what (?:day of the year|number day of the year) is (?:it|today)(?: today)?\s*\??$"
                                r"|^(?:what|which) day of the year (?:are we on|is this)\s*\??$")),
     # "Which locker is mine", "which parking spot is mine" (2026-10-08: to a model).
+    # "What airline am I flying" after "my flight to Denver is on November 3
+    # on United" (2026-10-28: to a model).
+    ("airline", re.compile(r"^(?:what|which) (?:airline|carrier) (?:am i|are we) (?:flying|on|taking|booked on|flying with)"
+                           r"(?P<airline> to [a-z][a-z .'-]{1,30}?)?\s*\??$"
+                           r"|^(?:what|which) (?:airline|carrier) is (?:my|our|the) (?:flight|trip)(?P<airline2> to [a-z][a-z .'-]{1,30}?)?"
+                           r"(?: with| on)?\s*\??$")),
     ("which_mine", re.compile(r"^(?:which|what) (?P<which_mine>locker|gym locker|parking spot|parking space|spot|seat|room|desk|cubicle"
                               r"|gate|unit|apartment) (?:is mine|is my one|am i in|do i have|did i get|do i go to|am i at|is my flight at)\s*\??$")),
     # "What's in the freezer" after "I froze the leftover soup" (2026-10-08: to a model).
@@ -3968,7 +3974,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "applied_on", "applied_on2", "applied_on3", "what3", "what7", "due_by", "lastday", "lastday2", "lastday3",
                                            "told_on", "weighs", "size_of", "size_of2", "started_on", "goal_of", "how_kin", "kin_called", "got_when", "work_note", "wfh", "been_doing", "routine_when", "thing_cost", "house_todo", "dropped", "on_the_way", "where_now", "next_every", "last_visit", "kid_did", "kid_wants", "kid_wants2", "we_amt", "we_use", "have_left", "meal_prep", "call_back", "sent_kin", "make_with", "got_paid", "whose_event", "did_rsvp", "for_event", "fantasy", "borrowed_from", "paid_who", "in_hospital", "usual_spot", "card_limit", "who_with", "cost_of_it", "got_here", "got_here2", "get_my", "ordered_from", "still_good", "recipe_has", "cook_for", "days_taken", "claim_news", "did_call", "fav_place", "time_take", "stay_len", "before_they", "their_needs", "income_year", "which_mine", "reminder_next", "reminder_next2", "reminders_week", "reminders_week2", "out_today", "workouts_did", "episode_on", "episode_on2", "episode_on3", "rated", "who_called", "news_when", "task_about", "task_about2", "task_about3", "plans_for", "plans_for2", "broken2", "to_bring", "event_who", "event_who2", "still_valid", "still_valid2", "who_lives", "repeating", "repeating2", "who_said", "lift_max", "lift_max2", "lift_max3", "sick_since", "sick_since2", "sick_since3", "sick_since4", "born_age", "born_age2", "when_have", "pet_due", "shop_qty", "who_coming_noted", "do_i_work", "task_age", "how_did_i_do", "do_i_have", "left_on", "how_long_out", "asked_on", "asked_on2", "asked_on3", "asked_on4", "asked_on5", "asked_on6", "asked_on7", "day_part", "day_part2",
                                            "place", "place2", "place3", "when_with", "until_mine", "reminder_when", "reminder_when2", "did_finish",
-                                           "who_coming")
+                                           "who_coming", "airline", "airline2")
                      if captured.get(k)), "")
         if name in ("opportunity", "opportunity_loose", "applied_when", "person", "why_not", "draft_to"):
             # The layer matches on a LOWERCASED sentence (CLAUDE.md), and a
@@ -12450,7 +12456,9 @@ def _when_mine(what: str, until: bool = False) -> str | None:
                 and re.search(r"\b\d{1,2}(?:st|nd|rd|th|:\d\d| ?[ap]\.?m\b)|\b(?:at|on|the|by) \d{1,2}\b|\b\d{1,2}/\d{1,2}\b"
                               r"|day\b|tomorrow|tonight|noon|\bweekend\b|\b(?:next|this) (?:week|month|year)\b"
                               # "My next checkup is in January" (2026-10-08)
-                              r"|\bin (?:" + "|".join(_MONTHS) + r"|spring|summer|fall|autumn|winter)\b", said.casefold()):
+                              r"|\bin (?:" + "|".join(_MONTHS) + r"|spring|summer|fall|autumn|winter)\b"
+                              # "My flight to Denver is on November 3" (2026-10-28)
+                              r"|\b(?:" + "|".join(m[:3] for m in _MONTHS) + r")[a-z]*\.? \d{1,2}\b", said.casefold()):
             # A when, not just a number: "my rent is 1500" answered "when
             # is rent due" (2026-10-07).
             return f"You told me: {speech.as_she_says_it(said.rstrip('.'))}."
@@ -16784,6 +16792,28 @@ def _reminders_week(which: str) -> str:
     said = [f"{speech._yours(str(t).strip())}, {speech.humanize_time(a.isoformat())}" for a, t in rows[:6]]
     more = f", and {len(rows) - 6} more" if len(rows) > 6 else ""
     return f"{speech.count_phrase(len(rows), 'reminder')} {which}: {speech.and_list(said)}{more}."
+
+
+_AIRLINES = ("united", "delta", "american", "southwest", "alaska", "jetblue", "spirit", "frontier", "allegiant",
+             "sun country", "hawaiian", "breeze", "avelo", "air canada", "westjet", "british airways", "lufthansa",
+             "air france", "klm", "aer lingus", "icelandair", "emirates", "qatar", "volaris", "aeromexico")
+
+
+def _airline(where: str = "") -> str | None:
+    """"What airline am I flying": the airline in what he told her about a
+    flight. Nothing said hands on to a model, which may have his mail."""
+    from aletheia import speech
+    place = " ".join(str(where or "").casefold().split())
+    place = re.sub(r"^to ", "", place)
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split()).rstrip(".")
+        low = said.casefold()
+        if not re.search(r"\bfl(?:y|ying|ight|ights|ew)\b", low) or (place and place not in low):
+            continue
+        hit = next((a for a in _AIRLINES if re.search(rf"\b{a}\b", low)), None)
+        if hit:
+            return f"{hit.title() if hit != 'klm' else 'KLM'} - you told me: {speech.as_she_says_it(said)}."
+    return None
 
 
 def _which_mine(thing: str) -> str | None:
@@ -21341,6 +21371,7 @@ ANSWERS = {"halted": lambda rest: _halted(asks_if_down=bool(rest)),
            "symptom_when": _symptom_when,
            "day_of_year": _day_of_year,
            "which_mine": _which_mine,
+           "airline": _airline,
            "reminder_next": _reminder_next,
            "reminders_week": _reminders_week,
            "freezer": _freezer,
