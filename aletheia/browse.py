@@ -66,6 +66,19 @@ def _chromium_path() -> str | None:
     return None
 
 
+def _playwright_roots() -> list[str]:
+    """The folders Playwright keeps its browsers in, on this machine."""
+    roots = [os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or ""]
+    if os.name == "nt":
+        local = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+        roots.append(str(local / "ms-playwright"))
+        # Python from the Microsoft Store keeps what it installs in its own package cache.
+        roots += [str(p) for p in local.glob("Packages/PythonSoftwareFoundation.Python*/LocalCache/Local/ms-playwright")]
+    else:
+        roots += [str(Path.home() / ".cache" / "ms-playwright"), "/opt/pw-browsers"]
+    return roots
+
+
 def _playwright_chromium_exe() -> str | None:
     """The Chromium binary Playwright installed: the browser she drives when there is no Chrome.
 
@@ -73,12 +86,7 @@ def _playwright_chromium_exe() -> str | None:
     thread already running an event loop, and the fallback then hid the browser
     that was sitting right there.
     """
-    roots = [os.environ.get("PLAYWRIGHT_BROWSERS_PATH") or ""]
-    if os.name == "nt":
-        roots.append(str(Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
-                         / "ms-playwright"))
-    else:
-        roots += [str(Path.home() / ".cache" / "ms-playwright"), "/opt/pw-browsers"]
+    roots = _playwright_roots()
     names = ("chrome-win/chrome.exe", "chrome-win64/chrome.exe", "chrome-linux/chrome",
              "chrome-linux64/chrome", "chrome-mac/Chromium.app/Contents/MacOS/Chromium")
     for root in filter(None, roots):
@@ -86,13 +94,32 @@ def _playwright_chromium_exe() -> str | None:
             for name in names:
                 if (folder / name).is_file():
                     return str(folder / name)
+    # Still nothing (his PC, 2026-10-28): ask Playwright itself, in a process of
+    # its own so no event loop in this one can get in the way.
     try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as pw:
-            path = pw.chromium.executable_path
-        return path if path and Path(path).is_file() else None
-    except Exception:
-        return None
+        done = proc.run(
+            [sys.executable, "-c", "from playwright.sync_api import sync_playwright as s\n"
+             "with s() as p: print(p.chromium.executable_path)"],
+            capture_output=True, text=True, timeout=60)
+        out = done.stdout.strip().splitlines()
+        path = out[-1] if out else ""
+        if path and Path(path).is_file():
+            return path
+        err = (done.stderr.strip().splitlines() or [""])[-1]
+        _CHROMIUM_MISS["why"] = ("Playwright names a Chromium that is not there" if path
+                                 else _without_paths(err) or "Playwright gave no answer")
+    except Exception as exc:
+        _CHROMIUM_MISS["why"] = f"asking Playwright failed ({type(exc).__name__})"
+    return None
+
+
+#: Why the last Chromium lookup came back empty: a receipt is all the cloud ever sees.
+_CHROMIUM_MISS: dict = {}
+
+
+def _without_paths(text: str) -> str:
+    """A reason fit for a public receipt: no folder names, which carry his username."""
+    return re.sub(r"([A-Za-z]:)?[\\/][^\s'\"]+", "<path>", str(text or ""))[:200]
 
 
 def _system_chrome_path() -> str | None:
@@ -283,7 +310,8 @@ def native_login(url: str, profile: Path | None = None, *, wait: bool = True) ->
         chrome = _playwright_chromium_exe() or chrome
     if not chrome or not Path(chrome).is_file():
         raise RuntimeError(
-            "Google Chrome is required for the normal sign-in flow on Windows; "
+            "no Chrome and no Chromium of her own found "
+            f"({_CHROMIUM_MISS.get('why') or 'none on disk'}); "
             "install Chrome or set ALETHEIA_CHROME_PATH"
         )
     profile_path = Path(profile or PROFILE_DIR)
