@@ -15071,6 +15071,9 @@ def _interpret(transcript: str) -> dict:
     m = re.fullmatch(r"i (?:just )?(?:moved|re-?parked|left|put) (?:my|the) (?:car|truck|van) (?P<prep>to|in|into|at|on|by|outside|behind) (?P<where>(?!(?:drive|park|neutral|reverse|gear|sport mode)\b).{2,60})", low)
     if m:
         prep = {"to": "in", "into": "in"}.get(m.group("prep"), m.group("prep"))
+        # "Moved the car to level 5" is ON level 5, not in it.
+        if prep == "in" and re.match(r"(?:the )?(?:level|floor|deck|row|street|\d)", m.group("where")):
+            prep = "on"
         return {"command": {"kind": "note", "text": f"I parked {prep} {_as_he_said(text, m.group('where'))}"}, "say": None}
     # "I got gas today" (2026-10-08: to the planner) - kept, so "when did I
     # last get gas" has an answer.
