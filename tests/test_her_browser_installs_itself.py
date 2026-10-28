@@ -17,7 +17,7 @@ class HerBrowserInstallsItself(unittest.TestCase):
         self.state = Path(td.name) / "install.json"
         for patch in (mock.patch.object(browse, "_install_state_path", return_value=self.state),
                       mock.patch.object(browse.journal, "append"),
-                      mock.patch.dict(os.environ, {"ALETHEIA_NO_SELF_INSTALL": "", "ALETHEIA_REHEARSAL": ""})):
+                      mock.patch.dict(os.environ, {"ALETHEIA_NO_SELF_INSTALL": "", "ALETHEIA_REHEARSAL": "", "GITHUB_ACTIONS": ""})):
             patch.start()
             self.addCleanup(patch.stop)
 

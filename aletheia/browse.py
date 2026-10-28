@@ -940,7 +940,8 @@ def ensure_installed(*, now: float | None = None, spawner=None, importable=None)
     reason she is blind: once per INSTALL_EVERY_S, in the background, journaled.
     """
     out: dict = {}
-    if os.environ.get("ALETHEIA_NO_SELF_INSTALL") or os.environ.get("ALETHEIA_REHEARSAL"):
+    if (os.environ.get("ALETHEIA_NO_SELF_INSTALL") or os.environ.get("ALETHEIA_REHEARSAL")
+            or os.environ.get("GITHUB_ACTIONS")):  # a cloud runner is nobody's PC
         out["why"] = "installing is switched off here"
         return out
     has = importable if importable is not None else _playwright_importable()
