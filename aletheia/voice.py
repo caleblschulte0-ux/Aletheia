@@ -8679,6 +8679,15 @@ def _interpret(transcript: str) -> dict:
         if m.group("part"):
             command["part"] = m.group("part")
         return {"command": command, "say": None}
+    # "Is my afternoon free on Tuesday", "is my morning free tomorrow"
+    # (2026-10-28: to the planner, while "is my Tuesday afternoon free"
+    # answered) - the part said first and the day after.
+    # With no day it is today's ("is my afternoon free").
+    m = re.fullmatch(r"is (?:my |the |this )?(?P<part>morning|afternoon|evening) (?:free|open|clear|busy)"
+                     r"(?: (?:on |this )?(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday))?\s*\??", low)
+    if m and _spoken_day(m.group("day") or "today"):
+        return {"command": {"kind": "free_time", "day": _spoken_day(m.group("day") or "today"), "part": m.group("part")},
+                "say": None}
 
     # "Anything this evening", "do I have anything this afternoon"
     # (2026-10-07: to the planner) - that part of today's free time.
