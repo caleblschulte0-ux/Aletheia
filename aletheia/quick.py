@@ -3600,7 +3600,9 @@ def _direct(text: str) -> str:
     # "What's on next Tuesday" (2026-10-08: to a model, a turn after "a
     # dentist appointment next Tuesday" was put on the coming Tuesday): the
     # same day the hold was put on, asked the way the agenda reads it.
-    m = re.fullmatch(r"(?P<head>what(?:'s| is|s)? on(?: my calendar| my schedule)?(?: for)?|what do i have(?: on)?|what have i got(?: on)?)"
+    m = re.fullmatch(r"(?P<head>what(?:'s| is|s)? on(?: my calendar| my schedule)?(?: for)?|what do i have(?: on)?|what have i got(?: on)?"
+                     # "What's happening next Tuesday" (2026-10-28: to a model).
+                     r"|what(?:'s| is|s)? (?:happening|going on|coming up)|what am i doing|what are we doing)"
                      r" (?:this|next|this coming|the coming) (?P<day>monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s*\??", text)
     if m:
         return f"what's on {m.group('day')}"
@@ -7853,8 +7855,9 @@ def _agenda_on(words: str) -> str | None:
     if reminders:
         also = (f" You do have {speech.count_phrase(len(reminders), 'reminder')}: "
                 + speech.and_list([f"{clock(at)}, {text}" for at, text in reminders[:4]]) + ".")
+    told = _dated_notes(when) if when >= today else []
     if not rows:
-        return f"Nothing on your calendar on {label}." + also
+        return f"Nothing on your calendar on {label}." + (f" But you told me: {speech.and_list(told)}." if told else "") + also
     rows.sort()
     said = [title + (whole if whole else " at " + clock(start)) for start, title, whole in rows[:6]]
     return f"{label}: " + speech.and_list(said) + (f", and {len(rows) - 6} more" if len(rows) > 6 else "") + "." + also
@@ -7949,6 +7952,32 @@ def _agenda(day: str = "today") -> str | None:
             + (f" And you told me: {told}." if told else ""))
 
 
+def _date_said(d):
+    """"November 3", "Nov 3rd" or "3rd of November" - a note naming that
+    date (and not "November 30" or "November 3 2025")."""
+    return re.compile(rf"\b(?:{d.strftime('%B').lower()}|{d.strftime('%b').lower()}\.?) {d.day}(?:st|nd|rd|th)?(?:,? {d.year})?\b(?!:)(?!,? ?\d)"
+                      rf"|\b{d.day}(?:st|nd|rd|th)? of {d.strftime('%B').lower()}(?:,? {d.year})?\b(?!,? ?\d)")
+
+
+def _dated_notes(d) -> list[str]:
+    """His notes from the last 200 days naming date d, in his words."""
+    import datetime as dt
+    from aletheia import speech
+    said_re, long_ago, found = _date_said(d), dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=200), []
+    for row in _notes():
+        said = " ".join(str(row.get("text") or "").split())
+        try:
+            at = dt.datetime.fromisoformat(str(row.get("ts") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        low = said.casefold()
+        if at >= long_ago and said_re.search(low) and not re.match(r"(?:what|when|is|do|did|am)\b", low):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        if len(found) >= 3:
+            break
+    return found
+
+
 def _plans_told(day: str) -> str:
     """His notes from the past six days naming this weekday or the weekend
     ("we're having people over Friday night"), in his words - "" for any
@@ -7967,6 +7996,14 @@ def _plans_told(day: str) -> str:
         return ""
     pattern = (r"\b(?:weekend|saturday|sunday)\b" if word == "weekend" else rf"\b{word}\b")
     cut = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=6)
+    # "My flight to Denver is November 3 at 7 am", then "what's on Tuesday"
+    # (2026-10-28): a note naming that day's date is a plan on it.
+    from aletheia import localtime
+    today = dt.datetime.now(localtime.operator_tz()).date()
+    wanted = [today + dt.timedelta(days=(_WEEKDAYS.index(w) - today.weekday()) % 7)
+              for w in (("saturday", "sunday") if word == "weekend" else (word,))]
+    dated = [_date_said(d) for d in wanted]
+    long_ago = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=200)
     found = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
@@ -7981,6 +8018,8 @@ def _plans_told(day: str) -> str:
         # ago he said it (2026-10-28: "what's on Tuesday" said nothing).
         elif re.search(r"\bevery (?:single )?" + pattern[2:] + r"|" + pattern[:-2] + r"s\b", low) \
                 and not re.search(r"\bevery other\b|\bused to\b|\bno longer\b|\banymore\b|\bstopp?(?:ed)?\b", low):
+            found.append(speech.as_she_says_it(said).rstrip("."))
+        elif at >= long_ago and any(d.search(low) for d in dated) and not re.match(r"(?:what|when|is|do|did|am)\b", low):
             found.append(speech.as_she_says_it(said).rstrip("."))
         if len(found) >= 3:
             break

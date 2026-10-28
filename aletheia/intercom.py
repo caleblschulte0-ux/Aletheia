@@ -2236,7 +2236,7 @@ def _one_reminder(which: str, once: str = ""):
         if not rows:
             # "Cancel the eggs timer" with nothing running is about a timer.
             return None, ("You don't have a timer running." if re.search(r"\btimers?\b", needle)
-                          else "You have no alarms set." if re.search(r"\balarms?\b|^wake up$", needle)
+                          else "You have no alarms set." if re.search(r"\balarms?\b|^wake up\b", needle)
                           else "You have no reminders set.")
         # AN EMPTY ANSWER STILL PROVES THE STORE. "No reminder matching
         # 'plumber'." is true, is two sentences jammed together once the
