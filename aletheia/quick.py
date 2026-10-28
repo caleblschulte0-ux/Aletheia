@@ -7010,7 +7010,13 @@ def _tasks_done(when: str = "") -> str:
     noted = []
     for row in _notes():
         said = " ".join(str(row.get("text") or "").split())
-        m = re.match(r"i(?:'ve| have)? (?:just )?(finished|completed|wrapped up|did|done) (.+)", said, re.IGNORECASE)
+        if said.casefold().startswith("took my "):
+            said = "I " + said  # how voice keeps "I took my medicine"
+        # "I took my pills", "I called mom", "I paid the rent" are the same
+        # thing said with another verb (2026-10-28: "nothing ticked off").
+        m = re.match(r"i(?:'ve| have)? (?:just |already )?(finished|completed|wrapped up|did|done|took|called|paid|walked|"
+                     r"fed|cleaned|mowed|washed|watered|emailed|texted|mailed|sent|returned|picked up|dropped off|"
+                     r"fixed|changed|booked|went to|worked out) (.+)", said, re.IGNORECASE)
         if not m:
             continue
         try:
