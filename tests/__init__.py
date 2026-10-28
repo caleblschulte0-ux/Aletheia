@@ -53,6 +53,9 @@ if not os.environ.get("ALETHEIA_JOURNAL_PATH"):
 # The local-model lease is machine-wide on purpose (aletheia.local_lease): a
 # test that stands a fake model behind the pool must never queue behind, or
 # hold up, the live Core's real conversation.
+# A beat in a test must never pip-install anything onto the machine running it.
+os.environ.setdefault("ALETHEIA_NO_SELF_INSTALL", "1")
+
 if not os.environ.get("ALETHEIA_LOCAL_LEASE_DIR"):
     os.environ["ALETHEIA_LOCAL_LEASE_DIR"] = str(_suite_root / "locks")
 
