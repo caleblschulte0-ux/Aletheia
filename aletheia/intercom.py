@@ -3492,9 +3492,16 @@ def _clash_words(clashes: list) -> str:
     beside what it clashes with; empty when nothing does."""
     if not clashes:
         return ""
-    from aletheia import calendar_reasoning
+    from aletheia import calendar_reasoning, quick
     said = []
     for c in clashes[:3]:
+        days = quick._whole_days(c, localtime.operator_tz())
+        if days:
+            # A trip held as whole days is not "at 12 am" (2026-10-28).
+            day = lambda d: f"{d.strftime('%A')} {d.day} {d.strftime('%B')}"  # noqa: E731
+            said.append(f"{c.get('title')} " + (f"all day {day(days[0])}" if days[0] == days[1]
+                                                else f"from {day(days[0])} to {day(days[1])}"))
+            continue
         when = calendar_reasoning.human(c["start"])
         at = when.split(" at ", 1)[1] if " at " in when else when
         said.append(f"{c.get('title')} at {at}" if c.get("kind") == "overlap"
