@@ -3987,6 +3987,19 @@ def two_asks(transcript: str) -> list[str] | None:
         if handled(second.group("left")) and handled(right):
             return [second.group("left"), right]
 
+    # "Set a 3 minute tea timer and a 10 minute pasta timer" (2026-10-28: to
+    # the planner): the second timer has no verb of its own, so it borrows
+    # the first one's.
+    shared = re.fullmatch(r"(?P<verb>(?:set|start|make)(?: me| up)?) (?P<a>an? (?:[a-z0-9 -]+ )?timer\b.*?),? and (?:also )?"
+                          r"(?P<b>(?:an?|another|one more)\b.+)", said, re.IGNORECASE)
+    if shared:
+        b = re.sub(r"^(?:another|one more)(?: one)?\b", "a", shared.group("b"), flags=re.IGNORECASE)
+        if not re.search(r"\btimer\b", b, re.IGNORECASE):
+            b = re.sub(r"^an? ", "a timer ", b, flags=re.IGNORECASE)
+        asks = [f"{shared.group('verb')} {shared.group('a')}", f"{shared.group('verb')} {b}"]
+        if all(handled(a) for a in asks):
+            return asks
+
     try:
         whole = interpret(said) or {}
         # Read whole already - but a greedy capture can swallow a second ask:
