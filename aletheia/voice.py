@@ -3396,6 +3396,14 @@ def _named_list_said(low: str, text: str) -> dict | None:
         return {"command": None, "say": f"You don't have a {m.group('old')} list."}
     if re.fullmatch(r"(?:make|start|create|begin|new) (?:me )?(?:a )?(?:new )?list", low):
         return {"command": None, "say": "What should I call it? Say \"make a list called packing\"."}
+    # "Start a packing list with socks and a charger" (2026-10-28: to the
+    # planner): a new list with its first things on it is adding them.
+    m = re.fullmatch(r"(?:make|start|create|begin) (?:me )?(?:a |my )?(?:new )?(?P<sort>[a-z][a-z' -]{1,30}?) list"
+                     r"(?: with| containing| that has|:)(?: just)? (?P<items>[a-z0-9].{1,120})", low)
+    if m and (m.group("sort") in ("grocery", "groceries", "shopping") or lists.is_named_list(m.group("sort"))):
+        said = _interpret(f"add {_as_he_said(text, m.group('items'))} to my {m.group('sort')} list")
+        if (said.get("command") or {}).get("kind") in ("list_add", "shopping_add"):
+            return said
     # "Make a packing list for my trip" made a list called "my trip"
     # (2026-10-07): the sort of list he named is its name; "for my trip" is
     # what it is for.

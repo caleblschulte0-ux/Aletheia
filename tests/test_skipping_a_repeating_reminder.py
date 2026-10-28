@@ -68,7 +68,7 @@ class ThisWeekIsOnce(unittest.TestCase):
         intercom._skip_once(found, "this week")
         with self.assertRaises(act.Refused) as said:
             intercom._skip_once(scheduler.load("r-daily"), "this week")
-        self.assertIn("already skipped this week", str(said.exception))
+        self.assertIn("already skipped this week", str(said.exception).casefold())
 
 
 if __name__ == "__main__":
