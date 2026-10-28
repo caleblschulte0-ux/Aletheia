@@ -70,6 +70,14 @@ class HerBrowserInstallsItself(unittest.TestCase):
         self.assertNotIn("-r", first)
         self.assertEqual(browse.install_news(), "installed")
 
+    def test_the_refusal_carries_the_last_line_the_install_wrote(self):
+        self.state.with_name("install.log").write_text(
+            "installing playwright\nplaywright: exit 1: ERROR: pip is not installed in C:\\Users\\him\n", encoding="utf-8")
+        with mock.patch.dict(os.environ, {"ALETHEIA_NO_SELF_INSTALL": "1"}):
+            said = browse._kick_install()
+        self.assertIn("ERROR: pip is not installed", said)
+        self.assertNotIn("him", said)
+
     def test_the_beat_asks(self):
         from aletheia import runtime
         with mock.patch.object(browse, "ensure_installed", return_value={"ok": True}) as ensure:
