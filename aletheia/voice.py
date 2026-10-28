@@ -6170,7 +6170,7 @@ def _interpret(transcript: str) -> dict:
         # setting one was instant while cancelling it reached the planner.
         alarm = re.fullmatch(r"(?:cancel|stop|delete|turn off|remove|clear|switch off|kill) "
                              r"(?:the |my |that |all )?(?:my )?(?P<before>\d{1,2}(?::\d{2})?(?: ?[ap]\.?m\.?)? )?"
-                             r"(?:(?:weekday|weekend|daily|morning|everyday|work|school|wake ?up) )?alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
+                             r"(?:(?P<sort>weekday|weekend|daily|everyday)'?s? |(?:morning|work|school|wake ?up) )?alarms?(?: (?:for|at) (?:tomorrow|the morning|(?P<after>[\w: ]+)))?", low)
         # "Turn off my alarm for Friday" turned the weekday alarm off for good
         # (2026-10-23), the same as "for tomorrow" did before: any day he names.
         day = re.search(r" (?:for|on) (tomorrow|today|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
@@ -6188,7 +6188,10 @@ def _interpret(transcript: str) -> dict:
                 when += ":00"
             if when and not re.search(r"\d", when):
                 when = ""
-            return {"command": {"kind": "reminder_off", "which": ("wake up " + when).strip()},
+            # "Turn off my weekday alarm" with a weekday one and a one-off
+            # asked which (2026-10-28): the sort says which.
+            sort = {"everyday": "daily"}.get(alarm.group("sort") or "", alarm.group("sort") or "")
+            return {"command": {"kind": "reminder_off", "which": " ".join(("wake up " + when + " " + sort).split())},
                     "say": None}
     if m:
         # "CANCEL THAT REMINDER", straight after setting it, searched his

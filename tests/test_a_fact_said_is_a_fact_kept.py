@@ -7803,8 +7803,10 @@ class ARepeatingAlarmCanBeMoved(unittest.TestCase):
                                "text": "wake up", "replaces": "wake up"})
 
     def test_a_weekday_alarm_can_be_turned_off(self):
+        # The sort travels with it, so the weekday one is the one turned off
+        # (tests/test_turn_off_my_weekday_alarm.py).
         self.assertEqual(voice._interpret("turn off my weekday alarm")["command"],
-                         {"kind": "reminder_off", "which": "wake up"})
+                         {"kind": "reminder_off", "which": "wake up weekday"})
 
     def test_what_time_is_my_alarm_tomorrow_is_asked_of_her_alarms(self):
         self.assertEqual(quick.match("what time is my alarm tomorrow")[0], "alarm_q")

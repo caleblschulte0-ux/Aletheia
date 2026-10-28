@@ -2153,6 +2153,32 @@ def _one_reminder(which: str, once: str = ""):
     from aletheia import speech
     needle = " ".join(str(which or "").split()).casefold()
     rows = _reminder_schedules()
+    # "THE WEEKDAY ALARM", "my weekend one", "the daily reminder": named by
+    # how it repeats (2026-10-28: "which one - tomorrow at 6:30 am or
+    # weekdays at 7 am?"). Only narrows when one of his has that schedule.
+    sort = re.search(r"\b(weekdays?|weekends?|daily)\b", needle)
+    # Only for an alarm or the sort said alone: "the daily standup" is words.
+    if sort and not (needle.startswith("wake up") or re.fullmatch(
+            r"(?:the |my )?(?:weekdays?|weekends?|daily)(?: one| reminder)?", needle)):
+        sort = None
+    if sort and rows:
+        def _is(spec, what):
+            days = sorted(spec.get("weekdays") or [])
+            if what.startswith("weekday"):
+                return spec.get("kind") in ("weekly", "daily") and days == [0, 1, 2, 3, 4]
+            if what.startswith("weekend"):
+                return spec.get("kind") in ("weekly", "daily") and days == [5, 6]
+            return spec.get("kind") == "daily" and (not days or days == list(range(7)))
+        sorted_ = [r for r in rows if _is(r, sort.group(1))]
+        if sorted_:
+            rows = sorted_
+            needle = " ".join((needle[:sort.start()] + " " + needle[sort.end():]).split())
+        else:
+            alarm = needle.startswith("wake up")
+            mine = [r for r in rows if "wake up" in str((r.get("command") or {}).get("text") or "").casefold()] if alarm else rows
+            label = sort.group(1).rstrip("s") if sort.group(1) != "daily" else "daily"
+            return None, (f"You don't have a {label} {'alarm' if alarm else 'reminder'}. "
+                          + (_reminder_list_words(mine) if mine else ""))
     # "CANCEL MY 6:30 ALARM": with two alarms both saying "wake up", the
     # words cannot tell them apart and the clock can. Only a time that is
     # plainly a time - a colon or am/pm - so "the 5 minute timer" keeps its
