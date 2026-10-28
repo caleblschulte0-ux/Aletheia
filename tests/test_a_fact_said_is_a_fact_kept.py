@@ -4724,7 +4724,11 @@ class PushedBackAndCantMakeIt(unittest.TestCase):
 
     def test_his_own_event_is_said_plainly(self):
         from aletheia import voice
-        with mock.patch.object(voice, "_one_of_her_holds", return_value=(None, "")):
+        from aletheia import calendar
+        live = [{"id": "e1", "title": "Dentist appointment", "start": "2099-01-01T15:00:00Z",
+                 "end": "2099-01-01T16:00:00Z", "status": "CONFIRMED", "source": "google"}]
+        with mock.patch.object(voice, "_one_of_her_holds", return_value=(None, "")), \
+                mock.patch.object(calendar, "all_events", return_value=live):
             got = voice.interpret("push my dentist appointment back 30 minutes")
         self.assertIsNone(got["command"])
         self.assertIn("can't move", got["say"])
