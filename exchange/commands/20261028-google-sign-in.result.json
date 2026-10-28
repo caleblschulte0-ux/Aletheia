@@ -1,0 +1,6 @@
+{
+  "id": "20261028-google-sign-in",
+  "executed_at": "2026-10-28T00:51:45Z",
+  "outcome": "refused",
+  "detail": "I could not open my browser here (RuntimeError)."
+}
