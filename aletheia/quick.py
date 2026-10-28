@@ -3549,6 +3549,17 @@ def _direct(text: str) -> str:
     itself. Both went to a model, and "do you know what time it is" was a
     memory search for "what time it is" (2026-10-07). An embedded question
     puts the verb last; this puts it back."""
+    # "How many minutes in 2 and a half hours", "what's half an hour in
+    # seconds" (2026-10-28: to a model, while "2.5 hours" answered) - a
+    # spoken half in a duration conversion is the number.
+    if re.fullmatch(r"(?:how many (?:seconds|minutes|hours|days|weeks) (?:are |is )?(?:in|is|are) .+"
+                    r"|(?:convert |what(?:'s| is|s) ).+ (?:in|to|into) (?:seconds|minutes|hours|days|weeks))", text):
+        unit = r"(second|minute|hour|day|week)s?"
+        halved = re.sub(r"\b(\d+) and a half " + unit + r"\b", r"\1.5 \2s", text)
+        halved = re.sub(r"\b(?:an?|one) " + unit + r" and a half\b", r"1.5 \1s", halved)
+        halved = re.sub(r"\bhalf (?:an?|of an?) " + unit + r"\b", r"0.5 \1s", halved)
+        if halved != text:
+            return halved
     m = re.fullmatch(r"(?:do (?:you|u) know|tell me|can (?:you|u) tell me|could (?:you|u) tell me|please tell me)"
                      r" (?P<wh>what|when|where|who|how (?:much|many|long|far|old|hot|cold)|which \w+|what \w+)"
                      r" (?P<subj>.+?) (?P<verb>is|are|was|were)(?P<tail> like| at| for| from)?", text)
