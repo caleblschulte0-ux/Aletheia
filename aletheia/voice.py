@@ -9572,8 +9572,17 @@ def _interpret(transcript: str) -> dict:
         return {"command": None,
                 "say": "I can't cancel things on your calendar yet - I can only add holds to it. "
                        "If that's a reminder of mine, tell me what it's for and I'll turn it off."}
+    # "Clear thursday at 3" is "cancel my 3 on thursday" (2026-10-28: to the planner).
+    cleared = re.fullmatch(r"(?:clear|free up) (?:my )?(?P<day>today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday"
+                           r"|sunday) at (?P<t>\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?)", low)
+    if cleared:
+        low = f"cancel {cleared.group('t')} " + (cleared.group("day") if cleared.group("day") in ("today", "tomorrow")
+                                                  else f"on {cleared.group('day')}")
+    # "Cancel my 3 o'clock on thursday", "cancel my 3pm thursday" (2026-10-28:
+    # to the planner, though "cancel my 3 o'clock" took it off).
     if re.fullmatch(r"cancel (?:my |the )?(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)?|noon)"
-                    r"(?: (?:today|tomorrow|meeting|appointment|call))?", low) \
+                    r"(?: (?:meeting|appointment|call))?(?: (?:today|tomorrow|(?:on |this )?(?:monday|tuesday|wednesday"
+                    r"|thursday|friday|saturday|sunday)))?(?: (?:meeting|appointment|call))?", low) \
             or re.fullmatch(r"cancel (?:my |the )?[a-z' ]{2,30}? (?:appointment|meeting|lunch|dinner|call)"
                             r"(?: (?:today|tomorrow|on [a-z]+|this [a-z]+))?", low) \
             or re.fullmatch(r"(?:clear|empty|wipe|cancel everything on) (?:my |the )?(?:calendar|schedule|day)"

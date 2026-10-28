@@ -3920,6 +3920,23 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                 older = _forget_older_versions(gone)
                 return (f"Forgotten: {speech.as_she_says_it(gone)}"
                         + (", and what you'd told me before that." if older else "."))
+            # "Forget Jake's number" (2026-10-28) said she had nothing about
+            # it while "what's Jake's number" still read it from his contacts.
+            # The number or email goes; the person stays, and she says so.
+            field_m = re.fullmatch(r"(?:my )?(.+?)'s? (?:(?:phone|cell|mobile) )?(number|phone|cell|e-?mail(?: address)?)",
+                                   about.strip(), re.IGNORECASE)
+            if field_m:
+                try:
+                    from aletheia import contacts
+                    person = contacts.resolve(field_m.group(1), contacts.all_contacts())
+                except Exception:
+                    person = None
+                field = "emails" if "mail" in field_m.group(2).casefold() else "phones"
+                if person and person.get(field):
+                    contacts.update(person["id"], **{field: []})
+                    name = person.get("display_name") or field_m.group(1)
+                    what = "email" if field == "emails" else "number"
+                    return f"Forgotten {name}'s {what}. {name} is still in your contacts."
             # AN EMPTY ANSWER STILL PROVES THE STORE, and here it matters
             # twice: "I forgot it" about something she never had would
             # leave him believing a fact is gone that is still there.
