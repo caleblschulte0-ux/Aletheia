@@ -70,6 +70,29 @@ class NativeChromeLoginCase(unittest.TestCase):
                 browse.native_login("https://accounts.google.com/", profile=Path(td) / "p", wait=False)
             self.assertEqual(popen.call_args.args[0][0], str(chromium))
 
+    def test_with_nothing_on_disk_playwright_is_asked_in_its_own_process(self):
+        with tempfile.TemporaryDirectory() as td:
+            exe = Path(td) / "chrome.exe"
+            exe.write_bytes(b"")
+            answer = mock.Mock(stdout=f"{exe}\n", stderr="")
+            with mock.patch.object(browse, "_playwright_roots", return_value=[td]), \
+                 mock.patch.object(browse.proc, "run", return_value=answer) as run:
+                self.assertEqual(browse._playwright_chromium_exe(), str(exe))
+            self.assertEqual(run.call_args.args[0][0], browse.sys.executable)
+
+    def test_a_refusal_says_why_and_names_no_folder(self):
+        # His PC, 2026-10-28: three refusals that said only "RuntimeError".
+        missing = mock.Mock(stdout="", stderr="Traceback...\nModuleNotFoundError: No module named 'playwright' in C:\\Users\\him\\x.py\n")
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(browse, "_playwright_roots", return_value=[td]), \
+             mock.patch.object(browse.subprocess, "Popen"), \
+             mock.patch.object(browse, "_system_chrome_path", return_value=None), \
+             mock.patch.object(browse.proc, "run", return_value=missing):
+            with self.assertRaises(RuntimeError) as caught:
+                browse.native_login("https://accounts.google.com/", profile=Path(td) / "p", wait=False)
+        self.assertIn("No module named 'playwright'", str(caught.exception))
+        self.assertNotIn("him", str(caught.exception))
+
     def test_user_closing_browser_is_benign_cleanup(self):
         class TargetClosedError(Exception):
             pass
