@@ -2984,6 +2984,56 @@ def _timer_minutes(words: str) -> float | None:
     return int(m.group(1) or 0) * 60 + float(m.group(2))
 
 
+def _paused_timer(name: str = "") -> dict:
+    """"Pause the timer" (2026-10-28: "I can't pause a timer"). A timer is a
+    reminder at a set time, so pausing turns it off; how long it had left is
+    in the turned-off reminder itself (its time against when it was turned
+    off), which is what `_resumed_timer` reads back."""
+    import datetime as dt
+    from aletheia import speech as _sp
+    running = [(at, words) for at, words in _running_once("timer is up") if not name or f"{name} timer is up" in words.casefold()]
+    if not running:
+        return {"command": None, "say": "There's no timer running to pause."}
+    if len(running) > 1:
+        return {"command": None, "say": f"You have {len(running)} timers running - say which one to pause by its name."}
+    at, words = running[0]
+    seconds = max(0, (at - dt.datetime.now(dt.timezone.utc)).total_seconds())
+    left = (_sp.count_phrase(round(seconds / 60), "minute") if seconds >= 90
+            else _sp.count_phrase(max(1, round(seconds)), "second"))
+    return {"command": {"kind": "reminder_off", "which": words},
+            "say": f"Paused, with {left} left. Say \"resume the timer\" to start it again."}
+
+
+def _resumed_timer(name: str = "") -> dict:
+    """"Resume the timer": the timer he paused in the last half day, started
+    again with the time it had left when he paused it."""
+    import datetime as dt
+    try:
+        from aletheia import scheduler
+        specs = scheduler.all_schedules()
+    except Exception:
+        specs = []
+    now = dt.datetime.now(dt.timezone.utc)
+    paused = []
+    for spec in specs:
+        words = str((spec.get("command") or {}).get("text") or "")
+        if spec.get("kind") != "once" or spec.get("enabled") or "timer is up" not in words.casefold():
+            continue
+        if name and f"{name} timer is up" not in words.casefold():
+            continue
+        try:
+            at = dt.datetime.fromisoformat(str(spec.get("at")).replace("Z", "+00:00"))
+            off = dt.datetime.fromisoformat(str(spec.get("updated_at")).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        if at > off and now - off < dt.timedelta(hours=12):
+            paused.append((off, at, words))
+    if not paused:
+        return {"command": None, "say": "I don't have a paused timer. Say \"set a timer for 5 minutes\"."}
+    off, at, words = max(paused)
+    return {"command": {"kind": "remind_at", "at": (now + (at - off)).isoformat(), "text": words}, "say": None}
+
+
 def _restarted_timer() -> dict:
     """"Restart the timer" (2026-10-07: "I can't pause a timer"): the same
     length again from now - the one running, or the one that just went off."""
@@ -6708,9 +6758,14 @@ def _interpret(transcript: str) -> dict:
             and (low != "again" or "timer" in _previous_turn()[1].casefold()):
         return _restarted_timer()
     # "Pause the bread timer" (2026-10-14: a named timer went to the planner).
-    if re.fullmatch(r"(?:pause|hold|freeze|resume|unpause) (?:the |my |that )?(?:[a-z]+ ){0,2}timers?", low):
-        return {"command": None, "say": "I can't pause a timer - it goes off at a set time. I can cancel it, "
-                                         "or add minutes: say \"add 5 minutes\"."}
+    m = re.fullmatch(r"(?P<verb>pause|hold|freeze|resume|unpause|continue) (?:the |my |that )?(?P<name>(?:[a-z]+ ){0,2})timers?", low)
+    if m:
+        name = m.group("name").strip()
+        if name in ("kitchen", "the", "my"):
+            name = ""
+        if m.group("verb") in ("pause", "hold", "freeze"):
+            return _paused_timer(name)
+        return _resumed_timer(name)
     # "Remind me in 10" and "a timer for 20" (2026-10-07: to the planner):
     # a bare number of a kitchen timer is minutes.
     bare = re.fullmatch(r"(remind me in|(?:set|start) (?:a |me a )?timer for|timer for) (\d{1,3})( (?:to|about|that) .+)?", low)
