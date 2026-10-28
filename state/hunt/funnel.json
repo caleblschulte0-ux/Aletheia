@@ -311,7 +311,7 @@
   "boards": {
     "ashby": 139,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 101,
     "lever": 77,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -516,23 +516,23 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 19,
-      "found": 181,
+      "filled": 12,
+      "found": 174,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     },
     "2026-10-27": {
-      "filled": 6,
-      "found": 17,
-      "interviews": 0,
+      "filled": 13,
+      "found": 24,
+      "interviews": 1,
       "rejections": 0,
-      "replies": 0,
+      "replies": 1,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-28T01:10:54Z",
+  "generated_at": "2026-10-28T01:41:40Z",
   "question_shapes": {
     "employer_site: field: _": 18,
     "employer_site: field: _ _": 12,
@@ -545,18 +545,18 @@
     "employer_site: field: state select a state the _ would _ _ the _ _": 1,
     "employer_site: field: work _": 4,
     "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 6,
+    "lever: checkbox: _": 1,
     "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: text: other": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
-    "recruitee: radio: _ _ _ that this is a _ _ and _ _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: checkbox: what _ do you have of email _ _ _": 1,
     "workable: field: resume _": 1,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1,
@@ -662,15 +662,15 @@
   "totals": {
     "filled": 224,
     "found": 627,
-    "interviews": 13,
+    "interviews": 14,
     "rejections": 20,
-    "replies": 52,
+    "replies": 53,
     "sent": 120
   },
   "waiting": {
     "asked_about": {
       "address": 1,
-      "contact": 2,
+      "contact": 1,
       "on_site": 2,
       "other": 25,
       "pay": 2,
