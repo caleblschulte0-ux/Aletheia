@@ -2785,6 +2785,27 @@ def _undo_his_last_ask() -> str | None:
                 from aletheia import speech
                 return f"I couldn't put {what} back on your list: {speech.plainly(str(exc))}"
             return f"Undone: {what} is back on your list."
+        # "Delete the taxes task", then "undo that" (2026-10-28: "Nothing to
+        # undo"). A dropped task never changes again either, so it goes back
+        # on as itself, with the day it was due.
+        dropped = re.match(r"Took it off your list: (.+?)\.$", str(turn.get("she_answered") or "").strip())
+        if dropped:
+            what = dropped.group(1).strip()
+            try:
+                import time as _time
+                from aletheia import tasks as _tasks
+                gone = sorted((t for t in _tasks.all_tasks() if t.get("status") == "CANCELLED"
+                               and " ".join(str(t.get("description") or "").split()).casefold() == what.casefold()),
+                              key=lambda t: str(t.get("updated_at") or ""), reverse=True)
+                slug = re.sub(r"[^a-z0-9]+", "-", what.casefold()).strip("-")[:32] or "task"
+                again = {"kind": "task_new", "id": f"{slug}-{int(_time.time()) % 100000}", "description": what}
+                if gone and gone[0].get("deadline"):
+                    again["deadline"] = gone[0]["deadline"]
+                execute_command(again, {}, quote="undo that")
+            except act.Refused as exc:
+                from aletheia import speech
+                return f"I couldn't put {what} back on your list: {speech.plainly(str(exc))}"
+            return f"Undone: {what} is back on your list."
         # A QUESTION in between changes nothing: "put lunch on Friday",
         # "who is it with", "cancel it" means the lunch (2026-10-07).
         # A note is journaled at the read-only tier, so it read as a question
