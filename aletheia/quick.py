@@ -5173,11 +5173,21 @@ def _tasks_due(which: str = "") -> str | None:
     # (2026-10-07). Asked about one day, the day is the head and each task
     # is just what it is.
     one_day = which in ("due today", "due tomorrow", "due next week", "due next month") and not late
+    # "What's on my list for this week" said "1 thing due: take out recycling
+    # due tomorrow" (2026-10-28): the window he named is the head, and each
+    # task keeps its own day without a second "due".
+    window = which in ("due this week", "due this month", "due soon") and not late
+
+    def _with_day(t):
+        words = intercom._task_words(t)
+        lead = str(t.get("description") or t.get("id"))[:70] + " due "
+        return lead[:-5] + " " + words[len(lead):] if words.startswith(lead) else words
     said = speech.and_list([str(t.get("description") or t.get("id")).strip().rstrip(".") if one_day
+                            else _with_day(t) if window
                             else intercom._task_words(t) for _w, t in dated[:5]])
     more = f", and {len(dated) - 5} more" if len(dated) > 5 else ""
     head = (f"{speech.count_phrase(len(dated), 'thing')} overdue" if overdue_only
-            else f"{speech.count_phrase(len(dated), 'thing')} {which}" if one_day
+            else f"{speech.count_phrase(len(dated), 'thing')} {which}" if one_day or window
             else f"{speech.count_phrase(len(dated), 'thing')} due" + (f", {len(late)} already late" if late else ""))
     return f"{head}: {said}{more}.{also}"
 
