@@ -921,6 +921,88 @@ def interact(url: str, steps: list[dict], approval_id: str,
     return result
 
 
+#: How often a missing browser may be installed again after a try.
+INSTALL_EVERY_S = 6 * 3600.0
+
+
+def _install_state_path() -> Path:
+    from aletheia import stateio
+    return stateio.private_dir("browser") / "install.json"
+
+
+def ensure_installed(*, now: float | None = None, spawner=None, importable=None) -> dict:
+    """Her browser is on this machine, or is being put there. Never raises.
+
+    His PC, 2026-10-28: the Python the Core runs on had no Playwright at all,
+    so the Google sign-in, every page she reads and every form she fills
+    refused, and nothing said so. The repo already lists what she needs
+    (requirements-optional.txt), so a missing browser is an install, not a
+    reason she is blind: once per INSTALL_EVERY_S, in the background, journaled.
+    """
+    out: dict = {}
+    if os.environ.get("ALETHEIA_NO_SELF_INSTALL") or os.environ.get("ALETHEIA_REHEARSAL"):
+        out["why"] = "installing is switched off here"
+        return out
+    has = importable if importable is not None else _playwright_importable()
+    if has and _browser_on_disk():
+        out["ok"] = True
+        return out
+    wall = time.time() if now is None else now
+    try:
+        from aletheia import stateio
+        state = stateio.read_json(_install_state_path())
+    except Exception:  # noqa: BLE001
+        state = {}
+    if state.get("started_at") is not None and wall - float(state["started_at"]) < INSTALL_EVERY_S:
+        out["why"] = "her browser is being installed"
+        return out
+    try:
+        pid = (spawner or proc.spawn_detached)([sys.executable, "-m", "aletheia.browse", "install"],
+                                               cwd=str(REPO_ROOT))
+    except Exception as exc:  # noqa: BLE001
+        out["why"] = f"could not start installing her browser ({type(exc).__name__})"
+        return out
+    try:
+        from aletheia import stateio
+        stateio.write_json_atomic(_install_state_path(), {"started_at": wall, "pid": pid})
+    except Exception:  # noqa: BLE001
+        pass
+    journal.append("action", "browser", "installing my browser, which was not on this machine",
+                   actor="aletheia-browser")
+    out["started"] = True
+    out["why"] = "installing her browser in the background"
+    return out
+
+
+def _playwright_importable() -> bool:
+    import importlib.util
+    try:
+        return importlib.util.find_spec("playwright") is not None
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _browser_on_disk() -> bool:
+    chrome = _system_chrome_path()
+    return bool((chrome and Path(chrome).is_file()) or _playwright_chromium_exe())
+
+
+def install() -> int:
+    """What `ensure_installed` runs in its own process: the repo's own list, then Chromium."""
+    steps = [[sys.executable, "-m", "pip", "install", "--quiet", "--only-binary=:all:",
+              "-r", str(REPO_ROOT / "requirements-optional.txt")],
+             [sys.executable, "-m", "playwright", "install", "chromium"]]
+    for cmd in steps:
+        done = proc.run(cmd, capture_output=True, text=True, timeout=1800)
+        if done.returncode != 0:
+            journal.append("action", "browser",
+                           f"could not install my browser: {_without_paths((done.stderr or done.stdout or '').strip()[-200:])}",
+                           actor="aletheia-browser")
+            return done.returncode
+    journal.append("action", "browser", "installed my browser", actor="aletheia-browser")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Drive the authorized browser profile.")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -929,7 +1011,10 @@ def main(argv: list[str] | None = None) -> int:
     p_s = sub.add_parser("shot"); p_s.add_argument("url"); p_s.add_argument("out")
     p_l = sub.add_parser("login")
     p_l.add_argument("url", help="open real Chrome so you can sign in once")
+    sub.add_parser("install", help="install what her browser needs (the Core does this itself)")
     args = ap.parse_args(argv)
+    if args.cmd == "install":
+        return install()
 
     ok, reason = available()
     if args.cmd == "status":

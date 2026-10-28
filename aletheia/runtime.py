@@ -1470,6 +1470,11 @@ def _kick_shorts_mailbox(fleet: dict, now: dt.datetime) -> dict:
     return shorts_mailbox.kick(fleet, now=now)
 
 
+def _heal_browser() -> dict:
+    from aletheia import browse
+    return browse.ensure_installed()
+
+
 def _heal_local_ai() -> dict:
     from aletheia import local_model_pool
     return local_model_pool.ensure()
@@ -1531,6 +1536,8 @@ def tick(fleet: dict, *, now: dt.datetime | None = None,
     # ran out of time before it every time, so the smaller model was never
     # fetched and the rung under the fast one never existed.
     local_ai_heal = guarded("local_ai", _heal_local_ai)
+    # Her browser likewise (2026-10-28: no Playwright on the Core's Python, every page refused).
+    guarded("browser installed", _heal_browser)
     # His standing rulings (config/rulings.json) take effect without his
     # keyboard: the interviews grant is created from his own words when the
     # ruling says ON and no grant is live. Cheap: one grant listing.
