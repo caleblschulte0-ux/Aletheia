@@ -957,16 +957,20 @@ def ensure_installed(*, now: float | None = None, spawner=None, importable=None)
         out["why"] = "her browser is being installed"
         return out
     try:
+        kwargs = {"cwd": str(REPO_ROOT)}
+        if spawner is None:
+            kwargs["log_path"] = _install_state_path().with_name("install.log")
+            kwargs["log_path"].parent.mkdir(parents=True, exist_ok=True)
         pid = (spawner or proc.spawn_detached)([sys.executable, "-m", "aletheia.browse", "install"],
-                                               cwd=str(REPO_ROOT))
+                                               **kwargs)
     except Exception as exc:  # noqa: BLE001
         out["why"] = f"could not start installing her browser ({type(exc).__name__})"
         return out
     try:
         from aletheia import stateio
         stateio.write_json_atomic(_install_state_path(), {"started_at": wall, "pid": pid, "result": ""})
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        out["unrecorded"] = type(exc).__name__
     journal.append("action", "browser", "installing my browser, which was not on this machine",
                    actor="aletheia-browser")
     out["started"] = True
@@ -994,6 +998,8 @@ def install() -> int:
     must not cost her the browser. How it went is written down where the
     next refusal can say it.
     """
+    _note_install(result="", running=True)
+    print("installing playwright", flush=True)
     steps = [("playwright", [sys.executable, "-m", "pip", "install", "--quiet", "playwright>=1.40"]),
              ("chromium", [sys.executable, "-m", "playwright", "install", "chromium"])]
     for what, cmd in steps:
@@ -1002,6 +1008,7 @@ def install() -> int:
             code, err = done.returncode, (done.stderr or done.stdout or "").strip()
         except Exception as exc:  # noqa: BLE001
             code, err = 1, f"{type(exc).__name__}: {exc}"
+        print(f"{what}: exit {code}: {(err.splitlines() or [''])[-1]}", flush=True)
         if code != 0:
             why = f"installing {what} failed: {_without_paths(err.splitlines()[-1] if err else 'no output')}"
             _note_install(result=why)
@@ -1032,8 +1039,22 @@ def _note_install(**changes) -> None:
 
 def _kick_install() -> str:
     """Asked for a browser she does not have: start getting it now, not on the next beat."""
-    started = ensure_installed().get("started")
-    return "installing it now" if started else install_news()
+    before = install_news()
+    kicked = ensure_installed()
+    said = f"installing it now (before: {before}" if kicked.get("started") else f"{before} ("
+    if kicked.get("unrecorded"):
+        said += f"; could not note it: {kicked['unrecorded']}"
+    return said + f"; log: {_install_log_tail()})"
+
+
+def _install_log_tail() -> str:
+    """The last thing the install said, for a receipt the cloud can read."""
+    try:
+        lines = [line.strip() for line in _install_state_path().with_name("install.log")
+                 .read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+    except Exception:  # noqa: BLE001
+        return "none"
+    return _without_paths(lines[-1]) if lines else "empty"
 
 
 def install_news() -> str:
