@@ -2231,6 +2231,8 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"|^what (?:did|have) i (?:write|written|jot|jotted|note|noted) down\s*\??$"
         r"|^what (?:have|did) i (?:told|tell) (?:you|u)(?: to remember| to note)?\s*\??$|^what have (?:you|u) noted(?: down)?$"
         r"|^what (?:have|did) i (?:asked|ask) (?:you|u) to remember\s*\??$"
+        # "What have you remembered for me" (2026-10-28: to the planner).
+        r"|^what (?:have|did) (?:you|u) (?:remembered|remember|saved|save|kept|keep) for me\s*\??$"
         r"|^how many notes (?:do i have|have i got|are there)\s*\??$")),
     # "What's my last note", "what did I note yesterday" (2026-10-07: to
     # the planner). The journal keeps when each was written.
@@ -2238,6 +2240,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         r"^(?:what(?:'s| is|s| was)|read(?: me)?|tell me) (?:my |the )?(?:last|latest|newest|most recent) note\s*\??$")),
     ("notes_day", re.compile(
         r"^what (?:did i|notes did i) (?:note|write down|jot down|save|take|make) (?P<notes_day>today|yesterday|this week|last week)\s*\??$"
+        # "What did I ask you to remember today", "what did you note today"
+        # (2026-10-28: both to the planner, which was out).
+        r"|^what (?:did|have) i (?:ask|asked|tell|told) (?:you|u) to (?:remember|note|write down|save) (?P<notes_day3>today|yesterday|this week|last week)\s*\??$"
+        r"|^what (?:did|have) (?:you|u) (?:note|noted|save|saved|remember|remembered|write down|written down) (?:for me )?(?P<notes_day4>today|yesterday|this week|last week)\s*\??$"
         r"|^(?:what (?:are|were) |read(?: me)? |show(?: me)? )?(?:my |the )?notes (?:from|for) (?P<notes_day2>today|yesterday|this week|last week)\s*\??$")),
     # "Is milk on my list" went to the planner (2026-10-07). The list is a
     # store; whether a thing is on it is a read.
@@ -3970,7 +3976,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "time_in6", "time_in7", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "recall15", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "alarm_any", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "recall15", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "notes_day3", "notes_day4", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "alarm_any", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
