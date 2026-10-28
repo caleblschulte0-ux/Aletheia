@@ -3681,6 +3681,9 @@ _TEXTED = (
     (r"\b(?:wats|wuts|whatz)\b", "what's"),
     (r" (?:pls|plz)$", ""),
     (r"\b(my|the) (?:todo|to-do)(?: list)?$", r"\1 to do list"),
+    # "What's on my groceries list" (2026-10-28: to a model, while "my
+    # grocery list" read the shopping list) is the same list.
+    (r"\b(my|the|our) groceries list\b", r"\1 grocery list"),
 )
 
 
