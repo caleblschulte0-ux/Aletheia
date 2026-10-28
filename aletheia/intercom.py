@@ -1434,6 +1434,38 @@ def _reminder_schedules() -> list[dict]:
     return out
 
 
+def _last_word(spec: dict) -> str:
+    """The word he would name a reminder by - its last: "vitamins" in "take
+    your vitamins". Empty when that word would not find it."""
+    words = re.findall(r"[a-z']+", str((spec.get("command") or {}).get("text") or "").casefold())
+    return words[-1] if words and len(words[-1]) > 2 and words[-1] not in ("it", "him", "her", "them", "up") else ""
+
+
+def _stopped_reminders() -> list[dict]:
+    """Reminders he stopped this past week and could put back: repeating
+    ones, and one-offs whose time has not gone by. Newest first."""
+    import datetime as _dt
+    from aletheia import scheduler
+    now = _dt.datetime.now(_dt.timezone.utc)
+    out = []
+    for spec in scheduler.all_schedules():
+        if spec.get("enabled", True) or spec.get("kind") not in REMINDER_KINDS:
+            continue
+        if str((spec.get("command") or {}).get("kind")) != "notify_operator":
+            continue
+        try:
+            # Asked as if it were on: a stopped schedule has no next time.
+            if scheduler._next_occurrence({**spec, "enabled": True}, now) is None:
+                continue
+            # This past week only: one he cancelled a month ago is not news.
+            changed = _dt.datetime.fromisoformat(str(spec.get("updated_at") or "").replace("Z", "+00:00"))
+        except Exception:  # noqa: BLE001
+            continue
+        if now - changed <= _dt.timedelta(days=7):
+            out.append(spec)
+    return sorted(out, key=lambda r: str(r.get("updated_at") or ""), reverse=True)
+
+
 def _window_words(spec: dict) -> str:
     """"9 am to 5 pm on weekdays": the hours an interval reminder keeps to."""
     from aletheia import speech
@@ -1589,15 +1621,21 @@ def _reminders_answer(which: str = "") -> str:
             if noun != "reminder":
                 return f"You have no {noun}s set."
             return f"No reminder matching {which!r}."
+    # "Pause my vitamin reminder", then "what reminders do I have" said "You
+    # have no reminders set" (2026-10-28): a stopped one is kept, and his.
+    stopped = [] if which else _stopped_reminders()
+    held = (f" You stopped {'this one' if len(stopped) == 1 else 'these'} this week: {speech.and_list([_alarm_words(r) for r in stopped[:3]])}."
+            + (f" Say \"resume my {_last_word(stopped[0])} reminder\" to put it back." if len(stopped) == 1 and _last_word(stopped[0]) else "")
+            if stopped else "")
     if not rows:
         if at_home:
-            return f"Just the one for when you get home: {speech.and_list(home)}."
-        return "You have no reminders set."
+            return f"Just the one for when you get home: {speech.and_list(home)}." + held
+        return ("None are on right now." + held) if held else "You have no reminders set."
     rows = _soonest_first(rows)
     said = speech.and_list([_alarm_words(r, alone=noun == "alarm") + _skipped_words(r) for r in rows[:5]])
     more = f", and {len(rows) - 5} more" if len(rows) > 5 else ""
     return (f"{speech.count_phrase(len(rows), noun)}: {said}{more}."
-            + (f" And {at_home}." if at_home and noun == "reminder" else ""))
+            + (f" And {at_home}." if at_home and noun == "reminder" else "") + held)
 
 
 def _skipped_words(spec: dict) -> str:

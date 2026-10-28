@@ -5125,9 +5125,16 @@ def _interpret(transcript: str) -> dict:
             _LOOKING_BACK.put_back = False
         if got:
             return got
-    m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)", low)
+    m = re.fullmatch(r"(?:turn|switch|put) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm) (?:back on|on again|back)"
+                     # "Resume my vitamin reminder" (2026-10-28: to the planner).
+                     r"|(?:resume|unpause|unmute|restart|bring back) (?:the |my )?(?P<w2>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)s?", low)
     if m:
-        return {"command": {"kind": "reminder_on", "which": m.group("w")}, "say": None}
+        return {"command": {"kind": "reminder_on", "which": m.group("w") or m.group("w2")}, "say": None}
+    # "Pause my vitamin reminder" with no length (2026-10-28: to the
+    # planner) stops it, kept, until he puts it back.
+    m = re.fullmatch(r"(?:pause|mute|silence|hold) (?:the |my )?(?P<w>[a-z][a-z' ]{1,30}?) (?:reminder|alarm)s?(?: for now)?", low)
+    if m and m.group("w") not in ("all", "all my", "all the", "all of my"):
+        return {"command": {"kind": "reminder_off", "which": m.group("w")}, "say": None}
     m = re.match(r"^(resume|un-?halt|halt|close|open|shut down|turn off|"
                  r"turn on|go to sleep|wake up)\s+"
                  r"((?:yourself|aletheia|thea|it|everything|all|again|now|"

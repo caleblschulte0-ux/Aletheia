@@ -55,7 +55,8 @@ class TheWholeConversationWorks(unittest.TestCase):
         return intercom.execute_command(cmd, {})
 
     def test_nothing_set_says_so(self):
-        with mock.patch.object(intercom, "_reminder_schedules", return_value=[]):
+        with mock.patch.object(intercom, "_reminder_schedules", return_value=[]), \
+                mock.patch.object(intercom, "_stopped_reminders", return_value=[]):
             self.assertEqual(self.run_it({"kind": "reminders"}),
                              "You have no reminders set.")
 

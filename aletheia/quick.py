@@ -12451,6 +12451,23 @@ def _alarm_any(day: str) -> str | None:
     return "Yes - " + said[0].lower() + said[1:]
 
 
+def _skipped_on(iso: str, tz) -> list[str]:
+    """The words of each repeating reminder he skipped on that day."""
+    import datetime as dt
+    from aletheia import intercom
+    out = []
+    try:
+        for spec in intercom._reminder_schedules():
+            for stamp in spec.get("skips") or []:
+                at = dt.datetime.fromisoformat(str(stamp)[:16]).replace(tzinfo=dt.timezone.utc)
+                if at.astimezone(tz).date().isoformat() == iso:
+                    out.append(str((spec.get("command") or {}).get("text") or "a reminder"))
+                    break
+    except Exception:  # noqa: BLE001
+        return out
+    return out
+
+
 def _reminders_on(day: str, alarms: bool = False) -> str | None:
     """His reminders and alarms that go off on the day he names - only the
     alarms when he asked about those."""
@@ -12484,7 +12501,12 @@ def _reminders_on(day: str, alarms: bool = False) -> str | None:
         from aletheia import speech
         return f"{speech.count_phrase(len(rows), 'alarm')} {when}: {speech.and_list(clock)}."
     if not rows:
-        return f"No reminders {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}."
+        # "Skip tomorrow's vitamin reminder", then "what reminders do I have
+        # tomorrow" (2026-10-28): the skipped one is why there are none.
+        skipped = _skipped_on(iso, tz)
+        from aletheia import speech
+        return (f"No reminders {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}."
+                + (f" You skipped {'one' if len(skipped) == 1 else 'these'}: {speech.and_list([speech._yours(t.rstrip('.')) for t in skipped[:3]])}." if skipped else ""))
     from aletheia import speech
     said = [f"{at.strftime('%I:%M %p').lstrip('0').replace(':00 ', ' ').lower()}, {speech._yours(text.rstrip('.'))}" for at, text in rows[:6]]
     lead = f"{speech.count_phrase(len(rows), 'reminder')} {day if day in ('today', 'tonight', 'tomorrow') else 'on ' + day.capitalize()}: "
