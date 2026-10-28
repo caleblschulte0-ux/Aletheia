@@ -1,0 +1,11 @@
+{
+  "id": "20261028-google-sign-in-6",
+  "filed": "2026-10-28T04:47:38Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Oh my god, prompt me to do the calendar thing then. Hurry the fuck up.",
+  "command": {
+    "kind": "open_page",
+    "which": "her google sign-in"
+  }
+}
