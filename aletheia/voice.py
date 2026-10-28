@@ -12458,6 +12458,21 @@ def _interpret(transcript: str) -> dict:
             unit = unit.rstrip("s")
         lead = "" if unit in ("miles", "mile", "k", "km") else "for "
         return {"command": {"kind": "note", "text": f"I {past} {lead}{n} {unit}"}, "say": None}
+    # "The gate code changed to 7777", "the gate code is now 1234"
+    # (2026-10-28: the first to the planner, the second kept beside the old
+    # code as a second note) - the same change as "change the gate code to".
+    m = re.fullmatch(r"(?P<whose>my|the|our) (?P<what>[a-z][a-z' ]{1,30}?) (?:is now|(?:has |was |got |just )?changed to)"
+                     r" (?P<val>[a-z0-9#*][\w#*:. -]{0,40})", low)
+    if m and not getattr(_LOOKING_BACK, "changed_to", False):
+        _LOOKING_BACK.changed_to = True
+        try:
+            for again in (f"change {m.group('whose')} {m.group('what')} to {m.group('val')}",
+                          f"{m.group('whose')} {m.group('what')} is {m.group('val')}"):
+                said = _interpret(again)
+                if (said.get("command") or {}).get("kind") == "note" or said.get("say") == _NO_PASSWORDS:
+                    return said
+        finally:
+            _LOOKING_BACK.changed_to = False
     # "THE GATE CODE IS 4471" (2026-10-07: to the planner). A code or
     # number of his, told as a fact about "the" thing, is a note in his
     # words; a password still is not (`_no_password_in_a_note`).
