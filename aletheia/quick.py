@@ -7315,13 +7315,17 @@ def _did_last(text: str) -> str | None:
         if at is None:
             return f"You told me {told}."
         when = speech.humanize_time(at.isoformat())
+        # "I fed the dog at 6": the clock he said is the time, and when he
+        # said it is only the day ("at 6 - that was today at 7:31 am").
+        if re.search(r" (?:at|around|about) (?:\d{1,2}(?::\d\d)?(?: ?(?:am|pm))?|noon)$", told, flags=re.I):
+            when = when.split(" at ")[0]
         if g.get("did_v5"):
             days = (dt.datetime.now(tz).date() - at.date()).days
             lead = "Not long" if days <= 0 else speech.count_phrase(days, "day")
             return f"{lead} - you told me {told} {when}."
         if window in ("today", "yet", "this morning"):
             if at.date() == dt.datetime.now(tz).date():
-                return f"Yes - you told me {told}, {when}."
+                return f"Yes - you told me {told}{' ' if when == 'today' else ', '}{when}."
             return f"Not today that you've told me. The last time was {when}."
         # "Did I pay rent this month" (2026-10-07: "not that you've told me"
         # one turn after "I paid rent").
@@ -7331,6 +7335,8 @@ def _did_last(text: str) -> str | None:
             if at.date() >= first:
                 return f"Yes - you told me {told}, {when}."
             return f"Not {window} that you've told me. The last time was {when}."
+        if when in ("today", "yesterday"):
+            return f"You told me {told} {when}."
         return f"You told me {told} - that was {when}."
     if service:
         # "I got a haircut" ticked off the task "get a haircut" rather than
