@@ -293,6 +293,8 @@ KIND_ARGS: dict[str, tuple[set[str], set[str]]] = {
     "remind_daily":    ({"time", "text"}, {"tz", "every", "replaces"}),
     # day is a date of the month; or nth (1-4, or -1 for the last) of weekday.
     "remind_monthly":  ({"time", "text"}, {"day", "nth", "weekday", "tz", "replaces"}),
+    # "Every year on our anniversary": one day of one month, 1-12 and 1-31.
+    "remind_yearly":   ({"month", "day", "time", "text"}, {"tz", "replaces"}),
     # "Every hour", "every 30 minutes": within the day, from now.
     "remind_every":    ({"minutes", "text"}, {"replaces", "between", "days"}),
     # "every Monday at 8, take the bins out". `scheduler` has had a
@@ -584,6 +586,12 @@ KIND_NOTES: dict[str, str] = {
         'uses its last day), time is 24-hour HH:MM in his timezone. For '
         '"the last Friday of every month" or "the first Monday", give nth '
         '(1-4, or -1 for the last) and weekday (the day name) instead of day.'),
+    "remind_yearly": (
+        'A reminder that repeats once a year - "every year on March 3rd '
+        'for our anniversary", "every year on Mom\'s birthday, June 12". '
+        'month is 1-12, day is 1-31 (February 29 uses the 28th in other '
+        'years), time is 24-hour HH:MM in his timezone; 09:00 if he names '
+        'none.'),
     "remind_weekly": (
         'A reminder that repeats on named days — "every Monday", "every '
         'weekday at 7", "Tuesdays and Thursdays". days is a list of day '
@@ -855,7 +863,7 @@ LOCAL_KINDS = {"browse_read", "browse_shot", "screenshot", "email_check", "email
                # ffmpeg and his media files live on the PC
                "media_probe", "media_trim", "media_join", "media_audio",
                "media_captions", "media_convert",
-               "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
+               "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_yearly", "remind_every",
                "reminders", "reminder_off", "reminder_on", "notify_snooze",
                "watch_email_from", "notify_check",
                "notify_clear", "free_time", "contact_add", "contact_remove", "notify_operator",
@@ -951,7 +959,7 @@ ROUTINE_KINDS = frozenset({
     # Starting and stopping a capped recording of one window, to a file on
     # his PC that goes nowhere.
     "screen_record", "screen_record_stop",
-    "plan_set", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every",
+    "plan_set", "remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_yearly", "remind_every",
     # Queuing what he said about his projects: one private local file, and
     # nothing new starts from it until he says yes to the draft it becomes.
     "project_new", "project_step", "project_drop",
@@ -1398,6 +1406,7 @@ def _task_words(task: dict) -> str:
 
 REMINDER_KINDS = {"once": "remind_at", "daily": "remind_daily",
                   "weekly": "remind_weekly", "monthly": "remind_monthly",
+                  "yearly": "remind_yearly",
                   # "every other day" / "every 2 weeks": the interval kind,
                   # and only when its command tells him something.
                   "interval": "remind_daily"}
@@ -1493,6 +1502,8 @@ def _reminder_words(spec: dict, *, receipt: bool = False) -> str:
         return f"{text} — on the {_nth_weekday_words(spec['nth'], spec['weekday'])} of every month at {when}"
     if spec["kind"] == "monthly":
         return f"{text} — on the {_ordinal(int(spec.get('monthday') or 1))} of every month at {when}"
+    if spec["kind"] == "yearly":
+        return f"{text} — every year on {_year_day_words(spec)} at {when}"
     days = _weekday_words(sorted(spec.get("weekdays") or []))
     lead = days if days in ("weekdays", "weekends", "every day") else f"every {days}"
     return f"{text} — {lead} at {when}"
@@ -2264,7 +2275,7 @@ def _reminder_clock(spec: dict) -> str | None:
         if at.tzinfo is not None:
             at = at.astimezone(speech._operator_zone() or None)
         return at.strftime("%H:%M")
-    if spec.get("kind") in ("daily", "weekly", "monthly"):
+    if spec.get("kind") in ("daily", "weekly", "monthly", "yearly"):
         return str(spec.get("time") or "")[:5] or None
     return None
 
@@ -2643,6 +2654,7 @@ def task_parts(description: str) -> list[str]:
 
 
 UNDOES_HIS_ASK = ("task_new", "shopping_add", "list_add", "remind_at", "remind_daily", "remind_weekly", "remind_monthly",
+                  "remind_yearly",
                   "remind_every",
                   "calendar_hold", "file_write", "note")
 
@@ -2801,7 +2813,7 @@ def _reverse_his_ask(kind: str, command: dict) -> str:
         except act.Refused as exc:
             return f"I couldn't take {item} off the list: {speech.plainly(str(exc))}"
         return f"Undone: took {item} back off the shopping list."
-    if kind in ("remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_every"):
+    if kind in ("remind_at", "remind_daily", "remind_weekly", "remind_monthly", "remind_yearly", "remind_every"):
         from aletheia import scheduler
         text = str(command.get("text") or "").strip()
         found, why = _one_reminder(text)
@@ -3466,6 +3478,12 @@ def _nth_weekday_words(nth: int, weekday: int) -> str:
     """(-1, 4) -> "last Friday", (1, 0) -> "first Monday"."""
     which = {1: "first", 2: "second", 3: "third", 4: "fourth", -1: "last"}[nth]
     return f"{which} {('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')[weekday]}"
+
+
+def _year_day_words(spec: dict) -> str:
+    """{"month": 3, "monthday": 3} -> "March 3rd"."""
+    import calendar
+    return f"{calendar.month_name[int(spec.get('month') or 1)]} {_ordinal(int(spec.get('monthday') or 1))}"
 
 
 def _weekday_words(days: list[int]) -> str:
@@ -4783,6 +4801,21 @@ def execute_command(cmd: dict, fleet: dict, request=gh.request, quote: str = "")
                          kind="monthly", timezone=cmd.get("tz") or localtime.operator_timezone(),
                          time=cmd["time"], monthday=day)
         return f"monthly reminder {sid} set for day {day} at {cmd['time']} — {cmd['text'][:80]!r}"
+    if kind == "remind_yearly":
+        from aletheia import scheduler
+        import uuid as _uuid
+        month, day = int(cmd["month"]), int(cmd["day"])
+        if not 1 <= month <= 12 or not 1 <= day <= 31:
+            raise act.Refused("a day of the year is a month 1 to 12 and a day 1 to 31.")
+        if cmd.get("replaces"):
+            old, _why = _one_reminder(str(cmd["replaces"]))
+            if old is not None and old.get("kind") == "yearly":
+                scheduler.set_enabled(old["id"], False)
+        sid = "remind-yearly-" + _uuid.uuid4().hex[:8]
+        scheduler.create(sid, {"kind": "notify_operator", "text": cmd["text"]},
+                         kind="yearly", timezone=cmd.get("tz") or localtime.operator_timezone(),
+                         time=cmd["time"], month=month, monthday=day)
+        return f"yearly reminder {sid} set for {month}/{day} at {cmd['time']} — {cmd['text'][:80]!r}"
     if kind == "remind_daily":
         from aletheia import scheduler
         import uuid as _uuid
