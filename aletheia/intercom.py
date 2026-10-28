@@ -1930,6 +1930,11 @@ def _reminder_list_words(rows: list) -> str:
     """What he DOES have, for when the one he named is not there."""
     from aletheia import speech
     said = [_reminder_words(r) for r in rows[:4]]
+    # "The one you have is wake up — today at 5 pm" (2026-10-28): every
+    # alarm is called "wake up"; it is an alarm, and the time says which.
+    said = [f"an alarm {w.split(' — ', 1)[1]}"
+            if " — " in w and str((r.get("command") or {}).get("text", "")).strip().casefold() == "wake up" else w
+            for w, r in zip(said, rows)]
     lead = ("The one you have is" if len(rows) == 1
             else f"The {len(said)} you have are")
     tail = "" if len(rows) <= 4 else f", and {len(rows) - 4} more"
