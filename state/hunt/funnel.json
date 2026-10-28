@@ -292,16 +292,17 @@
     "2026-10-27": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 34,
+      "minutes": 46,
       "needs_account": 0,
       "needs_answer": 2,
-      "not_realistic": 27,
-      "offered": 125,
+      "not_realistic": 95,
+      "offered": 193,
       "ready": 0,
-      "runs": 3,
-      "unfit_model": 3,
-      "unfit_pay": 9,
-      "unfit_sales": 15,
+      "runs": 5,
+      "unfit_language": 50,
+      "unfit_model": 5,
+      "unfit_pay": 14,
+      "unfit_sales": 26,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -515,23 +516,23 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 25,
-      "found": 187,
+      "filled": 19,
+      "found": 181,
       "interviews": 2,
       "rejections": 0,
       "replies": 3,
       "sent": 3
     },
     "2026-10-27": {
-      "filled": 0,
-      "found": 11,
+      "filled": 6,
+      "found": 17,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-27T05:29:25Z",
+  "generated_at": "2026-10-28T01:10:54Z",
   "question_shapes": {
     "employer_site: field: _": 18,
     "employer_site: field: _ _": 12,
@@ -589,12 +590,12 @@
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 6,
       "nothing_to_press_on_unread/nothing": 1,
-      "nothing_to_press_on_unread/observed": 8,
+      "nothing_to_press_on_unread/observed": 7,
       "nothing_to_press_on_unread/submit_clicked": 1
     },
     "going_in_circles": {
       "nothing_to_press_on_content/observed": 1,
-      "nothing_to_press_on_form/filled": 6,
+      "nothing_to_press_on_form/filled": 4,
       "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_form/review_reached": 1,
       "nothing_to_press_on_multi_page_wizard/filled": 1,
@@ -605,7 +606,7 @@
       "nothing_to_press_on_content+empty_page/observed": 2,
       "nothing_to_press_on_content+no_apply/filled": 2,
       "nothing_to_press_on_content+no_apply/observed": 16,
-      "nothing_to_press_on_content/observed": 16,
+      "nothing_to_press_on_content/observed": 15,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
@@ -613,7 +614,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 1,
       "nothing_to_press_on_success+no_apply/observed": 1,
       "nothing_to_press_on_success/receipt_verified": 1,
-      "unclear_button/observed": 15
+      "unclear_button/observed": 14
     },
     "out_of_steps": {
       "nothing_to_press_on_unread/observed": 2
@@ -628,7 +629,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 1
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 10,
+      "nothing_to_press_on_account_login/observed": 9,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -709,7 +710,7 @@
     },
     "needs_account": 0,
     "needs_answer": 26,
-    "oldest_days": 44,
+    "oldest_days": 45,
     "to_send": 0
   },
   "window_days": 30
