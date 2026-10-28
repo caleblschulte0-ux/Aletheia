@@ -1,0 +1,6 @@
+{
+  "id": "20261028-google-sign-in-3",
+  "executed_at": "2026-10-28T01:49:02Z",
+  "outcome": "refused",
+  "detail": "I could not open my browser here (RuntimeError: Google Chrome is required for the normal sign-in flow on Windows; install Chrome or set ALETHEIA_CHROME_PATH)."
+}
