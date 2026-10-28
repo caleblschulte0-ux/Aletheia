@@ -236,6 +236,14 @@ def set_enabled(schedule_id: str, enabled: bool, *, moved: bool = False) -> dict
     return save(spec)
 
 
+def retext(schedule_id: str, text: str) -> dict:
+    """New words for a reminder; when it goes off stays as it was."""
+    spec = load(schedule_id)
+    spec["command"] = {**spec["command"], "text": str(text)}
+    spec["updated_at"] = utcnow()
+    return save(spec)
+
+
 def occurrence_at_or_before(spec: dict, now: dt.datetime) -> dt.datetime | None:
     """The latest occurrence due by `now`. A repeating schedule never owes one
     from before it existed: "remind me every day at 8 to take my vitamins",

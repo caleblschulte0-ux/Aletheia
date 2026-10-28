@@ -4742,6 +4742,14 @@ def _interpret(transcript: str) -> dict:
     # to the planner). The same fact as "my address is ...", said as a
     # change; only kept when that sentence is one she keeps.
     m = re.fullmatch(r"(?:please )?(?:change|update|set|switch|correct) my (?P<key>[a-z][a-z' ]{1,30}?) to (?P<value>.+)", low)
+    # "Change my dentist reminder to Friday" was kept as a fact, "my dentist
+    # reminder is friday" (2026-10-28). A reminder or a meeting changed to a
+    # time is a move.
+    if m and re.search(r"\b(?:reminder|alarm|timer|appointment|meeting|call|lunch|dinner|hold)$", m.group("key")) \
+            and not re.match(r"(?:say|read) ", m.group("value")):
+        again = _interpret(f"move my {m.group('key')} to {m.group('value')}")
+        if (again.get("command") or {}).get("kind") not in (None, "intent") or (not again.get("command") and again.get("say")):
+            return again
     if m and m.group("key") not in ("alarm", "reminder", "timer", "status", "mind", "plans", "plan", "password", "pin"):
         # In his capitals: the value is read back as he said it ("12 Oak St").
         his = re.search(r"\bmy (.+?) to (.+?)[.!?]*$", text.strip(), re.IGNORECASE)
@@ -10107,6 +10115,19 @@ def _interpret(transcript: str) -> dict:
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
         return {"command": None, "say": _cant_move(m.group("what"))}
+    # "Change the email sarah one to call sarah", "make my vitamins reminder
+    # say take fish oil" (2026-10-28: to the planner). New words, same time;
+    # a time or a day after "to" is a move, which is read above.
+    m = re.fullmatch(r"(?:change|rename|reword|edit|update) (?:my |the )?(?P<w>[a-z0-9][a-z0-9' -]{1,40}?)"
+                     r" (?:one|reminder|alarm) (?:to say|so it says|to read|to) (?P<new>[a-z0-9][a-z0-9' ,-]{1,60}?)(?: instead)?"
+                     r"|(?:make|have) (?:my |the )?(?P<w2>[a-z0-9][a-z0-9' -]{1,40}?) (?:one|reminder|alarm)"
+                     r" (?:say|read) (?P<new2>[a-z0-9][a-z0-9' ,-]{1,60}?)(?: instead)?", low)
+    if m and not re.search(r"\b(?:\d{1,2}(?::\d\d)?\s*(?:am|pm|a\.m\.|p\.m\.)?|noon|midnight|tomorrow|today|tonight"
+                           r"|monday|tuesday|wednesday|thursday|friday|saturday|sunday|morning|afternoon|evening"
+                           r"|next week|every\b.*)$", m.group("new") or m.group("new2")) \
+            and not re.search(r"\b(?:first|second|third|last|latest|that|this|it|other)\b", m.group("w") or m.group("w2")):
+        return {"command": {"kind": "reminder_reword", "which": m.group("w") or m.group("w2"),
+                            "text": _as_he_said(transcript, m.group("new") or m.group("new2"))}, "say": None}
     # "CANCEL THE BANK ONE" after reading his reminders was prepared as a
     # cancellation of a SUBSCRIPTION called "bank one" (2026-10-07). A
     # reminder or a task of his that the words name is the thing; only
