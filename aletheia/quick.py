@@ -2365,7 +2365,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
         # "What notes do I have about Dana" (2026-10-07, to a model).
         r"|^(?:what|any|do i have any) notes (?:do i have )?(?:about|on|for|mentioning) (?:the |my )?(?P<recall6>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What do I know about Sam" (2026-10-07: to a model).
-        r"|^what do (?:i|you|we) know about (?:the |my )?(?P<recall12>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        # "What do you remember about the key", "what have I told you about
+        # Dana" (2026-10-28: to a model, which was out).
+        r"|^(?:(?:can you |could you )?tell me )?what (?:(?:do|did) )?(?:i|you|we) (?:know|remember) about (?:the |my )?(?P<recall12>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
+        r"|^what (?:have|had) i (?:told|said to) (?:you|u) about (?:the |my )?(?P<recall15>[a-z0-9][a-z0-9 '-]{1,40}?)\s*\??$"
         # "What am I allergic to" (2026-10-07: to the planner, a turn after
         # "remember that I'm allergic to peanuts").
         r"|^what am i (?P<recall7>allergic) to\s*\??$|^what are my (?P<recall8>allergies)\s*\??$"
@@ -3967,7 +3970,7 @@ def match(question: str, after: str | None = None) -> tuple[str, str] | None:
                                            "sent_window", "sent_window2",
                                            "repo_wrong", "repo_wrong2", "time_in", "time_in2",
                                            "time_in3", "time_in4", "time_in5", "time_in6", "time_in7", "date_of", "date_of2", "date_of3",
-                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "alarm_any", "ran",
+                                           "recall", "recall2", "recall3", "recall4", "recall5", "recall6", "recall7", "recall8", "recall9", "recall10", "recall11", "recall12", "recall13", "recall14", "recall15", "owe_who", "owe_amt", "define", "define2", "need_q", "who_named", "who_named2", "coming", "coming2", "coming3", "coming4", "coming5", "meetings_week", "when_do_i", "when_meeting", "when_meeting2", "when_mine2", "clock_until", "notes_day", "notes_day2", "when_mine", "reminders_on", "reminders_on2", "reminders_on3", "alarms_on", "alarm_any", "ran",
                                            "has", "has2",
                                            "date_ahead", "date_ahead2", "date_ahead3", "date_ahead4", "found_window",
                                            "hold_q", "hold_q2", "hold_q3", "hold_q4",
