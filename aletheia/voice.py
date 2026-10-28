@@ -4333,8 +4333,15 @@ def _onto_the_named_list(low: str) -> dict | None:
                      r"(?: (?:from|off(?: of)?) (?:it|that|this|there))?", low)
     # "Remove the last one" counts down the list she read (2026-10-07: it
     # looked for a thing called "last one"); that is read further on.
+    # "Delete the 6 am alarm" two turns after the target list was a thing
+    # called "the 6 am alarm" on it (2026-10-28). An alarm, a reminder, a
+    # meeting or a clock time is another store's, unless he said "from it".
     if m and (m.group("w") or m.group("w2")) not in ("it", "that", "this", "list", "everything", "all") \
-            and speech.ordinal_index(m.group("w") or m.group("w2")) is None:
+            and speech.ordinal_index(m.group("w") or m.group("w2")) is None \
+            and not (m.group("w2") and not re.search(r" (?:from|off) ", low)
+                     and re.search(r"\b(?:alarms?|reminders?|timers?|tasks?|meetings?|appointments?|events?|notes?"
+                                   r"|holds?|calendar|\d{1,2}(?::\d\d)? ?(?:am|pm|a\.m\.|p\.m\.)|noon|midnight)\b",
+                                   m.group("w2"))):
         return _interpret(f"take {m.group('w') or m.group('w2')} off my {name} list")
     if re.fullmatch(r"what'?s(?: still)? on (?:it|there|the list)(?: now)?|what else is on (?:it|there|the list)(?: now)?"
                     r"|read (?:it|that)(?: back| out)?|what'?s left(?: on it)?"
