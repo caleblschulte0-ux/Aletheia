@@ -9864,8 +9864,10 @@ def _interpret(transcript: str) -> dict:
             or re.fullmatch(r"cancel (?:my |the )?[a-z' ]{2,30}? (?:appointment|meeting|lunch|dinner|call)"
                             r"(?: (?:today|tomorrow|on [a-z]+|this [a-z]+))?", low) \
             or re.fullmatch(r"(?:clear|empty|wipe|cancel everything on) (?:my |the )?(?:calendar|schedule|day)"
-                            r"(?: for)?(?: (?:today|tomorrow|this week|monday|tuesday|wednesday|thursday|friday"
-                            r"|saturday|sunday))?|cancel (?:all )?(?:my )?(?:meetings|appointments)(?: (?:today|tomorrow))?", low):
+                            r"(?: for| on)?(?: (?:today|tomorrow|this week|monday|tuesday|wednesday|thursday|friday"
+                            r"|saturday|sunday))?|cancel (?:all )?(?:my )?(?:meetings|appointments)(?: (?:today|tomorrow))?", low) \
+            or re.fullmatch(r"(?:clear|free up) (?:my )?(?:today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)", low):
+        # "Clear my calendar on Monday" and "clear Monday" (2026-10-28: to the planner) are the same ask.
         named = re.sub(r"^cancel (?:my |the )?", "", low)
         hold, why = _one_of_her_holds(named) if low.startswith("cancel") else (None, "")
         if hold:
@@ -10129,7 +10131,10 @@ def _interpret(transcript: str) -> dict:
         # "Move my doctors appointment to the 21st" (2026-10-08: refused as
         # his calendar's): her own hold, the new day, its own time unless he
         # named one, the same length.
-        day_to = re.fullmatch(r"(?:on )?(?P<day>.+?)(?: at (?P<t>.+))?", to.group("when")) if (hold and to) else None
+        # "Move focus time to Monday afternoon" (2026-10-28: "I can't move
+        # things on your calendar"): a part of the day is a time of its own.
+        day_to = re.fullmatch(r"(?:on )?(?P<day>.+?)(?: (?P<part>morning|afternoon|evening|night))?(?: at (?P<t>.+))?",
+                              to.group("when")) if (hold and to) else None
         day_iso = _spoken_day(day_to.group("day")) if day_to and not _spoken_time(day_to.group("day")) else None
         if hold and day_iso:
             import datetime as dt
@@ -10138,6 +10143,10 @@ def _interpret(transcript: str) -> dict:
             was = _cal.parse_time(hold["start"]).astimezone(tz)
             ends = _cal.parse_time(hold["end"]).astimezone(tz) if hold.get("end") else was + dt.timedelta(hours=1)
             hour, minute = was.hour, was.minute
+            part = day_to.group("part")
+            spans = {"morning": (5, 12, 9), "afternoon": (12, 17, 14), "evening": (17, 22, 18), "night": (17, 24, 19)}
+            if part and not day_to.group("t") and not spans[part][0] <= hour < spans[part][1]:
+                hour, minute = spans[part][2], 0
             if day_to.group("t"):
                 hhmm = _spoken_time(day_to.group("t"))
                 if not hhmm:
