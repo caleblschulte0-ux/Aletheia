@@ -324,6 +324,7 @@
       "left_captcha": 7,
       "left_error": 2,
       "left_no_way_forward": 9,
+      "left_questions": 12,
       "left_sign_in": 3,
       "not_realistic": 59
     }
@@ -498,7 +499,7 @@
       "sent": 1
     },
     "2026-10-25": {
-      "filled": 5,
+      "filled": 1,
       "found": 30,
       "interviews": 0,
       "rejections": 0,
@@ -506,7 +507,7 @@
       "sent": 0
     },
     "2026-10-26": {
-      "filled": 12,
+      "filled": 4,
       "found": 174,
       "interviews": 2,
       "rejections": 0,
@@ -514,41 +515,39 @@
       "sent": 3
     },
     "2026-10-27": {
-      "filled": 21,
-      "found": 38,
+      "filled": 16,
+      "found": 33,
       "interviews": 1,
       "rejections": 0,
       "replies": 1,
       "sent": 4
     },
     "2026-10-28": {
-      "filled": 5,
-      "found": 5,
-      "interviews": 0,
-      "rejections": 0,
-      "replies": 0,
+      "filled": 10,
+      "found": 10,
+      "interviews": 1,
+      "rejections": 2,
+      "replies": 4,
       "sent": 0
     }
   },
-  "generated_at": "2026-10-29T01:13:30Z",
+  "generated_at": "2026-10-29T01:19:37Z",
   "question_shapes": {
-    "ashbyhq: radio: are you comfortable _ _ _ _ _ or _ _ _": 1,
+    "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
+    "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 2,
     "ashbyhq: text: what is the first _ of your address": 1,
-    "employer_site: field: _": 18,
-    "employer_site: field: _ _": 16,
-    "employer_site: field: _ _ _": 4,
-    "employer_site: field: _ or select _ _ _": 6,
-    "employer_site: field: address _": 2,
-    "employer_site: field: work _": 4,
-    "employer_site: field: yes _ consent to _ _ _ the _ would _ _": 6,
+    "employer_site: field: _ _": 4,
     "lever: checkbox: _": 3,
     "lever: checkbox: _ _": 2,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: _ you _ yes to the _ _ are you willing to": 1,
     "lever: radio: do you have any _ _ _ _ with your _ _": 1,
+    "lever: text: _": 1,
+    "lever: text: _ _": 1,
     "lever: text: what is your desired _ compensation": 1,
+    "lever: textarea: _ _ when would you be able to _ at _": 1,
     "lever: textarea: _ you _ yes to _ a _ _ employed at _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
@@ -559,6 +558,8 @@
     "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 2,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
+    "workable: text: what _ you _ in your _ role _ a _ salary": 1,
+    "workable: textarea: have you ever worked with _ or _ _ _ of your": 1,
     "workable: textarea: how _ _ _ do you _ _ per _": 1,
     "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
     "workable: textarea: which _ and _ _ have you _ _": 1
@@ -622,9 +623,9 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 9,
+      "nothing_to_press_on_form/filled": 14,
       "nothing_to_press_on_form/observed": 2,
-      "nothing_to_press_on_multi_page_wizard/filled": 1
+      "nothing_to_press_on_multi_page_wizard/filled": 8
     },
     "sign_in": {
       "nothing_to_press_on_account_login/observed": 10,
@@ -649,8 +650,9 @@
         "nothing_to_press_on_form+no_apply/observed": 1
       },
       "questions": {
-        "nothing_to_press_on_form/filled": 1,
-        "nothing_to_press_on_form/observed": 1
+        "nothing_to_press_on_form/filled": 6,
+        "nothing_to_press_on_form/observed": 1,
+        "nothing_to_press_on_multi_page_wizard/filled": 7
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 3
@@ -658,21 +660,21 @@
     }
   },
   "totals": {
-    "filled": 224,
+    "filled": 212,
     "found": 621,
-    "interviews": 14,
-    "rejections": 20,
-    "replies": 51,
+    "interviews": 15,
+    "rejections": 22,
+    "replies": 55,
     "sent": 119
   },
   "waiting": {
     "asked_about": {
-      "address": 3,
+      "address": 2,
       "agreements": 1,
       "contact": 1,
       "links": 2,
       "on_site": 3,
-      "other": 33,
+      "other": 21,
       "pay": 3,
       "referral": 1,
       "travel": 2,
@@ -690,7 +692,7 @@
       "left_no_way_forward": 70,
       "left_out_of_steps": 2,
       "left_posting_closed": 2,
-      "left_questions": 13,
+      "left_questions": 25,
       "left_sign_in": 11,
       "not_a_form_asks_nothing_on_ashbyhq": 2,
       "not_a_form_asks_nothing_on_bamboohr": 2,
@@ -710,7 +712,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 34,
+    "needs_answer": 22,
     "oldest_days": 46,
     "to_send": 0
   },
