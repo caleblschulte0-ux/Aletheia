@@ -1,0 +1,12 @@
+{
+  "id": "20261029-holds-on-calendar-3",
+  "filed": "2026-10-29T04:01:48Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "it need to be added to the ORI google canalcder",
+  "command": {
+    "kind": "missions",
+    "which": "active",
+    "about": "steps"
+  }
+}
