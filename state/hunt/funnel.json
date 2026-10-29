@@ -310,17 +310,17 @@
     "2026-10-28": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 38,
+      "minutes": 46,
       "needs_account": 0,
       "needs_answer": 4,
-      "not_realistic": 149,
-      "offered": 158,
+      "not_realistic": 199,
+      "offered": 208,
       "ready": 4,
-      "runs": 3,
-      "unfit_language": 78,
-      "unfit_model": 7,
-      "unfit_pay": 21,
-      "unfit_sales": 43,
+      "runs": 4,
+      "unfit_language": 104,
+      "unfit_model": 10,
+      "unfit_pay": 28,
+      "unfit_sales": 57,
       "unjudged": 0,
       "unreachable": 1,
       "unreachable_TimeoutError": 1,
@@ -330,7 +330,7 @@
   "boards": {
     "ashby": 140,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 81,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -345,7 +345,7 @@
       "left_no_way_forward": 10,
       "left_questions": 12,
       "left_sign_in": 3,
-      "not_realistic": 59
+      "not_realistic": 60
     }
   },
   "days": {
@@ -543,14 +543,14 @@
     },
     "2026-10-28": {
       "filled": 24,
-      "found": 25,
+      "found": 26,
       "interviews": 1,
       "rejections": 2,
       "replies": 4,
-      "sent": 3
+      "sent": 4
     }
   },
-  "generated_at": "2026-10-29T03:07:44Z",
+  "generated_at": "2026-10-29T03:37:55Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
@@ -574,21 +574,21 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 2,
-    "workable: radio: are you _ in english and _": 1,
     "workable: text: how _ years of _ _ saas sales experience do you have": 1,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
+    "workable: text: what _ you _ in your _ role _ a _ salary": 1,
     "workable: textarea: have you ever worked with _ or _ _ _ of your": 1,
     "workable: textarea: how _ _ _ do you _ _ per _": 1,
     "workable: textarea: what _ of your _ _ is _ _ _ _ what": 1,
     "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
     "workable: textarea: which _ and _ _ have you _ _": 1
   },
-  "sent_all_time": 331,
+  "sent_all_time": 332,
   "sent_by_system": {
     "ashbyhq": 21,
     "employer_site": 7,
     "greenhouse": 67,
-    "lever": 27
+    "lever": 28
   },
   "stop_shapes": {
     "employer_site: empty_page: none": 1,
@@ -680,11 +680,11 @@
   },
   "totals": {
     "filled": 219,
-    "found": 629,
+    "found": 630,
     "interviews": 15,
     "rejections": 22,
     "replies": 55,
-    "sent": 122
+    "sent": 123
   },
   "waiting": {
     "asked_about": {
@@ -693,7 +693,7 @@
       "contact": 1,
       "links": 2,
       "on_site": 3,
-      "other": 22,
+      "other": 21,
       "pay": 3,
       "referral": 1,
       "travel": 2,
@@ -718,7 +718,7 @@
       "not_a_form_asks_nothing_on_bamboohr": 2,
       "not_a_form_asks_nothing_on_employer_site": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 16,
-      "not_realistic": 84
+      "not_realistic": 85
     },
     "failed": 17,
     "failed_because": {
@@ -732,7 +732,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 24,
+    "needs_answer": 23,
     "oldest_days": 46,
     "to_send": 0
   },
