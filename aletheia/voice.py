@@ -2802,7 +2802,7 @@ def _cant_move(words: str) -> str:
     calendar, where she only adds holds - or it is not on any calendar of
     his at all (2026-10-28: "move lunch with Bob to 12", with no lunch with
     Bob anywhere, was told she cannot move calendar events)."""
-    said = re.sub(r"^(?:my|the|our|that|this) ", "", " ".join(str(words or "").casefold().split()))
+    said = re.sub(r"^(?:my|your|the|our|that|this) ", "", " ".join(str(words or "").casefold().split()))
     try:
         import datetime as dt
         from aletheia import calendar
@@ -2813,7 +2813,11 @@ def _cant_move(words: str) -> str:
     except Exception:  # noqa: BLE001
         seen = True
     if not seen and said and not re.fullmatch(r"\d{1,2}(?::\d\d)?\s*(?:am|pm|o'?clock)", said):
-        return f"I don't see {said} on your calendar. Say \"what's on my calendar this week\" and I'll read you what's there."
+        # "I don't see doctor's appointment" (2026-10-29): his own words, his
+        # "my" said back as "your", and Bob still a capital.
+        shown = re.sub(r"^(?:my|our) ", "your ", " ".join(str(words or "").split()), flags=re.I)
+        shown = re.sub(r"^(?:that|this) ", "", shown, flags=re.I)
+        return f"I don't see {shown} on your calendar. Say \"what's on my calendar this week\" and I'll read you what's there."
     return ("I can't move things on your calendar yet - I can only add holds to it. "
             "Move it in your calendar, and if you want a hold at the new time, tell me when.")
 
@@ -3891,10 +3895,10 @@ def _as_he_named(low: str, what: str) -> str:
     """"Remind me 10 minutes before my 2pm meeting" answered "I don't see
     2pm meeting on your calendar" (2026-10-28): the pattern ate his "my".
     Give the thing back with the word he used for it."""
-    m = re.search(rf"\b(my|the|our) (?:next )?{re.escape(what)}\b", low)
+    m = re.search(rf"\b(my|the|our) (?:next )?{re.escape(what)}\b", low, re.I)
     if not m:
         return what
-    return {"my": "your", "our": "your"}.get(m.group(1), m.group(1)) + " " + what
+    return {"my": "your", "our": "your"}.get(m.group(1).casefold(), m.group(1).casefold()) + " " + what
 
 
 def two_asks(transcript: str) -> list[str] | None:
@@ -10072,7 +10076,7 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
-        return {"command": None, "say": _cant_move(m.group("what"))}
+        return {"command": None, "say": _cant_move(_as_he_named(text, _as_he_said(text, m.group("what"))))}
     # "I can't make it to my 3pm" (2026-10-07: to the planner).
     m = re.fullmatch(r"i (?:can't|cannot|can not|won't|will not) make (?:it to )?(?:my |the )"
                      r"(?P<what>[a-z0-9][a-z0-9:' ]{0,30}?)(?: (?:today|tomorrow|tonight))?", low)
@@ -10166,7 +10170,7 @@ def _interpret(transcript: str) -> dict:
                                 "replaces": hold["start"]}, "say": None}
         if why:
             return {"command": None, "say": "More than one hold of mine matches that - say which by its time."}
-        return {"command": None, "say": _cant_move(m.group("what"))}
+        return {"command": None, "say": _cant_move(_as_he_named(text, _as_he_said(text, m.group("what"))))}
     # "Change the email sarah one to call sarah", "make my vitamins reminder
     # say take fish oil" (2026-10-28: to the planner). New words, same time;
     # a time or a day after "to" is a move, which is read above.
