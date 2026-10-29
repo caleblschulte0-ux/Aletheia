@@ -312,7 +312,7 @@
     "ashby": 140,
     "bamboohr": 5,
     "greenhouse": 101,
-    "lever": 80,
+    "lever": 81,
     "recruitee": 8,
     "smartrecruiters": 37,
     "workable": 10
@@ -531,7 +531,7 @@
       "sent": 1
     }
   },
-  "generated_at": "2026-10-29T02:05:55Z",
+  "generated_at": "2026-10-29T02:36:41Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
@@ -540,11 +540,11 @@
     "employer_site: field: _ _": 4,
     "employer_site: field: _ portfolio link": 1,
     "employer_site: field: the expected _ for this role is _ per _ what _": 1,
+    "employer_site: field: your _ _ to this role": 1,
     "lever: checkbox: _": 2,
     "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
-    "lever: radio: _ you _ yes to the _ _ are you willing to": 1,
     "lever: radio: do you have any _ _ _ _ with your _ _": 1,
     "lever: text: what is your desired _ compensation": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
