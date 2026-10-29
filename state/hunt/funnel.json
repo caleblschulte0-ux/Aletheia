@@ -515,37 +515,37 @@
       "sent": 3
     },
     "2026-10-27": {
-      "filled": 16,
-      "found": 33,
+      "filled": 9,
+      "found": 26,
       "interviews": 1,
       "rejections": 0,
       "replies": 1,
       "sent": 4
     },
     "2026-10-28": {
-      "filled": 10,
-      "found": 10,
+      "filled": 17,
+      "found": 17,
       "interviews": 1,
       "rejections": 2,
       "replies": 4,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-10-29T01:19:37Z",
+  "generated_at": "2026-10-29T01:36:59Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
     "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 2,
     "ashbyhq: text: what is the first _ of your address": 1,
     "employer_site: field: _ _": 4,
-    "lever: checkbox: _": 3,
-    "lever: checkbox: _ _": 2,
+    "employer_site: field: _ portfolio link": 1,
+    "employer_site: field: the expected _ for this role is _ per _ what _": 1,
+    "lever: checkbox: _": 2,
+    "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: _ you _ yes to the _ _ are you willing to": 1,
     "lever: radio: do you have any _ _ _ _ with your _ _": 1,
-    "lever: text: _": 1,
-    "lever: text: _ _": 1,
     "lever: text: what is your desired _ compensation": 1,
     "lever: textarea: _ _ when would you be able to _ at _": 1,
     "lever: textarea: _ you _ yes to _ a _ _ employed at _": 1,
@@ -555,7 +555,7 @@
     "recruitee: radio: united states": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ a _": 1,
     "workable: field: resume _": 2,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
     "workable: text: what _ you _ in your _ role _ a _ salary": 1,
@@ -564,12 +564,12 @@
     "workable: textarea: what _ your _ _ _ for _ _ and how do": 1,
     "workable: textarea: which _ and _ _ have you _ _": 1
   },
-  "sent_all_time": 328,
+  "sent_all_time": 329,
   "sent_by_system": {
     "ashbyhq": 20,
     "employer_site": 6,
     "greenhouse": 67,
-    "lever": 26
+    "lever": 27
   },
   "stop_shapes": {
     "employer_site: empty_page: none": 1,
@@ -665,7 +665,7 @@
     "interviews": 15,
     "rejections": 22,
     "replies": 55,
-    "sent": 119
+    "sent": 120
   },
   "waiting": {
     "asked_about": {
@@ -674,7 +674,7 @@
       "contact": 1,
       "links": 2,
       "on_site": 3,
-      "other": 21,
+      "other": 20,
       "pay": 3,
       "referral": 1,
       "travel": 2,
@@ -712,7 +712,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 22,
+    "needs_answer": 21,
     "oldest_days": 46,
     "to_send": 0
   },
