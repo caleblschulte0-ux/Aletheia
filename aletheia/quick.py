@@ -1076,7 +1076,10 @@ PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
     # couldn't think (2026-10-07).
     ("tasks_due", re.compile(
         r"^(?:what(?:'s| is|s)?|anything|is anything|what do i have) (?P<due>overdue|late|past due|due"
-        r"(?: today| tomorrow| this week| next week| this month| next month| soon| next)?)(?: on my list)?\s*\??$"
+        r"(?: today| tomorrow| this week| next week| this month| next month| soon| next"
+        # "What's due in November" (2026-10-29: to a model).
+        r"| in (?:january|february|march|april|may|june|july|august|september|october|november|december))?)"
+        r"(?: on my list)?\s*\??$"
         r"|^what(?:'s| is|s)? (?P<due2>coming up|due) (?:on my (?:list|task list|to ?do list))\s*\??$"
         # "What tasks do I have today" (2026-10-07: to the planner), and
         # "what did I forget", which is the overdue list asked guiltily.
@@ -5112,6 +5115,41 @@ def _tasks_due(which: str = "") -> str | None:
     cutoff = re.fullmatch(r"(before|by) (.+)", which)
     if cutoff:
         return _tasks_due_by(rows, cutoff.group(1), cutoff.group(2), now)
+    # "What's due in November" (2026-10-29: to a model). The month he names
+    # is this one or the next one of that name, and only the rest of it
+    # counts when it is this one.
+    month = re.fullmatch(r"due in (\w+)", which)
+    if month:
+        import calendar
+        names = [m.casefold() for m in calendar.month_name]
+        if month.group(1).casefold() not in names[1:]:
+            return None
+        num = names.index(month.group(1).casefold())
+        year = now.year + (1 if num < now.month else 0)
+        start = dt.date(year, num, 1)
+        end = dt.date(year, num, calendar.monthrange(year, num)[1])
+        name = calendar.month_name[num]
+        on = sorted(((tasks_mod.parse_deadline(t.get("deadline")).astimezone(tz), t) for t in rows
+                     if tasks_mod.parse_deadline(t.get("deadline"))
+                     and start <= tasks_mod.parse_deadline(t.get("deadline")).astimezone(tz).date() <= end
+                     and tasks_mod.parse_deadline(t.get("deadline")) >= now),
+                    key=lambda pair: pair[0])
+        told = [speech.as_she_says_it(text).rstrip(".") for day, text in _noted_dates() if start <= day <= end and day >= now.date()]
+        also = (" You also told me: " + "; ".join(told[:3]) + ".") if told else ""
+        if not on:
+            if told:
+                return f"Nothing on your list is due in {name}, but you told me: " + "; ".join(told[:3]) + "."
+            return f"Nothing on your list is due in {name}."
+        def _dated(t):
+            words = intercom._task_words(t)
+            lead = str(t.get("description") or t.get("id"))[:70] + " due "
+            if not words.startswith(lead):
+                return words
+            rest = words[len(lead):]
+            return lead[:-5] + (" on " if rest[:1].isdigit() else " ") + rest
+        said = speech.and_list([_dated(t) for _w, t in on[:5]])
+        more = f", and {len(on) - 5} more" if len(on) > 5 else ""
+        return f"{speech.count_phrase(len(on), 'thing')} due in {name}: {said}{more}.{also}"
     # "What do I need to do this weekend" (2026-10-08: to a model, a turn
     # after "clean the gutters" went on the list due Sunday).
     if which == "this weekend":
