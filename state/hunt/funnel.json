@@ -310,27 +310,27 @@
     "2026-10-28": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 46,
-      "needs_account": 0,
+      "minutes": 74,
+      "needs_account": 1,
       "needs_answer": 4,
-      "not_realistic": 199,
-      "offered": 208,
+      "not_realistic": 391,
+      "offered": 402,
       "ready": 4,
-      "runs": 4,
-      "unfit_language": 104,
-      "unfit_model": 10,
-      "unfit_pay": 28,
-      "unfit_sales": 57,
+      "runs": 8,
+      "unfit_language": 208,
+      "unfit_model": 19,
+      "unfit_pay": 56,
+      "unfit_sales": 108,
       "unjudged": 0,
-      "unreachable": 1,
-      "unreachable_TimeoutError": 1,
+      "unreachable": 2,
+      "unreachable_TimeoutError": 2,
       "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 140,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 101,
     "lever": 81,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -542,15 +542,15 @@
       "sent": 4
     },
     "2026-10-28": {
-      "filled": 24,
-      "found": 26,
+      "filled": 25,
+      "found": 27,
       "interviews": 1,
       "rejections": 2,
       "replies": 4,
       "sent": 4
     }
   },
-  "generated_at": "2026-10-29T03:37:55Z",
+  "generated_at": "2026-10-29T04:09:10Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 1,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 1,
@@ -596,7 +596,6 @@
     "employer_site: no_apply: _ to _ | _": 1,
     "employer_site: no_apply: _ | about": 1,
     "employer_site: no_apply: _ | about | careers": 2,
-    "employer_site: no_apply: _ | privacy": 1,
     "employer_site: no_apply: open contact details": 1,
     "employer_site: no_apply: search | _ | _ _ _ | _ _ | careers": 1,
     "myworkdayjobs: no_apply: sign in | search for jobs | _ _ | _ to _ _": 1
@@ -664,7 +663,6 @@
       },
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
-        "nothing_to_press_on_content+no_apply/filled": 1,
         "nothing_to_press_on_content+no_apply/observed": 6,
         "nothing_to_press_on_form+no_apply/filled": 2,
         "nothing_to_press_on_form+no_apply/observed": 1
@@ -679,8 +677,8 @@
     }
   },
   "totals": {
-    "filled": 219,
-    "found": 630,
+    "filled": 220,
+    "found": 631,
     "interviews": 15,
     "rejections": 22,
     "replies": 55,
