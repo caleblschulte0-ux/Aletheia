@@ -1,0 +1,6 @@
+{
+  "id": "20261030-ppp-sf-contradiction",
+  "executed_at": "2026-10-30T14:40:44Z",
+  "outcome": "invalid",
+  "detail": "not valid JSON: Expecting value: line 1 column 1 (char 0)"
+}
