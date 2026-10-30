@@ -63,6 +63,14 @@ REFILL_LIMIT = 60
 #: When this process last started a refill (monotonic seconds). Process
 #: memory is enough: a restarted loop refilling once early costs one refill.
 _LAST_REFILL: list[float] = []
+#: Batches started since the last refill. A refill reads up to sixty waiting
+#: applications in a browser and can outlast REFILL_EVERY_S on its own, and
+#: the clock was stamped when it STARTED, so the turn after a long refill was
+#: another refill and new openings were never looked for: live 2026-10-22 and
+#: 10-23 one batch ran all day while the PC was up for hours. A refill now
+#: waits for this many batches in between, whatever the clock says.
+BATCHES_BETWEEN_REFILLS = 2
+_BATCHES_SINCE_REFILL: list[int] = [0]
 
 
 #: The rest already said out loud, so a long one is journaled once, not
@@ -186,12 +194,15 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
     # her facts or her code now answer is closer to sent than any fresh job,
     # and nothing but a person running `campaign retry` ever read one again.
     now = (clock or time.monotonic)()
-    if not _LAST_REFILL or now - _LAST_REFILL[-1] >= REFILL_EVERY_S:
+    due = not _LAST_REFILL or (now - _LAST_REFILL[-1] >= REFILL_EVERY_S
+                                and _BATCHES_SINCE_REFILL[0] >= BATCHES_BETWEEN_REFILLS)
+    if due:
         waiting = _waiting()
         if waiting:
             # Stamped on the attempt, not the success: a refill that cannot
             # start must not take every turn from the batches.
             _LAST_REFILL[:] = [now]
+            _BATCHES_SINCE_REFILL[0] = 0
             refill = refiller or campaign.start_retry
             out = refill(limit=REFILL_LIMIT)
             if out.get("started"):
@@ -203,6 +214,7 @@ def once(*, batch: int = BATCH, resume: str = "", starter=None, refiller=None,
     start = starter or campaign.start
     out = start(count=batch, resume=resume)
     if out.get("started"):
+        _BATCHES_SINCE_REFILL[0] += 1
         journal.append("action", "apply:forever",
                        f"started another batch of {batch} — he asked for this to "
                        "keep looking until he says stop", actor=ACTOR)
