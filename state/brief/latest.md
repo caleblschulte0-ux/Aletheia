@@ -1,4 +1,4 @@
-# ☀️ Fleet brief — 2026-10-30
+# ☀️ Fleet brief — 2026-10-31
 
 **1 fault(s) need eyes:** `Shorts-pipeline`
 
@@ -8,31 +8,28 @@ Schwab trader: review and merge pull request #16, watchdog: name which of the tw
 ## Job hunt
 - **Yesterday:** 0 sent, 0 heard back, 0 interview(s)
 - **Last 7 days:** 11 sent, 8 heard back, 4 interview(s), 2 said no
-- **Last 30 days:** 115 sent, 52 heard back, 15 interview(s), 22 said no
+- **Last 30 days:** 111 sent, 51 heard back, 15 interview(s), 22 said no
 - **Waiting:** 23 stopped on a question only you can answer; 5 wait for your own OK (part-time, contract or judged by her own model); 17 failed to send.
 
 ## Projects
-- **Barkly** — 0/8 steps · last moved 36 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
-- **Holdco platform** — 0/5 steps · last moved 85 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
+- **Barkly** — 0/8 steps · last moved 37 days ago · Thea next: Get Barkly CI green on the project branch: its 'Production dependency audit' step fails on every push · yours next: Turn on GitHub Pages for Money_Machine (Settings, Pages, Source: GitHub Actions) so the playtest link goes live · 1 open builder pull request
+- **Holdco platform** — 0/5 steps · last moved 86 days ago · Thea next: Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06) · yours next: Pick the one offer to test first and write it as one sentence in docs/NEXT_OFFER.md on the holdco branch (or tell any Claude session to) · 1 open builder pull request
 - **Instagram Auto Post Setup** — 0/4 steps · moved today · yours next: Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business.
-- **Open Range demo films** — 0/4 steps · last moved 37 days ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
-- **Schwab trader** — 0/5 steps · no real work in at least 15 days (only machine commits) · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
+- **Open Range demo films** — 0/4 steps · last moved 38 days ago · Thea next: Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open · 1 open builder pull request
+- **Schwab trader** — 0/5 steps · no real work in at least 14 days (only machine commits) · Thea next: Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself · yours next: Answer the sell approval waiting since June 26 (schwab-trader issue #5): comment approve, hold, or close it · 1 open builder pull request
 
 ## Aletheia — OPERATIONAL
-- last commit `677070270377`: pulse: 2026-10-30T05:57Z
+- last commit `74cf84853f00`: pulse: 2026-10-31T05:53Z
 
 ## Shorts-pipeline — FAULT
-- trending posted 487 (+3) · explainer posted 370 (+1) · third posted 1,199 (+12) · curiosity posted 1
-- last commit `59bc551e7285`: story forge: new real-data stories [skip ci]
+- trending posted 492 (+3) · explainer posted 374 (+1) · third posted 1,216 (+11) · curiosity posted 1
+- last commit `96decabcfa18`: deadman: repaired 2026-10-31 [skip ci]
 
 ## schwab-trader — OPERATIONAL
-- last commit `b7cf56cb4c06`: bot: daily snapshot [skip ci]
+- last commit `c4a7a3db0e67`: analyst: weekly review [skip ci]
 
 ## Money_Machine — NO TELEMETRY
 - last commit `53c6507f6afe`: Initial commit
-
-## Changes since the last pulse
-- `Shorts-pipeline` went green → **red**
 
 ## Plans in motion
 - **Barkly** — 0/8 steps done (`barkly`)
@@ -50,11 +47,5 @@ Schwab trader: review and merge pull request #16, watchdog: name which of the tw
 ## Inbox: 1 ChatGPT suggestion(s) awaiting a ruling
 Rule with `python -m aletheia.suggestions list --state new`.
 
-## Last 24h in the journal
-- `22:49` [recovery] repo:shorts_pipeline: health red -> green
-- `22:49` [recovery] sentinel: fleet recovered — alert issue closed
-- `13:05` [alert] repo:shorts_pipeline: health green -> red
-- `13:05` [alert] sentinel: alert issue opened — Shorts-pipeline
-
 ---
-pulse `2026-10-30T13:05:04Z` · registry rev 7 · composed by `aletheia.brief`
+pulse `2026-10-31T12:42:47Z` · registry rev 7 · composed by `aletheia.brief`
