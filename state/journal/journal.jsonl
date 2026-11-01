@@ -308,3 +308,5 @@
 {"ts": "2026-10-31T21:41:47Z", "kind": "recovery", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health red -> green"}
 {"ts": "2026-10-31T21:41:49Z", "kind": "recovery", "actor": "aletheia", "subject": "sentinel", "text": "fleet recovered — alert issue closed"}
 {"ts": "2026-11-01T16:58:11Z", "kind": "brief", "actor": "aletheia", "subject": "fleet", "text": "morning brief composed for 2026-11-01"}
+{"ts": "2026-11-01T17:57:30Z", "kind": "alert", "actor": "aletheia", "subject": "repo:shorts_pipeline", "text": "health green -> red"}
+{"ts": "2026-11-01T17:57:31Z", "kind": "alert", "actor": "aletheia", "subject": "sentinel", "text": "alert issue opened — Shorts-pipeline"}
