@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-01T22:07:43Z",
+  "generated_at": "2026-11-02T06:19:08Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -10,6 +10,11 @@
       "status": "active",
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
+        {
+          "sha": "010de2dd3ead",
+          "date": "2026-11-01T22:08:05Z",
+          "message": "pulse: 2026-11-01T22:08Z"
+        },
         {
           "sha": "f45076110066",
           "date": "2026-11-01T17:57:31Z",
@@ -29,25 +34,20 @@
           "sha": "a577e5cdeceb",
           "date": "2026-10-31T21:41:50Z",
           "message": "pulse: 2026-10-31T21:41Z"
-        },
-        {
-          "sha": "36e478353a47",
-          "date": "2026-10-31T15:55:50Z",
-          "message": "brief: 2026-10-31"
         }
       ],
       "commit": {
-        "sha": "f45076110066",
-        "date": "2026-11-01T17:57:31Z",
-        "message": "pulse: 2026-11-01T17:57Z"
+        "sha": "010de2dd3ead",
+        "date": "2026-11-01T22:08:05Z",
+        "message": "pulse: 2026-11-01T22:08Z"
       },
       "vitals": [],
       "workflows": {
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-01T17:57:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/41334043669"
+          "updated_at": "2026-11-01T22:08:09Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/41355514443"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20755
+          "bytes": 20542
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "bdccf2f51919",
-          "date": "2026-11-01T21:48:09Z",
-          "message": "claim: mailbox verdicts 2026-11-01T21:48Z [skip ci]"
+          "sha": "68ab4b12a424",
+          "date": "2026-11-02T05:48:22Z",
+          "message": "claim: mailbox verdicts 2026-11-02T05:48Z [skip ci]"
         },
         {
-          "sha": "8a79d8d988e1",
-          "date": "2026-11-01T21:29:16Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "5b9857a56018",
+          "date": "2026-11-02T05:31:06Z",
+          "message": "doctor: evidence pack + backlog 2026-11-02 [skip ci]"
         },
         {
-          "sha": "c30024c79259",
-          "date": "2026-11-01T21:19:40Z",
-          "message": "claim: mailbox verdicts 2026-11-01T21:19Z [skip ci]"
+          "sha": "107b03ea31a9",
+          "date": "2026-11-02T04:47:52Z",
+          "message": "claim: mailbox verdicts 2026-11-02T04:47Z [skip ci]"
         },
         {
-          "sha": "4b32fce51d38",
-          "date": "2026-11-01T21:07:46Z",
-          "message": "explainer: long-form log [skip ci]"
+          "sha": "53cc5aca4b30",
+          "date": "2026-11-02T03:48:41Z",
+          "message": "claim: mailbox verdicts 2026-11-02T03:48Z [skip ci]"
         },
         {
-          "sha": "80dece566462",
-          "date": "2026-11-01T20:48:01Z",
-          "message": "claim: mailbox verdicts 2026-11-01T20:48Z [skip ci]"
+          "sha": "629242fb0b14",
+          "date": "2026-11-02T02:48:22Z",
+          "message": "claim: mailbox verdicts 2026-11-02T02:48Z [skip ci]"
         }
       ],
       "commit": {
-        "sha": "bdccf2f51919",
-        "date": "2026-11-01T21:48:09Z",
-        "message": "claim: mailbox verdicts 2026-11-01T21:48Z [skip ci]"
+        "sha": "68ab4b12a424",
+        "date": "2026-11-02T05:48:22Z",
+        "message": "claim: mailbox verdicts 2026-11-02T05:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -142,8 +142,8 @@
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-01T21:19:30Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41351015630"
+          "updated_at": "2026-11-02T05:50:39Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41395917218"
         },
         "third.yml": {
           "status": "completed",
@@ -160,14 +160,14 @@
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-01T06:11:53Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41279826552"
+          "updated_at": "2026-11-02T06:12:02Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41398400203"
         },
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-01T11:47:55Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41303458989"
+          "updated_at": "2026-11-02T05:31:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41394464776"
         }
       },
       "state_files": {
@@ -403,7 +403,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 87,
+        "days_quiet": 88,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -435,7 +435,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-01T17:57:31Z",
+        "last_progress_at": "2026-11-01T22:08:05Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
