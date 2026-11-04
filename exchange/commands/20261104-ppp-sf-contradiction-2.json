@@ -1,0 +1,12 @@
+{
+  "id": "20261104-ppp-sf-contradiction-2",
+  "filed": "2026-11-04T21:00:00Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "Keep working. a fucking fraud... if it's big and huge and like cool. you're going to have to get very creative on how you get data.",
+  "command": {
+    "kind": "do_task",
+    "label": "ppp-sf-contradiction",
+    "request": "Write and run a Python script (use the requests and csv libraries) that downloads South Dakota's public PPP loan data from the SBA FOIA open-data release at https://data.sba.gov/dataset/ppp-foia (there are state-level CSV files; South Dakota is small so the files are modest). Filter to rows whose borrower city is Sioux Falls (BorrowerCity contains 'SIOUX FALLS', case-insensitive). Write the matching rows to Documents\\Aletheia\\ppp_sioux_falls.csv with these columns: BorrowerName, BorrowerAddress, BorrowerCity, InitialApprovalAmount, JobsReported, NAICSCode, ForgivenessAmount. This is public FOIA data, read-only download; do not log in anywhere. IMPORTANT: at the very end, print to stdout exactly one JSON object and nothing else, like {\"rows_written\": 1234, \"path\": \"C:\\\\Users\\\\caleb\\\\Documents\\\\Aletheia\\\\ppp_sioux_falls.csv\", \"source_urls\": [\"...\"]}. If the download fails, still print one JSON object {\"rows_written\": 0, \"error\": \"<short reason>\"}."
+  }
+}
