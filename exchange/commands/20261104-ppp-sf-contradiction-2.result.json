@@ -1,0 +1,6 @@
+{
+  "id": "20261104-ppp-sf-contradiction-2",
+  "executed_at": "2026-11-04T20:58:51Z",
+  "outcome": "error",
+  "detail": "ReasonerUnavailable: Claude CLI exited 1"
+}
