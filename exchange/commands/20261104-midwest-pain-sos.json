@@ -1,0 +1,12 @@
+{
+  "id": "20261104-midwest-pain-sos",
+  "filed": "2026-11-04T21:08:00Z",
+  "by": "chatgpt",
+  "relayed_from": "operator",
+  "operator_quote": "get researching and then do more stuff outside the box we need to be looking at everything",
+  "command": {
+    "kind": "do_task",
+    "label": "midwest-pain-sos",
+    "request": "Public-records lookup, read-only, no logins. Look up the South Dakota business entity 'Midwest Pain Clinic PC' (a professional corporation in Sioux Falls, SD) on the SD Secretary of State business search at https://sosenterprise.sd.gov/BusinessServices/Business/FilingSearch.aspx and report: the registered agent, the officers/directors/governors/incorporators listed, the entity status (active/dissolved), and the filing/registration date. Also look up physician assistant David A. Welch (NPI 1285602649, Sioux Falls) on the SD Board of Medical and Osteopathic Examiners license lookup (sdbmoe.gov) and report his license status, any listed supervising/collaborating physician, and whether there are any public board actions or disciplinary records against him or against the clinic's physicians. Save a short write-up to Documents\\Aletheia\\midwest_pain_sos.txt. At the very end print to stdout exactly one JSON object and nothing else, e.g. {\"registered_agent\":\"...\",\"officers\":[\"...\"],\"entity_status\":\"...\",\"supervising_physician\":\"...\",\"board_actions\":\"none found\",\"path\":\"C:\\\\Users\\\\caleb\\\\Documents\\\\Aletheia\\\\midwest_pain_sos.txt\"}. If a site can't be read, put what you found and set the missing fields to \"unknown\"."
+  }
+}
