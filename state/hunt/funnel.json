@@ -329,26 +329,28 @@
     "2026-11-04": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 63,
+      "minutes": 78,
       "needs_account": 3,
-      "needs_answer": 23,
-      "not_realistic": 195,
-      "offered": 264,
+      "needs_answer": 24,
+      "not_realistic": 307,
+      "offered": 380,
       "ready": 7,
-      "runs": 4,
-      "unfit_language": 84,
-      "unfit_model": 12,
-      "unfit_pay": 32,
-      "unfit_sales": 67,
+      "runs": 6,
+      "unfit_language": 140,
+      "unfit_model": 15,
+      "unfit_pay": 46,
+      "unfit_sales": 106,
       "unjudged": 0,
-      "unreachable": 0,
+      "unreachable": 3,
+      "unreachable_ApplyError": 2,
+      "unreachable_left_till_tomorrow": 1,
       "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 140,
     "bamboohr": 5,
-    "greenhouse": 101,
+    "greenhouse": 102,
     "lever": 80,
     "recruitee": 9,
     "smartrecruiters": 37,
@@ -358,7 +360,7 @@
     "days": 3,
     "why": {
       "gone_on_lever": 1,
-      "left_captcha": 6,
+      "left_captcha": 7,
       "left_error": 2,
       "left_no_way_forward": 4,
       "left_questions": 5,
@@ -521,14 +523,14 @@
     },
     "2026-11-04": {
       "filled": 32,
-      "found": 52,
+      "found": 53,
       "interviews": 1,
       "rejections": 1,
       "replies": 3,
       "sent": 3
     }
   },
-  "generated_at": "2026-11-04T21:57:42Z",
+  "generated_at": "2026-11-04T22:28:15Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 2,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 2,
@@ -555,7 +557,7 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 2,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 3,
     "workable: text: _ expectations _": 1,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
@@ -576,7 +578,7 @@
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 30,
+      "nothing_to_press_on_captcha/filled": 31,
       "nothing_to_press_on_captcha/observed": 2
     },
     "error": {
@@ -626,7 +628,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 6
+        "nothing_to_press_on_captcha/filled": 7
       },
       "error": {
         "nothing_to_press_on_unread/observed": 2
@@ -646,7 +648,7 @@
   },
   "totals": {
     "filled": 196,
-    "found": 573,
+    "found": 574,
     "interviews": 16,
     "rejections": 22,
     "replies": 53,
@@ -671,7 +673,7 @@
       "gone_on_greenhouse": 5,
       "gone_on_lever": 3,
       "gone_on_workable": 116,
-      "left_captcha": 31,
+      "left_captcha": 32,
       "left_error": 11,
       "left_going_in_circles": 4,
       "left_no_way_forward": 48,
