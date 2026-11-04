@@ -329,17 +329,17 @@
     "2026-11-04": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 78,
+      "minutes": 109,
       "needs_account": 3,
       "needs_answer": 24,
-      "not_realistic": 307,
-      "offered": 380,
+      "not_realistic": 593,
+      "offered": 666,
       "ready": 7,
-      "runs": 6,
-      "unfit_language": 140,
-      "unfit_model": 15,
-      "unfit_pay": 46,
-      "unfit_sales": 106,
+      "runs": 11,
+      "unfit_language": 281,
+      "unfit_model": 29,
+      "unfit_pay": 86,
+      "unfit_sales": 197,
       "unjudged": 0,
       "unreachable": 3,
       "unreachable_ApplyError": 2,
@@ -350,7 +350,7 @@
   "boards": {
     "ashby": 140,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 101,
     "lever": 80,
     "recruitee": 9,
     "smartrecruiters": 37,
@@ -365,7 +365,7 @@
       "left_no_way_forward": 4,
       "left_questions": 5,
       "left_sign_in": 2,
-      "not_realistic": 5
+      "not_realistic": 6
     }
   },
   "days": {
@@ -523,14 +523,14 @@
     },
     "2026-11-04": {
       "filled": 32,
-      "found": 53,
-      "interviews": 1,
+      "found": 54,
+      "interviews": 2,
       "rejections": 1,
-      "replies": 3,
+      "replies": 4,
       "sent": 3
     }
   },
-  "generated_at": "2026-11-04T22:28:15Z",
+  "generated_at": "2026-11-04T22:59:14Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 2,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 2,
@@ -648,10 +648,10 @@
   },
   "totals": {
     "filled": 196,
-    "found": 574,
-    "interviews": 16,
+    "found": 575,
+    "interviews": 17,
     "rejections": 22,
-    "replies": 53,
+    "replies": 54,
     "sent": 106
   },
   "waiting": {
@@ -684,7 +684,7 @@
       "not_a_form_asks_nothing_on_ashbyhq": 2,
       "not_a_form_asks_nothing_on_bamboohr": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 15,
-      "not_realistic": 88
+      "not_realistic": 89
     },
     "failed": 19,
     "failed_because": {
