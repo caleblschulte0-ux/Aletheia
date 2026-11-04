@@ -1,0 +1,395 @@
+{
+  "generated_at": "2026-11-04T23:49:49Z",
+  "city": "SIOUX FALLS, SD",
+  "checks": [
+    {
+      "check": "cms_partd_opioids",
+      "ok": true,
+      "data_year": "2023",
+      "rows_scanned": 1742
+    }
+  ],
+  "candidate_count": 19,
+  "candidates": [
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Welch, David",
+      "summary": "Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1285602649",
+        "specialty": "Physician Assistant",
+        "long_acting_opioid_claims": 1091,
+        "opioid_claims": 3238,
+        "total_claims": 5223,
+        "opioid_share_pct": 62.0,
+        "address": "1001 E. 21st St.",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Kroese, Jane",
+      "summary": "Nurse Practitioner prescriber with 188 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1396110318",
+        "specialty": "Nurse Practitioner",
+        "long_acting_opioid_claims": 188,
+        "opioid_claims": 387,
+        "total_claims": 645,
+        "opioid_share_pct": 60.0,
+        "address": "1309 W 17th St Ste 101",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Wilde, James",
+      "summary": "Family Practice prescriber with 150 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1467424291",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 150,
+        "opioid_claims": 345,
+        "total_claims": 1715,
+        "opioid_share_pct": 20.1,
+        "address": "1115 E 20th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Tinguely, Jennifer",
+      "summary": "Family Practice prescriber with 132 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1942505102",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 132,
+        "opioid_claims": 480,
+        "total_claims": 11750,
+        "opioid_share_pct": 4.1,
+        "address": "521 N Main Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Nelson, David",
+      "summary": "Internal Medicine prescriber with 69 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1538164066",
+        "specialty": "Internal Medicine",
+        "long_acting_opioid_claims": 69,
+        "opioid_claims": 621,
+        "total_claims": 16417,
+        "opioid_share_pct": 3.8,
+        "address": "1321 W 22nd St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Severin, Billie-Jo",
+      "summary": "Physician Assistant prescriber with 58 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1174559272",
+        "specialty": "Physician Assistant",
+        "long_acting_opioid_claims": 58,
+        "opioid_claims": 160,
+        "total_claims": 3476,
+        "opioid_share_pct": 4.6,
+        "address": "5019 S Western Ave Ste 200",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Brummond, Neil",
+      "summary": "Internal Medicine prescriber with 56 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1295020618",
+        "specialty": "Internal Medicine",
+        "long_acting_opioid_claims": 56,
+        "opioid_claims": 211,
+        "total_claims": 9635,
+        "opioid_share_pct": 2.2,
+        "address": "6100 S Louise Ave Ste 1120",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Chlebeck, Paul",
+      "summary": "Family Practice prescriber with 54 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1669483632",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 54,
+        "opioid_claims": 486,
+        "total_claims": 8782,
+        "opioid_share_pct": 5.5,
+        "address": "4405 E 26th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Easterling, Ellis",
+      "summary": "Internal Medicine prescriber with 52 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1508286931",
+        "specialty": "Internal Medicine",
+        "long_acting_opioid_claims": 52,
+        "opioid_claims": 202,
+        "total_claims": 7806,
+        "opioid_share_pct": 2.6,
+        "address": "1321 W 22nd St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Lewison, Kristina",
+      "summary": "Nurse Practitioner prescriber with 50 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1265015721",
+        "specialty": "Nurse Practitioner",
+        "long_acting_opioid_claims": 50,
+        "opioid_claims": 120,
+        "total_claims": 192,
+        "opioid_share_pct": 62.5,
+        "address": "1309 W 17th St Ste 101",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Allison, Jay",
+      "summary": "Family Practice prescriber with 48 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1235195041",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 48,
+        "opioid_claims": 254,
+        "total_claims": 10687,
+        "opioid_share_pct": 2.4,
+        "address": "1115 E 20th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Stotz, Kirsten",
+      "summary": "Family Practice prescriber with 48 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1770719122",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 48,
+        "opioid_claims": 176,
+        "total_claims": 4100,
+        "opioid_share_pct": 4.3,
+        "address": "4011 W Benson Rd",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Shah, Syed",
+      "summary": "Internal Medicine prescriber with 47 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1275514218",
+        "specialty": "Internal Medicine",
+        "long_acting_opioid_claims": 47,
+        "opioid_claims": 341,
+        "total_claims": 4826,
+        "opioid_share_pct": 7.1,
+        "address": "6709 S Minnesota Ave Ste 220",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Ecklund, Scott",
+      "summary": "Family Practice prescriber with 45 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1306892633",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 45,
+        "opioid_claims": 282,
+        "total_claims": 8229,
+        "opioid_share_pct": 3.4,
+        "address": "600 N Sycamore Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Erickson, Sandra",
+      "summary": "Nurse Practitioner prescriber with 44 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1437112315",
+        "specialty": "Nurse Practitioner",
+        "long_acting_opioid_claims": 44,
+        "opioid_claims": 183,
+        "total_claims": 571,
+        "opioid_share_pct": 32.0,
+        "address": "1321 W 22nd St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Ridder, Glenn",
+      "summary": "Family Practice prescriber with 42 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1003816885",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 42,
+        "opioid_claims": 160,
+        "total_claims": 5277,
+        "opioid_share_pct": 3.0,
+        "address": "6110 S Minnesota Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Burkhardt, Aaron",
+      "summary": "Internal Medicine prescriber with 41 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1013322205",
+        "specialty": "Internal Medicine",
+        "long_acting_opioid_claims": 41,
+        "opioid_claims": 349,
+        "total_claims": 8881,
+        "opioid_share_pct": 3.9,
+        "address": "6100 S Louise Ave Ste 1120",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Irwin, Rebekah",
+      "summary": "Nurse Practitioner prescriber with 40 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1770783714",
+        "specialty": "Nurse Practitioner",
+        "long_acting_opioid_claims": 40,
+        "opioid_claims": 258,
+        "total_claims": 2858,
+        "opioid_share_pct": 9.0,
+        "address": "2100 S Marion Rd",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_opioids",
+      "kind": "anomaly",
+      "subject": "Wong, Christopher",
+      "summary": "Family Practice prescriber with 40 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty",
+      "evidence": {
+        "npi": "1972865400",
+        "specialty": "Family Practice",
+        "long_acting_opioid_claims": 40,
+        "opioid_claims": 250,
+        "total_claims": 6836,
+        "opioid_share_pct": 3.7,
+        "address": "1115 E 20th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
+      "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
+      "data_year": "2023"
+    }
+  ]
+}
