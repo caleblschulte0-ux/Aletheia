@@ -57,6 +57,40 @@ class OpioidOutliers(unittest.TestCase):
         self.assertEqual(inv.opioid_outliers([]), [])
 
 
+def _recall(firm, cls, *, kind="food", city="Sioux Falls", reason="contamination"):
+    return {"recalling_firm": firm, "classification": cls, "kind": kind,
+            "city": city, "state": "SD", "reason_for_recall": reason}
+
+
+class FdaRecallOutliers(unittest.TestCase):
+    def test_flags_a_single_class_I(self):
+        out = inv.fda_recall_outliers([_recall("Acme Foods", "Class I")])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["subject"], "Acme Foods")
+        self.assertTrue(out[0]["evidence"]["class_I"])
+        self.assertEqual(out[0]["kind"], "context")
+
+    def test_flags_a_repeat_pattern_even_without_class_I(self):
+        out = inv.fda_recall_outliers([_recall("Repeat LLC", "Class II"),
+                                       _recall("Repeat LLC", "Class III", kind="drug")])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["evidence"]["recall_count"], 2)
+        self.assertEqual(out[0]["evidence"]["kinds"], ["drug", "food"])
+
+    def test_single_non_class_I_is_not_flagged(self):
+        self.assertEqual(inv.fda_recall_outliers([_recall("Once Co", "Class II")]), [])
+
+    def test_a_firm_in_another_city_is_skipped(self):
+        self.assertEqual(
+            inv.fda_recall_outliers([_recall("Faraway", "Class I", city="Rapid City")]), [])
+
+    def test_class_I_sorts_before_mere_repeats(self):
+        out = inv.fda_recall_outliers([
+            _recall("Two", "Class II"), _recall("Two", "Class III"),
+            _recall("One", "Class I")])
+        self.assertEqual([c["subject"] for c in out], ["One", "Two"])
+
+
 class AntipsychoticGE65Outliers(unittest.TestCase):
     def test_flags_non_psych_specialty_sedating_the_elderly(self):
         rows = [_row("Geis", "Tara", "Family Practice", ap=543, ap_benes=33)]
@@ -120,6 +154,20 @@ class RunCheck(unittest.TestCase):
         res = inv.run_cms_partd(fetch=boom)
         self.assertFalse(res["ok"])
         self.assertIn("unreachable", res["error"])
+        self.assertEqual(res["candidates"], [])
+
+    def test_fda_injected_fetch_no_network(self):
+        res = inv.run_fda_recalls(fetch=lambda: [_recall("Acme", "Class I")])
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["check"], "fda_recalls")
+        self.assertEqual(res["candidates"][0]["subject"], "Acme")
+
+    def test_fda_fetch_failure_is_captured(self):
+        def boom():
+            raise RuntimeError("fda down")
+        res = inv.run_fda_recalls(fetch=boom)
+        self.assertFalse(res["ok"])
+        self.assertIn("down", res["error"])
         self.assertEqual(res["candidates"], [])
 
 
