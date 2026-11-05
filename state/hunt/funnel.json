@@ -528,15 +528,12 @@
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
-      "sent": 5
+      "sent": 6
     }
   },
-  "generated_at": "2026-11-05T00:29:58Z",
+  "generated_at": "2026-11-05T00:59:57Z",
   "question_shapes": {
-    "ashbyhq: radio: _ you are _ please select the _ that _ you to": 2,
-    "ashbyhq: radio: are you able and willing to travel _ _ to and _": 2,
-    "ashbyhq: radio: do you consent to _ _ _ _ _ _ your _": 3,
-    "ashbyhq: text: what is the first _ of your address": 2,
+    "ashbyhq: field: what are your salary expectations": 1,
     "employer_site: field: _": 4,
     "employer_site: field: _ _": 3,
     "employer_site: field: _ _ yes to this _ you _ that you have _": 1,
@@ -552,21 +549,24 @@
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: do you have any _ _ _ _ with your _ _": 1,
+    "lever: radio: what is your _ range": 1,
+    "lever: text: _": 1,
+    "lever: text: how _ years of experience do you have in a customer _": 1,
     "lever: text: what is your desired _ compensation": 1,
     "lever: textarea: _ you _ yes to _ a _ _ employed at _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 2,
+    "recruitee: text: what is your _ _ for this role": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: resume _": 3,
-    "workable: text: the salary range is _ for this role are you comfortable with": 1,
-    "workable: textarea: how _ _ _ do you _ _ per _": 1,
-    "workable: textarea: which _ and _ _ have you _ _": 1
+    "workable: field: resume _": 6,
+    "workable: text: the salary range is _ for this role are you comfortable with": 1
   },
-  "sent_all_time": 337,
+  "sent_all_time": 338,
   "sent_by_system": {
-    "ashbyhq": 23,
+    "ashbyhq": 24,
     "employer_site": 7,
     "greenhouse": 50,
     "lever": 28
@@ -659,21 +659,19 @@
     "interviews": 17,
     "rejections": 22,
     "replies": 54,
-    "sent": 108
+    "sent": 109
   },
   "waiting": {
     "asked_about": {
-      "address": 2,
       "agreements": 1,
-      "contact": 1,
       "demographic_gender": 2,
       "demographic_race": 1,
       "demographic_veteran": 1,
-      "on_site": 4,
-      "other": 27,
+      "on_site": 2,
+      "other": 25,
       "pay": 4,
       "travel": 1,
-      "years_experience": 3
+      "years_experience": 2
     },
     "closed": {
       "gone_on_ashbyhq": 9,
@@ -705,7 +703,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 28,
+    "needs_answer": 27,
     "oldest_days": 52,
     "to_send": 0
   },
