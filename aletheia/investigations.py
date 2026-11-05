@@ -93,6 +93,31 @@ ANTIPSYCHOTIC_GE65_EXPECTED_SPECIALTIES = frozenset({
 # continuous-dosing tell that separates restraint from occasional treatment.
 ANTIPSYCHOTIC_GE65_FLAG = 100
 
+# ---- CMS Care Compare nursing-home facility lens --------------------------
+# CMS Care Compare publishes, per nursing home: a long-stay antipsychotic % (the
+# share of long-stay residents on an antipsychotic, AFTER CMS excludes residents
+# with schizophrenia / Tourette's / Huntington's -- so a high % is off-label
+# "chemical restraint", sedation for staff convenience), alongside the home's
+# star ratings and health-inspection deficiency counts.
+#
+# The Westen refinement (a logged rejection: "nursing-home neglect, regulator
+# already on it"): a home that is BOTH high-antipsychotic AND has a bad
+# inspection is already caught -- the regulator is on it, nothing cold to be
+# first on. The COLD, concealed signal is the INVERSE: a home sedating an
+# elevated share of its elderly yet rated clean by inspectors (4-5 stars, few
+# deficiencies). The harm is present in the records and no inspector has flagged
+# it. So this lens flags high-% AND clean, and drops high-% AND deficient.
+CARE_COMPARE_ANTIPSYCH_FLOOR = 15.0   # % long-stay on antipsychotics; national
+                                      # avg ~14%, below this nothing is notable
+CARE_COMPARE_PEER_MULT = 1.3          # ... and >= 1.3x the state peer median
+CARE_COMPARE_CLEAN_RATING = 4         # overall star rating >= this == "clean"
+CARE_COMPARE_ANTIPSYCH_MEASURE = "481"  # MDS QM: long-stay antipsychotic %
+# DKAN datastore query root (data.cms.gov/provider-data). The WAF-403 seen
+# 2026-11-05 was intermittent; a plain Accept: application/json gets JSON.
+CMS_DKAN_QUERY = "https://data.cms.gov/provider-data/api/1/datastore/query"
+CMS_NH_PROVIDER_INFO = "4pq5-n9py"    # facility list + ratings + deficiencies
+CMS_NH_MDS_QM = "djen-97ju"           # Minimum Data Set quality measures
+
 
 # Registry of sources: a broad catalogue of what a records-based investigator
 # would watch, honest about what is actually wired. Data only; no behaviour.
@@ -122,12 +147,11 @@ SOURCES: list[dict[str, Any]] = [
      "signal": "a non-psychiatric specialty sedating the elderly (restraint)",
      "free": True, "status": "AVAILABLE"},
     {"id": "cms_care_compare_nh", "category": "medical",
-     "name": "CMS Care Compare nursing homes (provider info)",
+     "name": "CMS Care Compare nursing homes (provider info + MDS measures)",
      "host": "data.cms.gov/provider-data",
-     "reads": "each facility's antipsychotic % of long-stay residents + deficiencies",
-     "signal": "a home sedating residents with a bad inspection record (judges the Rx flags)",
-     "free": True, "status": "BLOCKED_WAF",
-     "note": "ticket: provider-data /api/ WAF-403s; fetch the static NH_ProviderInfo CSV distribution"},
+     "reads": "each facility's antipsychotic % of long-stay residents + ratings + deficiencies",
+     "signal": "a home sedating an elevated share of its elderly yet rated clean by inspectors (the cold concealed case)",
+     "free": True, "status": "AVAILABLE", "caller": "run_care_compare"},
     {"id": "cms_open_payments", "category": "medical",
      "name": "CMS Open Payments (industry $ to clinicians)",
      "host": "openpaymentsdata.cms.gov",
@@ -244,9 +268,38 @@ SOURCES: list[dict[str, Any]] = [
 
 
 def _get_json(url: str, timeout: float = 60.0) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": UA, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read().decode("utf-8", "replace"))
+
+
+CMS_DKAN_PAGE = 1000   # the datastore caps a page at 1000 rows (2000 -> HTTP 400)
+
+
+def _dkan_query(dataset_id: str, conditions: list[tuple[str, str, str]],
+                *, max_rows: int = 10000) -> list[dict[str, Any]]:
+    """Network. A CMS DKAN datastore query, paged by offset. `conditions` is a
+    list of (property, value, operator). The datastore caps a page at 1000, so
+    larger sets (e.g. a state's MDS measure rows) come back over several pages;
+    max_rows is a safety cap, not an expected limit.
+    """
+    base: dict[str, str] = {}
+    for i, (prop, val, op) in enumerate(conditions):
+        base[f"conditions[{i}][property]"] = prop
+        base[f"conditions[{i}][value]"] = val
+        base[f"conditions[{i}][operator]"] = op
+    rows: list[dict[str, Any]] = []
+    offset = 0
+    while offset < max_rows:
+        params = {**base, "limit": str(CMS_DKAN_PAGE), "offset": str(offset)}
+        url = f"{CMS_DKAN_QUERY}/{dataset_id}/0?" + urllib.parse.urlencode(params)
+        page = _get_json(url).get("results") or []
+        rows.extend(page)
+        if len(page) < CMS_DKAN_PAGE:
+            break
+        offset += CMS_DKAN_PAGE
+    return rows
 
 
 def _num(value: Any) -> float:
@@ -614,10 +667,124 @@ def run_epa_echo(fetch: Callable[[], list[dict[str, Any]]] | None = None
             "candidates": epa_echo_violators(rows)}
 
 
+# ---- CMS Care Compare nursing-home facility lens --------------------------
+
+def _median(values: list[float]) -> float:
+    s = sorted(values)
+    n = len(s)
+    if n == 0:
+        return 0.0
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2.0
+
+
+def care_compare_outliers(provider_rows: list[dict[str, Any]],
+                          antipsych_pct_by_ccn: dict[str, float],
+                          *, city: str = CITY) -> list[dict[str, Any]]:
+    """Pure analysis. Flag a nursing home in the target city that sedates an
+    ELEVATED share of its long-stay elderly (antipsychotic % >= the greater of
+    an absolute floor and 1.3x the state peer median) yet is rated CLEAN by
+    inspectors (overall star rating >= 4). That combination -- real sedation,
+    no inspection flag -- is the cold concealed-harm signal; a high-% home that
+    ALSO has a bad inspection is already caught by the regulator and is dropped.
+    The peer median is computed from the facilities passed in. No model.
+    """
+    pcts = [p for p in antipsych_pct_by_ccn.values() if p > 0]
+    peer_median = _median(pcts)
+    threshold = max(CARE_COMPARE_ANTIPSYCH_FLOOR,
+                    peer_median * CARE_COMPARE_PEER_MULT)
+    out: list[dict[str, Any]] = []
+    for r in provider_rows:
+        if city.upper() not in (r.get("citytown") or "").upper():
+            continue
+        ccn = (r.get("cms_certification_number_ccn") or "").strip()
+        pct = antipsych_pct_by_ccn.get(ccn)
+        if pct is None or pct < threshold:
+            continue
+        rating = _num(r.get("overall_rating"))
+        if rating < CARE_COMPARE_CLEAN_RATING:
+            continue  # high-% AND a bad inspection == regulator already on it
+        name = (r.get("provider_name") or "").strip()
+        health = _num(r.get("health_inspection_rating"))
+        deficiencies = int(_num(
+            r.get("rating_cycle_1_total_number_of_health_deficiencies")))
+        out.append({
+            "check": "cms_care_compare_nh",
+            "kind": "anomaly",
+            "subject": name,
+            "summary": (
+                f"{name}: {pct:.0f}% of long-stay residents on antipsychotics "
+                f"(state median {peer_median:.0f}%) yet rated {int(rating)}/5 "
+                f"overall, {int(health)}/5 on health inspection with "
+                f"{deficiencies} deficiency(ies) -- elevated sedation, clean "
+                "inspection record"),
+            "evidence": {
+                "ccn": ccn,
+                "antipsychotic_long_stay_pct": pct,
+                "state_peer_median_pct": round(peer_median, 1),
+                "overall_rating": int(rating),
+                "health_inspection_rating": int(health),
+                "health_deficiencies_last_cycle": deficiencies,
+                "chain_name": (r.get("chain_name") or "").strip(),
+                "changed_ownership_last_12mo":
+                    (r.get("provider_changed_ownership_in_last_12_months")
+                     or "").strip(),
+                "address": (r.get("provider_address") or "").strip(),
+                "city": (r.get("citytown") or "").strip(),
+            },
+            "source": "CMS Care Compare (nursing-home provider + MDS measures)",
+            "why_him": ("a facility's public Medicare quality record; target "
+                        "the HOME/operator, records-based, never a resident"),
+            "next_record": ("this home's health-deficiency narrative + any "
+                            "complaint survey touching medication; cross-ref "
+                            "the Part D prescribers at this address"),
+        })
+    out.sort(key=lambda c: -c["evidence"]["antipsychotic_long_stay_pct"])
+    return out
+
+
+def _fetch_care_compare(city: str = CITY, state: str = STATE
+                        ) -> tuple[list[dict[str, Any]], dict[str, float]]:
+    """Network. Pull the state's nursing homes (provider info) and the state's
+    MDS quality-measure rows, build a CCN -> long-stay antipsychotic % map from
+    the antipsychotic measure, and hand both to the pure function to filter and
+    judge. Returns (provider_rows, antipsych_pct_by_ccn).
+    """
+    provider_rows = _dkan_query(
+        CMS_NH_PROVIDER_INFO, [("state", state, "=")])
+    mds_rows = _dkan_query(CMS_NH_MDS_QM, [("state", state, "=")])
+    antipsych_pct_by_ccn: dict[str, float] = {}
+    for r in mds_rows:
+        if (r.get("measure_code") or "").strip() != CARE_COMPARE_ANTIPSYCH_MEASURE:
+            continue  # filtered client-side: a datatype mismatch server-side
+                      # would silently return zero rows (a false all-clear)
+        ccn = (r.get("cms_certification_number_ccn") or "").strip()
+        score = r.get("four_quarter_average_score")
+        if ccn and score not in (None, "", "Not Available"):
+            antipsych_pct_by_ccn[ccn] = _num(score)
+    return provider_rows, antipsych_pct_by_ccn
+
+
+def run_care_compare(
+    fetch: Callable[[], tuple[list[dict[str, Any]], dict[str, float]]] | None = None
+) -> dict[str, Any]:
+    """One check: fetch (injectable) then analyse."""
+    fetch = fetch or _fetch_care_compare
+    try:
+        provider_rows, antipsych_pct_by_ccn = fetch()
+    except Exception as exc:  # noqa: BLE001
+        return {"check": "cms_care_compare_nh", "ok": False, "error": str(exc),
+                "candidates": []}
+    return {"check": "cms_care_compare_nh", "ok": True,
+            "rows_scanned": len(provider_rows),
+            "candidates": care_compare_outliers(
+                provider_rows, antipsych_pct_by_ccn)}
+
+
 # ---- orchestration ---------------------------------------------------------
 
 CHECKS: list[Callable[[], dict[str, Any]]] = [
-    run_cms_partd, run_fda_recalls, run_epa_echo,
+    run_cms_partd, run_fda_recalls, run_epa_echo, run_care_compare,
 ]
 
 

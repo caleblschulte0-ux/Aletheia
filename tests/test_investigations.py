@@ -161,6 +161,55 @@ class AntipsychoticGE65Outliers(unittest.TestCase):
         self.assertEqual([c["subject"] for c in out], ["High, H", "Low, L"])
 
 
+def _nh(name, ccn, *, city="Sioux Falls", rating=5, health=5, deficiencies=0):
+    return {"cms_certification_number_ccn": ccn, "provider_name": name,
+            "citytown": city, "overall_rating": rating,
+            "health_inspection_rating": health,
+            "rating_cycle_1_total_number_of_health_deficiencies": deficiencies,
+            "provider_address": "1 Care Way", "chain_name": "",
+            "provider_changed_ownership_in_last_12_months": "N"}
+
+
+class CareCompareOutliers(unittest.TestCase):
+    def test_flags_elevated_sedation_with_a_clean_inspection(self):
+        rows = [_nh("Quiet Pines", "435001", rating=5, health=5),
+                _nh("Low Home", "435002", rating=5)]
+        pct = {"435001": 30.0, "435002": 8.0}
+        out = inv.care_compare_outliers(rows, pct)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["subject"], "Quiet Pines")
+        self.assertEqual(out[0]["evidence"]["antipsychotic_long_stay_pct"], 30.0)
+
+    def test_skips_high_pct_home_with_a_bad_inspection(self):
+        # high-% AND a bad rating == regulator already on it == not cold
+        rows = [_nh("Flagged Home", "435003", rating=2, health=1, deficiencies=9)]
+        self.assertEqual(inv.care_compare_outliers(rows, {"435003": 35.0}), [])
+
+    def test_skips_a_home_below_the_floor(self):
+        rows = [_nh("Normal Home", "435004", rating=5)]
+        self.assertEqual(inv.care_compare_outliers(rows, {"435004": 12.0}), [])
+
+    def test_threshold_is_relative_to_the_state_peer_median(self):
+        # median of peers is high, so a merely-floor-level home is NOT an outlier
+        rows = [_nh("A", "1", rating=5), _nh("B", "2", rating=5),
+                _nh("C", "3", rating=5)]
+        pct = {"1": 40.0, "2": 40.0, "3": 16.0}  # median 40 -> threshold 52
+        out = inv.care_compare_outliers(rows, pct)
+        self.assertEqual(out, [])  # nothing reaches 1.3x median (52%)
+
+    def test_skips_other_city(self):
+        rows = [_nh("Faraway NH", "435005", city="Aberdeen", rating=5)]
+        self.assertEqual(inv.care_compare_outliers(rows, {"435005": 40.0}), [])
+
+    def test_sorted_by_antipsychotic_pct_descending(self):
+        rows = [_nh("Lower", "1", rating=5), _nh("Higher", "2", rating=5)]
+        # extra low peers keep the median low so the floor (15%) binds and both
+        # flag; then the two are ordered by pct
+        pct = {"1": 22.0, "2": 33.0, "x": 5.0, "y": 5.0, "z": 5.0}
+        out = inv.care_compare_outliers(rows, pct)
+        self.assertEqual([c["subject"] for c in out], ["Higher", "Lower"])
+
+
 class RunCheck(unittest.TestCase):
     def test_injected_fetch_is_used_no_network(self):
         rows = [_row("Welch", "David", "Physician Assistant", 1091)]
@@ -217,6 +266,23 @@ class RunCheck(unittest.TestCase):
         def boom():
             raise RuntimeError("echo down")
         res = inv.run_epa_echo(fetch=boom)
+        self.assertFalse(res["ok"])
+        self.assertIn("down", res["error"])
+        self.assertEqual(res["candidates"], [])
+
+    def test_care_compare_injected_fetch_no_network(self):
+        rows = [_nh("Quiet Pines", "435001", rating=5)]
+        pct = {"435001": 30.0, "a": 5.0, "b": 5.0, "c": 5.0}  # low peers -> floor binds
+        res = inv.run_care_compare(fetch=lambda: (rows, pct))
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["check"], "cms_care_compare_nh")
+        self.assertEqual(res["rows_scanned"], 1)
+        self.assertEqual(res["candidates"][0]["subject"], "Quiet Pines")
+
+    def test_care_compare_fetch_failure_is_captured(self):
+        def boom():
+            raise RuntimeError("care compare down")
+        res = inv.run_care_compare(fetch=boom)
         self.assertFalse(res["ok"])
         self.assertIn("down", res["error"])
         self.assertEqual(res["candidates"], [])
