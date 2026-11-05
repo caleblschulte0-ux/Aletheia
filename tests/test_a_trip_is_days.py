@@ -23,10 +23,14 @@ class ATripIsDays(unittest.TestCase):
         self.assertEqual((got["kind"], got["title"]), ("calendar_hold", "vacation"))
 
     def events(self):
-        # The coming 3 November, so the fixture moves with the calendar.
+        # The fixture moves with the calendar, and must land in the SAME year
+        # _agenda_on("november 4") resolves to -- _named_date rolls a month-day
+        # to next year only once that day is PAST, so the pivot is Nov 4 (the
+        # queried middle day), not Nov 3. (A Nov-3 pivot disagreed with the
+        # parser the day in between and failed on 2026-11-04.)
         tz = localtime.operator_tz()
         today = dt.datetime.now(tz).date()
-        year = today.year if (today.month, today.day) <= (11, 3) else today.year + 1
+        year = today.year if dt.date(today.year, 11, 4) >= today else today.year + 1
         start = dt.datetime(year, 11, 3, tzinfo=tz)
         return start, [{"id": "t", "title": "work trip to Denver", "start": start.isoformat(),
                         "end": (start + dt.timedelta(days=3)).isoformat(), "status": "TENTATIVE"}]
