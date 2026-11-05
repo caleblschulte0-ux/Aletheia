@@ -350,16 +350,17 @@
     "2026-11-05": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 287,
+      "minutes": 307,
       "needs_account": 0,
       "needs_answer": 6,
-      "not_realistic": 1393,
-      "offered": 1437,
+      "not_realistic": 1661,
+      "offered": 1705,
       "ready": 1,
-      "runs": 28,
-      "unfit_language": 764,
-      "unfit_pay": 243,
-      "unfit_sales": 386,
+      "runs": 33,
+      "unfit_language": 909,
+      "unfit_pay": 293,
+      "unfit_sales": 456,
+      "unfit_years": 3,
       "unjudged": 0,
       "unreachable": 8,
       "unreachable_ApplyError": 2,
@@ -553,7 +554,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-05T23:28:32Z",
+  "generated_at": "2026-11-05T23:58:48Z",
   "question_shapes": {
     "ashbyhq: radio: are you willing and able to work _ _ _ _ office": 1,
     "employer_site: field: _": 4,
@@ -582,7 +583,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
     "workable: field: resume _": 7
   },
   "sent_all_time": 340,
