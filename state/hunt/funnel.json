@@ -535,23 +535,23 @@
       "sent": 4
     },
     "2026-11-04": {
-      "filled": 35,
-      "found": 63,
+      "filled": 25,
+      "found": 53,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
       "sent": 8
     },
     "2026-11-05": {
-      "filled": 3,
-      "found": 7,
+      "filled": 13,
+      "found": 17,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-05T06:54:11Z",
+  "generated_at": "2026-11-05T07:25:05Z",
   "question_shapes": {
     "ashbyhq: textarea: do you have _ experience working in the _ _ _ _": 1,
     "ashbyhq: textarea: what about _ _ or the role _ your _ and _": 1,
@@ -567,6 +567,7 @@
     "employer_site: field: veteran _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
@@ -574,8 +575,7 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
