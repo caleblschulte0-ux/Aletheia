@@ -71,35 +71,176 @@ OPIOID_EXPECTED_SPECIALTIES = frozenset({
 # is worth a human look. Long-acting opioids are the pill-mill marker.
 LA_OPIOID_FLAG = 40
 
+# Specialties for which prescribing antipsychotics to patients 65+ is EXPECTED
+# (so not an anomaly). Everyone else carrying a heavy GE65 antipsychotic load is
+# the signal: off-label antipsychotics to the elderly is the documented
+# nursing-home "chemical restraint" pattern (dementia patients sedated for staff
+# convenience), which CMS itself tracks and penalises.
+ANTIPSYCHOTIC_GE65_EXPECTED_SPECIALTIES = frozenset({
+    "Psychiatry",
+    "Geriatric Psychiatry",
+    "Child & Adolescent Psychiatry",
+    "Neuropsychiatry",
+    "Psychiatry & Neurology",
+    "Neurology",
+    "Geriatric Medicine",
+    "Hospice and Palliative Care",
+    "Addiction Medicine",
+})
 
-# Registry of sources, honest about what is wired. Data only; no behaviour.
+# A GE65 antipsychotic claim count at/above this, from an UNEXPECTED specialty,
+# is worth a human look. Claims-per-patient (when not suppressed) is the
+# continuous-dosing tell that separates restraint from occasional treatment.
+ANTIPSYCHOTIC_GE65_FLAG = 100
+
+
+# Registry of sources: a broad catalogue of what a records-based investigator
+# would watch, honest about what is actually wired. Data only; no behaviour.
+#
+# status is one of:
+#   AVAILABLE    a lens is wired and runs every scan (names its run_* caller)
+#   QUEUED       the host is reachable from here; the lens is the next build
+#   BLOCKED_WAF  the host WAF-403s programmatic JSON (verified); needs a static
+#                file / bulk download fetch instead -- the note says which
+#   NOT_BUILT    needs a fetch path worked out (portal scrape / token / bulk)
+#
+# Every non-AVAILABLE entry carries a NOTE that is its ticket. Nothing here is
+# faked: a source is AVAILABLE only when a pure analysis + injected fetch exist
+# and a test stubs the network. Adding one is a small, reviewed change.
 SOURCES: list[dict[str, Any]] = [
-    {
-        "id": "cms_partd_opioids",
-        "name": "CMS Medicare Part D prescribers (by provider)",
-        "reads": "every Part D prescriber's opioid / long-acting-opioid volume",
-        "anomaly": "a non-pain specialty carrying a pain-clinic opioid load",
-        "free": True,
-        "status": "AVAILABLE",
-    },
-    {
-        "id": "sba_ppp_small_loans",
-        "name": "SBA PPP FOIA loan data (under $150k)",
-        "reads": "sole-proprietor loans; amount vs jobs; address clustering",
-        "anomaly": "fake one-person 'businesses' at ~$20,833 clustered at homes",
-        "free": True,
-        "status": "NOT_BUILT",
-        "note": "ticket: stream public_up_to_150k_*.csv, filter borrower=SF SD",
-    },
-    {
-        "id": "usaspending_absence",
-        "name": "USAspending awards vs business registration",
-        "reads": "federal money to an entity with no matching registration/site",
-        "anomaly": "money arriving where no real operation appears to exist",
-        "free": True,
-        "status": "NOT_BUILT",
-        "note": "ticket: absence check -- award present, SoS/web presence absent",
-    },
+    # --- medical harm / exploiting the vulnerable -------------------------
+    {"id": "cms_partd_opioids", "category": "medical",
+     "name": "CMS Medicare Part D prescribers (by provider)",
+     "host": "data.cms.gov/data-api",
+     "reads": "every Part D prescriber's opioid / long-acting-opioid volume",
+     "signal": "a non-pain specialty carrying a pain-clinic opioid load",
+     "free": True, "status": "AVAILABLE"},
+    {"id": "cms_partd_antipsychotics_ge65", "category": "medical",
+     "name": "CMS Medicare Part D prescribers (by provider)",
+     "host": "data.cms.gov/data-api",
+     "reads": "every Part D prescriber's antipsychotic volume to patients 65+",
+     "signal": "a non-psychiatric specialty sedating the elderly (restraint)",
+     "free": True, "status": "AVAILABLE"},
+    {"id": "cms_care_compare_nh", "category": "medical",
+     "name": "CMS Care Compare nursing homes (provider info)",
+     "host": "data.cms.gov/provider-data",
+     "reads": "each facility's antipsychotic % of long-stay residents + deficiencies",
+     "signal": "a home sedating residents with a bad inspection record (judges the Rx flags)",
+     "free": True, "status": "BLOCKED_WAF",
+     "note": "ticket: provider-data /api/ WAF-403s; fetch the static NH_ProviderInfo CSV distribution"},
+    {"id": "cms_open_payments", "category": "medical",
+     "name": "CMS Open Payments (industry $ to clinicians)",
+     "host": "openpaymentsdata.cms.gov",
+     "reads": "pharma/device payments to SD prescribers",
+     "signal": "money to the exact doctors the Rx lenses flag (corroboration)",
+     "free": True, "status": "BLOCKED_WAF",
+     "note": "ticket: DKAN /api/ WAF-403s; fetch the annual general-payment CSV, filter state=SD"},
+    # --- food / consumer / product safety ---------------------------------
+    {"id": "fda_recalls", "category": "consumer_safety",
+     "name": "openFDA enforcement (food/drug/device recalls)",
+     "host": "api.fda.gov",
+     "reads": "every FDA recall naming an SD firm, with class and reason",
+     "signal": "a local firm with a Class I or repeated recall pattern nobody has covered",
+     "free": True, "status": "AVAILABLE"},
+    {"id": "nhtsa_complaints", "category": "consumer_safety",
+     "name": "NHTSA complaints / recalls", "host": "api.nhtsa.gov",
+     "reads": "safety complaints; dealer/service patterns",
+     "signal": "a local seller tied to a cluster of safety complaints",
+     "free": True, "status": "QUEUED", "note": "ticket: weak local signal; wire if a vein needs it"},
+    # --- workplace / labor harm -------------------------------------------
+    {"id": "osha_severe_injury", "category": "workplace",
+     "name": "OSHA severe injury reports (amputations/hospitalizations)",
+     "host": "osha.gov / enforcedata.dol.gov",
+     "reads": "every amputation/hospitalization an SF employer reported since 2015",
+     "signal": "an employer maiming workers repeatedly with no public reckoning",
+     "free": True, "status": "BLOCKED_WAF",
+     "note": "ticket: osha.gov .json WAF-403s; fetch the DOL enforcedata severe-injury bulk file"},
+    {"id": "osha_inspections", "category": "workplace",
+     "name": "OSHA inspections / violations", "host": "enforcedata.dol.gov",
+     "reads": "serious/willful/repeat violations at SD establishments",
+     "signal": "a willful-violation pattern at one employer",
+     "free": True, "status": "QUEUED", "note": "ticket: wire the enforcedata OSHA inspection bulk CSV"},
+    {"id": "dol_whd_wage", "category": "workplace",
+     "name": "DOL Wage & Hour enforcement", "host": "enforcedata.dol.gov",
+     "reads": "back-wage findings by employer",
+     "signal": "systematic wage theft at an SF employer",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: wire the enforcedata WHD bulk CSV, filter SD"},
+    # --- environment -------------------------------------------------------
+    {"id": "epa_echo", "category": "environment",
+     "name": "EPA ECHO enforcement & compliance", "host": "echodata.epa.gov",
+     "reads": "clean-air/water violations and penalties by facility",
+     "signal": "a private facility poisoning neighbors, under the regulator's radar",
+     "free": True, "status": "QUEUED",
+     "note": "ticket: echo API reachable; prior SF hits were gov lagoons -- filter to private operators"},
+    # --- housing / predatory landlord -------------------------------------
+    {"id": "sf_code_enforcement", "category": "housing",
+     "name": "Sioux Falls code enforcement / rental violations",
+     "host": "siouxfalls.gov portal",
+     "reads": "repeat housing-code violations per owner/parcel",
+     "signal": "a landlord concealing systemic habitability failures across many units",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: find the city code-enforcement data endpoint"},
+    {"id": "sf_parcels_landlord", "category": "housing",
+     "name": "Sioux Falls parcels / ownership (ArcGIS)",
+     "host": "gis.siouxfalls.gov",
+     "reads": "owner name, unit counts, square footage by parcel",
+     "signal": "one owner behind many units via shells (enrichment for a landlord vein)",
+     "free": True, "status": "QUEUED", "note": "ticket: ArcGIS reachable; wire owner-cluster enrichment"},
+    {"id": "minnehaha_deeds_liens", "category": "housing",
+     "name": "Minnehaha County deeds / liens", "host": "county ROD portal",
+     "reads": "transfers and liens vs claimed ownership",
+     "signal": "a transfer/lien that contradicts a public claim",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: find the county register-of-deeds search endpoint"},
+    # --- financial / shells / self-dealing --------------------------------
+    {"id": "sd_sos_entities", "category": "financial",
+     "name": "SD Secretary of State business entities", "host": "sosenterprise.sd.gov",
+     "reads": "entities and their registered agents",
+     "signal": "shared-agent shell clusters; a registration absent where money arrives",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: work out the SoS entity-search fetch (anchors the absence-of-record join)"},
+    {"id": "usaspending_longtail", "category": "financial",
+     "name": "USAspending awards (long tail)", "host": "api.usaspending.gov",
+     "reads": "federal awards to SF recipients, mining the small/odd tail",
+     "signal": "money to an entity with no matching registration/footprint (absence-of-record)",
+     "free": True, "status": "QUEUED",
+     "note": "ticket: reachable; top tail = known institutions (gov-money alone is low-priority), so the lens is the long-tail x SoS-registry join"},
+    {"id": "sec_edgar_formd", "category": "financial",
+     "name": "SEC EDGAR full-text / Form D", "host": "efts.sec.gov",
+     "reads": "private securities offerings and promoters based in SD",
+     "signal": "an offering whose story doesn't match the promoter's footprint",
+     "free": True, "status": "QUEUED", "note": "ticket: reachable; wire Form D full-text pull for SD"},
+    {"id": "propublica_990", "category": "financial",
+     "name": "ProPublica Nonprofit Explorer (990s)", "host": "projects.propublica.org",
+     "reads": "officer pay, related-party (Schedule L) self-dealing",
+     "signal": "a nonprofit whose money serves insiders, not its mission",
+     "free": True, "status": "QUEUED", "note": "ticket: reachable; impossible-math exhausted, wire Schedule L self-dealing"},
+    # --- corruption / influence -------------------------------------------
+    {"id": "sd_campaign_finance", "category": "corruption",
+     "name": "SD campaign finance", "host": "sdsos campaign portal",
+     "reads": "contributions vs official actions / contracts",
+     "signal": "a donor who wins a contract or a vote",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: find the SD campaign-finance data endpoint"},
+    {"id": "sf_contracts_tif", "category": "corruption",
+     "name": "Sioux Falls contracts / TIF / permits", "host": "siouxfalls.gov",
+     "reads": "who wins city money and who approves it",
+     "signal": "an insider deal or a permit that contradicts a public claim",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: find the city contract/TIF data endpoint"},
+    # --- courts / litigation ----------------------------------------------
+    {"id": "courtlistener_dockets", "category": "courts",
+     "name": "CourtListener / RECAP dockets", "host": "courtlistener.com",
+     "reads": "civil suits naming an SD operator (a pattern of harm)",
+     "signal": "many plaintiffs, same defendant, no press -- a quiet harm pattern",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: needs a free CourtListener API token"},
+    # --- animal cruelty ----------------------------------------------------
+    {"id": "usda_aphis_inspections", "category": "animal",
+     "name": "USDA APHIS inspection reports", "host": "aphis.usda.gov",
+     "reads": "animal-welfare violations at licensed SD facilities",
+     "signal": "a breeder/dealer with a cruelty record nobody has covered",
+     "free": True, "status": "NOT_BUILT", "note": "ticket: APHIS publishes inspection PDFs; work out the fetch"},
+    # --- kinetic / live ----------------------------------------------------
+    {"id": "sky_watch", "category": "kinetic",
+     "name": "ADS-B / FAA aircraft (sky-watch)", "host": "adsb.fi / FAA registry",
+     "reads": "unusual aircraft over / landing near Sioux Falls",
+     "signal": "a private jet pattern that doesn't match any public reason",
+     "free": True, "status": "QUEUED", "note": "ticket: reachable; wire as its own periodic kinetic check"},
 ]
 
 
@@ -162,6 +303,59 @@ def opioid_outliers(rows: list[dict[str, Any]],
     return out
 
 
+# ---- CMS Part D antipsychotic-to-elderly outliers -------------------------
+
+def antipsychotic_ge65_outliers(rows: list[dict[str, Any]],
+                                *, flag_at: int = ANTIPSYCHOTIC_GE65_FLAG
+                                ) -> list[dict[str, Any]]:
+    """Pure analysis over the SAME Part D by-provider rows. Flag prescribers
+    carrying a heavy antipsychotic load to patients 65+ whose specialty does
+    not explain it -- the nursing-home chemical-restraint marker. No model.
+    """
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        clms = _num(r.get("Antpsyct_GE65_Tot_Clms"))
+        if clms < flag_at:
+            continue
+        specialty = (r.get("Prscrbr_Type") or "").strip()
+        if specialty in ANTIPSYCHOTIC_GE65_EXPECTED_SPECIALTIES:
+            continue
+        benes = _num(r.get("Antpsyct_GE65_Tot_Benes"))
+        per_bene = round(clms / benes, 1) if benes else None
+        name = (str(r.get("Prscrbr_Last_Org_Name") or "").strip()
+                + ", " + str(r.get("Prscrbr_First_Name") or "").strip()).strip(", ")
+        age = _num(r.get("Bene_Avg_Age"))
+        summary = (f"{specialty} prescriber with {int(clms)} antipsychotic claims "
+                   f"to patients 65+")
+        if per_bene is not None:
+            summary += f" across {int(benes)} patients ({per_bene} per patient)"
+        summary += " -- the nursing-home chemical-restraint marker"
+        out.append({
+            "check": "cms_partd_antipsychotics_ge65",
+            "kind": "anomaly",
+            "subject": name,
+            "summary": summary,
+            "evidence": {
+                "npi": r.get("Prscrbr_NPI"),
+                "specialty": specialty,
+                "antipsychotic_ge65_claims": int(clms),
+                "antipsychotic_ge65_patients": int(benes) if benes else None,
+                "claims_per_patient": per_bene,
+                "avg_patient_age": round(age, 1) if age else None,
+                "address": (str(r.get("Prscrbr_St1") or "").strip()),
+                "city": (str(r.get("Prscrbr_City") or "").strip()),
+            },
+            "source": "CMS Medicare Part D prescribers (by provider)",
+            "why_him": ("a licensed professional's public prescribing record; "
+                        "target the FACILITY/clinic, records-based, never a patient"),
+            "next_record": ("which nursing home(s) the prescriber serves (CMS Care "
+                            "Compare); that facility's antipsychotic rate and "
+                            "deficiency/complaint history"),
+        })
+    out.sort(key=lambda c: -c["evidence"]["antipsychotic_ge65_claims"])
+    return out
+
+
 def _fetch_cms_partd(city: str = CITY, state: str = STATE) -> tuple[str, list[dict]]:
     """Network. Return (year, rows) for the city from the newest CMS Part D
     by-provider dataset that answers.
@@ -182,25 +376,134 @@ def _fetch_cms_partd(city: str = CITY, state: str = STATE) -> tuple[str, list[di
     raise RuntimeError(f"CMS Part D unreachable ({last_err})")
 
 
-def run_cms_opioids(fetch: Callable[[], tuple[str, list[dict]]] | None = None
-                    ) -> dict[str, Any]:
-    """One check: fetch (injectable) then analyse. Returns a result record."""
+# Each lens is a pure function over the same by-provider rows, so the city is
+# fetched ONCE and every anomaly check runs over it -- no duplicate network pull.
+CMS_ANALYSES: list[Callable[[list[dict[str, Any]]], list[dict[str, Any]]]] = [
+    opioid_outliers,
+    antipsychotic_ge65_outliers,
+]
+
+
+def run_cms_partd(fetch: Callable[[], tuple[str, list[dict]]] | None = None
+                  ) -> dict[str, Any]:
+    """One check, one fetch (injectable), several lenses. Returns a result
+    record whose candidates are every CMS anomaly found over the city's rows.
+    """
     fetch = fetch or _fetch_cms_partd
     try:
         year, rows = fetch()
     except Exception as exc:  # noqa: BLE001
-        return {"check": "cms_partd_opioids", "ok": False, "error": str(exc),
+        return {"check": "cms_partd", "ok": False, "error": str(exc),
                 "candidates": []}
-    cands = opioid_outliers(rows)
-    for c in cands:
-        c["data_year"] = year
-    return {"check": "cms_partd_opioids", "ok": True, "data_year": year,
+    cands: list[dict[str, Any]] = []
+    for analyse in CMS_ANALYSES:
+        for c in analyse(rows):
+            c["data_year"] = year
+            cands.append(c)
+    return {"check": "cms_partd", "ok": True, "data_year": year,
             "rows_scanned": len(rows), "candidates": cands}
+
+
+# ---- openFDA enforcement (food/drug/device recalls) -----------------------
+
+# api.fda.gov is AWS-hosted and answers programmatically (unlike the DKAN
+# provider-data / open-payments hosts, which WAF-403 and need static files).
+FDA_ENFORCEMENT_ENDPOINTS = [
+    ("food", "https://api.fda.gov/food/enforcement.json"),
+    ("drug", "https://api.fda.gov/drug/enforcement.json"),
+    ("device", "https://api.fda.gov/device/enforcement.json"),
+]
+
+
+def fda_recall_outliers(results: list[dict[str, Any]], *, city: str = CITY
+                        ) -> list[dict[str, Any]]:
+    """Pure analysis. Group recalls by firm (in the target city) and flag a
+    firm carrying a Class I (serious-harm) recall OR a repeat pattern. A single
+    recall is published, so this is a CONTEXT puzzle-piece; a CLUSTER nobody
+    has covered is the lead. Deterministic, no model.
+    """
+    by_firm: dict[str, list[dict[str, Any]]] = {}
+    for r in results:
+        rc_city = (r.get("city") or "").strip()
+        if city.upper() not in rc_city.upper():
+            continue
+        firm = (r.get("recalling_firm") or "").strip()
+        if not firm:
+            continue
+        by_firm.setdefault(firm, []).append(r)
+    out: list[dict[str, Any]] = []
+    for firm, recs in by_firm.items():
+        class_i = any((x.get("classification") or "").strip() == "Class I"
+                      for x in recs)
+        if not (class_i or len(recs) >= 2):
+            continue
+        classes = sorted({(x.get("classification") or "").strip()
+                          for x in recs if x.get("classification")})
+        kinds = sorted({str(x.get("kind")) for x in recs if x.get("kind")})
+        reasons = [str(x.get("reason_for_recall") or "")[:140] for x in recs[:4]]
+        summary = (f"{firm}: {len(recs)} FDA recall(s) "
+                   f"[{', '.join(kinds) or 'n/a'}], classes {', '.join(classes) or 'n/a'}")
+        if class_i:
+            summary += " incl. Class I (serious-harm)"
+        out.append({
+            "check": "fda_recalls",
+            "kind": "context",
+            "subject": firm,
+            "summary": summary,
+            "evidence": {
+                "recall_count": len(recs),
+                "classes": classes,
+                "kinds": kinds,
+                "class_I": class_i,
+                "reasons": reasons,
+                "city": next((x.get("city") for x in recs if x.get("city")), ""),
+            },
+            "source": "openFDA enforcement (food/drug/device recalls)",
+            "why_him": ("a firm's public recall record; target the BUSINESS, "
+                        "records-based"),
+            "next_record": ("is the pattern uncovered locally (news/BBB/health "
+                            "dept)? repeat across years; distribution reach / who "
+                            "was harmed"),
+        })
+    out.sort(key=lambda c: (-int(c["evidence"]["class_I"]),
+                            -c["evidence"]["recall_count"]))
+    return out
+
+
+def _fetch_fda_recalls(state: str = STATE) -> list[dict[str, Any]]:
+    """Network. Pull recent recalls naming a firm in the state across food,
+    drug and device enforcement. openFDA returns 404 when a query has no
+    matches, so one empty endpoint never kills the others.
+    """
+    out: list[dict[str, Any]] = []
+    for kind, base in FDA_ENFORCEMENT_ENDPOINTS:
+        url = f"{base}?search=state:{urllib.parse.quote(state)}&limit=100"
+        try:
+            data = _get_json(url)
+        except Exception:  # noqa: BLE001 - per-endpoint best-effort (404 = none)
+            continue
+        for r in (data.get("results", []) if isinstance(data, dict) else []):
+            r["kind"] = kind
+            out.append(r)
+    return out
+
+
+def run_fda_recalls(fetch: Callable[[], list[dict[str, Any]]] | None = None
+                    ) -> dict[str, Any]:
+    """One check: fetch (injectable) then analyse."""
+    fetch = fetch or _fetch_fda_recalls
+    try:
+        results = fetch()
+    except Exception as exc:  # noqa: BLE001
+        return {"check": "fda_recalls", "ok": False, "error": str(exc),
+                "candidates": []}
+    return {"check": "fda_recalls", "ok": True, "rows_scanned": len(results),
+            "candidates": fda_recall_outliers(results)}
 
 
 # ---- orchestration ---------------------------------------------------------
 
-CHECKS: list[Callable[[], dict[str, Any]]] = [run_cms_opioids]
+CHECKS: list[Callable[[], dict[str, Any]]] = [run_cms_partd, run_fda_recalls]
 
 
 def scan(write: bool = True) -> dict[str, Any]:
