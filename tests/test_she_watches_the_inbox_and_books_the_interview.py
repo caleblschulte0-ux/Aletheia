@@ -331,8 +331,12 @@ class TheHuntReachesTheBrief(unittest.TestCase):
 
     def test_the_brief_falls_back_to_the_published_funnel(self):
         from aletheia import brief
-        funnel = {"days": {"2026-10-01": {"found": 3, "filled": 3, "sent": 3, "replies": 0, "interviews": 0,
-                                           "rejections": 0}}, "totals": {}}
+        # A recent day, computed so the fixture moves with the calendar: the
+        # brief reads the funnel against the real clock, and a frozen date goes
+        # stale and falls out of the window (it broke once 2026-10-01 aged out).
+        day = (dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)).isoformat()
+        funnel = {"days": {day: {"found": 3, "filled": 3, "sent": 3, "replies": 0, "interviews": 0,
+                                 "rejections": 0}}, "totals": {}}
         with mock.patch("aletheia.current_state.job_hunt", return_value={"readable": True, "today": {}}), \
              mock.patch("aletheia.hunt_funnel.read", return_value=funnel), \
              mock.patch("aletheia.localtime.operator_tz", return_value=dt.timezone.utc):

@@ -13,7 +13,13 @@ class TheClockElsewhere(unittest.TestCase):
     def test_a_city_a_country_and_a_zone_word_are_answered_with_the_gap(self):
         with mock.patch("aletheia.localtime.operator_tz", return_value=ZoneInfo("America/Chicago")):
             said = quick.answer("what time is it in Tokyo")
-            self.assertRegex(said, r"^\d{1,2}:\d{2} [ap]m on \w+ in Tokyo - 14 hours ahead of you\.$")
+            # The gap is computed, not frozen: it is 14 hours under US daylight
+            # time and 15 under standard time, so a literal is a bomb with a
+            # date on it (it broke when DST ended, 2026-11-05).
+            now_chi = dt.datetime.now(ZoneInfo("America/Chicago"))
+            gap = round((now_chi.astimezone(ZoneInfo("Asia/Tokyo")).utcoffset()
+                         - now_chi.utcoffset()).total_seconds() / 3600)
+            self.assertRegex(said, rf"^\d{{1,2}}:\d{{2}} [ap]m on \w+ in Tokyo - {gap} hours ahead of you\.$")
             self.assertIn("in London", quick.answer("what's the time in London"))
             self.assertIn("ahead of you", quick.answer("time in India"))
             self.assertIn("in Sioux Falls - the same as yours", quick.answer("what time is it in sioux falls"))
