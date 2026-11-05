@@ -71,6 +71,28 @@ OPIOID_EXPECTED_SPECIALTIES = frozenset({
 # is worth a human look. Long-acting opioids are the pill-mill marker.
 LA_OPIOID_FLAG = 40
 
+# Specialties for which prescribing antipsychotics to patients 65+ is EXPECTED
+# (so not an anomaly). Everyone else carrying a heavy GE65 antipsychotic load is
+# the signal: off-label antipsychotics to the elderly is the documented
+# nursing-home "chemical restraint" pattern (dementia patients sedated for staff
+# convenience), which CMS itself tracks and penalises.
+ANTIPSYCHOTIC_GE65_EXPECTED_SPECIALTIES = frozenset({
+    "Psychiatry",
+    "Geriatric Psychiatry",
+    "Child & Adolescent Psychiatry",
+    "Neuropsychiatry",
+    "Psychiatry & Neurology",
+    "Neurology",
+    "Geriatric Medicine",
+    "Hospice and Palliative Care",
+    "Addiction Medicine",
+})
+
+# A GE65 antipsychotic claim count at/above this, from an UNEXPECTED specialty,
+# is worth a human look. Claims-per-patient (when not suppressed) is the
+# continuous-dosing tell that separates restraint from occasional treatment.
+ANTIPSYCHOTIC_GE65_FLAG = 100
+
 
 # Registry of sources, honest about what is wired. Data only; no behaviour.
 SOURCES: list[dict[str, Any]] = [
@@ -79,6 +101,14 @@ SOURCES: list[dict[str, Any]] = [
         "name": "CMS Medicare Part D prescribers (by provider)",
         "reads": "every Part D prescriber's opioid / long-acting-opioid volume",
         "anomaly": "a non-pain specialty carrying a pain-clinic opioid load",
+        "free": True,
+        "status": "AVAILABLE",
+    },
+    {
+        "id": "cms_partd_antipsychotics_ge65",
+        "name": "CMS Medicare Part D prescribers (by provider)",
+        "reads": "every Part D prescriber's antipsychotic volume to patients 65+",
+        "anomaly": "a non-psychiatric specialty sedating the elderly (restraint)",
         "free": True,
         "status": "AVAILABLE",
     },
@@ -162,6 +192,59 @@ def opioid_outliers(rows: list[dict[str, Any]],
     return out
 
 
+# ---- CMS Part D antipsychotic-to-elderly outliers -------------------------
+
+def antipsychotic_ge65_outliers(rows: list[dict[str, Any]],
+                                *, flag_at: int = ANTIPSYCHOTIC_GE65_FLAG
+                                ) -> list[dict[str, Any]]:
+    """Pure analysis over the SAME Part D by-provider rows. Flag prescribers
+    carrying a heavy antipsychotic load to patients 65+ whose specialty does
+    not explain it -- the nursing-home chemical-restraint marker. No model.
+    """
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        clms = _num(r.get("Antpsyct_GE65_Tot_Clms"))
+        if clms < flag_at:
+            continue
+        specialty = (r.get("Prscrbr_Type") or "").strip()
+        if specialty in ANTIPSYCHOTIC_GE65_EXPECTED_SPECIALTIES:
+            continue
+        benes = _num(r.get("Antpsyct_GE65_Tot_Benes"))
+        per_bene = round(clms / benes, 1) if benes else None
+        name = (str(r.get("Prscrbr_Last_Org_Name") or "").strip()
+                + ", " + str(r.get("Prscrbr_First_Name") or "").strip()).strip(", ")
+        age = _num(r.get("Bene_Avg_Age"))
+        summary = (f"{specialty} prescriber with {int(clms)} antipsychotic claims "
+                   f"to patients 65+")
+        if per_bene is not None:
+            summary += f" across {int(benes)} patients ({per_bene} per patient)"
+        summary += " -- the nursing-home chemical-restraint marker"
+        out.append({
+            "check": "cms_partd_antipsychotics_ge65",
+            "kind": "anomaly",
+            "subject": name,
+            "summary": summary,
+            "evidence": {
+                "npi": r.get("Prscrbr_NPI"),
+                "specialty": specialty,
+                "antipsychotic_ge65_claims": int(clms),
+                "antipsychotic_ge65_patients": int(benes) if benes else None,
+                "claims_per_patient": per_bene,
+                "avg_patient_age": round(age, 1) if age else None,
+                "address": (str(r.get("Prscrbr_St1") or "").strip()),
+                "city": (str(r.get("Prscrbr_City") or "").strip()),
+            },
+            "source": "CMS Medicare Part D prescribers (by provider)",
+            "why_him": ("a licensed professional's public prescribing record; "
+                        "target the FACILITY/clinic, records-based, never a patient"),
+            "next_record": ("which nursing home(s) the prescriber serves (CMS Care "
+                            "Compare); that facility's antipsychotic rate and "
+                            "deficiency/complaint history"),
+        })
+    out.sort(key=lambda c: -c["evidence"]["antipsychotic_ge65_claims"])
+    return out
+
+
 def _fetch_cms_partd(city: str = CITY, state: str = STATE) -> tuple[str, list[dict]]:
     """Network. Return (year, rows) for the city from the newest CMS Part D
     by-provider dataset that answers.
@@ -182,25 +265,37 @@ def _fetch_cms_partd(city: str = CITY, state: str = STATE) -> tuple[str, list[di
     raise RuntimeError(f"CMS Part D unreachable ({last_err})")
 
 
-def run_cms_opioids(fetch: Callable[[], tuple[str, list[dict]]] | None = None
-                    ) -> dict[str, Any]:
-    """One check: fetch (injectable) then analyse. Returns a result record."""
+# Each lens is a pure function over the same by-provider rows, so the city is
+# fetched ONCE and every anomaly check runs over it -- no duplicate network pull.
+CMS_ANALYSES: list[Callable[[list[dict[str, Any]]], list[dict[str, Any]]]] = [
+    opioid_outliers,
+    antipsychotic_ge65_outliers,
+]
+
+
+def run_cms_partd(fetch: Callable[[], tuple[str, list[dict]]] | None = None
+                  ) -> dict[str, Any]:
+    """One check, one fetch (injectable), several lenses. Returns a result
+    record whose candidates are every CMS anomaly found over the city's rows.
+    """
     fetch = fetch or _fetch_cms_partd
     try:
         year, rows = fetch()
     except Exception as exc:  # noqa: BLE001
-        return {"check": "cms_partd_opioids", "ok": False, "error": str(exc),
+        return {"check": "cms_partd", "ok": False, "error": str(exc),
                 "candidates": []}
-    cands = opioid_outliers(rows)
-    for c in cands:
-        c["data_year"] = year
-    return {"check": "cms_partd_opioids", "ok": True, "data_year": year,
+    cands: list[dict[str, Any]] = []
+    for analyse in CMS_ANALYSES:
+        for c in analyse(rows):
+            c["data_year"] = year
+            cands.append(c)
+    return {"check": "cms_partd", "ok": True, "data_year": year,
             "rows_scanned": len(rows), "candidates": cands}
 
 
 # ---- orchestration ---------------------------------------------------------
 
-CHECKS: list[Callable[[], dict[str, Any]]] = [run_cms_opioids]
+CHECKS: list[Callable[[], dict[str, Any]]] = [run_cms_partd]
 
 
 def scan(write: bool = True) -> dict[str, Any]:
