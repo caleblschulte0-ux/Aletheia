@@ -551,7 +551,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-05T16:05:31Z",
+  "generated_at": "2026-11-05T16:20:42Z",
   "question_shapes": {
     "ashbyhq: textarea: do you have _ experience working in the _ _ _ _": 1,
     "ashbyhq: textarea: what about _ _ or the role _ your _ and _": 1,
@@ -573,16 +573,16 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 2,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
-    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _": 2,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
     "workable: field: _ per _": 1,
     "workable: field: open _": 1,
     "workable: field: resume _": 6,
-    "workable: field: us": 1
+    "workable: field: us": 1,
+    "workable: radio: the _ will _ _ _ _ for the role in _": 1
   },
   "sent_all_time": 340,
   "sent_by_system": {
