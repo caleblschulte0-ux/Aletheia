@@ -535,23 +535,23 @@
       "sent": 4
     },
     "2026-11-04": {
-      "filled": 25,
-      "found": 53,
+      "filled": 20,
+      "found": 48,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
       "sent": 8
     },
     "2026-11-05": {
-      "filled": 13,
-      "found": 17,
+      "filled": 18,
+      "found": 22,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-05T07:25:05Z",
+  "generated_at": "2026-11-05T07:55:21Z",
   "question_shapes": {
     "ashbyhq: textarea: do you have _ experience working in the _ _ _ _": 1,
     "ashbyhq: textarea: what about _ _ or the role _ your _ and _": 1,
