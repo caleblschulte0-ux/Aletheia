@@ -531,7 +531,7 @@
       "sent": 6
     }
   },
-  "generated_at": "2026-11-05T00:59:57Z",
+  "generated_at": "2026-11-05T01:30:27Z",
   "question_shapes": {
     "ashbyhq: field: what are your salary expectations": 1,
     "employer_site: field: _": 4,
@@ -544,7 +544,7 @@
     "employer_site: field: please _ your _ _": 1,
     "employer_site: field: please _ your university or other _ _ _ _": 1,
     "employer_site: field: veteran _": 1,
-    "lever: checkbox: _": 3,
+    "lever: checkbox: _": 2,
     "lever: checkbox: _ _": 2,
     "lever: field: date": 2,
     "lever: field: name": 2,
@@ -610,7 +610,7 @@
       "nothing_to_press_on_form+no_apply/observed": 7,
       "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_success+no_apply/observed": 2,
-      "unclear_button/observed": 9
+      "unclear_button/observed": 8
     },
     "out_of_steps": {
       "nothing_to_press_on_unread/observed": 1
