@@ -91,6 +91,43 @@ class FdaRecallOutliers(unittest.TestCase):
         self.assertEqual([c["subject"] for c in out], ["One", "Two"])
 
 
+def _echo(name, *, city="Sioux Falls", fed="N", snc="N", formal=0,
+          penalties=0.0, status="Violation Identified"):
+    return {"FacName": name, "FacCity": city, "FacFederalFlg": fed,
+            "FacSNCFlg": snc, "FacFormalActionCount": formal,
+            "FacTotalPenalties": penalties, "FacComplianceStatus": status,
+            "FacStreet": "1 Industrial Rd", "RegistryID": "110"}
+
+
+class EpaEchoViolators(unittest.TestCase):
+    def test_flags_a_private_significant_noncomplier(self):
+        out = inv.epa_echo_violators([_echo("Acme Plating Inc", snc="Y")])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["subject"], "Acme Plating Inc")
+        self.assertTrue(out[0]["evidence"]["significant_noncomplier"])
+
+    def test_flags_a_formal_action_or_penalty(self):
+        self.assertEqual(len(inv.epa_echo_violators([_echo("B Co", formal=2)])), 1)
+        self.assertEqual(len(inv.epa_echo_violators([_echo("C Co", penalties=5000.0)])), 1)
+
+    def test_skips_a_clean_facility(self):
+        self.assertEqual(inv.epa_echo_violators([_echo("Clean LLC", status="No Violation")]), [])
+
+    def test_skips_federal_and_municipal(self):
+        self.assertEqual(inv.epa_echo_violators([_echo("Ellsworth AFB", fed="Y", snc="Y")]), [])
+        self.assertEqual(
+            inv.epa_echo_violators([_echo("City of Sioux Falls WWTP", snc="Y")]), [])
+
+    def test_skips_other_city(self):
+        self.assertEqual(
+            inv.epa_echo_violators([_echo("Faraway Mfg", snc="Y", city="Aberdeen")]), [])
+
+    def test_snc_sorts_before_lesser_violations(self):
+        out = inv.epa_echo_violators([_echo("Minor", penalties=100.0),
+                                      _echo("Serious", snc="Y")])
+        self.assertEqual([c["subject"] for c in out], ["Serious", "Minor"])
+
+
 class AntipsychoticGE65Outliers(unittest.TestCase):
     def test_flags_non_psych_specialty_sedating_the_elderly(self):
         rows = [_row("Geis", "Tara", "Family Practice", ap=543, ap_benes=33)]
@@ -166,6 +203,20 @@ class RunCheck(unittest.TestCase):
         def boom():
             raise RuntimeError("fda down")
         res = inv.run_fda_recalls(fetch=boom)
+        self.assertFalse(res["ok"])
+        self.assertIn("down", res["error"])
+        self.assertEqual(res["candidates"], [])
+
+    def test_echo_injected_fetch_no_network(self):
+        res = inv.run_epa_echo(fetch=lambda: [_echo("Acme Plating Inc", snc="Y")])
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["check"], "epa_echo")
+        self.assertEqual(res["candidates"][0]["subject"], "Acme Plating Inc")
+
+    def test_echo_fetch_failure_is_captured(self):
+        def boom():
+            raise RuntimeError("echo down")
+        res = inv.run_epa_echo(fetch=boom)
         self.assertFalse(res["ok"])
         self.assertIn("down", res["error"])
         self.assertEqual(res["candidates"], [])
