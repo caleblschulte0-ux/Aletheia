@@ -1,15 +1,25 @@
 {
-  "generated_at": "2026-11-04T23:49:49Z",
+  "generated_at": "2026-11-05T14:47:50Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
-      "check": "cms_partd_opioids",
+      "check": "cms_partd",
       "ok": true,
       "data_year": "2023",
       "rows_scanned": 1742
+    },
+    {
+      "check": "fda_recalls",
+      "ok": true,
+      "rows_scanned": 24
+    },
+    {
+      "check": "epa_echo",
+      "ok": true,
+      "rows_scanned": 13254
     }
   ],
-  "candidate_count": 19,
+  "candidate_count": 41,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -390,6 +400,488 @@
       "why_him": "a licensed professional's public prescribing record; target the CLINIC, records-based, never the person",
       "next_record": "who supervises/owns the clinic (SD SoS + medical board); any overdose cluster or billing anomaly",
       "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Rees, Joseph",
+      "summary": "Internal Medicine prescriber with 575 antipsychotic claims to patients 65+ across 83 patients (6.9 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1760656193",
+        "specialty": "Internal Medicine",
+        "antipsychotic_ge65_claims": 575,
+        "antipsychotic_ge65_patients": 83,
+        "claims_per_patient": 6.9,
+        "avg_patient_age": 81.0,
+        "address": "2100 S Marion Rd",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Geis, Tara",
+      "summary": "Family Practice prescriber with 543 antipsychotic claims to patients 65+ across 33 patients (16.5 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1689785529",
+        "specialty": "Family Practice",
+        "antipsychotic_ge65_claims": 543,
+        "antipsychotic_ge65_patients": 33,
+        "claims_per_patient": 16.5,
+        "avg_patient_age": 76.1,
+        "address": "1115 E 20th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Withorne-Maloney, Laura",
+      "summary": "Nurse Practitioner prescriber with 208 antipsychotic claims to patients 65+ across 30 patients (6.9 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1255303707",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 208,
+        "antipsychotic_ge65_patients": 30,
+        "claims_per_patient": 6.9,
+        "avg_patient_age": 63.3,
+        "address": "4400 W 69th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Petersen, Andria",
+      "summary": "Nurse Practitioner prescriber with 179 antipsychotic claims to patients 65+ across 25 patients (7.2 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1194280156",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 179,
+        "antipsychotic_ge65_patients": 25,
+        "claims_per_patient": 7.2,
+        "avg_patient_age": 60.1,
+        "address": "2400 W 49th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Broveleit, Rachelle",
+      "summary": "Physician Assistant prescriber with 179 antipsychotic claims to patients 65+ across 23 patients (7.8 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1588788160",
+        "specialty": "Physician Assistant",
+        "antipsychotic_ge65_claims": 179,
+        "antipsychotic_ge65_patients": 23,
+        "claims_per_patient": 7.8,
+        "avg_patient_age": 60.0,
+        "address": "1621 S Minnesota Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Ahlers, Holly",
+      "summary": "Nurse Practitioner prescriber with 178 antipsychotic claims to patients 65+ across 17 patients (10.5 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1366948663",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 178,
+        "antipsychotic_ge65_patients": 17,
+        "claims_per_patient": 10.5,
+        "avg_patient_age": 53.0,
+        "address": "2000 S. Summit Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Fuks, Audrey",
+      "summary": "Nurse Practitioner prescriber with 161 antipsychotic claims to patients 65+ across 16 patients (10.1 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1538807581",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 161,
+        "antipsychotic_ge65_patients": 16,
+        "claims_per_patient": 10.1,
+        "avg_patient_age": 53.9,
+        "address": "100 W 5th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Viereck, Abby",
+      "summary": "Nurse Practitioner prescriber with 160 antipsychotic claims to patients 65+ -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1679081350",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 160,
+        "antipsychotic_ge65_patients": null,
+        "claims_per_patient": null,
+        "avg_patient_age": 82.1,
+        "address": "1112 S. Lake Avenue Suite 201",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Wendell-Schechter, Barbara",
+      "summary": "Nurse Practitioner prescriber with 159 antipsychotic claims to patients 65+ across 25 patients (6.4 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1427413038",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 159,
+        "antipsychotic_ge65_patients": 25,
+        "claims_per_patient": 6.4,
+        "avg_patient_age": 66.1,
+        "address": "2400 W 49th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Artz, Afton",
+      "summary": "Nurse Practitioner prescriber with 147 antipsychotic claims to patients 65+ -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1407348113",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 147,
+        "antipsychotic_ge65_patients": null,
+        "claims_per_patient": null,
+        "avg_patient_age": 57.7,
+        "address": "2000 S Summit Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Johnson, Nichole",
+      "summary": "Nurse Practitioner prescriber with 146 antipsychotic claims to patients 65+ across 25 patients (5.8 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1699163253",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 146,
+        "antipsychotic_ge65_patients": 25,
+        "claims_per_patient": 5.8,
+        "avg_patient_age": 62.9,
+        "address": "2400 W 49th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Gordon, Rachel",
+      "summary": "Hospitalist prescriber with 128 antipsychotic claims to patients 65+ across 24 patients (5.3 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1386904092",
+        "specialty": "Hospitalist",
+        "antipsychotic_ge65_claims": 128,
+        "antipsychotic_ge65_patients": 24,
+        "claims_per_patient": 5.3,
+        "avg_patient_age": 74.1,
+        "address": "1305 W 18th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Boyens, Scott",
+      "summary": "Family Practice prescriber with 124 antipsychotic claims to patients 65+ -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1700886389",
+        "specialty": "Family Practice",
+        "antipsychotic_ge65_claims": 124,
+        "antipsychotic_ge65_patients": null,
+        "claims_per_patient": null,
+        "avg_patient_age": 71.6,
+        "address": "3401 W 49th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Sorensen, Todd",
+      "summary": "Family Practice prescriber with 118 antipsychotic claims to patients 65+ across 18 patients (6.6 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1104826692",
+        "specialty": "Family Practice",
+        "antipsychotic_ge65_claims": 118,
+        "antipsychotic_ge65_patients": 18,
+        "claims_per_patient": 6.6,
+        "avg_patient_age": 73.0,
+        "address": "3401 W 49th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Arends, Robin",
+      "summary": "Nurse Practitioner prescriber with 105 antipsychotic claims to patients 65+ -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1063660363",
+        "specialty": "Nurse Practitioner",
+        "antipsychotic_ge65_claims": 105,
+        "antipsychotic_ge65_patients": null,
+        "claims_per_patient": null,
+        "avg_patient_age": 79.9,
+        "address": "4500 N Lewis Ave",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "cms_partd_antipsychotics_ge65",
+      "kind": "anomaly",
+      "subject": "Allison, Jay",
+      "summary": "Family Practice prescriber with 102 antipsychotic claims to patients 65+ across 17 patients (6.0 per patient) -- the nursing-home chemical-restraint marker",
+      "evidence": {
+        "npi": "1235195041",
+        "specialty": "Family Practice",
+        "antipsychotic_ge65_claims": 102,
+        "antipsychotic_ge65_patients": 17,
+        "claims_per_patient": 6.0,
+        "avg_patient_age": 78.7,
+        "address": "1115 E 20th St",
+        "city": "Sioux Falls"
+      },
+      "source": "CMS Medicare Part D prescribers (by provider)",
+      "why_him": "a licensed professional's public prescribing record; target the FACILITY/clinic, records-based, never a patient",
+      "next_record": "which nursing home(s) the prescriber serves (CMS Care Compare); that facility's antipsychotic rate and deficiency/complaint history",
+      "data_year": "2023"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "BEULAH LAND WATER-CHLORINATOR",
+      "summary": "BEULAH LAND WATER-CHLORINATOR: EPA violations, 2 formal action(s) [Violation Identified]",
+      "evidence": {
+        "registry_id": "110069304871",
+        "significant_noncomplier": false,
+        "formal_actions": 2,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": "11",
+        "compliance": {
+          "overall": "Violation Identified",
+          "air_caa": "",
+          "water_cwa": "",
+          "waste_rcra": "",
+          "drinking_sdwa": "Violation Identified"
+        },
+        "industry": "",
+        "last_inspection": "09/16/2025",
+        "address": "1104 WEST 10TH STREET",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "LAKESIDE DAIRY",
+      "summary": "LAKESIDE DAIRY: EPA violations, 2 formal action(s)",
+      "evidence": {
+        "registry_id": "110011682535",
+        "significant_noncomplier": false,
+        "formal_actions": 2,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": null,
+        "compliance": {
+          "overall": "",
+          "air_caa": "",
+          "water_cwa": "",
+          "waste_rcra": "",
+          "drinking_sdwa": ""
+        },
+        "industry": "",
+        "last_inspection": null,
+        "address": "1200 WEST RUSSELL STREET",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY",
+      "summary": "UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY: EPA violations, 2 formal action(s) [No Violation Identified]",
+      "evidence": {
+        "registry_id": "110071140252",
+        "significant_noncomplier": false,
+        "formal_actions": 2,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": "0",
+        "compliance": {
+          "overall": "No Violation Identified",
+          "air_caa": "",
+          "water_cwa": "",
+          "waste_rcra": "No Violation Identified",
+          "drinking_sdwa": ""
+        },
+        "industry": "",
+        "last_inspection": null,
+        "address": "3 WEATHER LANE",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "UNITED PARCEL SERVICE - SIOUX FALLS HUB",
+      "summary": "UNITED PARCEL SERVICE - SIOUX FALLS HUB: EPA violations, 2 formal action(s) [No Violation Identified]",
+      "evidence": {
+        "registry_id": "110004949628",
+        "significant_noncomplier": false,
+        "formal_actions": 2,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": "0",
+        "compliance": {
+          "overall": "No Violation Identified",
+          "air_caa": "",
+          "water_cwa": "",
+          "waste_rcra": "No Violation Identified",
+          "drinking_sdwa": ""
+        },
+        "industry": "",
+        "last_inspection": null,
+        "address": "2700 NORTH WESTPORT AVE",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "CREW INC.",
+      "summary": "CREW INC.: EPA violations, 1 formal action(s)",
+      "evidence": {
+        "registry_id": "110071845938",
+        "significant_noncomplier": false,
+        "formal_actions": 1,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": null,
+        "compliance": {
+          "overall": "",
+          "air_caa": "",
+          "water_cwa": "",
+          "waste_rcra": "",
+          "drinking_sdwa": ""
+        },
+        "industry": "",
+        "last_inspection": "09/09/2024",
+        "address": "3503 S NORTON AVENUE",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "epa_echo",
+      "kind": "anomaly",
+      "subject": "SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD",
+      "summary": "SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]",
+      "evidence": {
+        "registry_id": "110000427823",
+        "significant_noncomplier": false,
+        "formal_actions": 1,
+        "total_penalties": 0.0,
+        "quarters_with_noncompliance": "2",
+        "compliance": {
+          "overall": "No Violation Identified",
+          "air_caa": "No Violation Identified",
+          "water_cwa": "No Violation Identified",
+          "waste_rcra": "No Violation Identified",
+          "drinking_sdwa": ""
+        },
+        "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats",
+        "last_inspection": "08/20/2026",
+        "address": "1400 NORTH WEBER AVENUE",
+        "city": "SIOUX FALLS"
+      },
+      "source": "EPA ECHO (enforcement & compliance)",
+      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
+      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
     }
   ]
 }
