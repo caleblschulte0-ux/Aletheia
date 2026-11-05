@@ -129,6 +129,10 @@ SANDBOX_READ_ONLY = {
     ("aletheia.rulings", "DEFAULT_PATH"),
     ("aletheia.rulings", "REPO_RULINGS"),
     ("aletheia.core", "INTERFACE_DIR"),
+    # The investigations scanner's candidate output. No conversation writes
+    # it -- only `python -m aletheia.investigations` (CLI / the investigate
+    # workflow) does -- so a talk audit never touches it. Read-only here.
+    ("aletheia.investigations", "OUT_DIR"),
 }
 
 
