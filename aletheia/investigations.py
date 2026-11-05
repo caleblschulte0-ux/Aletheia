@@ -168,10 +168,9 @@ SOURCES: list[dict[str, Any]] = [
     # --- environment -------------------------------------------------------
     {"id": "epa_echo", "category": "environment",
      "name": "EPA ECHO enforcement & compliance", "host": "echodata.epa.gov",
-     "reads": "clean-air/water violations and penalties by facility",
+     "reads": "clean-air/water/waste violations, SNC flags and penalties by facility",
      "signal": "a private facility poisoning neighbors, under the regulator's radar",
-     "free": True, "status": "QUEUED",
-     "note": "ticket: echo API reachable; prior SF hits were gov lagoons -- filter to private operators"},
+     "free": True, "status": "AVAILABLE"},
     # --- housing / predatory landlord -------------------------------------
     {"id": "sf_code_enforcement", "category": "housing",
      "name": "Sioux Falls code enforcement / rental violations",
@@ -501,9 +500,125 @@ def run_fda_recalls(fetch: Callable[[], list[dict[str, Any]]] | None = None
             "candidates": fda_recall_outliers(results)}
 
 
+# ---- EPA ECHO environmental violators -------------------------------------
+
+ECHO_FACILITY_INFO = "https://echodata.epa.gov/echo/echo_rest_services.get_facility_info"
+ECHO_QID = "https://echodata.epa.gov/echo/echo_rest_services.get_qid"
+
+# Name markers for government / municipal operators -- the memory's warning was
+# that SF environmental hits are gov lagoons (a city sewage plant is not the
+# concealed-harm story). Dropped deterministically alongside the federal flag.
+ECHO_GOV_NAME_MARKERS = (
+    "CITY OF", "COUNTY OF", "STATE OF", "MUNICIPAL", "SANITARY DISTRICT",
+    "WASTEWATER", "WATER RECLAMATION", "PUBLIC WORKS", "WWTP", "WTP",
+    "WATER TREATMENT", "WATER DEPT", "SCHOOL DISTRICT", "DEPARTMENT OF",
+    "USDA", "FEDERAL", "AIR FORCE", "ARMY", "DEPT OF",
+    "PORT OF ENTRY", "HIGHWAY", "DOT ", "NATIONAL GUARD", "PENITENTIARY",
+)
+
+
+def epa_echo_violators(rows: list[dict[str, Any]], *, city: str = CITY
+                       ) -> list[dict[str, Any]]:
+    """Pure analysis. From ECHO facility rows, flag a PRIVATE facility in the
+    target city that is a significant non-complier, or carries a formal
+    enforcement action or a penalty -- a repeat environmental violator. Gov /
+    municipal operators are dropped (federal flag + name markers). No model.
+    """
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        if city.upper() not in (r.get("FacCity") or "").upper():
+            continue
+        if (r.get("FacFederalFlg") or "").strip().upper() == "Y":
+            continue
+        name = (r.get("FacName") or "").strip()
+        up = name.upper()
+        if any(m in up for m in ECHO_GOV_NAME_MARKERS):
+            continue
+        snc = (r.get("FacSNCFlg") or "").strip().upper() == "Y"
+        formal = int(_num(r.get("FacFormalActionCount")))
+        penalties = _num(r.get("FacTotalPenalties"))
+        if not (snc or formal >= 1 or penalties > 0):
+            continue
+        summary = f"{name}: EPA " + ("significant non-complier" if snc else "violations")
+        if formal:
+            summary += f", {formal} formal action(s)"
+        if penalties:
+            summary += f", ${int(penalties):,} penalties"
+        status = (r.get("FacComplianceStatus") or "").strip()
+        if status:
+            summary += f" [{status}]"
+        out.append({
+            "check": "epa_echo",
+            "kind": "anomaly",
+            "subject": name,
+            "summary": summary,
+            "evidence": {
+                "registry_id": r.get("RegistryID"),
+                "significant_noncomplier": snc,
+                "formal_actions": formal,
+                "total_penalties": penalties,
+                "quarters_with_noncompliance": r.get("FacQtrsWithNC"),
+                "compliance": {
+                    "overall": status,
+                    "air_caa": (r.get("CAAComplianceStatus") or "").strip(),
+                    "water_cwa": (r.get("CWAComplianceStatus") or "").strip(),
+                    "waste_rcra": (r.get("RCRAComplianceStatus") or "").strip(),
+                    "drinking_sdwa": (r.get("SDWAComplianceStatus") or "").strip(),
+                },
+                "industry": (r.get("FacSICDescs") or r.get("FacNAICSDescs") or "").strip(),
+                "last_inspection": r.get("FacDateLastInspection"),
+                "address": (r.get("FacStreet") or "").strip(),
+                "city": (r.get("FacCity") or "").strip(),
+            },
+            "source": "EPA ECHO (enforcement & compliance)",
+            "why_him": ("a facility's public environmental-compliance record; "
+                        "target the BUSINESS, records-based"),
+            "next_record": ("what it emits/discharges and who lives nearby; is the "
+                            "violation uncovered locally; a repeat pattern vs one-off"),
+        })
+    out.sort(key=lambda c: (-int(c["evidence"]["significant_noncomplier"]),
+                            -c["evidence"]["formal_actions"],
+                            -c["evidence"]["total_penalties"]))
+    return out
+
+
+def _fetch_echo_sd(state: str = STATE) -> list[dict[str, Any]]:
+    """Network. ECHO ignores a city filter, so pull the state's facilities (a
+    QID then paged rows) and let the pure function filter to the city. The
+    query returns a QID; rows come from get_qid, 5000 per page.
+    """
+    q = _get_json(f"{ECHO_FACILITY_INFO}?output=JSON&p_st={urllib.parse.quote(state)}")
+    qid = (q.get("Results") or {}).get("QueryID")
+    if not qid:
+        raise RuntimeError("ECHO: no QueryID returned")
+    rows: list[dict[str, Any]] = []
+    for page in range(1, 7):  # safety cap; SD is ~13k = 3 pages of 5000
+        d = _get_json(f"{ECHO_QID}?output=JSON&qid={qid}&pageno={page}&responseset=5000")
+        facs = (d.get("Results") or {}).get("Facilities") or []
+        rows.extend(facs)
+        if len(facs) < 5000:
+            break
+    return rows
+
+
+def run_epa_echo(fetch: Callable[[], list[dict[str, Any]]] | None = None
+                 ) -> dict[str, Any]:
+    """One check: fetch (injectable) then analyse."""
+    fetch = fetch or _fetch_echo_sd
+    try:
+        rows = fetch()
+    except Exception as exc:  # noqa: BLE001
+        return {"check": "epa_echo", "ok": False, "error": str(exc),
+                "candidates": []}
+    return {"check": "epa_echo", "ok": True, "rows_scanned": len(rows),
+            "candidates": epa_echo_violators(rows)}
+
+
 # ---- orchestration ---------------------------------------------------------
 
-CHECKS: list[Callable[[], dict[str, Any]]] = [run_cms_partd, run_fda_recalls]
+CHECKS: list[Callable[[], dict[str, Any]]] = [
+    run_cms_partd, run_fda_recalls, run_epa_echo,
+]
 
 
 def scan(write: bool = True) -> dict[str, Any]:
