@@ -234,6 +234,24 @@ class Scan(unittest.TestCase):
         self.assertEqual(report["checks"][0]["check"], "stub")
         self.assertNotIn("candidates", report["checks"][0])
 
+    def test_each_source_reports_its_own_flagged_count_not_the_grand_total(self):
+        def _cand(check):
+            return {"check": check, "subject": "X", "summary": "s",
+                    "evidence": {}, "next_record": "n"}
+        one = lambda: {"check": "one", "ok": True, "rows_scanned": 5,
+                       "candidates": [_cand("one")]}
+        three = lambda: {"check": "three", "ok": True, "rows_scanned": 9,
+                         "candidates": [_cand("three")] * 3}
+        with mock.patch.object(inv, "CHECKS", [one, three]):
+            report = inv.scan(write=False)
+        self.assertEqual(report["candidate_count"], 4)
+        self.assertEqual(report["checks"][0]["flagged"], 1)
+        self.assertEqual(report["checks"][1]["flagged"], 3)
+        md = inv._markdown(report)
+        self.assertIn("scanned 5 rows, 1 flagged", md)
+        self.assertIn("scanned 9 rows, 3 flagged", md)
+        self.assertNotIn("4 flagged", md)
+
     def test_markdown_renders_without_candidates(self):
         report = {"city": "SIOUX FALLS, SD", "generated_at": "now",
                   "checks": [{"check": "stub", "ok": True, "rows_scanned": 0}],
