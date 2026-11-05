@@ -551,7 +551,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-05T16:20:42Z",
+  "generated_at": "2026-11-05T17:22:01Z",
   "question_shapes": {
     "ashbyhq: textarea: do you have _ experience working in the _ _ _ _": 1,
     "ashbyhq: textarea: what about _ _ or the role _ your _ and _": 1,
@@ -567,22 +567,22 @@
     "employer_site: field: veteran _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 2,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 2,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
-    "workable: field: _ _ _ _": 2,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
     "workable: field: _ per _": 1,
     "workable: field: open _": 1,
     "workable: field: resume _": 6,
-    "workable: field: us": 1,
-    "workable: radio: the _ will _ _ _ _ for the role in _": 1
+    "workable: field: us": 1
   },
   "sent_all_time": 340,
   "sent_by_system": {
