@@ -630,8 +630,9 @@ def scan(write: bool = True) -> dict[str, Any]:
     report = {
         "generated_at": _utcnow(),
         "city": f"{CITY}, {STATE}",
-        "checks": [{k: v for k, v in r.items() if k != "candidates"}
-                   for r in results],
+        "checks": [{**{k: v for k, v in r.items() if k != "candidates"},
+                     "flagged": len(r.get("candidates", []))}
+                    for r in results],
         "candidate_count": len(candidates),
         "candidates": candidates,
     }
@@ -665,7 +666,7 @@ def _markdown(report: dict[str, Any]) -> str:
         state = "ok" if res.get("ok") else f"FAILED: {res.get('error')}"
         lines.append(f"- source `{res['check']}`: {state}"
                      + (f", scanned {res.get('rows_scanned')} rows,"
-                        f" {report['candidate_count']} flagged"
+                        f" {res.get('flagged', 0)} flagged"
                         if res.get("ok") else ""))
     lines.append("")
     if not report["candidates"]:
