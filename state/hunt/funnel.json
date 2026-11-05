@@ -329,17 +329,17 @@
     "2026-11-04": {
       "duplicate": 2,
       "employer_full": 0,
-      "minutes": 152,
+      "minutes": 172,
       "needs_account": 4,
-      "needs_answer": 28,
-      "not_realistic": 1038,
-      "offered": 1118,
-      "ready": 7,
-      "runs": 19,
-      "unfit_language": 507,
-      "unfit_model": 51,
-      "unfit_pay": 150,
-      "unfit_sales": 330,
+      "needs_answer": 30,
+      "not_realistic": 1148,
+      "offered": 1232,
+      "ready": 9,
+      "runs": 21,
+      "unfit_language": 563,
+      "unfit_model": 57,
+      "unfit_pay": 166,
+      "unfit_sales": 362,
       "unjudged": 0,
       "unreachable": 5,
       "unreachable_ApplyError": 2,
@@ -349,10 +349,10 @@
     }
   },
   "boards": {
-    "ashby": 140,
+    "ashby": 142,
     "bamboohr": 5,
     "greenhouse": 101,
-    "lever": 80,
+    "lever": 82,
     "recruitee": 9,
     "smartrecruiters": 37,
     "workable": 10
@@ -363,7 +363,7 @@
       "gone_on_lever": 1,
       "left_captcha": 7,
       "left_error": 2,
-      "left_no_way_forward": 8,
+      "left_no_way_forward": 9,
       "left_questions": 5,
       "left_sign_in": 2,
       "not_realistic": 7
@@ -523,15 +523,15 @@
       "sent": 4
     },
     "2026-11-04": {
-      "filled": 33,
-      "found": 60,
+      "filled": 36,
+      "found": 64,
       "interviews": 2,
       "rejections": 1,
       "replies": 4,
-      "sent": 3
+      "sent": 5
     }
   },
-  "generated_at": "2026-11-04T23:59:48Z",
+  "generated_at": "2026-11-05T00:29:58Z",
   "question_shapes": {
     "ashbyhq: radio: _ you are _ please select the _ that _ you to": 2,
     "ashbyhq: radio: are you able and willing to travel _ _ to and _": 2,
@@ -547,8 +547,8 @@
     "employer_site: field: please _ your _ _": 1,
     "employer_site: field: please _ your university or other _ _ _ _": 1,
     "employer_site: field: veteran _": 1,
-    "lever: checkbox: _": 2,
-    "lever: checkbox: _ _": 1,
+    "lever: checkbox: _": 3,
+    "lever: checkbox: _ _": 2,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: do you have any _ _ _ _ with your _ _": 1,
@@ -558,15 +558,15 @@
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 2,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 2,
-    "workable: field: _ _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 3,
-    "workable: text: _ expectations _": 1,
     "workable: text: the salary range is _ for this role are you comfortable with": 1,
+    "workable: textarea: how _ _ _ do you _ _ per _": 1,
     "workable: textarea: which _ and _ _ have you _ _": 1
   },
-  "sent_all_time": 335,
+  "sent_all_time": 337,
   "sent_by_system": {
-    "ashbyhq": 21,
+    "ashbyhq": 23,
     "employer_site": 7,
     "greenhouse": 50,
     "lever": 28
@@ -575,6 +575,7 @@
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 2,
     "employer_site: apply_not_taken: about _ | _ | _ _ | learn more | create alert | log in": 1,
     "employer_site: empty_page: none": 1,
+    "employer_site: no_apply: _ _ _ _ _": 1,
     "employer_site: no_apply: _ _ _ | accept | settings | _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | _ _ _ _ | _ _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _ | _": 1,
@@ -602,12 +603,12 @@
       "nothing_to_press_on_content+apply_not_taken/observed": 1,
       "nothing_to_press_on_content+empty_page/observed": 3,
       "nothing_to_press_on_content+no_apply/filled": 3,
-      "nothing_to_press_on_content+no_apply/observed": 20,
+      "nothing_to_press_on_content+no_apply/observed": 21,
       "nothing_to_press_on_content/observed": 2,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
-      "nothing_to_press_on_form/observed": 3,
+      "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_success+no_apply/observed": 2,
       "unclear_button/observed": 9
     },
@@ -624,7 +625,7 @@
       "nothing_to_press_on_multi_page_wizard/filled": 8
     },
     "sign_in": {
-      "nothing_to_press_on_account_login/observed": 11,
+      "nothing_to_press_on_account_login/observed": 10,
       "nothing_to_press_on_account_login/submit_clicked": 2
     }
   },
@@ -640,7 +641,7 @@
       "no_way_forward": {
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 2,
+        "nothing_to_press_on_content+no_apply/observed": 3,
         "nothing_to_press_on_success+no_apply/observed": 1,
         "unclear_button/observed": 3
       },
@@ -653,26 +654,26 @@
     }
   },
   "totals": {
-    "filled": 197,
-    "found": 581,
+    "filled": 200,
+    "found": 585,
     "interviews": 17,
     "rejections": 22,
     "replies": 54,
-    "sent": 106
+    "sent": 108
   },
   "waiting": {
     "asked_about": {
       "address": 2,
       "agreements": 1,
       "contact": 1,
-      "demographic_gender": 1,
+      "demographic_gender": 2,
       "demographic_race": 1,
       "demographic_veteran": 1,
       "on_site": 4,
-      "other": 26,
+      "other": 27,
       "pay": 4,
       "travel": 1,
-      "years_experience": 2
+      "years_experience": 3
     },
     "closed": {
       "gone_on_ashbyhq": 9,
@@ -682,7 +683,7 @@
       "left_captcha": 32,
       "left_error": 11,
       "left_going_in_circles": 4,
-      "left_no_way_forward": 52,
+      "left_no_way_forward": 53,
       "left_out_of_steps": 1,
       "left_posting_closed": 1,
       "left_questions": 30,
@@ -704,7 +705,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 27,
+    "needs_answer": 28,
     "oldest_days": 52,
     "to_send": 0
   },
