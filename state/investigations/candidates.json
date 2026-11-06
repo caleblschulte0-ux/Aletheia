@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-06T01:44:08Z",
+  "generated_at": "2026-11-06T11:15:03Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 24,
-      "flagged": 1
+      "rows_scanned": 3,
+      "flagged": 0
     }
   ],
-  "candidate_count": 42,
+  "candidate_count": 41,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -897,29 +897,6 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N207P",
-      "summary": "N207P (BE9L), owner DALE AVIATION: non-scheduled aircraft on the ground at FSD (1nm)",
-      "evidence": {
-        "tail": "N207P",
-        "type": "BE9L",
-        "callsign": "N207P",
-        "owner_operator": "DALE AVIATION",
-        "squawk": "4267",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": true,
-        "altitude_ft": null,
-        "distance_from_fsd_nm": 0.5,
-        "times_seen": 1,
-        "first_seen": "2026-11-06"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }
