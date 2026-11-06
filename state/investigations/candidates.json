@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-06T11:15:03Z",
+  "generated_at": "2026-11-06T19:37:03Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -17,9 +17,9 @@
     },
     {
       "check": "epa_echo",
-      "ok": true,
-      "rows_scanned": 13254,
-      "flagged": 6
+      "ok": false,
+      "error": "The read operation timed out",
+      "flagged": 0
     },
     {
       "check": "cms_care_compare_nh",
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 3,
-      "flagged": 0
+      "rows_scanned": 18,
+      "flagged": 1
     }
   ],
-  "candidate_count": 41,
+  "candidate_count": 36,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -737,166 +737,27 @@
       "data_year": "2023"
     },
     {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "BEULAH LAND WATER-CHLORINATOR",
-      "summary": "BEULAH LAND WATER-CHLORINATOR: EPA violations, 2 formal action(s) [Violation Identified]",
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "N694QS",
+      "summary": "N694QS (C68A): non-scheduled aircraft on the ground at FSD (0nm)",
       "evidence": {
-        "registry_id": "110069304871",
-        "significant_noncomplier": false,
-        "formal_actions": 2,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": "11",
-        "compliance": {
-          "overall": "Violation Identified",
-          "air_caa": "",
-          "water_cwa": "",
-          "waste_rcra": "",
-          "drinking_sdwa": "Violation Identified"
-        },
-        "industry": "",
-        "last_inspection": "09/16/2025",
-        "address": "1104 WEST 10TH STREET",
-        "city": "SIOUX FALLS"
+        "tail": "N694QS",
+        "type": "C68A",
+        "callsign": "EJA694",
+        "owner_operator": "",
+        "squawk": "4555",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": true,
+        "altitude_ft": null,
+        "distance_from_fsd_nm": 0.3,
+        "times_seen": 1,
+        "first_seen": "2026-11-06"
       },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "LAKESIDE DAIRY",
-      "summary": "LAKESIDE DAIRY: EPA violations, 2 formal action(s)",
-      "evidence": {
-        "registry_id": "110011682535",
-        "significant_noncomplier": false,
-        "formal_actions": 2,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": null,
-        "compliance": {
-          "overall": "",
-          "air_caa": "",
-          "water_cwa": "",
-          "waste_rcra": "",
-          "drinking_sdwa": ""
-        },
-        "industry": "",
-        "last_inspection": null,
-        "address": "1200 WEST RUSSELL STREET",
-        "city": "SIOUX FALLS"
-      },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY",
-      "summary": "UNITED PARCEL SERVICE - SIOUX FALLS GATEWAY: EPA violations, 2 formal action(s) [No Violation Identified]",
-      "evidence": {
-        "registry_id": "110071140252",
-        "significant_noncomplier": false,
-        "formal_actions": 2,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": "0",
-        "compliance": {
-          "overall": "No Violation Identified",
-          "air_caa": "",
-          "water_cwa": "",
-          "waste_rcra": "No Violation Identified",
-          "drinking_sdwa": ""
-        },
-        "industry": "",
-        "last_inspection": null,
-        "address": "3 WEATHER LANE",
-        "city": "SIOUX FALLS"
-      },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "UNITED PARCEL SERVICE - SIOUX FALLS HUB",
-      "summary": "UNITED PARCEL SERVICE - SIOUX FALLS HUB: EPA violations, 2 formal action(s) [No Violation Identified]",
-      "evidence": {
-        "registry_id": "110004949628",
-        "significant_noncomplier": false,
-        "formal_actions": 2,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": "0",
-        "compliance": {
-          "overall": "No Violation Identified",
-          "air_caa": "",
-          "water_cwa": "",
-          "waste_rcra": "No Violation Identified",
-          "drinking_sdwa": ""
-        },
-        "industry": "",
-        "last_inspection": null,
-        "address": "2700 NORTH WESTPORT AVE",
-        "city": "SIOUX FALLS"
-      },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "CREW INC.",
-      "summary": "CREW INC.: EPA violations, 1 formal action(s)",
-      "evidence": {
-        "registry_id": "110071845938",
-        "significant_noncomplier": false,
-        "formal_actions": 1,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": null,
-        "compliance": {
-          "overall": "",
-          "air_caa": "",
-          "water_cwa": "",
-          "waste_rcra": "",
-          "drinking_sdwa": ""
-        },
-        "industry": "",
-        "last_inspection": "09/09/2024",
-        "address": "3503 S NORTON AVENUE",
-        "city": "SIOUX FALLS"
-      },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "epa_echo",
-      "kind": "anomaly",
-      "subject": "SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD",
-      "summary": "SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]",
-      "evidence": {
-        "registry_id": "110000427823",
-        "significant_noncomplier": false,
-        "formal_actions": 1,
-        "total_penalties": 0.0,
-        "quarters_with_noncompliance": "2",
-        "compliance": {
-          "overall": "No Violation Identified",
-          "air_caa": "No Violation Identified",
-          "water_cwa": "No Violation Identified",
-          "waste_rcra": "No Violation Identified",
-          "drinking_sdwa": ""
-        },
-        "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats",
-        "last_inspection": "08/20/2026",
-        "address": "1400 NORTH WEBER AVENUE",
-        "city": "SIOUX FALLS"
-      },
-      "source": "EPA ECHO (enforcement & compliance)",
-      "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
-      "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }
