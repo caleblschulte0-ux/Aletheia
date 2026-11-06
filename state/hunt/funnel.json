@@ -349,20 +349,21 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 283,
+      "minutes": 304,
       "needs_account": 0,
-      "needs_answer": 0,
-      "not_realistic": 2657,
-      "offered": 2658,
+      "needs_answer": 3,
+      "not_realistic": 2855,
+      "offered": 2861,
       "ready": 1,
-      "runs": 48,
-      "unfit_language": 1460,
+      "runs": 52,
+      "unfit_language": 1554,
       "unfit_model": 2,
-      "unfit_pay": 423,
-      "unfit_sales": 724,
-      "unfit_years": 48,
+      "unfit_pay": 459,
+      "unfit_sales": 788,
+      "unfit_years": 52,
       "unjudged": 0,
-      "unreachable": 0,
+      "unreachable": 2,
+      "unreachable_ApplyError": 2,
       "weak_shot": 0
     }
   },
@@ -382,10 +383,11 @@
       "gone_on_lever": 1,
       "left_captcha": 10,
       "left_error": 2,
-      "left_no_way_forward": 12,
+      "left_no_way_forward": 14,
       "left_posting_closed": 1,
       "left_questions": 5,
       "left_sign_in": 2,
+      "not_a_form_asks_nothing_on_ashbyhq": 1,
       "not_realistic": 11
     }
   },
@@ -543,18 +545,18 @@
       "sent": 0
     },
     "2026-11-06": {
-      "filled": 17,
-      "found": 17,
+      "filled": 18,
+      "found": 21,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-11-06T17:05:01Z",
+  "generated_at": "2026-11-06T17:36:08Z",
   "question_shapes": {
     "employer_site: field: _": 10,
-    "employer_site: field: _ _": 4,
+    "employer_site: field: _ _": 5,
     "employer_site: field: _ _ _ _ need _ _ in _ to be able": 1,
     "employer_site: field: _ _ yes to this _ you _ that you have _": 1,
     "employer_site: field: _ and _ in an _ to _ _ _ and _": 1,
@@ -584,19 +586,21 @@
     "workable: field: _ _ _ _": 1,
     "workable: field: resume _": 7
   },
-  "sent_all_time": 340,
+  "sent_all_time": 341,
   "sent_by_system": {
     "ashbyhq": 22,
     "employer_site": 7,
     "greenhouse": 14,
-    "lever": 27
+    "lever": 28
   },
   "stop_shapes": {
+    "employer_site: apply_not_taken: _ _ in _ _ | submit | _ _ _ _ _ | _ to _ _ | _ _ _ in _": 1,
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 2,
     "employer_site: apply_not_taken: about _ | _ | _ _ | learn more | create alert | log in": 1,
     "employer_site: empty_page: none": 1,
     "employer_site: no_apply: _ _ _ _ _": 1,
     "employer_site: no_apply: _ _ _ | accept | settings | _": 1,
+    "employer_site: no_apply: _ _ _ | sign in | _ | _ _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | _ _ _ _ | _ _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 2,
     "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _ | _": 1,
@@ -620,10 +624,10 @@
       "nothing_to_press_on_multi_page_wizard/observed": 1
     },
     "no_way_forward": {
-      "nothing_to_press_on_content+apply_not_taken/observed": 1,
+      "nothing_to_press_on_content+apply_not_taken/observed": 2,
       "nothing_to_press_on_content+empty_page/observed": 3,
       "nothing_to_press_on_content+no_apply/filled": 3,
-      "nothing_to_press_on_content+no_apply/observed": 24,
+      "nothing_to_press_on_content+no_apply/observed": 25,
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
@@ -657,9 +661,10 @@
         "nothing_to_press_on_unread/observed": 2
       },
       "no_way_forward": {
+        "nothing_to_press_on_content+apply_not_taken/observed": 1,
         "nothing_to_press_on_content+empty_page/observed": 1,
         "nothing_to_press_on_content+no_apply/filled": 1,
-        "nothing_to_press_on_content+no_apply/observed": 6,
+        "nothing_to_press_on_content+no_apply/observed": 7,
         "nothing_to_press_on_success+no_apply/observed": 1,
         "unclear_button/observed": 3
       },
@@ -675,12 +680,12 @@
     }
   },
   "totals": {
-    "filled": 153,
-    "found": 512,
+    "filled": 154,
+    "found": 516,
     "interviews": 15,
     "rejections": 19,
     "replies": 45,
-    "sent": 70
+    "sent": 71
   },
   "waiting": {
     "asked_about": {
@@ -691,7 +696,7 @@
       "demographic_veteran": 1,
       "links": 1,
       "on_site": 3,
-      "other": 34,
+      "other": 35,
       "travel": 1,
       "years_experience": 2
     },
@@ -703,12 +708,12 @@
       "left_captcha": 34,
       "left_error": 8,
       "left_going_in_circles": 3,
-      "left_no_way_forward": 54,
+      "left_no_way_forward": 56,
       "left_out_of_steps": 1,
       "left_posting_closed": 2,
       "left_questions": 30,
       "left_sign_in": 12,
-      "not_a_form_asks_nothing_on_ashbyhq": 2,
+      "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_realistic": 91
     },
     "failed": 19,
@@ -723,9 +728,9 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 34,
+    "needs_answer": 35,
     "oldest_days": 54,
-    "to_send": 1
+    "to_send": 0
   },
   "window_days": 30
 }
