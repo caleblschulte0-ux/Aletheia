@@ -350,22 +350,22 @@
     "2026-11-05": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 389,
+      "minutes": 405,
       "needs_account": 1,
       "needs_answer": 20,
-      "not_realistic": 2487,
-      "offered": 2548,
+      "not_realistic": 2708,
+      "offered": 2770,
       "ready": 2,
-      "runs": 48,
-      "unfit_language": 1347,
-      "unfit_pay": 443,
-      "unfit_sales": 679,
-      "unfit_years": 18,
+      "runs": 52,
+      "unfit_language": 1464,
+      "unfit_pay": 483,
+      "unfit_sales": 739,
+      "unfit_years": 22,
       "unjudged": 0,
-      "unreachable": 9,
+      "unreachable": 10,
       "unreachable_ApplyError": 2,
       "unreachable_TimeoutError": 1,
-      "unreachable_left_till_tomorrow": 5,
+      "unreachable_left_till_tomorrow": 6,
       "unreachable_no_form": 1,
       "weak_shot": 0
     }
@@ -555,7 +555,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T03:37:36Z",
+  "generated_at": "2026-11-06T04:08:41Z",
   "question_shapes": {
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 4,
@@ -585,7 +585,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: checkbox: which of the _ _ are you able to work in": 1,
-    "workable: field: _ _ _ _ _": 1,
+    "workable: field: _ _ _ us _ _": 1,
     "workable: field: resume _": 6
   },
   "sent_all_time": 340,
@@ -616,8 +616,7 @@
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 1,
       "nothing_to_press_on_unread/nothing": 1,
-      "nothing_to_press_on_unread/observed": 6,
-      "nothing_to_press_on_unread/submit_clicked": 1
+      "nothing_to_press_on_unread/observed": 6
     },
     "going_in_circles": {
       "nothing_to_press_on_content/observed": 1,
