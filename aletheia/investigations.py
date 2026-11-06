@@ -27,6 +27,7 @@ Entry point: ``python -m aletheia.investigations`` (or ``.scan()``).
 from __future__ import annotations
 
 import json
+import math
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -263,7 +264,7 @@ SOURCES: list[dict[str, Any]] = [
      "name": "ADS-B / FAA aircraft (sky-watch)", "host": "adsb.fi / FAA registry",
      "reads": "unusual aircraft over / landing near Sioux Falls",
      "signal": "a private jet pattern that doesn't match any public reason",
-     "free": True, "status": "QUEUED", "note": "ticket: reachable; wire as its own periodic kinetic check"},
+     "free": True, "status": "AVAILABLE", "caller": "run_sky_watch"},
 ]
 
 
@@ -781,10 +782,203 @@ def run_care_compare(
                 provider_rows, antipsych_pct_by_ccn)}
 
 
+# ---- ADS-B / FAA sky-watch (the kinetic vein) -----------------------------
+# The "blacked-out plane into Sioux Falls" vein: watch live aircraft near the
+# airport (FSD) for the ones with no public reason to be there -- an opaque or
+# foreign-owned business jet that lands, a military/government aircraft, an
+# emergency squawk. One landing is never the story (owner-trusts and the odd
+# bizjet are common and mostly legit); the story is a REPEAT, so the scanner
+# keeps a small rolling log of what it has seen and elevates a tail that comes
+# back. Snapshot only -- each run sees what is airborne/on-ground right then.
+ADSB_SWEEP = "https://opendata.adsb.fi/api/v2/lat/{lat}/lon/{lon}/dist/{dist}"
+FSD_LAT, FSD_LON = 43.582, -96.742      # Sioux Falls Regional (FSD)
+SKY_SWEEP_RADIUS_NM = 80                 # the API's search radius
+SKY_NEAR_NM = 15.0                       # "at/approaching FSD" vs an overflight
+SKY_LOW_ALT_FT = 8000                    # below this near FSD == arriving/leaving
+SKY_EMERGENCY_SQUAWKS = frozenset({"7500", "7600", "7700"})
+SKY_LOG = OUT_DIR / "sky_log.json"       # rolling tail -> sightings (repeats)
+SKY_LOG_MAX = 300                        # cap the log's size
+# Airline / cargo / fractional-charter callsign prefixes (ICAO). An aircraft
+# whose callsign starts with one of these has a public reason to be in the air;
+# the vein is everything else that gets low and close to FSD.
+SKY_SCHEDULED_PREFIXES = frozenset({
+    "SKW", "AAL", "DAL", "UAL", "SWA", "AAY", "FFT", "NKS", "ASH", "EDV",
+    "RPA", "ENY", "JIA", "QXE", "GJS", "MXY", "PDT", "AWI", "FDX", "UPS",
+    "GTI", "FD"})
+# Owner/operator substrings with an obvious public reason to be low at FSD: the
+# airlines and cargo (often broadcasting no callsign on the ground), and local
+# air-ambulance/hospital flights. Matched on ownOp so a FedEx 757 sitting on the
+# ramp or an Avera medevac PC-12 is not mistaken for an unexplained visitor.
+SKY_KNOWN_OPERATOR_MARKERS = (
+    "AIRLINES", "AIR LINES", "FEDERAL EXPRESS", "FEDEX", "UPS ", "UNITED PARCEL",
+    "SKYWEST", "ENVOY", "REPUBLIC", "MESA", "ENDEAVOR", "ALLEGIANT", "FRONTIER",
+    "AVERA", "SANFORD", "LIFE FLIGHT", "LIFEFLIGHT", "AIR MED", "AIRMED",
+    "MEDICAL", "MERCY", "HOSPITAL", "AMBULANCE", "CARE FLIGHT", "MEDEVAC",
+    "STATE OF SOUTH DAKOTA", "CITY OF SIOUX FALLS", "SOUTH DAKOTA STATE")
+
+
+def _known_operator(owner: str) -> bool:
+    up = (owner or "").upper()
+    return any(m in up for m in SKY_KNOWN_OPERATOR_MARKERS)
+
+
+def _nm_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in nautical miles."""
+    r_nm = 3440.065
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlam = math.radians(lon2 - lon1)
+    a = (math.sin(dphi / 2) ** 2
+         + math.cos(p1) * math.cos(p2) * math.sin(dlam / 2) ** 2)
+    return r_nm * 2 * math.asin(min(1.0, math.sqrt(a)))
+
+
+def _is_scheduled(callsign: str) -> bool:
+    cs = (callsign or "").strip().upper()
+    return any(cs.startswith(p) for p in SKY_SCHEDULED_PREFIXES)
+
+
+def sky_outliers(aircraft: list[dict[str, Any]],
+                 prior: dict[str, dict[str, Any]] | None = None,
+                 *, origin_lat: float = FSD_LAT, origin_lon: float = FSD_LON,
+                 today: str = "") -> list[dict[str, Any]]:
+    """Pure analysis. From an ADS-B snapshot, flag aircraft with no public
+    reason to be over/at Sioux Falls: an emergency squawk; a military flag; or
+    a non-scheduled aircraft that is on the ground or low AND close to FSD
+    (a business jet arriving, not a transcontinental overflight). `prior` is
+    the rolling log (tail -> {count, first_seen}); a tail seen before is
+    elevated to an anomaly, because the repeat is the story. No model.
+    """
+    prior = prior or {}
+    out: list[dict[str, Any]] = []
+    for ac in aircraft:
+        tail = (ac.get("r") or "").strip()
+        squawk = (ac.get("squawk") or "").strip()
+        callsign = (ac.get("flight") or "").strip()
+        ac_type = (ac.get("t") or "").strip()
+        owner = (ac.get("ownOp") or "").strip()
+        military = bool(int(ac.get("dbFlags") or 0) & 1)
+        alt_raw = ac.get("alt_baro")
+        on_ground = str(alt_raw).lower() == "ground"
+        alt = 0.0 if on_ground else _num(alt_raw)
+        lat, lon = _num(ac.get("lat")), _num(ac.get("lon"))
+        dist = (_nm_between(origin_lat, origin_lon, lat, lon)
+                if (lat or lon) else None)
+        near_low = (dist is not None and dist <= SKY_NEAR_NM
+                    and (on_ground or 0 < alt <= SKY_LOW_ALT_FT))
+
+        emergency = squawk in SKY_EMERGENCY_SQUAWKS
+        foreign = bool(tail) and not tail.upper().startswith("N")
+        reason = None
+        if emergency:
+            reason = f"emergency squawk {squawk}"
+        elif military and (dist is None or dist <= SKY_SWEEP_RADIUS_NM):
+            reason = "military / government aircraft"
+        elif near_low and not _is_scheduled(callsign) and not _known_operator(owner):
+            where = "on the ground at" if on_ground else f"{alt:.0f}ft near"
+            reason = (f"{'foreign-registered ' if foreign else ''}non-scheduled "
+                      f"aircraft {where} FSD ({dist:.0f}nm)")
+        if not reason:
+            continue
+
+        seen_before = prior.get(tail or callsign, {})
+        times = int(seen_before.get("count", 0)) + 1
+        first_seen = seen_before.get("first_seen") or today
+        label = tail or callsign or "unknown aircraft"
+        descr = f"{label}" + (f" ({ac_type})" if ac_type else "")
+        if owner:
+            descr += f", owner {owner}"
+        summary = f"{descr}: {reason}"
+        if times >= 2:
+            summary += f" -- seen {times} times (repeat; first {first_seen})"
+        out.append({
+            "check": "sky_watch",
+            "kind": "anomaly" if (times >= 2 or emergency or military)
+                    else "context",
+            "subject": label,
+            "summary": summary,
+            "evidence": {
+                "tail": tail, "type": ac_type, "callsign": callsign,
+                "owner_operator": owner, "squawk": squawk,
+                "military": military, "foreign_registration": foreign,
+                "on_ground": on_ground, "altitude_ft": None if on_ground else alt,
+                "distance_from_fsd_nm": None if dist is None else round(dist, 1),
+                "times_seen": times, "first_seen": first_seen,
+            },
+            "source": "ADS-B (adsb.fi) + FAA registry",
+            "why_him": ("public flight data; target the AIRCRAFT/owner (an org "
+                        "or its trust), records-based, never a person's travel"),
+            "next_record": ("FAA registry owner for the tail (registry.faa.gov) "
+                            "-- an owner-trust (Bank of Utah / Wilmington) hides "
+                            "the beneficiary; then watch for it to come back"),
+        })
+    out.sort(key=lambda c: -c["evidence"]["times_seen"])
+    return out
+
+
+def _fetch_adsb() -> list[dict[str, Any]]:
+    """Network. One ADS-B snapshot of the airspace around FSD."""
+    url = ADSB_SWEEP.format(lat=FSD_LAT, lon=FSD_LON, dist=SKY_SWEEP_RADIUS_NM)
+    d = _get_json(url)
+    return d.get("aircraft") or d.get("ac") or []
+
+
+def _read_sky_log() -> dict[str, dict[str, Any]]:
+    try:
+        return json.loads(SKY_LOG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_sky_log(log: dict[str, dict[str, Any]]) -> None:
+    # keep the most-recently-seen tails, capped
+    if len(log) > SKY_LOG_MAX:
+        keep = sorted(log.items(), key=lambda kv: kv[1].get("last_seen", ""),
+                      reverse=True)[:SKY_LOG_MAX]
+        log = dict(keep)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    SKY_LOG.write_text(json.dumps(log, indent=2, sort_keys=True) + "\n",
+                       encoding="utf-8")
+
+
+def run_sky_watch(fetch: Callable[[], list[dict[str, Any]]] | None = None,
+                  *, log_io: bool = True) -> dict[str, Any]:
+    """One check: fetch the snapshot, read the rolling log so repeats are
+    known, analyse, then record this run's flagged tails back to the log. Set
+    log_io=False in tests to keep it pure (no file touched).
+    """
+    fetch = fetch or _fetch_adsb
+    try:
+        aircraft = fetch()
+    except Exception as exc:  # noqa: BLE001
+        return {"check": "sky_watch", "ok": False, "error": str(exc),
+                "candidates": []}
+    today = _utcnow()[:10]
+    prior = _read_sky_log() if log_io else {}
+    candidates = sky_outliers(aircraft, prior, today=today)
+    if log_io:
+        for c in candidates:
+            key = c["evidence"]["tail"] or c["evidence"]["callsign"]
+            if not key:
+                continue
+            row = prior.get(key, {})
+            prior[key] = {
+                "count": int(row.get("count", 0)) + 1,
+                "first_seen": row.get("first_seen") or today,
+                "last_seen": today,
+                "type": c["evidence"]["type"],
+                "owner_operator": c["evidence"]["owner_operator"],
+            }
+        _write_sky_log(prior)
+    return {"check": "sky_watch", "ok": True, "rows_scanned": len(aircraft),
+            "candidates": candidates}
+
+
 # ---- orchestration ---------------------------------------------------------
 
 CHECKS: list[Callable[[], dict[str, Any]]] = [
     run_cms_partd, run_fda_recalls, run_epa_echo, run_care_compare,
+    run_sky_watch,
 ]
 
 
