@@ -350,17 +350,17 @@
     "2026-11-05": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 405,
+      "minutes": 419,
       "needs_account": 1,
       "needs_answer": 20,
-      "not_realistic": 2708,
-      "offered": 2770,
+      "not_realistic": 2928,
+      "offered": 2990,
       "ready": 2,
-      "runs": 52,
-      "unfit_language": 1464,
-      "unfit_pay": 483,
-      "unfit_sales": 739,
-      "unfit_years": 22,
+      "runs": 56,
+      "unfit_language": 1580,
+      "unfit_pay": 523,
+      "unfit_sales": 799,
+      "unfit_years": 26,
       "unjudged": 0,
       "unreachable": 10,
       "unreachable_ApplyError": 2,
@@ -382,7 +382,7 @@
   "closed_recently": {
     "days": 3,
     "why": {
-      "gone_on_ashbyhq": 2,
+      "gone_on_ashbyhq": 3,
       "gone_on_lever": 1,
       "left_captcha": 10,
       "left_error": 2,
@@ -547,7 +547,7 @@
       "sent": 8
     },
     "2026-11-05": {
-      "filled": 32,
+      "filled": 31,
       "found": 44,
       "interviews": 0,
       "rejections": 0,
@@ -555,7 +555,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T04:08:41Z",
+  "generated_at": "2026-11-06T04:39:45Z",
   "question_shapes": {
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 4,
@@ -584,9 +584,9 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: checkbox: which of the _ _ are you able to work in": 1,
+    "workable: field: _": 1,
     "workable: field: _ _ _ us _ _": 1,
-    "workable: field: resume _": 6
+    "workable: field: resume _": 7
   },
   "sent_all_time": 340,
   "sent_by_system": {
@@ -680,7 +680,7 @@
     }
   },
   "totals": {
-    "filled": 208,
+    "filled": 207,
     "found": 591,
     "interviews": 15,
     "rejections": 20,
@@ -696,12 +696,12 @@
       "demographic_veteran": 1,
       "links": 1,
       "on_site": 3,
-      "other": 35,
+      "other": 34,
       "travel": 1,
       "years_experience": 2
     },
     "closed": {
-      "gone_on_ashbyhq": 4,
+      "gone_on_ashbyhq": 5,
       "gone_on_greenhouse": 5,
       "gone_on_lever": 3,
       "gone_on_workable": 116,
@@ -730,7 +730,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 35,
+    "needs_answer": 34,
     "oldest_days": 54,
     "to_send": 0
   },
