@@ -350,17 +350,17 @@
     "2026-11-05": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 384,
+      "minutes": 389,
       "needs_account": 1,
       "needs_answer": 20,
-      "not_realistic": 2432,
-      "offered": 2493,
+      "not_realistic": 2487,
+      "offered": 2548,
       "ready": 2,
-      "runs": 47,
-      "unfit_language": 1318,
-      "unfit_pay": 433,
-      "unfit_sales": 664,
-      "unfit_years": 17,
+      "runs": 48,
+      "unfit_language": 1347,
+      "unfit_pay": 443,
+      "unfit_sales": 679,
+      "unfit_years": 18,
       "unjudged": 0,
       "unreachable": 9,
       "unreachable_ApplyError": 2,
@@ -555,7 +555,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T03:07:11Z",
+  "generated_at": "2026-11-06T03:37:36Z",
   "question_shapes": {
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 4,
@@ -584,9 +584,9 @@
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 1,
+    "workable: checkbox: which of the _ _ are you able to work in": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: resume _": 7
+    "workable: field: resume _": 6
   },
   "sent_all_time": 340,
   "sent_by_system": {
