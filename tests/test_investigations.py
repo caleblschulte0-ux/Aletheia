@@ -257,6 +257,29 @@ class SkyWatch(unittest.TestCase):
                       alt_baro=4000, lat=43.6, lon=-96.8)
         self.assertEqual(inv.sky_outliers([fedex, medevac]), [])
 
+    def test_skips_a_fractional_charter_jet(self):
+        # the live 2026-11-06 false positive: a NetJets Citation (callsign EJA###,
+        # tail N###QS) on the ground at FSD with an empty ownOp. A shared-pool jet's
+        # passenger is unknowable from ADS-B, so it is noise for the opaque-owner vein.
+        netjets_cs = _ac("N694QS", t="C68A", flight="EJA694", ownOp="",
+                         alt_baro="ground", lat=43.582, lon=-96.742)
+        self.assertEqual(inv.sky_outliers([netjets_cs]), [])
+        # excluded by the signature tail suffix alone, even with no callsign
+        netjets_tail = _ac("N694QS", t="C68A", flight="", ownOp="",
+                           alt_baro="ground", lat=43.582, lon=-96.742)
+        self.assertEqual(inv.sky_outliers([netjets_tail]), [])
+        # and a Flexjet N###FX
+        flexjet = _ac("N612FX", t="GL7T", flight="LXJ612", ownOp="",
+                      alt_baro="ground", lat=43.582, lon=-96.742)
+        self.assertEqual(inv.sky_outliers([flexjet]), [])
+
+    def test_a_fractional_jet_with_an_emergency_squawk_still_flags(self):
+        # the fractional exclusion must not suppress a real emergency
+        out = inv.sky_outliers([_ac("N694QS", flight="EJA694", squawk="7700",
+                                     alt_baro=38000, lat=44.5, lon=-97.9)])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["kind"], "anomaly")
+
     def test_skips_a_high_overflight(self):
         # a bizjet transiting at altitude far from FSD is noise
         out = inv.sky_outliers([_ac("N1GL", alt_baro=41000, lat=44.3, lon=-97.6)])

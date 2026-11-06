@@ -815,11 +815,37 @@ SKY_KNOWN_OPERATOR_MARKERS = (
     "AVERA", "SANFORD", "LIFE FLIGHT", "LIFEFLIGHT", "AIR MED", "AIRMED",
     "MEDICAL", "MERCY", "HOSPITAL", "AMBULANCE", "CARE FLIGHT", "MEDEVAC",
     "STATE OF SOUTH DAKOTA", "CITY OF SIOUX FALLS", "SOUTH DAKOTA STATE")
+# Fractional / charter operators broadcast a known callsign prefix (and register
+# signature tail suffixes) even when the ADS-B feed carries no ownOp. A fractional
+# jet is a shared-ownership pool rental: the passenger is unknowable from ADS-B, so
+# the tail tells us nothing about a specific opaque owner -- it is bizjet noise, not
+# a hidden-beneficiary story. (The Westen vein is a TRUST-held tail, e.g. Bank of
+# Utah / Wilmington, that lands repeatedly -- never a NetJets pool jet.) Emergency
+# and military flags are checked first and are NOT suppressed by this.
+SKY_FRACTIONAL_PREFIXES = frozenset({
+    "EJA", "NJE", "EJM",   # NetJets / NetJets Europe / Executive Jet Management
+    "LXJ",                 # Flexjet
+    "XOJ",                 # XO / XOJet
+    "JTL",                 # Jet Linx
+    "VJT", "VJA",          # VistaJet
+    "OPT"})                # Flight Options
+SKY_FRACTIONAL_TAIL_SUFFIXES = ("QS", "FX")  # N###QS NetJets, N###FX Flexjet
 
 
 def _known_operator(owner: str) -> bool:
     up = (owner or "").upper()
     return any(m in up for m in SKY_KNOWN_OPERATOR_MARKERS)
+
+
+def _is_fractional(callsign: str, tail: str) -> bool:
+    """A fractional/charter pool jet, by callsign prefix or signature tail suffix.
+    Shared-ownership means the ADS-B tail cannot be tied to one beneficiary, so it
+    is noise for the opaque-owner vein."""
+    cs = (callsign or "").strip().upper()
+    tl = (tail or "").strip().upper()
+    if any(cs.startswith(p) for p in SKY_FRACTIONAL_PREFIXES):
+        return True
+    return bool(tl) and tl.startswith("N") and tl.endswith(SKY_FRACTIONAL_TAIL_SUFFIXES)
 
 
 def _nm_between(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -874,7 +900,9 @@ def sky_outliers(aircraft: list[dict[str, Any]],
             reason = f"emergency squawk {squawk}"
         elif military and (dist is None or dist <= SKY_SWEEP_RADIUS_NM):
             reason = "military / government aircraft"
-        elif near_low and not _is_scheduled(callsign) and not _known_operator(owner):
+        elif (near_low and not _is_scheduled(callsign)
+              and not _known_operator(owner)
+              and not _is_fractional(callsign, tail)):
             where = "on the ground at" if on_ground else f"{alt:.0f}ft near"
             reason = (f"{'foreign-registered ' if foreign else ''}non-scheduled "
                       f"aircraft {where} FSD ({dist:.0f}nm)")
