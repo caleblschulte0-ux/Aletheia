@@ -210,6 +210,70 @@ class CareCompareOutliers(unittest.TestCase):
         self.assertEqual([c["subject"] for c in out], ["Higher", "Lower"])
 
 
+def _ac(r="N123AB", *, t="GLEX", flight="", ownOp="", squawk="1200",
+        alt_baro="ground", lat=43.582, lon=-96.742, dbFlags=0):
+    return {"r": r, "t": t, "flight": flight, "ownOp": ownOp, "squawk": squawk,
+            "alt_baro": alt_baro, "lat": lat, "lon": lon, "dbFlags": dbFlags}
+
+
+class SkyWatch(unittest.TestCase):
+    def test_flags_a_nonscheduled_jet_on_the_ground_at_fsd(self):
+        out = inv.sky_outliers([_ac("N827TF", ownOp="AVANDRA LLC C/O BANK OF UTAH")])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["subject"], "N827TF")
+        self.assertEqual(out[0]["kind"], "context")  # first sighting
+        self.assertEqual(out[0]["evidence"]["times_seen"], 1)
+
+    def test_a_repeat_tail_is_elevated_to_an_anomaly(self):
+        prior = {"N827TF": {"count": 1, "first_seen": "2026-11-01"}}
+        out = inv.sky_outliers([_ac("N827TF")], prior, today="2026-11-06")
+        self.assertEqual(out[0]["kind"], "anomaly")
+        self.assertEqual(out[0]["evidence"]["times_seen"], 2)
+        self.assertIn("seen 2 times", out[0]["summary"])
+
+    def test_emergency_squawk_is_flagged_anywhere(self):
+        # far away and high, but squawking 7700
+        out = inv.sky_outliers([_ac("N55X", squawk="7700", alt_baro=38000,
+                                     lat=44.5, lon=-97.9)])
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["kind"], "anomaly")
+
+    def test_military_is_flagged(self):
+        out = inv.sky_outliers([_ac("02-4561", dbFlags=1, alt_baro=12000,
+                                     lat=43.7, lon=-96.9)])
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0]["evidence"]["military"])
+
+    def test_skips_a_scheduled_airline_landing(self):
+        out = inv.sky_outliers([_ac("N901SW", flight="SKW1234", alt_baro=3000)])
+        self.assertEqual(out, [])
+
+    def test_skips_known_operators_by_owner(self):
+        # a FedEx jet on the ramp (no callsign) and a hospital medevac have an
+        # obvious public reason -- not unexplained visitors
+        fedex = _ac("N920FD", t="B752", flight="", ownOp="FEDERAL EXPRESS CORP",
+                    alt_baro="ground", lat=43.582, lon=-96.742)
+        medevac = _ac("N911MN", t="PC12", flight="N911MN", ownOp="AVERA MCKENNAN",
+                      alt_baro=4000, lat=43.6, lon=-96.8)
+        self.assertEqual(inv.sky_outliers([fedex, medevac]), [])
+
+    def test_skips_a_high_overflight(self):
+        # a bizjet transiting at altitude far from FSD is noise
+        out = inv.sky_outliers([_ac("N1GL", alt_baro=41000, lat=44.3, lon=-97.6)])
+        self.assertEqual(out, [])
+
+    def test_foreign_registration_near_and_low_is_noted(self):
+        out = inv.sky_outliers([_ac("M-YJET", alt_baro=4000)])
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0]["evidence"]["foreign_registration"])
+        self.assertIn("foreign", out[0]["summary"])
+
+    def test_sorted_by_times_seen_descending(self):
+        prior = {"N2": {"count": 3, "first_seen": "2026-10-01"}}
+        out = inv.sky_outliers([_ac("N1"), _ac("N2")], prior, today="2026-11-06")
+        self.assertEqual([c["subject"] for c in out], ["N2", "N1"])
+
+
 class RunCheck(unittest.TestCase):
     def test_injected_fetch_is_used_no_network(self):
         rows = [_row("Welch", "David", "Physician Assistant", 1091)]
@@ -283,6 +347,21 @@ class RunCheck(unittest.TestCase):
         def boom():
             raise RuntimeError("care compare down")
         res = inv.run_care_compare(fetch=boom)
+        self.assertFalse(res["ok"])
+        self.assertIn("down", res["error"])
+        self.assertEqual(res["candidates"], [])
+
+    def test_sky_watch_injected_fetch_no_network_no_log(self):
+        res = inv.run_sky_watch(fetch=lambda: [_ac("N827TF")], log_io=False)
+        self.assertTrue(res["ok"])
+        self.assertEqual(res["check"], "sky_watch")
+        self.assertEqual(res["rows_scanned"], 1)
+        self.assertEqual(res["candidates"][0]["subject"], "N827TF")
+
+    def test_sky_watch_fetch_failure_is_captured(self):
+        def boom():
+            raise RuntimeError("adsb down")
+        res = inv.run_sky_watch(fetch=boom, log_io=False)
         self.assertFalse(res["ok"])
         self.assertIn("down", res["error"])
         self.assertEqual(res["candidates"], [])
