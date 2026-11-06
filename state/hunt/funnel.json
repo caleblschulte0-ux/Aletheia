@@ -349,18 +349,18 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 304,
+      "minutes": 326,
       "needs_account": 0,
-      "needs_answer": 3,
-      "not_realistic": 2855,
-      "offered": 2861,
-      "ready": 1,
-      "runs": 52,
-      "unfit_language": 1554,
-      "unfit_model": 2,
-      "unfit_pay": 459,
-      "unfit_sales": 788,
-      "unfit_years": 52,
+      "needs_answer": 4,
+      "not_realistic": 3100,
+      "offered": 3108,
+      "ready": 2,
+      "runs": 56,
+      "unfit_language": 1679,
+      "unfit_model": 7,
+      "unfit_pay": 495,
+      "unfit_sales": 863,
+      "unfit_years": 56,
       "unjudged": 0,
       "unreachable": 2,
       "unreachable_ApplyError": 2,
@@ -545,16 +545,17 @@
       "sent": 0
     },
     "2026-11-06": {
-      "filled": 18,
-      "found": 21,
+      "filled": 20,
+      "found": 23,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 1
+      "sent": 2
     }
   },
-  "generated_at": "2026-11-06T18:07:06Z",
+  "generated_at": "2026-11-06T18:37:11Z",
   "question_shapes": {
+    "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 5,
     "employer_site: field: _ _ _ _ need _ _ in _ to be able": 1,
@@ -573,7 +574,6 @@
     "employer_site: field: please _ your university or other _ _ _ _": 1,
     "employer_site: field: veteran _": 1,
     "employer_site: field: which us _ or _ do you _ _ _ and what": 1,
-    "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: text: how _ years of experience do you have in a customer _": 1,
@@ -586,9 +586,9 @@
     "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
-  "sent_all_time": 341,
+  "sent_all_time": 342,
   "sent_by_system": {
-    "ashbyhq": 22,
+    "ashbyhq": 23,
     "employer_site": 7,
     "greenhouse": 14,
     "lever": 28
@@ -680,12 +680,12 @@
     }
   },
   "totals": {
-    "filled": 154,
-    "found": 516,
+    "filled": 156,
+    "found": 518,
     "interviews": 15,
     "rejections": 19,
     "replies": 45,
-    "sent": 71
+    "sent": 72
   },
   "waiting": {
     "asked_about": {
@@ -696,7 +696,7 @@
       "demographic_veteran": 1,
       "links": 1,
       "on_site": 3,
-      "other": 35,
+      "other": 36,
       "travel": 1,
       "years_experience": 2
     },
@@ -728,7 +728,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 35,
+    "needs_answer": 36,
     "oldest_days": 54,
     "to_send": 0
   },
