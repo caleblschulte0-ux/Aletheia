@@ -349,18 +349,18 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 368,
+      "minutes": 372,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 3708,
-      "offered": 3717,
+      "not_realistic": 3769,
+      "offered": 3778,
       "ready": 2,
-      "runs": 66,
-      "unfit_language": 1991,
-      "unfit_model": 19,
-      "unfit_pay": 583,
-      "unfit_sales": 1049,
-      "unfit_years": 66,
+      "runs": 67,
+      "unfit_language": 2022,
+      "unfit_model": 20,
+      "unfit_pay": 592,
+      "unfit_sales": 1068,
+      "unfit_years": 67,
       "unjudged": 0,
       "unreachable": 2,
       "unreachable_ApplyError": 2,
@@ -370,7 +370,7 @@
   "boards": {
     "ashby": 142,
     "bamboohr": 5,
-    "greenhouse": 103,
+    "greenhouse": 102,
     "lever": 81,
     "recruitee": 9,
     "smartrecruiters": 37,
@@ -388,6 +388,7 @@
       "left_questions": 5,
       "left_sign_in": 2,
       "not_a_form_asks_nothing_on_ashbyhq": 1,
+      "not_a_form_asks_nothing_on_smartrecruiters": 26,
       "not_realistic": 11
     }
   },
@@ -546,14 +547,14 @@
     },
     "2026-11-06": {
       "filled": 20,
-      "found": 24,
+      "found": 50,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     }
   },
-  "generated_at": "2026-11-06T19:39:27Z",
+  "generated_at": "2026-11-06T20:10:29Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 10,
@@ -576,15 +577,15 @@
     "employer_site: field: which us _ or _ do you _ _ _ and what": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
+    "lever: text: how _ years of experience do you have in a customer _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
-    "workable: field: _": 4,
-    "workable: field: _ _ _ _ _": 2,
-    "workable: field: resume _": 6,
-    "workable: field: us": 1
+    "workable: field: _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: resume _": 7
   },
   "sent_all_time": 342,
   "sent_by_system": {
@@ -681,7 +682,7 @@
   },
   "totals": {
     "filled": 156,
-    "found": 519,
+    "found": 545,
     "interviews": 15,
     "rejections": 19,
     "replies": 45,
@@ -714,6 +715,7 @@
       "left_questions": 30,
       "left_sign_in": 12,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
+      "not_a_form_asks_nothing_on_smartrecruiters": 26,
       "not_realistic": 91
     },
     "failed": 19,
