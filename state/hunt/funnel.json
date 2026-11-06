@@ -349,21 +349,21 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 372,
+      "minutes": 406,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 3769,
-      "offered": 3778,
+      "not_realistic": 4114,
+      "offered": 4174,
       "ready": 2,
-      "runs": 67,
-      "unfit_language": 2022,
-      "unfit_model": 20,
-      "unfit_pay": 592,
-      "unfit_sales": 1068,
-      "unfit_years": 67,
-      "unjudged": 0,
-      "unreachable": 2,
-      "unreachable_ApplyError": 2,
+      "runs": 73,
+      "unfit_language": 2192,
+      "unfit_model": 25,
+      "unfit_pay": 642,
+      "unfit_sales": 1182,
+      "unfit_years": 73,
+      "unjudged": 18,
+      "unreachable": 32,
+      "unreachable_ApplyError": 32,
       "weak_shot": 0
     }
   },
@@ -388,7 +388,7 @@
       "left_questions": 5,
       "left_sign_in": 2,
       "not_a_form_asks_nothing_on_ashbyhq": 1,
-      "not_a_form_asks_nothing_on_smartrecruiters": 26,
+      "not_a_form_asks_nothing_on_smartrecruiters": 30,
       "not_realistic": 11
     }
   },
@@ -547,14 +547,14 @@
     },
     "2026-11-06": {
       "filled": 20,
-      "found": 50,
+      "found": 54,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     }
   },
-  "generated_at": "2026-11-06T20:10:29Z",
+  "generated_at": "2026-11-06T20:41:22Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 10,
@@ -682,7 +682,7 @@
   },
   "totals": {
     "filled": 156,
-    "found": 545,
+    "found": 549,
     "interviews": 15,
     "rejections": 19,
     "replies": 45,
@@ -715,7 +715,7 @@
       "left_questions": 30,
       "left_sign_in": 12,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
-      "not_a_form_asks_nothing_on_smartrecruiters": 26,
+      "not_a_form_asks_nothing_on_smartrecruiters": 30,
       "not_realistic": 91
     },
     "failed": 19,
