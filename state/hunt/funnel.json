@@ -349,17 +349,17 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 135,
+      "minutes": 144,
       "needs_account": 0,
       "needs_answer": 0,
-      "not_realistic": 1251,
-      "offered": 1251,
+      "not_realistic": 1363,
+      "offered": 1363,
       "ready": 0,
-      "runs": 23,
-      "unfit_language": 681,
-      "unfit_pay": 204,
-      "unfit_sales": 343,
-      "unfit_years": 23,
+      "runs": 25,
+      "unfit_language": 743,
+      "unfit_pay": 222,
+      "unfit_sales": 373,
+      "unfit_years": 25,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -368,7 +368,7 @@
   "boards": {
     "ashby": 142,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 103,
     "lever": 81,
     "recruitee": 9,
     "smartrecruiters": 37,
@@ -550,7 +550,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T11:50:41Z",
+  "generated_at": "2026-11-06T12:22:36Z",
   "question_shapes": {
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 4,
@@ -578,7 +578,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
-    "workable: field: _ _ _ _ _": 2,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: open _": 1,
     "workable: field: resume _": 6,
     "workable: field: us": 1
