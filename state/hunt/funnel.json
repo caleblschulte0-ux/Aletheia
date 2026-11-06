@@ -350,17 +350,17 @@
     "2026-11-05": {
       "duplicate": 1,
       "employer_full": 0,
-      "minutes": 349,
+      "minutes": 370,
       "needs_account": 1,
-      "needs_answer": 16,
-      "not_realistic": 1991,
-      "offered": 2048,
+      "needs_answer": 17,
+      "not_realistic": 2266,
+      "offered": 2324,
       "ready": 2,
-      "runs": 39,
-      "unfit_language": 1084,
-      "unfit_pay": 353,
-      "unfit_sales": 545,
-      "unfit_years": 9,
+      "runs": 44,
+      "unfit_language": 1230,
+      "unfit_pay": 403,
+      "unfit_sales": 619,
+      "unfit_years": 14,
       "unjudged": 0,
       "unreachable": 9,
       "unreachable_ApplyError": 2,
@@ -547,15 +547,15 @@
       "sent": 8
     },
     "2026-11-05": {
-      "filled": 29,
-      "found": 40,
+      "filled": 30,
+      "found": 41,
       "interviews": 0,
       "rejections": 0,
       "replies": 1,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T00:59:51Z",
+  "generated_at": "2026-11-06T01:30:33Z",
   "question_shapes": {
     "employer_site: field: _": 9,
     "employer_site: field: _ _": 3,
@@ -563,6 +563,7 @@
     "employer_site: field: _ one _ _ of _ ai what _ _ how you": 1,
     "employer_site: field: _ or select _ _ _": 4,
     "employer_site: field: _ the _ would _ _ the _ _ have": 3,
+    "employer_site: field: agree": 1,
     "employer_site: field: are you _ _": 1,
     "employer_site: field: are you a _ _ _ or do you _ a _": 1,
     "employer_site: field: cover letter": 1,
@@ -571,7 +572,6 @@
     "employer_site: field: please _ your university or other _ _ _ _": 1,
     "employer_site: field: veteran _": 1,
     "employer_site: field: which us _ or _ do you _ _ _ and what": 1,
-    "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
@@ -609,14 +609,14 @@
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 32,
+      "nothing_to_press_on_captcha/filled": 31,
       "nothing_to_press_on_captcha/observed": 2
     },
     "error": {
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 1,
       "nothing_to_press_on_unread/nothing": 1,
-      "nothing_to_press_on_unread/observed": 7,
+      "nothing_to_press_on_unread/observed": 6,
       "nothing_to_press_on_unread/submit_clicked": 1
     },
     "going_in_circles": {
@@ -633,7 +633,6 @@
       "nothing_to_press_on_form+apply_not_taken/observed": 1,
       "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
-      "nothing_to_press_on_form/observed": 1,
       "nothing_to_press_on_success+no_apply/observed": 2,
       "unclear_button/observed": 8
     },
@@ -682,8 +681,8 @@
     }
   },
   "totals": {
-    "filled": 205,
-    "found": 587,
+    "filled": 206,
+    "found": 588,
     "interviews": 15,
     "rejections": 20,
     "replies": 47,
@@ -696,7 +695,7 @@
       "demographic_race": 1,
       "demographic_veteran": 1,
       "on_site": 3,
-      "other": 32,
+      "other": 33,
       "travel": 1,
       "years_experience": 2
     },
@@ -730,7 +729,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 32,
+    "needs_answer": 33,
     "oldest_days": 53,
     "to_send": 0
   },
