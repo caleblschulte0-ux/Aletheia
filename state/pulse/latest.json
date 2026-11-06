@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-05T20:01:51Z",
+  "generated_at": "2026-11-06T06:56:28Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "80c4e8e7e16f",
-          "date": "2026-11-05T19:23:37Z",
+          "sha": "d0180d200a1e",
+          "date": "2026-11-06T06:43:36Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "6b7e5c381cf8",
-          "date": "2026-11-05T18:27:45Z",
+          "sha": "68658894b14e",
+          "date": "2026-11-06T06:12:33Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "3600ffdbafa6",
-          "date": "2026-11-05T18:27:13Z",
-          "message": "brief: 2026-11-05"
-        },
-        {
-          "sha": "190d2dacb1fe",
-          "date": "2026-11-05T17:53:13Z",
+          "sha": "a6186ad65d8f",
+          "date": "2026-11-06T05:41:55Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "baaa23816ee7",
-          "date": "2026-11-05T17:23:19Z",
+          "sha": "59c64d9cee03",
+          "date": "2026-11-06T05:11:02Z",
+          "message": "core: state checkpoint"
+        },
+        {
+          "sha": "898287e1b296",
+          "date": "2026-11-06T04:40:55Z",
           "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "80c4e8e7e16f",
-        "date": "2026-11-05T19:23:37Z",
+        "sha": "d0180d200a1e",
+        "date": "2026-11-06T06:43:36Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,20 +46,20 @@
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T06:57:27Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/41983788427"
+          "updated_at": "2026-11-05T20:02:20Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42099482642"
         },
         "ci.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T16:46:58Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42062801359"
+          "updated_at": "2026-11-06T02:04:05Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42144635453"
         }
       },
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20600
+          "bytes": 20425
         }
       },
       "health": "green"
@@ -71,35 +71,35 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "bae09046dabf",
-          "date": "2026-11-05T19:54:37Z",
-          "message": "watchdog: chatgpt task verdicts 20261105 [skip ci]"
+          "sha": "9af53c36a87a",
+          "date": "2026-11-06T02:48:32Z",
+          "message": "claim: mailbox verdicts 2026-11-06T02:48Z [skip ci]"
         },
         {
-          "sha": "db50f2c9747b",
-          "date": "2026-11-05T19:48:12Z",
-          "message": "claim: mailbox verdicts 2026-11-05T19:48Z [skip ci]"
+          "sha": "e1d32eace3c5",
+          "date": "2026-11-06T01:48:34Z",
+          "message": "claim: mailbox verdicts 2026-11-06T01:48Z [skip ci]"
         },
         {
-          "sha": "e7be8f54d1fe",
-          "date": "2026-11-05T19:31:10Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "69210ecffb82",
+          "date": "2026-11-06T01:28:06Z",
+          "message": "ori: record ai-learns-bug upload [skip ci]"
         },
         {
-          "sha": "f69c8520cc06",
-          "date": "2026-11-05T19:18:43Z",
-          "message": "explainer: update posted log + analytics [skip ci]"
+          "sha": "d5d7dcc00777",
+          "date": "2026-11-06T01:27:59Z",
+          "message": "ori: claim ai-learns-bug before upload [skip ci]"
         },
         {
-          "sha": "5ceddcdb3b2d",
-          "date": "2026-11-05T19:18:17Z",
-          "message": "explainer: posted government-internet-shutdowns-record [skip ci]"
+          "sha": "d39d92db552c",
+          "date": "2026-11-06T01:27:14Z",
+          "message": "ORI: manual one-video upload workflow (claim on main first, channel guard, sha256 check) (#733)"
         }
       ],
       "commit": {
-        "sha": "bae09046dabf",
-        "date": "2026-11-05T19:54:37Z",
-        "message": "watchdog: chatgpt task verdicts 20261105 [skip ci]"
+        "sha": "9af53c36a87a",
+        "date": "2026-11-06T02:48:32Z",
+        "message": "claim: mailbox verdicts 2026-11-06T02:48Z [skip ci]"
       },
       "vitals": [
         {
@@ -129,20 +129,20 @@
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T17:37:50Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42076430271"
+          "updated_at": "2026-11-06T01:27:40Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42143954691"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T14:46:36Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42048236479"
+          "updated_at": "2026-11-05T21:08:42Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42109877039"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T19:17:23Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42077811494"
+          "updated_at": "2026-11-06T00:07:47Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42123735600"
         },
         "third.yml": {
           "status": "completed",
@@ -153,14 +153,14 @@
         "explainer.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T19:31:18Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42075376277"
+          "updated_at": "2026-11-05T22:58:29Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42123332941"
         },
         "retro.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T06:52:17Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/41983288179"
+          "updated_at": "2026-11-06T06:52:11Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42177140495"
         },
         "doctor.yml": {
           "status": "completed",
@@ -204,6 +204,21 @@
       "summary": "Guardrailed paper-trading system. The SELL brain and executor watchdog are active; the subscription-backed BUY brain and trade executor are intentionally paused until the operator resumes them.",
       "commits": [
         {
+          "sha": "70c6cb6c4ded",
+          "date": "2026-11-06T01:06:58Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
+        {
+          "sha": "1b547a545c0c",
+          "date": "2026-11-05T20:44:12Z",
+          "message": "monitor: intraday alert [skip ci]"
+        },
+        {
+          "sha": "65c24620fc8d",
+          "date": "2026-11-05T20:38:54Z",
+          "message": "bot: daily snapshot [skip ci]"
+        },
+        {
           "sha": "76b8bd32eb63",
           "date": "2026-11-05T01:03:04Z",
           "message": "bot: daily snapshot [skip ci]"
@@ -212,26 +227,11 @@
           "sha": "0f4af9109af9",
           "date": "2026-11-04T20:28:11Z",
           "message": "monitor: intraday alert [skip ci]"
-        },
-        {
-          "sha": "26a957bd0b0a",
-          "date": "2026-11-04T20:26:02Z",
-          "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "7a83b9b20395",
-          "date": "2026-11-04T00:35:24Z",
-          "message": "bot: daily snapshot [skip ci]"
-        },
-        {
-          "sha": "4bbe9d27750c",
-          "date": "2026-11-03T20:05:10Z",
-          "message": "bot: daily snapshot [skip ci]"
         }
       ],
       "commit": {
-        "sha": "76b8bd32eb63",
-        "date": "2026-11-05T01:03:04Z",
+        "sha": "70c6cb6c4ded",
+        "date": "2026-11-06T01:06:58Z",
         "message": "bot: daily snapshot [skip ci]"
       },
       "vitals": [],
@@ -252,26 +252,26 @@
         "watchdog.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-05T01:40:37Z",
-          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/41950104557"
+          "updated_at": "2026-11-06T01:43:25Z",
+          "url": "https://github.com/caleblschulte0-ux/schwab-trader/actions/runs/42145689074"
         }
       },
       "state_files": {
         "signals/holdings.json": {
           "exists": true,
-          "bytes": 2551
+          "bytes": 2108
         },
         "signals/sim_account.json": {
           "exists": true,
-          "bytes": 14332
+          "bytes": 14735
         },
         "signals/performance.json": {
           "exists": true,
-          "bytes": 3486
+          "bytes": 3283
         },
         "reports/track_record.md": {
           "exists": true,
-          "bytes": 5319
+          "bytes": 5399
         }
       },
       "health": "green"
@@ -402,7 +402,7 @@
           "text": "Bring the platform up to date and confirm pnpm test, typecheck and build still pass (last verified 2026-08-06)"
         },
         "last_progress_at": "2026-08-06T02:51:23Z",
-        "days_quiet": 91,
+        "days_quiet": 92,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -434,7 +434,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-05T19:23:37Z",
+        "last_progress_at": "2026-11-06T06:43:36Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
@@ -520,7 +520,7 @@
           "text": "Make the watchdog say which of the two likely causes a stall is (no trigger runs at all, or runs that fail) so the next stall names itself"
         },
         "last_progress_at": null,
-        "days_quiet": 15,
+        "days_quiet": 14,
         "quiet_at_least": true,
         "commits_7d": 0,
         "open_prs": [
@@ -537,14 +537,7 @@
     ],
     "evidence": []
   },
-  "transitions": [
-    {
-      "repo": "shorts_pipeline",
-      "github": "Shorts-pipeline",
-      "from": "red",
-      "to": "green"
-    }
-  ],
+  "transitions": [],
   "alerts": [],
   "plans": {
     "open": 6,
