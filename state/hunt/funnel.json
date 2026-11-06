@@ -555,7 +555,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-06T02:36:59Z",
+  "generated_at": "2026-11-06T03:07:11Z",
   "question_shapes": {
     "employer_site: field: _": 10,
     "employer_site: field: _ _": 4,
@@ -585,7 +585,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
   "sent_all_time": 340,
