@@ -349,18 +349,18 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 460,
+      "minutes": 479,
       "needs_account": 0,
       "needs_answer": 8,
-      "not_realistic": 4845,
-      "offered": 4908,
+      "not_realistic": 4966,
+      "offered": 5029,
       "ready": 2,
-      "runs": 85,
-      "unfit_language": 2566,
-      "unfit_model": 37,
-      "unfit_pay": 749,
-      "unfit_sales": 1408,
-      "unfit_years": 85,
+      "runs": 87,
+      "unfit_language": 2628,
+      "unfit_model": 40,
+      "unfit_pay": 767,
+      "unfit_sales": 1444,
+      "unfit_years": 87,
       "unjudged": 18,
       "unreachable": 32,
       "unreachable_ApplyError": 32,
@@ -370,7 +370,7 @@
   "boards": {
     "ashby": 142,
     "bamboohr": 5,
-    "greenhouse": 103,
+    "greenhouse": 102,
     "lever": 81,
     "recruitee": 9,
     "smartrecruiters": 37,
@@ -554,7 +554,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-11-06T22:12:30Z",
+  "generated_at": "2026-11-06T22:35:51Z",
   "question_shapes": {
     "ashbyhq: radio: are you comfortable working _ a week which would _ _ pay": 1,
     "ashbyhq: text: _ _ _ _ in one area is a _ _ of": 1,
@@ -617,7 +617,7 @@
       "nothing_to_press_on_error/observed": 1,
       "nothing_to_press_on_unread/filled": 1,
       "nothing_to_press_on_unread/nothing": 1,
-      "nothing_to_press_on_unread/observed": 8
+      "nothing_to_press_on_unread/observed": 7
     },
     "going_in_circles": {
       "nothing_to_press_on_content/observed": 1,
