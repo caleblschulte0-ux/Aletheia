@@ -23,9 +23,16 @@ def next_weekday(n):
 
 class ClearADay(unittest.TestCase):
     def test_on_monday_and_a_bare_day_are_the_same_ask(self):
-        friday = next_weekday(4)
-        with mock.patch.object(calendar, "all_events", return_value=[hold("Focus time", friday, 14)]):
-            for said in ("clear my calendar on friday", "clear friday"):
+        # Both sides of the comparison move together: derive the day AND the word
+        # from one computed date, two days out, so the hold is always in the future
+        # (_her_holds_on requires start > now) and the named weekday always resolves
+        # to it. A hard-coded "friday" with next_weekday(4) was a date-bomb: on a
+        # Friday the word "friday" resolves to today while next_weekday(4) lands a
+        # week later, so the hold was never found and the suite went red on Fridays.
+        target = dt.datetime.now(localtime.operator_tz()).date() + dt.timedelta(days=2)
+        name = target.strftime("%A").lower()
+        with mock.patch.object(calendar, "all_events", return_value=[hold("Focus time", target, 14)]):
+            for said in (f"clear my calendar on {name}", f"clear {name}"):
                 got = voice.interpret(said)
                 self.assertIsNone(got["command"], said)
                 self.assertIn("I pencilled in Focus time at 2 pm", got["say"], said)
