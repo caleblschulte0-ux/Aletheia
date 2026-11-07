@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T06:07:54Z",
+  "generated_at": "2026-11-07T13:12:58Z",
   "fleet_revision": 7,
   "owner": "caleblschulte0-ux",
   "source": "GitHubSource",
@@ -11,34 +11,34 @@
       "summary": "The fleet's single pane of truth: registry, pulse collector, interface, ChatGPT suggestion inbox.",
       "commits": [
         {
-          "sha": "a190b954184a",
-          "date": "2026-11-07T05:43:10Z",
+          "sha": "72ac86819ecf",
+          "date": "2026-11-07T12:53:01Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "78daff349c4f",
-          "date": "2026-11-07T05:12:20Z",
+          "sha": "9f1a4ebd9560",
+          "date": "2026-11-07T12:21:55Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "a16fef2f111c",
-          "date": "2026-11-07T04:43:12Z",
+          "sha": "b6215e46ca38",
+          "date": "2026-11-07T11:51:32Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "42346e00fe53",
-          "date": "2026-11-07T04:11:58Z",
+          "sha": "c4c68576f265",
+          "date": "2026-11-07T11:22:22Z",
           "message": "core: state checkpoint"
         },
         {
-          "sha": "f74684431fa8",
-          "date": "2026-11-07T03:41:24Z",
+          "sha": "3087d9844e73",
+          "date": "2026-11-07T10:50:09Z",
           "message": "core: state checkpoint"
         }
       ],
       "commit": {
-        "sha": "a190b954184a",
-        "date": "2026-11-07T05:43:10Z",
+        "sha": "72ac86819ecf",
+        "date": "2026-11-07T12:53:01Z",
         "message": "core: state checkpoint"
       },
       "vitals": [],
@@ -46,8 +46,8 @@
         "pulse.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-06T19:29:15Z",
-          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42279959477"
+          "updated_at": "2026-11-07T06:08:25Z",
+          "url": "https://github.com/caleblschulte0-ux/Aletheia/actions/runs/42345620340"
         },
         "ci.yml": {
           "status": "completed",
@@ -59,7 +59,7 @@
       "state_files": {
         "state/pulse/latest.json": {
           "exists": true,
-          "bytes": 20285
+          "bytes": 20290
         }
       },
       "health": "green"
@@ -71,40 +71,40 @@
       "summary": "Multi-channel automated YouTube pipeline (trending, explainer, curiosity, third) with Claude brains, a fail-closed showrunner gate, and a daily ChatGPT media/authoring exchange.",
       "commits": [
         {
-          "sha": "fbaf39b0057a",
-          "date": "2026-11-07T06:05:07Z",
-          "message": "story forge: new real-data stories [skip ci]"
+          "sha": "a70e1477841d",
+          "date": "2026-11-07T13:06:48Z",
+          "message": "sports: 2026-11-07 posted log + verdicts [skip ci]"
         },
         {
-          "sha": "e5c37bfdfe55",
-          "date": "2026-11-07T05:48:14Z",
-          "message": "claim: mailbox verdicts 2026-11-07T05:48Z [skip ci]"
+          "sha": "80f2c3da6459",
+          "date": "2026-11-07T13:02:31Z",
+          "message": "explainer: update posted log + analytics [skip ci]"
         },
         {
-          "sha": "979836c621cd",
-          "date": "2026-11-07T05:31:00Z",
-          "message": "doctor: evidence pack + backlog 2026-11-07 [skip ci]"
+          "sha": "c3628c03b6d6",
+          "date": "2026-11-07T12:52:10Z",
+          "message": "sports: 2026-11-07 posted log + verdicts [skip ci]"
         },
         {
-          "sha": "2416f6c864fe",
-          "date": "2026-11-07T04:47:57Z",
-          "message": "claim: mailbox verdicts 2026-11-07T04:47Z [skip ci]"
+          "sha": "d152dc449a65",
+          "date": "2026-11-07T12:48:06Z",
+          "message": "claim: mailbox verdicts 2026-11-07T12:48Z [skip ci]"
         },
         {
-          "sha": "f7eff9d8b483",
-          "date": "2026-11-07T03:48:16Z",
-          "message": "claim: mailbox verdicts 2026-11-07T03:48Z [skip ci]"
+          "sha": "d42ce58e54b0",
+          "date": "2026-11-07T12:43:30Z",
+          "message": "third: analytics [skip ci]"
         }
       ],
       "commit": {
-        "sha": "fbaf39b0057a",
-        "date": "2026-11-07T06:05:07Z",
-        "message": "story forge: new real-data stories [skip ci]"
+        "sha": "a70e1477841d",
+        "date": "2026-11-07T13:06:48Z",
+        "message": "sports: 2026-11-07 posted log + verdicts [skip ci]"
       },
       "vitals": [
         {
           "label": "trending posted",
-          "value": 520
+          "value": 522
         },
         {
           "label": "explainer posted",
@@ -112,7 +112,7 @@
         },
         {
           "label": "third posted",
-          "value": 1288
+          "value": 1289
         },
         {
           "label": "curiosity posted",
@@ -123,38 +123,39 @@
         "daily.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-06T12:32:34Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42216864741"
+          "updated_at": "2026-11-07T12:34:14Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42372048222"
         },
         "exchange_phase_a.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-06T16:55:32Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42256819808"
+          "updated_at": "2026-11-07T10:01:14Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42362120043"
         },
         "exchange_phase_b.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-06T20:29:11Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42288713462"
+          "updated_at": "2026-11-07T12:20:31Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42372024527"
         },
         "story_forge.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-07T06:05:14Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42344096404"
+          "updated_at": "2026-11-07T11:51:48Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42369666045"
         },
         "third.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-06T17:55:33Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42265667728"
+          "updated_at": "2026-11-07T12:43:37Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42373309287"
         },
         "explainer.yml": {
           "status": "completed",
-          "conclusion": "success",
-          "updated_at": "2026-11-06T22:23:38Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42301913517"
+          "conclusion": "failure",
+          "updated_at": "2026-11-07T13:02:37Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42373090198",
+          "said": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830, actions/checkout@11d5960a326750d5838078e36cf38b85af677262, actions/setup-py"
         },
         "retro.yml": {
           "status": "completed",
@@ -165,14 +166,14 @@
         "doctor.yml": {
           "status": "completed",
           "conclusion": "success",
-          "updated_at": "2026-11-07T05:31:04Z",
-          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42343041562"
+          "updated_at": "2026-11-07T11:41:26Z",
+          "url": "https://github.com/caleblschulte0-ux/Shorts-pipeline/actions/runs/42369209107"
         }
       },
       "state_files": {
         "state/posted_log.json": {
           "exists": true,
-          "bytes": 221495
+          "bytes": 223248
         },
         "state/explainer_posted_log.json": {
           "exists": true,
@@ -180,7 +181,7 @@
         },
         "state/third_posted_log.json": {
           "exists": true,
-          "bytes": 782124
+          "bytes": 783240
         },
         "state/curiosity_posted_log.json": {
           "exists": true,
@@ -188,14 +189,14 @@
         },
         "state/showrunner_verdicts.jsonl": {
           "exists": true,
-          "bytes": 5242707
+          "bytes": 5255873
         },
         "config/channel_registry.json": {
           "exists": true,
           "bytes": 22265
         }
       },
-      "health": "green"
+      "health": "red"
     },
     "schwab_trader": {
       "github": "schwab-trader",
@@ -434,7 +435,7 @@
           "text": "Switch the Instagram account to a professional account. This is first, and everything else fails without it: the Meta app cannot see a personal account. In the Instagram app: your profile -> the three-line menu -> Settings and privacy -> Account type and tools -> Switch to professional account -> Business."
         },
         "hers": null,
-        "last_progress_at": "2026-11-07T05:43:10Z",
+        "last_progress_at": "2026-11-07T12:53:01Z",
         "days_quiet": 0,
         "commits_7d": 30,
         "open_prs": [
@@ -476,7 +477,7 @@
           "text": "Write a one-page status of the five-film slate in handoff/STATUS.md: which films are delivered, where each master and contact sheet lives, and what is still open"
         },
         "last_progress_at": "2026-09-23T12:07:14Z",
-        "days_quiet": 44,
+        "days_quiet": 45,
         "commits_7d": 0,
         "open_prs": [
           {
@@ -537,8 +538,24 @@
     ],
     "evidence": []
   },
-  "transitions": [],
-  "alerts": [],
+  "transitions": [
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "from": "green",
+      "to": "red"
+    }
+  ],
+  "alerts": [
+    {
+      "repo": "shorts_pipeline",
+      "github": "Shorts-pipeline",
+      "health": "red",
+      "failing": [
+        "explainer.yml"
+      ]
+    }
+  ],
   "plans": {
     "open": 6,
     "items": [
