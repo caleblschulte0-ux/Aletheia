@@ -346,17 +346,17 @@
     "2026-11-07": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 322,
+      "minutes": 358,
       "needs_account": 0,
-      "needs_answer": 0,
-      "not_realistic": 4052,
-      "offered": 4053,
+      "needs_answer": 3,
+      "not_realistic": 4072,
+      "offered": 4076,
       "ready": 0,
-      "runs": 64,
-      "unfit_language": 2004,
-      "unfit_model": 68,
+      "runs": 66,
+      "unfit_language": 2014,
+      "unfit_model": 71,
       "unfit_pay": 576,
-      "unfit_sales": 1340,
+      "unfit_sales": 1347,
       "unfit_years": 64,
       "unjudged": 0,
       "unreachable": 1,
@@ -542,21 +542,22 @@
       "sent": 2
     },
     "2026-11-07": {
-      "filled": 17,
-      "found": 17,
+      "filled": 19,
+      "found": 19,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-07T14:24:21Z",
+  "generated_at": "2026-11-07T14:55:05Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 6,
     "employer_site: field: _ _": 2,
     "employer_site: field: _ _ _ _ need _ _ in _ to be able": 1,
     "employer_site: field: _ and _ in an _ to _ _ _ and _": 1,
+    "employer_site: field: _ country the _ would _ _ the _ _ have": 1,
     "employer_site: field: _ one _ _ of _ ai what _ _ how you": 1,
     "employer_site: field: _ or select _ _ _": 3,
     "employer_site: field: _ the _ would _ _ the _ _ have": 5,
@@ -573,7 +574,6 @@
     "lever: select: _ _ to _ _": 1,
     "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
-    "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
@@ -675,8 +675,8 @@
     }
   },
   "totals": {
-    "filled": 130,
-    "found": 517,
+    "filled": 132,
+    "found": 519,
     "interviews": 14,
     "rejections": 18,
     "replies": 41,
@@ -689,7 +689,7 @@
       "demographic_gender": 1,
       "links": 1,
       "on_site": 3,
-      "other": 32,
+      "other": 33,
       "travel": 1,
       "years_experience": 2
     },
@@ -721,7 +721,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 32,
+    "needs_answer": 34,
     "oldest_days": 55,
     "to_send": 0
   },
