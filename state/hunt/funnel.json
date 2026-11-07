@@ -346,27 +346,28 @@
     "2026-11-07": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 79,
+      "minutes": 107,
       "needs_account": 0,
       "needs_answer": 0,
-      "not_realistic": 316,
-      "offered": 316,
+      "not_realistic": 760,
+      "offered": 761,
       "ready": 0,
-      "runs": 5,
-      "unfit_language": 156,
-      "unfit_model": 5,
-      "unfit_pay": 45,
-      "unfit_sales": 105,
-      "unfit_years": 5,
+      "runs": 12,
+      "unfit_language": 376,
+      "unfit_model": 13,
+      "unfit_pay": 108,
+      "unfit_sales": 251,
+      "unfit_years": 12,
       "unjudged": 0,
-      "unreachable": 0,
+      "unreachable": 1,
+      "unreachable_left_till_tomorrow": 1,
       "weak_shot": 0
     }
   },
   "boards": {
     "ashby": 142,
     "bamboohr": 5,
-    "greenhouse": 102,
+    "greenhouse": 103,
     "lever": 81,
     "recruitee": 8,
     "smartrecruiters": 37,
@@ -549,7 +550,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-07T07:47:04Z",
+  "generated_at": "2026-11-07T08:17:22Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 6,
