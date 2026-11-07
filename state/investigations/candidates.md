@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-07T17:48:51Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-07T22:07:05Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13254 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 32 rows, 0 flagged
+- source `sky_watch`: ok, scanned 18 rows, 4 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
 - Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty
@@ -212,4 +212,24 @@ Generated 2026-11-07T17:48:51Z by the deterministic scanner. Each line is a QUES
 - SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 42. N1090W  (sky_watch)
+- N1090W (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 4375ft near FSD (8nm)
+- evidence: {"tail": "N1090W", "type": "C172", "callsign": "N1090W", "owner_operator": "MEDARY AVIATION LLC", "squawk": "0142", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 4375.0, "distance_from_fsd_nm": 7.7, "times_seen": 1, "first_seen": "2026-11-07"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 43. N5900J  (sky_watch)
+- N5900J (C150), owner AIR AMERICA LLC: non-scheduled aircraft 2500ft near FSD (1nm)
+- evidence: {"tail": "N5900J", "type": "C150", "callsign": "1", "owner_operator": "AIR AMERICA LLC", "squawk": "0143", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 2500.0, "distance_from_fsd_nm": 0.9, "times_seen": 1, "first_seen": "2026-11-07"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 44. N529LL  (sky_watch)
+- N529LL (C56X), owner TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS: non-scheduled aircraft on the ground at FSD (1nm)
+- evidence: {"tail": "N529LL", "type": "C56X", "callsign": "N529LL", "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS", "squawk": "2404", "military": false, "foreign_registration": false, "on_ground": true, "altitude_ft": null, "distance_from_fsd_nm": 0.5, "times_seen": 1, "first_seen": "2026-11-07"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
+
+## 45. N24PC  (sky_watch)
+- N24PC (PC24), owner OENOVATION LLC: non-scheduled aircraft 5775ft near FSD (15nm)
+- evidence: {"tail": "N24PC", "type": "PC24", "callsign": "N24PC", "owner_operator": "OENOVATION LLC", "squawk": "7350", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 5775.0, "distance_from_fsd_nm": 15.0, "times_seen": 1, "first_seen": "2026-11-07"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 

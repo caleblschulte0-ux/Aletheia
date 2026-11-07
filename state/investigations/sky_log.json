@@ -1,10 +1,38 @@
 {
+  "N1090W": {
+    "count": 1,
+    "first_seen": "2026-11-07",
+    "last_seen": "2026-11-07",
+    "owner_operator": "MEDARY AVIATION LLC",
+    "type": "C172"
+  },
   "N207P": {
     "count": 1,
     "first_seen": "2026-11-06",
     "last_seen": "2026-11-06",
     "owner_operator": "DALE AVIATION",
     "type": "BE9L"
+  },
+  "N24PC": {
+    "count": 1,
+    "first_seen": "2026-11-07",
+    "last_seen": "2026-11-07",
+    "owner_operator": "OENOVATION LLC",
+    "type": "PC24"
+  },
+  "N529LL": {
+    "count": 1,
+    "first_seen": "2026-11-07",
+    "last_seen": "2026-11-07",
+    "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS",
+    "type": "C56X"
+  },
+  "N5900J": {
+    "count": 1,
+    "first_seen": "2026-11-07",
+    "last_seen": "2026-11-07",
+    "owner_operator": "AIR AMERICA LLC",
+    "type": "C150"
   },
   "N694QS": {
     "count": 1,
