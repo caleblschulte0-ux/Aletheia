@@ -349,21 +349,22 @@
     "2026-11-06": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 721,
+      "minutes": 736,
       "needs_account": 1,
       "needs_answer": 14,
-      "not_realistic": 7868,
-      "offered": 7940,
+      "not_realistic": 8121,
+      "offered": 8194,
       "ready": 2,
-      "runs": 133,
-      "unfit_language": 4073,
-      "unfit_model": 89,
-      "unfit_pay": 1176,
-      "unfit_sales": 2398,
-      "unfit_years": 132,
+      "runs": 137,
+      "unfit_language": 4198,
+      "unfit_model": 92,
+      "unfit_pay": 1212,
+      "unfit_sales": 2483,
+      "unfit_years": 136,
       "unjudged": 18,
-      "unreachable": 34,
+      "unreachable": 35,
       "unreachable_ApplyError": 34,
+      "unreachable_left_till_tomorrow": 1,
       "weak_shot": 0
     }
   },
@@ -554,7 +555,7 @@
       "sent": 2
     }
   },
-  "generated_at": "2026-11-07T05:12:13Z",
+  "generated_at": "2026-11-07T05:43:01Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 6,
@@ -584,7 +585,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
   "sent_all_time": 342,
