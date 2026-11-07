@@ -346,18 +346,18 @@
     "2026-11-07": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 16,
+      "minutes": 32,
       "needs_account": 0,
       "needs_answer": 0,
-      "not_realistic": 63,
-      "offered": 63,
+      "not_realistic": 126,
+      "offered": 126,
       "ready": 0,
-      "runs": 1,
-      "unfit_language": 31,
-      "unfit_model": 1,
-      "unfit_pay": 9,
-      "unfit_sales": 21,
-      "unfit_years": 1,
+      "runs": 2,
+      "unfit_language": 62,
+      "unfit_model": 2,
+      "unfit_pay": 18,
+      "unfit_sales": 42,
+      "unfit_years": 2,
       "unjudged": 0,
       "unreachable": 0,
       "weak_shot": 0
@@ -533,15 +533,23 @@
       "sent": 0
     },
     "2026-11-06": {
-      "filled": 22,
-      "found": 64,
+      "filled": 5,
+      "found": 47,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
+    },
+    "2026-11-07": {
+      "filled": 17,
+      "found": 17,
+      "interviews": 0,
+      "rejections": 0,
+      "replies": 0,
+      "sent": 0
     }
   },
-  "generated_at": "2026-11-07T06:13:57Z",
+  "generated_at": "2026-11-07T06:44:59Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 6,
@@ -571,7 +579,7 @@
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
   "sent_all_time": 342,
