@@ -346,14 +346,14 @@
     "2026-11-07": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 390,
+      "minutes": 394,
       "needs_account": 0,
       "needs_answer": 6,
-      "not_realistic": 4115,
-      "offered": 4124,
+      "not_realistic": 4116,
+      "offered": 4125,
       "ready": 0,
-      "runs": 69,
-      "unfit_language": 2023,
+      "runs": 70,
+      "unfit_language": 2024,
       "unfit_license": 1,
       "unfit_model": 74,
       "unfit_pay": 582,
@@ -550,10 +550,10 @@
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
-      "sent": 0
+      "sent": 1
     }
   },
-  "generated_at": "2026-11-07T15:57:33Z",
+  "generated_at": "2026-11-07T16:28:50Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "employer_site: field: _": 6,
@@ -575,23 +575,23 @@
     "lever: radio: what is your _ range": 1,
     "lever: select: _ _ to _ _": 1,
     "lever: text: _": 1,
-    "lever: text: _ _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
+    "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
     "recruitee: text: _ you are comfortable _ _ _ you to _ us a": 1,
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 1,
-    "workable: field: _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _": 1,
     "workable: field: resume _": 7
   },
-  "sent_all_time": 342,
+  "sent_all_time": 343,
   "sent_by_system": {
     "ashbyhq": 22,
     "employer_site": 7,
     "greenhouse": 1,
-    "lever": 25
+    "lever": 26
   },
   "stop_shapes": {
     "employer_site: apply_not_taken: _ _ in _ _ | submit | _ _ _ _ _ | _ to _ _ | _ _ _ in _": 1,
@@ -610,7 +610,7 @@
   },
   "stuck_at": {
     "captcha": {
-      "nothing_to_press_on_captcha/filled": 33,
+      "nothing_to_press_on_captcha/filled": 32,
       "nothing_to_press_on_captcha/observed": 2
     },
     "error": {
@@ -633,7 +633,7 @@
       "nothing_to_press_on_form+no_apply/filled": 5,
       "nothing_to_press_on_form+no_apply/observed": 7,
       "nothing_to_press_on_success+no_apply/observed": 2,
-      "unclear_button/observed": 9
+      "unclear_button/observed": 8
     },
     "posting_closed": {
       "nothing_to_press_on_content/observed": 2
@@ -687,7 +687,7 @@
     "interviews": 14,
     "rejections": 18,
     "replies": 41,
-    "sent": 55
+    "sent": 56
   },
   "waiting": {
     "asked_about": {
@@ -696,7 +696,7 @@
       "demographic_gender": 1,
       "links": 1,
       "on_site": 3,
-      "other": 33,
+      "other": 32,
       "travel": 1,
       "years_experience": 2
     },
@@ -728,7 +728,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 33,
+    "needs_answer": 32,
     "oldest_days": 55,
     "to_send": 0
   },
