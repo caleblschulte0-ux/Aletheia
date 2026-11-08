@@ -27,6 +27,13 @@
     "owner_operator": "OENOVATION LLC",
     "type": "PC24"
   },
+  "N508FR": {
+    "count": 1,
+    "first_seen": "2026-11-08",
+    "last_seen": "2026-11-08",
+    "owner_operator": "BANK OF UTAH TRUSTEE",
+    "type": "SB20"
+  },
   "N529LL": {
     "count": 1,
     "first_seen": "2026-11-07",
@@ -47,5 +54,33 @@
     "last_seen": "2026-11-06",
     "owner_operator": "",
     "type": "C68A"
+  },
+  "N7278X": {
+    "count": 1,
+    "first_seen": "2026-11-08",
+    "last_seen": "2026-11-08",
+    "owner_operator": "TWIN CITY CLOUD 7 INC",
+    "type": "C82S"
+  },
+  "N761BV": {
+    "count": 1,
+    "first_seen": "2026-11-08",
+    "last_seen": "2026-11-08",
+    "owner_operator": "N761BV LLC",
+    "type": "T210"
+  },
+  "N7920N": {
+    "count": 1,
+    "first_seen": "2026-11-08",
+    "last_seen": "2026-11-08",
+    "owner_operator": "N7920N LLC",
+    "type": "P28A"
+  },
+  "N901LB": {
+    "count": 1,
+    "first_seen": "2026-11-08",
+    "last_seen": "2026-11-08",
+    "owner_operator": "NWL CAPITAL HOLDINGS LLC",
+    "type": "C560"
   }
 }
