@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-08T06:24:36Z",
+  "generated_at": "2026-11-08T13:42:38Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -18,7 +18,7 @@
     {
       "check": "epa_echo",
       "ok": true,
-      "rows_scanned": 13254,
+      "rows_scanned": 13269,
       "flagged": 6
     },
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 2,
-      "flagged": 0
+      "rows_scanned": 9,
+      "flagged": 1
     }
   ],
-  "candidate_count": 41,
+  "candidate_count": 42,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -897,6 +897,29 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
+    },
+    {
+      "check": "sky_watch",
+      "kind": "context",
+      "subject": "DCM2113",
+      "summary": "DCM2113: non-scheduled aircraft on the ground at FSD (0nm)",
+      "evidence": {
+        "tail": "",
+        "type": "",
+        "callsign": "DCM2113",
+        "owner_operator": "",
+        "squawk": "1403",
+        "military": false,
+        "foreign_registration": false,
+        "on_ground": true,
+        "altitude_ft": null,
+        "distance_from_fsd_nm": 0.4,
+        "times_seen": 1,
+        "first_seen": "2026-11-08"
+      },
+      "source": "ADS-B (adsb.fi) + FAA registry",
+      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
+      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }

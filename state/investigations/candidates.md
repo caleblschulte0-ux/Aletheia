@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-08T06:24:36Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-08T13:42:38Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
-- source `epa_echo`: ok, scanned 13254 rows, 6 flagged
+- source `epa_echo`: ok, scanned 13269 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 2 rows, 0 flagged
+- source `sky_watch`: ok, scanned 9 rows, 1 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
 - Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty
@@ -212,4 +212,9 @@ Generated 2026-11-08T06:24:36Z by the deterministic scanner. Each line is a QUES
 - SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
+
+## 42. DCM2113  (sky_watch)
+- DCM2113: non-scheduled aircraft on the ground at FSD (0nm)
+- evidence: {"tail": "", "type": "", "callsign": "DCM2113", "owner_operator": "", "squawk": "1403", "military": false, "foreign_registration": false, "on_ground": true, "altitude_ft": null, "distance_from_fsd_nm": 0.4, "times_seen": 1, "first_seen": "2026-11-08"}
+- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 
