@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-07T22:07:05Z",
+  "generated_at": "2026-11-08T06:24:36Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 18,
-      "flagged": 4
+      "rows_scanned": 2,
+      "flagged": 0
     }
   ],
-  "candidate_count": 45,
+  "candidate_count": 41,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -897,98 +897,6 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N1090W",
-      "summary": "N1090W (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 4375ft near FSD (8nm)",
-      "evidence": {
-        "tail": "N1090W",
-        "type": "C172",
-        "callsign": "N1090W",
-        "owner_operator": "MEDARY AVIATION LLC",
-        "squawk": "0142",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 4375.0,
-        "distance_from_fsd_nm": 7.7,
-        "times_seen": 1,
-        "first_seen": "2026-11-07"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N5900J",
-      "summary": "N5900J (C150), owner AIR AMERICA LLC: non-scheduled aircraft 2500ft near FSD (1nm)",
-      "evidence": {
-        "tail": "N5900J",
-        "type": "C150",
-        "callsign": "1",
-        "owner_operator": "AIR AMERICA LLC",
-        "squawk": "0143",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 2500.0,
-        "distance_from_fsd_nm": 0.9,
-        "times_seen": 1,
-        "first_seen": "2026-11-07"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N529LL",
-      "summary": "N529LL (C56X), owner TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS: non-scheduled aircraft on the ground at FSD (1nm)",
-      "evidence": {
-        "tail": "N529LL",
-        "type": "C56X",
-        "callsign": "N529LL",
-        "owner_operator": "TVPX AIRCRAFT SOLUTIONS INC TRUSTEE, ROSCOE PROPERTIES HOLDINGS",
-        "squawk": "2404",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": true,
-        "altitude_ft": null,
-        "distance_from_fsd_nm": 0.5,
-        "times_seen": 1,
-        "first_seen": "2026-11-07"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N24PC",
-      "summary": "N24PC (PC24), owner OENOVATION LLC: non-scheduled aircraft 5775ft near FSD (15nm)",
-      "evidence": {
-        "tail": "N24PC",
-        "type": "PC24",
-        "callsign": "N24PC",
-        "owner_operator": "OENOVATION LLC",
-        "squawk": "7350",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 5775.0,
-        "distance_from_fsd_nm": 15.0,
-        "times_seen": 1,
-        "first_seen": "2026-11-07"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }
