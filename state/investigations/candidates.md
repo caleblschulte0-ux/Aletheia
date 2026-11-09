@@ -1,12 +1,12 @@
 # Investigations candidates - SIOUX FALLS, SD
 
-Generated 2026-11-09T01:04:11Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
+Generated 2026-11-09T11:54:13Z by the deterministic scanner. Each line is a QUESTION for the engine, not a conclusion.
 
 - source `cms_partd`: ok, scanned 1742 rows, 35 flagged
 - source `fda_recalls`: ok, scanned 24 rows, 0 flagged
 - source `epa_echo`: ok, scanned 13269 rows, 6 flagged
 - source `cms_care_compare_nh`: ok, scanned 96 rows, 0 flagged
-- source `sky_watch`: ok, scanned 23 rows, 2 flagged
+- source `sky_watch`: ok, scanned 2 rows, 0 flagged
 
 ## 1. Welch, David  (cms_partd_opioids)
 - Physician Assistant prescriber with 1091 long-acting-opioid claims -- a pain-clinic load from a non-pain specialty
@@ -212,14 +212,4 @@ Generated 2026-11-09T01:04:11Z by the deterministic scanner. Each line is a QUES
 - SMITHFIELD PACKAGED MEATS CORP. - SIOUX FALLS, SD: EPA violations, 1 formal action(s) [No Violation Identified]
 - evidence: {"registry_id": "110000427823", "significant_noncomplier": false, "formal_actions": 1, "total_penalties": 0.0, "quarters_with_noncompliance": "2", "compliance": {"overall": "No Violation Identified", "air_caa": "No Violation Identified", "water_cwa": "No Violation Identified", "waste_rcra": "No Violation Identified", "drinking_sdwa": ""}, "industry": "2011: Meat Packing Plants, 2013: Sausages And Other Prepared Meats", "last_inspection": "08/20/2026", "address": "1400 NORTH WEBER AVENUE", "city": "SIOUX FALLS"}
 - next record: what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off
-
-## 42. N1674E  (sky_watch)
-- N1674E (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 3350ft near FSD (11nm)
-- evidence: {"tail": "N1674E", "type": "C172", "callsign": "N1674E", "owner_operator": "MEDARY AVIATION LLC", "squawk": "0140", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3350.0, "distance_from_fsd_nm": 10.8, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
-
-## 43. N202FD  (sky_watch)
-- N202FD (S22T), owner PRO AG AVIATION LLC: non-scheduled aircraft 3975ft near FSD (12nm)
-- evidence: {"tail": "N202FD", "type": "S22T", "callsign": "N202FD", "owner_operator": "PRO AG AVIATION LLC", "squawk": "0147", "military": false, "foreign_registration": false, "on_ground": false, "altitude_ft": 3975.0, "distance_from_fsd_nm": 12.1, "times_seen": 1, "first_seen": "2026-11-09"}
-- next record: FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back
 

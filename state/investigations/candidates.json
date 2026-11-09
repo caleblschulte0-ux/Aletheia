@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-09T01:04:11Z",
+  "generated_at": "2026-11-09T11:54:13Z",
   "city": "SIOUX FALLS, SD",
   "checks": [
     {
@@ -30,11 +30,11 @@
     {
       "check": "sky_watch",
       "ok": true,
-      "rows_scanned": 23,
-      "flagged": 2
+      "rows_scanned": 2,
+      "flagged": 0
     }
   ],
-  "candidate_count": 43,
+  "candidate_count": 41,
   "candidates": [
     {
       "check": "cms_partd_opioids",
@@ -897,52 +897,6 @@
       "source": "EPA ECHO (enforcement & compliance)",
       "why_him": "a facility's public environmental-compliance record; target the BUSINESS, records-based",
       "next_record": "what it emits/discharges and who lives nearby; is the violation uncovered locally; a repeat pattern vs one-off"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N1674E",
-      "summary": "N1674E (C172), owner MEDARY AVIATION LLC: non-scheduled aircraft 3350ft near FSD (11nm)",
-      "evidence": {
-        "tail": "N1674E",
-        "type": "C172",
-        "callsign": "N1674E",
-        "owner_operator": "MEDARY AVIATION LLC",
-        "squawk": "0140",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3350.0,
-        "distance_from_fsd_nm": 10.8,
-        "times_seen": 1,
-        "first_seen": "2026-11-09"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
-    },
-    {
-      "check": "sky_watch",
-      "kind": "context",
-      "subject": "N202FD",
-      "summary": "N202FD (S22T), owner PRO AG AVIATION LLC: non-scheduled aircraft 3975ft near FSD (12nm)",
-      "evidence": {
-        "tail": "N202FD",
-        "type": "S22T",
-        "callsign": "N202FD",
-        "owner_operator": "PRO AG AVIATION LLC",
-        "squawk": "0147",
-        "military": false,
-        "foreign_registration": false,
-        "on_ground": false,
-        "altitude_ft": 3975.0,
-        "distance_from_fsd_nm": 12.1,
-        "times_seen": 1,
-        "first_seen": "2026-11-09"
-      },
-      "source": "ADS-B (adsb.fi) + FAA registry",
-      "why_him": "public flight data; target the AIRCRAFT/owner (an org or its trust), records-based, never a person's travel",
-      "next_record": "FAA registry owner for the tail (registry.faa.gov) -- an owner-trust (Bank of Utah / Wilmington) hides the beneficiary; then watch for it to come back"
     }
   ]
 }
