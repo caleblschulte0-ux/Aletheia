@@ -362,7 +362,7 @@
       "left_error": 3,
       "left_going_in_circles": 1,
       "left_no_way_forward": 8,
-      "left_questions": 6,
+      "left_questions": 19,
       "left_sign_in": 1,
       "not_a_form_asks_nothing_on_ashbyhq": 1,
       "not_a_form_asks_nothing_on_smartrecruiters": 30
@@ -498,7 +498,7 @@
       "sent": 8
     },
     "2026-11-05": {
-      "filled": 15,
+      "filled": 5,
       "found": 29,
       "interviews": 0,
       "rejections": 0,
@@ -506,7 +506,7 @@
       "sent": 0
     },
     "2026-11-06": {
-      "filled": 5,
+      "filled": 2,
       "found": 47,
       "interviews": 0,
       "rejections": 0,
@@ -514,38 +514,35 @@
       "sent": 2
     },
     "2026-11-07": {
-      "filled": 18,
-      "found": 23,
+      "filled": 15,
+      "found": 20,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     },
     "2026-11-08": {
-      "filled": 1,
-      "found": 1,
+      "filled": 4,
+      "found": 4,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T00:22:04Z",
+  "generated_at": "2026-11-09T00:51:41Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
-    "employer_site: field: _": 1,
-    "employer_site: field: _ _": 2,
-    "employer_site: field: _ _ _ _ need _ _ in _ to be able": 1,
-    "employer_site: field: _ and _ in an _ to _ _ _ and _": 1,
-    "employer_site: field: _ or select _ _ _": 1,
-    "employer_site: field: _ the _ would _ _ the _ _ have": 2,
-    "employer_site: field: address _": 1,
-    "employer_site: field: agree": 1,
+    "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
+    "lever: field: _ _ _ _ _ _ _ _ _ _": 1,
     "lever: field: date": 2,
     "lever: field: name": 2,
     "lever: radio: what is your _ range": 1,
+    "lever: select: _ _ to _ _": 1,
+    "lever: text: _": 1,
     "lever: text: how _ years of experience do you have in a customer _": 1,
+    "recruitee: checkbox: what is your preferred work _": 1,
     "recruitee: radio: are you _ _ in or _ _ or willing to commute": 3,
     "recruitee: radio: do you have at _ years of experience in a _ _": 1,
     "recruitee: radio: do you have experience _ _ saas or _ _ _": 3,
@@ -554,7 +551,7 @@
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
@@ -611,9 +608,9 @@
     },
     "questions": {
       "nothing_to_press_on_account_signup/filled": 1,
-      "nothing_to_press_on_form/filled": 23,
-      "nothing_to_press_on_form/observed": 2,
-      "nothing_to_press_on_multi_page_wizard/filled": 10
+      "nothing_to_press_on_form/filled": 27,
+      "nothing_to_press_on_form/observed": 7,
+      "nothing_to_press_on_multi_page_wizard/filled": 14
     },
     "sign_in": {
       "nothing_to_press_on_account_login/observed": 11
@@ -623,7 +620,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 4
+        "nothing_to_press_on_captcha/filled": 3
       },
       "error": {
         "nothing_to_press_on_unread/observed": 3
@@ -636,12 +633,10 @@
         "nothing_to_press_on_content+no_apply/observed": 6,
         "unclear_button/observed": 1
       },
-      "posting_closed": {
-        "nothing_to_press_on_content/observed": 1
-      },
       "questions": {
-        "nothing_to_press_on_form/filled": 4,
-        "nothing_to_press_on_multi_page_wizard/filled": 2
+        "nothing_to_press_on_form/filled": 8,
+        "nothing_to_press_on_form/observed": 5,
+        "nothing_to_press_on_multi_page_wizard/filled": 6
       },
       "sign_in": {
         "nothing_to_press_on_account_login/observed": 1
@@ -649,7 +644,7 @@
     }
   },
   "totals": {
-    "filled": 126,
+    "filled": 113,
     "found": 510,
     "interviews": 14,
     "rejections": 12,
@@ -658,12 +653,9 @@
   },
   "waiting": {
     "asked_about": {
-      "address": 1,
-      "cover_letter": 1,
       "demographic_gender": 1,
-      "links": 1,
       "on_site": 3,
-      "other": 32,
+      "other": 19,
       "travel": 1,
       "years_experience": 2
     },
@@ -676,7 +668,7 @@
       "left_going_in_circles": 4,
       "left_no_way_forward": 57,
       "left_posting_closed": 2,
-      "left_questions": 36,
+      "left_questions": 49,
       "left_sign_in": 10,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
@@ -694,7 +686,7 @@
       "part-time": 3
     },
     "needs_account": 0,
-    "needs_answer": 32,
+    "needs_answer": 19,
     "oldest_days": 56,
     "to_send": 0
   },
