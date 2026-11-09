@@ -342,18 +342,18 @@
     "2026-11-09": {
       "duplicate": 0,
       "employer_full": 0,
-      "minutes": 41,
+      "minutes": 67,
       "needs_account": 0,
       "needs_answer": 5,
-      "not_realistic": 22,
-      "offered": 36,
+      "not_realistic": 27,
+      "offered": 42,
       "ready": 1,
-      "runs": 3,
+      "runs": 4,
       "unfit_model": 6,
-      "unfit_pay": 9,
+      "unfit_pay": 12,
       "unfit_sales": 6,
-      "unfit_years": 1,
-      "unjudged": 0,
+      "unfit_years": 3,
+      "unjudged": 1,
       "unreachable": 6,
       "unreachable_left_till_tomorrow": 6,
       "weak_shot": 0
@@ -541,7 +541,7 @@
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T16:16:11Z",
+  "generated_at": "2026-11-09T17:16:20Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -577,9 +577,7 @@
     "lever": 21
   },
   "stop_shapes": {
-    "employer_site: apply_not_taken: _ _ in _ _ | submit | _ _ _ _ _ | _ to _ _ | _ _ _ in _": 1,
     "employer_site: apply_not_taken: _ more _ | search jobs | create alert | home | _ _ with _ | jobs _ _": 1,
-    "employer_site: no_apply: _ _ _ | sign in | _ | _ _": 1,
     "employer_site: no_apply: _ _ | next _": 1,
     "employer_site: no_apply: _ job _ | _ job _ _ job | open menu | _ _": 2,
     "employer_site: no_apply: _ | privacy": 1,
@@ -641,8 +639,7 @@
         "nothing_to_press_on_form/observed": 1
       },
       "no_way_forward": {
-        "nothing_to_press_on_content+apply_not_taken/observed": 1,
-        "nothing_to_press_on_content+no_apply/observed": 7,
+        "nothing_to_press_on_content+no_apply/observed": 6,
         "unclear_button/observed": 1
       },
       "questions": {
