@@ -514,23 +514,23 @@
       "sent": 2
     },
     "2026-11-07": {
-      "filled": 8,
-      "found": 13,
+      "filled": 2,
+      "found": 7,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     },
     "2026-11-08": {
-      "filled": 11,
-      "found": 11,
+      "filled": 17,
+      "found": 17,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T01:22:25Z",
+  "generated_at": "2026-11-09T01:53:15Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "lever: checkbox: _": 1,
@@ -550,8 +550,7 @@
     "recruitee: text: what is your _ _ for this role": 1,
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
-    "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _": 2,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
@@ -620,7 +619,7 @@
     "days": 3,
     "where": {
       "captcha": {
-        "nothing_to_press_on_captcha/filled": 3
+        "nothing_to_press_on_captcha/filled": 2
       },
       "error": {
         "nothing_to_press_on_unread/observed": 3
@@ -687,7 +686,7 @@
     },
     "needs_account": 0,
     "needs_answer": 19,
-    "oldest_days": 56,
+    "oldest_days": 57,
     "to_send": 0
   },
   "window_days": 30
