@@ -514,23 +514,23 @@
       "sent": 2
     },
     "2026-11-07": {
-      "filled": 15,
-      "found": 20,
+      "filled": 8,
+      "found": 13,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 2
     },
     "2026-11-08": {
-      "filled": 4,
-      "found": 4,
+      "filled": 11,
+      "found": 11,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T00:51:41Z",
+  "generated_at": "2026-11-09T01:22:25Z",
   "question_shapes": {
     "ashbyhq: text: what _ an _ of a _ _ you _ _ to": 1,
     "lever: checkbox: _": 1,
@@ -551,7 +551,7 @@
     "workable: field: _": 4,
     "workable: field: _ _ _ _": 1,
     "workable: field: _ _ _ _ _": 1,
-    "workable: field: _ _ _ _ _ _ _ _ _": 1,
+    "workable: field: _ _ _ _ _ _ _": 1,
     "workable: field: _ _ _ _ _ _ _ the _ _": 1,
     "workable: field: _ _ _ company _ _ _ _ _": 1,
     "workable: field: _ _ and _": 1,
