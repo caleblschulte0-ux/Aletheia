@@ -338,6 +338,22 @@
       "unreachable": 3,
       "unreachable_ApplyError": 3,
       "weak_shot": 0
+    },
+    "2026-11-09": {
+      "duplicate": 0,
+      "employer_full": 0,
+      "minutes": 6,
+      "needs_account": 0,
+      "needs_answer": 0,
+      "not_realistic": 2,
+      "offered": 2,
+      "ready": 0,
+      "runs": 1,
+      "unfit_model": 1,
+      "unfit_sales": 1,
+      "unjudged": 0,
+      "unreachable": 0,
+      "weak_shot": 0
     }
   },
   "boards": {
@@ -355,7 +371,8 @@
       "left_captcha": 2,
       "left_going_in_circles": 1,
       "left_no_way_forward": 3,
-      "left_questions": 13
+      "left_questions": 13,
+      "not_realistic": 1
     }
   },
   "days": {
@@ -504,23 +521,23 @@
       "sent": 2
     },
     "2026-11-08": {
-      "filled": 2,
-      "found": 3,
+      "filled": 1,
+      "found": 2,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 1
     },
     "2026-11-09": {
-      "filled": 15,
-      "found": 15,
+      "filled": 16,
+      "found": 17,
       "interviews": 0,
       "rejections": 0,
       "replies": 0,
       "sent": 0
     }
   },
-  "generated_at": "2026-11-09T07:34:33Z",
+  "generated_at": "2026-11-09T08:05:48Z",
   "question_shapes": {
     "lever: checkbox: _": 1,
     "lever: checkbox: _ _": 1,
@@ -634,7 +651,7 @@
   },
   "totals": {
     "filled": 107,
-    "found": 488,
+    "found": 489,
     "interviews": 14,
     "rejections": 11,
     "replies": 34,
@@ -661,7 +678,7 @@
       "left_sign_in": 9,
       "not_a_form_asks_nothing_on_ashbyhq": 3,
       "not_a_form_asks_nothing_on_smartrecruiters": 30,
-      "not_realistic": 78
+      "not_realistic": 79
     },
     "failed": 19,
     "failed_because": {
